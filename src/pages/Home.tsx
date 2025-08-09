@@ -1,24 +1,72 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
-import { getLastScan, Scan } from "@/services/placeholders";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
+import { toast } from "@/hooks/use-toast";
+import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/firebaseConfig";
+type LastScan = {
+  id: string;
+  createdAt: Date | null;
+  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number; BMI?: number };
+  status: string;
+};
 
 const Home = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [lastScan, setLastScan] = useState<Scan | null>(null);
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    getLastScan(user.uid).then(setLastScan);
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+
+    const q = query(
+      collection(db, "users", uid, "scans"),
+      orderBy("createdAt", "desc"),
+      limitFn(1)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setLastScan(null);
+          return;
+        }
+        const doc = snap.docs[0];
+        const data: any = doc.data();
+        const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : null;
+        setLastScan({
+          id: doc.id,
+          createdAt,
+          results: data?.results,
+          status: data?.status ?? "unknown",
+        });
+      },
+      (err) => {
+        console.error("Home last scan error", err);
+        if ((err as any)?.code === "permission-denied") {
+          toast({ title: "Permission denied—please sign in again" });
+          navigate("/auth", { replace: true });
+        }
+      }
+    );
+
+    return () => unsub();
   }, [user]);
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
+      <div className="mb-4 flex justify-center">
+        <Card className="w-40">
+          <CardContent className="p-4 text-center text-sm text-muted-foreground">MyBodyScan Logo</CardContent>
+        </Card>
+      </div>
       <header className="mb-6">
         <h1 className="text-3xl font-semibold">MyBodyScan</h1>
       </header>
@@ -31,30 +79,46 @@ const Home = () => {
           <CardContent>
             {!lastScan && <p className="text-muted-foreground">No scans yet—tap Start a Scan.</p>}
             {lastScan && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">{new Date(lastScan.createdAt).toLocaleString()}</p>
-                {lastScan.status === "done" ? (
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-2xl font-semibold">{lastScan.results.bodyFatPct?.toFixed(1)}%</p>
-                      <p className="text-xs text-muted-foreground">Body Fat</p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {lastScan.createdAt ? lastScan.createdAt.toLocaleDateString() : "—"}
+                  </p>
+                  {lastScan.status === "done" ? (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <p className="text-2xl font-semibold">
+                          {lastScan.results?.bodyFatPct != null ? lastScan.results.bodyFatPct.toFixed(1) + "%" : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Body Fat</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold">
+                          {lastScan.results?.weightKg != null
+                            ? `${lastScan.results.weightKg.toFixed(1)} kg`
+                            : lastScan.results?.weightLb != null
+                              ? `${lastScan.results.weightLb.toFixed(1)} lb`
+                              : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Weight</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold">
+                          {lastScan.results?.BMI != null ? lastScan.results.BMI.toFixed(1) : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">BMI</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-2xl font-semibold">{lastScan.results.weightKg?.toFixed(1)}kg</p>
-                      <p className="text-xs text-muted-foreground">Weight</p>
+                  ) : (
+                    <div className="space-y-1">
+                      <Badge variant="secondary">{lastScan.status}</Badge>
+                      <p className="text-xs text-muted-foreground">Check History for progress.</p>
                     </div>
-                    <div>
-                      <p className="text-2xl font-semibold">{lastScan.results.BMI?.toFixed(1)}</p>
-                      <p className="text-xs text-muted-foreground">BMI</p>
-                    </div>
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={() => navigate("/capture")}>Start a Scan</Button>
+                    <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                   </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 bg-secondary text-secondary-foreground">
-                    <span className="h-2 w-2 rounded-full bg-warning" />
-                    <span className="text-sm">{lastScan.status}</span>
-                  </div>
-                )}
-              </div>
+                </div>
             )}
           </CardContent>
         </Card>
