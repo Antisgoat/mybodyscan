@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
+import { auth } from "@/firebaseConfig";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const Auth = () => {
-  const { signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +19,7 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       navigate("/home", { replace: true });
     } catch (err: any) {
       toast({ title: "Sign in failed", description: err?.message || "Please try again." });
@@ -31,7 +31,8 @@ const Auth = () => {
   const onGoogle = async () => {
     setLoading(true);
     try {
-      await signInWithGoogle();
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       navigate("/home", { replace: true });
     } catch (err: any) {
       toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
@@ -73,3 +74,4 @@ const Auth = () => {
 };
 
 export default Auth;
+

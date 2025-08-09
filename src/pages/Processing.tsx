@@ -1,27 +1,29 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getScan } from "@/services/placeholders";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
+import { auth, db } from "@/firebaseConfig";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const Processing = () => {
-  const { uid, scanId } = useParams();
+  const { scanId } = useParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>("queued");
 
   useEffect(() => {
-    const iv = setInterval(async () => {
-      if (!uid || !scanId) return;
-      const s = await getScan(uid, scanId);
-      if (!s) return;
-      setStatus(s.status);
-      if (s.status === "done") {
-        clearInterval(iv);
-        navigate(`/results/${uid}/${scanId}`);
+    const uid = auth.currentUser?.uid;
+    if (!uid || !scanId) return;
+    const ref = doc(db, "users", uid, "scans", scanId);
+    const unsub = onSnapshot(ref, (snap) => {
+      const data: any = snap.data();
+      const s = data?.status ?? "queued";
+      setStatus(s);
+      if (s === "done") {
+        navigate(`/results/${scanId}`);
       }
-    }, 2500);
-    return () => clearInterval(iv);
-  }, [uid, scanId, navigate]);
+    });
+    return () => unsub();
+  }, [scanId, navigate]);
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto flex flex-col items-center justify-center text-center">

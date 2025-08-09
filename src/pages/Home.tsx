@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/firebaseConfig";
+import { useAuthUser } from "@/lib/auth";
+
 type LastScan = {
   id: string;
   createdAt: Date | null;
@@ -16,7 +17,7 @@ type LastScan = {
 };
 
 const Home = () => {
-  const { user } = useAuth();
+  const { user } = useAuthUser();
   const navigate = useNavigate();
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
 

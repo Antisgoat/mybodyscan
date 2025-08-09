@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider, ProtectedRoute } from "./context/AuthContext";
+import { useEffect } from "react";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AuthedLayout from "./components/AuthedLayout";
+import { initAuthPersistence } from "./lib/auth";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
@@ -18,32 +21,45 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+const App = () => {
+  useEffect(() => {
+    initAuthPersistence().catch(() => {});
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
           <Routes>
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-            <Route path="/capture" element={<ProtectedRoute><CapturePicker /></ProtectedRoute>} />
-            <Route path="/capture/photos" element={<ProtectedRoute><PhotoCapture /></ProtectedRoute>} />
-            <Route path="/capture/video" element={<ProtectedRoute><VideoCapture /></ProtectedRoute>} />
-            <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><Processing /></ProtectedRoute>} />
-            <Route path="/results/:scanId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
-            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-            <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
+            {/* Capture routes (old + new kept) */}
+            <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/video" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
+            {/* Processing routes (old + new kept) */}
+            <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/processing/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
+            {/* Results */}
+            <Route path="/results/:scanId" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
+            {/* Other */}
+            <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AuthedLayout><Settings /></AuthedLayout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
+

@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
-import { createScanDraftPhotos } from "@/services/placeholders";
 import { useNavigate } from "react-router-dom";
 import silhouette from "@/assets/silhouette-front.png";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
+import { auth, db, storage } from "@/firebaseConfig";
+import { collection, doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { startCreateScan } from "@/lib/api";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 
 type StepKey = "front" | "left" | "right" | "back";
 
 const PhotoCapture = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
   const [files, setFiles] = useState<{ front?: File; left?: File; right?: File; back?: File }>({});
@@ -32,20 +33,55 @@ const PhotoCapture = () => {
   const allSet = files.front && files.left && files.right && files.back;
 
   const onContinue = async () => {
-    if (!user) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      toast({ title: "Sign in required" });
+      navigate("/auth", { replace: true });
+      return;
+    }
     if (!allSet) {
       toast({ title: "Missing photos", description: "Please capture all 4 sides." });
       return;
     }
     setLoading(true);
     try {
-      const { scanId } = await createScanDraftPhotos(user.uid, {
-        front: files.front!,
-        left: files.left!,
-        right: files.right!,
-        back: files.back!,
+      // 1) Create scan doc
+      const col = collection(db, "users", uid, "scans");
+      const scanRef = doc(col);
+      const scanId = scanRef.id;
+      await setDoc(scanRef, {
+        uid,
+        mediaType: "photos",
+        status: "queued",
+        createdAt: serverTimestamp(),
+        files: {},
       });
-      navigate(`/processing/${user.uid}/${scanId}`);
+
+      // 2) Upload images and store URLs
+      const uploads: Array<[StepKey, File]> = [
+        ["front", files.front!],
+        ["left", files.left!],
+        ["right", files.right!],
+        ["back", files.back!],
+      ];
+      const fileUpdates: Record<string, string> = {};
+      for (const [key, file] of uploads) {
+        const path = `/users/${uid}/raw/${scanId}_${key}.jpg`;
+        const r = ref(storage, path);
+        await uploadBytes(r, file);
+        const url = await getDownloadURL(r);
+        fileUpdates[`files.${key}Url`] = url;
+      }
+      await updateDoc(scanRef, fileUpdates);
+
+      // 3) Trigger processing
+      await startCreateScan(scanId);
+
+      // 4) Navigate to processing
+      navigate(`/processing/${scanId}`);
+    } catch (e: any) {
+      console.error("PhotoCapture error", e);
+      toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
     } finally {
       setLoading(false);
     }
@@ -90,3 +126,4 @@ const PhotoCapture = () => {
 };
 
 export default PhotoCapture;
+
