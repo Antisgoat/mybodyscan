@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
-import { createScanDraftVideo } from "@/services/placeholders";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
+import { auth, db, storage } from "@/firebaseConfig";
+import { collection, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { startCreateScan } from "@/lib/api";
 
 const MAX_SECONDS = 10;
 
 const VideoCapture = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -35,11 +36,44 @@ const VideoCapture = () => {
   }, [file]);
 
   const onContinue = async () => {
-    if (!user || !file || duration == null) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid || !file || duration == null) {
+      if (!uid) {
+        toast({ title: "Sign in required" });
+        navigate("/auth", { replace: true });
+      }
+      return;
+    }
     setLoading(true);
     try {
-      const { scanId } = await createScanDraftVideo(user.uid, file, duration);
-      navigate(`/processing/${user.uid}/${scanId}`);
+      // 1) Create scan doc
+      const col = collection(db, "users", uid, "scans");
+      const scanRef = doc(col);
+      const scanId = scanRef.id;
+      await setDoc(scanRef, {
+        uid,
+        mediaType: "video",
+        status: "queued",
+        createdAt: serverTimestamp(),
+        files: {},
+        duration,
+      });
+
+      // 2) Upload video
+      const path = `/users/${uid}/raw/${scanId}.mp4`;
+      const r = ref(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      await updateDoc(scanRef, { "files.videoUrl": url });
+
+      // 3) Trigger processing
+      await startCreateScan(scanId);
+
+      // 4) Navigate to processing
+      navigate(`/processing/${scanId}`);
+    } catch (e: any) {
+      console.error("VideoCapture error", e);
+      toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
     } finally {
       setLoading(false);
     }

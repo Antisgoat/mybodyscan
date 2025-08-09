@@ -1,8 +1,8 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { auth } from "@/firebaseConfig";
 
 const RootRedirect = () => {
-  const { user } = useAuth();
+  const user = auth.currentUser;
   return <Navigate to={user ? "/home" : "/auth"} replace />;
 };
 
