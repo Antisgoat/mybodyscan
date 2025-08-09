@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { doc, getDoc, collection, query, orderBy, startAfter, limit as limitFn, getDocs } from "firebase/firestore";
-import { db } from "@/firebaseConfig";
+import { db, auth } from "@/firebaseConfig";
 type ScanData = {
   id: string;
   status: string;
@@ -21,7 +21,8 @@ type PrevData = {
 } | null;
 
 const Results = () => {
-  const { uid, scanId } = useParams();
+  const { scanId } = useParams();
+  const uid = auth.currentUser?.uid ?? null;
   const navigate = useNavigate();
   const [scan, setScan] = useState<ScanData | null>(null);
   const [prev, setPrev] = useState<PrevData>(null);
@@ -89,16 +90,22 @@ const Results = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Results</h1>
-      {!scan && (
+      {(!uid || !scanId) && (
+        <div className="space-y-3">
+          <p className="text-muted-foreground">Sign in required.</p>
+          <Button variant="outline" onClick={() => navigate("/auth")}>Go to Sign In</Button>
+        </div>
+      )}
+      {!scan && uid && scanId && (
         <div className="space-y-3">
           <p className="text-muted-foreground">Still processing…</p>
-          <Button variant="outline" onClick={() => navigate("/home")}>Back to Home</Button>
+          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
         </div>
       )}
       {scan && scan.status !== "done" && (
         <div className="space-y-3">
           <p className="text-muted-foreground">Still processing…</p>
-          <Button variant="outline" onClick={() => navigate("/home")}>Back to Home</Button>
+          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
         </div>
       )}
       {scan && scan.status === "done" && (

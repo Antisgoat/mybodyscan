@@ -1,6 +1,7 @@
 // at top of History file
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, getAuth } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebaseConfig";
 import { listenUserScans } from "../lib/scans"; // adjust if folder path differs
 
 type Scan = {
@@ -11,7 +12,7 @@ type Scan = {
 };
 
 export default function History() {
-  const auth = getAuth();
+  
   const [uid, setUid] = useState<string | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export default function History() {
       <div style={{ padding: 16 }}>
         <h2>History</h2>
         <div style={{ opacity: 0.7 }}>No scans yet—tap Start a Scan.</div>
-        <div style={{ fontSize: 12, opacity: 0.5, marginTop: 8 }}>UID: {uid}</div>
+        <div style={{ fontSize: 12, opacity: 0.5, marginTop: 8 }}>UID: {auth.currentUser?.uid ?? "no-auth"}</div>
       </div>
     );
   }
@@ -56,7 +57,7 @@ export default function History() {
   return (
     <div style={{ padding: 16 }}>
       <h2>History</h2>
-      <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 8 }}>UID: {uid}</div>
+      <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 8 }}>UID: {auth.currentUser?.uid ?? "no-auth"}</div>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {scans.map((s) => {
           const ts = (s as any)?.createdAt;

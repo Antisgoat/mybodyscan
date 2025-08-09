@@ -33,7 +33,7 @@ const App = () => (
             <Route path="/capture/photos" element={<ProtectedRoute><PhotoCapture /></ProtectedRoute>} />
             <Route path="/capture/video" element={<ProtectedRoute><VideoCapture /></ProtectedRoute>} />
             <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><Processing /></ProtectedRoute>} />
-            <Route path="/results/:uid/:scanId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+            <Route path="/results/:scanId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
