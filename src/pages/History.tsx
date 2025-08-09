@@ -1,20 +1,51 @@
 import { useEffect, useState } from "react";
-import { listScansByUid, Scan } from "@/services/placeholders";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
+import { collectionGroup, query, where, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/firebaseConfig";
+
+type FirestoreScan = {
+  id: string;
+  createdAt: Date;
+  results?: { bodyFatPct?: number; weightKg?: number };
+  status: string;
+};
 
 const History = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [scans, setScans] = useState<Scan[]>([]);
+  const [scans, setScans] = useState<FirestoreScan[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    // Placeholder collection group query replacement
-    listScansByUid(user.uid, 50).then(setScans);
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+
+    const q = query(
+      collectionGroup(db, "scans"),
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc"),
+      limitFn(50)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const items: FirestoreScan[] = snapshot.docs.map((doc) => {
+        const data = doc.data() as any;
+        const createdAt =
+          data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now());
+        return {
+          id: doc.id,
+          createdAt,
+          results: data.results,
+          status: data.status,
+        };
+      });
+      setScans(items);
+    });
+
+    return () => unsub();
   }, [user]);
 
   return (
@@ -26,15 +57,14 @@ const History = () => {
       ) : (
         <div className="grid gap-3">
           {scans.map((s) => (
-            <Card key={s.id} className="cursor-pointer" onClick={() => navigate(`/results/${s.uid}/${s.id}`)}>
+            <Card key={s.id} className="cursor-pointer" onClick={() => { const uid = auth.currentUser?.uid; if (uid) navigate(`/results/${uid}/${s.id}`); }}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{new Date(s.createdAt).toLocaleString()}</p>
-                  {s.status === "done" ? (
-                    <p className="text-sm text-muted-foreground">{s.results.bodyFatPct?.toFixed(1)}% • {s.results.weightKg?.toFixed(1)}kg</p>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">{s.status}</span>
-                  )}
+                  <p className="font-medium">{s.createdAt.toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {s.results?.bodyFatPct != null ? `${s.results.bodyFatPct.toFixed(1)}%` : "—"} • {s.results?.weightKg != null ? `${s.results.weightKg.toFixed(1)}kg` : "—"}
+                  </p>
+                  <span className="text-xs text-muted-foreground">{s.status}</span>
                 </div>
                 <Button variant="secondary" size="sm">Open</Button>
               </CardContent>
