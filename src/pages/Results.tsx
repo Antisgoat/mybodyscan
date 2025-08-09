@@ -26,6 +26,7 @@ const Results = () => {
   const navigate = useNavigate();
   const [scan, setScan] = useState<ScanData | null>(null);
   const [prev, setPrev] = useState<PrevData>(null);
+  const [notFound, setNotFound] = useState(false);
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -35,9 +36,11 @@ const Results = () => {
         const ref = doc(db, "users", uid, "scans", scanId);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
+          setNotFound(true);
           setScan(null);
           return;
         }
+        setNotFound(false);
         const data: any = snap.data();
         const createdAtTS = data?.createdAt ?? null;
         const createdAtDate = createdAtTS?.toDate ? createdAtTS.toDate() : null;
@@ -96,7 +99,13 @@ const Results = () => {
           <Button variant="outline" onClick={() => navigate("/auth")}>Go to Sign In</Button>
         </div>
       )}
-      {!scan && uid && scanId && (
+      {notFound && uid && scanId && (
+        <div className="space-y-3">
+          <p className="text-muted-foreground">Not found.</p>
+          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
+        </div>
+      )}
+      {!notFound && !scan && uid && scanId && (
         <div className="space-y-3">
           <p className="text-muted-foreground">Still processing…</p>
           <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>

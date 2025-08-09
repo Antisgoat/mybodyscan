@@ -1,8 +1,9 @@
 // at top of History file
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../firebaseConfig";
-import { listenUserScans } from "../lib/scans"; // adjust if folder path differs
+import { auth, db } from "../firebaseConfig";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 type Scan = {
   id: string;
@@ -12,7 +13,7 @@ type Scan = {
 };
 
 export default function History() {
-  
+  const navigate = useNavigate();
   const [uid, setUid] = useState<string | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -25,16 +26,38 @@ export default function History() {
 
       if (!u) return;
 
-      const unsub = listenUserScans(
-        u.uid,
-        (rows) => setScans(rows as Scan[]),
-        (e) => setErr(e?.message ?? "Failed to load scans")
-      );
+      try {
+        const q = query(
+          collection(db, "users", u.uid, "scans"),
+          orderBy("createdAt", "desc"),
+          limit(50)
+        );
+        const unsub = onSnapshot(
+          q,
+          (snap) => {
+            const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Scan[];
+            setScans(rows);
+          },
+          (e) => {
+            console.error("History listener error", e);
+            setErr(e?.message ?? "Failed to load scans");
+            if ((e as any)?.code === "permission-denied") {
+              navigate("/auth", { replace: true });
+            }
+          }
+        );
 
-      return () => unsub();
+        return () => unsub();
+      } catch (e: any) {
+        console.error("History query error", e);
+        setErr(e?.message ?? "Failed to load scans");
+        if (e?.code === "permission-denied") {
+          navigate("/auth", { replace: true });
+        }
+      }
     });
     return () => unsubAuth();
-  }, []);
+  }, [navigate]);
 
   if (!uid) {
     return <div style={{ padding: 16 }}>Sign in required.</div>;
@@ -63,10 +86,6 @@ export default function History() {
           const ts = (s as any)?.createdAt;
           const dt = ts?.toDate ? ts.toDate() : null;
           const dateStr = dt ? dt.toLocaleDateString() : "—";
-          const bf = s.results?.bodyFatPct ?? "—";
-          const kg = s.results?.weightKg;
-          const lb = s.results?.weightLb;
-          const weightStr = kg != null ? `${kg} kg` : lb != null ? `${lb} lb` : "—";
           return (
             <li
               key={s.id}
@@ -77,11 +96,10 @@ export default function History() {
                 borderBottom: "1px solid #eee",
                 cursor: "pointer"
               }}
-              onClick={() => (window.location.href = `/results/${s.id}`)} // adjust route if needed
+              onClick={() => navigate(`/results/${s.id}`)} // adjust route if needed
             >
               <div>
                 <div style={{ fontWeight: 600 }}>{dateStr}</div>
-                <div style={{ opacity: 0.8 }}>Body Fat: {bf}% • Weight: {weightStr}</div>
               </div>
               <div
                 style={{
