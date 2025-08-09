@@ -1,100 +1,101 @@
+// at top of History file
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { collectionGroup, query, where, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
-import { db, auth } from "@/firebaseConfig";
+import { onAuthStateChanged, getAuth } from "firebase/auth";
+import { listenUserScans } from "../lib/scans"; // adjust if folder path differs
 
-type FirestoreScan = {
+type Scan = {
   id: string;
-  createdAt: Date | null;
-  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number };
-  status: string;
+  createdAt?: any;
+  status?: string;
+  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number; BMI?: number };
 };
 
-const History = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [scans, setScans] = useState<FirestoreScan[]>([]);
+export default function History() {
+  const auth = getAuth();
+  const [uid, setUid] = useState<string | null>(null);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUid(u?.uid ?? null);
+      setScans([]);
+      setErr(null);
 
-    let unsub: (() => void) | undefined;
-    try {
-      const q = query(
-        collectionGroup(db, "scans"),
-        where("uid", "==", uid),
-        orderBy("uid", "asc"),
-        orderBy("createdAt", "desc"),
-        limitFn(100)
+      if (!u) return;
+
+      const unsub = listenUserScans(
+        u.uid,
+        (rows) => setScans(rows as Scan[]),
+        (e) => setErr(e?.message ?? "Failed to load scans")
       );
 
-      unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          const items: FirestoreScan[] = snapshot.docs.map((doc) => {
-            const data = doc.data() as any;
-            const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : null;
-            return {
-              id: doc.id,
-              createdAt,
-              results: data?.results,
-              status: data?.status ?? "unknown",
-            };
-          });
-          setScans(items);
-        },
-        (err) => {
-          console.error("History onSnapshot error", err);
-          if ((err as any)?.code === "permission-denied") {
-            toast({ title: "Sign in required" });
-            navigate("/auth", { replace: true });
-          }
-        }
-      );
-    } catch (err) {
-      console.error("History query error", err);
-      toast({ title: "Sign in required" });
-      navigate("/auth", { replace: true });
-    }
+      return () => unsub();
+    });
+    return () => unsubAuth();
+  }, []);
 
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [user, navigate]);
+  if (!uid) {
+    return <div style={{ padding: 16 }}>Sign in required.</div>;
+  }
+
+  if (err) {
+    return <div style={{ padding: 16 }}>Error: {err}</div>;
+  }
+
+  if (!scans.length) {
+    return (
+      <div style={{ padding: 16 }}>
+        <h2>History</h2>
+        <div style={{ opacity: 0.7 }}>No scans yet—tap Start a Scan.</div>
+        <div style={{ fontSize: 12, opacity: 0.5, marginTop: 8 }}>UID: {uid}</div>
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo title="History – MyBodyScan" description="Browse your previous scans and open results." canonical={window.location.href} />
-      <h1 className="text-2xl font-semibold mb-4">History</h1>
-      {scans.length === 0 ? (
-        <p className="text-muted-foreground">No scans yet—tap Start a Scan.</p>
-      ) : (
-        <div className="grid gap-3">
-          {scans.map((s) => (
-            <Card key={s.id} className="cursor-pointer" onClick={() => { const uid = auth.currentUser?.uid; if (uid) navigate(`/results/${uid}/${s.id}`); }}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{s.createdAt ? s.createdAt.toLocaleDateString() : "—"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Body Fat: {s.results?.bodyFatPct ?? "—"}% • Weight: {s.results?.weightKg ?? (s.results?.weightLb ? `${s.results.weightLb} lb` : "—")}
-                  </p>
-                  <Badge variant="secondary" className="mt-1">{s.status}</Badge>
-                </div>
-                <Button variant="secondary" size="sm">Open</Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </main>
+    <div style={{ padding: 16 }}>
+      <h2>History</h2>
+      <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 8 }}>UID: {uid}</div>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {scans.map((s) => {
+          const ts = (s as any)?.createdAt;
+          const dt = ts?.toDate ? ts.toDate() : null;
+          const dateStr = dt ? dt.toLocaleDateString() : "—";
+          const bf = s.results?.bodyFatPct ?? "—";
+          const kg = s.results?.weightKg;
+          const lb = s.results?.weightLb;
+          const weightStr = kg != null ? `${kg} kg` : lb != null ? `${lb} lb` : "—";
+          return (
+            <li
+              key={s.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "12px 0",
+                borderBottom: "1px solid #eee",
+                cursor: "pointer"
+              }}
+              onClick={() => (window.location.href = `/results/${s.id}`)} // adjust route if needed
+            >
+              <div>
+                <div style={{ fontWeight: 600 }}>{dateStr}</div>
+                <div style={{ opacity: 0.8 }}>Body Fat: {bf}% • Weight: {weightStr}</div>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  background: "#f2f4f7"
+                }}
+              >
+                {s.status ?? "—"}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
-};
-
-export default History;
+}
