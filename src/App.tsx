@@ -18,6 +18,11 @@ import History from "./pages/History";
 import Plans from "./pages/Plans";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import PublicLayout from "./components/PublicLayout";
+import PublicLanding from "./pages/PublicLanding";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Support from "./pages/Support";
 
 const queryClient = new QueryClient();
 
@@ -33,8 +38,14 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
+            {/* Public marketing pages */}
+            <Route path="/" element={<PublicLayout><PublicLanding /></PublicLayout>} />
+            <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
+            <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
+            <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
+            {/* Auth */}
             <Route path="/auth" element={<Auth />} />
+            {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
