@@ -179,7 +179,8 @@ const Results = () => {
             <Input placeholder="Add a note" value={note} onChange={(e) => setNote(e.target.value)} />
             <Button variant="secondary" onClick={onSaveNote}>Save</Button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button variant="secondary" onClick={() => navigate("/home")}>Back to Home</Button>
             <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
             <Button variant="outline" onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
           </div>

@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db, storage } from "@/firebaseConfig";
 import { collection, doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { startCreateScan } from "@/lib/api";
+import { startCreateScan, FUNCTIONS_BASE_URL } from "@/lib/api";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 
@@ -19,6 +19,7 @@ const PhotoCapture = () => {
   const [current, setCurrent] = useState(0);
   const [files, setFiles] = useState<{ front?: File; left?: File; right?: File; back?: File }>({});
   const [loading, setLoading] = useState(false);
+  const processingConfigured = Boolean(FUNCTIONS_BASE_URL);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,6 +42,10 @@ const PhotoCapture = () => {
     }
     if (!allSet) {
       toast({ title: "Missing photos", description: "Please capture all 4 sides." });
+      return;
+    }
+    if (!processingConfigured) {
+      toast({ title: "Processing not configured" });
       return;
     }
     setLoading(true);
@@ -96,6 +101,9 @@ const PhotoCapture = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Capture Photos – MyBodyScan" description="Capture four photos to create your body scan." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Capture Photos</h1>
+      {!processingConfigured && (
+        <div className="mb-3 rounded-md border px-3 py-2 text-sm">Processing service not configured</div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>
@@ -121,7 +129,7 @@ const PhotoCapture = () => {
               </div>
             ))}
           </div>
-          <Button className="w-full" onClick={onContinue} disabled={!allSet || loading}>
+          <Button className="w-full" onClick={onContinue} disabled={!allSet || loading || !processingConfigured}>
             {loading ? "Creating scan..." : "Continue"}
           </Button>
         </CardContent>

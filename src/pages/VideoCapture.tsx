@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db, storage } from "@/firebaseConfig";
 import { collection, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { startCreateScan } from "@/lib/api";
+import { startCreateScan, FUNCTIONS_BASE_URL } from "@/lib/api";
 
 const MAX_SECONDS = 10;
 
@@ -17,6 +17,7 @@ const VideoCapture = () => {
   const [duration, setDuration] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [loading, setLoading] = useState(false);
+  const processingConfigured = Boolean(FUNCTIONS_BASE_URL);
 
   useEffect(() => {
     if (!file) return;
@@ -42,6 +43,10 @@ const VideoCapture = () => {
         toast({ title: "Sign in required" });
         navigate("/auth", { replace: true });
       }
+      return;
+    }
+    if (!processingConfigured) {
+      toast({ title: "Processing not configured" });
       return;
     }
     setLoading(true);
@@ -88,6 +93,9 @@ const VideoCapture = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Record Video – MyBodyScan" description="Record a short video for your body scan." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Record Video</h1>
+      {!processingConfigured && (
+        <div className="mb-3 rounded-md border px-3 py-2 text-sm">Processing service not configured</div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Up to {MAX_SECONDS}s</CardTitle>
@@ -105,7 +113,7 @@ const VideoCapture = () => {
           <div className="text-center text-sm text-muted-foreground">
             {duration != null ? `Duration: ${duration.toFixed(1)}s` : "No video selected"}
           </div>
-          <Button className="w-full" onClick={onContinue} disabled={!file || duration == null || loading}>
+          <Button className="w-full" onClick={onContinue} disabled={!file || duration == null || loading || !processingConfigured}>
             {loading ? "Creating scan..." : "Continue"}
           </Button>
         </CardContent>

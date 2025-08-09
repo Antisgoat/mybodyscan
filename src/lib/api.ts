@@ -3,22 +3,21 @@ import { auth } from "@/firebaseConfig";
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
 
 async function authedFetch(path: string, init?: RequestInit) {
-  if (!BASE) {
-    throw new Error("Functions URL not configured");
-  }
+  if (!BASE) throw new Error("Functions URL not configured");
   const t = await auth.currentUser?.getIdToken();
   return fetch(`${BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-      Authorization: `Bearer ${t}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` }
   });
 }
 
 export async function startCreateScan(scanId: string) {
-  return authedFetch("/createScan", { method: "POST", body: JSON.stringify({ scanId }) });
+  const r = await authedFetch("/createScan", {
+    method: "POST",
+    body: JSON.stringify({ scanId })
+  });
+  if (!r.ok) throw new Error(`createScan failed: ${r.status}`);
+  return r.json();
 }
 
 export async function openStripeCheckout(priceId: string, mode: "payment" | "subscription") {
@@ -27,4 +26,4 @@ export async function openStripeCheckout(priceId: string, mode: "payment" | "sub
   if (url) window.location.href = url;
 }
 
-export { authedFetch };
+export { authedFetch, BASE as FUNCTIONS_BASE_URL };

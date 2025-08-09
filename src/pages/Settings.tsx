@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
+import { auth, db } from "@/firebaseConfig";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const Settings = () => {
   const [height, setHeight] = useState<string>("");
