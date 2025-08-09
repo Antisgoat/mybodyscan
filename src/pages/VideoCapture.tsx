@@ -73,7 +73,12 @@ const VideoCapture = () => {
       navigate(`/processing/${scanId}`);
     } catch (e: any) {
       console.error("VideoCapture error", e);
-      toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
+      if (e?.code === "permission-denied") {
+        toast({ title: "Sign in required" });
+        navigate("/auth", { replace: true });
+      } else {
+        toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
+      }
     } finally {
       setLoading(false);
     }

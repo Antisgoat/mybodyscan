@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
+import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
 
@@ -14,14 +15,24 @@ const Processing = () => {
     const uid = auth.currentUser?.uid;
     if (!uid || !scanId) return;
     const ref = doc(db, "users", uid, "scans", scanId);
-    const unsub = onSnapshot(ref, (snap) => {
-      const data: any = snap.data();
-      const s = data?.status ?? "queued";
-      setStatus(s);
-      if (s === "done") {
-        navigate(`/results/${scanId}`);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const data: any = snap.data();
+        const s = data?.status ?? "queued";
+        setStatus(s);
+        if (s === "done") {
+          navigate(`/results/${scanId}`, { replace: true });
+        }
+      },
+      (err) => {
+        console.error("Processing snapshot error", err);
+        if ((err as any)?.code === "permission-denied") {
+          toast({ title: "Sign in required" });
+          navigate("/auth", { replace: true });
+        }
       }
-    });
+    );
     return () => unsub();
   }, [scanId, navigate]);
 
@@ -35,7 +46,9 @@ const Processing = () => {
         <span className="h-2 w-2 rounded-full bg-warning" />
         <span className="text-sm">{status}</span>
       </div>
-      <Button variant="secondary" className="mt-8" onClick={() => navigate("/capture")}>Retry</Button>
+      {status === "error" && (
+        <Button variant="secondary" className="mt-8" onClick={() => navigate("/capture-picker")}>Retry</Button>
+      )}
     </main>
   );
 };

@@ -120,34 +120,26 @@ const Results = () => {
       {scan && scan.status === "done" && (
         <Card className="mb-4">
           <CardHeader>
-            <CardTitle>{scan.createdAtDate ? scan.createdAtDate.toLocaleString() : "—"}</CardTitle>
+            <CardTitle>{scan.createdAtDate ? scan.createdAtDate.toLocaleDateString() : "—"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-3xl font-semibold">
-                  {(() => {
-                    const v = scan.results?.bodyFatPct;
-                    if (v == null) return "—";
-                    return v >= 10 ? v.toFixed(1) + "%" : v.toFixed(2) + "%";
-                  })()}
-                </p>
+                <p className="text-3xl font-semibold">{scan.results?.bodyFatPct ?? "—"}</p>
                 <p className="text-xs text-muted-foreground">Body Fat</p>
               </div>
               <div>
                 <p className="text-3xl font-semibold">
                   {scan.results?.weightKg != null
-                    ? `${scan.results.weightKg.toFixed(1)} kg`
+                    ? `${scan.results.weightKg} kg`
                     : scan.results?.weightLb != null
-                      ? `${scan.results.weightLb.toFixed(1)} lb`
+                      ? `${scan.results.weightLb} lb`
                       : "—"}
                 </p>
                 <p className="text-xs text-muted-foreground">Weight</p>
               </div>
               <div>
-                <p className="text-3xl font-semibold">
-                  {scan.results?.BMI != null ? scan.results.BMI.toFixed(1) : "—"}
-                </p>
+                <p className="text-3xl font-semibold">{scan.results?.BMI ?? "—"}</p>
                 <p className="text-xs text-muted-foreground">BMI</p>
               </div>
             </div>
@@ -189,7 +181,7 @@ const Results = () => {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
-            <Button variant="outline" onClick={() => navigate("/capture")}>Start a Scan</Button>
+            <Button variant="outline" onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
           </div>
         </div>
       )}
