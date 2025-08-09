@@ -22,7 +22,6 @@ const Home = () => {
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const loggedOnce = useRef(false);
 
-  // Derived values for rendering (null-safe)
   const done = lastScan?.status === "done";
   const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
   const bf = typeof lastScan?.results?.bodyFatPct === "number" ? lastScan.results!.bodyFatPct!.toFixed(1) : "—";
@@ -30,9 +29,10 @@ const Home = () => {
   const lb = typeof lastScan?.results?.weightLb === "number" ? lastScan.results!.weightLb! : null;
   const weight = kg != null ? `${kg} kg` : lb != null ? `${lb} lb` : "—";
   const bmi = typeof lastScan?.results?.BMI === "number" ? lastScan.results!.BMI!.toFixed(1) : "—";
+
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+    if (!user?.uid) return;
+    const uid = user.uid;
 
     const q = query(
       collection(db, "users", uid, "scans"),
@@ -93,34 +93,34 @@ const Home = () => {
           <CardContent>
             {!lastScan && <p className="text-muted-foreground">No scans yet—tap Start a Scan.</p>}
             {lastScan && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">{created}</p>
-                  {lastScan.status === "done" ? (
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div>
-                        <p className="text-2xl font-semibold">{bf}</p>
-                        <p className="text-xs text-muted-foreground">Body Fat</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold">{weight}</p>
-                        <p className="text-xs text-muted-foreground">Weight</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-semibold">{bmi}</p>
-                        <p className="text-xs text-muted-foreground">BMI</p>
-                      </div>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">{created}</p>
+                {done ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-2xl font-semibold">{bf}</p>
+                      <p className="text-xs text-muted-foreground">Body Fat</p>
                     </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <Badge variant="secondary">{lastScan.status}</Badge>
-                      <p className="text-xs text-muted-foreground">Check History for progress.</p>
+                    <div>
+                      <p className="text-2xl font-semibold">{weight}</p>
+                      <p className="text-xs text-muted-foreground">Weight</p>
                     </div>
-                  )}
-                  <div className="flex gap-2 pt-2">
-                    <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
-                    <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
+                    <div>
+                      <p className="text-2xl font-semibold">{bmi}</p>
+                      <p className="text-xs text-muted-foreground">BMI</p>
+                    </div>
                   </div>
+                ) : (
+                  <div className="space-y-1">
+                    <Badge variant="secondary">{lastScan.status}</Badge>
+                    <p className="text-xs text-muted-foreground">Check History for progress.</p>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+                  <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                 </div>
+              </div>
             )}
           </CardContent>
         </Card>
