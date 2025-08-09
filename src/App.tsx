@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, ProtectedRoute } from "./context/AuthContext";
-import RootRedirect from "./pages/RootRedirect";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
@@ -27,7 +26,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<RootRedirect />} />
+            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/capture" element={<ProtectedRoute><CapturePicker /></ProtectedRoute>} />
