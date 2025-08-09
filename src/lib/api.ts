@@ -1,11 +1,11 @@
 import { auth } from "@/firebaseConfig";
 
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
-if (!BASE) {
-  throw new Error("Functions URL not configured");
-}
 
 async function authedFetch(path: string, init?: RequestInit) {
+  if (!BASE) {
+    throw new Error("Functions URL not configured");
+  }
   const t = await auth.currentUser?.getIdToken();
   return fetch(`${BASE}${path}`, {
     ...init,
