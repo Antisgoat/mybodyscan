@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,16 @@ const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const loggedOnce = useRef(false);
 
+  // Derived values for rendering (null-safe)
+  const done = lastScan?.status === "done";
+  const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
+  const bf = typeof lastScan?.results?.bodyFatPct === "number" ? lastScan.results!.bodyFatPct!.toFixed(1) : "—";
+  const kg = typeof lastScan?.results?.weightKg === "number" ? lastScan.results!.weightKg! : null;
+  const lb = typeof lastScan?.results?.weightLb === "number" ? lastScan.results!.weightLb! : null;
+  const weight = kg != null ? `${kg} kg` : lb != null ? `${lb} lb` : "—";
+  const bmi = typeof lastScan?.results?.BMI === "number" ? lastScan.results!.BMI!.toFixed(1) : "—";
   useEffect(() => {
     if (!auth.currentUser) return;
     const uid = auth.currentUser.uid;
@@ -41,6 +50,10 @@ const Home = () => {
         const doc = snap.docs[0];
         const data: any = doc.data();
         const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : null;
+        if (!loggedOnce.current) {
+          console.log("Home lastScan:", data);
+          loggedOnce.current = true;
+        }
         setLastScan({
           id: doc.id,
           createdAt,
@@ -81,27 +94,19 @@ const Home = () => {
             {!lastScan && <p className="text-muted-foreground">No scans yet—tap Start a Scan.</p>}
             {lastScan && (
                 <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    {lastScan.createdAt ? lastScan.createdAt.toLocaleDateString() : "—"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{created}</p>
                   {lastScan.status === "done" ? (
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <p className="text-2xl font-semibold">
-                          {lastScan.results?.bodyFatPct ?? "—"}
-                        </p>
+                        <p className="text-2xl font-semibold">{bf}</p>
                         <p className="text-xs text-muted-foreground">Body Fat</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-semibold">
-                          {lastScan.results?.weightKg ?? (lastScan.results?.weightLb != null ? `${lastScan.results.weightLb} lb` : "—")}
-                        </p>
+                        <p className="text-2xl font-semibold">{weight}</p>
                         <p className="text-xs text-muted-foreground">Weight</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-semibold">
-                          {lastScan.results?.BMI ?? "—"}
-                        </p>
+                        <p className="text-2xl font-semibold">{bmi}</p>
                         <p className="text-xs text-muted-foreground">BMI</p>
                       </div>
                     </div>
