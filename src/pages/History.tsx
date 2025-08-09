@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../firebaseConfig";
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 
 type Scan = {
   id: string;
@@ -42,6 +43,7 @@ export default function History() {
             console.error("History listener error", e);
             setErr(e?.message ?? "Failed to load scans");
             if ((e as any)?.code === "permission-denied") {
+              toast({ title: "Sign in required" });
               navigate("/auth", { replace: true });
             }
           }
@@ -52,6 +54,7 @@ export default function History() {
         console.error("History query error", e);
         setErr(e?.message ?? "Failed to load scans");
         if (e?.code === "permission-denied") {
+          toast({ title: "Sign in required" });
           navigate("/auth", { replace: true });
         }
       }
