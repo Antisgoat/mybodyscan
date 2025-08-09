@@ -88,23 +88,19 @@ const Home = () => {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
                         <p className="text-2xl font-semibold">
-                          {lastScan.results?.bodyFatPct != null ? lastScan.results.bodyFatPct.toFixed(1) + "%" : "—"}
+                          {lastScan.results?.bodyFatPct ?? "—"}
                         </p>
                         <p className="text-xs text-muted-foreground">Body Fat</p>
                       </div>
                       <div>
                         <p className="text-2xl font-semibold">
-                          {lastScan.results?.weightKg != null
-                            ? `${lastScan.results.weightKg.toFixed(1)} kg`
-                            : lastScan.results?.weightLb != null
-                              ? `${lastScan.results.weightLb.toFixed(1)} lb`
-                              : "—"}
+                          {lastScan.results?.weightKg ?? (lastScan.results?.weightLb != null ? `${lastScan.results.weightLb} lb` : "—")}
                         </p>
                         <p className="text-xs text-muted-foreground">Weight</p>
                       </div>
                       <div>
                         <p className="text-2xl font-semibold">
-                          {lastScan.results?.BMI != null ? lastScan.results.BMI.toFixed(1) : "—"}
+                          {lastScan.results?.BMI ?? "—"}
                         </p>
                         <p className="text-xs text-muted-foreground">BMI</p>
                       </div>
@@ -116,7 +112,7 @@ const Home = () => {
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
-                    <Button onClick={() => navigate("/capture")}>Start a Scan</Button>
+                    <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
                     <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                   </div>
                 </div>
@@ -125,7 +121,7 @@ const Home = () => {
         </Card>
 
         <div className="grid gap-3">
-          <Button onClick={() => navigate("/capture")}>Start a Scan</Button>
+          <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
           <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>
