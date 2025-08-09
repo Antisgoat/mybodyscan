@@ -8,9 +8,10 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/firebaseConfig";
+
 type FirestoreScan = {
   id: string;
-  createdAt: Date;
+  createdAt: Date | null;
   results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number };
   status: string;
 };
@@ -35,7 +36,7 @@ const History = () => {
       (snapshot) => {
         const items: FirestoreScan[] = snapshot.docs.map((doc) => {
           const data = doc.data() as any;
-          const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+          const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : null;
           return {
             id: doc.id,
             createdAt,
@@ -69,9 +70,9 @@ const History = () => {
             <Card key={s.id} className="cursor-pointer" onClick={() => { const uid = auth.currentUser?.uid; if (uid) navigate(`/results/${uid}/${s.id}`); }}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{s.createdAt.toLocaleDateString()}</p>
+                  <p className="font-medium">{s.createdAt ? s.createdAt.toLocaleDateString() : "—"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {s.results?.bodyFatPct != null ? `${s.results.bodyFatPct.toFixed(1)}%` : "—"} • {s.results?.weightKg != null ? `${s.results.weightKg.toFixed(1)} kg` : s.results?.weightLb != null ? `${s.results.weightLb.toFixed(1)} lb` : "—"}
+                    Body Fat: {s.results?.bodyFatPct != null ? s.results.bodyFatPct.toFixed(1) : "—"}% • Weight: {s.results?.weightKg != null ? `${s.results.weightKg.toFixed(1)} kg` : s.results?.weightLb != null ? `${s.results.weightLb.toFixed(1)} lb` : "—"}
                   </p>
                   <Badge variant="secondary" className="mt-1">{s.status}</Badge>
                 </div>
