@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/auth" replace state={{ from: window.location.pathname }} />;
 
   return <>{children}</>;
 }

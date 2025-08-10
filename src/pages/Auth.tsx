@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth } from "@/firebaseConfig";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from || "/home";
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,10 +21,14 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate("/home", { replace: true });
+      if (mode === "signin") {
+        await signInEmail(email, password);
+      } else {
+        await createAccountEmail(email, password);
+      }
+      navigate(from, { replace: true });
     } catch (err: any) {
-      toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+      toast({ title: mode === "signin" ? "Sign in failed" : "Create account failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -31,11 +37,22 @@ const Auth = () => {
   const onGoogle = async () => {
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      navigate("/home", { replace: true });
+      await signInGoogle();
+      navigate(from, { replace: true });
     } catch (err: any) {
       toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onGuest = async () => {
+    setLoading(true);
+    try {
+      await signInGuest();
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      toast({ title: "Guest sign in failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -46,8 +63,20 @@ const Auth = () => {
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Sign in</CardTitle>
-          <CardDescription>Welcome to MyBodyScan</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</CardTitle>
+              <CardDescription>Welcome to MyBodyScan</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
+                Sign in
+              </Button>
+              <Button size="sm" variant={mode === "signup" ? "default" : "outline"} onClick={() => setMode("signup")}>
+                Create account
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -59,13 +88,23 @@ const Auth = () => {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
+            <div className="flex items-center justify-between">
+              <Button type="submit" className="" disabled={loading}>
+                {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
+              </Button>
+              <Button type="button" variant="link" onClick={async () => {
+                try {
+                  await sendReset(email);
+                  toast({ title: "Reset link sent", description: "Check your email for reset instructions." });
+                } catch (err: any) {
+                  toast({ title: "Couldn't send reset", description: err?.message || "Please try again." });
+                }
+              }}>Forgot password?</Button>
+            </div>
           </form>
           <div className="mt-4 grid gap-2">
             <Button variant="secondary" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
-            <Button variant="outline" disabled title="Coming soon">Continue with Apple (coming soon)</Button>
+            <Button variant="outline" onClick={onGuest} disabled={loading}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { auth } from "../firebaseConfig";
-import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut } from "firebase/auth";
+import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut, GoogleAuthProvider, signInWithRedirect, signInWithPopup, signInAnonymously, linkWithCredential, EmailAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "firebase/auth";
 
 export async function initAuthPersistence() {
   await setPersistence(auth, browserLocalPersistence);
@@ -23,6 +23,41 @@ export function useAuthUser() {
 
 export async function signOutToAuth(): Promise<void> {
   await signOut(auth);
-  // use navigate-equivalent without requiring hooks
   window.location.href = "/auth";
 }
+
+// New helpers
+export function signInGoogle() {
+  const provider = new GoogleAuthProvider();
+  return signInWithPopup(auth, provider);
+}
+
+export function signInGuest() {
+  return signInAnonymously(auth);
+}
+
+export async function createAccountEmail(email: string, password: string, displayName?: string) {
+  const user = auth.currentUser;
+  const cred = EmailAuthProvider.credential(email, password);
+  if (user?.isAnonymous) {
+    const res = await linkWithCredential(user, cred);
+    if (displayName) await updateProfile(res.user, { displayName });
+    return res.user;
+  }
+  const res = await createUserWithEmailAndPassword(auth, email, password);
+  if (displayName) await updateProfile(res.user, { displayName });
+  return res.user;
+}
+
+export function signInEmail(email: string, password: string) {
+  return signInWithEmailAndPassword(auth, email, password);
+}
+
+export function sendReset(email: string) {
+  return sendPasswordResetEmail(auth, email);
+}
+
+export function signOutUser() {
+  return signOut(auth);
+}
+

@@ -8,7 +8,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 
   const handleLaunch = () => {
     if (auth.currentUser) navigate("/home");
-    else navigate("/auth");
+    else navigate("/auth", { state: { from: location.pathname } });
   };
 
   return (

@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -8,6 +9,7 @@ import { app } from "@/firebaseConfig";
 import { Badge } from "@/components/ui/badge";
 
 const Plans = () => {
+  const navigate = useNavigate();
   const [banner, setBanner] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,8 +38,12 @@ const Plans = () => {
       window.location.href = url;
     } catch (err: any) {
       try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
-      if (!(window as any).toast) {
-        alert((err as any)?.message || "Checkout failed");
+      if ((err as any)?.code === "functions/unauthenticated") {
+        navigate("/auth", { state: { from: window.location.pathname } });
+      } else {
+        if (!(window as any).toast) {
+          alert((err as any)?.message || "Checkout failed");
+        }
       }
       el.disabled = false;
     }
