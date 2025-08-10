@@ -20,6 +20,22 @@ const Plans = () => {
     }
   }, []);
 
+  const handleCheckout = async (
+    plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
+    el: HTMLButtonElement
+  ) => {
+    try {
+      el.disabled = true;
+      await startCheckout(plan);
+    } catch (err: any) {
+      try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
+      if (!(window as any).toast) {
+        alert((err as any)?.message || "Checkout failed");
+      }
+      el.disabled = false;
+    }
+  };
+
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Plans – MyBodyScan" description="Choose pay-as-you-go or subscription to get more scans for less." canonical={window.location.href} />
@@ -40,7 +56,7 @@ const Plans = () => {
               <CardDescription>Great for first try</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => startCheckout("single")}>Buy</Button>
+              <Button onClick={(e) => handleCheckout("single", e.currentTarget as HTMLButtonElement)}>Buy</Button>
             </CardContent>
           </Card>
           {/* 3 Scans */}
@@ -53,7 +69,7 @@ const Plans = () => {
               <CardDescription>Use anytime</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => startCheckout("pack3")}>Buy</Button>
+              <Button onClick={(e) => handleCheckout("pack3", e.currentTarget as HTMLButtonElement)}>Buy</Button>
             </CardContent>
           </Card>
           {/* 5 Scans */}
@@ -66,7 +82,7 @@ const Plans = () => {
               <CardDescription>Lowest price per scan</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => startCheckout("pack5")}>Buy</Button>
+              <Button onClick={(e) => handleCheckout("pack5", e.currentTarget as HTMLButtonElement)}>Buy</Button>
             </CardContent>
           </Card>
         </div>
@@ -83,7 +99,7 @@ const Plans = () => {
               <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => startCheckout("monthly")}>Subscribe</Button>
+              <Button onClick={(e) => handleCheckout("monthly", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
             </CardContent>
           </Card>
           {/* Annual */}
@@ -93,7 +109,7 @@ const Plans = () => {
               <CardDescription>Best long-term value</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => startCheckout("annual")}>Subscribe</Button>
+              <Button onClick={(e) => handleCheckout("annual", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
             </CardContent>
           </Card>
         </div>
