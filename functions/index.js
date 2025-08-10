@@ -110,12 +110,11 @@ export const createCheckout = functions.region("us-central1").https.onRequest(as
       const mode = req.query.mode === "subscription" ? "subscription" : "payment";
       if (!priceId) return res.status(400).json({ error: "Missing priceId" });
 
-      const stripeSecret = functions.config().stripe?.secret || process.env.STRIPE_SECRET;
+      const stripeSecret = process.env.STRIPE_SECRET;
       if (!stripeSecret) return res.status(500).json({ error: "Stripe not configured" });
       const stripe = new Stripe(stripeSecret, { apiVersion: "2024-06-20" });
 
       const domain =
-        functions.config().app?.domain ||
         process.env.APP_DOMAIN ||
         (req.headers.origin && /^https?:\/\//.test(req.headers.origin) ? req.headers.origin : `https://${req.headers.host}`);
 
@@ -153,7 +152,7 @@ const KNOWN_PRODUCTS = {
 };
 
 async function getStripe() {
-  const stripeSecret = functions.config().stripe?.secret || process.env.STRIPE_SECRET;
+  const stripeSecret = process.env.STRIPE_SECRET;
   if (!stripeSecret) throw new Error("Stripe not configured");
   return new Stripe(stripeSecret, { apiVersion: "2024-06-20" });
 }
@@ -300,7 +299,7 @@ function creditsFromProduct(product) {
 
 export const stripeWebhook = functions.region("us-central1").https.onRequest(async (req, res) => {
   const sig = req.headers["stripe-signature"];
-  const endpointSecret = functions.config().stripe?.webhook || process.env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = process.env.STRIPE_WEBHOOK;
 
   if (req.method !== "POST") return res.status(405).send("Method not allowed");
 
