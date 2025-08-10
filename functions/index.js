@@ -264,67 +264,112 @@ function creditsFromProduct(product) {
 }
 
 export const stripeWebhook = functions.region("us-central1").https.onRequest(async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  const endpointSecret = functions.config().stripe?.webhook || process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (req.method !== "POST") return res.status(405).send("Method not allowed");
+
+  let event;
+  let stripe;
   try {
-    if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") return res.status(405).send("Method not allowed");
+    stripe = await getStripe();
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, endpointSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
-    const webhookSecret = functions.config().stripe?.webhook || process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) return res.status(500).send("Webhook secret not configured");
+  // Helpers
+  async function grantCredits(uid, amount, source) {
+    const userRef = db.collection("users").doc(uid);
+    const evRef = userRef.collection("billing_events").doc(source); // idempotent per event
+    const snap = await evRef.get();
+    if (snap.exists) return; // already applied
+    await db.runTransaction(async (t) => {
+      t.set(evRef, {
+        type: "credit_grant",
+        amount,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      t.set(
+        userRef,
+        { credits: { wallet: admin.firestore.FieldValue.increment(amount) } },
+        { merge: true }
+      );
+    });
+  }
 
-    const stripe = await getStripe();
-    const sig = req.headers["stripe-signature"];
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
-    } catch (err) {
-      console.error("Webhook signature verification failed.", err);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+  async function setSubscriptionActive(uid, sub) {
+    const active = sub.status === "active" || sub.status === "trialing";
+    const interval = sub.items?.data?.[0]?.price?.recurring?.interval;
+    const type = interval === "year" ? "annual" : "monthly";
+    const userRef = db.collection("users").doc(uid);
+    await userRef.set(
+      {
+        plan: {
+          type,
+          active,
+          stripeSubscriptionId: sub.id,
+          currentPeriodEnd: sub.current_period_end * 1000, // ms
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      },
+      { merge: true }
+    );
+  }
 
-    // Idempotency via webhooks/{eventId}
-    const hookRef = db.doc(`webhooks/${event.id}`);
-    const hookSnap = await hookRef.get();
-    if (hookSnap.exists) {
-      return res.status(200).send("Already processed");
-    }
+  async function clearSubscription(uid) {
+    const userRef = db.collection("users").doc(uid);
+    await userRef.set(
+      {
+        plan: {
+          active: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      },
+      { merge: true }
+    );
+  }
 
+  try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        const uid = session.client_reference_id;
-        const customerId = session.customer?.toString();
-        if (uid && customerId) {
-          await db.doc(`users/${uid}`).set({ billing: { customerId } }, { merge: true });
-        }
+        const meta = session.metadata || {};
+        let uid = meta.uid || session.client_reference_id || null;
+        const plan = meta.plan;
 
-        if (session.mode === "subscription" && session.subscription && uid) {
-          const sub = await stripe.subscriptions.retrieve(session.subscription.toString());
-          const item = sub.items.data[0];
-          const price = item.price;
-          const productId = typeof price.product === "string" ? price.product : price.product.id;
-          const type = isKnownSubscriptionProduct(productId) || (price.recurring?.interval === "year" ? "annual" : "monthly");
-          await db.doc(`users/${uid}`).set({
-            plan: {
-              type,
-              active: true,
-              stripeSubscriptionId: sub.id,
-              currentPeriodEnd: admin.firestore.Timestamp.fromMillis(sub.current_period_end * 1000),
+        if (!uid) {
+          // Fallback: map by customer id if present
+          const customerId = session.customer?.toString();
+          if (customerId) {
+            uid = await findUidByCustomerId(customerId);
+          }
+        }
+        if (!uid) break;
+
+        if (session.mode === "payment") {
+          const creditsMap = { pack5: 5, pack3: 3, single: 1 };
+          const amount = creditsMap[plan] || 0;
+          if (amount > 0) {
+            await grantCredits(uid, amount, event.id);
+          } else {
+            // Fallback: resolve credits via line items product metadata
+            const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10, expand: ["data.price.product"] });
+            let add = 0;
+            for (const li of items.data) {
+              const prod = typeof li.price.product === "string" ? await stripe.products.retrieve(li.price.product) : li.price.product;
+              const meta = prod?.metadata || {};
+              if (meta.credits) {
+                const n = parseInt(meta.credits, 10);
+                if (!isNaN(n) && n > 0) add += n;
+              }
             }
-          }, { merge: true });
-          // credits for first cycle will be granted on invoice.payment_succeeded
-        }
-
-        if (session.mode === "payment" && uid) {
-          // grant credits by reading line items -> product metadata
-          const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 5, expand: ["data.price.product"] });
-          let add = 0;
-          for (const li of items.data) {
-            const prod = typeof li.price.product === "string" ? await stripe.products.retrieve(li.price.product) : li.price.product;
-            add += creditsFromProduct(prod);
+            if (add > 0) await grantCredits(uid, add, event.id);
           }
-          if (add > 0) {
-            await db.doc(`users/${uid}`).set({ credits: { wallet: admin.firestore.FieldValue.increment(add) } }, { merge: true });
-          }
+        } else if (session.mode === "subscription" && session.subscription) {
+          const sub = await stripe.subscriptions.retrieve(session.subscription);
+          await setSubscriptionActive(uid, sub);
         }
         break;
       }
@@ -335,24 +380,12 @@ export const stripeWebhook = functions.region("us-central1").https.onRequest(asy
         if (!customerId) break;
         const uid = await findUidByCustomerId(customerId);
         if (!uid) break;
-        const subId = invoice.subscription?.toString();
-        if (subId) {
-          const sub = await stripe.subscriptions.retrieve(subId);
-          const item = sub.items.data[0];
-          const price = item.price;
-          const productId = typeof price.product === "string" ? price.product : price.product.id;
-          const type = isKnownSubscriptionProduct(productId) || (price.recurring?.interval === "year" ? "annual" : "monthly");
-          await db.doc(`users/${uid}`).set({
-            plan: {
-              type,
-              active: true,
-              stripeSubscriptionId: sub.id,
-              currentPeriodEnd: admin.firestore.Timestamp.fromMillis(sub.current_period_end * 1000),
-            }
-          }, { merge: true });
+        if (invoice.subscription) {
+          const sub = await stripe.subscriptions.retrieve(invoice.subscription);
+          await setSubscriptionActive(uid, sub);
+          // Grant monthly credits (+3) on each successful invoice (including first)
+          await grantCredits(uid, 3, event.id);
         }
-        // grant monthly credits (+3) on each successful invoice
-        await db.doc(`users/${uid}`).set({ credits: { wallet: admin.firestore.FieldValue.increment(3) } }, { merge: true });
         break;
       }
 
@@ -362,19 +395,18 @@ export const stripeWebhook = functions.region("us-central1").https.onRequest(asy
         if (!customerId) break;
         const uid = await findUidByCustomerId(customerId);
         if (!uid) break;
-        await db.doc(`users/${uid}`).set({ plan: { active: false } }, { merge: true });
+        await clearSubscription(uid);
         break;
       }
 
       default:
-        // ignore other events
+        // no-op
         break;
     }
 
-    await hookRef.create({ processedAt: admin.firestore.FieldValue.serverTimestamp(), type: event.type });
-    return res.status(200).send("ok");
-  } catch (e) {
-    console.error("Webhook handler error", e);
-    return res.status(500).send("error");
+    return res.json({ received: true });
+  } catch (err) {
+    console.error("Webhook handler error:", err);
+    return res.status(500).send("Webhook handler error");
   }
 });
