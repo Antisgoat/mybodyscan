@@ -46,4 +46,11 @@ export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"si
   const { url } = data as { id: string; url: string };
   window.location.assign(url);
 }
+
+export async function consumeScanCredit() {
+  const functions = getFunctions(app);
+  const fn = httpsCallable(functions, "consumeScanCredit");
+  await fn({});
+}
+
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };

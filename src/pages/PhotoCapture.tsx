@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db, storage } from "@/firebaseConfig";
 import { collection, doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { startCreateScan, FUNCTIONS_BASE_URL } from "@/lib/api";
+import { startCreateScan, FUNCTIONS_BASE_URL, consumeScanCredit } from "@/lib/api";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 
@@ -79,16 +79,22 @@ const PhotoCapture = () => {
       }
       await updateDoc(scanRef, fileUpdates);
 
-      // 3) Trigger processing
+      // 3) Consume credit or validate subscription
+      await consumeScanCredit();
+
+      // 4) Trigger processing
       await startCreateScan(scanId);
 
-      // 4) Navigate to processing
+      // 5) Navigate to processing
       navigate(`/processing/${scanId}`);
     } catch (e: any) {
       console.error("PhotoCapture error", e);
       if (e?.code === "permission-denied") {
         toast({ title: "Sign in required" });
         navigate("/auth", { replace: true });
+      } else if (String(e?.message || "").includes("No active subscription or credits")) {
+        toast({ title: "Add credits to continue", description: "Buy a pack or start a subscription." });
+        navigate("/plans");
       } else {
         toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
       }

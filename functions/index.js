@@ -212,6 +212,41 @@ export const createCheckoutByProduct = functions.region("us-central1").https.onR
   });
 });
 
+export const createCheckoutSession = functions.region("us-central1").https.onCall(async (data, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) throw new functions.https.HttpsError("unauthenticated", "Login required.");
+  const plan = data?.plan;
+  const allowed = ["annual","monthly","pack5","pack3","single"];
+  if (!allowed.includes(plan)) throw new functions.https.HttpsError("invalid-argument", "Invalid plan");
+
+  const stripe = await getStripe();
+  const productId = plan === "annual" ? KNOWN_PRODUCTS.subscription.annual
+    : plan === "monthly" ? KNOWN_PRODUCTS.subscription.monthly
+    : plan === "pack5" ? KNOWN_PRODUCTS.credits.pack5
+    : plan === "pack3" ? KNOWN_PRODUCTS.credits.pack3
+    : KNOWN_PRODUCTS.credits.single;
+
+  const { price, mode } = await resolveDefaultPrice(stripe, productId);
+
+  // ensure customer mapping
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const email = userSnap.exists ? userSnap.data()?.email : undefined;
+  const authUserEmail = (context.auth?.token?.email) || email;
+  const customerId = await getOrCreateCustomer(uid, authUserEmail);
+
+  const session = await stripe.checkout.sessions.create({
+    mode,
+    client_reference_id: uid,
+    customer: customerId,
+    line_items: [{ price: price.id, quantity: 1 }],
+    success_url: SUCCESS_URL,
+    cancel_url: CANCEL_URL,
+    metadata: { uid, plan },
+  });
+
+  return { id: session.id, url: session.url };
+});
+
 export const createCustomerPortal = functions.region("us-central1").https.onRequest(async (req, res) => {
   return cors(req, res, async () => {
     try {
@@ -409,4 +444,37 @@ export const stripeWebhook = functions.region("us-central1").https.onRequest(asy
     console.error("Webhook handler error:", err);
     return res.status(500).send("Webhook handler error");
   }
+});
+
+export const consumeScanCredit = functions.region("us-central1").https.onCall(async (data, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) throw new functions.https.HttpsError("unauthenticated", "Login required.");
+  const userRef = db.collection("users").doc(uid);
+  const now = Date.now();
+
+  let allowed = false;
+  await db.runTransaction(async (t) => {
+    const snap = await t.get(userRef);
+    const user = snap.exists ? snap.data() : {};
+
+    const plan = user?.plan || {};
+    const active = !!plan?.active;
+    const cpe = plan?.currentPeriodEnd;
+    const endMs = cpe && typeof cpe === "object" && cpe.seconds ? cpe.seconds * 1000 : Number(cpe || 0);
+    const subActive = active && endMs > now;
+
+    if (subActive) {
+      allowed = true; // unlimited while active
+      return;
+    }
+
+    const wallet = Number(user?.credits?.wallet || 0);
+    if (wallet > 0) {
+      t.set(userRef, { credits: { wallet: admin.firestore.FieldValue.increment(-1) } }, { merge: true });
+      allowed = true;
+    }
+  });
+
+  if (!allowed) throw new functions.https.HttpsError("failed-precondition", "No active subscription or credits.");
+  return { ok: true };
 });
