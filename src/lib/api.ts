@@ -1,4 +1,5 @@
-import { auth } from "@/firebaseConfig";
+import { auth, app } from "@/firebaseConfig";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
 
@@ -37,5 +38,12 @@ export async function openStripePortal() {
   const r = await authedFetch(`/createCustomerPortal`);
   const { url } = await r.json();
   if (url) window.open(url, "_blank");
+}
+export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"single") {
+  const functions = getFunctions(app);
+  const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
+  const { data } = await createCheckoutSession({ plan });
+  const { url } = data as { id: string; url: string };
+  window.location.assign(url);
 }
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };

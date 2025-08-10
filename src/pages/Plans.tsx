@@ -3,15 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { openStripeCheckoutByProduct, openStripePortal } from "@/lib/api";
+import { startCheckout } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
-
-// Stripe product IDs (safe to expose; prices resolved server-side)
-const PROD_SINGLE = "prod_Sq4zdmFOJQRnx9";
-const PROD_PACK3 = "prod_Sq518jyDt1x0Dy";
-const PROD_PACK5 = "prod_Sq51gLOTQn5sIP";
-const PROD_MONTHLY = "prod_Sq5377Wo0TnB8n";
-const PROD_ANNUAL = "prod_Sq56NGBUDUMhGD";
 
 const Plans = () => {
   const [banner, setBanner] = useState<string | null>(null);
@@ -26,16 +19,6 @@ const Plans = () => {
       try { toast({ title: "Checkout canceled" }); } catch {}
     }
   }, []);
-
-  const checkout = async (productId: string) => {
-    try {
-      await openStripeCheckoutByProduct(productId);
-    } catch (e: any) {
-      const msg = e?.message ?? "Checkout failed";
-      setBanner(msg);
-      try { toast({ title: "Checkout failed", description: msg }); } catch {}
-    }
-  };
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
@@ -57,7 +40,7 @@ const Plans = () => {
               <CardDescription>Great for first try</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PROD_SINGLE)}>Buy</Button>
+              <Button onClick={() => startCheckout("single")}>Buy</Button>
             </CardContent>
           </Card>
           {/* 3 Scans */}
@@ -70,7 +53,7 @@ const Plans = () => {
               <CardDescription>Use anytime</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PROD_PACK3)}>Buy</Button>
+              <Button onClick={() => startCheckout("pack3")}>Buy</Button>
             </CardContent>
           </Card>
           {/* 5 Scans */}
@@ -83,7 +66,7 @@ const Plans = () => {
               <CardDescription>Lowest price per scan</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PROD_PACK5)}>Buy</Button>
+              <Button onClick={() => startCheckout("pack5")}>Buy</Button>
             </CardContent>
           </Card>
         </div>
@@ -100,7 +83,7 @@ const Plans = () => {
               <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PROD_MONTHLY)}>Subscribe</Button>
+              <Button onClick={() => startCheckout("monthly")}>Subscribe</Button>
             </CardContent>
           </Card>
           {/* Annual */}
@@ -110,7 +93,7 @@ const Plans = () => {
               <CardDescription>Best long-term value</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PROD_ANNUAL)}>Subscribe</Button>
+              <Button onClick={() => startCheckout("annual")}>Subscribe</Button>
             </CardContent>
           </Card>
         </div>
