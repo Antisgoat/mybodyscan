@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { startCheckout } from "@/lib/api";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/firebaseConfig";
 import { Badge } from "@/components/ui/badge";
 
 const Plans = () => {
@@ -20,13 +21,19 @@ const Plans = () => {
     }
   }, []);
 
+  const functions = getFunctions(app, "us-central1");
+  const createCheckout = httpsCallable(functions, "createCheckoutSession");
+
   const handleCheckout = async (
     plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
     el: HTMLButtonElement
   ) => {
     try {
       el.disabled = true;
-      await startCheckout(plan);
+      const { data }: any = await createCheckout({ plan });
+      const url = (data as any)?.url;
+      if (!url) throw new Error("No checkout URL returned");
+      window.location.href = url;
     } catch (err: any) {
       try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
       if (!(window as any).toast) {
