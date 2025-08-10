@@ -23,6 +23,8 @@ import PublicLanding from "./pages/PublicLanding";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
+import CheckoutCanceled from "./pages/CheckoutCanceled";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,9 @@ const App = () => {
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
+            {/* Checkout result pages (public) */}
+            <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
+            <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
             {/* Auth */}
             <Route path="/auth" element={<Auth />} />
             {/* Protected app */}
@@ -73,4 +78,3 @@ const App = () => {
 };
 
 export default App;
-

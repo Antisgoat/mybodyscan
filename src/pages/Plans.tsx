@@ -3,14 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { openStripeCheckout } from "@/lib/api";
+import { openStripeCheckoutByProduct, openStripePortal } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 
-const PRICE_ONETIME = import.meta.env.VITE_STRIPE_PRICE_ONETIME as string | undefined;
-const PRICE_PACK3 = import.meta.env.VITE_STRIPE_PRICE_PACK3 as string | undefined;
-const PRICE_PACK5 = import.meta.env.VITE_STRIPE_PRICE_PACK5 as string | undefined;
-const PRICE_MONTHLY = import.meta.env.VITE_STRIPE_PRICE_MONTHLY as string | undefined;
-const PRICE_YEARLY = import.meta.env.VITE_STRIPE_PRICE_YEARLY as string | undefined;
+// Stripe product IDs (safe to expose; prices resolved server-side)
+const PROD_SINGLE = "prod_Sq4zdmFOJQRnx9";
+const PROD_PACK3 = "prod_Sq518jyDt1x0Dy";
+const PROD_PACK5 = "prod_Sq51gLOTQn5sIP";
+const PROD_MONTHLY = "prod_Sq5377Wo0TnB8n";
+const PROD_ANNUAL = "prod_Sq56NGBUDUMhGD";
 
 const Plans = () => {
   const [banner, setBanner] = useState<string | null>(null);
@@ -26,14 +27,9 @@ const Plans = () => {
     }
   }, []);
 
-  const checkout = async (priceId?: string, mode?: "payment" | "subscription") => {
+  const checkout = async (productId: string) => {
     try {
-      if (!priceId || !mode) {
-        setBanner("Price not configured");
-        try { toast({ title: "Price not configured" }); } catch {}
-        return;
-      }
-      await openStripeCheckout(priceId, mode);
+      await openStripeCheckoutByProduct(productId);
     } catch (e: any) {
       const msg = e?.message ?? "Checkout failed";
       setBanner(msg);
@@ -61,8 +57,7 @@ const Plans = () => {
               <CardDescription>Great for first try</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PRICE_ONETIME, "payment")} disabled={!PRICE_ONETIME}>Buy</Button>
-              {!PRICE_ONETIME && (<span className="text-xs text-muted-foreground">Price not configured</span>)}
+              <Button onClick={() => checkout(PROD_SINGLE)}>Buy</Button>
             </CardContent>
           </Card>
           {/* 3 Scans */}
@@ -75,8 +70,7 @@ const Plans = () => {
               <CardDescription>Use anytime</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PRICE_PACK3, "payment")} disabled={!PRICE_PACK3}>Buy</Button>
-              {!PRICE_PACK3 && (<span className="text-xs text-muted-foreground">Price not configured</span>)}
+              <Button onClick={() => checkout(PROD_PACK3)}>Buy</Button>
             </CardContent>
           </Card>
           {/* 5 Scans */}
@@ -89,8 +83,7 @@ const Plans = () => {
               <CardDescription>Lowest price per scan</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PRICE_PACK5, "payment")} disabled={!PRICE_PACK5}>Buy</Button>
-              {!PRICE_PACK5 && (<span className="text-xs text-muted-foreground">Price not configured</span>)}
+              <Button onClick={() => checkout(PROD_PACK5)}>Buy</Button>
             </CardContent>
           </Card>
         </div>
@@ -107,8 +100,7 @@ const Plans = () => {
               <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PRICE_MONTHLY, "subscription")} disabled={!PRICE_MONTHLY}>Subscribe</Button>
-              {!PRICE_MONTHLY && (<span className="text-xs text-muted-foreground">Price not configured</span>)}
+              <Button onClick={() => checkout(PROD_MONTHLY)}>Subscribe</Button>
             </CardContent>
           </Card>
           {/* Annual */}
@@ -118,8 +110,7 @@ const Plans = () => {
               <CardDescription>Best long-term value</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={() => checkout(PRICE_YEARLY, "subscription")} disabled={!PRICE_YEARLY}>Subscribe</Button>
-              {!PRICE_YEARLY && (<span className="text-xs text-muted-foreground">Price not configured</span>)}
+              <Button onClick={() => checkout(PROD_ANNUAL)}>Subscribe</Button>
             </CardContent>
           </Card>
         </div>

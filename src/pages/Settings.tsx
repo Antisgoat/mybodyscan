@@ -6,17 +6,57 @@ import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/firebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import { openStripePortal } from "@/lib/api";
 
 const Settings = () => {
   const [height, setHeight] = useState<string>("");
   const [units, setUnits] = useState<"kg" | "lb">("kg");
   const [notify, setNotify] = useState(true);
+  const [credits, setCredits] = useState<number>(0);
+  const [planType, setPlanType] = useState<string | null>(null);
+  const [planActive, setPlanActive] = useState<boolean>(false);
+  const [renewal, setRenewal] = useState<string | null>(null);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    (async () => {
+      const ref = doc(db, "users", uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const d = snap.data() as any;
+        setCredits(d?.credits?.wallet ?? 0);
+        setPlanType(d?.plan?.type ?? null);
+        setPlanActive(Boolean(d?.plan?.active));
+        setRenewal(d?.plan?.currentPeriodEnd ? new Date(d.plan.currentPeriodEnd.seconds ? d.plan.currentPeriodEnd.seconds * 1000 : d.plan.currentPeriodEnd).toLocaleDateString() : null);
+      }
+    })();
+  }, []);
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Settings – MyBodyScan" description="Manage your preferences and data." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Settings</h1>
+
+      {/* Billing */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Billing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-sm">
+            <div><span className="font-medium">Remaining credits:</span> {credits}</div>
+            <div><span className="font-medium">Current plan:</span> {planType ? `${planType} ${planActive ? "(active)" : "(inactive)"}` : "None"}</div>
+            {renewal && <div><span className="font-medium">Renews:</span> {renewal}</div>}
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => openStripePortal()}>Manage subscription</Button>
+            <Button variant="secondary" onClick={() => window.location.reload()}>Refresh</Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Preferences</CardTitle>

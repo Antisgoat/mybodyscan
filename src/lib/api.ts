@@ -21,9 +21,21 @@ export async function startCreateScan(scanId: string) {
 }
 
 export async function openStripeCheckout(priceId: string, mode: "payment" | "subscription") {
+  // Kept for backward compatibility (unused after product-based checkout)
   const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(priceId)}&mode=${mode}`);
   const { url } = await r.json();
   if (url) window.location.href = url;
 }
 
+export async function openStripeCheckoutByProduct(productId: string) {
+  const r = await authedFetch(`/createCheckoutByProduct?productId=${encodeURIComponent(productId)}`);
+  const { url } = await r.json();
+  if (url) window.location.href = url;
+}
+
+export async function openStripePortal() {
+  const r = await authedFetch(`/createCustomerPortal`);
+  const { url } = await r.json();
+  if (url) window.open(url, "_blank");
+}
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };
