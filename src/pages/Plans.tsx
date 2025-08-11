@@ -4,8 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { app } from "@/firebaseConfig";
+import { auth } from "@/firebaseConfig";
 import { Badge } from "@/components/ui/badge";
 
 const Plans = () => {
@@ -23,22 +22,39 @@ const Plans = () => {
     }
   }, []);
 
-  const functions = getFunctions(app, "us-central1");
-  const createCheckout = httpsCallable(functions, "createCheckoutSession");
-
+  const CF_BASE = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net";
   const handleCheckout = async (
     plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
     el: HTMLButtonElement
   ) => {
     try {
       el.disabled = true;
-      const { data }: any = await createCheckout({ plan });
-      const url = (data as any)?.url;
+      const user = auth.currentUser;
+      if (!user) {
+        el.disabled = false;
+        navigate("/auth", { state: { from: window.location.pathname } });
+        return;
+      }
+      const t = await user.getIdToken();
+      const r = await fetch(`${CF_BASE}/createCheckoutSession`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${t}`,
+        },
+        body: JSON.stringify({ data: { plan } }),
+      });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(text || `Checkout failed (${r.status})`);
+      }
+      const json: any = await r.json();
+      const url: string | undefined = json?.url || json?.result?.url || json?.data?.url;
       if (!url) throw new Error("No checkout URL returned");
-      window.location.href = url;
+      window.location.assign(url);
     } catch (err: any) {
       try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
-      if ((err as any)?.code === "functions/unauthenticated") {
+      if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String((err as any)?.message ?? ""))) {
         navigate("/auth", { state: { from: window.location.pathname } });
       } else {
         if (!(window as any).toast) {
