@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
-import { db, auth } from "@/firebaseConfig";
+import { collection, query, orderBy, limit as limitFn, onSnapshot, getFirestore } from "firebase/firestore";
+import { app, auth } from "@/firebaseConfig";
 import { useAuthUser } from "@/lib/auth";
 
 type LastScan = {
@@ -35,7 +35,7 @@ const Home = () => {
     const uid = user.uid;
 
     const q = query(
-      collection(db, "users", uid, "scans"),
+      collection(getFirestore(app), "users", uid, "scans"),
       orderBy("createdAt", "desc"),
       limitFn(1)
     );
