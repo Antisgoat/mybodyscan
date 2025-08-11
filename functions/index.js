@@ -211,7 +211,10 @@ export const createCheckoutByProduct = functions.region("us-central1").https.onR
   });
 });
 
-export const createCheckoutSession = functions.region("us-central1").https.onCall(async (data, context) => {
+export const createCheckoutSession = functions
+  .region("us-central1")
+  .runWith({ secrets: ["STRIPE_SECRET"] })
+  .https.onCall(async (data, context) => {
   const uid = context.auth?.uid;
   if (!uid) throw new functions.https.HttpsError("unauthenticated", "Login required.");
   const plan = data?.plan;
@@ -297,7 +300,10 @@ function creditsFromProduct(product) {
   return 0;
 }
 
-export const stripeWebhook = functions.region("us-central1").https.onRequest(async (req, res) => {
+export const stripeWebhook = functions
+  .region("us-central1")
+  .runWith({ secrets: ["STRIPE_SECRET", "STRIPE_WEBHOOK"] })
+  .https.onRequest(async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const endpointSecret = process.env.STRIPE_WEBHOOK;
 
