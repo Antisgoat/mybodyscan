@@ -63,22 +63,38 @@ const Auth = () => {
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl">{mode === "signin" ? "Sign in" : "Create account"}</CardTitle>
-              <CardDescription>Welcome to MyBodyScan</CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
-                Sign in
-              </Button>
-              <Button size="sm" variant={mode === "signup" ? "default" : "outline"} onClick={() => setMode("signup")}>
-                Create account
-              </Button>
-            </div>
+          <div className="text-center">
+            <CardTitle className="text-2xl mb-2">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
+            <CardDescription className="text-slate-600">Track body fat, weight and progress—private and secure.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="flex justify-center gap-2 mb-6">
+            <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
+              Sign in
+            </Button>
+            <Button size="sm" variant={mode === "signup" ? "default" : "outline"} onClick={() => setMode("signup")}>
+              Create account
+            </Button>
+          </div>
+          
+          <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+            <div className="space-y-2 text-sm text-slate-700">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Accurate body fat estimates from photos/video</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Progress tracking & reminders</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Private by default—your data, your control</span>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -88,8 +104,8 @@ const Auth = () => {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <div className="flex items-center justify-between">
-              <Button type="submit" className="" disabled={loading}>
+            <div className="flex flex-col gap-2">
+              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading}>
                 {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
               </Button>
               <Button type="button" variant="link" onClick={async () => {
@@ -103,8 +119,8 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button variant="secondary" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
-            <Button variant="outline" onClick={onGuest} disabled={loading}>Continue as guest</Button>
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
+            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>
