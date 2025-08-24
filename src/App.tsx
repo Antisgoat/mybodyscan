@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import React, { useEffect, lazy } from "react";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
+import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
 import AuthedLayout from "./components/AuthedLayout";
 import { initAuthPersistence } from "./lib/auth";
 import Auth from "./pages/Auth";
@@ -45,7 +46,8 @@ const App = () => {
         <Sonner />
         <AuthGate>
           <BrowserRouter>
-            <Routes>
+            <OnboardingRedirectMBS>
+              <Routes>
             {/* Public marketing pages */}
             <Route path="/" element={<PublicLayout><PublicLanding /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
@@ -88,7 +90,8 @@ const App = () => {
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+              </Routes>
+            </OnboardingRedirectMBS>
         </BrowserRouter>
       </AuthGate>
     </TooltipProvider>
