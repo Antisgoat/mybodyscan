@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AuthGate from "./components/AuthGate";
 import AuthedLayout from "./components/AuthedLayout";
 import { initAuthPersistence } from "./lib/auth";
 import Auth from "./pages/Auth";
@@ -25,6 +26,8 @@ import Terms from "./pages/Terms";
 import Support from "./pages/Support";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
+import ScanNew from "./pages/ScanNew";
+import ScanResult from "./pages/ScanResult";
 
 const queryClient = new QueryClient();
 
@@ -38,8 +41,9 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
+        <AuthGate>
+          <BrowserRouter>
+            <Routes>
             {/* Public marketing pages */}
             <Route path="/" element={<PublicLayout><PublicLanding /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
@@ -68,12 +72,16 @@ const App = () => {
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AuthedLayout><Settings /></AuthedLayout></ProtectedRoute>} />
+            {/* New scan routes */}
+            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+      </AuthGate>
+    </TooltipProvider>
+  </QueryClientProvider>
   );
 };
 

@@ -1,7 +1,7 @@
 // at top of History file
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "../firebaseConfig";
+import { auth, db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";

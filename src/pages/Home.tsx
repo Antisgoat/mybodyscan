@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { collection, query, orderBy, limit as limitFn, onSnapshot, getFirestore } from "firebase/firestore";
-import { app, auth } from "@/firebaseConfig";
+import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 
 type LastScan = {
@@ -35,7 +35,7 @@ const Home = () => {
     const uid = user.uid;
 
     const q = query(
-      collection(getFirestore(app), "users", uid, "scans"),
+      collection(db, "users", uid, "scans"),
       orderBy("createdAt", "desc"),
       limitFn(1)
     );
@@ -117,7 +117,7 @@ const Home = () => {
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+                  <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
                   <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                 </div>
               </div>
@@ -126,7 +126,7 @@ const Home = () => {
         </Card>
 
         <div className="grid gap-3">
-          <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+          <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
           <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>

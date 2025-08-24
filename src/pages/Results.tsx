@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { doc, getDoc, collection, query, orderBy, startAfter, limit as limitFn, getDocs } from "firebase/firestore";
-import { db, auth } from "@/firebaseConfig";
+import { db, auth } from "@/lib/firebase";
 type ScanData = {
   id: string;
   status: string;
@@ -182,7 +182,7 @@ const Results = () => {
           <div className="grid gap-2 sm:grid-cols-3">
             <Button variant="secondary" onClick={() => navigate("/home")}>Back to Home</Button>
             <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
-            <Button variant="outline" onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+            <Button variant="outline" onClick={() => navigate("/scan/new")}>Start a Scan</Button>
           </div>
         </div>
       )}

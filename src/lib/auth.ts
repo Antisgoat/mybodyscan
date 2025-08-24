@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { auth } from "../firebaseConfig";
+import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut, GoogleAuthProvider, signInWithRedirect, signInWithPopup, signInAnonymously, linkWithCredential, EmailAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "firebase/auth";
 
 export async function initAuthPersistence() {
@@ -7,7 +7,7 @@ export async function initAuthPersistence() {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<ReturnType<typeof auth.currentUser> | any>(auth.currentUser);
+  const [user, setUser] = useState<typeof auth.currentUser>(auth.currentUser);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

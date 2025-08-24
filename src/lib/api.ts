@@ -1,4 +1,4 @@
-import { auth, app } from "@/firebaseConfig";
+import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";

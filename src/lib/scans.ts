@@ -1,5 +1,5 @@
 // src/lib/scans.ts
-import { db } from "../firebaseConfig";
+import { db } from "@/lib/firebase";
 import {
   collection,
   query,

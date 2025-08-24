@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { auth } from "@/firebaseConfig";
+import { auth } from "@/lib/firebase";
 
 const RootRedirect = () => {
   const user = auth.currentUser;
