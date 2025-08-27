@@ -50,6 +50,8 @@ const PhotoCapture = () => {
     }
     setLoading(true);
     try {
+      // Validate scan credit before upload
+      await consumeScanCredit();
       // 1) Create scan doc
       const col = collection(db, "users", uid, "scans");
       const scanRef = doc(col);
@@ -79,10 +81,7 @@ const PhotoCapture = () => {
       }
       await updateDoc(scanRef, fileUpdates);
 
-      // 3) Consume credit or validate subscription
-      await consumeScanCredit();
-
-      // 4) Trigger processing
+      // 3) Process
       await startCreateScan(scanId);
 
       // 5) Navigate to processing

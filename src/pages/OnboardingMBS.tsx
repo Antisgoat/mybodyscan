@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase.mbs';
+import { db } from '../lib/firebase';
 import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
 import ToastMBS from '../components/ToastMBS';
 import { toFriendlyMBS } from '../lib/errors.mbs';

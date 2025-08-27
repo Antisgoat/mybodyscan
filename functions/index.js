@@ -136,6 +136,7 @@ export const createCheckout = functions.region("us-central1").https.onRequest(as
 });
 
 // ===================== Stripe Checkout by Product (secure) =====================
+const ALLOWED_DOMAINS = ["https://mybodyscan-f3daf.web.app", "https://id-preview--cf8140ba-edcc-4236-9166-fb030db04005.lovable.app"];
 const SUCCESS_URL = "https://mybodyscan-f3daf.web.app/checkout/success";
 const CANCEL_URL = "https://mybodyscan-f3daf.web.app/checkout/canceled";
 
@@ -178,6 +179,16 @@ async function resolveDefaultPrice(stripe, productId) {
 
 export const createCheckoutByProduct = functions.region("us-central1").https.onRequest(async (req, res) => {
   return cors(req, res, async () => {
+    // Validate productId against known products
+    const { productId } = req.query;
+    const allProducts = [
+      ...Object.values(KNOWN_PRODUCTS.subscription),
+      ...Object.values(KNOWN_PRODUCTS.credits)
+    ];
+    if (!productId || !allProducts.includes(productId)) {
+      res.status(400).json({ error: "Invalid or missing productId" });
+      return;
+    }
     try {
       if (req.method === "OPTIONS") return res.status(204).send("");
       if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });

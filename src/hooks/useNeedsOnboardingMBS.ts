@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase.mbs';
+import { auth, db } from '../lib/firebase';
 
 export function useNeedsOnboardingMBS() {
   const [loading, setLoading] = useState(true);
