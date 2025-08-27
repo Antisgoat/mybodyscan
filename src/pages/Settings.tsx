@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/firebaseConfig";
+import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
 import { openStripePortal } from "@/lib/api";
 

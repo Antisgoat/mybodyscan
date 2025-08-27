@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/firebaseConfig";
+import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
 const Processing = () => {
@@ -47,7 +47,7 @@ const Processing = () => {
         <span className="text-sm">{status}</span>
       </div>
       {status === "error" && (
-        <Button variant="secondary" className="mt-8" onClick={() => navigate("/capture-picker")}>Retry</Button>
+        <Button variant="secondary" className="mt-8" onClick={() => navigate("/scan/new")}>Retry</Button>
       )}
     </main>
   );

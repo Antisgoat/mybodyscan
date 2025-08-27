@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, db, storage } from "@/firebaseConfig";
+import { auth, db, storage } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { startCreateScan, FUNCTIONS_BASE_URL, consumeScanCredit } from "@/lib/api";
@@ -51,6 +51,9 @@ const VideoCapture = () => {
     }
     setLoading(true);
     try {
+      // Validate scan credit before upload
+      await consumeScanCredit();
+
       // 1) Create scan doc
       const col = collection(db, "users", uid, "scans");
       const scanRef = doc(col);
@@ -71,10 +74,7 @@ const VideoCapture = () => {
       const url = await getDownloadURL(r);
       await updateDoc(scanRef, { "files.videoUrl": url });
 
-      // 3) Consume credit or validate subscription
-      await consumeScanCredit();
-
-      // 4) Trigger processing
+      // 3) Trigger processing
       await startCreateScan(scanId);
 
       // 5) Navigate to processing

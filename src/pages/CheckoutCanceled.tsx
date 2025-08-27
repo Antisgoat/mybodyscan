@@ -2,7 +2,7 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth } from "@/firebaseConfig";
+import { auth } from "@/lib/firebase";
 
 export default function CheckoutCanceled() {
   const navigate = useNavigate();

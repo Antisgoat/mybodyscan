@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { collection, query, orderBy, limit as limitFn, onSnapshot, getFirestore } from "firebase/firestore";
-import { app, auth } from "@/firebaseConfig";
+import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 
 type LastScan = {
@@ -35,7 +35,7 @@ const Home = () => {
     const uid = user.uid;
 
     const q = query(
-      collection(getFirestore(app), "users", uid, "scans"),
+      collection(db, "users", uid, "scans"),
       orderBy("createdAt", "desc"),
       limitFn(1)
     );
@@ -78,10 +78,12 @@ const Home = () => {
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
       <div className="mb-4 flex justify-center">
         <Card className="w-40">
-          <CardContent className="p-4 text-center text-sm text-muted-foreground">MyBodyScan Logo</CardContent>
+          <CardContent className="p-4 text-center">
+            <img src="/logo.svg" alt="MyBodyScan Logo" className="mx-auto h-10 w-auto max-w-full object-contain" />
+          </CardContent>
         </Card>
       </div>
-      <header className="mb-6">
+      <header className="mb-6 text-center">
         <h1 className="text-3xl font-semibold">MyBodyScan</h1>
       </header>
       <section className="space-y-4">
@@ -91,7 +93,11 @@ const Home = () => {
             <CardDescription>The most recent result for your account</CardDescription>
           </CardHeader>
           <CardContent>
-            {!lastScan && <p className="text-muted-foreground">No scans yet—tap Start a Scan.</p>}
+            {!lastScan && (
+              <div>
+                <p className="text-muted-foreground">No scans yet — Start a Scan to see your first result.</p>
+              </div>
+            )}
             {lastScan && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">{created}</p>
@@ -117,7 +123,7 @@ const Home = () => {
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+                  <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
                   <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                 </div>
               </div>
@@ -126,7 +132,8 @@ const Home = () => {
         </Card>
 
         <div className="grid gap-3">
-          <Button onClick={() => navigate("/capture-picker")}>Start a Scan</Button>
+          <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
+          <a href="/onboarding-mbs" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2">Personalize results (1 min)</a>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
           <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>

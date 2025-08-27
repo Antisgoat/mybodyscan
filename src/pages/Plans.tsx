@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { auth } from "@/firebaseConfig";
+import { auth, db } from "@/lib/firebase";
 import { Badge } from "@/components/ui/badge";
+import { doc, getDoc } from "firebase/firestore";
 
 const Plans = () => {
   const navigate = useNavigate();
@@ -14,11 +15,37 @@ const Plans = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "1") {
-      setBanner("Checkout successful");
-      try { toast({ title: "Checkout successful" }); } catch {}
+      setBanner("Payment received — updating your account…");
+      toast({ title: "Payment received — updating your account…" });
+      
+      // Poll for updates for up to 10 seconds
+      const pollForUpdates = async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        const checkUpdates = async () => {
+          try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            // Force a small delay to allow backend processing
+            attempts++;
+            if (attempts < maxAttempts) {
+              setTimeout(checkUpdates, 1000);
+            }
+          } catch (error) {
+            console.error("Error polling for updates:", error);
+          }
+        };
+        
+        setTimeout(checkUpdates, 1000);
+      };
+      
+      pollForUpdates();
     } else if (params.get("canceled") === "1") {
       setBanner("Checkout canceled");
-      try { toast({ title: "Checkout canceled" }); } catch {}
+      toast({ title: "Checkout canceled" });
     }
   }, []);
 

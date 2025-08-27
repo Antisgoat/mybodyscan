@@ -1,7 +1,7 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
-import { auth } from "@/firebaseConfig";
+import { auth } from "@/lib/firebase";
 import silhouetteFront from "@/assets/silhouette-front.png";
 
 const PublicLanding = () => {

@@ -1,4 +1,4 @@
-import { auth, app } from "@/firebaseConfig";
+import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
@@ -6,9 +6,14 @@ const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
 async function authedFetch(path: string, init?: RequestInit) {
   if (!BASE) throw new Error("Functions URL not configured");
   const t = await auth.currentUser?.getIdToken();
+  // Prevent Bearer undefined
+  const authHeader = t ? `Bearer ${t}` : "";
   return fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` }
+    headers: { 
+      "Content-Type": "application/json", 
+      ...(authHeader && { Authorization: authHeader })
+    }
   });
 }
 
@@ -37,7 +42,7 @@ export async function openStripeCheckoutByProduct(productId: string) {
 export async function openStripePortal() {
   const r = await authedFetch(`/createCustomerPortal`);
   const { url } = await r.json();
-  if (url) window.open(url, "_blank");
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
 }
 export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"single") {
   const functions = getFunctions(app);

@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
