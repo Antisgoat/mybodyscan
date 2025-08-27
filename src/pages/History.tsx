@@ -5,6 +5,7 @@ import { auth, db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 type Scan = {
   id: string;
@@ -95,24 +96,32 @@ export default function History() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
+                alignItems: "center",
                 padding: "12px 0",
-                borderBottom: "1px solid #eee",
-                cursor: "pointer"
+                borderBottom: "1px solid #eee"
               }}
-              onClick={() => navigate(`/results/${s.id}`)} // adjust route if needed
             >
-              <div>
+              <div onClick={() => navigate(`/results/${s.id}`)} style={{ cursor: "pointer", flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{dateStr}</div>
               </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  padding: "2px 8px",
-                  borderRadius: 12,
-                  background: "#f2f4f7"
-                }}
-              >
-                {s.status ?? "—"}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    padding: "2px 8px",
+                    borderRadius: 12,
+                    background: "#f2f4f7"
+                  }}
+                >
+                  {s.status ?? "—"}
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => navigate(`/report/${s.id}`)}
+                >
+                  Report
+                </Button>
               </div>
             </li>
           );

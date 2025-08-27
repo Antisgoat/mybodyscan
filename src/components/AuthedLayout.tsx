@@ -17,6 +17,7 @@ export default function AuthedLayout({ children }: { children: ReactNode }) {
           <nav className="flex items-center gap-2 text-sm">
             <NavLink to="/home" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Home</NavLink>
             <NavLink to="/history" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>History</NavLink>
+            <NavLink to="/report" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Report</NavLink>
             <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Settings</NavLink>
             <Button size="sm" variant="outline" onClick={signOutToAuth}>Sign out</Button>

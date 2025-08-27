@@ -29,6 +29,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import ScanNew from "./pages/ScanNew";
 import ScanResult from "./pages/ScanResult";
+import Report from "./pages/Report";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -79,6 +80,9 @@ const App = () => {
             {/* New scan routes */}
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
+            {/* Report routes */}
+            <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             {/* MBS Onboarding */}
             <Route
               path="/onboarding-mbs"

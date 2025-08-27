@@ -83,7 +83,7 @@ const Home = () => {
           </CardContent>
         </Card>
       </div>
-      <header className="mb-6">
+      <header className="mb-6 text-center">
         <h1 className="text-3xl font-semibold">MyBodyScan</h1>
       </header>
       <section className="space-y-4">
