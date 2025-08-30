@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { openStripePortal } from "@/lib/api";
 
 const Settings = () => {
@@ -17,10 +18,15 @@ const Settings = () => {
   const [planType, setPlanType] = useState<string | null>(null);
   const [planActive, setPlanActive] = useState<boolean>(false);
   const [renewal, setRenewal] = useState<string | null>(null);
+  const [reminderEnabled, setReminderEnabled] = useState<boolean>(false);
+  const [lastScanDate, setLastScanDate] = useState<Date | null>(null);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+    
+    // Load user preferences
     (async () => {
       const ref = doc(db, "users", uid);
       const snap = await getDoc(ref);
@@ -30,9 +36,63 @@ const Settings = () => {
         setPlanType(d?.plan?.type ?? null);
         setPlanActive(Boolean(d?.plan?.active));
         setRenewal(d?.plan?.currentPeriodEnd ? new Date(d.plan.currentPeriodEnd.seconds ? d.plan.currentPeriodEnd.seconds * 1000 : d.plan.currentPeriodEnd).toLocaleDateString() : null);
+        
+        // Load reminder preferences
+        const reminders = d?.reminders;
+        setReminderEnabled(reminders?.enabled ?? (planActive ? true : false));
       }
     })();
-  }, []);
+
+    // Load latest scan date
+    const scansQuery = query(
+      collection(db, "users", uid, "scans"),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+    
+    const unsubscribe = onSnapshot(scansQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const latestScan = snapshot.docs[0].data();
+        const createdAt = latestScan.createdAt;
+        if (createdAt?.toDate) {
+          setLastScanDate(createdAt.toDate());
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [planActive]);
+
+  const saveReminderPreference = async (enabled: boolean) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    setSaving(true);
+    try {
+      const ref = doc(db, "users", uid);
+      await updateDoc(ref, {
+        reminders: {
+          enabled,
+          intervalDays: 10,
+          updatedAt: serverTimestamp()
+        }
+      });
+      setReminderEnabled(enabled);
+      toast({ title: enabled ? "Reminders enabled" : "Reminders disabled" });
+    } catch (error) {
+      console.error("Error saving reminder preference:", error);
+      toast({ title: "Failed to save preference", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getNextReminderDate = () => {
+    if (!lastScanDate || !reminderEnabled) return null;
+    const nextDate = new Date(lastScanDate);
+    nextDate.setDate(nextDate.getDate() + 10);
+    return nextDate;
+  };
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
@@ -53,6 +113,42 @@ const Settings = () => {
           <div className="flex gap-2">
             <Button onClick={() => openStripePortal()}>Manage subscription</Button>
             <Button variant="secondary" onClick={() => window.location.reload()}>Refresh</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scan Reminders */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Scan Reminders</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>Remind me every 10 days</Label>
+              <p className="text-sm text-muted-foreground">Get notified when it's time for your next scan</p>
+            </div>
+            <Switch
+              checked={reminderEnabled}
+              onCheckedChange={saveReminderPreference}
+              disabled={saving}
+            />
+          </div>
+          
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {lastScanDate && (
+              <div>
+                <span className="font-medium">Last scan:</span> {lastScanDate.toLocaleDateString()}
+              </div>
+            )}
+            {reminderEnabled && getNextReminderDate() && (
+              <div>
+                <span className="font-medium">Next reminder:</span> {getNextReminderDate()?.toLocaleDateString()}
+              </div>
+            )}
+            {!lastScanDate && (
+              <div>No scans yet. Start your first scan to enable reminders.</div>
+            )}
           </div>
         </CardContent>
       </Card>
