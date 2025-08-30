@@ -43,6 +43,53 @@ const formatDate = (timestamp: any) => {
   return "—";
 };
 
+// Processing UI component
+const ProcessingUI = () => {
+  const [progress, setProgress] = useState(0);
+  const [messageIndex, setMessageIndex] = useState(0);
+  
+  const messages = [
+    "Lining up your measurements…",
+    "Estimating body fat with AI…", 
+    "Checking symmetry and posture…",
+    "Crunching numbers…",
+    "Almost there!"
+  ];
+
+  useEffect(() => {
+    // Progress bar: 0→100% over 90s
+    const progressInterval = setInterval(() => {
+      setProgress(prev => Math.min(prev + (100 / 90), 100));
+    }, 1000);
+
+    // Message rotation: every 8s
+    const messageInterval = setInterval(() => {
+      setMessageIndex(prev => (prev + 1) % messages.length);
+    }, 8000);
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(messageInterval);
+    };
+  }, []);
+
+  return (
+    <div className="text-center py-8">
+      <div className="max-w-xs mx-auto mb-6">
+        <div className="w-full bg-muted rounded-full h-2 mb-3">
+          <div 
+            className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <p className="text-sm font-medium mb-2">{Math.round(progress)}%</p>
+      </div>
+      <p className="text-muted-foreground animate-fade-in">{messages[messageIndex]}</p>
+      <p className="text-xs text-muted-foreground mt-2">This usually takes ~1–2 minutes.</p>
+    </div>
+  );
+};
+
 const Results = () => {
   const navigate = useNavigate();
   const { scan, loading, error, user } = useLatestScanForUser();
@@ -195,10 +242,7 @@ const Results = () => {
         
         <CardContent>
           {scan.status === "processing" ? (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 rounded-full border-4 border-muted border-t-primary animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Analyzing your scan… this usually takes ~1–2 minutes.</p>
-            </div>
+            <ProcessingUI />
           ) : scan.status === "failed" ? (
             <div className="text-center py-6">
               <p className="text-destructive mb-4">Scan analysis failed</p>
