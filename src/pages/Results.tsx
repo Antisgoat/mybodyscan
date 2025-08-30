@@ -1,191 +1,286 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { doc, getDoc, collection, query, orderBy, startAfter, limit as limitFn, getDocs } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 type ScanData = {
   id: string;
   status: string;
-  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number; BMI?: number };
-  createdAtDate: Date | null;
-  createdAtTS: any | null;
+  bodyFatPercentage?: number;
+  body_fat?: number;
+  bodyfat?: number;
+  weight?: number;
+  weight_lbs?: number;
+  bmi?: number;
+  mediaUrl?: string;
+  createdAt?: any;
+  completedAt?: any;
+  note?: string;
+  [key: string]: any;
 };
 
-type PrevData = {
-  bodyFatPct?: number | null;
-  weight?: { value: number; unit: "kg" | "lb" } | null;
-} | null;
+// Helper function to normalize field names
+const normalizeFields = (scan: ScanData) => {
+  const bodyFat = scan.bodyFatPercentage ?? scan.body_fat ?? scan.bodyfat ?? null;
+  const weightLbs = scan.weight ?? scan.weight_lbs ?? null;
+  const bmi = scan.bmi ?? null;
+  
+  return { bodyFat, weightLbs, bmi };
+};
+
+// Helper function to format dates
+const formatDate = (timestamp: any) => {
+  if (!timestamp) return "—";
+  if (timestamp.toDate) return timestamp.toDate().toLocaleString();
+  if (timestamp instanceof Date) return timestamp.toLocaleString();
+  return "—";
+};
 
 const Results = () => {
-  const { scanId } = useParams();
-  const uid = auth.currentUser?.uid ?? null;
   const navigate = useNavigate();
-  const [scan, setScan] = useState<ScanData | null>(null);
-  const [prev, setPrev] = useState<PrevData>(null);
-  const [notFound, setNotFound] = useState(false);
+  const { scan, loading, error, user } = useLatestScanForUser();
   const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
+  // Initialize note from scan data
   useEffect(() => {
-    const load = async () => {
-      if (!uid || !scanId) return;
-      try {
-        const ref = doc(db, "users", uid, "scans", scanId);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          setNotFound(true);
-          setScan(null);
-          return;
-        }
-        setNotFound(false);
-        const data: any = snap.data();
-        const createdAtTS = data?.createdAt ?? null;
-        const createdAtDate = createdAtTS?.toDate ? createdAtTS.toDate() : null;
-        const s: ScanData = {
-          id: snap.id,
-          status: data?.status ?? "unknown",
-          results: data?.results,
-          createdAtDate,
-          createdAtTS,
-        };
-        setScan(s);
-
-        // Load previous scan for deltas (next document after current in desc order)
-        if (createdAtTS) {
-          const q = query(
-            collection(db, "users", uid, "scans"),
-            orderBy("createdAt", "desc"),
-            startAfter(createdAtTS),
-            limitFn(1)
-          );
-          const prevSnap = await getDocs(q);
-          if (!prevSnap.empty) {
-            const pd = prevSnap.docs[0].data() as any;
-            const kg = pd?.results?.weightKg ?? null;
-            const lb = pd?.results?.weightLb ?? null;
-            setPrev({
-              bodyFatPct: pd?.results?.bodyFatPct ?? null,
-              weight: kg != null ? { value: kg, unit: "kg" } : lb != null ? { value: lb, unit: "lb" } : null,
-            });
-          } else {
-            setPrev(null);
-          }
-        }
-      } catch (err: any) {
-        console.error("Results load error", err);
-        if (err?.code === "permission-denied") {
-          toast({ title: "Sign in required" });
-          navigate("/auth", { replace: true });
-        }
-      }
-    };
-    load();
-  }, [uid, scanId]);
+    if (scan?.note) {
+      setNote(scan.note);
+    }
+  }, [scan?.note]);
 
   const onSaveNote = async () => {
-    toast({ title: "Note saved" });
+    if (!user || !scan || !note.trim()) return;
+    
+    setSaving(true);
+    try {
+      const scanRef = doc(db, "users", user.uid, "scans", scan.id);
+      await updateDoc(scanRef, {
+        note: note.trim(),
+        noteUpdatedAt: serverTimestamp()
+      });
+      toast({ title: "Note saved successfully" });
+    } catch (err: any) {
+      console.error("Error saving note:", err);
+      toast({ title: "Failed to save note", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Redirect to auth if not signed in
+  if (!user && !loading) {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <div className="space-y-4">
+          <h1 className="text-2xl font-semibold">Results</h1>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground mb-4">Sign in required to view your results.</p>
+              <Button onClick={() => navigate("/auth")} className="w-full">
+                Sign In
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <h1 className="text-2xl font-semibold mb-6">Results</h1>
+        
+        <Card className="mb-6">
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <Skeleton className="h-12 w-16 mx-auto mb-2" />
+                <Skeleton className="h-4 w-16 mx-auto" />
+              </div>
+              <div className="text-center">
+                <Skeleton className="h-12 w-16 mx-auto mb-2" />
+                <Skeleton className="h-4 w-16 mx-auto" />
+              </div>
+              <div className="text-center">
+                <Skeleton className="h-12 w-16 mx-auto mb-2" />
+                <Skeleton className="h-4 w-16 mx-auto" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <div className="space-y-4">
+          <h1 className="text-2xl font-semibold">Results</h1>
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground mb-4">Unable to load your results. Please try again.</p>
+              <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // No scans exist
+  if (!scan) {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <div className="space-y-4">
+          <h1 className="text-2xl font-semibold">Results</h1>
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground mb-4">No scans yet. Start your first body scan to see results here.</p>
+              <Button onClick={() => navigate("/scan/new")} className="w-full">
+                Start Your First Scan
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  const { bodyFat, weightLbs, bmi } = normalizeFields(scan);
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
-      <h1 className="text-2xl font-semibold mb-4">Results</h1>
-      {(!uid || !scanId) && (
-        <div className="space-y-3">
-          <p className="text-muted-foreground">Sign in required.</p>
-          <Button variant="outline" onClick={() => navigate("/auth")}>Go to Sign In</Button>
-        </div>
-      )}
-      {notFound && uid && scanId && (
-        <div className="space-y-3">
-          <p className="text-muted-foreground">Not found.</p>
-          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
-        </div>
-      )}
-      {!notFound && !scan && uid && scanId && (
-        <div className="space-y-3">
-          <p className="text-muted-foreground">Still processing…</p>
-          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
-        </div>
-      )}
-      {scan && scan.status !== "done" && (
-        <div className="space-y-3">
-          <p className="text-muted-foreground">Still processing…</p>
-          <Button variant="outline" onClick={() => navigate("/history")}>Back to History</Button>
-        </div>
-      )}
-      {scan && scan.status === "done" && (
-        <Card className="mb-4">
+      
+      <h1 className="text-2xl font-semibold mb-6">Results</h1>
+
+      {/* Status Card */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">
+              {formatDate(scan.completedAt || scan.createdAt)}
+            </CardTitle>
+            <Badge variant={
+              scan.status === "completed" ? "default" : 
+              scan.status === "processing" ? "secondary" : 
+              "destructive"
+            }>
+              {scan.status}
+            </Badge>
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+          {scan.status === "processing" ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 rounded-full border-4 border-muted border-t-primary animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground">Analyzing your scan… this usually takes ~1–2 minutes.</p>
+            </div>
+          ) : scan.status === "failed" ? (
+            <div className="text-center py-6">
+              <p className="text-destructive mb-4">Scan analysis failed</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                {scan.error || "We couldn't process your scan. Please try again with better lighting or clearer angles."}
+              </p>
+              <Button onClick={() => navigate("/scan/new")} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-3xl font-semibold text-primary">
+                    {bodyFat ? `${bodyFat}%` : "—"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Body Fat %</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-3xl font-semibold text-primary">
+                    {weightLbs ? `${weightLbs} lbs` : "—"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Weight (lbs)</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-3xl font-semibold text-primary">
+                    {bmi ? bmi : "—"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">BMI</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Notes section - only show for completed scans */}
+      {scan.status === "completed" && (
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{scan.createdAtDate ? scan.createdAtDate.toLocaleDateString() : "—"}</CardTitle>
+            <CardTitle className="text-lg">Notes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
-                <p className="text-3xl font-semibold">{scan.results?.bodyFatPct ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">Body Fat</p>
-              </div>
-              <div>
-                <p className="text-3xl font-semibold">
-                  {scan.results?.weightKg != null
-                    ? `${scan.results.weightKg} kg`
-                    : scan.results?.weightLb != null
-                      ? `${scan.results.weightLb} lb`
-                      : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">Weight</p>
-              </div>
-              <div>
-                <p className="text-3xl font-semibold">{scan.results?.BMI ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">BMI</p>
-              </div>
+            <div className="space-y-3">
+              <Textarea
+                placeholder="Add a note about this scan..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="min-h-[80px]"
+              />
+              <Button 
+                onClick={onSaveNote}
+                disabled={!note.trim() || saving}
+                variant="secondary"
+                className="w-full"
+              >
+                {saving ? "Saving..." : "Save Note"}
+              </Button>
             </div>
-            {/* Delta line */}
-            {prev && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                {(() => {
-                  const curBF = scan.results?.bodyFatPct ?? null;
-                  const prevBF = prev?.bodyFatPct ?? null;
-                  const arrowBF = curBF != null && prevBF != null ? (curBF - prevBF > 0 ? "↑" : curBF - prevBF < 0 ? "↓" : "→") : "";
-                  const deltaBF = curBF != null && prevBF != null ? Math.abs(curBF - prevBF).toFixed(2) + "%" : "—";
-
-                  const curW = scan.results?.weightKg != null
-                    ? { value: scan.results.weightKg, unit: "kg" as const }
-                    : scan.results?.weightLb != null
-                      ? { value: scan.results.weightLb, unit: "lb" as const }
-                      : null;
-                  const prevW = prev?.weight ?? null;
-                  const arrowW = curW && prevW ? (curW.value - prevW.value > 0 ? "↑" : curW.value - prevW.value < 0 ? "↓" : "→") : "";
-                  const deltaW = curW && prevW && curW.unit === prevW.unit ? `${Math.abs(curW.value - prevW.value).toFixed(1)} ${curW.unit}` : "—";
-
-                  return (
-                    <p>
-                      Δ Body Fat: {arrowBF} {deltaBF} • Δ Weight: {arrowW} {deltaW}
-                    </p>
-                  );
-                })()}
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
-      {/* Notes and actions */}
-      {scan && (
-        <div className="grid gap-3">
-          <div className="flex items-center gap-2">
-            <Input placeholder="Add a note" value={note} onChange={(e) => setNote(e.target.value)} />
-            <Button variant="secondary" onClick={onSaveNote}>Save</Button>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button variant="secondary" onClick={() => navigate("/home")}>Back to Home</Button>
-            <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
-            <Button variant="outline" onClick={() => navigate("/scan/new")}>Start a Scan</Button>
-          </div>
-        </div>
-      )}
+
+      {/* Navigation buttons */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Button variant="secondary" onClick={() => navigate("/")}>
+          Home
+        </Button>
+        <Button variant="secondary" onClick={() => navigate("/history")}>
+          History
+        </Button>
+        <Button variant="outline" onClick={() => navigate("/scan/new")}>
+          New Scan
+        </Button>
+      </div>
     </main>
   );
 };
