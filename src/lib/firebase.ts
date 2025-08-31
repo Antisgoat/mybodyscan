@@ -3,15 +3,32 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+
+const env = import.meta.env;
+const required = [
+  "VITE_FIREBASE_API_KEY",
+  "VITE_FIREBASE_AUTH_DOMAIN",
+  "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_STORAGE_BUCKET",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "VITE_FIREBASE_APP_ID",
+  "VITE_FIREBASE_MEASUREMENT_ID",
+];
+for (const key of required) {
+  if (!env[key as keyof typeof env]) {
+    throw new Error(`Missing env var ${key}. See .env.development`);
+  }
+}
 
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDA90cwKTCQ9tGfUx66PDmfGwUoiTbhafE",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mybodyscan-f3daf.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mybodyscan-f3daf.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "157018993008",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:157018993008:web:8bed67e098ca04dc4b1fb5",
-  measurementId: "G-TV8M3PY1X3",
+  apiKey: env.VITE_FIREBASE_API_KEY as string,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN as string,
+  projectId: env.VITE_FIREBASE_PROJECT_ID as string,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET as string,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId: env.VITE_FIREBASE_APP_ID as string,
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID as string,
 };
 
 // Initialize Firebase only once
@@ -20,3 +37,16 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+let warned = false;
+const appCheckKey = env.VITE_APPCHECK_KEY as string | undefined;
+if (typeof window !== "undefined") {
+  if (appCheckKey) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(appCheckKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } else if (!warned) {
+    warned = true;
+    console.warn("App Check key missing; requests are not protected. See README to enable.");
+  }
+}

@@ -71,3 +71,7 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## App Check
+
+To harden client requests, this project can enable Firebase App Check with reCAPTCHA Enterprise. Set `VITE_APPCHECK_KEY` in your environment (see `.env.development`) to initialize App Check. After verifying legitimate clients, enforce App Check in the Firebase console.

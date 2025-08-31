@@ -35,6 +35,18 @@ function assertAuthed(auth) {
   return uid;
 }
 
+async function verifyIdToken(req) {
+  const authHeader = req.headers?.authorization || "";
+  const match = authHeader.match(/^Bearer (.+)$/);
+  if (!match) throw new HttpsError("unauthenticated", "Missing token");
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    return decoded.uid;
+  } catch {
+    throw new HttpsError("unauthenticated", "Invalid token");
+  }
+}
+
 const lbToKg = (lb) => lb / 2.2046226218;
 const ftInToCm = (ft, inch) => (ft * 12 + inch) * 2.54;
 const kgToLb = (kg) => kg * 2.2046226218;
@@ -71,6 +83,114 @@ export const createCheckoutSession = onCall(
     });
 
     return { url: session.url };
+  }
+);
+
+// ===== Callable: start scan (consume credit + enqueue) =====
+export const startScan = onCall(async (req) => {
+  const uid = assertAuthed(req.auth);
+  const { filename, size, contentType } = req.data || {};
+  if (typeof filename !== 'string' || typeof size !== 'number' || typeof contentType !== 'string') {
+    throw new HttpsError('invalid-argument', 'Invalid file metadata');
+  }
+  const db = admin.firestore();
+  const userRef = db.collection('users').doc(uid);
+  const scanRef = userRef.collection('scans').doc();
+  let remaining = 0;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const credits = snap.exists ? snap.data()?.credits || 0 : 0;
+    if (credits <= 0) {
+      throw new HttpsError('failed-precondition', 'No credits left');
+    }
+    remaining = credits - 1;
+    tx.update(userRef, {
+      credits: remaining,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.set(scanRef, {
+      uid,
+      status: 'queued',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      filename,
+      size,
+      contentType,
+    });
+  });
+  return { scanId: scanRef.id, remaining };
+});
+
+// ===== HTTPS: create checkout by product =====
+export const createCheckoutByProduct = onRequest(
+  { secrets: ['STRIPE_SECRET'] },
+  async (req, res) => {
+    let uid;
+    try {
+      uid = await verifyIdToken(req);
+    } catch {
+      res.status(401).send('unauthenticated');
+      return;
+    }
+    const productId = req.query.productId;
+    if (typeof productId !== 'string') {
+      res.status(400).send('missing-productId');
+      return;
+    }
+    try {
+      const stripe = getStripe();
+      const product = await stripe.products.retrieve(productId, { expand: ['default_price'] });
+      const price = product.default_price;
+      const priceId = typeof price === 'string' ? price : price?.id;
+      if (!priceId) {
+        res.status(400).send('product-has-no-price');
+        return;
+      }
+      const domain = 'https://mybodyscanapp.com';
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${domain}/plans?success=1`,
+        cancel_url: `${domain}/plans?canceled=1`,
+        client_reference_id: uid,
+        metadata: { uid, productId },
+      });
+      res.json({ url: session.url });
+    } catch (e) {
+      console.error('createCheckoutByProduct error', e?.message);
+      res.status(500).send('error');
+    }
+  }
+);
+
+// ===== HTTPS: create customer portal =====
+export const createCustomerPortal = onRequest(
+  { secrets: ['STRIPE_SECRET'] },
+  async (req, res) => {
+    let uid;
+    try {
+      uid = await verifyIdToken(req);
+    } catch {
+      res.status(401).send('unauthenticated');
+      return;
+    }
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection('users').doc(uid).get();
+      const customerId = snap.data()?.stripeCustomerId;
+      if (!customerId) {
+        res.status(400).send('no-customer');
+        return;
+      }
+      const stripe = getStripe();
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: 'https://mybodyscanapp.com/plans',
+      });
+      res.json({ url: session.url });
+    } catch (e) {
+      console.error('createCustomerPortal error', e?.message);
+      res.status(500).send('error');
+    }
   }
 );
 
@@ -123,6 +243,18 @@ export const stripeWebhook = onRequest(
       return;
     }
 
+    const allowed = new Set(["checkout.session.completed","invoice.payment_succeeded"]);
+    if (!allowed.has(event.type)) {
+      console.log("Unhandled event:", event.type);
+      await seenRef.set({
+        type: event.type,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+        _expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      });
+      res.status(200).send("ok");
+      return;
+    }
+
     try {
       switch (event.type) {
         case "checkout.session.completed": {
@@ -169,6 +301,7 @@ export const stripeWebhook = onRequest(
       await seenRef.set({
         type: event.type,
         at: admin.firestore.FieldValue.serverTimestamp(),
+        _expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });
       res.status(200).send("ok");
     } catch (err) {
