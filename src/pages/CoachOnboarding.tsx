@@ -3,7 +3,11 @@ import { app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
+import { ChevronRight, Target, Clock, User } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -36,165 +40,295 @@ const CoachOnboarding = () => {
     setStep(4);
   }
 
+  const progress = (step / 4) * 100;
+
   return (
-    <div className="max-w-md mx-auto p-4 space-y-4">
-      {step === 1 && (
-        <div className="space-y-3">
-          <h1 className="text-xl font-semibold">Your goals</h1>
-          <label className="block">
-            Goal
-            <select
-              className="mt-1 w-full border p-2"
-              value={form.goal}
-              onChange={(e) => update("goal", e.target.value)}
-            >
-              <option value="lose_fat">Lose fat</option>
-              <option value="gain_muscle">Gain muscle</option>
-              <option value="improve_heart">Improve heart</option>
-            </select>
-          </label>
-          <label className="block">
-            Style
-            <select
-              className="mt-1 w-full border p-2"
-              value={form.style}
-              onChange={(e) => update("style", e.target.value)}
-            >
-              <option value="ease_in">Ease in</option>
-              <option value="all_in">All in</option>
-            </select>
-          </label>
-          <label className="block">
-            Timeframe (weeks)
-            <Input
-              type="number"
-              value={form.timeframe_weeks}
-              onChange={(e) => update("timeframe_weeks", Number(e.target.value))}
-            />
-          </label>
-          <Button onClick={() => setStep(2)}>Next</Button>
+    <div className="max-w-md mx-auto p-4 space-y-6">
+      {/* Progress Header */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Step {step} of 4</span>
+          <span>{Math.round(progress)}%</span>
         </div>
+        <Progress value={progress} className="h-2" />
+      </div>
+
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              What's your main goal?
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Let's start with what you want to achieve. We'll create a personalized plan just for you.
+            </p>
+            
+            <div className="space-y-3">
+              {[
+                { value: "lose_fat", label: "Lose body fat", desc: "Reduce fat while maintaining muscle" },
+                { value: "gain_muscle", label: "Build muscle", desc: "Increase lean mass and strength" },
+                { value: "improve_heart", label: "Improve cardiovascular health", desc: "Focus on heart health and endurance" }
+              ].map((goal) => (
+                <label key={goal.value} className={`block p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${form.goal === goal.value ? 'border-primary bg-primary/5' : ''}`}>
+                  <input
+                    type="radio"
+                    name="goal"
+                    value={goal.value}
+                    checked={form.goal === goal.value}
+                    onChange={(e) => update("goal", e.target.value)}
+                    className="sr-only"
+                  />
+                  <div className="font-medium">{goal.label}</div>
+                  <div className="text-sm text-muted-foreground">{goal.desc}</div>
+                </label>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm font-medium">How intense do you want to go?</span>
+                <select
+                  className="mt-1 w-full p-2 border rounded-md"
+                  value={form.style}
+                  onChange={(e) => update("style", e.target.value)}
+                >
+                  <option value="ease_in">Take it easy - gradual changes</option>
+                  <option value="all_in">Go all in - aggressive approach</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium">Timeframe (weeks)</span>
+                <Input
+                  type="number"
+                  min="4"
+                  max="52"
+                  value={form.timeframe_weeks}
+                  onChange={(e) => update("timeframe_weeks", Number(e.target.value))}
+                  className="mt-1"
+                />
+              </label>
+            </div>
+
+            <Button onClick={() => setStep(2)} className="w-full">
+              Continue <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {step === 2 && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Body stats</h2>
-          <label className="block">
-            Sex
-            <select
-              className="mt-1 w-full border p-2"
-              value={form.sex}
-              onChange={(e) => update("sex", e.target.value)}
-            >
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </label>
-          <label className="block">
-            Age
-            <Input
-              type="number"
-              value={form.age}
-              onChange={(e) => update("age", Number(e.target.value))}
-            />
-          </label>
-          <label className="block">
-            Height (cm)
-            <Input
-              type="number"
-              value={form.height_cm}
-              onChange={(e) => update("height_cm", Number(e.target.value))}
-            />
-          </label>
-          <label className="block">
-            Weight (kg)
-            <Input
-              type="number"
-              value={form.weight_kg}
-              onChange={(e) => update("weight_kg", Number(e.target.value))}
-            />
-          </label>
-          <label className="block">
-            Activity level
-            <select
-              className="mt-1 w-full border p-2"
-              value={form.activity_level}
-              onChange={(e) => update("activity_level", e.target.value)}
-            >
-              <option value="sedentary">Sedentary</option>
-              <option value="light">Light</option>
-              <option value="moderate">Moderate</option>
-              <option value="very">Very</option>
-              <option value="extra">Extra</option>
-            </select>
-          </label>
-          <div className="flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(1)}>
-              Back
-            </Button>
-            <Button onClick={() => setStep(3)}>Next</Button>
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" />
+              Tell us about yourself
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              These details help us calculate your personalized calorie and macro targets.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-sm font-medium">Sex</span>
+                <select
+                  className="mt-1 w-full p-2 border rounded-md"
+                  value={form.sex}
+                  onChange={(e) => update("sex", e.target.value)}
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium">Age</span>
+                <Input
+                  type="number"
+                  min="18"
+                  max="100"
+                  value={form.age}
+                  onChange={(e) => update("age", Number(e.target.value))}
+                  className="mt-1"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-sm font-medium">Height (cm)</span>
+                <Input
+                  type="number"
+                  min="120"
+                  max="250"
+                  value={form.height_cm}
+                  onChange={(e) => update("height_cm", Number(e.target.value))}
+                  className="mt-1"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium">Weight (kg)</span>
+                <Input
+                  type="number"
+                  min="30"
+                  max="300"
+                  value={form.weight_kg}
+                  onChange={(e) => update("weight_kg", Number(e.target.value))}
+                  className="mt-1"
+                />
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-medium">How active are you?</span>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.activity_level}
+                onChange={(e) => update("activity_level", e.target.value)}
+              >
+                <option value="sedentary">Sedentary (desk job, no exercise)</option>
+                <option value="light">Light (1-3 days/week light exercise)</option>
+                <option value="moderate">Moderate (3-5 days/week exercise)</option>
+                <option value="very">Very active (6-7 days/week exercise)</option>
+                <option value="extra">Extremely active (2x/day or physical job)</option>
+              </select>
+            </label>
+
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">
+                Back
+              </Button>
+              <Button onClick={() => setStep(3)} className="flex-1">
+                Continue <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {step === 3 && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Safety & consent</h2>
-          {[
-            "pregnant",
-            "under18",
-            "eating_disorder_history",
-            "heart_condition",
-          ].map((f) => (
-            <label key={f} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={form.medical_flags[f] || false}
-                onChange={(e) =>
-                  update("medical_flags", {
-                    ...form.medical_flags,
-                    [f]: e.target.checked,
-                  })
-                }
-              />
-              <span>{f.replace(/_/g, " ")}</span>
-            </label>
-          ))}
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={form.ack.disclaimer}
-              onChange={(e) =>
-                update("ack", { ...form.ack, disclaimer: e.target.checked })
-              }
-            />
-            <span>
-              I accept the <Link to="/legal/disclaimer" className="underline">disclaimer</Link>
-            </span>
-          </label>
-          <div className="flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(2)}>
-              Back
-            </Button>
-            <Button onClick={finish}>Compute plan</Button>
-          </div>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Health & Safety</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                Your safety is our priority. Please let us know about any conditions that might affect your nutrition plan.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { key: "pregnant", label: "Currently pregnant or breastfeeding" },
+                { key: "under18", label: "Under 18 years old" },
+                { key: "eating_disorder_history", label: "History of eating disorders" },
+                { key: "heart_condition", label: "Heart condition or cardiac issues" },
+              ].map((condition) => (
+                <label key={condition.key} className="flex items-start gap-3 p-2 hover:bg-muted/30 rounded-md cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.medical_flags[condition.key] || false}
+                    onChange={(e) =>
+                      update("medical_flags", {
+                        ...form.medical_flags,
+                        [condition.key]: e.target.checked,
+                      })
+                    }
+                    className="mt-1"
+                  />
+                  <span className="text-sm">{condition.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="border-t pt-4">
+              <label className="flex items-start gap-3 p-2 hover:bg-muted/30 rounded-md cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.ack.disclaimer}
+                  onChange={(e) =>
+                    update("ack", { ...form.ack, disclaimer: e.target.checked })
+                  }
+                  className="mt-1"
+                />
+                <span className="text-sm">
+                  I understand this is not medical advice and I accept the{" "}
+                  <Link to="/legal/disclaimer" className="text-primary hover:underline">
+                    full disclaimer
+                  </Link>
+                </span>
+              </label>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">
+                Back
+              </Button>
+              <Button 
+                onClick={finish} 
+                disabled={!form.ack.disclaimer}
+                className="flex-1"
+              >
+                Create My Plan <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {step === 4 && plan && (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Your plan</h2>
-          <div className="text-sm">Target kcal: {plan.target_kcal}</div>
-          <div className="flex gap-2 text-sm">
-            <span>Protein {plan.protein_g}g</span>
-            <span>Fat {plan.fat_g}g</span>
-            <span>Carbs {plan.carbs_g}g</span>
-          </div>
-          {plan.needs_clearance && (
-            <div className="text-red-600 text-sm">{plan.message}</div>
-          )}
-          <Button onClick={() => navigate("/coach/tracker")}>Start tracking</Button>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-accent" />
+              Your Personalized Plan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-primary">{plan.target_kcal}</div>
+              <div className="text-muted-foreground">calories per day</div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-primary/5 rounded-lg">
+                <Badge variant="secondary" className="mb-2">Protein</Badge>
+                <div className="font-semibold">{plan.protein_g}g</div>
+              </div>
+              <div className="text-center p-3 bg-accent/5 rounded-lg">
+                <Badge variant="secondary" className="mb-2">Fat</Badge>
+                <div className="font-semibold">{plan.fat_g}g</div>
+              </div>
+              <div className="text-center p-3 bg-warning/5 rounded-lg">
+                <Badge variant="secondary" className="mb-2">Carbs</Badge>
+                <div className="font-semibold">{plan.carbs_g}g</div>
+              </div>
+            </div>
+
+            {plan.needs_clearance && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <div className="font-medium text-destructive text-sm">Important</div>
+                <div className="text-destructive text-sm">{plan.message}</div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <Button onClick={() => navigate("/coach/tracker")} className="w-full" size="lg">
+                Start Tracking
+              </Button>
+              <Button variant="secondary" onClick={() => setStep(1)} className="w-full">
+                Edit My Answers
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

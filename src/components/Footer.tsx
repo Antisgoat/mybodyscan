@@ -14,7 +14,7 @@ export default function Footer() {
               Terms
             </a>
             <a href="/legal/disclaimer" className="hover:text-foreground transition-colors">
-              Disclaimer
+              Health & Safety
             </a>
             <a href="mailto:support@mybodyscan.com" className="hover:text-foreground transition-colors">
               Support
