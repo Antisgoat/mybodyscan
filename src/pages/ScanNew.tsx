@@ -1,155 +1,166 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { auth, storage, db } from "@/lib/firebase";
-import { ref, uploadBytes } from "firebase/storage";
-import { doc, onSnapshot } from "firebase/firestore";
-import { startScan, authedFetch } from "@/lib/api";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Camera, Upload } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { startScan, uploadScanFile, processScan, listenToScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { Seo } from "@/components/Seo";
 
-const ScanNew = () => {
+type Stage = "idle" | "uploading" | "processing";
+
+export default function ScanNew() {
+  const [stage, setStage] = useState<Stage>("idle");
   const navigate = useNavigate();
-  const [stage, setStage] = useState<'idle' | 'uploading' | 'processing'>('idle');
-  const loading = stage !== 'idle';
+  const { toast } = useToast();
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const user = auth.currentUser;
-    if (!user) {
-      navigate("/auth", { state: { from: "/scan/new" } });
+  const handleFileUpload = async () => {
+    if (!auth.currentUser) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in first",
+        variant: "destructive",
+      });
+      navigate("/auth");
       return;
     }
 
-    setStage('uploading');
-    try {
-      const { scanId } = await startScan({
-        filename: file.name,
-        size: file.size,
-        contentType: file.type,
-      });
-      const safeExt = sanitizeFilename(file.name).split(".").pop() || "bin";
-      const fileRef = ref(storage, `scans/${user.uid}/${scanId}/original.${safeExt}`);
-      await uploadBytes(fileRef, file);
-      setStage('processing');
-      const resp = await authedFetch('/processQueuedScanHttp', {
-        method: 'POST',
-        body: JSON.stringify({ uid: user.uid, scanId }),
-      });
-      if (resp.status === 401 || resp.status === 403) {
-        toast({ title: 'Not authorized', description: 'Please sign in again.' });
-        setStage('idle');
-        return;
-      }
-      toast({ title: 'Upload successful', description: 'Processing your scan...' });
-      const scanRef = doc(db, 'users', user.uid, 'scans', scanId);
-      await new Promise<void>((resolve, reject) => {
-        const unsub = onSnapshot(
-          scanRef,
-          (snap) => {
-            const status: any = snap.data()?.status;
-            if (status === 'completed') {
-              unsub();
-              resolve();
-            } else if (status === 'error') {
-              unsub();
-              reject(new Error('processing failed'));
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,video/*";
+    input.multiple = false;
+
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      const uid = auth.currentUser!.uid;
+      const filename = sanitizeFilename(file.name);
+      
+      try {
+        setStage("uploading");
+
+        // Step 1: Start scan and get scanId
+        const { scanId, remaining } = await startScan({
+          filename,
+          size: file.size,
+          contentType: file.type,
+        });
+
+        toast({
+          title: "Scan started",
+          description: `Credits remaining: ${remaining}`,
+        });
+
+        // Step 2: Upload file to storage
+        await uploadScanFile(uid, scanId, file);
+
+        setStage("processing");
+
+        // Step 3: Trigger backend processing
+        await processScan(scanId);
+
+        // Step 4: Listen for completion
+        const unsubscribe = listenToScan(
+          uid,
+          scanId,
+          (scan) => {
+            if (scan.status === "completed") {
+              unsubscribe();
+              navigate(`/results/${scanId}`);
+            } else if (scan.status === "error") {
+              unsubscribe();
+              setStage("idle");
+              toast({
+                title: "Scan failed",
+                description: scan.error || "Please try again",
+                variant: "destructive",
+              });
             }
           },
-          (err) => reject(err)
+          (error) => {
+            unsubscribe();
+            setStage("idle");
+            toast({
+              title: "Error",
+              description: "Failed to monitor scan progress",
+              variant: "destructive",
+            });
+          }
         );
-      });
-      navigate(`/scan/${scanId}`);
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      toast({
-        title: "Upload failed",
-        description: error?.message || "Please try again.",
-      });
-    } finally {
-      setStage('idle');
-    }
+
+      } catch (error) {
+        console.error("Scan error:", error);
+        setStage("idle");
+        toast({
+          title: "Upload failed",
+          description: error instanceof Error ? error.message : "Please try again",
+          variant: "destructive",
+        });
+      }
+    };
+
+    input.click();
   };
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo
-        title="New Scan – MyBodyScan"
-        description="Upload a photo or video to start your body scan analysis."
-        canonical={window.location.href}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <Seo 
+        title="New Scan - MyBodyScan"
+        description="Upload a photo or video for body composition analysis"
       />
-
-      <h1 className="text-2xl font-semibold mb-6">Start New Scan</h1>
-
-      <div className="grid gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Photo/Video</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="block">
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  onChange={handleFileUpload}
-                  disabled={loading}
-                  className="hidden"
-                />
-                <Button
-                  variant="default"
-                  className="w-full"
-                  disabled={loading}
-                  asChild
-                >
-                  <span className="cursor-pointer">
-                    {stage === 'uploading'
-                      ? 'Uploading...'
-                      : stage === 'processing'
-                      ? 'Processing...'
-                      : 'Choose File'}
-                  </span>
-                </Button>
-              </label>
-            </div>
-
-            <div className="text-center text-sm text-muted-foreground">or</div>
-
-            <div>
-              <label className="block">
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  capture="environment"
-                  onChange={handleFileUpload}
-                  disabled={loading}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={loading}
-                  asChild
-                >
-                  <span className="cursor-pointer">
-                    {stage === 'uploading'
-                      ? 'Uploading...'
-                      : stage === 'processing'
-                      ? 'Processing...'
-                      : 'Use Camera'}
-                  </span>
-                </Button>
-              </label>
-            </div>
-          </CardContent>
-        </Card>
+      
+      <div>
+        <h1 className="text-3xl font-bold mb-2">New Scan</h1>
+        <p className="text-muted-foreground">
+          Upload a photo or video to get your body composition analysis
+        </p>
       </div>
-    </main>
-  );
-};
 
-export default ScanNew;
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Your Scan</CardTitle>
+          <CardDescription>
+            Choose a clear, well-lit photo or video of yourself for the most accurate results
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              onClick={handleFileUpload}
+              disabled={stage !== "idle"}
+              className="h-24 flex flex-col gap-2"
+              variant="outline"
+            >
+              <Upload className="h-6 w-6" />
+              {stage === "idle" && "Choose File"}
+              {stage === "uploading" && "Uploading..."}
+              {stage === "processing" && "Processing..."}
+            </Button>
+            
+            <Button
+              onClick={handleFileUpload}
+              disabled={stage !== "idle"}
+              className="h-24 flex flex-col gap-2"
+              variant="outline"
+            >
+              <Camera className="h-6 w-6" />
+              {stage === "idle" && "Use Camera"}
+              {stage === "uploading" && "Uploading..."}
+              {stage === "processing" && "Processing..."}
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>• Use a well-lit area with good contrast</p>
+            <p>• Stand 6-8 feet from the camera</p>
+            <p>• Wear form-fitting clothing for best results</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

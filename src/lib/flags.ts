@@ -1,0 +1,3 @@
+export const MBS_FLAGS = {
+  ENABLE_PUBLIC_MARKETING_PAGE: import.meta.env.VITE_ENABLE_PUBLIC_MARKETING_PAGE === 'true'
+};

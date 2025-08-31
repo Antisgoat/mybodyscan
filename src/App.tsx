@@ -7,8 +7,11 @@ import React, { useEffect, lazy } from "react";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
-import AuthedLayout from "./components/AuthedLayout";
+import AuthedLayout from "./layouts/AuthedLayout";
 import { initAuthPersistence } from "./lib/auth";
+import { MBS_FLAGS } from "./lib/flags";
+import Index from "./pages/Index";
+import WelcomeRedirect from "./pages/WelcomeRedirect";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
@@ -57,8 +60,18 @@ const App = () => {
           <BrowserRouter>
             <OnboardingRedirectMBS>
               <Routes>
-            {/* Public marketing pages */}
-            <Route path="/" element={<PublicLayout><PublicLanding /></PublicLayout>} />
+            {/* Root route - flag-controlled */}
+            <Route 
+              path="/" 
+              element={
+                MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE 
+                  ? <PublicLayout><PublicLanding /></PublicLayout>
+                  : <Index />
+              } 
+            />
+            {/* Marketing page */}
+            <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
+            {/* Public pages */}
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />

@@ -16,3 +16,47 @@ export function sanitizeFilename(name: string): string {
   const cleanExt = ext.replace(/[^A-Za-z0-9]/g, "");
   return cleanExt ? `${cleanBase}.${cleanExt}` : cleanBase;
 }
+
+// Unit conversion utilities
+export function kgToLb(kg: number): number {
+  return Math.round(kg * 2.2046226218 * 10) / 10;
+}
+
+export function lbToKg(lb: number): number {
+  return Math.round((lb / 2.2046226218) * 10) / 10;
+}
+
+export function cmToFt(cm: number): number {
+  return Math.floor(cm / 30.48);
+}
+
+export function cmToIn(cm: number): number {
+  return Math.round((cm / 2.54) * 10) / 10;
+}
+
+export function ftInToCm(ft: number, inch: number): number {
+  return Math.round((ft * 30.48 + inch * 2.54) * 10) / 10;
+}
+
+export function cmToFtIn(cm: number): { ft: number; in: number } {
+  const totalInches = cm / 2.54;
+  const ft = Math.floor(totalInches / 12);
+  const inch = Math.round(totalInches % 12);
+  return { ft, in: inch };
+}
+
+// Display formatters with units
+export function formatWeight(kg: number, useMetric: boolean): string {
+  if (useMetric) {
+    return `${kg} kg`;
+  }
+  return `${kgToLb(kg)} lbs`;
+}
+
+export function formatHeight(cm: number, useMetric: boolean): string {
+  if (useMetric) {
+    return `${cm} cm`;
+  }
+  const { ft, in: inch } = cmToFtIn(cm);
+  return `${ft}'${inch}"`;
+}
