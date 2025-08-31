@@ -8,21 +8,19 @@ import { setGlobalOptions } from "firebase-functions/v2";
 
 admin.initializeApp();
 
-// Prefer functions.config for secrets so they can be managed via Firebase
-// config rather than checked into source. Environment variables act as a
-// fallback for local development or Secret Manager integration.
-const cfg = (functions.config && functions.config()) || {};
-const STRIPE_SECRET = (cfg.stripe && cfg.stripe.secret) || process.env.STRIPE_SECRET;
-const STRIPE_WEBHOOK = (cfg.stripe && cfg.stripe.webhook) || process.env.STRIPE_WEBHOOK;
+const STRIPE_SECRET = process.env.STRIPE_SECRET;
+const STRIPE_WEBHOOK = process.env.STRIPE_WEBHOOK;
 
 if (!STRIPE_SECRET || !STRIPE_WEBHOOK) {
-  console.error("Missing Stripe secrets. Need stripe.secret and stripe.webhook.");
+  console.error(
+    "Missing Stripe secrets. Need STRIPE_SECRET and STRIPE_WEBHOOK env vars."
+  );
 }
 
 // Pinned Stripe client for deterministic API behaviour.
 const stripe = new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
 
-// Make region global (secrets come from functions.config instead of secret mgr)
+// Make region global
 setGlobalOptions({
   region: "us-central1",
 });
@@ -79,25 +77,16 @@ export const stripeWebhook = onRequest(async (req, res) => {
 
   let event;
   try {
-    const sig = req.headers["stripe-signature"];
     console.log(
-      "hasSig:", !!sig,
+      "hasSig:", !!req.headers["stripe-signature"],
       "rawIsBuf:", Buffer.isBuffer(req.rawBody),
-      "rawLen:", req.rawBody ? req.rawBody.length : 0
+      "rawLen:", req.rawBody?.length || 0
     );
-    console.log(
-      "usingSecretSource:",
-      cfg?.stripe?.webhook
-        ? "functions.config"
-        : process.env.STRIPE_WEBHOOK
-        ? "secretManagerEnv"
-        : "none"
+    event = stripe.webhooks.constructEvent(
+      req.rawBody,
+      req.headers["stripe-signature"],
+      STRIPE_WEBHOOK
     );
-    console.log(
-      "whsec prefix (masked):",
-      STRIPE_WEBHOOK ? STRIPE_WEBHOOK.slice(0, 10) + "***" : "none"
-    );
-    event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK);
   } catch (e) {
     console.error("Webhook verify failed:", e?.message);
     res.status(400).send(`Webhook Error: ${e?.message}`);
@@ -107,4 +96,3 @@ export const stripeWebhook = onRequest(async (req, res) => {
   console.log("Stripe event:", event.type);
   res.json({ received: true });
 });
-
