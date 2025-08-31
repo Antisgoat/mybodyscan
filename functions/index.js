@@ -17,11 +17,7 @@ const getStripe = () => {
   return new Stripe(key, { apiVersion: "2024-06-20" });
 };
 
-const getWebhookSecret = () => {
-  const s = process.env.STRIPE_WEBHOOK;
-  if (!s) throw new Error("STRIPE_WEBHOOK not set");
-  return s;
-};
+const creditsByPlan = { single: 1, pack3: 3, pack5: 5, monthly: 3, annual: 36 };
 
 // --- LIVE Stripe Price IDs (keep the ones you showed) ---
 const PRICES = {
@@ -70,7 +66,7 @@ export const createCheckoutSession = onCall(
   }
 );
 
-// ===== HTTPS: Stripe Webhook (minimal verify + 200) =====
+// ===== HTTPS: Stripe Webhook (credit grants + idempotency) =====
 export const stripeWebhook = onRequest(
   { secrets: ["STRIPE_SECRET", "STRIPE_WEBHOOK"] },
   async (req, res) => {
@@ -78,31 +74,102 @@ export const stripeWebhook = onRequest(
       res.status(405).send("Method Not Allowed");
       return;
     }
+
+    const sig = req.headers["stripe-signature"];
+    const raw = req.rawBody;
     console.log(
       "hasSig:",
-      !!req.headers["stripe-signature"],
+      !!sig,
       "rawIsBuf:",
-      Buffer.isBuffer(req.rawBody),
+      Buffer.isBuffer(raw),
       "rawLen:",
-      req.rawBody?.length || 0
+      raw?.length || 0
     );
+
     const stripe = getStripe();
-    const whsec = getWebhookSecret();
+    const whsec = process.env.STRIPE_WEBHOOK;
+    if (!whsec) {
+      console.error("STRIPE_WEBHOOK not set");
+      res.status(500).send("missing-webhook-secret");
+      return;
+    }
+
     let event;
     try {
-      event = stripe.webhooks.constructEvent(
-        req.rawBody,
-        req.headers["stripe-signature"],
-        whsec
-      );
+      event = stripe.webhooks.constructEvent(raw, sig, whsec);
     } catch (e) {
       console.error("Webhook verify failed:", e?.message);
       res.status(400).send(`Webhook Error: ${e?.message}`);
       return;
     }
 
-    console.log("Stripe event:", event.type);
-    res.json({ received: true });
+    const db = admin.firestore();
+    const eventId = event.id;
+    const seenRef = db.collection("stripe_events").doc(eventId);
+
+    // Idempotency
+    const seenSnap = await seenRef.get();
+    if (seenSnap.exists) {
+      console.log("Duplicate event:", eventId);
+      res.status(200).send("ok-duplicate");
+      return;
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object;
+          const uid = session?.metadata?.uid;
+          const plan = session?.metadata?.plan;
+          if (!uid || !plan) {
+            console.warn("Missing uid/plan in metadata", {
+              uid,
+              plan,
+              sessionId: session?.id,
+            });
+            break;
+          }
+          const add = creditsByPlan[plan] ?? 1;
+          const userRef = db.collection("users").doc(uid);
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(userRef);
+            const current =
+              (snap.exists ? snap.data()?.credits || 0 : 0) + add;
+            tx.set(
+              userRef,
+              {
+                credits: current,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          });
+          console.log(`Granted ${add} credits to uid=${uid} via plan=${plan}`);
+          break;
+        }
+
+        case "invoice.payment_succeeded": {
+          // Optional: monthly top-ups for subscriptions
+          console.log("invoice.payment_succeeded (noop)");
+          break;
+        }
+
+        default:
+          console.log("Unhandled event:", event.type);
+      }
+
+      await seenRef.set({
+        type: event.type,
+        at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).send("ok");
+    } catch (err) {
+      console.error(
+        "Handler error:",
+        err?.stack || err?.message || err
+      );
+      res.status(500).send("internal-error");
+    }
   }
 );
 
