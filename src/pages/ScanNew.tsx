@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, storage } from "@/lib/firebase";
+import { auth, storage, db } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
-import { startScan } from "@/lib/api";
+import { doc, onSnapshot } from "firebase/firestore";
+import { startScan, authedFetch } from "@/lib/api";
 import { sanitizeFilename } from "@/lib/utils";
 
 const ScanNew = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState<'idle' | 'uploading' | 'processing'>('idle');
+  const loading = stage !== 'idle';
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -23,7 +25,7 @@ const ScanNew = () => {
       return;
     }
 
-    setLoading(true);
+    setStage('uploading');
     try {
       const { scanId } = await startScan({
         filename: file.name,
@@ -33,7 +35,34 @@ const ScanNew = () => {
       const safeExt = sanitizeFilename(file.name).split(".").pop() || "bin";
       const fileRef = ref(storage, `scans/${user.uid}/${scanId}/original.${safeExt}`);
       await uploadBytes(fileRef, file);
-      toast({ title: "Upload successful", description: "Processing your scan..." });
+      setStage('processing');
+      const resp = await authedFetch('/processQueuedScanHttp', {
+        method: 'POST',
+        body: JSON.stringify({ uid: user.uid, scanId }),
+      });
+      if (resp.status === 401 || resp.status === 403) {
+        toast({ title: 'Not authorized', description: 'Please sign in again.' });
+        setStage('idle');
+        return;
+      }
+      toast({ title: 'Upload successful', description: 'Processing your scan...' });
+      const scanRef = doc(db, 'users', user.uid, 'scans', scanId);
+      await new Promise<void>((resolve, reject) => {
+        const unsub = onSnapshot(
+          scanRef,
+          (snap) => {
+            const status: any = snap.data()?.status;
+            if (status === 'completed') {
+              unsub();
+              resolve();
+            } else if (status === 'error') {
+              unsub();
+              reject(new Error('processing failed'));
+            }
+          },
+          (err) => reject(err)
+        );
+      });
       navigate(`/scan/${scanId}`);
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -42,7 +71,7 @@ const ScanNew = () => {
         description: error?.message || "Please try again.",
       });
     } finally {
-      setLoading(false);
+      setStage('idle');
     }
   };
 
@@ -78,7 +107,11 @@ const ScanNew = () => {
                   asChild
                 >
                   <span className="cursor-pointer">
-                    {loading ? "Uploading..." : "Choose File"}
+                    {stage === 'uploading'
+                      ? 'Uploading...'
+                      : stage === 'processing'
+                      ? 'Processing...'
+                      : 'Choose File'}
                   </span>
                 </Button>
               </label>
@@ -103,7 +136,11 @@ const ScanNew = () => {
                   asChild
                 >
                   <span className="cursor-pointer">
-                    Use Camera
+                    {stage === 'uploading'
+                      ? 'Uploading...'
+                      : stage === 'processing'
+                      ? 'Processing...'
+                      : 'Use Camera'}
                   </span>
                 </Button>
               </label>
