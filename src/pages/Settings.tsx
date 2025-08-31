@@ -7,14 +7,15 @@ import { Switch } from "@/components/ui/switch";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { useCredits } from "@/hooks/useCredits";
 import { openStripePortal } from "@/lib/api";
 
 const Settings = () => {
   const [height, setHeight] = useState<string>("");
   const [units, setUnits] = useState<"kg" | "lb">("kg");
   const [notify, setNotify] = useState(true);
-  const [credits, setCredits] = useState<number>(0);
+  const { credits } = useCredits();
   const [planType, setPlanType] = useState<string | null>(null);
   const [planActive, setPlanActive] = useState<boolean>(false);
   const [renewal, setRenewal] = useState<string | null>(null);
@@ -31,14 +32,20 @@ const Settings = () => {
       const ref = doc(db, "users", uid);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        const d = snap.data() as any;
-        setCredits(d?.credits?.wallet ?? 0);
-        setPlanType(d?.plan?.type ?? null);
-        setPlanActive(Boolean(d?.plan?.active));
-        setRenewal(d?.plan?.currentPeriodEnd ? new Date(d.plan.currentPeriodEnd.seconds ? d.plan.currentPeriodEnd.seconds * 1000 : d.plan.currentPeriodEnd).toLocaleDateString() : null);
+        interface UserDoc {
+          plan?: { type?: string; active?: boolean; currentPeriodEnd?: { seconds?: number } | number };
+          reminders?: { enabled?: boolean };
+        }
+        const d = snap.data() as UserDoc;
+        setPlanType(d.plan?.type ?? null);
+        setPlanActive(Boolean(d.plan?.active));
+        const cpe = d.plan?.currentPeriodEnd;
+        setRenewal(
+          cpe ? new Date(typeof cpe === "number" ? cpe : (cpe.seconds ?? 0) * 1000).toLocaleDateString() : null
+        );
         
         // Load reminder preferences
-        const reminders = d?.reminders;
+        const reminders = d.reminders;
         setReminderEnabled(reminders?.enabled ?? (planActive ? true : false));
       }
     })();
