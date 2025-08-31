@@ -28,6 +28,20 @@ describe('Firestore security rules', () => {
     await assertFails(authed.doc(`users/${uid}/coach/plan/current`).set({ tdee: 2000 }));
   });
 
+  it('blocks user creation with sensitive fields', async () => {
+    const uid = 'bob';
+    const authed = testEnv.authenticatedContext(uid).firestore();
+    
+    // Should fail with credits
+    await assertFails(authed.doc(`users/${uid}`).set({ name: 'Bob', credits: 999 }));
+    
+    // Should fail with billing info
+    await assertFails(authed.doc(`users/${uid}`).set({ name: 'Bob', stripeCustomerId: 'cus_fake' }));
+    
+    // Should succeed with safe fields
+    await assertSucceeds(authed.doc(`users/${uid}`).set({ name: 'Bob', email: 'bob@test.com' }));
+  });
+
   it('allows only note updates on scans', async () => {
     const uid = 'alice';
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
@@ -38,11 +52,50 @@ describe('Firestore security rules', () => {
     await assertFails(authed.doc(`users/${uid}/scans/scan1`).update({ status: 'done' }));
   });
 
+  it('blocks sensitive scan field creation', async () => {
+    const uid = 'charlie';
+    const authed = testEnv.authenticatedContext(uid).firestore();
+    
+    // Should fail with results field
+    await assertFails(
+      authed.doc(`users/${uid}/scans/scan2`).set({ 
+        uid, 
+        status: 'queued', 
+        createdAt: new Date(),
+        results: { fake: 'data' } 
+      })
+    );
+    
+    // Should succeed without sensitive fields
+    await assertSucceeds(
+      authed.doc(`users/${uid}/scans/scan2`).set({ 
+        uid, 
+        status: 'queued', 
+        createdAt: new Date() 
+      })
+    );
+  });
+
   it('allows valid nutrition log writes', async () => {
     const uid = 'alice';
     const authed = testEnv.authenticatedContext(uid).firestore();
     await assertSucceeds(
       authed.doc(`users/${uid}/nutritionLogs/2024-01-01`).set({ calories: 1000, protein_g: 50, carbs_g: 120, fat_g: 40 })
     );
+  });
+
+  it('blocks cross-user access', async () => {
+    const uid1 = 'alice';
+    const uid2 = 'bob';
+    
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      await ctx.firestore().doc(`users/${uid1}`).set({ name: 'Alice' });
+    });
+    
+    const authed2 = testEnv.authenticatedContext(uid2).firestore();
+    
+    // Bob should not be able to read Alice's data
+    await assertFails(authed2.doc(`users/${uid1}`).get());
+    await assertFails(authed2.doc(`users/${uid1}/scans/scan1`).get());
   });
 });

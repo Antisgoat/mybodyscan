@@ -62,7 +62,9 @@ async function verifyIdToken(req) {
 async function verifyAppCheck(req) {
   const headers = req?.headers || req?.rawRequest?.headers;
   const token = headers?.["x-firebase-appcheck"];
-  if (!token) return;
+  if (!token) {
+    throw new HttpsError("failed-precondition", "App Check token required");
+  }
   try {
     await admin.appCheck().verifyToken(token);
   } catch {
@@ -263,16 +265,29 @@ export const createCustomerPortal = onRequest(
       return;
     }
     try {
-      const db = admin.firestore();
-      const snap = await db.collection('users').doc(uid).get();
-      const customerId = snap.data()?.stripeCustomerId;
-      if (!customerId) {
-        res.status(400).send('no-customer');
-        return;
-      }
       const key = STRIPE_SECRET.value();
       if (!key) throw new HttpsError('failed-precondition', 'Secret not configured');
       const stripe = new Stripe(key, { apiVersion: '2024-06-20' });
+      
+      // Get user's email to find Stripe customer (don't trust Firestore)
+      const userRecord = await admin.auth().getUser(uid);
+      if (!userRecord.email) {
+        res.status(400).send('no-email');
+        return;
+      }
+      
+      // Find customer by email in Stripe
+      const customers = await stripe.customers.list({
+        email: userRecord.email,
+        limit: 1
+      });
+      
+      if (customers.data.length === 0) {
+        res.status(400).send('no-customer');
+        return;
+      }
+      
+      const customerId = customers.data[0].id;
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: 'https://mybodyscanapp.com/plans',
