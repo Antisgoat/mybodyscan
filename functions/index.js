@@ -1,6 +1,5 @@
 // Cloud Functions v2 (Node 20, ESM) — Stripe Checkout wired with secrets
 
-import functions from "firebase-functions";
 import admin from "firebase-admin";
 import Stripe from "stripe";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
