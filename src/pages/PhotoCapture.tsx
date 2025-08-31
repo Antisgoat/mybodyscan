@@ -5,10 +5,10 @@ import { useNavigate } from "react-router-dom";
 import silhouette from "@/assets/silhouette-front.png";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, db, storage } from "@/lib/firebase";
-import { collection, doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { startCreateScan, FUNCTIONS_BASE_URL, consumeScanCredit } from "@/lib/api";
+import { auth, storage } from "@/lib/firebase";
+import { ref, uploadBytes } from "firebase/storage";
+import { startScan } from "@/lib/api";
+import { sanitizeFilename } from "@/lib/utils";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 
@@ -19,7 +19,6 @@ const PhotoCapture = () => {
   const [current, setCurrent] = useState(0);
   const [files, setFiles] = useState<{ front?: File; left?: File; right?: File; back?: File }>({});
   const [loading, setLoading] = useState(false);
-  const processingConfigured = Boolean(FUNCTIONS_BASE_URL);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,56 +43,31 @@ const PhotoCapture = () => {
       toast({ title: "Missing photos", description: "Please capture all 4 sides." });
       return;
     }
-    if (!processingConfigured) {
-      toast({ title: "Processing not configured" });
-      return;
-    }
     setLoading(true);
     try {
-      // Validate scan credit before upload
-      await consumeScanCredit();
-      // 1) Create scan doc
-      const col = collection(db, "users", uid, "scans");
-      const scanRef = doc(col);
-      const scanId = scanRef.id;
-      await setDoc(scanRef, {
-        uid,
-        mediaType: "photos",
-        status: "queued",
-        createdAt: serverTimestamp(),
-        files: {},
+      const first = files.front!;
+      const { scanId } = await startScan({
+        filename: first.name,
+        size: first.size,
+        contentType: first.type,
       });
-
-      // 2) Upload images and store URLs
       const uploads: Array<[StepKey, File]> = [
         ["front", files.front!],
         ["left", files.left!],
         ["right", files.right!],
         ["back", files.back!],
       ];
-      const fileUpdates: Record<string, string> = {};
       for (const [key, file] of uploads) {
-        const path = `/users/${uid}/raw/${scanId}_${key}.jpg`;
-        const r = ref(storage, path);
-        await uploadBytes(r, file);
-        const url = await getDownloadURL(r);
-        fileUpdates[`files.${key}Url`] = url;
+        const ext = sanitizeFilename(file.name).split(".").pop() || "jpg";
+        const path = `scans/${uid}/${scanId}/${key}.${ext}`;
+        await uploadBytes(ref(storage, path), file);
       }
-      await updateDoc(scanRef, fileUpdates);
-
-      // 3) Process
-      await startCreateScan(scanId);
-
-      // 5) Navigate to processing
-      navigate(`/processing/${scanId}`);
+      navigate(`/scan/${scanId}`);
     } catch (e: any) {
       console.error("PhotoCapture error", e);
       if (e?.code === "permission-denied") {
         toast({ title: "Sign in required" });
         navigate("/auth", { replace: true });
-      } else if (String(e?.message || "").includes("No active subscription or credits")) {
-        toast({ title: "Add credits to continue", description: "Buy a pack or start a subscription." });
-        navigate("/plans");
       } else {
         toast({ title: "Failed to create scan", description: e?.message ?? "Try again." });
       }
@@ -106,9 +80,6 @@ const PhotoCapture = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Capture Photos – MyBodyScan" description="Capture four photos to create your body scan." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Capture Photos</h1>
-      {!processingConfigured && (
-        <div className="mb-3 rounded-md border px-3 py-2 text-sm">Processing service not configured</div>
-      )}
       <Card>
         <CardHeader>
           <CardTitle>
@@ -134,7 +105,7 @@ const PhotoCapture = () => {
               </div>
             ))}
           </div>
-          <Button className="w-full" onClick={onContinue} disabled={!allSet || loading || !processingConfigured}>
+          <Button className="w-full" onClick={onContinue} disabled={!allSet || loading}>
             {loading ? "Creating scan..." : "Continue"}
           </Button>
         </CardContent>
@@ -144,4 +115,3 @@ const PhotoCapture = () => {
 };
 
 export default PhotoCapture;
-

@@ -1,20 +1,16 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
-    // Users can only upload to their own folders
-    match /scans/{userId}/{scanId}/{allPaths=**} {
-      // Allow read/write only if authenticated user matches the userId in path
-      allow read, write: if request.auth != null && request.auth.uid == userId
-        // Limit file size to 50MB
-        && resource.size < 50 * 1024 * 1024
-        // Only allow image and video files
-        && resource.contentType.matches('image/.*|video/.*');
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    match /scans/{uid}/{scanId}/{all=**} {
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid)
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
     }
-    
-    // Deny all other access
-    match /{allPaths=**} {
-      allow read, write: if false;
-    }
+
+    match /{allPaths=**} { allow read, write: if false; }
   }
 }

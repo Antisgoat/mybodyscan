@@ -6,24 +6,22 @@ const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
 async function authedFetch(path: string, init?: RequestInit) {
   if (!BASE) throw new Error("Functions URL not configured");
   const t = await auth.currentUser?.getIdToken();
-  // Prevent Bearer undefined
-  const authHeader = t ? `Bearer ${t}` : "";
+  if (!t) throw new Error("Authentication required");
   return fetch(`${BASE}${path}`, {
     ...init,
-    headers: { 
-      "Content-Type": "application/json", 
-      ...(authHeader && { Authorization: authHeader })
-    }
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${t}`,
+      ...(init?.headers || {}),
+    },
   });
 }
 
-export async function startCreateScan(scanId: string) {
-  const r = await authedFetch("/createScan", {
-    method: "POST",
-    body: JSON.stringify({ scanId })
-  });
-  if (!r.ok) throw new Error(`createScan failed: ${r.status}`);
-  return r.json();
+export async function startScan(params: { filename: string; size: number; contentType: string }) {
+  const functions = getFunctions(app);
+  const fn = httpsCallable(functions, "startScan");
+  const { data } = await fn(params);
+  return data as { scanId: string; remaining: number };
 }
 
 export async function openStripeCheckout(priceId: string, mode: "payment" | "subscription") {
@@ -50,12 +48,6 @@ export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"si
   const { data } = await createCheckoutSession({ plan });
   const { url } = data as { id: string; url: string };
   window.location.assign(url);
-}
-
-export async function consumeScanCredit() {
-  const functions = getFunctions(app);
-  const fn = httpsCallable(functions, "consumeScanCredit");
-  await fn({});
 }
 
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };
