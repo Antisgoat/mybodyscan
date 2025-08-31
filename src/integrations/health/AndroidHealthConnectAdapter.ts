@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 import { DailySummary, HealthAdapter } from "./HealthAdapter";
 
+const HealthConnect: any = (window as any)?.Capacitor?.Plugins?.HealthConnect;
+
 export class AndroidHealthConnectAdapter implements HealthAdapter {
   platform: "android" = "android";
 
@@ -9,11 +11,11 @@ export class AndroidHealthConnectAdapter implements HealthAdapter {
   }
 
   async requestPermissions(): Promise<boolean> {
-    if (Capacitor.getPlatform() !== "android") return false;
+    if (Capacitor.getPlatform() !== "android" || !HealthConnect) return false;
     try {
-      // Check if Health Connect is available (placeholder for future implementation)
-      // In a real implementation, this would check for and request Health Connect permissions
-      console.log("Health Connect permissions would be requested here");
+      await HealthConnect.requestPermission({
+        read: ["activeEnergyBurned", "steps", "restingHeartRate"],
+      });
       return true;
     } catch {
       return false;
@@ -21,14 +23,18 @@ export class AndroidHealthConnectAdapter implements HealthAdapter {
   }
 
   async getDailySummary(date: string): Promise<DailySummary> {
-    // TODO: implement real Health Connect / Google Fit query
-    // For now, return mock data to demonstrate the interface
-    return { 
-      source: "healthconnect",
-      activeEnergyKcal: Math.floor(Math.random() * 500) + 200,
-      steps: Math.floor(Math.random() * 5000) + 3000,
-      restingHeartRate: Math.floor(Math.random() * 20) + 60
-    };
+    if (!HealthConnect) return { source: "healthconnect" };
+    try {
+      const res = await HealthConnect.readDailyTotals({ date });
+      return {
+        source: "healthconnect",
+        activeEnergyKcal: res.activeEnergyBurned ?? undefined,
+        steps: res.steps ?? undefined,
+        restingHeartRate: res.restingHeartRate ?? undefined,
+      };
+    } catch {
+      return { source: "healthconnect" };
+    }
   }
 }
 

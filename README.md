@@ -74,7 +74,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## App Check
 
-To harden client requests, this project can enable Firebase App Check with reCAPTCHA Enterprise. Set `VITE_APPCHECK_KEY` in your environment (see `.env.development`) to initialize App Check. After verifying legitimate clients, enforce App Check in the Firebase console.
+To harden client requests, this project can enable Firebase App Check with reCAPTCHA Enterprise. Set `VITE_APPCHECK_SITE_KEY` in your environment (see `.env.development`) to initialize App Check. After verifying legitimate clients, enforce App Check in the Firebase console.
 
 ## Environment variables
 
@@ -88,7 +88,7 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID`
 - `VITE_FUNCTIONS_BASE_URL`
-- `VITE_APPCHECK_KEY` *(optional but recommended)*
+- `VITE_APPCHECK_SITE_KEY` *(optional but recommended)*
 
 ## Testing rules
 
