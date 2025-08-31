@@ -98,6 +98,21 @@ Run Firestore security rules tests using the emulator suite:
 npm run test:rules
 ```
 
+## Scan Processing
+
+### Option A: HTTP fallback (no Eventarc)
+
+Deploy `processQueuedScanHttp` and the client will call this HTTPS endpoint after each upload. No additional Google Cloud services are required.
+
+### Option B: Firestore trigger via Eventarc
+
+When ready to switch back to a Firestore trigger, grant the necessary Eventarc roles and redeploy:
+
+```sh
+scripts/setup-eventarc.sh
+firebase deploy --only functions:processQueuedScan
+```
+
 ## Deployment
 
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:

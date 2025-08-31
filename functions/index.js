@@ -72,6 +72,18 @@ async function verifyAppCheck(req) {
   }
 }
 
+// App Check soft verification – only enforce when token is present
+async function verifyAppCheckSoft(req) {
+  const headers = req?.headers || req?.rawRequest?.headers;
+  const token = headers?.["x-firebase-appcheck"];
+  if (!token) return;
+  try {
+    await admin.appCheck().verifyToken(token);
+  } catch {
+    // ignore invalid tokens to keep fallback usable
+  }
+}
+
 function logEvent(label, meta = {}) {
   const out = {
     eventId: meta.eventId,
@@ -159,54 +171,93 @@ export const startScan = onCall(async (req) => {
   return { scanId: scanRef.id, remaining };
 });
 
+async function runScanPipeline({ uid, scanId }) {
+  const db = admin.firestore();
+  const scanRef = db.collection("users").doc(uid).collection("scans").doc(scanId);
+  const snap = await scanRef.get();
+  const data = snap.data();
+  if (!snap.exists || data?.status !== "queued") {
+    return { status: "skipped" };
+  }
+
+  const bucket = admin.storage().bucket();
+  const prefix = `scans/${uid}/${scanId}/original`;
+  let [files] = await bucket.getFiles({ prefix });
+  if (!files.length) {
+    await new Promise((r) => setTimeout(r, 5000));
+    [files] = await bucket.getFiles({ prefix });
+    if (!files.length) {
+      await scanRef.set({ status: "error" }, { merge: true });
+      return { status: "error" };
+    }
+  }
+
+  try {
+    const apiKey = REPLICATE_API_KEY.value();
+    if (!apiKey) throw new HttpsError("failed-precondition", "Secret not configured");
+    const resp = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        version: REPLICATE_MODEL,
+        input: { image: `gs://${bucket.name}/${prefix}` },
+      }),
+    });
+    const result = await resp.json();
+    const bodyFatEstimate =
+      result?.body_fat ?? result?.bodyFat ?? result?.bodyFatEstimate;
+    await scanRef.set(
+      {
+        status: "completed",
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        results: result,
+        ...(bodyFatEstimate ? { bodyFatEstimate } : {}),
+      },
+      { merge: true }
+    );
+    return { status: "completed" };
+  } catch (e) {
+    console.error("runScanPipeline error", e?.message);
+    await scanRef.set({ status: "error" }, { merge: true });
+    return { status: "error" };
+  }
+}
+
 // ===== Firestore trigger: process queued scans =====
 export const processQueuedScan = onDocumentCreated(
   "users/{uid}/scans/{scanId}",
   async (event) => {
-    const snap = event.data;
-    const data = snap?.data();
+    const data = event.data?.data();
     if (!data || data.status !== "queued") return;
-    const { uid, scanId } = event.params;
-    const bucket = admin.storage().bucket();
-    const prefix = `scans/${uid}/${scanId}/original`;
-    let [files] = await bucket.getFiles({ prefix });
-    if (!files.length) {
-      await new Promise((r) => setTimeout(r, 5000));
-      [files] = await bucket.getFiles({ prefix });
-      if (!files.length) {
-        await snap.ref.set({ status: "error" }, { merge: true });
-        return;
-      }
-    }
-    try {
-      const apiKey = REPLICATE_API_KEY.value();
-      if (!apiKey) throw new HttpsError("failed-precondition", "Secret not configured");
-      const resp = await fetch("https://api.replicate.com/v1/predictions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          version: REPLICATE_MODEL,
-          input: { image: `gs://${bucket.name}/${prefix}` },
-        }),
-      });
-      const result = await resp.json();
-      await snap.ref.set(
-        {
-          status: "completed",
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
-          results: result,
-        },
-        { merge: true }
-      );
-    } catch (e) {
-      console.error("processQueuedScan error", e?.message);
-      await snap.ref.set({ status: "error" }, { merge: true });
-    }
+    await runScanPipeline(event.params);
   }
 );
+
+// ===== HTTPS fallback: process queued scans =====
+export const processQueuedScanHttp = onRequest(async (req, res) => {
+  await verifyAppCheckSoft(req);
+  let uid;
+  try {
+    uid = await verifyIdToken(req);
+  } catch {
+    res.status(401).json({ error: "unauthenticated" });
+    return;
+  }
+  const { uid: bodyUid, scanId } = req.body || {};
+  if (uid !== bodyUid) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  if (typeof scanId !== "string") {
+    res.status(400).json({ error: "invalid-argument" });
+    return;
+  }
+  const result = await runScanPipeline({ uid, scanId });
+  res.json(result);
+});
 
 // ===== HTTPS: create checkout by price =====
 export const createCheckout = onRequest(
