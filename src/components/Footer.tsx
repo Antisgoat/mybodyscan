@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Footer() {
   return (
     <footer className="border-t bg-background">
@@ -7,15 +9,15 @@ export default function Footer() {
             <span>© 2024 MyBodyScan</span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="/privacy" className="hover:text-foreground transition-colors">
+            <Link to="/privacy" className="hover:text-foreground transition-colors">
               Privacy
-            </a>
-            <a href="/terms" className="hover:text-foreground transition-colors">
+            </Link>
+            <Link to="/terms" className="hover:text-foreground transition-colors">
               Terms
-            </a>
-            <a href="/legal/disclaimer" className="hover:text-foreground transition-colors">
+            </Link>
+            <Link to="/legal/disclaimer" className="hover:text-foreground transition-colors">
               Health & Safety
-            </a>
+            </Link>
             <a href="mailto:support@mybodyscan.com" className="hover:text-foreground transition-colors">
               Support
             </a>
