@@ -75,3 +75,35 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 ## App Check
 
 To harden client requests, this project can enable Firebase App Check with reCAPTCHA Enterprise. Set `VITE_APPCHECK_KEY` in your environment (see `.env.development`) to initialize App Check. After verifying legitimate clients, enforce App Check in the Firebase console.
+
+## Environment variables
+
+Create a `.env.local` for development based on `.env.example` and a `.env.production` for production builds. Required variables:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_MEASUREMENT_ID`
+- `VITE_FUNCTIONS_BASE_URL`
+- `VITE_APPCHECK_KEY` *(optional but recommended)*
+
+## Testing rules
+
+Run Firestore security rules tests using the emulator suite:
+
+```sh
+npm run test:rules
+```
+
+## Deployment
+
+Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
+
+```sh
+firebase deploy --only functions,hosting
+```
+
+Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET`, `STRIPE_WEBHOOK`).

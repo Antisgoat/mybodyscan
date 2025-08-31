@@ -53,6 +53,27 @@ async function verifyIdToken(req) {
   }
 }
 
+async function verifyAppCheck(req) {
+  const headers = req?.headers || req?.rawRequest?.headers;
+  const token = headers?.["x-firebase-appcheck"];
+  if (!token) return;
+  try {
+    await admin.appCheck().verifyToken(token);
+  } catch {
+    throw new HttpsError("failed-precondition", "Invalid App Check token");
+  }
+}
+
+function logEvent(label, meta = {}) {
+  const out = {
+    eventId: meta.eventId,
+    type: meta.type,
+    uid: meta.uid,
+    plan: meta.plan,
+  };
+  console.log(label, out);
+}
+
 const lbToKg = (lb) => lb / 2.2046226218;
 const ftInToCm = (ft, inch) => (ft * 12 + inch) * 2.54;
 const kgToLb = (kg) => kg * 2.2046226218;
@@ -65,6 +86,7 @@ const cmToFtIn = (cm) => {
 export const createCheckoutSession = onCall(
   { secrets: ["STRIPE_SECRET"] },
   async (request) => {
+    await verifyAppCheck(request);
     const stripe = getStripe();
     const uid = assertAuthed(request.auth);
     const plan = String(request.data?.plan || "");
@@ -94,6 +116,7 @@ export const createCheckoutSession = onCall(
 
 // ===== Callable: start scan (consume credit + enqueue) =====
 export const startScan = onCall(async (req) => {
+  await verifyAppCheck(req);
   const uid = assertAuthed(req.auth);
   const { filename, size, contentType } = req.data || {};
   if (typeof filename !== 'string' || typeof size !== 'number' || typeof contentType !== 'string') {
@@ -130,6 +153,7 @@ export const startScan = onCall(async (req) => {
 export const createCheckoutByProduct = onRequest(
   { secrets: ['STRIPE_SECRET'] },
   async (req, res) => {
+    await verifyAppCheck(req);
     let uid;
     try {
       uid = await verifyIdToken(req);
@@ -176,6 +200,7 @@ export const createCheckoutByProduct = onRequest(
 export const createCustomerPortal = onRequest(
   { secrets: ['STRIPE_SECRET'] },
   async (req, res) => {
+    await verifyAppCheck(req);
     let uid;
     try {
       uid = await verifyIdToken(req);
@@ -215,14 +240,6 @@ export const stripeWebhook = onRequest(
 
     const sig = req.headers["stripe-signature"];
     const raw = req.rawBody;
-    console.log(
-      "hasSig:",
-      !!sig,
-      "rawIsBuf:",
-      Buffer.isBuffer(raw),
-      "rawLen:",
-      raw?.length || 0
-    );
 
     const stripe = getStripe();
     const whsec = process.env.STRIPE_WEBHOOK;
@@ -248,14 +265,14 @@ export const stripeWebhook = onRequest(
     // Idempotency
     const seenSnap = await seenRef.get();
     if (seenSnap.exists) {
-      console.log("Duplicate event:", eventId);
+      logEvent("stripe-duplicate", { eventId, type: event.type });
       res.status(200).send("ok-duplicate");
       return;
     }
 
     const allowed = new Set(["checkout.session.completed","invoice.payment_succeeded"]);
     if (!allowed.has(event.type)) {
-      console.log("Unhandled event:", event.type);
+      logEvent("stripe-unhandled", { eventId, type: event.type });
       await seenRef.set({
         type: event.type,
         at: admin.firestore.FieldValue.serverTimestamp(),
@@ -294,31 +311,30 @@ export const stripeWebhook = onRequest(
               { merge: true }
             );
           });
-          console.log(`Granted ${add} credits to uid=${uid} via plan=${plan}`);
+          logEvent("checkout.session.completed", { eventId, type: event.type, uid, plan });
           break;
         }
 
         case "invoice.payment_succeeded": {
           // Optional: monthly top-ups for subscriptions
-          console.log("invoice.payment_succeeded (noop)");
+          logEvent("invoice.payment_succeeded", { eventId, type: event.type });
           break;
         }
 
         default:
-          console.log("Unhandled event:", event.type);
+          logEvent("stripe-unhandled", { eventId, type: event.type });
       }
 
       await seenRef.set({
         type: event.type,
+        uid: (event.data.object?.metadata?.uid) || undefined,
+        plan: (event.data.object?.metadata?.plan) || undefined,
         at: admin.firestore.FieldValue.serverTimestamp(),
         _expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 180 * 24 * 60 * 60 * 1000),
       });
       res.status(200).send("ok");
     } catch (err) {
-      console.error(
-        "Handler error:",
-        err?.stack || err?.message || err
-      );
+      console.error("Handler error", err?.message);
       res.status(500).send("internal-error");
     }
   }
