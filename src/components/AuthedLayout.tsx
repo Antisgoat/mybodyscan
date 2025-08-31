@@ -3,9 +3,11 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { signOutToAuth } from "@/lib/auth";
 import Footer from "./Footer";
+import { useCredits } from "@/hooks/useCredits";
 
 export default function AuthedLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const { credits } = useCredits();
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
@@ -20,6 +22,7 @@ export default function AuthedLayout({ children }: { children: ReactNode }) {
             <NavLink to="/report" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Report</NavLink>
             <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Settings</NavLink>
+            <span className="opacity-80">Credits: {credits}</span>
             <Button size="sm" variant="outline" onClick={signOutToAuth}>Sign out</Button>
           </nav>
         </div>
