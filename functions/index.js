@@ -2,33 +2,23 @@
 
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { defineSecret } from "firebase-functions/params";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import admin from "firebase-admin";
 import Stripe from "stripe";
 
-admin.initializeApp();
+const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
+const STRIPE_WEBHOOK = defineSecret("STRIPE_WEBHOOK");
+const REPLICATE_API_KEY = defineSecret("REPLICATE_API_KEY");
 
 setGlobalOptions({
   region: "us-central1",
+  secrets: [STRIPE_SECRET, STRIPE_WEBHOOK, REPLICATE_API_KEY],
 });
 
-function requireEnv(key) {
-  const v = process.env[key];
-  if (!v) throw new Error(`${key} not set`);
-  console.log(`${key}=${v.substring(0,4)}***`);
-  return v;
-}
+admin.initializeApp();
 
-requireEnv("STRIPE_SECRET");
-requireEnv("STRIPE_WEBHOOK");
-requireEnv("REPLICATE_API_KEY");
 const REPLICATE_MODEL = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
-
-const getStripe = () => {
-  const key = process.env.STRIPE_SECRET;
-  if (!key) throw new Error("STRIPE_SECRET not set");
-  return new Stripe(key, { apiVersion: "2024-06-20" });
-};
 
 const creditsByPlan = { single: 1, pack3: 3, pack5: 5, monthly: 3, annual: 36 };
 
@@ -103,7 +93,9 @@ export const createCheckoutSession = onCall(
   { secrets: ["STRIPE_SECRET"] },
   async (request) => {
     await verifyAppCheck(request);
-    const stripe = getStripe();
+    const key = STRIPE_SECRET.value();
+    if (!key) throw new HttpsError("failed-precondition", "Secret not configured");
+    const stripe = new Stripe(key, { apiVersion: "2024-06-20" });
     const uid = assertAuthed(request.auth);
     const plan = String(request.data?.plan || "");
 
@@ -185,7 +177,8 @@ export const processQueuedScan = onDocumentCreated(
       }
     }
     try {
-      const apiKey = process.env.REPLICATE_API_KEY;
+      const apiKey = REPLICATE_API_KEY.value();
+      if (!apiKey) throw new HttpsError("failed-precondition", "Secret not configured");
       const resp = await fetch("https://api.replicate.com/v1/predictions", {
         method: "POST",
         headers: {
@@ -236,7 +229,9 @@ export const createCheckout = onRequest(
       return;
     }
     try {
-      const stripe = getStripe();
+      const key = STRIPE_SECRET.value();
+      if (!key) throw new HttpsError("failed-precondition", "Secret not configured");
+      const stripe = new Stripe(key, { apiVersion: "2024-06-20" });
       const mode = req.query.mode === "subscription" ? "subscription" : "payment";
       const domain = "https://mybodyscanapp.com";
       const session = await stripe.checkout.sessions.create({
@@ -275,7 +270,9 @@ export const createCustomerPortal = onRequest(
         res.status(400).send('no-customer');
         return;
       }
-      const stripe = getStripe();
+      const key = STRIPE_SECRET.value();
+      if (!key) throw new HttpsError('failed-precondition', 'Secret not configured');
+      const stripe = new Stripe(key, { apiVersion: '2024-06-20' });
       const session = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: 'https://mybodyscanapp.com/plans',
@@ -297,20 +294,16 @@ export const stripeWebhook = onRequest(
       return;
     }
 
+    const key = STRIPE_SECRET.value();
+    if (!key) throw new HttpsError("failed-precondition", "Secret not configured");
+    const stripe = new Stripe(key, { apiVersion: "2024-06-20" });
     const sig = req.headers["stripe-signature"];
-    const raw = req.rawBody;
-
-    const stripe = getStripe();
-    const whsec = process.env.STRIPE_WEBHOOK;
-    if (!whsec) {
-      console.error("STRIPE_WEBHOOK not set");
-      res.status(500).send("missing-webhook-secret");
-      return;
-    }
+    const whsec = STRIPE_WEBHOOK.value();
+    if (!whsec) throw new HttpsError("failed-precondition", "Secret not configured");
 
     let event;
     try {
-      event = stripe.webhooks.constructEvent(raw, sig, whsec);
+      event = stripe.webhooks.constructEvent(req.rawBody, sig, whsec);
     } catch (e) {
       console.error("Webhook verify failed:", e?.message);
       res.status(400).send(`Webhook Error: ${e?.message}`);
