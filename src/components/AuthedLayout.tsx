@@ -22,7 +22,7 @@ export default function AuthedLayout({ children }: { children: ReactNode }) {
             <NavLink to="/report" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Report</NavLink>
             <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Settings</NavLink>
-            <span className="opacity-80">Credits: {credits}</span>
+            <NavLink to="/coach/tracker" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Credits: {credits}</NavLink>
             <Button size="sm" variant="outline" onClick={signOutToAuth}>Sign out</Button>
           </nav>
         </div>

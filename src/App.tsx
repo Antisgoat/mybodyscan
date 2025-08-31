@@ -25,12 +25,18 @@ import PublicLanding from "./pages/PublicLanding";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
+import Disclaimer from "./pages/Disclaimer";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import ScanNew from "./pages/ScanNew";
 import ScanResult from "./pages/ScanResult";
 import Report from "./pages/Report";
 import DebugCredits from "./pages/DebugCredits";
+import CoachOnboarding from "./pages/CoachOnboarding";
+import CoachTracker from "./pages/CoachTracker";
+import SettingsHealth from "./pages/SettingsHealth";
+import DebugPlan from "./pages/DebugPlan";
+import DebugHealth from "./pages/DebugHealth";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -54,6 +60,7 @@ const App = () => {
             <Route path="/" element={<PublicLayout><PublicLanding /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
+            <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
@@ -78,6 +85,9 @@ const App = () => {
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AuthedLayout><Settings /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/coach/onboarding" element={<ProtectedRoute><AuthedLayout><CoachOnboarding /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
             {/* New scan routes */}
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
@@ -85,6 +95,8 @@ const App = () => {
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/debug/credits" element={<DebugCredits />} />
+            <Route path="/debug/plan" element={<DebugPlan />} />
+            <Route path="/debug/health" element={<DebugHealth />} />
             {/* MBS Onboarding */}
             <Route
               path="/onboarding-mbs"
