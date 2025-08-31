@@ -1,7 +1,10 @@
 import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL ?? "";
+const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string;
+if (!BASE) {
+  throw new Error("VITE_FUNCTIONS_BASE_URL not set");
+}
 
 async function authedFetch(path: string, init?: RequestInit) {
   if (!BASE) throw new Error("Functions URL not configured");
@@ -24,15 +27,14 @@ export async function startScan(params: { filename: string; size: number; conten
   return data as { scanId: string; remaining: number };
 }
 
-export async function openStripeCheckout(priceId: string, mode: "payment" | "subscription") {
-  // Kept for backward compatibility (unused after product-based checkout)
-  const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(priceId)}&mode=${mode}`);
+export async function openStripeCheckout(priceId: string, plan: string, mode: "payment" | "subscription") {
+  const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(priceId)}&plan=${encodeURIComponent(plan)}&mode=${mode}`);
   const { url } = await r.json();
   if (url) window.location.href = url;
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
-  const r = await authedFetch(`/createCheckoutByProduct?productId=${encodeURIComponent(productId)}`);
+  const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(productId)}`);
   const { url } = await r.json();
   if (url) window.location.href = url;
 }

@@ -38,7 +38,7 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 let warned = false;
-const appCheckKey = env.VITE_APPCHECK_KEY as string | undefined;
+const appCheckKey = env.VITE_APPCHECK_SITE_KEY as string | undefined;
 if (typeof window !== "undefined") {
   if (appCheckKey) {
     initializeAppCheck(app, {
@@ -47,6 +47,6 @@ if (typeof window !== "undefined") {
     });
   } else if (!warned) {
     warned = true;
-    console.warn("App Check key missing; requests are not protected. See README to enable.");
+    console.warn("App Check site key missing; requests are not protected. See README to enable.");
   }
 }

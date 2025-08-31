@@ -2,6 +2,7 @@
 
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import admin from "firebase-admin";
 import Stripe from "stripe";
 
@@ -10,6 +11,18 @@ admin.initializeApp();
 setGlobalOptions({
   region: "us-central1",
 });
+
+function requireEnv(key) {
+  const v = process.env[key];
+  if (!v) throw new Error(`${key} not set`);
+  console.log(`${key}=${v.substring(0,4)}***`);
+  return v;
+}
+
+requireEnv("STRIPE_SECRET");
+requireEnv("STRIPE_WEBHOOK");
+requireEnv("REPLICATE_API_KEY");
+const REPLICATE_MODEL = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
 
 const getStripe = () => {
   const key = process.env.STRIPE_SECRET;
@@ -28,10 +41,13 @@ const PRICES = {
   annual:  "price_1RuOw0QQU5vuhlNjA5NZ66qq",
 };
 
-// Allowlisted product IDs for security
-const ALLOWED_PRODUCTS = new Set([
-  // Add your allowed product IDs here
-  // Example: "prod_ExampleProductId123"
+// Allowlisted price IDs for security
+const ALLOWED_PRICE_IDS = new Set([
+  PRICES.single,
+  PRICES.pack3,
+  PRICES.pack5,
+  PRICES.monthly,
+  PRICES.annual,
 ]);
 
 // Helpers
@@ -149,49 +165,92 @@ export const startScan = onCall(async (req) => {
   return { scanId: scanRef.id, remaining };
 });
 
-// ===== HTTPS: create checkout by product =====
-export const createCheckoutByProduct = onRequest(
-  { secrets: ['STRIPE_SECRET'] },
+// ===== Firestore trigger: process queued scans =====
+export const processQueuedScan = onDocumentCreated(
+  "users/{uid}/scans/{scanId}",
+  async (event) => {
+    const snap = event.data;
+    const data = snap?.data();
+    if (!data || data.status !== "queued") return;
+    const { uid, scanId } = event.params;
+    const bucket = admin.storage().bucket();
+    const prefix = `scans/${uid}/${scanId}/original`;
+    let [files] = await bucket.getFiles({ prefix });
+    if (!files.length) {
+      await new Promise((r) => setTimeout(r, 5000));
+      [files] = await bucket.getFiles({ prefix });
+      if (!files.length) {
+        await snap.ref.set({ status: "error" }, { merge: true });
+        return;
+      }
+    }
+    try {
+      const apiKey = process.env.REPLICATE_API_KEY;
+      const resp = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          version: REPLICATE_MODEL,
+          input: { image: `gs://${bucket.name}/${prefix}` },
+        }),
+      });
+      const result = await resp.json();
+      await snap.ref.set(
+        {
+          status: "completed",
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          results: result,
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("processQueuedScan error", e?.message);
+      await snap.ref.set({ status: "error" }, { merge: true });
+    }
+  }
+);
+
+// ===== HTTPS: create checkout by price =====
+export const createCheckout = onRequest(
+  { secrets: ["STRIPE_SECRET"] },
   async (req, res) => {
     await verifyAppCheck(req);
     let uid;
     try {
       uid = await verifyIdToken(req);
     } catch {
-      res.status(401).send('unauthenticated');
+      res.status(401).send("unauthenticated");
       return;
     }
-    const productId = req.query.productId;
-    if (typeof productId !== 'string') {
-      res.status(400).send('missing-productId');
+    const priceId = req.query.priceId;
+    const plan = req.query.plan;
+    if (typeof priceId !== "string") {
+      res.status(400).send("missing-priceId");
       return;
     }
-    if (!ALLOWED_PRODUCTS.has(productId)) {
-      res.status(400).send('invalid-productId');
+    if (!ALLOWED_PRICE_IDS.has(priceId)) {
+      res.status(400).send("invalid-priceId");
       return;
     }
     try {
       const stripe = getStripe();
-      const product = await stripe.products.retrieve(productId, { expand: ['default_price'] });
-      const price = product.default_price;
-      const priceId = typeof price === 'string' ? price : price?.id;
-      if (!priceId) {
-        res.status(400).send('product-has-no-price');
-        return;
-      }
-      const domain = 'https://mybodyscanapp.com';
+      const mode = req.query.mode === "subscription" ? "subscription" : "payment";
+      const domain = "https://mybodyscanapp.com";
       const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
+        mode,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${domain}/plans?success=1`,
         cancel_url: `${domain}/plans?canceled=1`,
         client_reference_id: uid,
-        metadata: { uid, productId },
+        metadata: { uid, plan: typeof plan === "string" ? plan : "" },
       });
       res.json({ url: session.url });
     } catch (e) {
-      console.error('createCheckoutByProduct error', e?.message);
-      res.status(500).send('error');
+      console.error("createCheckout error", e?.message);
+      res.status(500).send("error");
     }
   }
 );
