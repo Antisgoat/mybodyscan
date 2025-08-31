@@ -173,3 +173,185 @@ export const stripeWebhook = onRequest(
   }
 );
 
+// ===== Callable: useCredit (atomic spend) =====
+export const useCredit = onCall(
+  { secrets: ["STRIPE_SECRET"] },
+  async (req) => {
+    const uid = assertAuthed(req.auth);
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+    let remaining = 0;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      const current = snap.exists ? snap.data()?.credits || 0 : 0;
+      if (current <= 0) {
+        throw new HttpsError("failed-precondition", "No credits left");
+      }
+      remaining = current - 1;
+      tx.update(userRef, {
+        credits: remaining,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      const useRef = userRef.collection("credit_uses").doc();
+      tx.set(useRef, {
+        at: admin.firestore.FieldValue.serverTimestamp(),
+        reason: req.data?.reason ?? "scan",
+      });
+    });
+    return { ok: true, remaining };
+  }
+);
+
+// ===== Callable: saveOnboarding =====
+export const saveOnboarding = onCall(async (req) => {
+  const uid = assertAuthed(req.auth);
+  const data = req.data || {};
+  const sex = data.sex;
+  if (sex !== "male" && sex !== "female") {
+    throw new HttpsError("invalid-argument", "Invalid sex");
+  }
+  const age = typeof data.age === "number" ? data.age : undefined;
+  const dob = typeof data.dob === "string" ? data.dob : undefined;
+  if (!age && !dob) {
+    throw new HttpsError("invalid-argument", "age or dob required");
+  }
+  const height_cm = Number(data.height_cm);
+  const weight_kg = Number(data.weight_kg);
+  if (!height_cm || !weight_kg) {
+    throw new HttpsError("invalid-argument", "Missing height/weight");
+  }
+  const activity_level = data.activity_level;
+  const activityOpts = ["sedentary", "light", "moderate", "very", "extra"];
+  if (!activityOpts.includes(activity_level)) {
+    throw new HttpsError("invalid-argument", "Invalid activity level");
+  }
+  const goal = data.goal;
+  const goalOpts = ["lose_fat", "gain_muscle", "improve_heart"];
+  if (!goalOpts.includes(goal)) {
+    throw new HttpsError("invalid-argument", "Invalid goal");
+  }
+  const style = data.style;
+  const styleOpts = ["ease_in", "all_in"];
+  if (!styleOpts.includes(style)) {
+    throw new HttpsError("invalid-argument", "Invalid style");
+  }
+  const timeframe_weeks = Number(data.timeframe_weeks);
+  if (!timeframe_weeks || isNaN(timeframe_weeks)) {
+    throw new HttpsError("invalid-argument", "Invalid timeframe");
+  }
+  const flags = data.medical_flags || {};
+  const medical_flags = {
+    pregnant: Boolean(flags.pregnant),
+    under18: Boolean(flags.under18),
+    eating_disorder_history: Boolean(flags.eating_disorder_history),
+    heart_condition: Boolean(flags.heart_condition),
+  };
+  const ack = { disclaimer: Boolean(data.ack?.disclaimer) };
+  if (!ack.disclaimer) {
+    throw new HttpsError("failed-precondition", "Disclaimer not accepted");
+  }
+  const profile = {
+    sex,
+    age,
+    dob,
+    height_cm,
+    weight_kg,
+    activity_level,
+    goal,
+    timeframe_weeks,
+    style,
+    medical_flags,
+    ack,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  await admin
+    .firestore()
+    .doc(`users/${uid}/coach/profile`)
+    .set(profile, { merge: true });
+  return { ok: true };
+});
+
+// ===== Callable: computePlan =====
+export const computePlan = onCall(async (req) => {
+  const uid = assertAuthed(req.auth);
+  const db = admin.firestore();
+  const profSnap = await db.doc(`users/${uid}/coach/profile`).get();
+  if (!profSnap.exists) {
+    throw new HttpsError("failed-precondition", "Profile missing");
+  }
+  const p = profSnap.data() || {};
+  const sex = p.sex;
+  const age = p.age || (p.dob ? Math.floor((Date.now() - Date.parse(p.dob)) / 3.15576e10) : 0);
+  const weight = p.weight_kg;
+  const height = p.height_cm;
+  const activity = p.activity_level;
+  const goal = p.goal;
+  const style = p.style;
+  const flags = p.medical_flags || {};
+  const bmr =
+    sex === "male"
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
+  const factors = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    very: 1.725,
+    extra: 1.9,
+  };
+  const tdee = bmr * (factors[activity] || 1.2);
+  let target = tdee;
+  let needs_clearance = false;
+  let message = "";
+  if (
+    flags.under18 ||
+    flags.pregnant ||
+    flags.eating_disorder_history ||
+    flags.heart_condition
+  ) {
+    needs_clearance = true;
+    message = "Medical clearance recommended";
+  } else {
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+    if (goal === "lose_fat") {
+      const maxDef = Math.min(700, Math.round((0.01 * weight * 7700) / 7));
+      let deficit = style === "all_in" ? 600 : 300;
+      deficit = clamp(deficit, 300, maxDef);
+      target = tdee - deficit;
+    } else if (goal === "gain_muscle") {
+      let surplus = style === "all_in" ? 350 : 200;
+      surplus = clamp(surplus, 150, 400);
+      target = tdee + surplus;
+    } else if (goal === "improve_heart") {
+      let deficit = style === "all_in" ? 200 : 0;
+      deficit = clamp(deficit, 0, 200);
+      const bmi = weight / ((height / 100) ** 2);
+      if (bmi < 22) deficit = 0;
+      target = tdee - deficit;
+    }
+  }
+  const minCalories = sex === "female" ? 1200 : 1500;
+  target = Math.max(minCalories, target);
+  const protein = Math.round(Math.min(Math.max(1.8, 1.6), 2.2) * weight);
+  const fat = Math.round(Math.max(0.6 * weight, 40));
+  const carbs = Math.round(
+    Math.max((target - (protein * 4 + fat * 9)) / 4, 0)
+  );
+  const plan = {
+    tdee: Math.round(tdee),
+    target_kcal: Math.round(target),
+    goal,
+    style,
+    protein_g: protein,
+    fat_g: fat,
+    carbs_g: carbs,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (needs_clearance) {
+    plan.needs_clearance = true;
+    plan.message = message;
+  }
+  await db.doc(`users/${uid}/coach/plan/current`).set(plan);
+  return plan;
+});
+

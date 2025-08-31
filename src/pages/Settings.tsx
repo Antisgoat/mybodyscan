@@ -10,6 +10,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useCredits } from "@/hooks/useCredits";
 import { openStripePortal } from "@/lib/api";
+import { useNavigate } from "react-router-dom";
 
 const Settings = () => {
   const [height, setHeight] = useState<string>("");
@@ -22,6 +23,7 @@ const Settings = () => {
   const [reminderEnabled, setReminderEnabled] = useState<boolean>(false);
   const [lastScanDate, setLastScanDate] = useState<Date | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -188,6 +190,15 @@ const Settings = () => {
             <Button variant="secondary" onClick={() => toast({ title: "Export requested", description: "We'll add this soon." })}>Export my data</Button>
             <Button variant="destructive" onClick={() => toast({ title: "Delete requested", description: "We'll add this soon." })}>Delete my data</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Health Integrations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => navigate("/settings/health")}>Open health settings</Button>
         </CardContent>
       </Card>
     </main>
