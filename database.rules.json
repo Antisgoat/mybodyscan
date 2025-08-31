@@ -9,8 +9,12 @@ service cloud.firestore {
       // Read your own user doc
       allow read: if isOwner(uid);
 
-      // Create allowed for owner
-      allow create: if isOwner(uid);
+      // Create allowed for owner, but block sensitive fields
+      allow create: if isOwner(uid)
+        && !request.resource.data.keys().hasAny([
+          'credits', 'billing', 'plan', 'subscription', 'role',
+          'stripe', 'stripeCustomerId', 'stripeSubscriptionId', 'stripe_customer_id'
+        ]);
 
       // Update: allow ONLY non-sensitive fields (block credits, billing, stripe*, plan/subscription, role)
       allow update: if isOwner(uid)

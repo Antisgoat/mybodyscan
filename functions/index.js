@@ -28,6 +28,12 @@ const PRICES = {
   annual:  "price_1RuOw0QQU5vuhlNjA5NZ66qq",
 };
 
+// Allowlisted product IDs for security
+const ALLOWED_PRODUCTS = new Set([
+  // Add your allowed product IDs here
+  // Example: "prod_ExampleProductId123"
+]);
+
 // Helpers
 function assertAuthed(auth) {
   const uid = auth?.uid;
@@ -134,6 +140,10 @@ export const createCheckoutByProduct = onRequest(
     const productId = req.query.productId;
     if (typeof productId !== 'string') {
       res.status(400).send('missing-productId');
+      return;
+    }
+    if (!ALLOWED_PRODUCTS.has(productId)) {
+      res.status(400).send('invalid-productId');
       return;
     }
     try {
