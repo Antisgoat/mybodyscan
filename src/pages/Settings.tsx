@@ -14,7 +14,6 @@ import { useNavigate } from "react-router-dom";
 
 const Settings = () => {
   const [height, setHeight] = useState<string>("");
-  const [units, setUnits] = useState<"kg" | "lb">("kg");
   const [notify, setNotify] = useState(true);
   const { credits } = useCredits();
   const [planType, setPlanType] = useState<string | null>(null);
@@ -172,13 +171,6 @@ const Settings = () => {
             <Input id="height" type="number" inputMode="decimal" placeholder="e.g. 178" value={height} onChange={(e) => setHeight(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Units</Label>
-            <div className="flex gap-2">
-              <Button variant={units === "kg" ? "default" : "secondary"} onClick={() => setUnits("kg")}>kg</Button>
-              <Button variant={units === "lb" ? "default" : "secondary"} onClick={() => setUnits("lb")}>lb</Button>
-            </div>
-          </div>
-          <div className="space-y-2">
             <Label>Notifications</Label>
             <div className="flex items-center gap-2">
               <input id="notify" type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
@@ -190,6 +182,15 @@ const Settings = () => {
             <Button variant="secondary" onClick={() => toast({ title: "Export requested", description: "We'll add this soon." })}>Export my data</Button>
             <Button variant="destructive" onClick={() => toast({ title: "Delete requested", description: "We'll add this soon." })}>Delete my data</Button>
           </div>
+      </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Units</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => navigate("/settings/units")}>Choose units</Button>
         </CardContent>
       </Card>
 

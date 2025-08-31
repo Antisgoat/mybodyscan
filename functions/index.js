@@ -35,6 +35,14 @@ function assertAuthed(auth) {
   return uid;
 }
 
+const lbToKg = (lb) => lb / 2.2046226218;
+const ftInToCm = (ft, inch) => (ft * 12 + inch) * 2.54;
+const kgToLb = (kg) => kg * 2.2046226218;
+const cmToFtIn = (cm) => {
+  const totalIn = cm / 2.54;
+  return { ft: Math.floor(totalIn / 12), in: Math.round(totalIn % 12) };
+};
+
 // ===== Callable: create Stripe Checkout session =====
 export const createCheckoutSession = onCall(
   { secrets: ["STRIPE_SECRET"] },
@@ -206,6 +214,7 @@ export const useCredit = onCall(
 export const saveOnboarding = onCall(async (req) => {
   const uid = assertAuthed(req.auth);
   const data = req.data || {};
+  const units = data.units === "metric" ? "metric" : "us";
   const sex = data.sex;
   if (sex !== "male" && sex !== "female") {
     throw new HttpsError("invalid-argument", "Invalid sex");
@@ -215,8 +224,21 @@ export const saveOnboarding = onCall(async (req) => {
   if (!age && !dob) {
     throw new HttpsError("invalid-argument", "age or dob required");
   }
-  const height_cm = Number(data.height_cm);
-  const weight_kg = Number(data.weight_kg);
+  let height_cm;
+  let weight_kg;
+  if (units === "us") {
+    const ft = Number(data.height_ft);
+    const inch = Number(data.height_in);
+    const lb = Number(data.weight_lb);
+    if (!ft || isNaN(inch) || !lb) {
+      throw new HttpsError("invalid-argument", "Missing height/weight");
+    }
+    height_cm = ftInToCm(ft, inch);
+    weight_kg = lbToKg(lb);
+  } else {
+    height_cm = Number(data.height_cm);
+    weight_kg = Number(data.weight_kg);
+  }
   if (!height_cm || !weight_kg) {
     throw new HttpsError("invalid-argument", "Missing height/weight");
   }
@@ -352,6 +374,7 @@ export const computePlan = onCall(async (req) => {
     plan.message = message;
   }
   await db.doc(`users/${uid}/coach/plan/current`).set(plan);
-  return plan;
+  const { ft, in: inch } = cmToFtIn(height);
+  return { ...plan, weight_kg: weight, height_cm: height, weight_lb: kgToLb(weight), height_ft: ft, height_in: inch };
 });
 
