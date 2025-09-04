@@ -7,7 +7,7 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { auth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
-import { startScan } from "@/lib/api";
+import { runBodyScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
@@ -45,23 +45,20 @@ const PhotoCapture = () => {
     }
     setLoading(true);
     try {
-      const first = files.front!;
-      const { scanId } = await startScan({
-        filename: first.name,
-        size: first.size,
-        contentType: first.type,
-      });
       const uploads: Array<[StepKey, File]> = [
         ["front", files.front!],
         ["left", files.left!],
         ["right", files.right!],
         ["back", files.back!],
       ];
+      const paths: string[] = [];
       for (const [key, file] of uploads) {
         const ext = sanitizeFilename(file.name).split(".").pop() || "jpg";
-        const path = `scans/${uid}/${scanId}/${key}.${ext}`;
+        const path = `uploads/${uid}/${key}.${ext}`;
         await uploadBytes(ref(storage, path), file);
+        paths.push(path);
       }
+      const { scanId } = await runBodyScan(paths);
       navigate(`/scan/${scanId}`);
     } catch (e: any) {
       console.error("PhotoCapture error", e);
