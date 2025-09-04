@@ -10,10 +10,11 @@ import Stripe from "stripe";
 const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
 const STRIPE_WEBHOOK = defineSecret("STRIPE_WEBHOOK");
 const REPLICATE_API_KEY = defineSecret("REPLICATE_API_KEY");
+const REPLICATE_API_TOKEN = defineSecret("REPLICATE_API_TOKEN");
 
 setGlobalOptions({
   region: "us-central1",
-  secrets: [STRIPE_SECRET, STRIPE_WEBHOOK, REPLICATE_API_KEY],
+  secrets: [STRIPE_SECRET, STRIPE_WEBHOOK, REPLICATE_API_KEY, REPLICATE_API_TOKEN],
 });
 
 admin.initializeApp();
@@ -655,3 +656,4 @@ export const computePlan = onCall(async (req) => {
   return { ...plan, weight_kg: weight, height_cm: height, weight_lb: kgToLb(weight), height_ft: ft, height_in: inch };
 });
 
+export { runBodyScan } from './aiScan.js';

@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+    match /users/{uid} {
+      allow read, update: if isOwner(uid);
+      allow create: if isOwner(uid);
+      match /scans/{scanId} {
+        allow read, create, update, delete: if isOwner(uid);
+      }
+      match /ledger/{entryId} {
+        // read by owner; writes are by server only — allow if request.auth.uid == uid, but client code should never write ledger directly
+        allow read: if isOwner(uid);
+        allow create, update, delete: if false;
+      }
+    }
+  }
+}

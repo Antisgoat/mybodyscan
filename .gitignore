@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+.firebase/
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
 
 # Env files
 .env.local

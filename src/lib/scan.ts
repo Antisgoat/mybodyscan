@@ -2,6 +2,8 @@ import { db, storage } from "@/lib/firebase";
 import { doc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { authedFetch } from "@/lib/api";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "./firebase";
 
 export interface StartScanResponse {
   scanId: string;
@@ -69,4 +71,10 @@ export function listenToScan(
       onError?.(error);
     }
   );
+}
+
+export async function runBodyScan(files: string[]): Promise<any> {
+  const call = httpsCallable(functions, "runBodyScan");
+  const { data } = await call({ files });
+  return data as any;
 }
