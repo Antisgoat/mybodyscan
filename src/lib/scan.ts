@@ -1,8 +1,8 @@
-import { db, storage, app } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { db, storage, functions } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { authedFetch } from "@/lib/api";
-import { httpsCallable, getFunctions } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 
 export interface StartScanResponse {
   scanId: string;
@@ -34,7 +34,7 @@ export async function uploadScanFile(
 ): Promise<void> {
   const fileExt = file.name.split('.').pop() || 'jpg';
   const storageRef = ref(storage, `scans/${uid}/${scanId}/original.${fileExt}`);
-  
+
   await uploadBytes(storageRef, file);
 }
 
@@ -57,7 +57,7 @@ export function listenToScan(
   onError?: (error: Error) => void
 ) {
   const scanRef = doc(db, "users", uid, "scans", scanId);
-  
+
   return onSnapshot(
     scanRef,
     (snapshot) => {
@@ -73,7 +73,6 @@ export function listenToScan(
 }
 
 export async function runBodyScan(files: string[]): Promise<any> {
-  const functions = getFunctions(app);
   const call = httpsCallable(functions, "runBodyScan");
   const { data } = await call({ files });
   return data as any;

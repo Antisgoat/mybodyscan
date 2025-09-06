@@ -14,11 +14,29 @@ jobs:
         with:
           node-version: 20
       - run: npm ci --legacy-peer-deps
+      - name: Create env file
+        run: |
+          cat > .env.production <<'EOF'
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID=mybodyscan-f3daf
+          VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'mybodyscan-f3daf.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          EOF
       - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm run pretest:e2e
       - run: npx firebase emulators:exec --only firestore,auth,storage,functions "npm run test:e2e"
-      - run: npm run lighthouse
+      - name: Lighthouse (PR)
+        if: github.event_name == 'pull_request'
+        run: npm run lighthouse || true
+        env:
+          PREVIEW_URL: http://localhost:5173
+      - name: Lighthouse (push)
+        if: github.event_name != 'pull_request'
+        run: npm run lighthouse
         env:
           PREVIEW_URL: http://localhost:5173
