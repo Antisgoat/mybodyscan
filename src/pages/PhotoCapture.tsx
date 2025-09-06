@@ -58,7 +58,7 @@ const PhotoCapture = () => {
         await uploadBytes(ref(storage, path), file);
         paths.push(path);
       }
-      const { scanId } = await runBodyScan(paths);
+      const { scanId } = await runBodyScan(paths[0]);
       navigate(`/scan/${scanId}`);
     } catch (e: any) {
       console.error("PhotoCapture error", e);
