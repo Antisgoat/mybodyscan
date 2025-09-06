@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
+import functions from "firebase-functions";
 import admin from "firebase-admin";
 import fetch from "node-fetch";
 
@@ -35,8 +36,8 @@ export const runBodyScan = onCall(
     const db = admin.firestore();
     const userRef = db.doc(`users/${uid}`);
     const userSnap = await userRef.get();
-    const available = userSnap.get("credits.available") || 0;
-    if (available < 1) {
+    const credits = userSnap.get("credits") || 0;
+    if (credits < 1) {
       throw new HttpsError("failed-precondition", "Insufficient credits");
     }
     const lastScanAt = userSnap.get("meta.lastScanAt");
@@ -45,99 +46,113 @@ export const runBodyScan = onCall(
     }
 
     const scanRef = db.collection(`users/${uid}/scans`).doc();
+    console.log("runBodyScan:start", {
+      uid,
+      scanId: scanRef.id,
+      provider: functions.config().scan?.provider || "pending",
+    });
     let result;
 
-    if (isEmu) {
-      result = { bodyFatPct: 18.7, weightKg: 78.1, bmi: 24.6, mock: true };
-      await scanRef.set({
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        files,
-        provider: "mock",
-        status: "succeeded",
-        result,
-      });
-    } else {
-      const bucket = admin.storage().bucket();
-      const signed = await Promise.all(
-        files.map(async (p) => {
-          const [url] = await bucket.file(p).getSignedUrl({
-            action: "read",
-            expires: Date.now() + 15 * 60 * 1000,
-          });
-          return url;
-        })
-      );
-      const token = REPLICATE_API_TOKEN.value();
-      if (!token) {
-        throw new HttpsError("failed-precondition", "Missing Replicate token");
-      }
-      const createRes = await fetch("https://api.replicate.com/v1/predictions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          version: "TODO", // TODO: specify model version
-          input: { images: signed },
-        }),
-      });
-      if (!createRes.ok) {
-        throw new HttpsError("internal", "Replicate API error");
-      }
-      const createJson = await createRes.json();
-      let status = createJson.status;
-      let pollUrl =
-        createJson.urls?.get || `https://api.replicate.com/v1/predictions/${createJson.id}`;
-      while (status === "starting" || status === "processing") {
-        await new Promise((r) => setTimeout(r, 1000));
-        const pollRes = await fetch(pollUrl, {
-          headers: { Authorization: `Bearer ${token}` },
+    try {
+      if (isEmu) {
+        result = { bodyFatPct: 18.7, weightKg: 78.1, bmi: 24.6, mock: true };
+        await scanRef.set({
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          files,
+          provider: "mock",
+          status: "succeeded",
+          result,
         });
-        if (!pollRes.ok) {
-          throw new HttpsError("internal", "Replicate polling failed");
+      } else {
+        const bucket = admin.storage().bucket();
+        const signed = await Promise.all(
+          files.map(async (p) => {
+            const [url] = await bucket.file(p).getSignedUrl({
+              action: "read",
+              expires: Date.now() + 15 * 60 * 1000,
+            });
+            return url;
+          })
+        );
+        const token = REPLICATE_API_TOKEN.value();
+        if (!token) {
+          throw new HttpsError("failed-precondition", "Missing Replicate token");
         }
-        const pollJson = await pollRes.json();
-        status = pollJson.status;
-        if (status === "succeeded") {
-          result = {
-            bodyFatPct: pollJson.output?.body_fat_pct,
-            weightKg: pollJson.output?.weight_kg,
-            bmi: pollJson.output?.bmi,
-          };
-        } else if (status === "failed") {
-          throw new HttpsError("internal", "Replicate prediction failed");
+        const createRes = await fetch("https://api.replicate.com/v1/predictions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            version: "TODO", // TODO: specify model version
+            input: { images: signed },
+          }),
+        });
+        if (!createRes.ok) {
+          throw new HttpsError("internal", "Replicate API error");
         }
+        const createJson = await createRes.json();
+        let status = createJson.status;
+        let pollUrl =
+          createJson.urls?.get || `https://api.replicate.com/v1/predictions/${createJson.id}`;
+        while (status === "starting" || status === "processing") {
+          await new Promise((r) => setTimeout(r, 1000));
+          const pollRes = await fetch(pollUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!pollRes.ok) {
+            throw new HttpsError("internal", "Replicate polling failed");
+          }
+          const pollJson = await pollRes.json();
+          status = pollJson.status;
+          if (status === "succeeded") {
+            result = {
+              bodyFatPct: pollJson.output?.body_fat_pct,
+              weightKg: pollJson.output?.weight_kg,
+              bmi: pollJson.output?.bmi,
+            };
+          } else if (status === "failed") {
+            throw new HttpsError("internal", "Replicate prediction failed");
+          }
+        }
+        await scanRef.set({
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          files,
+          provider: "replicate",
+          status: "succeeded",
+          result,
+        });
       }
-      await scanRef.set({
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        files,
-        provider: "replicate",
-        status: "succeeded",
-        result,
-      });
-    }
-
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(userRef);
-      const avail = snap.get("credits.available") || 0;
-      if (avail < 1) {
-        throw new HttpsError("failed-precondition", "Insufficient credits");
-      }
-      tx.update(userRef, {
-        "credits.available": admin.firestore.FieldValue.increment(-1),
-        "meta.lastScanAt": admin.firestore.FieldValue.serverTimestamp(),
-      });
+      console.log("result:write:ok", { scanId: scanRef.id });
+      const markerRef = userRef.collection("processed_scans").doc(scanRef.id);
       const ledgerRef = userRef.collection("ledger").doc();
-      tx.set(ledgerRef, {
-        type: "debit",
-        amount: 1,
-        source: "scan",
-        ts: admin.firestore.FieldValue.serverTimestamp(),
-        scanId: scanRef.id,
+      await db.runTransaction(async (tx) => {
+        const marker = await tx.get(markerRef);
+        if (marker.exists) return;
+        const snap = await tx.get(userRef);
+        const current = snap.get("credits") || 0;
+        if (current <= 0) {
+          throw new HttpsError("failed-precondition", "Insufficient credits");
+        }
+        tx.update(userRef, {
+          credits: admin.firestore.FieldValue.increment(-1),
+          "meta.lastScanAt": admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.set(markerRef, { ts: admin.firestore.FieldValue.serverTimestamp() });
+        tx.set(ledgerRef, {
+          scanId: scanRef.id,
+          creditDelta: -1,
+          ts: admin.firestore.FieldValue.serverTimestamp(),
+        });
       });
-    });
-
-    return { scanId: scanRef.id, result };
+      console.log("credits:tx:ok", { uid, scanId: scanRef.id, delta: -1 });
+      console.log("scan:success", { scanId: scanRef.id });
+      return { scanId: scanRef.id, result };
+    } catch (e) {
+      const code = e?.code;
+      console.log("scan:error", { scanId: scanRef.id, code });
+      throw e;
+    }
   }
 );
