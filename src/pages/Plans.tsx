@@ -54,25 +54,33 @@ const Plans = () => {
     plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
     el: HTMLButtonElement
   ) => {
+    const originalText = el.textContent;
     try {
       el.disabled = true;
+      el.textContent = "Loading...";
+      
       const user = auth.currentUser;
       if (!user) {
         el.disabled = false;
+        el.textContent = originalText;
         navigate("/auth", { state: { from: window.location.pathname } });
         return;
       }
       await startCheckout(plan);
     } catch (err: any) {
-      try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
-      if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String((err as any)?.message ?? ""))) {
+      const errorMessage = (err as any)?.message || "Checkout failed";
+      toast({ 
+        title: "Checkout failed", 
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String(errorMessage))) {
         navigate("/auth", { state: { from: window.location.pathname } });
-      } else {
-        if (!(window as any).toast) {
-          alert((err as any)?.message || "Checkout failed");
-        }
       }
+      
       el.disabled = false;
+      el.textContent = originalText;
     }
   };
 
@@ -96,7 +104,13 @@ const Plans = () => {
               <CardDescription>Great for first try</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("single", e.currentTarget as HTMLButtonElement)}>Buy</Button>
+              <Button 
+                onClick={(e) => handleCheckout("single", e.currentTarget as HTMLButtonElement)}
+                className="w-full"
+                aria-label="Buy 1 scan for $9.99"
+              >
+                Buy
+              </Button>
             </CardContent>
           </Card>
           {/* 3 Scans */}
@@ -109,7 +123,13 @@ const Plans = () => {
               <CardDescription>Use anytime</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack3", e.currentTarget as HTMLButtonElement)}>Buy</Button>
+              <Button 
+                onClick={(e) => handleCheckout("pack3", e.currentTarget as HTMLButtonElement)}
+                className="w-full"
+                aria-label="Buy 3 scans for $19.99"
+              >
+                Buy
+              </Button>
             </CardContent>
           </Card>
           {/* 5 Scans */}
@@ -122,7 +142,13 @@ const Plans = () => {
               <CardDescription>Lowest price per scan</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack5", e.currentTarget as HTMLButtonElement)}>Buy</Button>
+              <Button 
+                onClick={(e) => handleCheckout("pack5", e.currentTarget as HTMLButtonElement)}
+                className="w-full"
+                aria-label="Buy 5 scans for $29.99"
+              >
+                Buy
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -139,7 +165,13 @@ const Plans = () => {
               <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("monthly", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
+              <Button 
+                onClick={(e) => handleCheckout("monthly", e.currentTarget as HTMLButtonElement)}
+                className="w-full"
+                aria-label="Subscribe monthly for $14.99"
+              >
+                Subscribe
+              </Button>
             </CardContent>
           </Card>
           {/* Annual */}
@@ -149,7 +181,13 @@ const Plans = () => {
               <CardDescription>Best long-term value</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("annual", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
+              <Button 
+                onClick={(e) => handleCheckout("annual", e.currentTarget as HTMLButtonElement)}
+                className="w-full"
+                aria-label="Subscribe annually for $99.99"
+              >
+                Subscribe
+              </Button>
             </CardContent>
           </Card>
         </div>

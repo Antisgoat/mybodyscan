@@ -77,10 +77,14 @@ const PhotoCapture = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Capture Photos – MyBodyScan" description="Capture four photos to create your body scan." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Capture Photos</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Hold your phone upright (portrait). Stand 3-4 feet away. Capture all four sides clearly.
+      </p>
       <Card>
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="flex items-center justify-between">
             Step {current + 1}/4 – {steps[current]}
+            {allSet && <span className="text-sm font-normal text-primary">✓ All 4 uploaded</span>}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -89,21 +93,46 @@ const PhotoCapture = () => {
             <div className="absolute bottom-3 inset-x-3 flex items-center justify-between">
               <Button variant="secondary" onClick={prev} disabled={current === 0}>Back</Button>
               <label className="inline-flex">
-                <input type="file" accept="image/*" capture="environment" onChange={onPick} className="hidden" />
-                <Button type="button">Capture</Button>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment" 
+                  onChange={onPick} 
+                  className="hidden"
+                  aria-label={`Capture ${steps[current]} photo`}
+                />
+                <Button type="button" className="bg-primary hover:bg-primary/90">
+                  {files[steps[current].toLowerCase() as StepKey] ? "Retake" : "Capture"}
+                </Button>
               </label>
               <Button variant="secondary" onClick={next} disabled={current === steps.length - 1}>Next</Button>
             </div>
           </div>
           <div className="grid grid-cols-4 gap-2 text-center text-xs text-muted-foreground">
-            {steps.map((s) => (
-              <div key={s} className={`rounded-md border p-2 ${files[s.toLowerCase() as StepKey] ? "border-primary" : "border-border"}`}>
-                {s}
-              </div>
-            ))}
+            {steps.map((s) => {
+              const isComplete = !!files[s.toLowerCase() as StepKey];
+              return (
+                <div 
+                  key={s} 
+                  className={`rounded-md border p-2 transition-colors ${
+                    isComplete 
+                      ? "border-primary bg-primary/10 text-primary" 
+                      : "border-border"
+                  }`}
+                >
+                  {isComplete && <span className="block text-xs">✓</span>}
+                  {s}
+                </div>
+              );
+            })}
           </div>
-          <Button className="w-full" onClick={onContinue} disabled={!allSet || loading}>
-            {loading ? "Creating scan..." : "Continue"}
+          <Button 
+            className="w-full" 
+            onClick={onContinue} 
+            disabled={!allSet || loading}
+            aria-label={allSet ? "Analyze photos" : "Complete all 4 photos first"}
+          >
+            {loading ? "Creating scan..." : allSet ? "Analyze Photos" : "Complete all 4 photos"}
           </Button>
         </CardContent>
       </Card>

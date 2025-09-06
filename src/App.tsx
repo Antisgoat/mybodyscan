@@ -3,7 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import React, { useEffect, lazy } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
+import { CrashBanner } from "@/components/CrashBanner";
+import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
@@ -54,6 +56,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <CrashBanner />
         <Toaster />
         <Sonner />
         <AuthGate>
@@ -80,21 +83,65 @@ const App = () => {
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
             {/* Auth */}
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={
+              <Suspense fallback={<PageSkeleton />}>
+                <Auth />
+              </Suspense>
+            } />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/video" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/photos" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<CaptureSkeleton />}>
+                    <PhotoCapture />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/capture/video" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<CaptureSkeleton />}>
+                    <VideoCapture />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             {/* Processing routes (old + new kept) */}
-            <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/processing/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/processing/:uid/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/processing/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Results */}
-            <Route path="/results/:scanId" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/results/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Results />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Other */}
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
