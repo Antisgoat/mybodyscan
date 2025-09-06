@@ -1,13 +1,18 @@
 import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { toast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string;
+const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
 
 async function authedFetch(path: string, init?: RequestInit) {
-  if (!BASE) throw new Error("Backend URL not configured. Please check your environment variables.");
+  const base = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+  if (!base) {
+    toast({ title: "Server not configured" });
+    return new Response(null, { status: 503 });
+  }
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("Authentication required");
-  return fetch(`${BASE}${path}`, {
+  return fetch(`${base}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

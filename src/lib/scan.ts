@@ -4,29 +4,6 @@ import { ref, uploadBytes } from "firebase/storage";
 import { authedFetch } from "@/lib/api";
 import { httpsCallable } from "firebase/functions";
 
-export interface StartScanResponse {
-  scanId: string;
-  remaining: number;
-}
-
-export async function startScan(params: {
-  filename: string;
-  size: number;
-  contentType: string;
-}): Promise<StartScanResponse> {
-  const response = await authedFetch("/startScan", {
-    method: "POST",
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to start scan: ${error}`);
-  }
-
-  return response.json();
-}
-
 export async function uploadScanFile(
   uid: string,
   scanId: string,
@@ -72,8 +49,8 @@ export function listenToScan(
   );
 }
 
-export async function runBodyScan(files: string[]): Promise<any> {
+export async function runBodyScan(file: string): Promise<any> {
   const call = httpsCallable(functions, "runBodyScan");
-  const { data } = await call({ files });
+  const { data } = await call({ file });
   return data as any;
 }

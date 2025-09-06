@@ -7,7 +7,7 @@ import { auth } from "@/lib/firebase";
 export default function CheckoutCanceled() {
   const navigate = useNavigate();
   useEffect(() => {
-    const t = setTimeout(() => navigate("/plans"), 4000);
+    const t = setTimeout(() => navigate("/scan/new"), 4000);
     return () => clearTimeout(t);
   }, [navigate]);
   return (
@@ -16,7 +16,7 @@ export default function CheckoutCanceled() {
       <h1 className="text-2xl font-semibold mb-2">Payment canceled</h1>
       <p className="text-muted-foreground mb-6">No charge was made. You’ll be redirected shortly. You can also jump back now.</p>
       <div className="flex gap-2">
-        <Button onClick={() => navigate(auth.currentUser ? "/plans" : "/auth")}>Return to App</Button>
+        <Button onClick={() => navigate(auth.currentUser ? "/scan/new" : "/auth")}>Return to App</Button>
       </div>
     </main>
   );

@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Camera, Upload } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { startScan, uploadScanFile, processScan, listenToScan } from "@/lib/scan";
+import { startScan } from "@/lib/api";
+import { uploadScanFile, processScan, listenToScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
@@ -12,155 +12,107 @@ import { Seo } from "@/components/Seo";
 type Stage = "idle" | "uploading" | "processing";
 
 export default function ScanNew() {
+  const isPhotoMode = import.meta.env.VITE_SCAN_MODE === "photos";
+  const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleFileUpload = async () => {
+  const handleSubmit = async () => {
     if (!auth.currentUser) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in first",
-        variant: "destructive",
-      });
+      toast({ title: "Authentication required", variant: "destructive" });
       navigate("/auth");
       return;
     }
+    if (!file) {
+      toast({ title: "Upload missing" });
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please select an image." });
+      return;
+    }
 
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*,video/*";
-    input.multiple = false;
-
-    input.onchange = async (e) => {
-      const target = e.target as HTMLInputElement;
-      const file = target.files?.[0];
-      if (!file) return;
-
-      const uid = auth.currentUser!.uid;
+    try {
+      setStage("uploading");
+      const uid = auth.currentUser.uid;
       const filename = sanitizeFilename(file.name);
-      
-      try {
-        setStage("uploading");
-
-        // Step 1: Start scan and get scanId
-        const { scanId, remaining } = await startScan({
-          filename,
-          size: file.size,
-          contentType: file.type,
-        });
-
-        toast({
-          title: "Scan started",
-          description: `Credits remaining: ${remaining}`,
-        });
-
-        // Step 2: Upload file to storage
-        await uploadScanFile(uid, scanId, file);
-
-        setStage("processing");
-
-        // Step 3: Trigger backend processing
-        await processScan(scanId);
-
-        // Step 4: Listen for completion
-        const unsubscribe = listenToScan(
-          uid,
-          scanId,
-          (scan) => {
-            if (scan.status === "completed") {
-              unsubscribe();
-              navigate(`/results/${scanId}`);
-            } else if (scan.status === "error") {
-              unsubscribe();
-              setStage("idle");
-              toast({
-                title: "Scan failed",
-                description: scan.error || "Please try again",
-                variant: "destructive",
-              });
-            }
-          },
-          (error) => {
+      const { scanId, remaining } = await startScan({
+        filename,
+        size: file.size,
+        contentType: file.type,
+      });
+      await uploadScanFile(uid, scanId, file);
+      setStage("processing");
+      await processScan(scanId);
+      const unsubscribe = listenToScan(
+        uid,
+        scanId,
+        (scan) => {
+          if (scan.status === "completed") {
+            unsubscribe();
+            navigate(`/results/${scanId}`);
+          } else if (scan.status === "error") {
             unsubscribe();
             setStage("idle");
             toast({
-              title: "Error",
-              description: "Failed to monitor scan progress",
+              title: "Scan failed",
+              description: scan.error || "Please try again",
               variant: "destructive",
             });
           }
-        );
-
-      } catch (error) {
-        console.error("Scan error:", error);
-        setStage("idle");
-        toast({
-          title: "Upload failed",
-          description: error instanceof Error ? error.message : "Please try again",
-          variant: "destructive",
-        });
-      }
-    };
-
-    input.click();
+        },
+        () => {
+          unsubscribe();
+          setStage("idle");
+          toast({ title: "Error", description: "Failed to monitor scan" });
+        }
+      );
+      toast({ title: "Scan started", description: `Credits remaining: ${remaining}` });
+    } catch (e: any) {
+      setStage("idle");
+      const msg = e?.message === "deadline-exceeded" ? "Scan took too long—please try again." : e?.message;
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    }
   };
+
+  if (!isPhotoMode) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <p>Video capture temporarily disabled.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Seo 
-        title="New Scan - MyBodyScan"
-        description="Upload a photo or video for body composition analysis"
-      />
-      
+      <Seo title="New Scan - MyBodyScan" description="Upload a full-body photo for analysis" />
       <div>
         <h1 className="text-3xl font-bold mb-2">New Scan</h1>
         <p className="text-muted-foreground">
-          Upload a photo or video to get your body composition analysis
+          Upload a full-body photo (head-to-toe), neutral background, arms slightly out, tight/minimal clothing.
         </p>
       </div>
-
       <Card>
         <CardHeader>
-          <CardTitle>Upload Your Scan</CardTitle>
-          <CardDescription>
-            Choose a clear, well-lit photo or video of yourself for the most accurate results
-          </CardDescription>
+          <CardTitle>Upload Photo</CardTitle>
+          <CardDescription>Submit one clear full-body image.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              onClick={handleFileUpload}
-              disabled={stage !== "idle"}
-              className="h-24 flex flex-col gap-2"
-              variant="outline"
-            >
-              <Upload className="h-6 w-6" />
-              {stage === "idle" && "Choose File"}
-              {stage === "uploading" && "Uploading..."}
-              {stage === "processing" && "Processing..."}
-            </Button>
-            
-            <Button
-              onClick={handleFileUpload}
-              disabled={stage !== "idle"}
-              className="h-24 flex flex-col gap-2"
-              variant="outline"
-            >
-              <Camera className="h-6 w-6" />
-              {stage === "idle" && "Use Camera"}
-              {stage === "uploading" && "Uploading..."}
-              {stage === "processing" && "Processing..."}
-            </Button>
-          </div>
-
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p>• Use a well-lit area with good contrast</p>
-            <p>• Stand 6-8 feet from the camera</p>
-            <p>• Wear form-fitting clothing for best results</p>
-          </div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="block w-full text-sm"
+          />
+          <Button onClick={handleSubmit} disabled={!file || stage !== "idle"}>
+            {stage === "idle" && "Submit"}
+            {stage === "uploading" && "Uploading..."}
+            {stage === "processing" && "Processing..."}
+          </Button>
         </CardContent>
       </Card>
     </div>
   );
 }
+
