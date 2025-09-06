@@ -6,10 +6,10 @@ service cloud.firestore {
       allow read, update: if isOwner(uid);
       allow create: if isOwner(uid);
       match /scans/{scanId} {
-        allow read, create, update, delete: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow create, update, delete: if false;
       }
       match /ledger/{entryId} {
-        // read by owner; writes are by server only — allow if request.auth.uid == uid, but client code should never write ledger directly
         allow read: if isOwner(uid);
         allow create, update, delete: if false;
       }
