@@ -16,9 +16,38 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
       - run: npm test
+      - name: "Write .env.production"
+        run: |
+          cat > .env.production <<'EOF'
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID=mybodyscan-f3daf
+          VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'mybodyscan-f3daf.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          EOF
       - run: npm run build
       - run: npm run pretest:e2e
-      - run: npx firebase emulators:exec --only firestore,auth,storage,functions "npm run test:e2e"
-      - run: npm run lighthouse
+      - name: "Run E2E against Firebase emulators"
+        run: |
+          npx firebase emulators:exec --only firestore,auth,storage,functions "npm run test:e2e"
+        env:
+          TEST_GRANT_ENABLED: "1"
+      - name: "Lighthouse (PR, non-blocking)"
+        if: ${{ github.event_name == 'pull_request' }}
+        run: npm run lighthouse || true
         env:
           PREVIEW_URL: http://localhost:5173
+      - name: "Lighthouse (main, required)"
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: npm run lighthouse
+        env:
+          PREVIEW_URL: http://localhost:5173
+      - name: "Upload Playwright report"
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore

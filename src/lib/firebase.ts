@@ -3,6 +3,8 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
+import { getAnalytics, type Analytics } from "firebase/analytics";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 const env = import.meta.env;
@@ -13,7 +15,6 @@ const required = [
   "VITE_FIREBASE_STORAGE_BUCKET",
   "VITE_FIREBASE_MESSAGING_SENDER_ID",
   "VITE_FIREBASE_APP_ID",
-  "VITE_FIREBASE_MEASUREMENT_ID",
 ];
 for (const key of required) {
   if (!env[key as keyof typeof env]) {
@@ -28,7 +29,9 @@ export const firebaseConfig = {
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET as string,
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
   appId: env.VITE_FIREBASE_APP_ID as string,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID as string,
+  ...(env.VITE_FIREBASE_MEASUREMENT_ID && {
+    measurementId: env.VITE_FIREBASE_MEASUREMENT_ID as string,
+  }),
 };
 
 // Initialize Firebase only once
@@ -36,6 +39,17 @@ export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfi
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app, "us-central1");
+
+let analytics: Analytics | undefined;
+if (typeof window !== "undefined" && env.VITE_FIREBASE_MEASUREMENT_ID) {
+  try {
+    analytics = getAnalytics(app);
+  } catch (err) {
+    console.warn("Analytics init failed", err);
+  }
+}
+export { analytics };
 
 let warned = false;
 const appCheckKey = env.VITE_APPCHECK_SITE_KEY as string | undefined;
