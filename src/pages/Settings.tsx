@@ -119,7 +119,25 @@ const Settings = () => {
             {renewal && <div><span className="font-medium">Renews:</span> {renewal}</div>}
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => openStripePortal()}>Manage subscription</Button>
+            <Button onClick={async () => {
+              try {
+                await openStripePortal();
+              } catch (err: any) {
+                if (err?.message?.includes("Backend URL not configured")) {
+                  toast({ 
+                    title: "Service unavailable", 
+                    description: "Billing management is not available in development mode.",
+                    variant: "destructive"
+                  });
+                } else {
+                  toast({ 
+                    title: "Error", 
+                    description: err?.message || "Failed to open billing portal",
+                    variant: "destructive"
+                  });
+                }
+              }
+            }}>Manage subscription</Button>
             <Button variant="secondary" onClick={() => window.location.reload()}>Refresh</Button>
           </div>
         </CardContent>

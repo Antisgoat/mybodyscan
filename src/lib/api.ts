@@ -2,12 +2,9 @@ import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string;
-if (!BASE) {
-  throw new Error("VITE_FUNCTIONS_BASE_URL not set");
-}
 
 async function authedFetch(path: string, init?: RequestInit) {
-  if (!BASE) throw new Error("Functions URL not configured");
+  if (!BASE) throw new Error("Backend URL not configured. Please check your environment variables.");
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("Authentication required");
   return fetch(`${BASE}${path}`, {

@@ -69,11 +69,21 @@ const Plans = () => {
       await startCheckout(plan);
     } catch (err: any) {
       const errorMessage = (err as any)?.message || "Checkout failed";
-      toast({ 
-        title: "Checkout failed", 
-        description: errorMessage,
-        variant: "destructive"
-      });
+      
+      // Handle configuration errors
+      if (errorMessage.includes("Backend URL not configured")) {
+        toast({ 
+          title: "Service unavailable", 
+          description: "Checkout is not available in development mode.",
+          variant: "destructive"
+        });
+      } else {
+        toast({ 
+          title: "Checkout failed", 
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
       
       if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String(errorMessage))) {
         navigate("/auth", { state: { from: window.location.pathname } });
