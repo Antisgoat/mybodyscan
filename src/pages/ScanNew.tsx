@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth } from "@/lib/firebase";
 import { startScan } from "@/lib/api";
+import { consumeOneCredit } from "@/lib/payments";
 import { uploadScanFile, processScan, listenToScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +38,8 @@ export default function ScanNew() {
       setStage("uploading");
       const uid = auth.currentUser.uid;
       const filename = sanitizeFilename(file.name);
-      const { scanId, remaining } = await startScan({
+      const remaining = await consumeOneCredit();
+      const { scanId } = await startScan({
         filename,
         size: file.size,
         contentType: file.type,
@@ -71,8 +73,20 @@ export default function ScanNew() {
       toast({ title: "Scan started", description: `Credits remaining: ${remaining}` });
     } catch (e: any) {
       setStage("idle");
-      const msg = e?.message === "deadline-exceeded" ? "Scan took too long—please try again." : e?.message;
-      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      if (e?.message === "No credits available") {
+        toast({ title: "No credits", description: "Please purchase more" });
+        navigate("/plans");
+        return;
+      }
+      const msg =
+        e?.message === "deadline-exceeded"
+          ? "Scan took too long—please try again."
+          : e?.message;
+      toast({
+        title: "Upload failed",
+        description: msg,
+        variant: "destructive",
+      });
     }
   };
 

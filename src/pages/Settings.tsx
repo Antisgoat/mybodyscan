@@ -220,6 +220,34 @@ const Settings = () => {
           <Button onClick={() => navigate("/settings/health")}>Open health settings</Button>
         </CardContent>
       </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Legal & Account</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex flex-col gap-1">
+            <a href="/legal/privacy" className="underline">
+              Privacy Policy
+            </a>
+            <a href="/legal/terms" className="underline">
+              Terms of Service
+            </a>
+            <a href="/legal/refund" className="underline">
+              Refund Policy
+            </a>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() =>
+              (window.location.href =
+                "mailto:support@mybodyscanapp.com?subject=Delete%20Account")
+            }
+          >
+            Delete my account & data
+          </Button>
+        </CardContent>
+      </Card>
     </main>
   );
 };

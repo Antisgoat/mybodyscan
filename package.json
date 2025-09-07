@@ -17,7 +17,11 @@
     "pretest:e2e": "playwright install --with-deps",
     "lighthouse": "lhci autorun",
     "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL",
-    "seed:pricing": "node scripts/seedPricing.cjs"
+    "seed:pricing": "node scripts/seedPricing.cjs",
+    "format": "prettier -w .",
+    "typecheck": "tsc -b --noEmit",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "firebase deploy --only hosting"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
@@ -104,6 +108,7 @@
     "wait-on": "^7.2.0",
     "ts-node": "^10.9.2",
     "esbuild": "^0.21.0",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "prettier": "^3.3.3"
   }
 }

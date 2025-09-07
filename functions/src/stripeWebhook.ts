@@ -8,9 +8,21 @@ export const stripeWebhook = onRequest({ secrets: ["STRIPE_SECRET_KEY","STRIPE_W
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" as any });
     const sig = req.headers["stripe-signature"] as string;
-    const event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    const event = stripe.webhooks.constructEvent(
+      req.rawBody,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
 
     const db = getFirestore();
+    await db
+      .collection("stripe_events")
+      .doc(event.id)
+      .set({
+        type: event.type,
+        created: new Date(),
+        raw: req.rawBody.toString().slice(0, 10000),
+      });
     const handleGrant = async (checkoutSession: any, context: string) => {
       const uid = checkoutSession?.metadata?.uid;  // we will send uid in Checkout metadata
       const priceId =

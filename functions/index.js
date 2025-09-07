@@ -146,30 +146,16 @@ export const startScan = onCall(async (req) => {
     throw new HttpsError('invalid-argument', 'Invalid file metadata');
   }
   const db = admin.firestore();
-  const userRef = db.collection('users').doc(uid);
-  const scanRef = userRef.collection('scans').doc();
-  let remaining = 0;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    const credits = snap.exists ? snap.data()?.credits || 0 : 0;
-    if (credits <= 0) {
-      throw new HttpsError('failed-precondition', 'No credits left');
-    }
-    remaining = credits - 1;
-    tx.update(userRef, {
-      credits: remaining,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    tx.set(scanRef, {
-      uid,
-      status: 'queued',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      filename,
-      size,
-      contentType,
-    });
+  const scanRef = db.collection('users').doc(uid).collection('scans').doc();
+  await scanRef.set({
+    uid,
+    status: 'queued',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    filename,
+    size,
+    contentType,
   });
-  return { scanId: scanRef.id, remaining };
+  return { scanId: scanRef.id };
 });
 
 async function runScanPipeline({ uid, scanId }) {

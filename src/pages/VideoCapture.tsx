@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
+import { consumeOneCredit } from "@/lib/payments";
 import { sanitizeFilename } from "@/lib/utils";
 
 const MAX_SECONDS = 10;
@@ -46,6 +47,7 @@ const VideoCapture = () => {
     }
     setLoading(true);
     try {
+      await consumeOneCredit();
       const { scanId } = await startScan({
         filename: file.name,
         size: file.size,
@@ -57,7 +59,10 @@ const VideoCapture = () => {
       navigate(`/scan/${scanId}`);
     } catch (e: any) {
       console.error("VideoCapture error", e);
-      if (e?.code === "permission-denied") {
+      if (e?.message === "No credits available") {
+        toast({ title: "No credits", description: "Please purchase more" });
+        navigate("/plans");
+      } else if (e?.code === "permission-denied") {
         toast({ title: "Sign in required" });
         navigate("/auth", { replace: true });
       } else {

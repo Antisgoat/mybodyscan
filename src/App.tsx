@@ -43,6 +43,8 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import Today from "./pages/Today";
+import Onboarding from "./pages/Onboarding";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -90,6 +92,8 @@ const App = () => {
             } />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/today" element={<ProtectedRoute><AuthedLayout><Today /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture/photos" element={
