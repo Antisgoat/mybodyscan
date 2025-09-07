@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "pretest:e2e": "playwright install --with-deps",
     "lighthouse": "lhci autorun",
-    "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL"
+    "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL",
+    "seed:pricing": "node scripts/seedPricing.cjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
