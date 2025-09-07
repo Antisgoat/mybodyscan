@@ -34,6 +34,23 @@
     ],
     "rewrites": [
       { "source": "**", "destination": "/index.html" }
+    ],
+    "redirects": [
+      {
+        "source": "/legal/privacy",
+        "destination": "/legal/privacy.html",
+        "type": 301
+      },
+      {
+        "source": "/legal/terms",
+        "destination": "/legal/terms.html",
+        "type": 301
+      },
+      {
+        "source": "/legal/refund",
+        "destination": "/legal/refund.html",
+        "type": 301
+      }
     ]
   },
   "functions": { "source": "functions" },
