@@ -1,7 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+
     match /users/{uid} {
       allow read, update: if isOwner(uid);
       allow create: if isOwner(uid);
@@ -13,6 +15,25 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         allow create, update, delete: if false;
       }
+
+      match /private/credits {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    match /pricing/{priceId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /stripe_events/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /payments/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
   }
 }

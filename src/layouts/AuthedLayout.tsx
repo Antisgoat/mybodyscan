@@ -6,14 +6,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Menu, User } from "lucide-react";
 import { signOutToAuth } from "@/lib/auth";
-import { useCredits } from "@/hooks/useCredits";
+import { CreditsBadge } from "@/components/CreditsBadge";
 
 interface AuthedLayoutProps {
   children: ReactNode;
 }
 
 const navItems = [
-  { to: "/home", label: "Home" },
+  { to: "/today", label: "Today" },
   { to: "/scan/new", label: "Scan" },
   { to: "/coach/tracker", label: "Tracker" },
   { to: "/plans", label: "Plans" },
@@ -21,7 +21,6 @@ const navItems = [
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
-  const { credits } = useCredits();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
@@ -67,9 +66,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
           {/* Right Side */}
           <div className="flex items-center gap-3">
             {/* Credits Pill */}
-            <div className="bg-muted px-3 py-1 rounded-full text-sm font-medium">
-              {credits} credits
-            </div>
+            <CreditsBadge />
 
             {/* Desktop Avatar Menu */}
             <div className="hidden md:block">

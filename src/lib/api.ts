@@ -22,11 +22,15 @@ async function authedFetch(path: string, init?: RequestInit) {
   });
 }
 
-export async function startScan(params: { filename: string; size: number; contentType: string }) {
+export async function startScan(params: {
+  filename: string;
+  size: number;
+  contentType: string;
+}) {
   const functions = getFunctions(app);
   const fn = httpsCallable(functions, "startScan");
   const { data } = await fn(params);
-  return data as { scanId: string; remaining: number };
+  return data as { scanId: string };
 }
 
 export async function openStripeCheckout(priceId: string, plan: string, mode: "payment" | "subscription") {
@@ -46,12 +50,4 @@ export async function openStripePortal() {
   const { url } = await r.json();
   if (url) window.open(url, "_blank", "noopener,noreferrer");
 }
-export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"single") {
-  const functions = getFunctions(app);
-  const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
-  const { data } = await createCheckoutSession({ plan });
-  const { url } = data as { id: string; url: string };
-  window.location.assign(url);
-}
-
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };
