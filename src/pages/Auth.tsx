@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
+import {
+  createAccountEmail,
+  signInEmail,
+  signInWithGoogle,
+  signInWithApple,
+  sendReset,
+  useAuthUser,
+} from "@/lib/auth";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -16,6 +23,13 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { user } = useAuthUser();
+
+  useEffect(() => {
+    if (user) navigate("/today", { replace: true });
+  }, [user, navigate]);
+
+  const appleEnabled = import.meta.env.VITE_APPLE_AUTH_ENABLED === "true";
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +51,7 @@ const Auth = () => {
   const onGoogle = async () => {
     setLoading(true);
     try {
-      await signInGoogle();
+      await signInWithGoogle();
       navigate(from, { replace: true });
     } catch (err: any) {
       toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
@@ -46,13 +60,13 @@ const Auth = () => {
     }
   };
 
-  const onGuest = async () => {
+  const onApple = async () => {
     setLoading(true);
     try {
-      await signInGuest();
+      await signInWithApple();
       navigate(from, { replace: true });
     } catch (err: any) {
-      toast({ title: "Guest sign in failed", description: err?.message || "Please try again." });
+      toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -119,11 +133,40 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
-            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading}>Continue as guest</Button>
+            {appleEnabled ? (
+              <Button
+                variant="secondary"
+                className="mbs-btn mbs-btn-ghost"
+                onClick={onApple}
+                disabled={loading}
+              >
+                Continue with Apple
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                className="mbs-btn mbs-btn-ghost"
+                disabled
+                title="Available soon"
+              >
+                Continue with Apple
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              className="mbs-btn mbs-btn-ghost"
+              onClick={onGoogle}
+              disabled={loading}
+            >
+              Continue with Google
+            </Button>
           </div>
         </CardContent>
       </Card>
+      <div className="mt-4 text-center text-xs text-slate-500">
+        <a href="/legal/privacy" className="underline">Privacy</a> ·
+        <a href="/legal/terms" className="underline"> Terms</a>
+      </div>
     </main>
   );
 };
