@@ -8,11 +8,14 @@ const PRICING: Record<string, any> = {
 };
 export const seedPricingOnce = onRequest({ secrets:["SEED_TOKEN"] }, async (req, res) => {
   const token = req.get("x-seed-token");
-  if (!token || token !== process.env.SEED_TOKEN) return res.status(401).send("Unauthorized");
+  if (!token || token !== process.env.SEED_TOKEN) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
   const db = getFirestore();
   const ops = Object.entries(PRICING).map(([id, doc]) =>
     db.doc(`pricing/${id}`).set(doc, { merge: true })
   );
   await Promise.all(ops);
-  return res.json({ ok:true, count:Object.keys(PRICING).length });
+  res.json({ ok:true, count:Object.keys(PRICING).length });
 });
