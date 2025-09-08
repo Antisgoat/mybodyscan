@@ -1,82 +1,55 @@
-import { db, storage, functions } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db, storage } from "./firebase";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
-import { authedFetch } from "@/lib/api";
-import { httpsCallable } from "firebase/functions";
 
-export type ScanStatus = 'pending' | 'processing' | 'completed' | 'failed';
+const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+const USE_STUB = import.meta.env.VITE_SCANS_STUB === "true";
 
-export interface ScanResult {
-  id: string;
-  status: ScanStatus;
-  bodyFatPercentage?: number;
-  muscleMass?: number;
-  createdAt: Date;
-  completedAt?: Date;
-}
-
-// TODO: Implement when Leanlense API is ready
-export async function startScan(imageData: FormData): Promise<{ scanId: string }> {
-  throw new Error('Scan functionality not yet implemented - pending Leanlense integration');
-}
-
-// TODO: Implement scan polling
-export async function pollScan(scanId: string): Promise<ScanResult> {
-  throw new Error('Scan polling not yet implemented - pending Leanlense integration');
-}
-
-// TODO: Implement result saving
-export async function saveResult(scanId: string, result: Partial<ScanResult>): Promise<void> {
-  throw new Error('Result saving not yet implemented - pending Leanlense integration');
-}
-
-export async function uploadScanFile(
-  uid: string,
-  scanId: string,
-  file: File
-): Promise<void> {
-  const fileExt = file.name.split('.').pop() || 'jpg';
-  const storageRef = ref(storage, `scans/${uid}/${scanId}/original.${fileExt}`);
-
-  await uploadBytes(storageRef, file);
-}
-
-export async function processScan(scanId: string): Promise<void> {
-  const response = await authedFetch("/processQueuedScanHttp", {
+async function callFn(path: string, body: any) {
+  const t = await auth.currentUser?.getIdToken();
+  if (!t) throw new Error("auth");
+  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
     method: "POST",
-    body: JSON.stringify({ scanId }),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+    body: JSON.stringify(body),
   });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to process scan: ${error}`);
+export async function startScan() {
+  if (USE_STUB) {
+    return {
+      scanId: crypto.randomUUID(),
+      uploadPathPrefix: "",
+      status: "queued",
+    };
   }
+  return callFn("/startScanSession", {});
 }
 
-export function listenToScan(
-  uid: string,
-  scanId: string,
-  callback: (scan: any) => void,
-  onError?: (error: Error) => void
-) {
-  const scanRef = doc(db, "users", uid, "scans", scanId);
-
-  return onSnapshot(
-    scanRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        callback({ id: snapshot.id, ...snapshot.data() });
-      }
-    },
-    (error) => {
-      console.error("Error listening to scan:", error);
-      onError?.(error);
-    }
-  );
+export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files: File[]) {
+  if (USE_STUB) return true;
+  const paths: string[] = [];
+  for (const f of files) {
+    const ext = f.name.split(".").pop() || "jpg";
+    const path = `${scan.uploadPathPrefix}${crypto.randomUUID()}.${ext}`;
+    await uploadBytes(ref(storage, path), f);
+    paths.push(path);
+  }
+  return paths;
 }
 
-export async function runBodyScan(file: string): Promise<any> {
-  const call = httpsCallable(functions, "runBodyScan");
-  const { data } = await call({ file });
-  return data as any;
+export async function submitScan(scanId: string, files: string[]) {
+  if (USE_STUB) return { scanId, status: "ready" };
+  return callFn("/submitScan", { scanId, files });
+}
+
+export function watchScans(uid: string, cb: (items: any[]) => void) {
+  if (USE_STUB) {
+    cb([]);
+    return () => {};
+  }
+  const q = query(collection(db, `users/${uid}/scans`), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }

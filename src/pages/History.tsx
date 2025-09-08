@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,39 +8,20 @@ import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { History as HistoryIcon, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-
-// Mock scan data - in real app, fetch from Firestore
-const mockScans = [
-  { 
-    id: "1", 
-    date: "2024-01-15", 
-    status: "Ready" as const,
-    bodyFat: 18.5,
-    muscleMass: 42.3,
-    visceralFat: 6
-  },
-  { 
-    id: "2", 
-    date: "2024-01-01", 
-    status: "Ready" as const,
-    bodyFat: 19.2,
-    muscleMass: 41.8,
-    visceralFat: 7
-  },
-  { 
-    id: "3", 
-    date: "2023-12-15", 
-    status: "Processing" as const,
-    bodyFat: null,
-    muscleMass: null,
-    visceralFat: null
-  }
-];
+import { auth } from "@/lib/firebase";
+import { watchScans } from "@/lib/scan";
 
 export default function History() {
   const [selectedScans, setSelectedScans] = useState<string[]>([]);
+  const [scans, setScans] = useState<any[]>([]);
   const { t } = useI18n();
-  const scans = mockScans;
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const unsub = watchScans(uid, setScans);
+    return unsub;
+  }, []);
 
   const handleSelectScan = (scanId: string, checked: boolean) => {
     if (checked) {
@@ -90,19 +71,19 @@ export default function History() {
                         />
                       )}
                       <CardTitle className="text-base">
-                        {new Date(scan.date).toLocaleDateString()}
+                        {scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : ""}
                       </CardTitle>
                     </div>
-                    <Badge variant={scan.status === "Ready" ? "default" : "secondary"}>
+                    <Badge variant={scan.status === "ready" ? "default" : "secondary"}>
                       {scan.status}
                     </Badge>
                   </div>
                 </CardHeader>
-                {scan.status === "Ready" && scan.bodyFat && (
+                {scan.status === "ready" && scan.measurements?.bodyFat && (
                   <CardContent>
                     <div className="grid grid-cols-3 gap-4 text-center">
                       <div>
-                        <div className="text-lg font-semibold">{scan.bodyFat}%</div>
+                        <div className="text-lg font-semibold">{scan.measurements.bodyFat}%</div>
                         <div className="text-xs text-muted-foreground">Body Fat</div>
                       </div>
                       <div>
