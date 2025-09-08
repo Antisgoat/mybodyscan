@@ -18,20 +18,19 @@ const translations = {
     'today.title': "Today's Plan",
     'today.workout': 'Workout',
     'today.meals': 'Meals',
-    'today.tip': 'Coaching Tip',
+    'today.coachingTip': 'Coaching Tip',
     'today.scan': 'Scan',
-    'today.log_meal': 'Log Meal',
-    'today.log_workout': 'Log Workout',
+    'today.logMeal': 'Log Meal',
+    'today.logWorkout': 'Log Workout',
     
     // Plans
     'plans.title': 'Choose Your Plan',
-    'plans.subtitle': 'Get started with accurate body composition scanning',
+    'plans.description': 'Get started with accurate body composition scanning',
     'plans.starter': 'Starter Scan',
     'plans.pro': 'Pro',
     'plans.elite': 'Elite',
-    'plans.most_popular': 'Most Popular',
     'plans.subscribe': 'Subscribe',
-    'plans.buy_now': 'Buy Now',
+    'plans.buyNow': 'Buy Now',
     
     // Settings
     'settings.title': 'Settings',
@@ -40,6 +39,23 @@ const translations = {
     'settings.legal': 'Legal & Account',
     'settings.delete_account': 'Delete my account & data',
     'settings.sign_out': 'Sign out',
+    
+    // Workouts
+    'workouts.title': 'Workouts',
+    'workouts.noWorkouts': 'No workout plan yet',
+    'workouts.createPlan': 'Create Workout Plan',
+    
+    // Meals
+    'meals.title': 'Meals',
+    'meals.dailyProgress': 'Daily Progress',
+    'meals.addMeal': 'Add Meal',
+    'meals.logMeal': 'Log a Meal',
+    'meals.noMeals': 'No meals logged yet',
+    
+    // History
+    'history.title': 'Scan History',
+    'history.noScans': 'No scans yet',
+    'history.compare': 'Compare',
     
     // Common
     'common.save': 'Save',

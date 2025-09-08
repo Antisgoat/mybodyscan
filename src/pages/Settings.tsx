@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppHeader } from "@/components/AppHeader";
+import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { signOutAll } from "@/lib/auth";
@@ -32,7 +33,7 @@ const Settings = () => {
 
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
       <AppHeader />
       <main className="max-w-md mx-auto p-6 space-y-6">
         <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
@@ -117,6 +118,7 @@ const Settings = () => {
           </CardContent>
         </Card>
       </main>
+      <BottomNav />
     </div>
   );
 };

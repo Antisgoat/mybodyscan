@@ -1,231 +1,149 @@
-import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
-import { toast } from "@/hooks/use-toast";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AppHeader } from "@/components/AppHeader";
+import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
+import { History as HistoryIcon, TrendingUp } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
-type Scan = {
-  id: string;
-  createdAt?: any;
-  status?: string;
-  bodyFatPercentage?: number;
-  body_fat?: number;
-  bodyfat?: number;
-  weight?: number;
-  weight_lbs?: number;
-  bmi?: number;
-  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number; BMI?: number };
-};
-
-// Helper function to normalize field names
-const normalizeFields = (scan: Scan) => {
-  const bodyFat = scan.bodyFatPercentage ?? scan.body_fat ?? scan.bodyfat ?? scan.results?.bodyFatPct ?? null;
-  const weightLbs = scan.weight ?? scan.weight_lbs ?? scan.results?.weightLb ?? null;
-  const bmi = scan.bmi ?? scan.results?.BMI ?? null;
-  
-  return { bodyFat, weightLbs, bmi };
-};
+// Mock scan data - in real app, fetch from Firestore
+const mockScans = [
+  { 
+    id: "1", 
+    date: "2024-01-15", 
+    status: "Ready" as const,
+    bodyFat: 18.5,
+    muscleMass: 42.3,
+    visceralFat: 6
+  },
+  { 
+    id: "2", 
+    date: "2024-01-01", 
+    status: "Ready" as const,
+    bodyFat: 19.2,
+    muscleMass: 41.8,
+    visceralFat: 7
+  },
+  { 
+    id: "3", 
+    date: "2023-12-15", 
+    status: "Processing" as const,
+    bodyFat: null,
+    muscleMass: null,
+    visceralFat: null
+  }
+];
 
 export default function History() {
-  const navigate = useNavigate();
-  const [uid, setUid] = useState<string | null>(null);
-  const [scans, setScans] = useState<Scan[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedScans, setSelectedScans] = useState<string[]>([]);
+  const { t } = useI18n();
+  const scans = mockScans;
 
-  useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setUid(u?.uid ?? null);
-      setScans([]);
-      setErr(null);
-      setLoading(true);
+  const handleSelectScan = (scanId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedScans(prev => [...prev, scanId]);
+    } else {
+      setSelectedScans(prev => prev.filter(id => id !== scanId));
+    }
+  };
 
-      if (!u) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const q = query(
-          collection(db, "users", u.uid, "scans"),
-          orderBy("createdAt", "desc"),
-          limit(50)
-        );
-        const unsub = onSnapshot(
-          q,
-          (snap) => {
-            const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Scan[];
-            setScans(rows);
-            setLoading(false);
-          },
-          (e) => {
-            console.error("History listener error", e);
-            setErr(e?.message ?? "Failed to load scans");
-            setLoading(false);
-            if ((e as any)?.code === "permission-denied") {
-              toast({ title: "Sign in required" });
-              navigate("/auth", { replace: true });
-            }
-          }
-        );
-
-        return () => unsub();
-      } catch (e: any) {
-        console.error("History query error", e);
-        setErr(e?.message ?? "Failed to load scans");
-        setLoading(false);
-        if (e?.code === "permission-denied") {
-          toast({ title: "Sign in required" });
-          navigate("/auth", { replace: true });
-        }
-      }
-    });
-    return () => unsubAuth();
-  }, [navigate]);
-
-  if (!uid && !loading) {
-    return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="History – MyBodyScan" description="View your scan history." canonical={window.location.href} />
-        <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">History</h1>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground mb-4">Sign in required to view your history.</p>
-              <Button onClick={() => navigate("/auth")} className="w-full">
-                Sign In
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  if (err) {
-    return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="History – MyBodyScan" description="View your scan history." canonical={window.location.href} />
-        <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">History</h1>
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground mb-4">Unable to load your history. Please try again.</p>
-              <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-                Retry
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  if (loading) {
-    return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="History – MyBodyScan" description="View your scan history." canonical={window.location.href} />
-        <h1 className="text-2xl font-semibold mb-6">History</h1>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-muted rounded w-24 mb-2"></div>
-                  <div className="h-3 bg-muted rounded w-32"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </main>
-    );
-  }
-
-  if (!scans.length) {
-    return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="History – MyBodyScan" description="View your scan history." canonical={window.location.href} />
-        <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">History</h1>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-medium">No scans yet</h3>
-                  <p className="text-muted-foreground text-sm">Your first scan takes ~1–2 minutes.</p>
-                </div>
-                <Button onClick={() => navigate("/scan/new")} className="w-full">
-                  Start Your First Scan
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
+  const canCompare = selectedScans.length === 2;
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo title="History – MyBodyScan" description="View your scan history." canonical={window.location.href} />
-      <h1 className="text-2xl font-semibold mb-6">History</h1>
-      
-      <div className="space-y-4">
-        {scans.map((scan) => {
-          const { bodyFat, weightLbs, bmi } = normalizeFields(scan);
-          const ts = scan.createdAt;
-          const date = ts?.toDate ? ts.toDate() : (ts instanceof Date ? ts : null);
-          const dateStr = date ? date.toLocaleDateString() : "—";
-          
-          return (
-            <Card 
-              key={scan.id} 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => navigate(`/results`)}
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
+      <Seo title="History - MyBodyScan" description="Your body scan results and progress" />
+      <AppHeader />
+      <main className="max-w-md mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HistoryIcon className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-semibold">{t('history.title')}</h1>
+          </div>
+          {scans.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!canCompare}
+              className="flex items-center gap-2"
             >
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="font-medium">{dateStr}</div>
-                  <Badge variant={
-                    scan.status === "completed" ? "default" : 
-                    scan.status === "processing" ? "secondary" : 
-                    "destructive"
-                  }>
-                    {scan.status || "—"}
-                  </Badge>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                  <div>
-                    <p className="font-medium text-primary">
-                      {bodyFat ? `${bodyFat}%` : "—"}
-                    </p>
-                    <p className="text-muted-foreground text-xs">Body Fat</p>
+              <TrendingUp className="w-4 h-4" />
+              {t('history.compare')}
+            </Button>
+          )}
+        </div>
+
+        {scans.length > 0 ? (
+          <div className="space-y-4">
+            {scans.map((scan) => (
+              <Card key={scan.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {scans.length > 1 && (
+                        <Checkbox
+                          checked={selectedScans.includes(scan.id)}
+                          onCheckedChange={(checked) => handleSelectScan(scan.id, !!checked)}
+                          disabled={!canCompare && selectedScans.length >= 2 && !selectedScans.includes(scan.id)}
+                        />
+                      )}
+                      <CardTitle className="text-base">
+                        {new Date(scan.date).toLocaleDateString()}
+                      </CardTitle>
+                    </div>
+                    <Badge variant={scan.status === "Ready" ? "default" : "secondary"}>
+                      {scan.status}
+                    </Badge>
                   </div>
-                  <div>
-                    <p className="font-medium text-primary">
-                      {weightLbs ? `${weightLbs} lbs` : "—"}
-                    </p>
-                    <p className="text-muted-foreground text-xs">Weight</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-primary">
-                      {bmi ? bmi : "—"}
-                    </p>
-                    <p className="text-muted-foreground text-xs">BMI</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </main>
+                </CardHeader>
+                {scan.status === "Ready" && scan.bodyFat && (
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-lg font-semibold">{scan.bodyFat}%</div>
+                        <div className="text-xs text-muted-foreground">Body Fat</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold">{scan.muscleMass}kg</div>
+                        <div className="text-xs text-muted-foreground">Muscle Mass</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold">{scan.visceralFat}</div>
+                        <div className="text-xs text-muted-foreground">Visceral Fat</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+                {scan.status === "Processing" && (
+                  <CardContent>
+                    <div className="text-center py-4">
+                      <div className="animate-pulse text-sm text-muted-foreground">
+                        Your scan is being processed...
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">{t('history.noScans')}</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Take your first scan to start tracking your progress
+              </p>
+              <Button onClick={() => window.location.href = '/scan'}>
+                Start Your First Scan
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+      <BottomNav />
+    </div>
   );
 }

@@ -45,6 +45,9 @@ import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
+import Scan from "./pages/Scan";
+import Workouts from "./pages/Workouts";
+import Meals from "./pages/Meals";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -94,6 +97,10 @@ const App = () => {
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             <Route path="/today" element={<ProtectedRoute><AuthedLayout><Today /></AuthedLayout></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
+            {/* New main pages */}
+            <Route path="/scan" element={<ProtectedRoute><AuthedLayout><Scan /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/workouts" element={<ProtectedRoute><AuthedLayout><Workouts /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/meals" element={<ProtectedRoute><AuthedLayout><Meals /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture/photos" element={

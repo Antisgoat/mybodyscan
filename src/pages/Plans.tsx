@@ -2,12 +2,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppHeader } from "@/components/AppHeader";
+import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { startCheckout } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 export default function Plans() {
+  const { t } = useI18n();
   const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
     try {
       await startCheckout(priceId, mode);
@@ -60,13 +63,13 @@ export default function Plans() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
       <AppHeader />
       <main className="max-w-md mx-auto p-6 space-y-6">
         <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-foreground mb-2">Choose Your Plan</h1>
-          <p className="text-sm text-muted-foreground">Get started with accurate body composition scanning</p>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
         </div>
         
         <div className="space-y-4">
@@ -101,7 +104,7 @@ export default function Plans() {
                   variant={plan.popular ? "default" : "outline"}
                   onClick={() => handleCheckout(plan.priceId, plan.mode)}
                 >
-                  {plan.mode === "subscription" ? "Subscribe" : "Buy Now"}
+                  {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>
               </CardContent>
             </Card>
@@ -115,6 +118,7 @@ export default function Plans() {
           </p>
         </div>
       </main>
+      <BottomNav />
     </div>
   );
 }

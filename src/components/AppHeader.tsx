@@ -13,7 +13,10 @@ export function AppHeader() {
 
   const tabs = [
     { label: "Today", path: "/today" },
-    { label: "Plans", path: "/plans" }
+    { label: "Plans", path: "/plans" },
+    { label: "Workouts", path: "/workouts" },
+    { label: "Meals", path: "/meals" },
+    { label: "History", path: "/history" }
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -25,23 +28,12 @@ export function AppHeader() {
 
   return (
     <header className="border-b border-border bg-card">
-      <div className="max-w-md mx-auto p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
-          <CreditsBadge />
-        </div>
-
-        <div className="flex items-center gap-2">
-          {tabs.map((tab) => (
-            <Button
-              key={tab.path}
-              variant={isActive(tab.path) ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate(tab.path)}
-            >
-              {tab.label}
-            </Button>
-          ))}
+      <div className="max-w-md mx-auto p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
+            <CreditsBadge />
+          </div>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -65,6 +57,20 @@ export function AppHeader() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+
+        {/* Navigation tabs - hidden on mobile, shown on desktop */}
+        <div className="hidden md:flex items-center gap-2">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.path}
+              variant={isActive(tab.path) ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate(tab.path)}
+            >
+              {tab.label}
+            </Button>
+          ))}
         </div>
       </div>
     </header>
