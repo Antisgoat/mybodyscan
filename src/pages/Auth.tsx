@@ -61,6 +61,10 @@ const Auth = () => {
   };
 
   const onApple = async () => {
+    if (!appleEnabled) {
+      toast({ title: "Apple Sign-In unavailable", description: "Available soon" });
+      return;
+    }
     setLoading(true);
     try {
       await signInWithApple();
@@ -133,28 +137,16 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            {appleEnabled ? (
-              <Button
-                variant="secondary"
-                className="mbs-btn mbs-btn-ghost"
-                onClick={onApple}
-                disabled={loading}
-              >
-                Continue with Apple
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                className="mbs-btn mbs-btn-ghost"
-                disabled
-                title="Available soon"
-              >
-                Continue with Apple
-              </Button>
-            )}
             <Button
               variant="secondary"
-              className="mbs-btn mbs-btn-ghost"
+              onClick={onApple}
+              disabled={loading || !appleEnabled}
+              title={!appleEnabled ? "Available soon" : undefined}
+            >
+              Continue with Apple
+            </Button>
+            <Button
+              variant="secondary"
               onClick={onGoogle}
               disabled={loading}
             >
@@ -163,9 +155,9 @@ const Auth = () => {
           </div>
         </CardContent>
       </Card>
-      <div className="mt-4 text-center text-xs text-slate-500">
-        <a href="/legal/privacy" className="underline">Privacy</a> ·
-        <a href="/legal/terms" className="underline"> Terms</a>
+      <div className="mt-4 text-center text-xs text-muted-foreground">
+        <a href="/legal/privacy" className="underline hover:text-primary">Privacy</a> · 
+        <a href="/legal/terms" className="underline hover:text-primary">Terms</a>
       </div>
     </main>
   );

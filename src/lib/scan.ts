@@ -4,6 +4,32 @@ import { ref, uploadBytes } from "firebase/storage";
 import { authedFetch } from "@/lib/api";
 import { httpsCallable } from "firebase/functions";
 
+export type ScanStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ScanResult {
+  id: string;
+  status: ScanStatus;
+  bodyFatPercentage?: number;
+  muscleMass?: number;
+  createdAt: Date;
+  completedAt?: Date;
+}
+
+// TODO: Implement when Leanlense API is ready
+export async function startScan(imageData: FormData): Promise<{ scanId: string }> {
+  throw new Error('Scan functionality not yet implemented - pending Leanlense integration');
+}
+
+// TODO: Implement scan polling
+export async function pollScan(scanId: string): Promise<ScanResult> {
+  throw new Error('Scan polling not yet implemented - pending Leanlense integration');
+}
+
+// TODO: Implement result saving
+export async function saveResult(scanId: string, result: Partial<ScanResult>): Promise<void> {
+  throw new Error('Result saving not yet implemented - pending Leanlense integration');
+}
+
 export async function uploadScanFile(
   uid: string,
   scanId: string,

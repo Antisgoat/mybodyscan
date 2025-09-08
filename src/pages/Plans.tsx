@@ -1,44 +1,120 @@
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { AppHeader } from "@/components/AppHeader";
 import { Seo } from "@/components/Seo";
 import { startCheckout } from "@/lib/payments";
+import { toast } from "@/hooks/use-toast";
+import { Check } from "lucide-react";
 
 export default function Plans() {
+  const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
+    try {
+      await startCheckout(priceId, mode);
+    } catch (err: any) {
+      if (err?.message?.includes("Backend URL not configured")) {
+        toast({
+          title: "Service unavailable",
+          description: "Payments are not available in development mode.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: err?.message || "Failed to start checkout",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const plans = [
+    {
+      name: "Starter Scan",
+      price: "$9.99",
+      period: "one-time",
+      credits: "1 credit",
+      priceId: "price_1RuOpKQQU5vuhlNjipfFBsR0",
+      mode: "payment" as const,
+      features: ["1 body composition scan", "Detailed analysis", "Progress tracking"]
+    },
+    {
+      name: "Pro",
+      price: "$24.99",
+      period: "per month",
+      credits: "3 credits/mo",
+      priceId: "price_1S4XsVQQU5vuhlNjzdQzeySA",
+      mode: "subscription" as const,
+      features: ["3 scans per month", "Trend analysis", "Priority support", "Advanced metrics"]
+    },
+    {
+      name: "Elite",
+      price: "$199",
+      period: "per year",
+      credits: "36 credits/yr",
+      priceId: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+      mode: "subscription" as const,
+      popular: true,
+      features: ["36 scans per year", "Premium analytics", "Custom coaching tips", "Export data", "API access"]
+    }
+  ];
+
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      <Seo title="Plans" description="Choose a plan" />
-      <h1 className="text-2xl font-semibold">Plans</h1>
-      <div className="grid gap-4">
-        <Button
-          onClick={() =>
-            startCheckout(
-              "price_1RuOpKQQU5vuhlNjipfFBsR0",
-              "payment"
-            )
-          }
-        >
-          Buy Starter Scan
-        </Button>
-        <Button
-          onClick={() =>
-            startCheckout(
-              "price_1S4XsVQQU5vuhlNjzdQzeySA",
-              "subscription"
-            )
-          }
-        >
-          Subscribe Pro
-        </Button>
-        <Button
-          onClick={() =>
-            startCheckout(
-              "price_1S4Y6YQQU5vuhlNjeJFmshxX",
-              "subscription"
-            )
-          }
-        >
-          Subscribe Elite
-        </Button>
-      </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      <main className="max-w-md mx-auto p-6 space-y-6">
+        <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-foreground mb-2">Choose Your Plan</h1>
+          <p className="text-sm text-muted-foreground">Get started with accurate body composition scanning</p>
+        </div>
+        
+        <div className="space-y-4">
+          {plans.map((plan) => (
+            <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
+              <CardHeader className="relative">
+                {plan.popular && (
+                  <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                    Most Popular
+                  </Badge>
+                )}
+                <CardTitle className="flex items-center justify-between">
+                  <span>{plan.name}</span>
+                  <div className="text-right">
+                    <div className="text-lg font-bold">{plan.price}</div>
+                    <div className="text-xs text-muted-foreground">{plan.period}</div>
+                  </div>
+                </CardTitle>
+                <p className="text-sm text-accent font-medium">{plan.credits}</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-accent flex-shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className="w-full"
+                  variant={plan.popular ? "default" : "outline"}
+                  onClick={() => handleCheckout(plan.priceId, plan.mode)}
+                >
+                  {plan.mode === "subscription" ? "Subscribe" : "Buy Now"}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            Need more scans? <br />
+            <span className="font-medium">Extra scans available for $9.99 each</span>
+          </p>
+        </div>
+      </main>
     </div>
   );
 }
