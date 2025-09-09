@@ -12,6 +12,7 @@ import { signOutAll } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { useCredits } from "@/hooks/useCredits";
 import { openStripePortal } from "@/lib/api";
+import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 
 const Settings = () => {
@@ -82,7 +83,7 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Legal & Account */}
+        {/* Legal & Support */}
         <Card>
           <CardHeader>
             <CardTitle>{t('settings.legal')}</CardTitle>
@@ -93,11 +94,21 @@ const Settings = () => {
                 Privacy Policy
               </a>
               <a href="/legal/terms" className="block text-sm underline hover:text-primary">
-                Terms of Service  
+                Terms of Service
               </a>
               <a href="/legal/refund" className="block text-sm underline hover:text-primary">
                 Refund Policy
               </a>
+              <a href="/help" className="block text-sm underline hover:text-primary">
+                Help Center
+              </a>
+              <Button
+                variant="outline"
+                onClick={() => { window.location.href = supportMailto(); }}
+                className="w-full"
+              >
+                Report a problem
+              </Button>
             </div>
             <div className="space-y-2">
               <Button

@@ -36,7 +36,7 @@ const translations = {
     'settings.title': 'Settings',
     'settings.notifications': 'Notifications',
     'settings.language': 'Language',
-    'settings.legal': 'Legal & Account',
+    'settings.legal': 'Legal & Support',
     'settings.delete_account': 'Delete my account & data',
     'settings.sign_out': 'Sign out',
     
