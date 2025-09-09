@@ -26,7 +26,7 @@ export default function Onboarding() {
     const uid = getAuth().currentUser?.uid;
     if (!uid) return;
     try {
-      await setDoc(doc(db, `users/${uid}/onboarding`), form, { merge: true });
+      await setDoc(doc(db, `users/${uid}/onboarding`), { ...form, completedOnboarding: true }, { merge: true });
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
       navigate("/today");
     } catch (err: any) {

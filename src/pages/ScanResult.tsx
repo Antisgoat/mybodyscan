@@ -26,7 +26,7 @@ const ProcessingUI = () => {
   
   const messages = [
     "Lining up your measurements…",
-    "Estimating body fat with AI…", 
+    "Estimating body fat…",
     "Checking symmetry and posture…",
     "Crunching numbers…",
     "Almost there!"

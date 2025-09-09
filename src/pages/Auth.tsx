@@ -61,10 +61,6 @@ const Auth = () => {
   };
 
   const onApple = async () => {
-    if (!appleEnabled) {
-      toast({ title: "Apple Sign-In unavailable", description: "Available soon" });
-      return;
-    }
     setLoading(true);
     try {
       await signInWithApple();
@@ -137,14 +133,15 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button
-              variant="secondary"
-              onClick={onApple}
-              disabled={loading || !appleEnabled}
-              title={!appleEnabled ? "Available soon" : undefined}
-            >
-              Continue with Apple
-            </Button>
+            {appleEnabled && (
+              <Button
+                variant="secondary"
+                onClick={onApple}
+                disabled={loading}
+              >
+                Continue with Apple
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={onGoogle}
