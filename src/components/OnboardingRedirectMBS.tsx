@@ -6,8 +6,8 @@ export default function OnboardingRedirectMBS({ children }: { children: JSX.Elem
   const { loading, needs } = useNeedsOnboardingMBS();
   const loc = useLocation();
   if (loading) return children; // don't block while checking
-  if (needs && loc.pathname !== '/onboarding-mbs') {
-    return <Navigate to="/onboarding-mbs" replace />;
+  if (needs && loc.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
   }
   return children;
 }

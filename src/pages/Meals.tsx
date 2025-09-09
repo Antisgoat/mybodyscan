@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Utensils, Plus, Trash2 } from "lucide-react";
+import { Utensils, Plus, Trash2, Info } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -136,12 +136,18 @@ export default function Meals() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         <h3 className="font-medium text-foreground">{m.name}</h3>
+                        {m.reconciled && <Info className="w-3 h-3 text-muted-foreground" title="Adjusted to match macros" />}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {m.calories} cal • P: {m.protein || 0}g • C: {m.carbs || 0}g • F: {m.fat || 0}g
                       </p>
+                      {m.reconciled && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Adjusted to match macros: {m.caloriesFromMacros} kcal (you entered {m.caloriesInput} kcal).
+                        </p>
+                      )}
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive hover:text-destructive">
                       <Trash2 className="w-4 h-4" />

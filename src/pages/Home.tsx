@@ -133,7 +133,7 @@ const Home = () => {
 
         <div className="grid gap-3">
           <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
-          <a href="/onboarding-mbs" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2">Personalize results (1 min)</a>
+          <a href="/onboarding" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2">Personalize results (1 min)</a>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
           <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>

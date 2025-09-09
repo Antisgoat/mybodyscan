@@ -7,7 +7,9 @@ import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useI18n } from "@/lib/i18n";
+import { consumeOneCredit } from "@/lib/payments";
+import { startScan, uploadScanPhotos, submitScan } from "@/lib/scan";
+import { track } from "@/lib/analytics";
 
 const checklist = [
   "Good lighting - natural light works best",
@@ -21,34 +23,30 @@ const checklist = [
 export default function Scan() {
   const [isScanning, setIsScanning] = useState(false);
   const navigate = useNavigate();
-  const { t } = useI18n();
 
   const handleStartScan = async () => {
     setIsScanning(true);
     try {
-      // TODO: Replace with actual scan pipeline when Leanlense API key is available
-      // This is a stub implementation for now
-      
-      toast({ 
-        title: "Scan started", 
-        description: "Processing your body scan..." 
-      });
-      
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast({ 
-        title: "Scan complete", 
-        description: "Your results are ready!" 
-      });
-      
+      track("start_scan");
+      await consumeOneCredit();
+      const scan = await startScan();
+      // TODO: capture up to 4 images from user
+      const files: File[] = [];
+      const paths = await uploadScanPhotos(scan, files);
+      await submitScan(scan.scanId, paths);
+      toast({ title: "Scan submitted" });
       navigate("/history");
     } catch (err: any) {
-      toast({ 
-        title: "Scan failed", 
-        description: err?.message || "Something went wrong. Please try again.",
-        variant: "destructive"
-      });
+      if (err?.message === "No credits available") {
+        toast({ title: "No scan credits", description: "Get more credits to run scans." });
+        navigate("/plans");
+      } else {
+        toast({
+          title: "Scan failed",
+          description: err?.message || "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsScanning(false);
     }

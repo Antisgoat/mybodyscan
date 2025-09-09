@@ -11,7 +11,7 @@ export function useNeedsOnboardingMBS() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { setNeeds(false); setLoading(false); return; }
       try {
-        const snap = await getDoc(doc(db, 'users', u.uid, 'profile', 'profile'));
+        const snap = await getDoc(doc(db, 'users', u.uid, 'onboarding'));
         const done = snap.exists() && snap.data()?.completedOnboarding === true;
         setNeeds(!done);
       } catch { setNeeds(false); }
