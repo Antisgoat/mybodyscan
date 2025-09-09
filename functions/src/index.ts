@@ -1,9 +1,3 @@
-export * from "./credits";
-export * from "./seedPricing";
-export * from "./stripeWebhook";
-export * from "./schedule";
-export * from "./createCheckoutSession";
-export * from "./useCredit";
-export * from "./scanPipeline";
-export * from "./nutrition";
-export * from "./workouts";
+// Placeholder file for Firebase Functions
+// The actual functions are in functions-disabled folder
+export {};

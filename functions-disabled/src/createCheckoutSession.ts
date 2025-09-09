@@ -1,6 +1,6 @@
-import { onRequest } from "firebase-functions/v2/https";
+import * as functions from "firebase-functions";
 import Stripe from "stripe";
-import { getAuth } from "firebase-admin/auth";
+import * as admin from "firebase-admin";
 
 interface Body {
   priceId: string;

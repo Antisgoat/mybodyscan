@@ -1,7 +1,7 @@
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 export async function grantCredits(uid: string, amount: number, expiryDays: number, sourcePriceId: string, context: string) {
-  const db = getFirestore();
+  const db = admin.firestore();
   const now = Timestamp.now();
   const expiresAt = Timestamp.fromMillis(now.toMillis() + expiryDays*24*60*60*1000);
   const userRef = db.doc(`users/${uid}`);
