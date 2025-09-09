@@ -8,11 +8,13 @@ import { startCheckout } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { track } from "@/lib/analytics";
 
 export default function Plans() {
   const { t } = useI18n();
   const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
     try {
+      track("checkout_start", { plan: priceId });
       await startCheckout(priceId, mode);
     } catch (err: any) {
       if (err?.message?.includes("Backend URL not configured")) {

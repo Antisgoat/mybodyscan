@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { consumeOneCredit } from "@/lib/payments";
 import { startScan, uploadScanPhotos, submitScan } from "@/lib/scan";
 import { track } from "@/lib/analytics";
+import { log } from "@/lib/logger";
 
 const checklist = [
   "Good lighting - natural light works best",
@@ -25,18 +26,19 @@ export default function Scan() {
   const navigate = useNavigate();
 
   const handleStartScan = async () => {
-    setIsScanning(true);
-    try {
-      track("start_scan");
-      await consumeOneCredit();
-      const scan = await startScan();
-      // TODO: capture up to 4 images from user
-      const files: File[] = [];
-      const paths = await uploadScanPhotos(scan, files);
-      await submitScan(scan.scanId, paths);
-      toast({ title: "Scan submitted" });
-      navigate("/history");
-    } catch (err: any) {
+      setIsScanning(true);
+      try {
+        await consumeOneCredit();
+        const scan = await startScan();
+        // TODO: capture up to 4 images from user
+        const files: File[] = [];
+        const paths = await uploadScanPhotos(scan, files);
+        await submitScan(scan.scanId, paths);
+        track("scan_submit");
+        log("info", "scan_submit", { scanId: scan.scanId });
+        toast({ title: "Scan submitted" });
+        navigate("/history");
+      } catch (err: any) {
       if (err?.message === "No credits available") {
         toast({ title: "No scan credits", description: "Get more credits to run scans." });
         navigate("/plans");
