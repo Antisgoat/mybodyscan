@@ -141,7 +141,7 @@ export default function Meals() {
                     <div className="flex-1">
                     <div className="flex items-center gap-2">
                         <h3 className="font-medium text-foreground">{m.name}</h3>
-                        {m.reconciled && <Info className="w-3 h-3 text-muted-foreground" title="Adjusted to match macros" />}
+                        {m.reconciled && <Info className="w-3 h-3 text-muted-foreground" />}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {m.calories} cal • P: {m.protein || 0}g • C: {m.carbs || 0}g • F: {m.fat || 0}g

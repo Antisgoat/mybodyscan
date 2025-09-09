@@ -33,7 +33,7 @@ export default function Scan() {
         // TODO: capture up to 4 images from user
         const files: File[] = [];
         const paths = await uploadScanPhotos(scan, files);
-        await submitScan(scan.scanId, paths);
+        await submitScan(scan.scanId, paths as string[]);
         track("scan_submit");
         log("info", "scan_submit", { scanId: scan.scanId });
         toast({ title: "Scan submitted" });

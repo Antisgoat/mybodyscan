@@ -45,6 +45,42 @@ export async function submitScan(scanId: string, files: string[]) {
   return callFn("/submitScan", { scanId, files });
 }
 
+export async function runBodyScan(file: string) {
+  if (USE_STUB) {
+    return {
+      scanId: crypto.randomUUID(),
+      result: { bodyFatPct: 18.7, weightKg: 78.1, bmi: 24.6, mock: true },
+    };
+  }
+  return callFn("/runBodyScan", { file });
+}
+
+export async function uploadScanFile(uid: string, scanId: string, file: File) {
+  if (USE_STUB) return true;
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `scans/${uid}/${scanId}/original.${ext}`;
+  await uploadBytes(ref(storage, path), file);
+  return path;
+}
+
+export async function processScan(scanId: string) {
+  if (USE_STUB) return { scanId, status: "processing" };
+  return callFn("/processScan", { scanId });
+}
+
+export function listenToScan(uid: string, scanId: string, onUpdate: (scan: any) => void, onError: () => void) {
+  if (USE_STUB) {
+    setTimeout(() => onUpdate({ status: "completed", scanId }), 2000);
+    return () => {};
+  }
+  const docRef = collection(db, `users/${uid}/scans`);
+  const q = query(docRef, orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    const scan = snap.docs.find(d => d.id === scanId);
+    if (scan) onUpdate({ id: scan.id, ...scan.data() });
+  }, onError);
+}
+
 export function watchScans(uid: string, cb: (items: any[]) => void) {
   if (USE_STUB) {
     cb([]);
