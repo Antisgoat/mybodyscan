@@ -31,6 +31,10 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
 import Disclaimer from "./pages/Disclaimer";
+import LegalPrivacy from "./pages/legal/Privacy";
+import LegalTerms from "./pages/legal/Terms";
+import LegalRefund from "./pages/legal/Refund";
+import Help from "./pages/Help";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import ScanNew from "./pages/ScanNew";
@@ -84,6 +88,10 @@ const App = () => {
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
+            <Route path="/help" element={<PublicLayout><Help /></PublicLayout>} />
+            <Route path="/legal/privacy" element={<PublicLayout><LegalPrivacy /></PublicLayout>} />
+            <Route path="/legal/terms" element={<PublicLayout><LegalTerms /></PublicLayout>} />
+            <Route path="/legal/refund" element={<PublicLayout><LegalRefund /></PublicLayout>} />
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
