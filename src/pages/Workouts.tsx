@@ -8,6 +8,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
+import { track } from "@/lib/analytics";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -48,10 +49,11 @@ export default function Workouts() {
   const handleToggle = async (exerciseId: string) => {
     const idx = plan.days.findIndex((d: any) => d.day === todayName);
     const done = !completed.includes(exerciseId);
-    const res = await markExerciseDone(plan.id, idx, exerciseId, done);
-    setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
-    setRatio(res.ratio);
-  };
+      const res = await markExerciseDone(plan.id, idx, exerciseId, done);
+      setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
+      setRatio(res.ratio);
+      if (done) track("workout_mark_done", { exerciseId });
+    };
 
   const handleGenerate = async () => {
     const res = await generateWorkoutPlan({ focus: "back" });

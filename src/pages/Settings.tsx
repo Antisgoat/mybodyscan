@@ -14,6 +14,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { openStripePortal } from "@/lib/api";
 import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
+import { copyDiagnostics } from "@/lib/diagnostics";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState(true);
@@ -110,24 +111,31 @@ const Settings = () => {
                 Report a problem
               </Button>
             </div>
-            <div className="space-y-2">
-              <Button
-                variant="destructive"
-                onClick={handleDeleteAccount}
-                className="w-full"
-              >
-                {t('settings.delete_account')}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleSignOut}
-                className="w-full"
-              >
-                {t('settings.sign_out')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          <div className="space-y-2">
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              className="w-full"
+            >
+              {t('settings.delete_account')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="w-full"
+            >
+              {t('settings.sign_out')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => { await copyDiagnostics(); toast({ title: "Copied diagnostics" }); }}
+              className="w-full"
+            >
+              Copy diagnostics
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
       </main>
       <BottomNav />
     </div>

@@ -11,6 +11,7 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
 import { addMeal, deleteMeal, getDailyLog, computeCalories, MealEntry } from "@/lib/nutrition";
+import { track } from "@/lib/analytics";
 
 const DAILY_TARGET = 2200;
 
@@ -34,7 +35,8 @@ export default function Meals() {
       return;
     }
     const preview = computeCalories(meal);
-    await addMeal(today, meal);
+      await addMeal(today, meal);
+      track("meal_add");
     const updated = await getDailyLog(today);
     setLog(updated);
     setMeal({ name: "" });
@@ -43,7 +45,8 @@ export default function Meals() {
   }
 
   async function handleDelete(id: string) {
-    await deleteMeal(today, id);
+      await deleteMeal(today, id);
+      track("meal_delete");
     const updated = await getDailyLog(today);
     setLog(updated);
   }
