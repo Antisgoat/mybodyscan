@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dumbbell, Plus } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
+import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
@@ -98,9 +99,7 @@ export default function Workouts() {
       <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
         <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
-          {isDemoGuest() && (
-            <div className="rounded bg-muted p-2 text-center text-xs">Demo plan — create an account to personalize and save.</div>
-          )}
+          <DemoBanner />
           <div className="text-center space-y-2">
           <Dumbbell className="w-8 h-8 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">{t('workouts.title')}</h1>

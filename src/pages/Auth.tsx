@@ -151,16 +151,21 @@ const Auth = () => {
                 Continue with Google
               </Button>
             </div>
-            <Button
-              variant="ghost"
-              className="mt-4 w-full"
-              onClick={() => {
-                enableDemoGuest();
-                navigate("/today");
-              }}
-            >
-              👀 Explore demo (no sign-up)
-            </Button>
+            <div className="mt-4">
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  enableDemoGuest();
+                  navigate("/today");
+                }}
+              >
+                👀 Explore demo (no sign-up)
+              </Button>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Browse demo data. Create a free account to unlock scanning and save your progress.
+              </p>
+            </div>
         </CardContent>
       </Card>
       <div className="mt-4 text-center text-xs text-muted-foreground">

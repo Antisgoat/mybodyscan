@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
+import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { History as HistoryIcon, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -39,9 +40,7 @@ export default function History() {
       <Seo title="History - MyBodyScan" description="Your body scan results and progress" />
         <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
-          {isDemoGuest() && (
-            <div className="rounded bg-muted p-2 text-center text-xs">Demo scans — create an account to save your scans.</div>
-          )}
+          <DemoBanner />
           <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <HistoryIcon className="w-6 h-6 text-primary" />

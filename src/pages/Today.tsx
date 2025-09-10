@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutrition";
 import { getPlan } from "@/lib/workouts";
-import { isDemoGuest } from "@/lib/demoFlag";
+import { DemoBanner } from "@/components/DemoBanner";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { track } from "@/lib/analytics";
@@ -82,9 +82,7 @@ export default function Today() {
       <Seo title="Today - MyBodyScan" description="Your daily health and fitness plan" />
         <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
-          {isDemoGuest() && (
-            <div className="rounded bg-muted p-2 text-center text-xs">Preview mode — create a free account to unlock scans and save progress.</div>
-          )}
+          <DemoBanner />
           <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>
 
         <Card>

@@ -10,7 +10,10 @@ export async function startCheckout(
     if (isDemoGuest()) {
       track("demo_block", { action: "checkout" });
       try {
-        toast({ title: "Create a free account to purchase a plan." });
+        toast({ 
+          title: "Sign up to use this feature",
+          description: "Create a free account to continue.",
+        });
       } catch {}
       window.location.assign("/auth");
       return;
@@ -44,7 +47,10 @@ export async function consumeOneCredit(): Promise<number> {
     if (isDemoGuest()) {
       track("demo_block", { action: "scan" });
       try {
-        toast({ title: "Create a free account to start scanning." });
+        toast({ 
+          title: "Sign up to use this feature",
+          description: "Create a free account to start scanning.",
+        });
       } catch {}
       window.location.assign("/auth");
       throw new Error("demo-blocked");

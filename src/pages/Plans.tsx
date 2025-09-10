@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
+import { isDemoGuest } from "@/lib/demoFlag";
 
 export default function Plans() {
   const { t } = useI18n();
@@ -72,6 +73,11 @@ export default function Plans() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
+          {isDemoGuest() && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Demo mode — purchase requires sign-up.
+            </p>
+          )}
         </div>
         
         <div className="space-y-4">
