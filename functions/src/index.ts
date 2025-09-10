@@ -1,3 +1,1 @@
-// Placeholder file for Firebase Functions
-// The actual functions are in functions-disabled folder
-export {};
+export { foodSearch, foodLookupUPC } from "./food";
