@@ -14,6 +14,8 @@ import { useI18n } from "@/lib/i18n";
 import { addMeal, deleteMeal, getDailyLog, computeCalories, MealEntry } from "@/lib/nutrition";
 import { isDemoGuest } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
+import { searchFoods, FoodItem } from "@/lib/food";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 
 const DAILY_TARGET = 2200;
 
@@ -23,10 +25,27 @@ export default function Meals() {
   const [log, setLog] = useState<{ totals: any; meals: any[] }>({ totals: { calories: 0 }, meals: [] });
   const [isAdding, setIsAdding] = useState(false);
   const [meal, setMeal] = useState<MealEntry>({ name: "" });
+  const foodSearchEnabled = import.meta.env.VITE_FOOD_SEARCH_ENABLED === "true";
+  const barcodeEnabled = import.meta.env.VITE_FOOD_BARCODE_ENABLED === "true";
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<FoodItem[]>([]);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     getDailyLog(today).then(setLog).catch(() => {});
   }, [today]);
+
+  useEffect(() => {
+    if (!foodSearchEnabled) return;
+    const t = setTimeout(() => {
+      if (query.length > 2) {
+        searchFoods(query).then(setResults).catch(() => setResults([]));
+      } else {
+        setResults([]);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [query, foodSearchEnabled]);
 
   const totalCalories = log.totals.calories || 0;
   const remaining = DAILY_TARGET - totalCalories;
@@ -110,6 +129,53 @@ export default function Meals() {
                 <DialogTitle>Log a Meal</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                {foodSearchEnabled && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Search a food or scan a barcode</p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                      {barcodeEnabled && (
+                        <Button type="button" variant="secondary" onClick={() => setShowScanner(true)}>
+                          Scan barcode
+                        </Button>
+                      )}
+                    </div>
+                    {results.length > 0 && (
+                      <div className="border rounded-md divide-y max-h-40 overflow-auto">
+                        {results.slice(0, 5).map((r) => (
+                          <button
+                            key={r.id}
+                            className="w-full px-2 py-1 text-left text-sm hover:bg-secondary"
+                            onClick={() => {
+                              setMeal({
+                                name: r.name,
+                                protein: r.protein,
+                                carbs: r.carbs,
+                                fat: r.fat,
+                                alcohol: r.alcohol,
+                                calories: r.calories,
+                              });
+                              setQuery(r.name);
+                              setResults([]);
+                            }}
+                          >
+                            <div className="font-medium">
+                              {r.name}
+                              {r.brand ? `, ${r.brand}` : ""}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {r.serving} • {r.calories} kcal • P: {r.protein}g • C: {r.carbs}g • F: {r.fat}g
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="meal-name">Meal Name</Label>
                   <Input id="meal-name" value={meal.name} onChange={(e) => setMeal({ ...meal, name: e.target.value })} />
@@ -183,6 +249,24 @@ export default function Meals() {
         )}
       </main>
       <BottomNav />
+      {barcodeEnabled && (
+        <BarcodeScanner
+          open={showScanner}
+          onOpenChange={setShowScanner}
+          onResult={(item) => {
+            if (item) {
+              setMeal({
+                name: item.name,
+                protein: item.protein,
+                carbs: item.carbs,
+                fat: item.fat,
+                alcohol: item.alcohol,
+                calories: item.calories,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
