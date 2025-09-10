@@ -1,4 +1,6 @@
 import { auth } from "./firebase";
+import { isDemoGuest } from "./demoFlag";
+import { track } from "./analytics";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -39,13 +41,45 @@ async function callFn(path: string, body?: any, method = "POST") {
 }
 
 export async function addMeal(dateISO: string, meal: MealEntry) {
-  return callFn("/addMeal", { dateISO, meal });
+    if (isDemoGuest()) {
+      track("demo_block", { action: "meal_add" });
+      const list = demoMeals[dateISO] || seedDemoMeals(dateISO);
+      const entry = { id: crypto.randomUUID(), ...meal, ...computeCalories(meal) };
+      demoMeals[dateISO] = [...list, entry];
+      return entry;
+    }
+    return callFn("/addMeal", { dateISO, meal });
 }
 
 export async function deleteMeal(dateISO: string, mealId: string) {
-  return callFn("/deleteMeal", { dateISO, mealId });
+    if (isDemoGuest()) {
+      const list = demoMeals[dateISO] || seedDemoMeals(dateISO);
+      demoMeals[dateISO] = list.filter((m) => m.id !== mealId);
+      return;
+    }
+    return callFn("/deleteMeal", { dateISO, mealId });
 }
 
 export async function getDailyLog(dateISO: string) {
-  return callFn("/getDailyLog", { dateISO });
+    if (isDemoGuest()) {
+      const meals = demoMeals[dateISO] || seedDemoMeals(dateISO);
+      const totals = { calories: meals.reduce((s, m) => s + (m.calories || 0), 0) };
+      return { totals, meals };
+    }
+    return callFn("/getDailyLog", { dateISO });
+}
+
+// --- demo state ---
+const demoMeals: Record<string, MealEntry[]> = {};
+
+function seedDemoMeals(dateISO: string): MealEntry[] {
+  if (!demoMeals[dateISO]) {
+    const seed: MealEntry[] = [
+      { id: "1", name: "Oatmeal", protein: 6, carbs: 27, fat: 3 },
+      { id: "2", name: "Chicken Salad", protein: 30, carbs: 10, fat: 8 },
+      { id: "3", name: "Greek Yogurt", protein: 17, carbs: 9, fat: 0 },
+    ].map((m) => ({ ...m, ...computeCalories(m) }));
+    demoMeals[dateISO] = seed;
+  }
+  return demoMeals[dateISO];
 }

@@ -15,6 +15,7 @@ import { openStripePortal } from "@/lib/api";
 import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
+import { isDemoGuest } from "@/lib/demoFlag";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState(true);
@@ -22,24 +23,37 @@ const Settings = () => {
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
 
-  const handleSignOut = async () => {
-    await signOutAll();
-    navigate("/auth");
-  };
+    const handleSignOut = async () => {
+      if (isDemoGuest()) {
+        toast({ title: "Create a free account to save settings." });
+        navigate("/auth");
+        return;
+      }
+      await signOutAll();
+      navigate("/auth");
+    };
 
-  const handleDeleteAccount = () => {
-    const subject = encodeURIComponent("Delete Account Request");
-    const body = encodeURIComponent(`User ID: ${uid}\nEmail: Please delete my account and all associated data.`);
-    window.location.href = `mailto:support@mybodyscanapp.com?subject=${subject}&body=${body}`;
-  };
+    const handleDeleteAccount = () => {
+      if (isDemoGuest()) {
+        toast({ title: "Create a free account to manage account." });
+        navigate("/auth");
+        return;
+      }
+      const subject = encodeURIComponent("Delete Account Request");
+      const body = encodeURIComponent(`User ID: ${uid}\nEmail: Please delete my account and all associated data.`);
+      window.location.href = `mailto:support@mybodyscanapp.com?subject=${subject}&body=${body}`;
+    };
 
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <AppHeader />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
-        <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
+          {isDemoGuest() && (
+            <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
+          )}
+          <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
 
         {/* Notifications */}
         <Card>

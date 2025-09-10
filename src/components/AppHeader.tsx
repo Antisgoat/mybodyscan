@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "@/components/CreditsBadge";
+import { DemoBadge } from "@/components/DemoBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuthUser, signOutAll } from "@/lib/auth";
@@ -30,10 +31,11 @@ export function AppHeader() {
     <header className="border-b border-border bg-card">
       <div className="max-w-md mx-auto p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
-            <CreditsBadge />
-          </div>
+            <div className="flex items-center gap-4">
+              <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
+              <CreditsBadge />
+              <DemoBadge />
+            </div>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

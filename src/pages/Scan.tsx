@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { consumeOneCredit } from "@/lib/payments";
 import { startScan, uploadScanPhotos, submitScan } from "@/lib/scan";
+import { isDemoGuest } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { log } from "@/lib/logger";
 
@@ -25,12 +26,16 @@ export default function Scan() {
   const [isScanning, setIsScanning] = useState(false);
   const navigate = useNavigate();
 
-  const handleStartScan = async () => {
+    const handleStartScan = async () => {
+      if (isDemoGuest()) {
+        toast({ title: "Create a free account to start scanning." });
+        navigate("/auth");
+        return;
+      }
       setIsScanning(true);
       try {
         await consumeOneCredit();
         const scan = await startScan();
-        // TODO: capture up to 4 images from user
         const files: File[] = [];
         const paths = await uploadScanPhotos(scan, files);
         await submitScan(scan.scanId, paths as string[]);
@@ -39,20 +44,20 @@ export default function Scan() {
         toast({ title: "Scan submitted" });
         navigate("/history");
       } catch (err: any) {
-      if (err?.message === "No credits available") {
-        toast({ title: "No scan credits", description: "Get more credits to run scans." });
-        navigate("/plans");
-      } else {
-        toast({
-          title: "Scan failed",
-          description: err?.message || "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
+        if (err?.message === "No credits available") {
+          toast({ title: "No scan credits", description: "Get more credits to run scans." });
+          navigate("/plans");
+        } else if (err?.message !== "demo-blocked") {
+          toast({
+            title: "Scan failed",
+            description: err?.message || "Something went wrong. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setIsScanning(false);
       }
-    } finally {
-      setIsScanning(false);
-    }
-  };
+    };
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
