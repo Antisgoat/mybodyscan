@@ -16,8 +16,11 @@ const Privacy = () => {
         <p>
           You can request data deletion at any time by contacting <a href="mailto:support@mybodyscanapp.com">support@mybodyscanapp.com</a>.
         </p>
-        <p>We query reputable nutrition databases to prefill nutrition facts.</p>
-      </article>
+          <p>
+            When enabled, we query public food databases (USDA FoodData Central and Open Food Facts) to help fill
+            nutrition facts; no personal data is sent.
+          </p>
+        </article>
     </>
   );
 };

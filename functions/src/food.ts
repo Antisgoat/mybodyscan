@@ -2,34 +2,93 @@ import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "firebase-admin/auth";
 
-const appId = defineSecret("NUTRITIONIX_APP_ID");
-const apiKey = defineSecret("NUTRITIONIX_API_KEY");
+const fdcKey = defineSecret("USDA_FDC_API_KEY");
 
 type Req = any;
 
-interface FoodItem {
+export interface FoodItem {
   id: string;
   name: string;
   brand?: string;
-  serving: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  serving?: { amount: number; unit: string };
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   alcohol?: number;
+  source: "USDA" | "OFF";
 }
 
-function mapItem(src: any): FoodItem {
+function mapFdcFood(src: any): FoodItem {
+  const label = src.brandName ? `${src.brandName} ${src.description}`.trim() : src.description;
+
+  let calories: number | undefined;
+  let protein: number | undefined;
+  let carbs: number | undefined;
+  let fat: number | undefined;
+  let alcohol: number | undefined;
+
+  if (src.labelNutrients) {
+    calories = src.labelNutrients.calories?.value;
+    protein = src.labelNutrients.protein?.value;
+    carbs = src.labelNutrients.carbohydrates?.value;
+    fat = src.labelNutrients.fat?.value;
+    alcohol = src.labelNutrients.alcohol?.value;
+  }
+
+  if ((!calories || !protein || !carbs || !fat) && Array.isArray(src.foodNutrients)) {
+    for (const n of src.foodNutrients) {
+      const name = (n.nutrientName || "").toLowerCase();
+      const val = typeof n.value === "number" ? n.value : undefined;
+      if (val === undefined) continue;
+      if (!calories && name.includes("energy") && name.includes("kcal")) calories = val;
+      else if (!protein && name === "protein") protein = val;
+      else if (!carbs && name.includes("carbohydrate")) carbs = val;
+      else if (!fat && name.includes("fat")) fat = val;
+      else if (!alcohol && name.includes("alcohol")) alcohol = val;
+    }
+  }
+
+  let serving: { amount: number; unit: string } | undefined;
+  if (typeof src.servingSize === "number" && src.servingSizeUnit) {
+    serving = { amount: src.servingSize, unit: src.servingSizeUnit };
+  } else if (src.householdServingFullText) {
+    const match = String(src.householdServingFullText).match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+    if (match) serving = { amount: parseFloat(match[1]), unit: match[2] };
+  }
+
   return {
-    id: src.nix_item_id || src.tag_id || src.food_name,
-    name: src.food_name,
-    brand: src.brand_name || undefined,
-    serving: [src.serving_qty, src.serving_unit].filter(Boolean).join(" ").trim(),
-    calories: Number(src.nf_calories) || 0,
-    protein: Number(src.nf_protein) || 0,
-    carbs: Number(src.nf_total_carbohydrate) || 0,
-    fat: Number(src.nf_total_fat) || 0,
-    alcohol: Number(src.nf_alcohol) || 0,
+    id: `fdc_${src.fdcId}`,
+    name: label,
+    brand: src.brandName || undefined,
+    serving,
+    calories,
+    protein,
+    carbs,
+    fat,
+    alcohol,
+    source: "USDA",
+  };
+}
+
+function mapOffProduct(p: any, barcode: string): FoodItem {
+  const n = p.nutriments || {};
+  const get = (k: string): number | undefined => {
+    const v = n[k];
+    if (typeof v === "number") return v;
+    const num = parseFloat(v);
+    return isNaN(num) ? undefined : num;
+  };
+  return {
+    id: `off_${barcode}`,
+    name: p.product_name || p.generic_name || "Unknown",
+    brand: p.brands || undefined,
+    serving: { amount: 100, unit: "g" },
+    calories: get("energy-kcal_100g"),
+    protein: get("proteins_100g"),
+    carbs: get("carbohydrates_100g"),
+    fat: get("fat_100g"),
+    source: "OFF",
   };
 }
 
@@ -40,7 +99,7 @@ async function requireUser(req: Req): Promise<void> {
     await getAuth().verifyIdToken(match[1]);
     return;
   }
-  if (process.env.VITE_PREVIEW === "true" || req.get("x-demo-guard")) return;
+  if (process.env.VITE_PREVIEW === "true" || req.get("x-demo")) return;
   throw new Error("Unauthorized");
 }
 
@@ -62,7 +121,19 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-export const foodSearch = onRequest({ secrets: [appId, apiKey] }, async (req, res) => {
+function cors(req: Req, res: any): boolean {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Demo");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
+
+export const foodSearch = onRequest({ secrets: [fdcKey] }, async (req, res) => {
+  if (cors(req, res)) return;
   try {
     if (req.method !== "POST") {
       res.status(405).end();
@@ -74,34 +145,35 @@ export const foodSearch = onRequest({ secrets: [appId, apiKey] }, async (req, re
       res.status(429).json({ error: "rate_limit" });
       return;
     }
-    const { query } = req.body as { query?: string; locale?: string };
+    const { query, page, size } = req.body as { query?: string; page?: number; size?: number; locale?: string };
     if (!query) {
       res.status(400).json({ error: "query" });
       return;
     }
-    const r = await fetch("https://trackapi.nutritionix.com/v2/search/instant", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-app-id": appId.value(),
-        "x-app-key": apiKey.value(),
-      },
-      body: JSON.stringify({ query, detailed: true }),
-    });
+    const key = fdcKey.value();
+    if (!key) {
+      res.status(503).json({ error: "missing_key" });
+      return;
+    }
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${key}&query=${encodeURIComponent(
+      query
+    )}&pageSize=${size || 10}&pageNumber=${page || 1}&dataType=Branded,Survey%20(FNDDS),SR%20Legacy`;
+    const r = await fetch(url);
     if (!r.ok) {
       res.status(502).json({ error: "provider" });
       return;
     }
     const data = await r.json();
-    const branded = Array.isArray(data.branded) ? data.branded.slice(0, 5) : [];
-    const items = branded.map(mapItem);
-    res.json(items);
+    const foods = Array.isArray(data.foods) ? data.foods.slice(0, 10) : [];
+    const items = foods.map(mapFdcFood);
+    res.json({ items });
   } catch (e: any) {
     res.status(e.message === "Unauthorized" ? 401 : 500).json({ error: "error" });
   }
 });
 
-export const foodLookupUPC = onRequest({ secrets: [appId, apiKey] }, async (req, res) => {
+export const foodLookupUPC = onRequest({}, async (req, res) => {
+  if (cors(req, res)) return;
   try {
     if (req.method !== "POST") {
       res.status(405).end();
@@ -114,25 +186,20 @@ export const foodLookupUPC = onRequest({ secrets: [appId, apiKey] }, async (req,
       return;
     }
     const { upc } = req.body as { upc?: string };
-    if (!upc) {
+    if (!upc || !/^\d{8,14}$/.test(upc)) {
       res.status(400).json({ error: "upc" });
       return;
     }
-    const r = await fetch(`https://trackapi.nutritionix.com/v2/search/item?upc=${encodeURIComponent(upc)}`, {
-      headers: {
-        "x-app-id": appId.value(),
-        "x-app-key": apiKey.value(),
-      },
-    });
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(upc)}.json`);
     if (!r.ok) {
       res.status(502).json({ error: "provider" });
       return;
     }
     const data = await r.json();
-    const foods = Array.isArray(data.branded) ? data.branded : data.foods;
-    const items = Array.isArray(foods) && foods.length > 0 ? [mapItem(foods[0])] : [];
-    res.json(items);
+    const items = data.status === 1 && data.product ? [mapOffProduct(data.product, upc)] : [];
+    res.json({ items });
   } catch (e: any) {
     res.status(e.message === "Unauthorized" ? 401 : 500).json({ error: "error" });
   }
 });
+
