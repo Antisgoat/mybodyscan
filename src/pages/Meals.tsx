@@ -30,6 +30,8 @@ export default function Meals() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FoodItem[]>([]);
   const [showScanner, setShowScanner] = useState(false);
+  const formatServing = (s?: { amount: number; unit: string }) =>
+    s ? `${s.amount} ${s.unit}` : "";
 
   useEffect(() => {
     getDailyLog(today).then(setLog).catch(() => {});
@@ -168,7 +170,9 @@ export default function Meals() {
                               {r.brand ? `, ${r.brand}` : ""}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {r.serving} • {r.calories} kcal • P: {r.protein}g • C: {r.carbs}g • F: {r.fat}g
+                              {formatServing(r.serving)}
+                              {formatServing(r.serving) ? " • " : ""}
+                              {r.calories ?? 0} kcal • P: {r.protein ?? 0}g • C: {r.carbs ?? 0}g • F: {r.fat ?? 0}g
                             </div>
                           </button>
                         ))}
