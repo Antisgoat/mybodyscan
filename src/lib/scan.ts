@@ -1,5 +1,6 @@
 import { auth, db, storage } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { isDemoGuest } from "./demoFlag";
 import { ref, uploadBytes } from "firebase/storage";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
@@ -82,10 +83,29 @@ export function listenToScan(uid: string, scanId: string, onUpdate: (scan: any) 
 }
 
 export function watchScans(uid: string, cb: (items: any[]) => void) {
-  if (USE_STUB) {
-    cb([]);
-    return () => {};
-  }
-  const q = query(collection(db, `users/${uid}/scans`), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    if (isDemoGuest() || USE_STUB) {
+      cb(demoScans);
+      return () => {};
+    }
+    const q = query(collection(db, `users/${uid}/scans`), orderBy("createdAt", "desc"));
+    return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
+
+const demoScans = [
+  {
+    id: "demo1",
+    status: "ready",
+    createdAt: { toDate: () => new Date() },
+    measurements: { bodyFat: 18 },
+    muscleMass: 75,
+    visceralFat: 10,
+  },
+  {
+    id: "demo2",
+    status: "ready",
+    createdAt: { toDate: () => new Date(Date.now() - 86400000) },
+    measurements: { bodyFat: 20 },
+    muscleMass: 74,
+    visceralFat: 11,
+  },
+];

@@ -8,7 +8,9 @@ import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
+import { isDemoGuest } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
+import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -53,6 +55,7 @@ export default function Workouts() {
       setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
       setRatio(res.ratio);
       if (done) track("workout_mark_done", { exerciseId });
+      if (isDemoGuest()) toast({ title: "Sign up to save your progress." });
     };
 
   const handleGenerate = async () => {
@@ -93,9 +96,12 @@ export default function Workouts() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
-      <AppHeader />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <div className="text-center space-y-2">
+        <AppHeader />
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          {isDemoGuest() && (
+            <div className="rounded bg-muted p-2 text-center text-xs">Demo plan — create an account to personalize and save.</div>
+          )}
+          <div className="text-center space-y-2">
           <Dumbbell className="w-8 h-8 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">{t('workouts.title')}</h1>
           <p className="text-sm text-muted-foreground">

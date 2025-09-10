@@ -10,6 +10,7 @@ import { History as HistoryIcon, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { auth } from "@/lib/firebase";
 import { watchScans } from "@/lib/scan";
+import { isDemoGuest } from "@/lib/demoFlag";
 
 export default function History() {
   const [selectedScans, setSelectedScans] = useState<string[]>([]);
@@ -36,9 +37,12 @@ export default function History() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="History - MyBodyScan" description="Your body scan results and progress" />
-      <AppHeader />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <AppHeader />
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          {isDemoGuest() && (
+            <div className="rounded bg-muted p-2 text-center text-xs">Demo scans — create an account to save your scans.</div>
+          )}
+          <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <HistoryIcon className="w-6 h-6 text-primary" />
             <h1 className="text-2xl font-semibold">{t('history.title')}</h1>

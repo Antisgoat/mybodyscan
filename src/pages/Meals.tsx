@@ -11,6 +11,7 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
 import { addMeal, deleteMeal, getDailyLog, computeCalories, MealEntry } from "@/lib/nutrition";
+import { isDemoGuest } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 
 const DAILY_TARGET = 2200;
@@ -34,29 +35,32 @@ export default function Meals() {
       toast({ title: "Missing name" });
       return;
     }
-    const preview = computeCalories(meal);
+      const preview = computeCalories(meal);
       await addMeal(today, meal);
       track("meal_add");
-    const updated = await getDailyLog(today);
-    setLog(updated);
-    setMeal({ name: "" });
-    setIsAdding(false);
-    toast({ title: "Meal logged", description: `${preview.calories} kcal` });
+      const updated = await getDailyLog(today);
+      setLog(updated);
+      setMeal({ name: "" });
+      setIsAdding(false);
+      toast({ title: isDemoGuest() ? "Sign up to save your logs." : "Meal logged", description: `${preview.calories} kcal` });
   }
 
   async function handleDelete(id: string) {
       await deleteMeal(today, id);
       track("meal_delete");
-    const updated = await getDailyLog(today);
-    setLog(updated);
+      const updated = await getDailyLog(today);
+      setLog(updated);
   }
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Meals - MyBodyScan" description="Track your daily calorie intake" />
-      <AppHeader />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <div className="text-center space-y-2">
+        <AppHeader />
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          {isDemoGuest() && (
+            <div className="rounded bg-muted p-2 text-center text-xs">Exploring demo — sign up to save your data.</div>
+          )}
+          <div className="text-center space-y-2">
           <Utensils className="w-8 h-8 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">{t("meals.title")}</h1>
         </div>

@@ -14,6 +14,7 @@ import {
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
+import { enableDemoGuest } from "@/lib/demoFlag";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -132,24 +133,34 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <div className="mt-4 grid gap-2">
-            {appleEnabled && (
+            <div className="mt-4 grid gap-2">
+              {appleEnabled && (
+                <Button
+                  variant="secondary"
+                  onClick={onApple}
+                  disabled={loading}
+                >
+                  Continue with Apple
+                </Button>
+              )}
               <Button
                 variant="secondary"
-                onClick={onApple}
+                onClick={onGoogle}
                 disabled={loading}
               >
-                Continue with Apple
+                Continue with Google
               </Button>
-            )}
+            </div>
             <Button
-              variant="secondary"
-              onClick={onGoogle}
-              disabled={loading}
+              variant="ghost"
+              className="mt-4 w-full"
+              onClick={() => {
+                enableDemoGuest();
+                navigate("/today");
+              }}
             >
-              Continue with Google
+              👀 Explore demo (no sign-up)
             </Button>
-          </div>
         </CardContent>
       </Card>
       <div className="mt-4 text-center text-xs text-muted-foreground">

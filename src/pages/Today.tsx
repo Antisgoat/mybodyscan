@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutrition";
 import { getPlan } from "@/lib/workouts";
+import { isDemoGuest } from "@/lib/demoFlag";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { track } from "@/lib/analytics";
@@ -42,19 +43,21 @@ export default function Today() {
   const handleScan = async () => {
     try {
       track("start_scan_click");
-      await consumeOneCredit();
-      const scan = await startScan();
-      toast({ title: "Credit used", description: "Starting scan..." });
-      navigate("/scan", { state: scan });
-    } catch (err: any) {
-      if (err?.message?.includes("No credits")) {
-        toast({
-          title: "No credits available",
-          description: "Purchase credits to continue scanning.",
-          variant: "destructive",
-        });
-        navigate("/plans");
-      } else {
+        await consumeOneCredit();
+        const scan = await startScan();
+        toast({ title: "Credit used", description: "Starting scan..." });
+        navigate("/scan", { state: scan });
+      } catch (err: any) {
+        if (err?.message === "demo-blocked") {
+          // already handled
+        } else if (err?.message?.includes("No credits")) {
+          toast({
+            title: "No credits available",
+            description: "Purchase credits to continue scanning.",
+            variant: "destructive",
+          });
+          navigate("/plans");
+        } else {
         toast({
           title: "Error",
           description: err?.message || "Failed to start scan",
@@ -77,9 +80,12 @@ export default function Today() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Today - MyBodyScan" description="Your daily health and fitness plan" />
-      <AppHeader />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>
+        <AppHeader />
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          {isDemoGuest() && (
+            <div className="rounded bg-muted p-2 text-center text-xs">Preview mode — create a free account to unlock scans and save progress.</div>
+          )}
+          <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>
 
         <Card>
           <CardHeader>
