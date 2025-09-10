@@ -11,6 +11,23 @@ import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { isDemoGuest } from "@/lib/demoFlag";
 
+const PLAN_FEATURES = {
+  starter: ["1 scan", "Smart calorie target", "Basic guidance"],
+  pro: [
+    "3 scans per month",
+    "Trend analysis",
+    "Custom coaching tips",
+    "Priority support"
+  ],
+  elite: [
+    "36 scans per year",
+    "Trend analysis",
+    "Custom coaching tips",
+    "Priority support",
+    "Annual savings"
+  ]
+} as const;
+
 export default function Plans() {
   const { t } = useI18n();
   const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
@@ -42,7 +59,7 @@ export default function Plans() {
       credits: "1 credit",
       priceId: "price_1RuOpKQQU5vuhlNjipfFBsR0",
       mode: "payment" as const,
-      features: ["1 body composition scan", "Detailed analysis", "Progress tracking"]
+      features: PLAN_FEATURES.starter
     },
     {
       name: "Pro",
@@ -51,7 +68,7 @@ export default function Plans() {
       credits: "3 credits/mo",
       priceId: "price_1S4XsVQQU5vuhlNjzdQzeySA",
       mode: "subscription" as const,
-      features: ["3 scans per month", "Trend analysis", "Priority support", "Advanced metrics"]
+      features: PLAN_FEATURES.pro
     },
     {
       name: "Elite",
@@ -61,7 +78,7 @@ export default function Plans() {
       priceId: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
       mode: "subscription" as const,
       popular: true,
-      features: ["36 scans per year", "Premium analytics", "Custom coaching tips", "Export data", "API access"]
+      features: PLAN_FEATURES.elite
     }
   ];
 
