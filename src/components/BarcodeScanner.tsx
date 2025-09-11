@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 import { lookupUPC, FoodItem } from "@/lib/food";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   open: boolean;
@@ -23,8 +24,23 @@ export function BarcodeScanner({ open, onOpenChange, onResult }: Props) {
         if (res) {
           active = false;
           lookupUPC(res.getText())
-            .then((items) => onResult(items[0] || null))
-            .catch(() => onResult(null))
+            .then((items) => {
+              const item = items[0];
+              if (item) {
+                onResult(item);
+              } else {
+                toast({
+                  title: "We couldn't find nutrition for this barcode. Try searching the product name.",
+                });
+                onResult(null);
+              }
+            })
+            .catch(() => {
+              toast({
+                title: "We couldn't find nutrition for this barcode. Try searching the product name.",
+              });
+              onResult(null);
+            })
             .finally(() => {
               onOpenChange(false);
               reader.reset();
