@@ -11,11 +11,11 @@ import { doc, onSnapshot, collection, query, orderBy, limit, getDocs } from "fir
 type ScanData = {
   id: string;
   status: string;
-  results?: {
-    bodyFat?: number;
-    weight?: number;
-    bmi?: number;
+  metrics?: {
+    body_fat_pct?: number;
+    [key: string]: any;
   };
+  logs?: string[];
   createdAt: any;
 };
 
@@ -96,7 +96,7 @@ const ScanResult = () => {
         const snapshot = await getDocs(historyQuery);
         const historyData = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as ScanData))
-          .filter(s => s.id !== scanId && s.results?.bodyFat);
+          .filter(s => s.id !== scanId && s.metrics?.body_fat_pct != null);
         setHistory(historyData);
       } catch (error) {
         console.error("Error loading history:", error);
@@ -150,9 +150,9 @@ const ScanResult = () => {
           <CardContent>
             {scan.status === "processing" ? (
               <ProcessingUI />
-            ) : scan.results ? (
-              <div className="grid gap-4">
-                {scan.results.bodyFat && (
+            ) : scan.metrics ? (
+              scan.metrics.body_fat_pct != null ? (
+                <div className="grid gap-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Body Fat</span>
@@ -165,44 +165,14 @@ const ScanResult = () => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="text-xl font-semibold">{scan.results.bodyFat}%</span>
+                    <span className="text-xl font-semibold">{scan.metrics.body_fat_pct}%</span>
                   </div>
-                )}
-                
-                {scan.results.weight && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Weight</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Total body weight measurement</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="text-xl font-semibold">{scan.results.weight} lbs</span>
-                  </div>
-                )}
-                
-                {scan.results.bmi && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">BMI</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Body Mass Index: weight relative to height</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="text-xl font-semibold">{scan.results.bmi}</span>
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  Model pending; please try again shortly or contact support.
+                </p>
+              )
             ) : (
               <p className="text-muted-foreground text-center py-4">No results available yet</p>
             )}
@@ -226,7 +196,7 @@ const ScanResult = () => {
                       }
                     </div>
                     <div className="text-sm font-medium">
-                      {historyScan.results?.bodyFat}% BF
+                      {historyScan.metrics?.body_fat_pct}% BF
                     </div>
                   </div>
                 ))}

@@ -1,6 +1,7 @@
-import { db, storage } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { app, db, storage } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { authedFetch } from "@/lib/api";
 
 export interface StartScanResponse {
@@ -33,20 +34,13 @@ export async function uploadScanFile(
 ): Promise<void> {
   const fileExt = file.name.split('.').pop() || 'jpg';
   const storageRef = ref(storage, `scans/${uid}/${scanId}/original.${fileExt}`);
-  
+
   await uploadBytes(storageRef, file);
 }
 
-export async function processScan(scanId: string): Promise<void> {
-  const response = await authedFetch("/processQueuedScanHttp", {
-    method: "POST",
-    body: JSON.stringify({ scanId }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to process scan: ${error}`);
-  }
+export async function runBodyScan(scanId: string): Promise<void> {
+  const fn = httpsCallable(getFunctions(app), "runBodyScan");
+  await fn({ scanId });
 }
 
 export function listenToScan(
@@ -56,7 +50,7 @@ export function listenToScan(
   onError?: (error: Error) => void
 ) {
   const scanRef = doc(db, "users", uid, "scans", scanId);
-  
+
   return onSnapshot(
     scanRef,
     (snapshot) => {
