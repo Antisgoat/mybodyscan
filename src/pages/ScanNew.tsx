@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Camera, Upload } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { startScan, uploadScanFile, processScan, listenToScan } from "@/lib/scan";
+import { startScan, uploadScanFile, runBodyScan, listenToScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
@@ -61,7 +61,7 @@ export default function ScanNew() {
         setStage("processing");
 
         // Step 3: Trigger backend processing
-        await processScan(scanId);
+        await runBodyScan(scanId);
 
         // Step 4: Listen for completion
         const unsubscribe = listenToScan(
