@@ -5,14 +5,15 @@ This document tracks the security hardening measures implemented for the MyBodyS
 ## ✅ Implemented Security Measures
 
 ### 1. Firestore Security Rules
-- **Status**: ✅ COMPLETED
-- **File**: `firestore.rules`
+- **Status**: ✅ COMPLETED & UNIFIED
+- **File**: `firestore.rules` (unified from `database.rules.json`)
 - **Features**:
-  - Owner-only access patterns for all user data
+  - Owner-only access patterns with helper functions for clarity
   - Blocked sensitive field updates (credits, billing, stripe data)
   - Server-only write access for scan results and credit operations
   - Strict validation for nutrition logs with reasonable bounds
   - Complete denial of client access to payments and stripe_events collections
+  - Enhanced scan security: client can only update notes, not results
 
 ### 2. Payment Redirect Validation
 - **Status**: ✅ COMPLETED  
@@ -22,10 +23,10 @@ This document tracks the security hardening measures implemented for the MyBodyS
   - Allowlist-based hostname verification (checkout.stripe.com only)
   - Error handling for invalid URLs to prevent open redirects
 
-### 3. Legacy Auth Component Isolation
+### 3. Legacy Auth Component Cleanup
 - **Status**: ✅ COMPLETED
-- **Action**: Renamed `src/context/AuthContext.tsx` to `.disabled`
-- **Rationale**: Prevents accidental use of localStorage-based auth instead of Firebase auth
+- **Action**: Removed legacy auth components (`AuthContext.tsx.disabled`, `ProtectedRouteMBS.tsx.disabled`)
+- **Rationale**: Eliminated potential confusion and ensured single source of truth for Firebase auth
 
 ### 4. App Check Configuration
 - **Status**: ✅ DOCUMENTED
