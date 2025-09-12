@@ -17,11 +17,12 @@ type ScanDoc = {
 };
 
 const db = getFirestore();
-const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+const replicateToken = process.env.REPLICATE_API_TOKEN;
+const replicate = replicateToken ? new Replicate({ auth: replicateToken }) : null;
 
 export const runBodyScan = functions
   .region("us-central1")
-  .runWith({ memory: "1GiB", timeoutSeconds: 300 })
+  .runWith({ memory: "1GB", timeoutSeconds: 300 })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Auth required");
@@ -40,7 +41,7 @@ export const runBodyScan = functions
     let result;
     try {
       if (provider === "leanlense") {
-        result = await runLeanlensePlaceholder(scan);
+        result = await runLeanlensePlaceholder();
       } else {
         result = await runReplicateMvp(scan);
       }
@@ -60,7 +61,7 @@ export const runBodyScan = functions
     }
   });
 
-async function runLeanlensePlaceholder(scan: ScanDoc) {
+async function runLeanlensePlaceholder() {
   return {
     metrics: {
       body_fat_pct: null,
@@ -78,6 +79,14 @@ async function runReplicateMvp(scan: ScanDoc) {
 
   if (!height || !sex || !front || !side) {
     throw new Error("Missing height/sex/front/side for MVP pipeline");
+  }
+
+  if (!replicate) {
+    // Return placeholder metrics when replicate token is absent
+    return {
+      metrics: { body_fat_pct: null, note: "Replicate token missing" },
+      logs: ["replicate: token missing"],
+    };
   }
 
   const denseposeModel = "chigozienri/densepose:latest";

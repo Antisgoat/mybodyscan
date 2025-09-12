@@ -2,8 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import React, { useEffect, lazy } from "react";
+import Skeleton from "./components/Skeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
@@ -57,7 +58,6 @@ const App = () => {
         <Toaster />
         <Sonner />
         <AuthGate>
-          <BrowserRouter>
             <OnboardingRedirectMBS>
               <Routes>
             {/* Root route - flag-controlled */}
@@ -116,7 +116,7 @@ const App = () => {
             <Route
               path="/onboarding-mbs"
               element={
-                <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-pulse rounded-md bg-muted h-8 w-32"></div></div>}>
+                <React.Suspense fallback={<Skeleton />}>
                   <OnboardingMBS />
                 </React.Suspense>
               }
@@ -125,10 +125,9 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
               </Routes>
             </OnboardingRedirectMBS>
-        </BrowserRouter>
-      </AuthGate>
-    </TooltipProvider>
-  </QueryClientProvider>
+        </AuthGate>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 

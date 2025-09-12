@@ -4,31 +4,17 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+import { getEnv, missingEnvVars } from "./env";
 
-const env = import.meta.env;
-const required = [
-  "VITE_FIREBASE_API_KEY",
-  "VITE_FIREBASE_AUTH_DOMAIN",
-  "VITE_FIREBASE_PROJECT_ID",
-  "VITE_FIREBASE_STORAGE_BUCKET",
-  "VITE_FIREBASE_MESSAGING_SENDER_ID",
-  "VITE_FIREBASE_APP_ID",
-  "VITE_FIREBASE_MEASUREMENT_ID",
-];
-for (const key of required) {
-  if (!env[key as keyof typeof env]) {
-    throw new Error(`Missing env var ${key}. See .env.development`);
-  }
-}
-
+// Collect Firebase config from env with safe fallbacks
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY as string,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN as string,
-  projectId: env.VITE_FIREBASE_PROJECT_ID as string,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET as string,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
-  appId: env.VITE_FIREBASE_APP_ID as string,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID as string,
+  apiKey: getEnv("VITE_FIREBASE_API_KEY"),
+  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: getEnv("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: getEnv("VITE_FIREBASE_APP_ID"),
+  measurementId: getEnv("VITE_FIREBASE_MEASUREMENT_ID"),
 };
 
 // Initialize Firebase only once
@@ -38,15 +24,18 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 let warned = false;
-const appCheckKey = env.VITE_APPCHECK_SITE_KEY as string | undefined;
+const appCheckKey = getEnv("VITE_APPCHECK_SITE_KEY");
 if (typeof window !== "undefined") {
   if (appCheckKey) {
     initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(appCheckKey),
       isTokenAutoRefreshEnabled: true,
     });
-  } else if (!warned) {
+  } else if (!warned && import.meta.env.DEV) {
     warned = true;
     console.warn("App Check site key missing; requests are not protected. See README to enable.");
   }
 }
+
+// Expose missing env vars for a dev-only banner
+export { missingEnvVars };

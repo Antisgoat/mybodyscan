@@ -1,9 +1,10 @@
 import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { getEnv } from "./env";
 
-const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string;
-if (!BASE) {
-  throw new Error("VITE_FUNCTIONS_BASE_URL not set");
+const BASE = getEnv("VITE_FUNCTIONS_BASE_URL");
+if (!BASE && import.meta.env.DEV) {
+  console.warn("VITE_FUNCTIONS_BASE_URL not set; API calls will fail");
 }
 
 async function authedFetch(path: string, init?: RequestInit) {

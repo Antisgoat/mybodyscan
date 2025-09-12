@@ -28,4 +28,9 @@ jobs:
       - name: Deploy Hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only hosting --project mybodyscan-f3daf
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "FIREBASE_TOKEN missing; skipping deploy"
+          else
+            firebase deploy --only hosting --project mybodyscan-f3daf
+          fi
