@@ -26,7 +26,7 @@ export const runBodyScan = functions
     let result;
     try {
         if (provider === "leanlense") {
-            result = await runLeanlensePlaceholder(scan);
+            result = await runLeanlensePlaceholder();
         }
         else {
             result = await runReplicateMvp(scan);
@@ -47,7 +47,7 @@ export const runBodyScan = functions
         throw new functions.https.HttpsError("internal", err?.message || "scan failed");
     }
 });
-async function runLeanlensePlaceholder(scan) {
+async function runLeanlensePlaceholder() {
     return {
         metrics: {
             body_fat_pct: null,
