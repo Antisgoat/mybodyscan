@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,9 @@ import { startScan, uploadScanFile, runBodyScan, listenToScan } from "@/lib/scan
 import { sanitizeFilename } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
+import { getAppConfig } from "@/lib/appConfig";
+import { grantTestCredits } from "@/lib/callGrantTestCredits";
+import { useCredits } from "@/hooks/useCredits";
 
 type Stage = "idle" | "uploading" | "processing";
 
@@ -15,6 +18,34 @@ export default function ScanNew() {
   const [stage, setStage] = useState<Stage>("idle");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { credits } = useCredits();
+  const [cfg, setCfg] = React.useState<Awaited<ReturnType<typeof getAppConfig>> | null>(null);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    getAppConfig().then((c) => {
+      if (alive) setCfg(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const canShowTestUI = !!cfg?.allowFreeScans;
+
+  const onGetTest = async () => {
+    try {
+      setBusy(true);
+      const res = await grantTestCredits();
+      console.info("Test credits granted:", res);
+    } catch (e) {
+      console.error("grantTestCredits failed", e);
+      alert("Could not grant test credits. Are you whitelisted?");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleFileUpload = async () => {
     if (!auth.currentUser) {
@@ -108,11 +139,17 @@ export default function ScanNew() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Seo 
+      <Seo
         title="New Scan - MyBodyScan"
         description="Upload a photo or video for body composition analysis"
       />
-      
+
+      {canShowTestUI && (
+        <div className="rounded-lg border p-3 text-sm">
+          <b>Test mode active:</b> You can grant yourself test credits to try scans without paying.
+        </div>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold mb-2">New Scan</h1>
         <p className="text-muted-foreground">
@@ -140,7 +177,7 @@ export default function ScanNew() {
               {stage === "uploading" && "Uploading..."}
               {stage === "processing" && "Processing..."}
             </Button>
-            
+
             <Button
               onClick={handleFileUpload}
               disabled={stage !== "idle"}
@@ -161,6 +198,16 @@ export default function ScanNew() {
           </div>
         </CardContent>
       </Card>
+
+      {canShowTestUI && credits === 0 && (
+        <button
+          onClick={onGetTest}
+          disabled={busy}
+          className="px-4 py-2 rounded-md border"
+        >
+          {busy ? "Granting..." : "Get test credits"}
+        </button>
+      )}
     </div>
   );
 }
