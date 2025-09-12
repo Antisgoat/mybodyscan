@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function changed() { return request.resource.data.diff(resource.data).changedKeys(); }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && !request.resource.data.keys().hasAny([
+          'credits','billing','plan','subscription','role',
+          'stripe','stripeCustomerId','stripeSubscriptionId','stripe_customer_id'
+        ]);
+
+      // Block server-owned / sensitive fields from client edits
+      allow update: if isOwner(uid)
+        && !changed().hasAny([
+          'credits','billing','plan','subscription','role',
+          'stripe','stripeCustomerId','stripeSubscriptionId','stripe_customer_id'
+        ]);
+
+      allow delete: if false;
+
+      // ----- Subcollections -----
+
+      // SCANS: client creates minimal doc; client can only update notes; results/status server-only
+      match /scans/{scanId} {
+        allow read: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.status in ['queued','processing']
+          && request.resource.data.createdAt is timestamp
+          && !request.resource.data.keys().hasAny([
+            'bodyFat','body_fat','bodyFatPercentage','weight','weight_lbs','bmi',
+            'completedAt','error','results'
+          ]);
+
+        // Client updates limited strictly to notes
+        allow update: if isOwner(uid)
+          && changed().hasOnly(['note','notes','noteUpdatedAt']);
+
+        allow delete: if false;
+      }
+
+      // COACH: profile user-writable; PLAN server-only
+      match /coach/profile { allow read, write: if isOwner(uid); }
+      match /coach/plan/{doc=**} { allow read: if isOwner(uid); allow write: if false; }
+
+      // Nutrition logs (owner only; reasonable bounds)
+      match /nutritionLogs/{day} {
+        allow read, write: if isOwner(uid)
+          && request.resource.data.calories is number
+          && request.resource.data.calories >= 0 && request.resource.data.calories <= 10000
+          && request.resource.data.protein_g is number && request.resource.data.protein_g >= 0
+          && request.resource.data.carbs_g is number && request.resource.data.carbs_g >= 0
+          && request.resource.data.fat_g is number && request.resource.data.fat_g >= 0;
+      }
+
+      // Health daily (owner only)
+      match /healthDaily/{day} { allow read, write: if isOwner(uid); }
+
+      // Credit uses: server-only writes
+      match /credit_uses/{id} { allow read: if isOwner(uid); allow write: if false; }
+
+      // Private documents: credits are read-only
+      match /private/credits { allow read: if isOwner(uid); allow write: if false; }
+    }
+
+    // Payments: block all client access (server-only)
+    match /payments/{id} { allow read, write: if false; }
+
+    // Stripe events: server-only
+    match /stripe_events/{id} { allow read, write: if false; }
+
+    // Default deny
+    match /{document=**} { allow read, write: if false; }
+  }
+}

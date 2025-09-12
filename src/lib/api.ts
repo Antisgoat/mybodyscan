@@ -27,16 +27,33 @@ export async function startScan(params: { filename: string; size: number; conten
   return data as { scanId: string; remaining: number };
 }
 
+function isValidCheckoutUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname === 'checkout.stripe.com';
+  } catch {
+    return false;
+  }
+}
+
 export async function openStripeCheckout(priceId: string, plan: string, mode: "payment" | "subscription") {
   const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(priceId)}&plan=${encodeURIComponent(plan)}&mode=${mode}`);
   const { url } = await r.json();
-  if (url) window.location.href = url;
+  if (url && isValidCheckoutUrl(url)) {
+    window.location.href = url;
+  } else {
+    throw new Error('Invalid checkout URL received');
+  }
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
   const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(productId)}`);
   const { url } = await r.json();
-  if (url) window.location.href = url;
+  if (url && isValidCheckoutUrl(url)) {
+    window.location.href = url;
+  } else {
+    throw new Error('Invalid checkout URL received');
+  }
 }
 
 export async function openStripePortal() {
@@ -49,7 +66,11 @@ export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"si
   const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
   const { data } = await createCheckoutSession({ plan });
   const { url } = data as { id: string; url: string };
-  window.location.assign(url);
+  if (url && isValidCheckoutUrl(url)) {
+    window.location.assign(url);
+  } else {
+    throw new Error('Invalid checkout URL received');
+  }
 }
 
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };
