@@ -116,7 +116,7 @@ const App = () => {
             <Route
               path="/onboarding-mbs"
               element={
-                <React.Suspense fallback={<div className="p-6 text-slate-500">Loading…</div>}>
+                <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-pulse rounded-md bg-muted h-8 w-32"></div></div>}>
                   <OnboardingMBS />
                 </React.Suspense>
               }
