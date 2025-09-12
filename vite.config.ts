@@ -17,7 +17,13 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Force rollup to use WASM version to avoid native binary issues
+      "rollup": "@rollup/wasm-node",
     },
     dedupe: ["react", "react-dom"],
+  },
+  // Explicitly configure esbuild for better compatibility
+  esbuild: {
+    target: 'esnext',
   },
 }));
