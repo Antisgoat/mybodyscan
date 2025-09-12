@@ -203,7 +203,7 @@ export default function CoachOnboardingNew() {
       <CardContent className="space-y-4">
         <RadioGroup
           value={data.activity_level}
-          onValueChange={(value: typeof data.activity_level) => updateData({ activity_level: value })}
+          onValueChange={(value: string) => updateData({ activity_level: value as typeof data.activity_level })}
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="sedentary" id="sedentary" />
@@ -250,7 +250,7 @@ export default function CoachOnboardingNew() {
           <Label>Primary Goal</Label>
           <RadioGroup
             value={data.goal}
-            onValueChange={(value: typeof data.goal) => updateData({ goal: value })}
+            onValueChange={(value: string) => updateData({ goal: value as typeof data.goal })}
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="lose_fat" id="lose_fat" />
@@ -282,7 +282,7 @@ export default function CoachOnboardingNew() {
           <Label>Approach</Label>
           <RadioGroup
             value={data.style}
-            onValueChange={(value: typeof data.style) => updateData({ style: value })}
+            onValueChange={(value: string) => updateData({ style: value as typeof data.style })}
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="ease_in" id="ease_in" />
