@@ -90,6 +90,16 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_APPCHECK_SITE_KEY` *(optional but recommended)*
 
+## Build & Deploy
+
+```
+npm install
+npm run build
+firebase deploy --only hosting
+```
+
+After deploying, load the site and verify the build tag in the bottom-right corner to confirm the new release.
+
 ## Testing rules
 
 Run Firestore security rules tests using the emulator suite:

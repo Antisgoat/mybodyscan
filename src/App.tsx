@@ -42,6 +42,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import BuildTag from "@/components/BuildTag";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -122,11 +123,12 @@ const App = () => {
               }
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+              <Route path="*" element={<NotFound />} />
               </Routes>
             </OnboardingRedirectMBS>
         </AuthGate>
       </TooltipProvider>
+      <BuildTag />
     </QueryClientProvider>
   );
 };

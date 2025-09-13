@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
-import { isFirebaseConfigured } from "@/lib/firebase";
+import { useFirebaseReady } from "@/lib/useFirebaseReady";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -17,6 +17,16 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const ready = useFirebaseReady();
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!ready) {
+        toast({ title: "Firebase not configured", description: "Please try again later." });
+      }
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +46,10 @@ const Auth = () => {
   };
 
   const onGoogle = async () => {
+    if (!ready) {
+      toast({ title: "Firebase not configured", description: "Please try again later." });
+      return;
+    }
     setLoading(true);
     try {
       await signInGoogle();
@@ -48,11 +62,10 @@ const Auth = () => {
   };
 
   const onGuest = async () => {
-    if (!isFirebaseConfigured) {
-      toast({ title: "Guest sign-in unavailable", description: "Guest sign-in is unavailable in preview because Firebase config is missing." });
+    if (!ready) {
+      toast({ title: "Firebase not configured", description: "Please try again later." });
       return;
     }
-    
     setLoading(true);
     try {
       await signInGuest();
@@ -125,8 +138,8 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !isFirebaseConfigured}>Continue with Google</Button>
-            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !isFirebaseConfigured}>Continue as guest</Button>
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
+            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !ready}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>
