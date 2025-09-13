@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,9 +17,21 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(isFirebaseConfigured);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) {
+      const t = setTimeout(() => {
+        toast({ title: "Firebase not configured. Please try again later." });
+      }, 5000);
+      return () => clearTimeout(t);
+    }
+    setReady(true);
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ready) return;
     setLoading(true);
     try {
       if (mode === "signin") {
@@ -36,6 +48,7 @@ const Auth = () => {
   };
 
   const onGoogle = async () => {
+    if (!ready) return;
     setLoading(true);
     try {
       await signInGoogle();
@@ -48,11 +61,11 @@ const Auth = () => {
   };
 
   const onGuest = async () => {
-    if (!isFirebaseConfigured) {
+    if (!ready) {
       toast({ title: "Guest sign-in unavailable", description: "Guest sign-in is unavailable in preview because Firebase config is missing." });
       return;
     }
-    
+
     setLoading(true);
     try {
       await signInGuest();
@@ -111,7 +124,7 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading}>
+              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || !ready}>
                 {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
               </Button>
               <Button type="button" variant="link" onClick={async () => {
@@ -125,8 +138,8 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !isFirebaseConfigured}>Continue with Google</Button>
-            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !isFirebaseConfigured}>Continue as guest</Button>
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !ready}>Continue with Google</Button>
+            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !ready}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>

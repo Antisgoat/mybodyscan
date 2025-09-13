@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 
+functions/lib
+
 # Env files
 .env.local
 .env.production
