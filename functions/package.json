@@ -7,7 +7,7 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "eslint . --ext .ts --max-warnings 0 --config ../.eslintrc.cjs",
+    "lint": "eslint . --ext .ts --max-warnings 0",
     "serve": "firebase emulators:start --only functions",
     "start": "node lib/index.js",
     "test": "echo \"(add tests later)\""

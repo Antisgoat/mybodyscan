@@ -1,18 +1,17 @@
 # Fixes
 
-- Added environment fallbacks to avoid crashes when `.env` variables are missing and exposed a dev-only banner.
-- Wrapped application with React Router, StrictMode, and global error boundary; added preview health check.
-- Guarded direct `window` access in health adapters to prevent SSR/preview crashes.
-- Functions: handled missing Replicate token gracefully.
-- Added CI check to skip hosting deploy when `FIREBASE_TOKEN` is absent.
+- Resolved Vite config merge conflict and ensured stable build pipeline.
+- Corrected Cloud Function memory setting ("1GB") and hardened scan provider switching.
+- Reworked Firebase initialization with runtime/hosting fallbacks to avoid auth/api-key errors.
+- Fixed Coach onboarding radio group type guarding and added stubs/guards where needed.
+- Added build tag, error boundary, and safety wrappers to prevent blank preview.
 
-## Root causes of blank preview
-- App crashed on startup if Firebase environment variables were missing.
-- Modules accessed `window` at import time leading to `ReferenceError` during build/preview.
-
-## Temporary ESLint relaxations
-- `@typescript-eslint/no-explicit-any` and `react-refresh/only-export-components` disabled project-wide.
+## Root causes
+- Vite config drift and missing defensive Firebase init led to broken builds and invalid API key popups.
+- Cloud Function used "1GiB" memory setting and lacked provider fallbacks.
+- RadioGroup goal field accepted any string causing type errors.
 
 ## Next steps
-- Tighten lint rules and add stricter typing.
-- Implement real mask parsing for Replicate scans to replace placeholder metrics.
+- Tighten ESLint rules and add tests.
+- Replace Leanlense placeholder with real provider when ready.
+- Expand CI to cover functions and security rules.

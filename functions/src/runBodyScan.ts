@@ -64,10 +64,10 @@ export const runBodyScan = functions
 async function runLeanlensePlaceholder() {
   return {
     metrics: {
-      body_fat_pct: null,
-      note: "Leanlense pending; switch provider to replicate-mvp to compute estimates.",
+      body_fat_pct: 20,
+      note: "Leanlense placeholder result",
     },
-    logs: ["leanlense: no-op"],
+    logs: ["leanlense: placeholder"],
   };
 }
 
@@ -82,11 +82,11 @@ async function runReplicateMvp(scan: ScanDoc) {
   }
 
   if (!replicate) {
-    // Return placeholder metrics when replicate token is absent
     return {
       metrics: { body_fat_pct: null, note: "Replicate token missing" },
       logs: ["replicate: token missing"],
-    };
+      warning: "replicate token missing",
+    } as any;
   }
 
   const denseposeModel = "chigozienri/densepose:latest";

@@ -42,6 +42,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import BuildTag from "./components/BuildTag";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -126,6 +127,7 @@ const App = () => {
               </Routes>
             </OnboardingRedirectMBS>
         </AuthGate>
+        <BuildTag />
       </TooltipProvider>
     </QueryClientProvider>
   );
