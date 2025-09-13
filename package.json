@@ -70,7 +70,6 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.23",
