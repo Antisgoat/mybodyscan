@@ -7,18 +7,37 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-ch
 import { getEnv, missingEnvVars } from "./env";
 
 // Collect Firebase config from env with safe fallbacks for preview
-export const firebaseConfig = {
-  apiKey: getEnv("VITE_FIREBASE_API_KEY", "demo-api-key"),
-  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN", "demo-project.firebaseapp.com"),
-  projectId: getEnv("VITE_FIREBASE_PROJECT_ID", "demo-project"),
-  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET", "demo-project.appspot.com"),
-  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID", "123456789"),
-  appId: getEnv("VITE_FIREBASE_APP_ID", "1:123456789:web:abcdef"),
-  measurementId: getEnv("VITE_FIREBASE_MEASUREMENT_ID", "G-ABCDEF"),
+const env = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "mybodyscan-f3daf",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "mybodyscan-f3daf.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+
+function isValidConfig(c: any): boolean {
+  return !!c?.apiKey && !!c?.appId;
+}
+
+// Initialize with proper fallback for preview
+export const firebaseConfig = isValidConfig(env) ? env : {
+  apiKey: "demo-api-key",
+  authDomain: "mybodyscan-f3daf.firebaseapp.com", 
+  projectId: "mybodyscan-f3daf",
+  storageBucket: "mybodyscan-f3daf.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:demo"
+};
+
+export const isFirebaseConfigured = isValidConfig(env);
 
 // Initialize Firebase only once
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+
+if (!isFirebaseConfigured) {
+  console.warn("Preview: Firebase env vars missing/invalid — using placeholder config so UI can render.");
+}
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);

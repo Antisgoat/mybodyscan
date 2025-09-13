@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
+import { isFirebaseConfigured } from "@/lib/firebase";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -47,6 +48,11 @@ const Auth = () => {
   };
 
   const onGuest = async () => {
+    if (!isFirebaseConfigured) {
+      toast({ title: "Guest sign-in unavailable", description: "Guest sign-in is unavailable in preview because Firebase config is missing." });
+      return;
+    }
+    
     setLoading(true);
     try {
       await signInGuest();
@@ -119,8 +125,8 @@ const Auth = () => {
             </div>
           </form>
           <div className="mt-4 grid gap-2">
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
-            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading}>Continue as guest</Button>
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !isFirebaseConfigured}>Continue with Google</Button>
+            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !isFirebaseConfigured}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>
