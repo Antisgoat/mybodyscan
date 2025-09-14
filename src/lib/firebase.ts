@@ -6,13 +6,8 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-ch
 import { envConfig, isValid, fetchHostingConfig, type FirebaseCfg } from "./firebaseConfig";
 import { getEnv, missingEnvVars } from "./env";
 
+// Initialize config synchronously first
 let config: Partial<FirebaseCfg> | FirebaseCfg = envConfig();
-if (!isValid(config)) {
-  const hosting = await fetchHostingConfig();
-  if (hosting && isValid(hosting)) {
-    config = hosting;
-  }
-}
 
 export const isFirebaseConfigured = isValid(config);
 
@@ -25,11 +20,23 @@ if (!isFirebaseConfigured) {
   } as any;
 }
 
+// Initialize Firebase with current config
 export const app = initializeApp(config as FirebaseCfg);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const firebaseConfig = config as FirebaseCfg;
+
+// Attempt to load hosting config asynchronously in background (non-blocking)
+if (!isFirebaseConfigured && typeof window !== "undefined") {
+  fetchHostingConfig().then((hostingConfig) => {
+    if (hostingConfig && isValid(hostingConfig)) {
+      console.log("Firebase hosting config found but app already initialized with placeholder");
+    }
+  }).catch(() => {
+    // Silently ignore - placeholder config already in use
+  });
+}
 
 let warned = false;
 const appCheckKey = getEnv("VITE_APPCHECK_SITE_KEY");
