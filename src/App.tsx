@@ -87,6 +87,8 @@ const App = () => {
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
+            <Route path="/success" element={<CheckoutSuccess />} />
+            <Route path="/cancel" element={<CheckoutCanceled />} />
             {/* Auth */}
             <Route path="/auth" element={<Auth />} />
             {/* Protected app */}
