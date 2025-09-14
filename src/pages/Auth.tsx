@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { createAccountEmail, signInEmail, signInGoogle, signInApple, sendReset, signInGuest } from "@/lib/auth";
-import { isFirebaseConfigured } from "@/lib/firebase";
+import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -17,39 +16,9 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(isFirebaseConfigured);
-  const [appleAvailable, setAppleAvailable] = useState(false);
-
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      const t = setTimeout(() => {
-        toast({ title: "Firebase not configured. Please try again later." });
-      }, 5000);
-      return () => clearTimeout(t);
-    }
-    setReady(true);
-    
-    // Check if Apple sign-in is configured
-    const checkApple = async () => {
-      try {
-        // Simple check - if Apple sign-in throws immediately, it's not configured
-        await signInApple().catch(() => {});
-        setAppleAvailable(true);
-      } catch {
-        setAppleAvailable(false);
-      }
-    };
-    
-    // Only check Apple availability if Firebase is ready
-    if (isFirebaseConfigured) {
-      // Set a reasonable default and let the actual sign-in attempt determine availability
-      setAppleAvailable(true);
-    }
-  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ready) return;
     setLoading(true);
     try {
       if (mode === "signin") {
@@ -66,7 +35,6 @@ const Auth = () => {
   };
 
   const onGoogle = async () => {
-    if (!ready) return;
     setLoading(true);
     try {
       await signInGoogle();
@@ -78,25 +46,7 @@ const Auth = () => {
     }
   };
 
-  const onApple = async () => {
-    if (!ready) return;
-    setLoading(true);
-    try {
-      await signInApple();
-      navigate(from, { replace: true });
-    } catch (err: any) {
-      toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const onGuest = async () => {
-    if (!ready) {
-      toast({ title: "Guest sign-in unavailable", description: "Guest sign-in is unavailable in preview because Firebase config is missing." });
-      return;
-    }
-
     setLoading(true);
     try {
       await signInGuest();
@@ -155,7 +105,7 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || !ready}>
+              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading}>
                 {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
               </Button>
               <Button type="button" variant="link" onClick={async () => {
@@ -168,26 +118,9 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <div className="mt-4 space-y-2">
-            <Button variant="secondary" className="w-full" onClick={onGoogle} disabled={loading || !ready}>
-              Continue with Google
-            </Button>
-            {appleAvailable && (
-              <Button variant="secondary" className="w-full" onClick={onApple} disabled={loading || !ready}>
-                Continue with Apple
-              </Button>
-            )}
-            <Button variant="outline" className="w-full" onClick={onGuest} disabled={loading || !ready}>
-              Continue as guest
-            </Button>
-            <div className="text-center pt-2">
-              <Link 
-                to="/explore" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
-              >
-                Explore without signing up
-              </Link>
-            </div>
+          <div className="mt-4 grid gap-2">
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading}>Continue with Google</Button>
+            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading}>Continue as guest</Button>
           </div>
         </CardContent>
       </Card>

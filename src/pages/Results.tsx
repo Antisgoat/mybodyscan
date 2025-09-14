@@ -8,8 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
-import { useScanById } from "@/hooks/useScanById";
-import { useParams } from "react-router-dom";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 type ScanData = {
@@ -30,9 +28,9 @@ type ScanData = {
 
 // Helper function to normalize field names
 const normalizeFields = (scan: ScanData) => {
-  const bodyFat = scan.bodyFatPercentage ?? scan.body_fat ?? scan.bodyfat ?? scan.results?.bfPercent ?? null;
-  const weightLbs = scan.weight ?? scan.weight_lbs ?? (scan.results?.weightEstimate_kg ? scan.results.weightEstimate_kg * 2.20462 : null) ?? null;
-  const bmi = scan.bmi ?? scan.results?.bmi ?? null;
+  const bodyFat = scan.bodyFatPercentage ?? scan.body_fat ?? scan.bodyfat ?? null;
+  const weightLbs = scan.weight ?? scan.weight_lbs ?? null;
+  const bmi = scan.bmi ?? null;
   
   return { bodyFat, weightLbs, bmi };
 };
@@ -94,16 +92,7 @@ const ProcessingUI = () => {
 
 const Results = () => {
   const navigate = useNavigate();
-  const { scanId } = useParams();
-  
-  // Use specific scan if scanId provided, otherwise use latest scan
-  const { scan: latestScan, loading: latestLoading, error: latestError, user: latestUser } = useLatestScanForUser();
-  const { scan: specificScan, loading: specificLoading, error: specificError, user: specificUser } = useScanById(scanId);
-  
-  const scan = scanId ? specificScan : latestScan;
-  const loading = scanId ? specificLoading : latestLoading;
-  const error = scanId ? specificError : latestError;
-  const user = scanId ? specificUser : latestUser;
+  const { scan, loading, error, user } = useLatestScanForUser();
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 

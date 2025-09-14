@@ -17,7 +17,6 @@ import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
-import PhotoCaptureNew from "./pages/PhotoCaptureNew";
 import VideoCapture from "./pages/VideoCapture";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
@@ -43,10 +42,6 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
-import CalorieTracker from "./pages/CalorieTracker";
-import Explore from "./pages/Explore";
-import BuildTag from "./components/BuildTag";
-import EnvBadge from "./components/EnvBadge";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -76,36 +71,30 @@ const App = () => {
             />
             {/* Marketing page */}
             <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
-            {/* Public pages (legal, etc.) */}
-            <Route path="/explore" element={<PublicLayout><Explore /></PublicLayout>} />
+            {/* Public pages */}
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
-            <Route path="/legal/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
-            <Route path="/legal/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
-            <Route path="/success" element={<CheckoutSuccess />} />
-            <Route path="/cancel" element={<CheckoutCanceled />} />
             {/* Auth */}
             <Route path="/auth" element={<Auth />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture/video" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             {/* Processing routes (old + new kept) */}
             <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
             <Route path="/processing/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
             {/* Results */}
             <Route path="/results/:scanId" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/results" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
             {/* Other */}
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
@@ -113,11 +102,9 @@ const App = () => {
             <Route path="/settings/units" element={<ProtectedRoute><AuthedLayout><SettingsUnits /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/onboarding" element={<ProtectedRoute><AuthedLayout><CoachOnboarding /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/coach" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
             {/* New scan routes */}
-            <Route path="/scan" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
@@ -134,14 +121,11 @@ const App = () => {
                 </React.Suspense>
               }
             />
-            <Route path="/nutrition" element={<ProtectedRoute><AuthedLayout><CalorieTracker /></AuthedLayout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
               </Routes>
             </OnboardingRedirectMBS>
         </AuthGate>
-        <BuildTag />
-        <EnvBadge />
       </TooltipProvider>
     </QueryClientProvider>
   );

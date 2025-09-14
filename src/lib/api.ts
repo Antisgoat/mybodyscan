@@ -62,26 +62,16 @@ export async function openStripePortal() {
   const { url } = await r.json();
   if (url) window.open(url, "_blank", "noopener,noreferrer");
 }
-export async function createCheckout(plan: string) {
-  const r = await authedFetch("/createCheckout", {
-    method: "POST",
-    body: JSON.stringify({ plan, uid: auth.currentUser?.uid }),
-  });
-  const { url } = await r.json();
+export async function startCheckout(plan: "annual"|"monthly"|"pack5"|"pack3"|"single") {
+  const functions = getFunctions(app);
+  const createCheckoutSession = httpsCallable(functions, "createCheckoutSession");
+  const { data } = await createCheckoutSession({ plan });
+  const { url } = data as { id: string; url: string };
   if (url && isValidCheckoutUrl(url)) {
-    window.location.href = url;
+    window.location.assign(url);
   } else {
     throw new Error('Invalid checkout URL received');
   }
-}
-
-export async function createBillingPortal() {
-  const r = await authedFetch("/createBillingPortal", {
-    method: "POST", 
-    body: JSON.stringify({ uid: auth.currentUser?.uid }),
-  });
-  const { url } = await r.json();
-  if (url) window.location.href = url;
 }
 
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };

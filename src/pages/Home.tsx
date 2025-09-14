@@ -1,11 +1,9 @@
-import TestModeBanner from "@/components/TestModeBanner";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
-import TestModeWrapper from "@/components/TestModeWrapper";
 import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -76,10 +74,8 @@ const Home = () => {
   }, [user]);
 
   return (
-    <TestModeWrapper>
-      <main className="min-h-screen p-6 max-w-md mx-auto">
+    <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
-      <TestModeBanner />
       <div className="mb-4 flex justify-center">
         <Card className="w-40">
           <CardContent className="p-4 text-center">
@@ -144,7 +140,6 @@ const Home = () => {
         </div>
       </section>
     </main>
-    </TestModeWrapper>
   );
 };
 

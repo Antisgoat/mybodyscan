@@ -1,22 +1,16 @@
 import { useEffect, useState } from "react";
-import { auth, isFirebaseConfigured } from "@/lib/firebase";
-import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut, GoogleAuthProvider, OAuthProvider, signInWithRedirect, signInWithPopup, signInAnonymously, linkWithCredential, EmailAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut, GoogleAuthProvider, signInWithRedirect, signInWithPopup, signInAnonymously, linkWithCredential, EmailAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "firebase/auth";
 
 export async function initAuthPersistence() {
-  if (!isFirebaseConfigured) return;
   await setPersistence(auth, browserLocalPersistence);
 }
 
 export function useAuthUser() {
   const [user, setUser] = useState<typeof auth.currentUser>(auth.currentUser);
-  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -35,13 +29,6 @@ export async function signOutToAuth(): Promise<void> {
 // New helpers
 export function signInGoogle() {
   const provider = new GoogleAuthProvider();
-  return signInWithPopup(auth, provider);
-}
-
-export function signInApple() {
-  const provider = new OAuthProvider('apple.com');
-  provider.addScope('name');
-  provider.addScope('email');
   return signInWithPopup(auth, provider);
 }
 

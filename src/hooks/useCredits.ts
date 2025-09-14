@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, firebaseConfig, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, db, firebaseConfig } from "@/lib/firebase";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -11,10 +11,6 @@ export function useCredits() {
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setLoading(false);
-      return;
-    }
     const unsub = onAuthStateChanged(
       auth,
       (u) => {
@@ -33,7 +29,7 @@ export function useCredits() {
   }, []);
 
   useEffect(() => {
-    if (!uid || !isFirebaseConfigured) return;
+    if (!uid) return;
 
     setLoading(true);
     const ref = doc(db, "users", uid, "private", "credits");

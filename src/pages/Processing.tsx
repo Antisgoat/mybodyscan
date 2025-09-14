@@ -21,7 +21,7 @@ const Processing = () => {
         const data: any = snap.data();
         const s = data?.status ?? "queued";
         setStatus(s);
-        if (s === "completed") {
+        if (s === "done") {
           navigate(`/results/${scanId}`, { replace: true });
         }
       },

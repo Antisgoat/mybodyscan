@@ -160,7 +160,7 @@ export default function History() {
                   <h3 className="text-lg font-medium">No scans yet</h3>
                   <p className="text-muted-foreground text-sm">Your first scan takes ~1–2 minutes.</p>
                 </div>
-                <Button onClick={() => navigate("/capture/photos")} className="w-full">
+                <Button onClick={() => navigate("/scan/new")} className="w-full">
                   Start Your First Scan
                 </Button>
               </div>
@@ -187,7 +187,7 @@ export default function History() {
             <Card 
               key={scan.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => navigate(`/results/${scan.id}`)}
+              onClick={() => navigate(`/results`)}
             >
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between mb-3">

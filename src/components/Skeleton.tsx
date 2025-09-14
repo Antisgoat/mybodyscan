@@ -1,3 +1,5 @@
+import React from "react";
+
 export default function Skeleton() {
-  return <div style={{ height: 24, borderRadius: 6, opacity: 0.2, background: "currentColor" }} />;
+  return <div className="animate-pulse h-4 w-4 rounded bg-muted" />;
 }

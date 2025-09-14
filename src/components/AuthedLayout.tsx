@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { signOutToAuth } from "@/lib/auth";
 import Footer from "./Footer";
 import { useCredits } from "@/hooks/useCredits";
-import EnvBadge from "./EnvBadge";
 
 export default function AuthedLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -19,21 +18,16 @@ export default function AuthedLayout({ children }: { children: ReactNode }) {
           </button>
           <nav className="flex items-center gap-2 text-sm">
             <NavLink to="/home" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Home</NavLink>
-            <NavLink to="/capture/photos" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Scan</NavLink>
-            <NavLink to="/nutrition" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Tracker</NavLink>
-            <NavLink to="/coach/tracker" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Coach</NavLink>
             <NavLink to="/history" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>History</NavLink>
+            <NavLink to="/report" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Report</NavLink>
             <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Settings</NavLink>
-            <span className="text-muted-foreground">Credits: {credits}</span>
+            <NavLink to="/coach/tracker" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Credits: {credits}</NavLink>
             <Button size="sm" variant="outline" onClick={signOutToAuth}>Sign out</Button>
           </nav>
         </div>
       </header>
-          <main className="flex-1 mx-auto max-w-2xl px-4 py-4">
-            <EnvBadge />
-            {children}
-          </main>
+      <main className="flex-1 mx-auto max-w-2xl px-4 py-4">{children}</main>
       <Footer />
     </div>
   );

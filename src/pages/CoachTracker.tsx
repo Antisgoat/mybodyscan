@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
-import SubscriptionGate from "@/components/SubscriptionGate";
 
 const CoachTracker = () => {
   const { plan } = useUserProfile();
@@ -114,17 +113,16 @@ const CoachTracker = () => {
   const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
   return (
-    <SubscriptionGate feature="Coach Tracker">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Nutrition Tracker</h1>
-          {yesterday?.activeEnergyKcal && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <Flame className="h-3 w-3" />
-              Yesterday: {yesterday.activeEnergyKcal} kcal burned
-            </Badge>
-          )}
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Nutrition Tracker</h1>
+        {yesterday?.activeEnergyKcal && (
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Flame className="h-3 w-3" />
+            Yesterday: {yesterday.activeEnergyKcal} kcal burned
+          </Badge>
+        )}
+      </div>
 
       {/* Date Selector */}
       <Card>
@@ -305,8 +303,7 @@ const CoachTracker = () => {
           </div>
         </CardContent>
       </Card>
-      </div>
-    </SubscriptionGate>
+    </div>
   );
 };
 
