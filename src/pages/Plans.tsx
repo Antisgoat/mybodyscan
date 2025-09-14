@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
+import TestModeWrapper from "@/components/TestModeWrapper";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
@@ -77,7 +78,8 @@ const Plans = () => {
   };
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
+    <TestModeWrapper>
+      <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Plans – MyBodyScan" description="Choose pay-as-you-go or subscription to get more scans for less." canonical={window.location.href} />
       {banner && (
         <div className="mb-4 rounded-md bg-secondary text-secondary-foreground px-3 py-2 text-sm">{banner}</div>
@@ -155,6 +157,7 @@ const Plans = () => {
         </div>
       </section>
     </main>
+    </TestModeWrapper>
   );
 };
 

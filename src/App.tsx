@@ -46,6 +46,7 @@ import DebugHealth from "./pages/DebugHealth";
 import CalorieTracker from "./pages/CalorieTracker";
 import Explore from "./pages/Explore";
 import BuildTag from "./components/BuildTag";
+import EnvBadge from "./components/EnvBadge";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -102,6 +103,7 @@ const App = () => {
             <Route path="/processing/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
             {/* Results */}
             <Route path="/results/:scanId" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/results" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
             {/* Other */}
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
@@ -111,7 +113,8 @@ const App = () => {
             <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
             {/* New scan routes */}
-            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/scan" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
@@ -135,6 +138,7 @@ const App = () => {
             </OnboardingRedirectMBS>
         </AuthGate>
         <BuildTag />
+        <EnvBadge />
       </TooltipProvider>
     </QueryClientProvider>
   );

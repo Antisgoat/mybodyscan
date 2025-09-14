@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
+import TestModeWrapper from "@/components/TestModeWrapper";
 import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
@@ -75,7 +76,8 @@ const Home = () => {
   }, [user]);
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
+    <TestModeWrapper>
+      <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
       <TestModeBanner />
       <div className="mb-4 flex justify-center">
@@ -142,6 +144,7 @@ const Home = () => {
         </div>
       </section>
     </main>
+    </TestModeWrapper>
   );
 };
 

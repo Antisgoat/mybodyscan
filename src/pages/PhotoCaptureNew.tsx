@@ -10,6 +10,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
+import TestModeWrapper from "@/components/TestModeWrapper";
 import { v4 as uuidv4 } from "uuid";
 import { useSpendCredit } from "@/hooks/useSpendCredit";
 
@@ -117,7 +118,7 @@ export default function PhotoCaptureNew() {
 
       setStage("processing");
 
-      // Create scan document
+      // Create initial scan document
       const scanDoc = {
         uid,
         status: "processing",
@@ -128,8 +129,44 @@ export default function PhotoCaptureNew() {
 
       await setDoc(doc(db, "users", uid, "scans", scanId), scanDoc);
 
-      // Navigate to processing page
-      navigate(`/processing/${scanId}`);
+      // Process with placeholder scan engine
+      const { processScanPlaceholder } = await import("@/lib/scanEngine");
+      
+      // Mock input data - in production this would come from user profile
+      const scanInput = {
+        height_cm: 175, // Default height - should come from user profile
+        sex: "male" as const, // Should come from user profile
+        weight_kg: 70, // Optional - could come from user input
+        measurements: {
+          waist_cm: 85, // Estimated from photos in real implementation
+          neck_cm: 38,  // Estimated from photos in real implementation
+          hip_cm: 95    // For females - estimated from photos
+        }
+      };
+
+      // Process scan locally
+      const results = processScanPlaceholder(scanInput);
+
+      // Update scan document with results
+      const completedScanDoc = {
+        ...scanDoc,
+        status: "completed",
+        results: {
+          bfPercent: results.bodyFatPct,
+          bmi: results.bmi,
+          weightEstimate_kg: results.weightEstimate_kg,
+          insight: results.insight,
+          confidence: results.confidence
+        },
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        source: "placeholder"
+      };
+
+      await setDoc(doc(db, "users", uid, "scans", scanId), completedScanDoc);
+
+      // Navigate to results page
+      navigate(`/results/${scanId}`);
 
     } catch (error) {
       console.error("Scan processing error:", error);
@@ -144,27 +181,30 @@ export default function PhotoCaptureNew() {
 
   if (stage === "uploading" || stage === "processing") {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Seo title="Processing Scan - MyBodyScan" description="Processing your body scan photos" />
-        
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 mx-auto rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-          <h1 className="text-2xl font-bold">
-            {stage === "uploading" ? "Uploading Photos..." : "Processing Scan..."}
-          </h1>
-          <p className="text-muted-foreground">
-            {stage === "uploading" 
-              ? "Securely uploading your photos to our servers" 
-              : "Analyzing your photos for body composition"
-            }
-          </p>
+      <TestModeWrapper>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Seo title="Processing Scan - MyBodyScan" description="Processing your body scan photos" />
+          
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+            <h1 className="text-2xl font-bold">
+              {stage === "uploading" ? "Uploading Photos..." : "Processing Scan..."}
+            </h1>
+            <p className="text-muted-foreground">
+              {stage === "uploading" 
+                ? "Securely uploading your photos to our servers" 
+                : "Analyzing your photos for body composition"
+              }
+            </p>
+          </div>
         </div>
-      </div>
+      </TestModeWrapper>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <TestModeWrapper>
+      <div className="max-w-2xl mx-auto space-y-6">
       <Seo
         title="4-Photo Scan - MyBodyScan"
         description="Capture 4 photos for accurate body composition analysis"
@@ -288,5 +328,6 @@ export default function PhotoCaptureNew() {
         </CardContent>
       </Card>
     </div>
+    </TestModeWrapper>
   );
 }
