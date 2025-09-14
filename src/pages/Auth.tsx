@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(isFirebaseConfigured);
+  const [appleAvailable, setAppleAvailable] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -27,6 +28,23 @@ const Auth = () => {
       return () => clearTimeout(t);
     }
     setReady(true);
+    
+    // Check if Apple sign-in is configured
+    const checkApple = async () => {
+      try {
+        // Simple check - if Apple sign-in throws immediately, it's not configured
+        await signInApple().catch(() => {});
+        setAppleAvailable(true);
+      } catch {
+        setAppleAvailable(false);
+      }
+    };
+    
+    // Only check Apple availability if Firebase is ready
+    if (isFirebaseConfigured) {
+      // Set a reasonable default and let the actual sign-in attempt determine availability
+      setAppleAvailable(true);
+    }
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -150,10 +168,26 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <div className="mt-4 grid gap-2">
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !ready}>Continue with Google</Button>
-            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onApple} disabled={loading || !ready}>Continue with Apple</Button>
-            <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !ready}>Continue as guest</Button>
+          <div className="mt-4 space-y-2">
+            <Button variant="secondary" className="w-full" onClick={onGoogle} disabled={loading || !ready}>
+              Continue with Google
+            </Button>
+            {appleAvailable && (
+              <Button variant="secondary" className="w-full" onClick={onApple} disabled={loading || !ready}>
+                Continue with Apple
+              </Button>
+            )}
+            <Button variant="outline" className="w-full" onClick={onGuest} disabled={loading || !ready}>
+              Continue as guest
+            </Button>
+            <div className="text-center pt-2">
+              <Link 
+                to="/explore" 
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+              >
+                Explore without signing up
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -44,6 +44,7 @@ import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import CalorieTracker from "./pages/CalorieTracker";
+import Explore from "./pages/Explore";
 import BuildTag from "./components/BuildTag";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
@@ -74,9 +75,12 @@ const App = () => {
             />
             {/* Marketing page */}
             <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
-            {/* Public pages */}
+            {/* Public pages (legal, etc.) */}
+            <Route path="/explore" element={<PublicLayout><Explore /></PublicLayout>} />
             <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
+            <Route path="/legal/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
+            <Route path="/legal/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
             {/* Checkout result pages (public) */}
