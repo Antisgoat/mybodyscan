@@ -1,0 +1,38 @@
+import { onRequest } from "firebase-functions/v2/https";
+import { getFirestore } from "firebase-admin/firestore";
+import { getApps, initializeApp } from "firebase-admin/app";
+import { defineSecret } from "firebase-functions/params";
+import { getScanProvider } from "./providers/index.js";
+import type { ScanInput } from "./providers/scanProvider.js";
+
+const openaiKey = defineSecret("OPENAI_API_KEY");
+
+if (!getApps().length) initializeApp();
+const db = getFirestore();
+
+export const processQueuedScanHttp = onRequest({ region: "us-central1", secrets: [openaiKey] }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method not allowed");
+    return;
+  }
+  const { uid, scanId } = req.body as { uid: string; scanId: string };
+  if (!uid || !scanId) {
+    res.status(400).send("uid and scanId required");
+    return;
+  }
+  const scanRef = db.doc(`users/${uid}/scans/${scanId}`);
+  const snap = await scanRef.get();
+  if (!snap.exists) {
+    res.status(404).send("Scan not found");
+    return;
+  }
+  const data = snap.data() as { status: string; input: ScanInput };
+  if (data.status !== "queued") {
+    res.status(400).send("Scan not queued");
+    return;
+  }
+  const provider = await getScanProvider();
+  const output = await provider.analyze(data.input || {});
+  await scanRef.update({ status: "completed", result: output, completedAt: Date.now(), updatedAt: Date.now() });
+  res.json(output);
+});

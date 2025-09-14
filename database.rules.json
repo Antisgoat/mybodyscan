@@ -30,7 +30,7 @@ service cloud.firestore {
 
         allow create: if isOwner(uid)
           && request.resource.data.uid == uid
-          && request.resource.data.status in ['queued','processing']
+          && request.resource.data.status == 'queued'
           && request.resource.data.createdAt is timestamp
           && !request.resource.data.keys().hasAny([
             'bodyFat','body_fat','bodyFatPercentage','weight','weight_lbs','bmi',
