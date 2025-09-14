@@ -151,7 +151,10 @@ export default function ScanNew() {
       )}
 
       <div>
-        <h1 className="text-3xl font-bold mb-2">New Scan</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold mb-2">New Scan</h1>
+          <span className="text-sm text-muted-foreground">Credits: {credits}</span>
+        </div>
         <p className="text-muted-foreground">
           Upload a photo or video to get your body composition analysis
         </p>

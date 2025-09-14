@@ -3,10 +3,10 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
-import { envConfig, isValid, fetchHostingConfig } from "./firebaseConfig";
+import { envConfig, isValid, fetchHostingConfig, type FirebaseCfg } from "./firebaseConfig";
 import { getEnv, missingEnvVars } from "./env";
 
-let config = envConfig();
+let config: Partial<FirebaseCfg> | FirebaseCfg = envConfig();
 if (!isValid(config)) {
   const hosting = await fetchHostingConfig();
   if (hosting && isValid(hosting)) {
@@ -25,11 +25,11 @@ if (!isFirebaseConfigured) {
   } as any;
 }
 
-export const app = initializeApp(config);
+export const app = initializeApp(config as FirebaseCfg);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const firebaseConfig = config;
+export const firebaseConfig = config as FirebaseCfg;
 
 let warned = false;
 const appCheckKey = getEnv("VITE_APPCHECK_SITE_KEY");
@@ -46,3 +46,8 @@ if (typeof window !== "undefined") {
 }
 
 export { missingEnvVars };
+
+const ready = Promise.resolve({ app, auth, db, storage });
+export function getFirebase() {
+  return ready;
+}

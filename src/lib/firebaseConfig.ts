@@ -1,6 +1,13 @@
-import type { FirebaseOptions } from "firebase/app";
+export type FirebaseCfg = {
+  apiKey: string;
+  authDomain?: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  appId: string;
+};
 
-export function envConfig(): FirebaseOptions {
+export function envConfig(): Partial<FirebaseCfg> {
   return {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -8,26 +15,26 @@ export function envConfig(): FirebaseOptions {
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  } as FirebaseOptions;
+  };
 }
 
-export function isValid(cfg: FirebaseOptions | null | undefined): boolean {
-  return !!cfg?.apiKey && !!cfg?.appId && !!cfg?.projectId;
+export function isValid(c: any): c is FirebaseCfg {
+  return !!c?.apiKey && !!c?.appId && !!c?.projectId;
 }
 
-export async function fetchHostingConfig(): Promise<FirebaseOptions | null> {
+export async function fetchHostingConfig(): Promise<FirebaseCfg | null> {
   try {
-    const res = await fetch("/__/firebase/init.json", { cache: "no-store" });
-    if (!res.ok) return null;
-    const data = await res.json();
+    const r = await fetch("/__/firebase/init.json", { cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json();
     return {
-      apiKey: data.apiKey,
-      authDomain: data.authDomain,
-      projectId: data.projectId,
-      storageBucket: data.storageBucket,
-      messagingSenderId: data.messagingSenderId,
-      appId: data.appId,
-    } as FirebaseOptions;
+      apiKey: j.apiKey,
+      authDomain: j.authDomain,
+      projectId: j.projectId,
+      storageBucket: j.storageBucket,
+      messagingSenderId: j.messagingSenderId,
+      appId: j.appId,
+    };
   } catch {
     return null;
   }
