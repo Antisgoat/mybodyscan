@@ -3,7 +3,7 @@ import { defineSecret } from "firebase-functions/params";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import Stripe from "stripe";
-import { PLAN_CREDITS } from "./pricing.js";
+import { PRICES, PRO_BUNDLE_CREDITS } from "./pricing.js";
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -49,68 +49,65 @@ export const stripeWebhook = onRequest({
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const uid = session.metadata?.uid as string | undefined;
-      const plan = session.metadata?.plan as keyof typeof PLAN_CREDITS | undefined;
-      if (uid && plan && plan in PLAN_CREDITS) {
-        const userRef = db.doc(`users/${uid}`);
-        const ledgerRef = db.doc(`users/${uid}/ledger/${event.id}`);
-        await db.runTransaction(async (tx) => {
-          const snap = await tx.get(userRef);
-          const credits = (snap.get("credits") ?? 0) + PLAN_CREDITS[plan];
-          const data: any = { credits };
-          if (session.subscription) {
-            data.plan = plan;
-            data.stripeSubscriptionId = session.subscription;
-            data.stripeCustomerId = session.customer;
+      const plan = session.metadata?.plan as keyof typeof PRICES | undefined;
+      if (!uid || !plan) break;
+      const userRef = db.doc(`users/${uid}`);
+      const updates: any = { updatedAt: FieldValue.serverTimestamp() };
+      if (plan === "STARTER" || plan === "EXTRA") {
+        updates.credits = FieldValue.increment(1);
+      } else if (plan === "PRO_MONTHLY" || plan === "ELITE_ANNUAL") {
+        if (typeof session.subscription === "string") {
+          const sub = await stripe.subscriptions.retrieve(session.subscription);
+          updates.subscription = {
+            id: sub.id,
+            status: "active",
+            periodEnd: Timestamp.fromMillis(sub.current_period_end * 1000),
+            customerId: session.customer,
+          };
+          if (plan === "PRO_MONTHLY") {
+            updates.bundle = { remaining: PRO_BUNDLE_CREDITS };
           }
-          tx.set(userRef, data, { merge: true });
-          tx.set(ledgerRef, {
-            type: event.type,
-            plan,
-            credits: PLAN_CREDITS[plan],
-            amount_total: session.amount_total,
-            createdAt: FieldValue.serverTimestamp(),
-          });
-        });
+        }
       }
+      await userRef.set(updates, { merge: true });
       break;
     }
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Stripe.Invoice;
+      if (invoice.billing_reason !== "subscription_cycle") break;
       const subId = invoice.subscription;
-      if (typeof subId === "string") {
-        const users = await db
-          .collection("users")
-          .where("stripeSubscriptionId", "==", subId)
-          .get();
-        for (const doc of users.docs) {
-          const plan = doc.get("plan") as keyof typeof PLAN_CREDITS | undefined;
-          if (plan && plan in PLAN_CREDITS) {
-            await doc.ref.update({
-              credits: (doc.get("credits") ?? 0) + PLAN_CREDITS[plan],
-            });
-            await db
-              .doc(`users/${doc.id}/ledger/${event.id}`)
-              .set({
-                type: event.type,
-                plan,
-                credits: PLAN_CREDITS[plan],
-                amount_total: invoice.amount_paid,
-                createdAt: FieldValue.serverTimestamp(),
-              });
-          }
+      if (typeof subId !== "string") break;
+      const sub = await stripe.subscriptions.retrieve(subId);
+      const users = await db
+        .collection("users")
+        .where("subscription.id", "==", sub.id)
+        .get();
+      for (const doc of users.docs) {
+        const data: any = {
+          subscription: {
+            ...doc.get("subscription"),
+            status: "active",
+            periodEnd: Timestamp.fromMillis(sub.current_period_end * 1000),
+          },
+        };
+        if (sub.items.data.some((i) => i.price.id === PRICES.PRO_MONTHLY)) {
+          data.bundle = { remaining: PRO_BUNDLE_CREDITS };
         }
+        await doc.ref.set(data, { merge: true });
       }
       break;
     }
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription;
-      const subId = subscription.id;
       const users = await db
         .collection("users")
-        .where("stripeSubscriptionId", "==", subId)
+        .where("subscription.id", "==", subscription.id)
         .get();
       for (const doc of users.docs) {
-        await doc.ref.update({ plan: null, stripeSubscriptionId: null });
+        await doc.ref.set(
+          { subscription: { ...doc.get("subscription"), status: "canceled" } },
+          { merge: true }
+        );
       }
       break;
     }

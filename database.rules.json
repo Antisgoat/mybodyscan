@@ -9,14 +9,14 @@ service cloud.firestore {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid)
         && !request.resource.data.keys().hasAny([
-          'credits','billing','plan','subscription','role',
+          'credits','bundle','billing','plan','subscription','role',
           'stripe','stripeCustomerId','stripeSubscriptionId','stripe_customer_id'
         ]);
 
       // Block server-owned / sensitive fields from client edits
       allow update: if isOwner(uid)
         && !changed().hasAny([
-          'credits','billing','plan','subscription','role',
+          'credits','bundle','billing','plan','subscription','role',
           'stripe','stripeCustomerId','stripeSubscriptionId','stripe_customer_id'
         ]);
 
