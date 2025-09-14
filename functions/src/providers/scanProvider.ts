@@ -6,6 +6,9 @@ export type ScanInput = {
   sex?: "male" | "female";
   heightIn?: number;
   weightLb?: number;
+  waistIn?: number;
+  neckIn?: number;
+  hipIn?: number;
 };
 
 export type ScanOutput = {

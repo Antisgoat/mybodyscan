@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import type { ScanInput } from "./providers/scanProvider.js";
 
@@ -21,13 +21,13 @@ export const startScan = onCall({ region: "us-central1" }, async (request) => {
     const creditSnap = await tx.get(creditsRef);
     const credits = (creditSnap.exists ? Number(creditSnap.get("total") ?? 0) : 0) || 0;
     if (credits <= 0) throw new HttpsError("failed-precondition", "No credits");
-    tx.set(creditsRef, { total: credits - 1, updatedAt: Date.now() }, { merge: true });
+    tx.set(creditsRef, { total: credits - 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(scanRef, {
       uid,
       status: "queued",
       input,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   });
   return { scanId };
