@@ -14,20 +14,25 @@ export const startScan = onCall({ region: "us-central1" }, async (request) => {
   const { scanId, input } = request.data as { scanId: string; input: ScanInput };
   if (!scanId) throw new HttpsError("invalid-argument", "scanId required");
 
-  const creditsRef = db.doc(`users/${uid}/private/credits`);
+  const userRef = db.doc(`users/${uid}`);
   const scanRef = db.doc(`users/${uid}/scans/${scanId}`);
+  const creditUseRef = db.doc(`users/${uid}/credit_uses/${scanId}`);
 
   await db.runTransaction(async (tx) => {
-    const creditSnap = await tx.get(creditsRef);
-    const credits = (creditSnap.exists ? Number(creditSnap.get("total") ?? 0) : 0) || 0;
+    const userSnap = await tx.get(userRef);
+    const credits = (userSnap.get("credits") ?? 0) as number;
     if (credits <= 0) throw new HttpsError("failed-precondition", "No credits");
-    tx.set(creditsRef, { total: credits - 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(userRef, { credits: credits - 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(scanRef, {
       uid,
       status: "queued",
       input,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(creditUseRef, {
+      scanId,
+      usedAt: FieldValue.serverTimestamp(),
     });
   });
   return { scanId };

@@ -15,7 +15,7 @@ export type ScanOutput = {
   bfPercent: number;
   bmi?: number;
   weightLb?: number;
-  provider: "placeholder" | "openai";
+  provider: "placeholder" | "openai" | "replicate";
   confidence?: number;
   summary?: string;
 };
