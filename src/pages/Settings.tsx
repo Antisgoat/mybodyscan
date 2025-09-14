@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useCredits } from "@/hooks/useCredits";
-import { openStripePortal } from "@/lib/api";
+import { createBillingPortal } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 
 const Settings = () => {
@@ -119,7 +119,7 @@ const Settings = () => {
             {renewal && <div><span className="font-medium">Renews:</span> {renewal}</div>}
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => openStripePortal()}>Manage subscription</Button>
+            <Button onClick={() => createBillingPortal()}>Manage Billing</Button>
             <Button variant="secondary" onClick={() => window.location.reload()}>Refresh</Button>
           </div>
         </CardContent>

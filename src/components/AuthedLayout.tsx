@@ -18,10 +18,12 @@ export default function AuthedLayout({ children }: { children: ReactNode }) {
             MyBodyScan
           </button>
           <nav className="flex items-center gap-2 text-sm">
+            <NavLink to="/home" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Home</NavLink>
             <NavLink to="/capture/photos" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Scan</NavLink>
             <NavLink to="/nutrition" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Tracker</NavLink>
-            <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
+            <NavLink to="/coach/tracker" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Coach</NavLink>
             <NavLink to="/history" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>History</NavLink>
+            <NavLink to="/plans" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Plans</NavLink>
             <NavLink to="/settings" className={({ isActive }) => isActive ? "underline" : "opacity-80 hover:opacity-100"}>Settings</NavLink>
             <span className="text-muted-foreground">Credits: {credits}</span>
             <Button size="sm" variant="outline" onClick={signOutToAuth}>Sign out</Button>
