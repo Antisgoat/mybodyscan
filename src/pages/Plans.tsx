@@ -102,7 +102,7 @@ const Plans = () => {
         <Card className="shadow-md">
           <CardHeader>
             <CardTitle>Pro Plan (Monthly)</CardTitle>
-            <CardDescription>$14.99 first month, then $24.99/mo</CardDescription>
+            <CardDescription>$14.99 first month, then $24.99/mo, 3 scans/mo</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <Button onClick={(e) => handleCheckout("PRO_MONTHLY", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
