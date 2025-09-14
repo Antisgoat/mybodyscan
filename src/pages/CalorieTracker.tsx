@@ -334,6 +334,6 @@ export default function CalorieTracker() {
           </Card>
         ))}
       </div>
-    </SubscriptionGate>
+    </div>
   );
 }
