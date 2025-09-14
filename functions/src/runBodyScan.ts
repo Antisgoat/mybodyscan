@@ -21,7 +21,7 @@ const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
 
 export const runBodyScan = functions
   .region("us-central1")
-  .runWith({ memory: "1GiB", timeoutSeconds: 300 })
+  .runWith({ memory: "1GB", timeoutSeconds: 300 })
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Auth required");
