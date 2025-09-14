@@ -5,12 +5,13 @@ import { defineSecret } from "firebase-functions/params";
 import { getScanProvider } from "./providers/index.js";
 import type { ScanInput } from "./providers/scanProvider.js";
 
-const openaiKey = defineSecret("OPENAI_API_KEY");
+const replicateKey = defineSecret("REPLICATE_API_KEY");
+const replicateModel = defineSecret("REPLICATE_MODEL");
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
-export const processQueuedScanHttp = onRequest({ region: "us-central1", secrets: [openaiKey] }, async (req, res) => {
+export const processQueuedScanHttp = onRequest({ region: "us-central1", secrets: [replicateKey, replicateModel] }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method not allowed");
     return;

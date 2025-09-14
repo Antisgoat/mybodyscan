@@ -1,22 +1,15 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 import Stripe from "stripe";
+import { PLAN_CREDITS } from "./pricing.js";
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
 
 const stripeSecret = defineSecret("STRIPE_SECRET");
 const webhookSecret = defineSecret("STRIPE_WEBHOOK");
-
-const planCredits: Record<string, number> = {
-  SINGLE: 1,
-  PACK3: 3,
-  PACK5: 5,
-  MONTHLY: 5,
-  ANNUAL: 60,
-};
 
 export const stripeWebhook = onRequest({
   region: "us-central1",
@@ -46,18 +39,23 @@ export const stripeWebhook = onRequest({
     res.status(200).send("ok");
     return;
   }
-  await eventsRef.set({ receivedAt: Date.now(), type: event.type });
+  await eventsRef.set({
+    receivedAt: FieldValue.serverTimestamp(),
+    type: event.type,
+    _expiresAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
 
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const uid = session.metadata?.uid as string | undefined;
-      const plan = session.metadata?.plan as string | undefined;
-      if (uid && plan && plan in planCredits) {
+      const plan = session.metadata?.plan as keyof typeof PLAN_CREDITS | undefined;
+      if (uid && plan && plan in PLAN_CREDITS) {
         const userRef = db.doc(`users/${uid}`);
+        const ledgerRef = db.doc(`users/${uid}/ledger/${event.id}`);
         await db.runTransaction(async (tx) => {
           const snap = await tx.get(userRef);
-          const credits = (snap.get("credits") ?? 0) + planCredits[plan];
+          const credits = (snap.get("credits") ?? 0) + PLAN_CREDITS[plan];
           const data: any = { credits };
           if (session.subscription) {
             data.plan = plan;
@@ -65,6 +63,13 @@ export const stripeWebhook = onRequest({
             data.stripeCustomerId = session.customer;
           }
           tx.set(userRef, data, { merge: true });
+          tx.set(ledgerRef, {
+            type: event.type,
+            plan,
+            credits: PLAN_CREDITS[plan],
+            amount_total: session.amount_total,
+            createdAt: FieldValue.serverTimestamp(),
+          });
         });
       }
       break;
@@ -78,11 +83,20 @@ export const stripeWebhook = onRequest({
           .where("stripeSubscriptionId", "==", subId)
           .get();
         for (const doc of users.docs) {
-          const plan = doc.get("plan") as string | undefined;
-          if (plan && plan in planCredits) {
+          const plan = doc.get("plan") as keyof typeof PLAN_CREDITS | undefined;
+          if (plan && plan in PLAN_CREDITS) {
             await doc.ref.update({
-              credits: (doc.get("credits") ?? 0) + planCredits[plan],
+              credits: (doc.get("credits") ?? 0) + PLAN_CREDITS[plan],
             });
+            await db
+              .doc(`users/${doc.id}/ledger/${event.id}`)
+              .set({
+                type: event.type,
+                plan,
+                credits: PLAN_CREDITS[plan],
+                amount_total: invoice.amount_paid,
+                createdAt: FieldValue.serverTimestamp(),
+              });
           }
         }
       }

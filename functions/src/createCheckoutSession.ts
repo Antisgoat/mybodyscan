@@ -19,7 +19,7 @@ export const createCheckoutSession = onCall({
   }
   const stripe = new Stripe(stripeSecret.value(), { apiVersion: "2024-06-20" });
   const session = await stripe.checkout.sessions.create({
-    mode: plan === "MONTHLY" || plan === "ANNUAL" ? "subscription" : "payment",
+    mode: plan === "EXTRA" ? "payment" : "subscription",
     line_items: [{ price: PRICES[plan], quantity: 1 }],
     metadata: { uid: request.auth.uid, plan },
     success_url: "https://mybodyscanapp.com/success",

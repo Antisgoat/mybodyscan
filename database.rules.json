@@ -63,6 +63,9 @@ service cloud.firestore {
 
       // Credit uses: server-only writes
       match /credit_uses/{id} { allow read: if isOwner(uid); allow write: if false; }
+
+      // Ledger of Stripe credit events (readable by owner, server writes only)
+      match /ledger/{id} { allow read: if isOwner(uid); allow write: if false; }
     }
 
     // Stripe events: server-only
