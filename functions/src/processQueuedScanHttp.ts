@@ -1,5 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { defineSecret } from "firebase-functions/params";
 import { getScanProvider } from "./providers/index.js";
@@ -33,6 +33,14 @@ export const processQueuedScanHttp = onRequest({ region: "us-central1", secrets:
   }
   const provider = await getScanProvider();
   const output = await provider.analyze(data.input || {});
-  await scanRef.update({ status: "completed", result: output, completedAt: Date.now(), updatedAt: Date.now() });
+  await scanRef.update({
+    status: "completed",
+    bfPercent: output.bfPercent,
+    bmi: output.bmi,
+    weightLb: output.weightLb,
+    source: output.provider,
+    completedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
   res.json(output);
 });
