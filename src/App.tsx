@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
+import PhotoCaptureNew from "./pages/PhotoCaptureNew";
 import VideoCapture from "./pages/VideoCapture";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
@@ -42,6 +43,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import CalorieTracker from "./pages/CalorieTracker";
 import BuildTag from "./components/BuildTag";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
@@ -86,10 +88,10 @@ const App = () => {
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture/video" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCaptureNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             {/* Processing routes (old + new kept) */}
             <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
@@ -122,6 +124,7 @@ const App = () => {
                 </React.Suspense>
               }
             />
+            <Route path="/nutrition" element={<ProtectedRoute><AuthedLayout><CalorieTracker /></AuthedLayout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
               </Routes>

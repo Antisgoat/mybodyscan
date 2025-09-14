@@ -1,3 +1,4 @@
+import TestModeBanner from "@/components/TestModeBanner";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +77,7 @@ const Home = () => {
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
+      <TestModeBanner />
       <div className="mb-4 flex justify-center">
         <Card className="w-40">
           <CardContent className="p-4 text-center">

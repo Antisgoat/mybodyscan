@@ -1,0 +1,213 @@
+[
+  {
+    "id": "db1_001",
+    "name": "Apple",
+    "brand": "Generic",
+    "gtin": "1234567890123",
+    "serving": {
+      "amount": 1,
+      "unit": "medium (182g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 1, "unit": "large (223g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 95,
+      "protein": 0.5,
+      "carbs": 25,
+      "fat": 0.3,
+      "fiber": 4,
+      "sugar": 19
+    }
+  },
+  {
+    "id": "db1_002",
+    "name": "Banana",
+    "brand": "Generic",
+    "gtin": "1234567890124",
+    "serving": {
+      "amount": 1,
+      "unit": "medium (118g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 1, "unit": "large (136g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 105,
+      "protein": 1.3,
+      "carbs": 27,
+      "fat": 0.4,
+      "fiber": 3,
+      "sugar": 14
+    }
+  },
+  {
+    "id": "db1_003",
+    "name": "Chicken Breast",
+    "brand": "Generic",
+    "serving": {
+      "amount": 100,
+      "unit": "g",
+      "altServings": [
+        {"amount": 3.5, "unit": "oz"},
+        {"amount": 1, "unit": "breast (174g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 165,
+      "protein": 31,
+      "carbs": 0,
+      "fat": 3.6,
+      "fiber": 0,
+      "sodium": 74
+    }
+  },
+  {
+    "id": "db1_004",
+    "name": "Brown Rice",
+    "brand": "Generic",
+    "serving": {
+      "amount": 0.5,
+      "unit": "cup cooked (98g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 1, "unit": "cup cooked (196g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 111,
+      "protein": 2.6,
+      "carbs": 23,
+      "fat": 0.9,
+      "fiber": 1.8
+    }
+  },
+  {
+    "id": "db1_005",
+    "name": "Salmon",
+    "brand": "Generic",
+    "serving": {
+      "amount": 100,
+      "unit": "g",
+      "altServings": [
+        {"amount": 3.5, "unit": "oz"},
+        {"amount": 1, "unit": "fillet (154g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 208,
+      "protein": 20,
+      "carbs": 0,
+      "fat": 13,
+      "fiber": 0,
+      "sodium": 59
+    }
+  },
+  {
+    "id": "db1_006",
+    "name": "Broccoli",
+    "brand": "Generic",
+    "serving": {
+      "amount": 1,
+      "unit": "cup chopped (91g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 1, "unit": "stalk (148g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 25,
+      "protein": 3,
+      "carbs": 5,
+      "fat": 0.3,
+      "fiber": 2.3,
+      "sugar": 1.5
+    }
+  },
+  {
+    "id": "db1_007",
+    "name": "Whole Wheat Bread",
+    "brand": "Generic",
+    "serving": {
+      "amount": 1,
+      "unit": "slice (28g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 2, "unit": "slices (56g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 81,
+      "protein": 4,
+      "carbs": 14,
+      "fat": 1.1,
+      "fiber": 2,
+      "sodium": 144
+    }
+  },
+  {
+    "id": "db1_008",
+    "name": "Greek Yogurt",
+    "brand": "Generic",
+    "serving": {
+      "amount": 1,
+      "unit": "cup (245g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 0.5, "unit": "cup (122g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 100,
+      "protein": 17,
+      "carbs": 6,
+      "fat": 0.7,
+      "sugar": 6,
+      "sodium": 56
+    }
+  },
+  {
+    "id": "db1_009",
+    "name": "Almonds",
+    "brand": "Generic",
+    "serving": {
+      "amount": 1,
+      "unit": "oz (28g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 23, "unit": "almonds"}
+      ]
+    },
+    "nutrients": {
+      "calories": 164,
+      "protein": 6,
+      "carbs": 6,
+      "fat": 14,
+      "fiber": 3.5,
+      "sodium": 1
+    }
+  },
+  {
+    "id": "db1_010",
+    "name": "Oatmeal",
+    "brand": "Generic",
+    "serving": {
+      "amount": 0.5,
+      "unit": "cup dry (40g)",
+      "altServings": [
+        {"amount": 100, "unit": "g"},
+        {"amount": 1, "unit": "cup cooked (234g)"}
+      ]
+    },
+    "nutrients": {
+      "calories": 154,
+      "protein": 5,
+      "carbs": 28,
+      "fat": 3,
+      "fiber": 4,
+      "sodium": 3
+    }
+  }
+]

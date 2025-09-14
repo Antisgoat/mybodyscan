@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { createAccountEmail, signInEmail, signInGoogle, sendReset, signInGuest } from "@/lib/auth";
+import { createAccountEmail, signInEmail, signInGoogle, signInApple, sendReset, signInGuest } from "@/lib/auth";
 import { isFirebaseConfigured } from "@/lib/firebase";
 
 const Auth = () => {
@@ -55,6 +55,19 @@ const Auth = () => {
       navigate(from, { replace: true });
     } catch (err: any) {
       toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onApple = async () => {
+    if (!ready) return;
+    setLoading(true);
+    try {
+      await signInApple();
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
     }
@@ -139,6 +152,7 @@ const Auth = () => {
           </form>
           <div className="mt-4 grid gap-2">
             <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onGoogle} disabled={loading || !ready}>Continue with Google</Button>
+            <Button variant="secondary" className="mbs-btn mbs-btn-ghost" onClick={onApple} disabled={loading || !ready}>Continue with Apple</Button>
             <Button variant="outline" className="mbs-btn mbs-btn-ghost" onClick={onGuest} disabled={loading || !ready}>Continue as guest</Button>
           </div>
         </CardContent>
