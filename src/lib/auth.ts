@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
-import { onAuthStateChanged, setPersistence, browserLocalPersistence, signOut, GoogleAuthProvider, signInWithRedirect, signInWithPopup, signInAnonymously, linkWithCredential, EmailAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  signOut,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  linkWithCredential,
+  EmailAuthProvider,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+} from "firebase/auth";
 
 export async function initAuthPersistence() {
   await setPersistence(auth, browserLocalPersistence);
@@ -27,13 +41,19 @@ export async function signOutToAuth(): Promise<void> {
 }
 
 // New helpers
-export function signInGoogle() {
+export function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   return signInWithPopup(auth, provider);
 }
 
-export function signInGuest() {
-  return signInAnonymously(auth);
+export async function signInWithApple() {
+  if (import.meta.env.VITE_APPLE_AUTH_ENABLED !== "true") {
+    throw new Error("Apple Sign-In not configured");
+  }
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("name");
+  provider.addScope("email");
+  await signInWithPopup(auth, provider);
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {
@@ -57,7 +77,7 @@ export function sendReset(email: string) {
   return sendPasswordResetEmail(auth, email);
 }
 
-export function signOutUser() {
+export function signOutAll() {
   return signOut(auth);
 }
 

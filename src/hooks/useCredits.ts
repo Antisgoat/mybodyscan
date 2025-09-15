@@ -32,13 +32,14 @@ export function useCredits() {
     if (!uid) return;
 
     setLoading(true);
-    const ref = doc(db, "users", uid, "private", "credits");
+    const ref = doc(db, `users/${uid}/private/credits`);
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        const data = snap.data() as { total?: number } | undefined;
-        const amount = Number(data?.total ?? 0);
-        setCredits(amount);
+        const amt = snap.data()?.creditsSummary?.totalAvailable as
+          | number
+          | undefined;
+        setCredits(amt ?? 0);
         setLoading(false);
       },
       (err) => {

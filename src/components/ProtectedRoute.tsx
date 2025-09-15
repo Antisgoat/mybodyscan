@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
+import { isDemoGuest } from "@/lib/demoFlag";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuthUser();
@@ -13,7 +14,8 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace state={{ from: window.location.pathname }} />;
+  if (!user && !isDemoGuest())
+    return <Navigate to="/auth" replace state={{ from: window.location.pathname }} />;
 
   return <>{children}</>;
 }

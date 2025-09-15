@@ -1,66 +1,111 @@
-import { app, db, storage } from "@/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db, storage } from "./firebase";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { isDemoGuest } from "./demoFlag";
 import { ref, uploadBytes } from "firebase/storage";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { authedFetch } from "@/lib/api";
 
-export interface StartScanResponse {
-  scanId: string;
-  remaining: number;
-}
+const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+const USE_STUB = import.meta.env.VITE_SCANS_STUB === "true";
 
-export async function startScan(params: {
-  filename: string;
-  size: number;
-  contentType: string;
-}): Promise<StartScanResponse> {
-  const response = await authedFetch("/startScan", {
+async function callFn(path: string, body: any) {
+  const t = await auth.currentUser?.getIdToken();
+  if (!t) throw new Error("auth");
+  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
     method: "POST",
-    body: JSON.stringify(params),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+    body: JSON.stringify(body),
   });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to start scan: ${error}`);
+export async function startScan() {
+  if (USE_STUB) {
+    return {
+      scanId: crypto.randomUUID(),
+      uploadPathPrefix: "",
+      status: "queued",
+    };
   }
-
-  return response.json();
+  return callFn("/startScanSession", {});
 }
 
-export async function uploadScanFile(
-  uid: string,
-  scanId: string,
-  file: File
-): Promise<void> {
-  const fileExt = file.name.split('.').pop() || 'jpg';
-  const storageRef = ref(storage, `scans/${uid}/${scanId}/original.${fileExt}`);
-
-  await uploadBytes(storageRef, file);
+export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files: File[]) {
+  if (USE_STUB) return true;
+  const paths: string[] = [];
+  for (const f of files) {
+    const ext = f.name.split(".").pop() || "jpg";
+    const path = `${scan.uploadPathPrefix}${crypto.randomUUID()}.${ext}`;
+    await uploadBytes(ref(storage, path), f);
+    paths.push(path);
+  }
+  return paths;
 }
 
-export async function runBodyScan(scanId: string): Promise<void> {
-  const fn = httpsCallable(getFunctions(app), "runBodyScan");
-  await fn({ scanId });
+export async function submitScan(scanId: string, files: string[]) {
+  if (USE_STUB) return { scanId, status: "ready" };
+  return callFn("/submitScan", { scanId, files });
 }
 
-export function listenToScan(
-  uid: string,
-  scanId: string,
-  callback: (scan: any) => void,
-  onError?: (error: Error) => void
-) {
-  const scanRef = doc(db, "users", uid, "scans", scanId);
+export async function runBodyScan(file: string) {
+  if (USE_STUB) {
+    return {
+      scanId: crypto.randomUUID(),
+      result: { bodyFatPct: 18.7, weightKg: 78.1, bmi: 24.6, mock: true },
+    };
+  }
+  return callFn("/runBodyScan", { file });
+}
 
-  return onSnapshot(
-    scanRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        callback({ id: snapshot.id, ...snapshot.data() });
-      }
-    },
-    (error) => {
-      console.error("Error listening to scan:", error);
-      onError?.(error);
+export async function uploadScanFile(uid: string, scanId: string, file: File) {
+  if (USE_STUB) return true;
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `scans/${uid}/${scanId}/original.${ext}`;
+  await uploadBytes(ref(storage, path), file);
+  return path;
+}
+
+export async function processScan(scanId: string) {
+  if (USE_STUB) return { scanId, status: "processing" };
+  return callFn("/processScan", { scanId });
+}
+
+export function listenToScan(uid: string, scanId: string, onUpdate: (scan: any) => void, onError: () => void) {
+  if (USE_STUB) {
+    setTimeout(() => onUpdate({ status: "completed", scanId }), 2000);
+    return () => {};
+  }
+  const docRef = collection(db, `users/${uid}/scans`);
+  const q = query(docRef, orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snap) => {
+    const scan = snap.docs.find(d => d.id === scanId);
+    if (scan) onUpdate({ id: scan.id, ...scan.data() });
+  }, onError);
+}
+
+export function watchScans(uid: string, cb: (items: any[]) => void) {
+    if (isDemoGuest() || USE_STUB) {
+      cb(demoScans);
+      return () => {};
     }
-  );
+    const q = query(collection(db, `users/${uid}/scans`), orderBy("createdAt", "desc"));
+    return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
+
+const demoScans = [
+  {
+    id: "demo1",
+    status: "ready",
+    createdAt: { toDate: () => new Date() },
+    measurements: { bodyFat: 18 },
+    muscleMass: 75,
+    visceralFat: 10,
+  },
+  {
+    id: "demo2",
+    status: "ready",
+    createdAt: { toDate: () => new Date(Date.now() - 86400000) },
+    measurements: { bodyFat: 20 },
+    muscleMass: 74,
+    visceralFat: 11,
+  },
+];

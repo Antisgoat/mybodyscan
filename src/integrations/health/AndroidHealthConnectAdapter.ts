@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { DailySummary, HealthAdapter } from "./HealthAdapter";
 
-const HealthConnect: any = typeof window !== "undefined" ? (window as any)?.Capacitor?.Plugins?.HealthConnect : undefined;
+const HealthConnect: any = (window as any)?.Capacitor?.Plugins?.HealthConnect;
 
 export class AndroidHealthConnectAdapter implements HealthAdapter {
   platform: "android" = "android";

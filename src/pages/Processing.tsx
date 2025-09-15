@@ -39,15 +39,35 @@ const Processing = () => {
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto flex flex-col items-center justify-center text-center">
       <Seo title="Processing – MyBodyScan" description="Analyzing your scan (about 1–2 minutes)." canonical={window.location.href} />
-      <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin" aria-label="Loading" />
+      <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin" aria-label="Processing scan" />
       <h1 className="mt-6 text-2xl font-semibold">Analyzing your scan</h1>
       <p className="text-muted-foreground mt-2">This can take ~1–2 minutes.</p>
       <div className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 bg-secondary text-secondary-foreground">
-        <span className="h-2 w-2 rounded-full bg-warning" />
-        <span className="text-sm">{status}</span>
+        <span className={`h-2 w-2 rounded-full ${
+          status === "done" ? "bg-primary" : 
+          status === "error" ? "bg-destructive" : 
+          "bg-warning animate-pulse"
+        }`} />
+        <span className="text-sm font-medium">
+          {status === "queued" ? "In queue..." : 
+           status === "processing" ? "Processing..." :
+           status === "done" ? "Complete!" :
+           status === "error" ? "Failed" : status}
+        </span>
       </div>
       {status === "error" && (
-        <Button variant="secondary" className="mt-8" onClick={() => navigate("/scan/new")}>Retry</Button>
+        <div className="mt-8 text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Something went wrong during processing. Please try again.
+          </p>
+          <Button 
+            variant="secondary" 
+            onClick={() => navigate("/scan/new")}
+            aria-label="Start a new scan"
+          >
+            Try Again
+          </Button>
+        </div>
       )}
     </main>
   );

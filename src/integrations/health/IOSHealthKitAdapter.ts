@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { DailySummary, HealthAdapter } from "./HealthAdapter";
 
-const HealthKit: any = typeof window !== "undefined" ? (window as any)?.Capacitor?.Plugins?.HealthKit : undefined;
+const HealthKit: any = (window as any)?.Capacitor?.Plugins?.HealthKit;
 
 export class IOSHealthKitAdapter implements HealthAdapter {
   platform: "ios" = "ios";

@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
-import React, { useEffect, lazy } from "react";
-import Skeleton from "./components/Skeleton";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import React, { useEffect, lazy, Suspense } from "react";
+import { CrashBanner } from "@/components/CrashBanner";
+import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
@@ -30,6 +31,10 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
 import Disclaimer from "./pages/Disclaimer";
+import LegalPrivacy from "./pages/legal/Privacy";
+import LegalTerms from "./pages/legal/Terms";
+import LegalRefund from "./pages/legal/Refund";
+import Help from "./pages/Help";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import ScanNew from "./pages/ScanNew";
@@ -42,6 +47,11 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import Today from "./pages/Today";
+import Onboarding from "./pages/Onboarding";
+import Scan from "./pages/Scan";
+import Workouts from "./pages/Workouts";
+import Meals from "./pages/Meals";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -55,9 +65,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <CrashBanner />
         <Toaster />
         <Sonner />
         <AuthGate>
+          <BrowserRouter>
             <OnboardingRedirectMBS>
               <Routes>
             {/* Root route - flag-controlled */}
@@ -76,25 +88,79 @@ const App = () => {
             <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
             <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
+            <Route path="/help" element={<PublicLayout><Help /></PublicLayout>} />
+            <Route path="/legal/privacy" element={<PublicLayout><LegalPrivacy /></PublicLayout>} />
+            <Route path="/legal/terms" element={<PublicLayout><LegalTerms /></PublicLayout>} />
+            <Route path="/legal/refund" element={<PublicLayout><LegalRefund /></PublicLayout>} />
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
             {/* Auth */}
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={
+              <Suspense fallback={<PageSkeleton />}>
+                <Auth />
+              </Suspense>
+            } />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/today" element={<ProtectedRoute><AuthedLayout><Today /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
+            {/* New main pages */}
+            <Route path="/scan" element={<ProtectedRoute><AuthedLayout><Scan /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/workouts" element={<ProtectedRoute><AuthedLayout><Workouts /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/meals" element={<ProtectedRoute><AuthedLayout><Meals /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/photos" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/video" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/capture/photos" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<CaptureSkeleton />}>
+                    <PhotoCapture />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/capture/video" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<CaptureSkeleton />}>
+                    <VideoCapture />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
             <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             {/* Processing routes (old + new kept) */}
-            <Route path="/processing/:uid/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/processing/:scanId" element={<ProtectedRoute><AuthedLayout><Processing /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/processing/:uid/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/processing/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Results */}
-            <Route path="/results/:scanId" element={<ProtectedRoute><AuthedLayout><Results /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/results/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Results />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Other */}
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
@@ -116,7 +182,7 @@ const App = () => {
             <Route
               path="/onboarding-mbs"
               element={
-                <React.Suspense fallback={<Skeleton />}>
+                <React.Suspense fallback={<div className="p-6 text-slate-500">Loading…</div>}>
                   <OnboardingMBS />
                 </React.Suspense>
               }
@@ -125,9 +191,10 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
               </Routes>
             </OnboardingRedirectMBS>
-        </AuthGate>
-      </TooltipProvider>
-    </QueryClientProvider>
+        </BrowserRouter>
+      </AuthGate>
+    </TooltipProvider>
+  </QueryClientProvider>
   );
 };
 

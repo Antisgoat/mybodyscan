@@ -122,17 +122,3 @@ firebase deploy --only functions,hosting
 ```
 
 Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET`, `STRIPE_WEBHOOK`).
-
-## Local sanity commands
-
-```
-npm ci
-npm run lint
-npm run build
-npm run build:dev
-npm --prefix functions ci
-npm --prefix functions run lint
-npm --prefix functions run build
-npx -y firebase-tools@latest deploy --only hosting --project mybodyscan-f3daf
-# Optional: firebase deploy --only functions:runBodyScan --project mybodyscan-f3daf
-```

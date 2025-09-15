@@ -1,161 +1,132 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { startCheckout } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { doc, getDoc } from "firebase/firestore";
+import { AppHeader } from "@/components/AppHeader";
+import { BottomNav } from "@/components/BottomNav";
+import { Seo } from "@/components/Seo";
+import { startCheckout } from "@/lib/payments";
+import { toast } from "@/hooks/use-toast";
+import { Check } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { track } from "@/lib/analytics";
+import { isDemoGuest } from "@/lib/demoFlag";
 
-const Plans = () => {
-  const navigate = useNavigate();
-  const [banner, setBanner] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "1") {
-      setBanner("Payment received — updating your account…");
-      toast({ title: "Payment received — updating your account…" });
-      
-      // Poll for updates for up to 10 seconds
-      const pollForUpdates = async () => {
-        const user = auth.currentUser;
-        if (!user) return;
-        
-        let attempts = 0;
-        const maxAttempts = 10;
-        
-        const checkUpdates = async () => {
-          try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            // Force a small delay to allow backend processing
-            attempts++;
-            if (attempts < maxAttempts) {
-              setTimeout(checkUpdates, 1000);
-            }
-          } catch (error) {
-            console.error("Error polling for updates:", error);
-          }
-        };
-        
-        setTimeout(checkUpdates, 1000);
-      };
-      
-      pollForUpdates();
-    } else if (params.get("canceled") === "1") {
-      setBanner("Checkout canceled");
-      toast({ title: "Checkout canceled" });
-    }
-  }, []);
-
-  const handleCheckout = async (
-    plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
-    el: HTMLButtonElement
-  ) => {
+export default function Plans() {
+  const { t } = useI18n();
+  const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
     try {
-      el.disabled = true;
-      const user = auth.currentUser;
-      if (!user) {
-        el.disabled = false;
-        navigate("/auth", { state: { from: window.location.pathname } });
-        return;
-      }
-      await startCheckout(plan);
+      track("checkout_start", { plan: priceId });
+      await startCheckout(priceId, mode);
     } catch (err: any) {
-      try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
-      if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String((err as any)?.message ?? ""))) {
-        navigate("/auth", { state: { from: window.location.pathname } });
+      if (err?.message?.includes("Backend URL not configured")) {
+        toast({
+          title: "Service unavailable",
+          description: "Payments are not available in development mode.",
+          variant: "destructive"
+        });
       } else {
-        if (!(window as any).toast) {
-          alert((err as any)?.message || "Checkout failed");
-        }
+        toast({
+          title: "Error",
+          description: err?.message || "Failed to start checkout",
+          variant: "destructive"
+        });
       }
-      el.disabled = false;
     }
   };
 
+  const plans = [
+    {
+      name: "Starter Scan",
+      price: "$9.99",
+      period: "one-time",
+      credits: "1 credit",
+      priceId: "price_1RuOpKQQU5vuhlNjipfFBsR0",
+      mode: "payment" as const,
+      features: ["1 body composition scan", "Detailed analysis", "Progress tracking"]
+    },
+    {
+      name: "Pro",
+      price: "$24.99",
+      period: "per month",
+      credits: "3 credits/mo",
+      priceId: "price_1S4XsVQQU5vuhlNjzdQzeySA",
+      mode: "subscription" as const,
+      features: ["3 scans per month", "Trend analysis", "Priority support", "Advanced metrics"]
+    },
+    {
+      name: "Elite",
+      price: "$199",
+      period: "per year",
+      credits: "36 credits/yr",
+      priceId: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+      mode: "subscription" as const,
+      popular: true,
+      features: ["36 scans per year", "Premium analytics", "Custom coaching tips", "Export data", "API access"]
+    }
+  ];
+
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo title="Plans – MyBodyScan" description="Choose pay-as-you-go or subscription to get more scans for less." canonical={window.location.href} />
-      {banner && (
-        <div className="mb-4 rounded-md bg-secondary text-secondary-foreground px-3 py-2 text-sm">{banner}</div>
-      )}
-      <h1 className="text-2xl font-semibold mb-4">Plans</h1>
-      <p className="text-sm text-muted-foreground mb-6">No free trial. DEXA scans can cost $50–$150—MyBodyScan is a fraction of that.</p>
-
-      {/* Pay-as-you-go Packs */}
-      <section className="space-y-3 mb-8">
-        <h2 className="text-lg font-semibold">Pay-as-you-go Packs</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* 1 Scan */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>1 Scan — $9.99</CardTitle>
-              <CardDescription>Great for first try</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("single", e.currentTarget as HTMLButtonElement)}>Buy</Button>
-            </CardContent>
-          </Card>
-          {/* 3 Scans */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>3 Scans — $19.99 (Save 33%)</CardTitle>
-                <Badge variant="secondary">Popular</Badge>
-              </div>
-              <CardDescription>Use anytime</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack3", e.currentTarget as HTMLButtonElement)}>Buy</Button>
-            </CardContent>
-          </Card>
-          {/* 5 Scans */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>5 Scans — $29.99 (Best pack)</CardTitle>
-                <Badge>Best Value</Badge>
-              </div>
-              <CardDescription>Lowest price per scan</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack5", e.currentTarget as HTMLButtonElement)}>Buy</Button>
-            </CardContent>
-          </Card>
+    <div className="min-h-screen bg-background pb-16 md:pb-0">
+      <AppHeader />
+      <main className="max-w-md mx-auto p-6 space-y-6">
+        <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
+          {isDemoGuest() && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Demo mode — purchase requires sign-up.
+            </p>
+          )}
         </div>
-      </section>
-
-      {/* Subscriptions */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Subscriptions</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Monthly */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Monthly — $14.99 / mo (3 scans/month)</CardTitle>
-              <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("monthly", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
-            </CardContent>
-          </Card>
-          {/* Annual */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Annual — $99.99 / yr</CardTitle>
-              <CardDescription>Best long-term value</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("annual", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
-            </CardContent>
-          </Card>
+        
+        <div className="space-y-4">
+          {plans.map((plan) => (
+            <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
+              <CardHeader className="relative">
+                {plan.popular && (
+                  <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                    Most Popular
+                  </Badge>
+                )}
+                <CardTitle className="flex items-center justify-between">
+                  <span>{plan.name}</span>
+                  <div className="text-right">
+                    <div className="text-lg font-bold">{plan.price}</div>
+                    <div className="text-xs text-muted-foreground">{plan.period}</div>
+                  </div>
+                </CardTitle>
+                <p className="text-sm text-accent font-medium">{plan.credits}</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-accent flex-shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className="w-full"
+                  variant={plan.popular ? "default" : "outline"}
+                  onClick={() => handleCheckout(plan.priceId, plan.mode)}
+                >
+                  {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </section>
-    </main>
+
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            Need more scans? <br />
+            <span className="font-medium">Extra scans available for $9.99 each</span>
+          </p>
+        </div>
+      </main>
+      <BottomNav />
+    </div>
   );
-};
-
-export default Plans;
+}

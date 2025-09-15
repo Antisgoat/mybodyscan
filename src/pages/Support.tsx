@@ -1,4 +1,7 @@
 import { Seo } from "@/components/Seo";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
+import { copyDiagnostics } from "@/lib/diagnostics";
 
 const Support = () => {
   return (
@@ -15,6 +18,12 @@ const Support = () => {
             Email: <a className="underline" href="mailto:support@mybodyscanapp.com">support@mybodyscanapp.com</a>
           </p>
           <p className="text-sm text-muted-foreground">Phone: (555) 555-1234</p>
+          <Button
+            className="mt-4"
+            onClick={async () => { await copyDiagnostics(); toast({ title: "Copied diagnostics" }); }}
+          >
+            Copy diagnostics
+          </Button>
         </article>
 
         <article className="rounded-lg border p-4">

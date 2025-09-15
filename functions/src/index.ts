@@ -1,2 +1,3 @@
-export { runBodyScan } from "./runBodyScan.js";
-export { grantTestCredits } from "./grantTestCredits.js";
+// Placeholder file for Firebase Functions
+// The actual functions are in functions-disabled folder
+export {};

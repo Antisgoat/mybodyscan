@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
+import { consumeOneCredit } from "@/lib/payments";
 import { sanitizeFilename } from "@/lib/utils";
 
 const MAX_SECONDS = 10;
@@ -46,6 +47,7 @@ const VideoCapture = () => {
     }
     setLoading(true);
     try {
+      await consumeOneCredit();
       const { scanId } = await startScan({
         filename: file.name,
         size: file.size,
@@ -57,7 +59,10 @@ const VideoCapture = () => {
       navigate(`/scan/${scanId}`);
     } catch (e: any) {
       console.error("VideoCapture error", e);
-      if (e?.code === "permission-denied") {
+      if (e?.message === "No credits available") {
+        toast({ title: "No credits", description: "Please purchase more" });
+        navigate("/plans");
+      } else if (e?.code === "permission-denied") {
         toast({ title: "Sign in required" });
         navigate("/auth", { replace: true });
       } else {
@@ -72,6 +77,9 @@ const VideoCapture = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Record Video – MyBodyScan" description="Record a short video for your body scan." canonical={window.location.href} />
       <h1 className="text-2xl font-semibold mb-4">Record Video</h1>
+      <p className="text-sm text-muted-foreground mb-6">
+        Hold your phone upright (portrait). Slowly rotate 360° in front of camera. Max {MAX_SECONDS} seconds.
+      </p>
       <Card>
         <CardHeader>
           <CardTitle>Up to {MAX_SECONDS}s</CardTitle>
@@ -81,16 +89,36 @@ const VideoCapture = () => {
             <video ref={videoRef} className="h-full w-full object-contain" controls />
             <div className="absolute bottom-3 inset-x-3 flex items-center justify-center">
               <label className="inline-flex">
-                <input type="file" accept="video/*" capture="environment" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                <Button type="button">Choose / Record</Button>
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  capture="environment" 
+                  className="hidden" 
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  aria-label="Record or choose video file"
+                />
+                <Button type="button" className="bg-primary hover:bg-primary/90">
+                  {file ? "Change Video" : "Choose / Record"}
+                </Button>
               </label>
             </div>
           </div>
-          <div className="text-center text-sm text-muted-foreground">
-            {duration != null ? `Duration: ${duration.toFixed(1)}s` : "No video selected"}
+          <div className="text-center text-sm">
+            {duration != null ? (
+              <span className={duration <= MAX_SECONDS ? "text-primary" : "text-destructive"}>
+                Duration: {duration.toFixed(1)}s {duration > MAX_SECONDS && "(Too long)"}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">No video selected</span>
+            )}
           </div>
-          <Button className="w-full" onClick={onContinue} disabled={!file || duration == null || loading}>
-            {loading ? "Creating scan..." : "Continue"}
+          <Button 
+            className="w-full" 
+            onClick={onContinue} 
+            disabled={!file || duration == null || duration > MAX_SECONDS || loading}
+            aria-label={file && duration != null && duration <= MAX_SECONDS ? "Analyze video" : "Select a valid video first"}
+          >
+            {loading ? "Creating scan..." : file && duration != null ? "Analyze Video" : "Select Video"}
           </Button>
         </CardContent>
       </Card>
