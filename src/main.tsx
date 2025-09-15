@@ -4,7 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import './styles/mbs.theme.css';
-import './lib/i18n';
 import GlobalErrorBoundary from './components/GlobalErrorBoundary';
 import EnvBanner from './components/EnvBanner';
 import { runPreviewChecks } from './components/PreviewHealthCheck';
