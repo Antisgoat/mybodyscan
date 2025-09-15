@@ -8,50 +8,15 @@ import { auth, db } from "@/lib/firebase";
 import { startCheckout } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { doc, getDoc } from "firebase/firestore";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const Plans = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [banner, setBanner] = useState<string | null>(null);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "1") {
-      setBanner("Payment received — updating your account…");
-      toast({ title: "Payment received — updating your account…" });
-      
-      // Poll for updates for up to 10 seconds
-      const pollForUpdates = async () => {
-        const user = auth.currentUser;
-        if (!user) return;
-        
-        let attempts = 0;
-        const maxAttempts = 10;
-        
-        const checkUpdates = async () => {
-          try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            // Force a small delay to allow backend processing
-            attempts++;
-            if (attempts < maxAttempts) {
-              setTimeout(checkUpdates, 1000);
-            }
-          } catch (error) {
-            console.error("Error polling for updates:", error);
-          }
-        };
-        
-        setTimeout(checkUpdates, 1000);
-      };
-      
-      pollForUpdates();
-    } else if (params.get("canceled") === "1") {
-      setBanner("Checkout canceled");
-      toast({ title: "Checkout canceled" });
-    }
-  }, []);
-
   const handleCheckout = async (
-    plan: "annual"|"monthly"|"pack5"|"pack3"|"single",
+    plan: "STARTER_SCAN"|"EXTRA_SCAN"|"PRO_MONTHLY"|"ELITE_ANNUAL",
     el: HTMLButtonElement
   ) => {
     try {
@@ -62,7 +27,13 @@ const Plans = () => {
         navigate("/auth", { state: { from: window.location.pathname } });
         return;
       }
-      await startCheckout(plan);
+      // Mock API call - replace with createCheckout({ plan, uid })
+      const mockCheckout = async (planId: string) => {
+        console.log(`Would create checkout for plan: ${planId}`);
+        toast({ title: "Checkout would open", description: `Plan: ${planId}` });
+      };
+      
+      await mockCheckout(plan);
     } catch (err: any) {
       try { toast({ title: "Checkout failed", description: (err as any)?.message || "" }); } catch {}
       if ((err as any)?.code === "functions/unauthenticated" || /unauth/i.test(String((err as any)?.message ?? ""))) {
@@ -82,47 +53,44 @@ const Plans = () => {
       {banner && (
         <div className="mb-4 rounded-md bg-secondary text-secondary-foreground px-3 py-2 text-sm">{banner}</div>
       )}
-      <h1 className="text-2xl font-semibold mb-4">Plans</h1>
-      <p className="text-sm text-muted-foreground mb-6">No free trial. DEXA scans can cost $50–$150—MyBodyScan is a fraction of that.</p>
+      <h1 className="text-2xl font-semibold mb-4">{t("plans.title")}</h1>
+      
+      {/* Savings card */}
+      <Card className="mb-6 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+        <CardContent className="pt-6">
+          <div className="text-sm">
+            <div className="font-semibold mb-2">Save hundreds monthly:</div>
+            <div>• Dietitian: ~$300/mo</div>
+            <div>• Personal Trainer: ~$240/mo</div>
+            <div>• DEXA scan: ~$150/scan</div>
+            <div className="mt-2 font-medium text-primary">
+              MyBodyScan: {t("plans.monthly")} $24.99/mo (first month $14.99) or {t("plans.annual")} $199.99/yr
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Pay-as-you-go Packs */}
+      {/* Single Purchases */}
       <section className="space-y-3 mb-8">
-        <h2 className="text-lg font-semibold">Pay-as-you-go Packs</h2>
+        <h2 className="text-lg font-semibold">Single Scans</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* 1 Scan */}
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>1 Scan — $9.99</CardTitle>
-              <CardDescription>Great for first try</CardDescription>
+              <CardTitle>{t("plans.single")} — $9.99</CardTitle>
+              <CardDescription>Perfect for trying MyBodyScan</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("single", e.currentTarget as HTMLButtonElement)}>Buy</Button>
+              <Button onClick={(e) => handleCheckout("STARTER_SCAN", e.currentTarget as HTMLButtonElement)}>Buy</Button>
             </CardContent>
           </Card>
-          {/* 3 Scans */}
+          
           <Card className="shadow-md">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>3 Scans — $19.99 (Save 33%)</CardTitle>
-                <Badge variant="secondary">Popular</Badge>
-              </div>
-              <CardDescription>Use anytime</CardDescription>
+              <CardTitle>{t("plans.extra")} — $9.99</CardTitle>
+              <CardDescription>Top-up scan for subscribers</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack3", e.currentTarget as HTMLButtonElement)}>Buy</Button>
-            </CardContent>
-          </Card>
-          {/* 5 Scans */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>5 Scans — $29.99 (Best pack)</CardTitle>
-                <Badge>Best Value</Badge>
-              </div>
-              <CardDescription>Lowest price per scan</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("pack5", e.currentTarget as HTMLButtonElement)}>Buy</Button>
+              <Button onClick={(e) => handleCheckout("EXTRA_SCAN", e.currentTarget as HTMLButtonElement)}>Buy</Button>
             </CardContent>
           </Card>
         </div>
@@ -132,24 +100,26 @@ const Plans = () => {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Subscriptions</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* Monthly */}
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Monthly — $14.99 / mo (3 scans/month)</CardTitle>
-              <CardDescription>Auto-renews. Cancel anytime.</CardDescription>
+              <CardTitle>{t("plans.monthly")} — $14.99 first month, then $24.99/mo</CardTitle>
+              <CardDescription>3 scans per month + full AI coaching</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("monthly", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
+              <Button onClick={(e) => handleCheckout("PRO_MONTHLY", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
             </CardContent>
           </Card>
-          {/* Annual */}
-          <Card className="shadow-md">
+          
+          <Card className="shadow-md border-primary">
             <CardHeader>
-              <CardTitle>Annual — $99.99 / yr</CardTitle>
-              <CardDescription>Best long-term value</CardDescription>
+              <div className="flex items-center justify-between">
+                <CardTitle>{t("plans.annual")} — $199/yr</CardTitle>
+                <Badge>{t("plans.bestvalue")}</Badge>
+              </div>
+              <CardDescription>Everything included + significant savings</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <Button onClick={(e) => handleCheckout("annual", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
+              <Button onClick={(e) => handleCheckout("ELITE_ANNUAL", e.currentTarget as HTMLButtonElement)}>Subscribe</Button>
             </CardContent>
           </Card>
         </div>

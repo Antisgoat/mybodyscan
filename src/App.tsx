@@ -42,6 +42,8 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import Nutrition from "./pages/Nutrition";
+import Coach from "./pages/Coach";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -98,11 +100,17 @@ const App = () => {
             {/* Other */}
             <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
             <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/nutrition" element={<ProtectedRoute><AuthedLayout><Nutrition /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/coach" element={<ProtectedRoute><AuthedLayout><Coach /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AuthedLayout><Settings /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings/units" element={<ProtectedRoute><AuthedLayout><SettingsUnits /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/onboarding" element={<ProtectedRoute><AuthedLayout><CoachOnboarding /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
+            {/* Legal Routes */}
+            <Route path="/legal/terms" element={<PublicLayout><Terms /></PublicLayout>} />
+            <Route path="/legal/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
+            <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
             {/* New scan routes */}
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
