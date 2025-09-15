@@ -21,5 +21,11 @@ export default defineConfig(({ mode }) => ({
         manualChunks: undefined,
       },
     },
+    target: 'esnext',
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'esnext',
+    },
   },
 }));
