@@ -52,6 +52,9 @@ import Onboarding from "./pages/Onboarding";
 import Scan from "./pages/Scan";
 import Workouts from "./pages/Workouts";
 import Meals from "./pages/Meals";
+import Coach from "./pages/Coach";
+import Nutrition from "./pages/Nutrition";
+import { ConsentGate } from "./components/ConsentGate";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -69,8 +72,9 @@ const App = () => {
         <Toaster />
         <Sonner />
         <AuthGate>
-          <BrowserRouter>
-            <OnboardingRedirectMBS>
+          <ConsentGate>
+            <BrowserRouter>
+              <OnboardingRedirectMBS>
               <Routes>
             {/* Root route - flag-controlled */}
             <Route 
@@ -107,6 +111,8 @@ const App = () => {
             <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
             {/* New main pages */}
             <Route path="/scan" element={<ProtectedRoute><AuthedLayout><Scan /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/coach" element={<ProtectedRoute><AuthedLayout><Coach /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/nutrition" element={<ProtectedRoute><AuthedLayout><Nutrition /></AuthedLayout></ProtectedRoute>} />
             <Route path="/workouts" element={<ProtectedRoute><AuthedLayout><Workouts /></AuthedLayout></ProtectedRoute>} />
             <Route path="/meals" element={<ProtectedRoute><AuthedLayout><Meals /></AuthedLayout></ProtectedRoute>} />
             {/* Capture routes (old + new kept) */}
@@ -191,7 +197,8 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
               </Routes>
             </OnboardingRedirectMBS>
-        </BrowserRouter>
+          </BrowserRouter>
+        </ConsentGate>
       </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>

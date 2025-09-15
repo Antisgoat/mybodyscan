@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -16,9 +17,16 @@ import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoGuest } from "@/lib/demoFlag";
+import { Download, Trash2 } from "lucide-react";
 
 const Settings = () => {
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState({
+    scanReminder: true,
+    workoutReminder: true,
+    checkinReminder: true,
+    renewalReminder: true
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { credits, uid } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
@@ -33,16 +41,64 @@ const Settings = () => {
       navigate("/auth");
     };
 
-    const handleDeleteAccount = () => {
-      if (isDemoGuest()) {
-        toast({ title: "Create a free account to manage account." });
-        navigate("/auth");
-        return;
+  const handleExportData = async () => {
+    if (isDemoGuest()) {
+      toast({ title: "Create a free account to export data." });
+      navigate("/auth");
+      return;
+    }
+    
+    try {
+      // Call backend exportData() function
+      const response = await fetch('/api/exportData', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${await uid}` }
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mybodyscan-data-${new Date().toISOString().split('T')[0]}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        toast({ title: "Data exported successfully" });
       }
-      const subject = encodeURIComponent("Delete Account Request");
-      const body = encodeURIComponent(`User ID: ${uid}\nEmail: Please delete my account and all associated data.`);
-      window.location.href = `mailto:support@mybodyscanapp.com?subject=${subject}&body=${body}`;
-    };
+    } catch (error) {
+      toast({ title: "Export failed", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (isDemoGuest()) {
+      toast({ title: "Create a free account to manage account." });
+      navigate("/auth");
+      return;
+    }
+    
+    try {
+      // Call backend deleteAccount() function
+      const response = await fetch('/api/deleteAccount', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${await uid}` }
+      });
+      
+      if (response.ok) {
+        toast({ title: "Account deleted successfully" });
+        await signOutAll();
+        navigate("/");
+      } else {
+        toast({ title: "Delete failed", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Delete failed", variant: "destructive" });
+    }
+    
+    setShowDeleteConfirm(false);
+  };
 
 
   return (
@@ -63,12 +119,45 @@ const Settings = () => {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label>Scan reminders</Label>
-                <p className="text-sm text-muted-foreground">Get notified when it's time for your next scan</p>
+                <Label>{t('notifications.scanReminder')}</Label>
+                <p className="text-sm text-muted-foreground">Every 10 days since last scan</p>
               </div>
               <Switch
-                checked={notifications}
-                onCheckedChange={setNotifications}
+                checked={notifications.scanReminder}
+                onCheckedChange={(checked) => setNotifications(prev => ({...prev, scanReminder: checked}))}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>{t('notifications.workoutReminder')}</Label>
+                <p className="text-sm text-muted-foreground">8am on planned workout days</p>
+              </div>
+              <Switch
+                checked={notifications.workoutReminder}
+                onCheckedChange={(checked) => setNotifications(prev => ({...prev, workoutReminder: checked}))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>{t('notifications.checkinReminder')}</Label>
+                <p className="text-sm text-muted-foreground">Weekly check-in reminders</p>
+              </div>
+              <Switch
+                checked={notifications.checkinReminder}
+                onCheckedChange={(checked) => setNotifications(prev => ({...prev, checkinReminder: checked}))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>{t('notifications.renewalReminder')}</Label>
+                <p className="text-sm text-muted-foreground">3 days before renewal</p>
+              </div>
+              <Switch
+                checked={notifications.renewalReminder}
+                onCheckedChange={(checked) => setNotifications(prev => ({...prev, renewalReminder: checked}))}
               />
             </div>
           </CardContent>
@@ -127,12 +216,41 @@ const Settings = () => {
             </div>
           <div className="space-y-2">
             <Button
-              variant="destructive"
-              onClick={handleDeleteAccount}
-              className="w-full"
+              variant="outline"
+              onClick={handleExportData}
+              className="w-full flex items-center gap-2"
             >
-              {t('settings.delete_account')}
+              <Download className="w-4 h-4" />
+              {t('settings.export_data')}
             </Button>
+            
+            <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="w-full flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {t('settings.delete_account')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Account</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={handleDeleteAccount}>
+                    Delete Account
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Button
               variant="outline"
               onClick={handleSignOut}
