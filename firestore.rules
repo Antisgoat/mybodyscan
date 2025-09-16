@@ -1,50 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null; }
+
     function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
 
     match /users/{uid} {
-      allow read, update: if isOwner(uid);
-      allow create: if isOwner(uid);
-      match /scans/{scanId} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+
+      match /private/{doc} {
         allow read: if isOwner(uid);
-        allow create, update, delete: if false;
-      }
-      match /ledger/{entryId} {
-        allow read: if isOwner(uid);
-        allow create, update, delete: if false;
+        allow write: if false;
       }
 
-      match /private/credits {
-        allow read, write: if isOwner(uid);
+      match /scans/{scanId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update, delete: if isOwner(uid);
       }
 
       match /nutritionLogs/{date} {
         allow read, write: if isOwner(uid);
       }
 
-      match /workoutPlans/{planId} {
+      match /workouts/{date} {
         allow read, write: if isOwner(uid);
-        match /progress/{d} {
-          allow read, write: if isOwner(uid);
-        }
+      }
+
+      match /coach/{doc=**} {
+        allow read, write: if isOwner(uid);
       }
     }
 
-    match /pricing/{priceId} {
-      allow read: if true;
-      allow write: if false;
-    }
-
-    match /stripe_events/{docId} {
+    match /stripe_events/{id} {
       allow read: if false;
-      allow write: if false;
-    }
-
-    match /payments/{docId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if request.time < timestamp.date(2099,1,1);
     }
   }
 }
