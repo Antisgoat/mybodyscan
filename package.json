@@ -21,6 +21,7 @@
     "lighthouse": "lhci autorun",
     "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL",
     "seed:pricing": "node scripts/seedPricing.cjs",
+    "smoke": "node scripts/smoke.mjs",
     "format": "prettier -w .",
     "typecheck": "tsc -b --noEmit",
     "deploy:functions": "firebase deploy --only functions",
