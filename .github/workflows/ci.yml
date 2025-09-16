@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: npm
       - run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Install functions deps
@@ -45,3 +45,29 @@ jobs:
         run: npm run lighthouse
         env:
           PREVIEW_URL: http://localhost:5173
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Install functions deps
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+        working-directory: functions
+        if: ${{ hashFiles('functions/package.json') != '' }}
+      - run: npm run build
+      - name: Deploy rules and functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "FIREBASE_TOKEN not set; skipping deploy"
+            exit 0
+          fi
+          npx firebase deploy --only functions,firestore:rules,storage:rules
