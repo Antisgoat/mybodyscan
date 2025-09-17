@@ -8,15 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_ALWAYS_AUTH: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: npm
-      - run: npm install --legacy-peer-deps --no-audit --no-fund
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: npm ci || npm install
       - name: Install functions deps
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: npm ci || npm install
         working-directory: functions
         if: ${{ hashFiles('functions/package.json') != '' }}
       - name: Create env file
