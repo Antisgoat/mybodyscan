@@ -1,0 +1,8 @@
+{
+  "name": "simple-swizzle",
+  "version": "0.2.2",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  }
+}
