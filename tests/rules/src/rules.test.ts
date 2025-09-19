@@ -1,8 +1,10 @@
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 
-const rules = readFileSync('database.rules.json', 'utf8');
+const rulesPath = fileURLToPath(new URL('../../database.rules.json', import.meta.url));
+const rules = readFileSync(rulesPath, 'utf8');
 let testEnv: any;
 
 beforeAll(async () => {
