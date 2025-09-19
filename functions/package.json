@@ -1,0 +1,20 @@
+{
+  "name": "mybodyscan-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.1",
+    "stripe": "^16.12.0",
+    "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "simple-swizzle": "0.2.2"
+  }
+}
