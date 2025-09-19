@@ -8,17 +8,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_ALWAYS_AUTH: 'false'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: npm
-      - run: npm install --legacy-peer-deps --no-audit --no-fund
-      - name: Install functions deps
-        run: npm install --legacy-peer-deps --no-audit --no-fund
-        working-directory: functions
-        if: ${{ hashFiles('functions/package.json') != '' }}
+          node-version: 20
+          check-latest: true
+      - name: Print tool versions
+        run: |
+          node -v
+          npm -v
+          npm config get registry
+          npm config get always-auth
+      - name: Determine comparison ref
+        id: diff-base
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo "ref=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install root dependencies
+        run: |
+          set -euo pipefail
+          LOCK_CHANGED=false
+          BASE_REF="${{ steps.diff-base.outputs.ref }}"
+          if [ -n "$BASE_REF" ]; then
+            if git diff --name-only "$BASE_REF"...HEAD -- package-lock.json | grep -q 'package-lock\.json'; then
+              LOCK_CHANGED=true
+            fi
+          fi
+          if [ "$LOCK_CHANGED" = "true" ]; then
+            npm install --no-audit --no-fund
+          else
+            npm ci --no-audit --no-fund
+          fi
       - name: Create env file
         run: |
           cat > .env.production <<'EOF'
@@ -33,6 +65,31 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Install functions dependencies
+        if: ${{ hashFiles('functions/package.json') != '' }}
+        working-directory: functions
+        run: |
+          set -euo pipefail
+          if [ ! -f package-lock.json ]; then
+            npm install --omit=dev --no-audit --no-fund
+            exit 0
+          fi
+          LOCK_CHANGED=false
+          BASE_REF="${{ steps.diff-base.outputs.ref }}"
+          if [ -n "$BASE_REF" ]; then
+            if git diff --name-only "$BASE_REF"...HEAD -- functions/package-lock.json | grep -q 'functions/package-lock\.json'; then
+              LOCK_CHANGED=true
+            fi
+          fi
+          if [ "$LOCK_CHANGED" = "true" ]; then
+            npm install --omit=dev --no-audit --no-fund
+          else
+            npm ci --omit=dev --no-audit --no-fund
+          fi
+      - name: Build functions
+        if: ${{ hashFiles('functions/package.json') != '' }}
+        working-directory: functions
+        run: npm run build
       - run: npm run pretest:e2e
       - run: npx firebase emulators:exec --only firestore,auth,storage,functions "npm run test:e2e"
       - name: Lighthouse (PR)
