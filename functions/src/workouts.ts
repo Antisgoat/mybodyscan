@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase";
+import { softVerifyAppCheck } from "./middleware/appCheck";
+import { withCors } from "./middleware/cors";
 import { requireAuth, verifyAppCheckSoft } from "./http";
 import type { WorkoutDay, WorkoutPlan } from "./types";
 
@@ -215,22 +217,25 @@ async function handleGetWorkouts(req: Request, res: any) {
 }
 
 function withHandler(handler: (req: Request, res: any) => Promise<void>) {
-  return onRequest(async (req, res) => {
-    try {
-      await handler(req, res);
-    } catch (err: any) {
-      const code = err instanceof HttpsError ? err.code : "internal";
-      const status =
-        code === "unauthenticated"
-          ? 401
-          : code === "invalid-argument"
-          ? 400
-          : code === "not-found"
-          ? 404
-          : 500;
-      res.status(status).json({ error: err.message || "error" });
-    }
-  });
+  return onRequest(
+    withCors(async (req, res) => {
+      try {
+        await softVerifyAppCheck(req as any, res as any);
+        await handler(req, res);
+      } catch (err: any) {
+        const code = err instanceof HttpsError ? err.code : "internal";
+        const status =
+          code === "unauthenticated"
+            ? 401
+            : code === "invalid-argument"
+            ? 400
+            : code === "not-found"
+            ? 404
+            : 500;
+        res.status(status).json({ error: err.message || "error" });
+      }
+    })
+  );
 }
 
 export const generateWorkoutPlan = withHandler(handleGenerate);
