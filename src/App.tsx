@@ -62,7 +62,7 @@ import WorkoutsLibrary from "./pages/WorkoutsLibrary";
 import WorkoutsCompleted from "./pages/WorkoutsCompleted";
 import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
-import { FeatureGate } from "./lib/featureFlags";
+import { FeatureGate } from "./components/FeatureGate";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 

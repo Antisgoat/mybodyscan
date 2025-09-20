@@ -19,7 +19,7 @@ import { isDemoGuest } from "@/lib/demoFlag";
 import { Download, Trash2 } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
-import { FeatureGate } from "@/lib/featureFlags";
+import { FeatureGate } from "@/components/FeatureGate";
 import { scheduleReminderMock } from "@/lib/remindersShim";
 
 const Settings = () => {
