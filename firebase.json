@@ -5,35 +5,65 @@
       {
         "source": "/assets/**",
         "headers": [
-          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
         ]
       },
       {
         "source": "/**/*.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-store, max-age=0" }
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0"
+          }
         ]
       },
       {
         "source": "/index.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-store, max-age=0" }
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0"
+          }
         ]
       },
       {
         "source": "**",
         "headers": [
-          { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" },
-          { "key": "X-Content-Type-Options", "value": "nosniff" },
-          { "key": "X-Frame-Options", "value": "DENY" },
-          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-          { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-          { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self' https://js.stripe.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://checkout.stripe.com https://api.stripe.com https://*.cloudfunctions.net; frame-src https://js.stripe.com https://checkout.stripe.com https://hooks.stripe.com; frame-ancestors 'none'; base-uri 'self'" }
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains; preload"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self' https://js.stripe.com https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://checkout.stripe.com https://api.stripe.com https://*.cloudfunctions.net; frame-src https://js.stripe.com https://checkout.stripe.com https://hooks.stripe.com; frame-ancestors 'none'; base-uri 'self'"
+          }
         ]
       }
     ],
     "rewrites": [
-      { "source": "**", "destination": "/index.html" }
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ],
     "redirects": [
       {
@@ -53,7 +83,16 @@
       }
     ]
   },
-  "functions": { "source": "functions", "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"] },
-  "firestore": { "rules": "database.rules.json" },
-  "storage": { "rules": "storage.rules" }
+  "functions": {
+    "source": "functions",
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run build"
+    ]
+  },
+  "firestore": {
+    "rules": "database.rules.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
 }
