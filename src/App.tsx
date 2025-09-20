@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import React, { useEffect, lazy, Suspense } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
@@ -55,6 +55,14 @@ import Meals from "./pages/Meals";
 import Coach from "./pages/Coach";
 import Nutrition from "./pages/Nutrition";
 import { ConsentGate } from "./components/ConsentGate";
+import MealsSearch from "./pages/MealsSearch";
+import MealsBarcode from "./pages/MealsBarcode";
+import MealsHistory from "./pages/MealsHistory";
+import WorkoutsLibrary from "./pages/WorkoutsLibrary";
+import WorkoutsCompleted from "./pages/WorkoutsCompleted";
+import HealthSync from "./pages/HealthSync";
+import { RouteBoundary } from "./components/RouteBoundary";
+import { FeatureGate } from "./lib/featureFlags";
 
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
@@ -107,14 +115,162 @@ const App = () => {
             } />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/today" element={<ProtectedRoute><AuthedLayout><Today /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/today"
+              element={
+                <FeatureGate name="health" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Today />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
             <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
             {/* New main pages */}
-            <Route path="/scan" element={<ProtectedRoute><AuthedLayout><Scan /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/coach" element={<ProtectedRoute><AuthedLayout><Coach /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/nutrition" element={<ProtectedRoute><AuthedLayout><Nutrition /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/workouts" element={<ProtectedRoute><AuthedLayout><Workouts /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/meals" element={<ProtectedRoute><AuthedLayout><Meals /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/scan"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Scan />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/coach"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Coach />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/nutrition"
+              element={
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Nutrition />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/workouts"
+              element={
+                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Workouts />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/workouts/library"
+              element={
+                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <WorkoutsLibrary />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/workouts/completed"
+              element={
+                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <WorkoutsCompleted />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/meals"
+              element={
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Meals />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/meals/search"
+              element={
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <MealsSearch />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/meals/barcode"
+              element={
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <MealsBarcode />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/meals/history"
+              element={
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <MealsHistory />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
             {/* Capture routes (old + new kept) */}
             <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/capture/photos" element={
@@ -168,9 +324,62 @@ const App = () => {
               </ProtectedRoute>
             } />
             {/* Other */}
-            <Route path="/history" element={<ProtectedRoute><AuthedLayout><History /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/plans" element={<ProtectedRoute><AuthedLayout><Plans /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><AuthedLayout><Settings /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/history"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <History />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/plans"
+              element={
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Plans />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <Settings />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/health"
+              element={
+                <FeatureGate name="health" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <HealthSync />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
             <Route path="/settings/units" element={<ProtectedRoute><AuthedLayout><SettingsUnits /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/onboarding" element={<ProtectedRoute><AuthedLayout><CoachOnboarding /></AuthedLayout></ProtectedRoute>} />
             <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />

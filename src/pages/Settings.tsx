@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
@@ -18,6 +17,10 @@ import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoGuest } from "@/lib/demoFlag";
 import { Download, Trash2 } from "lucide-react";
+import { SectionCard } from "@/components/Settings/SectionCard";
+import { ToggleRow } from "@/components/Settings/ToggleRow";
+import { FeatureGate } from "@/lib/featureFlags";
+import { scheduleReminderMock } from "@/lib/remindersShim";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -27,9 +30,23 @@ const Settings = () => {
     renewalReminder: true
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { credits, uid } = useCredits();
+  const [scheduling, setScheduling] = useState(false);
+  const { uid } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
+
+  const handleScheduleReminder = async (type: 'scan' | 'workout' | 'meal') => {
+    setScheduling(true);
+    try {
+      const sendAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const reminder = await scheduleReminderMock({ type, sendAt, channel: 'push' });
+      toast({ title: 'Reminder scheduled', description: `${type} reminder queued (${reminder.reminderId}).` });
+    } catch (error: any) {
+      toast({ title: 'Unable to schedule', description: error?.message || 'Try again later', variant: 'destructive' });
+    } finally {
+      setScheduling(false);
+    }
+  };
 
     const handleSignOut = async () => {
       if (isDemoGuest()) {
@@ -112,56 +129,50 @@ const Settings = () => {
           <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
 
         {/* Notifications */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('settings.notifications')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t('notifications.scanReminder')}</Label>
-                <p className="text-sm text-muted-foreground">Every 10 days since last scan</p>
-              </div>
-              <Switch
-                checked={notifications.scanReminder}
-                onCheckedChange={(checked) => setNotifications(prev => ({...prev, scanReminder: checked}))}
-              />
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t('notifications.workoutReminder')}</Label>
-                <p className="text-sm text-muted-foreground">8am on planned workout days</p>
-              </div>
-              <Switch
-                checked={notifications.workoutReminder}
-                onCheckedChange={(checked) => setNotifications(prev => ({...prev, workoutReminder: checked}))}
-              />
-            </div>
+        <SectionCard title={t('settings.notifications')}>
+          <div className="space-y-2">
+            <ToggleRow
+              label={t('notifications.scanReminder')}
+              description="Every 10 days since last scan"
+              checked={notifications.scanReminder}
+              onChange={(checked) => setNotifications((prev) => ({ ...prev, scanReminder: checked }))}
+            />
+            <ToggleRow
+              label={t('notifications.workoutReminder')}
+              description="8am on planned workout days"
+              checked={notifications.workoutReminder}
+              onChange={(checked) => setNotifications((prev) => ({ ...prev, workoutReminder: checked }))}
+            />
+            <ToggleRow
+              label={t('notifications.checkinReminder')}
+              description="Weekly check-in reminders"
+              checked={notifications.checkinReminder}
+              onChange={(checked) => setNotifications((prev) => ({ ...prev, checkinReminder: checked }))}
+            />
+            <ToggleRow
+              label={t('notifications.renewalReminder')}
+              description="3 days before renewal"
+              checked={notifications.renewalReminder}
+              onChange={(checked) => setNotifications((prev) => ({ ...prev, renewalReminder: checked }))}
+            />
+          </div>
+        </SectionCard>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t('notifications.checkinReminder')}</Label>
-                <p className="text-sm text-muted-foreground">Weekly check-in reminders</p>
-              </div>
-              <Switch
-                checked={notifications.checkinReminder}
-                onCheckedChange={(checked) => setNotifications(prev => ({...prev, checkinReminder: checked}))}
-              />
+        <FeatureGate name="reminders">
+          <SectionCard title="Quick reminders" description="Send yourself a demo push to preview the flow.">
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('scan')}>
+                Schedule scan reminder
+              </Button>
+              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('workout')}>
+                Schedule workout reminder
+              </Button>
+              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('meal')}>
+                Schedule meal reminder
+              </Button>
             </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>{t('notifications.renewalReminder')}</Label>
-                <p className="text-sm text-muted-foreground">3 days before renewal</p>
-              </div>
-              <Switch
-                checked={notifications.renewalReminder}
-                onCheckedChange={(checked) => setNotifications(prev => ({...prev, renewalReminder: checked}))}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          </SectionCard>
+        </FeatureGate>
 
         {/* Language */}
         <Card>

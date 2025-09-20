@@ -1,23 +1,31 @@
-import { Home, Calendar, Dumbbell, Utensils, History } from "lucide-react";
+import { Home as HomeIcon, Camera, CalendarCheck, Dumbbell, Utensils, Bot, History, CreditCard, Settings } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 
-const navItems = [
-  { path: "/today", icon: Home, label: "Today" },
-  { path: "/plans", icon: Calendar, label: "Plans" },
-  { path: "/workouts", icon: Dumbbell, label: "Workouts" },
-  { path: "/meals", icon: Utensils, label: "Meals" },
-  { path: "/history", icon: History, label: "History" },
+const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?: FeatureName }> = [
+  { path: "/home", icon: HomeIcon, label: "Home" },
+  { path: "/scan", icon: Camera, label: "Scan", feature: "scan" },
+  { path: "/today", icon: CalendarCheck, label: "Today", feature: "health" },
+  { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
+  { path: "/workouts", icon: Dumbbell, label: "Workouts", feature: "workouts" },
+  { path: "/coach", icon: Bot, label: "Coach", feature: "coach" },
+  { path: "/history", icon: History, label: "History", feature: "scan" },
+  { path: "/plans", icon: CreditCard, label: "Plans", feature: "account" },
+  { path: "/settings", icon: Settings, label: "Settings", feature: "account" },
 ];
 
 export function BottomNav() {
   const location = useLocation();
+  const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border md:hidden">
       <div className="flex items-center justify-around">
-        {navItems.map(({ path, icon: Icon, label }) => {
-          const isActive = location.pathname === path;
+        {filteredNavItems.map(({ path, icon: Icon, label }) => {
+          const isActive =
+            location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <Link
               key={path}
