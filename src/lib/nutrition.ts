@@ -4,6 +4,35 @@ import { track } from "./analytics";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
+export interface MealServingSelection {
+  qty?: number;
+  unit?: string;
+  grams?: number | null;
+  originalQty?: number | null;
+  originalUnit?: string | null;
+}
+
+export interface MealItemSnapshot {
+  id?: string;
+  name: string;
+  brand?: string | null;
+  source?: string;
+  serving?: {
+    qty?: number | null;
+    unit?: string | null;
+    text?: string | null;
+  } | null;
+  per_serving?: {
+    kcal?: number | null;
+    protein_g?: number | null;
+    carbs_g?: number | null;
+    fat_g?: number | null;
+  } | null;
+  per_100g?: MealItemSnapshot["per_serving"] | null;
+  fdcId?: number | null;
+  gtin?: string | null;
+}
+
 export interface MealEntry {
   id?: string;
   name: string;
@@ -13,6 +42,9 @@ export interface MealEntry {
   alcohol?: number;
   calories?: number;
   notes?: string;
+  serving?: MealServingSelection | null;
+  item?: MealItemSnapshot | null;
+  entrySource?: "search" | "barcode" | "manual" | string;
 }
 
 export interface NutritionHistoryDay {

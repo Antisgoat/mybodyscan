@@ -1,31 +1,41 @@
-const FALLBACK_COUNTRY = "US";
+const FALLBACK_COUNTRY: DefaultCountry = "US";
 
-const SPECIFIC_LOCALE_MAP: Record<string, string> = {
+const SPECIFIC_LOCALE_MAP: Record<string, DefaultCountry> = {
   "en-us": "US",
   "en-gb": "GB",
-  "en-ca": "CA",
   "en-au": "AU",
+  "en-ca": "CA",
   "fr-fr": "FR",
   "fr-ca": "CA",
-  "es-us": "US",
-  "es-mx": "MX",
-  "es-es": "ES",
   "de-de": "DE",
-  "it-it": "IT",
+  "es-mx": "MX",
+  "es-us": "US",
   "pt-br": "BR",
 };
 
-export function defaultCountryFromLocale(locale?: string | null): string {
+const REGION_MAP: Record<string, DefaultCountry> = {
+  us: "US",
+  ca: "CA",
+  gb: "GB",
+  uk: "GB",
+  au: "AU",
+  fr: "FR",
+  de: "DE",
+  mx: "MX",
+  br: "BR",
+};
+
+export type DefaultCountry = "US" | "GB" | "FR" | "DE" | "MX" | "BR" | "CA" | "AU" | "EU";
+
+export function defaultCountryFromLocale(locale?: string | null): DefaultCountry {
   const raw = (locale || (typeof navigator !== "undefined" ? navigator.language : undefined) || FALLBACK_COUNTRY).toLowerCase();
   if (SPECIFIC_LOCALE_MAP[raw]) {
     return SPECIFIC_LOCALE_MAP[raw];
   }
   const parts = raw.split(/[-_]/);
-  if (parts.length > 1) {
-    return parts[1].toUpperCase();
+  const region = parts[1] || parts[0];
+  if (region && REGION_MAP[region]) {
+    return REGION_MAP[region];
   }
-  if (parts[0].length === 2) {
-    return parts[0].toUpperCase();
-  }
-  return FALLBACK_COUNTRY;
+  return "EU";
 }

@@ -5,7 +5,12 @@ import { Timestamp, getFirestore } from "./firebase";
 import { softVerifyAppCheck } from "./middleware/appCheck";
 import { withCors } from "./middleware/cors";
 import { requireAuth, verifyAppCheckSoft } from "./http";
-import type { DailyLogDocument, MealRecord } from "./types";
+import type {
+  DailyLogDocument,
+  MealRecord,
+  MealServingSelection,
+  NutritionItemSnapshot,
+} from "./types";
 
 const db = getFirestore();
 
@@ -62,6 +67,54 @@ function validateMeal(meal: MealRecord) {
   if (macros.some((n) => n !== undefined && n < 0)) {
     throw new HttpsError("invalid-argument", "Macros must be non-negative");
   }
+}
+
+function sanitizeServing(raw: any): MealServingSelection | null {
+  if (!raw || typeof raw !== "object") return null;
+  const numberOrNull = (value: any): number | null => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+  const unitOrNull = (value: any): string | null =>
+    typeof value === "string" && value.trim().length ? value.trim().slice(0, 40) : null;
+  return {
+    qty: numberOrNull(raw.qty) ?? undefined,
+    unit: unitOrNull(raw.unit) ?? undefined,
+    grams: numberOrNull(raw.grams),
+    originalQty: numberOrNull(raw.originalQty),
+    originalUnit: unitOrNull(raw.originalUnit) ?? undefined,
+  };
+}
+
+function sanitizeNutrients(raw: any) {
+  if (!raw || typeof raw !== "object") return null;
+  const numberOrNull = (value: any): number | null => {
+    const num = Number(value);
+    return Number.isFinite(num) ? Number(num.toFixed(2)) : null;
+  };
+  return {
+    kcal: numberOrNull(raw.kcal),
+    protein_g: numberOrNull(raw.protein_g),
+    carbs_g: numberOrNull(raw.carbs_g),
+    fat_g: numberOrNull(raw.fat_g),
+  };
+}
+
+function sanitizeItem(raw: any): NutritionItemSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const name = typeof raw.name === "string" ? raw.name.trim().slice(0, 140) : null;
+  if (!name) return null;
+  return {
+    id: typeof raw.id === "string" ? raw.id.slice(0, 120) : undefined,
+    name,
+    brand: typeof raw.brand === "string" ? raw.brand.slice(0, 120) : null,
+    source: typeof raw.source === "string" ? raw.source.slice(0, 40) : undefined,
+    serving: sanitizeServing(raw.serving),
+    per_serving: sanitizeNutrients(raw.per_serving),
+    per_100g: sanitizeNutrients(raw.per_100g),
+    fdcId: Number.isFinite(Number(raw.fdcId)) ? Number(raw.fdcId) : undefined,
+    gtin: typeof raw.gtin === "string" ? raw.gtin.slice(0, 40) : undefined,
+  };
 }
 
 async function upsertMeal(uid: string, day: string, meal: MealRecord) {
@@ -168,6 +221,14 @@ async function handleAddMeal(req: Request, res: any) {
     alcohol: body.meal.alcohol,
     calories: body.meal.calories,
     notes: body.meal.notes || null,
+    serving: sanitizeServing(body.meal.serving),
+    item: sanitizeItem(body.meal.item),
+    entrySource:
+      typeof body.meal.entrySource === "string"
+        ? body.meal.entrySource.slice(0, 40)
+        : body.meal.item
+        ? "search"
+        : undefined,
   };
   validateMeal(meal);
   const totals = await upsertMeal(uid, day, meal);
