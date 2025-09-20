@@ -56,8 +56,9 @@ import Coach from "./pages/Coach";
 import Nutrition from "./pages/Nutrition";
 import { ConsentGate } from "./components/ConsentGate";
 import MealsSearch from "./pages/MealsSearch";
-import MealsBarcode from "./pages/MealsBarcode";
+import BarcodeScan from "./pages/BarcodeScan";
 import MealsHistory from "./pages/MealsHistory";
+import ScanTips from "./pages/ScanTips";
 import WorkoutsLibrary from "./pages/WorkoutsLibrary";
 import WorkoutsCompleted from "./pages/WorkoutsCompleted";
 import HealthSync from "./pages/HealthSync";
@@ -244,19 +245,20 @@ const App = () => {
               }
             />
             <Route
-              path="/meals/barcode"
+              path="/barcode"
               element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <MealsBarcode />
+                        <BarcodeScan />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
                 </FeatureGate>
               }
             />
+            <Route path="/meals/barcode" element={<Navigate to="/barcode" replace />} />
             <Route
               path="/meals/history"
               element={
@@ -387,6 +389,7 @@ const App = () => {
             {/* New scan routes */}
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/scan/tips" element={<ProtectedRoute><AuthedLayout><ScanTips /></AuthedLayout></ProtectedRoute>} />
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />

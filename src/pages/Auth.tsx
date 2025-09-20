@@ -134,14 +134,15 @@ const Auth = () => {
             </div>
           </form>
             <div className="mt-4 grid gap-2">
-              {appleEnabled && (
-                <Button
-                  variant="secondary"
-                  onClick={onApple}
-                  disabled={loading}
-                >
-                  Continue with Apple
-                </Button>
+              <Button
+                variant="secondary"
+                onClick={appleEnabled ? onApple : undefined}
+                disabled={loading || !appleEnabled}
+              >
+                {appleEnabled ? "Continue with Apple" : "Sign in with Apple (coming soon)"}
+              </Button>
+              {!appleEnabled && (
+                <p className="text-center text-xs text-muted-foreground">Apple sign-in will activate once approved.</p>
               )}
               <Button
                 variant="secondary"

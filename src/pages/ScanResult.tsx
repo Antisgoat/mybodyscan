@@ -1,262 +1,245 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Seo } from "@/components/Seo";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
+import { Seo } from "@/components/Seo";
+import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { formatBmi, formatWeightFromKg, kgToLb } from "@/lib/units";
+import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { formatBmi } from "@/lib/units";
 
-type ScanData = {
+interface ScanDocument {
   id: string;
   status: string;
-  results?: {
-    bodyFat?: number;
-    weight?: number;
-    bmi?: number;
+  charged?: boolean;
+  method?: "photo" | "photo+measure" | "bmi_fallback";
+  confidence?: number;
+  mode?: "2" | "4";
+  qc?: string[];
+  analysis?: {
+    neck_cm?: number | null;
+    waist_cm?: number | null;
+    hip_cm?: number | null;
   };
-  createdAt: any;
+  result?: {
+    bf_percent?: number | null;
+    bmi?: number | null;
+  };
+  completedAt?: { seconds: number } | null;
+  createdAt?: { seconds: number } | null;
+}
+
+const methodCopy: Record<string, string> = {
+  photo: "Photo",
+  "photo+measure": "Photo + Tape",
+  bmi_fallback: "BMI Fallback",
 };
 
-// Processing UI component
-const ProcessingUI = () => {
-  const [progress, setProgress] = useState(0);
-  const [messageIndex, setMessageIndex] = useState(0);
-  
-  const messages = [
-    "Lining up your measurements…",
-    "Estimating body fat…",
-    "Checking symmetry and posture…",
-    "Crunching numbers…",
-    "Almost there!"
-  ];
+function confidenceLabel(value?: number) {
+  if (value == null) return { label: "Unknown", tone: "secondary" } as const;
+  if (value >= 0.8) return { label: "High", tone: "default" } as const;
+  if (value >= 0.6) return { label: "Medium", tone: "outline" } as const;
+  return { label: "Low", tone: "secondary" } as const;
+}
 
-  useEffect(() => {
-    // Progress bar: 0→100% over 90s
-    const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + (100 / 90), 100));
-    }, 1000);
+function formatDate(seconds?: number) {
+  if (!seconds) return "—";
+  try {
+    return new Date(seconds * 1000).toLocaleDateString();
+  } catch {
+    return "—";
+  }
+}
 
-    // Message rotation: every 8s
-    const messageInterval = setInterval(() => {
-      setMessageIndex(prev => (prev + 1) % messages.length);
-    }, 8000);
-
-    return () => {
-      clearInterval(progressInterval);
-      clearInterval(messageInterval);
-    };
-  }, []);
-
-  return (
-    <div className="text-center py-8">
-      <div className="max-w-xs mx-auto mb-6">
-        <div className="w-full bg-muted rounded-full h-2 mb-3">
-          <div 
-            className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="text-sm font-medium mb-2">{Math.round(progress)}%</p>
-      </div>
-      <p className="text-muted-foreground animate-fade-in">{messages[messageIndex]}</p>
-      <p className="text-xs text-muted-foreground mt-2">This usually takes ~1–2 minutes.</p>
-    </div>
-  );
-};
-
-const ScanResult = () => {
+export default function ScanResult() {
   const { scanId } = useParams<{ scanId: string }>();
-  const [scan, setScan] = useState<ScanData | null>(null);
-  const [history, setHistory] = useState<ScanData[]>([]);
+  const [scan, setScan] = useState<ScanDocument | null>(null);
+  const [history, setHistory] = useState<ScanDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user || !scanId) return;
 
-    // Listen to current scan
     const scanRef = doc(db, "users", user.uid, "scans", scanId);
-    const unsubscribe = onSnapshot(scanRef, (doc) => {
-      if (doc.exists()) {
-        setScan({ id: doc.id, ...doc.data() } as ScanData);
+    const unsub = onSnapshot(scanRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setScan({ id: snapshot.id, ...(snapshot.data() as ScanDocument) });
       }
       setLoading(false);
     });
 
-    // Load scan history
     const loadHistory = async () => {
-      try {
-        const historyQuery = query(
-          collection(db, "users", user.uid, "scans"),
-          orderBy("createdAt", "desc"),
-          limit(10)
-        );
-        const snapshot = await getDocs(historyQuery);
-        const historyData = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as ScanData))
-          .filter(s => s.id !== scanId && s.results?.bodyFat);
-        setHistory(historyData);
-      } catch (error) {
-        console.error("Error loading history:", error);
-      }
+      const list: ScanDocument[] = [];
+      const histQuery = query(
+        collection(db, "users", user.uid, "scans"),
+        orderBy("completedAt", "desc"),
+        limit(8)
+      );
+      const histSnap = await getDocs(histQuery);
+      histSnap.forEach((docSnap) => {
+        if (docSnap.id === scanId) return;
+        const data = docSnap.data() as ScanDocument;
+        if (data.charged && data.result?.bf_percent != null) {
+          list.push({ id: docSnap.id, ...data });
+        }
+      });
+      setHistory(list);
     };
 
-    loadHistory();
-    return () => unsubscribe();
+    loadHistory().catch((error) => console.error("loadHistory", error));
+    return () => unsub();
   }, [scanId]);
+
+  const confidenceChip = useMemo(() => confidenceLabel(scan?.confidence), [scan?.confidence]);
 
   if (loading) {
     return (
-      <main className="min-h-screen p-6 max-w-md mx-auto flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-muted border-t-primary animate-spin" />
+      <main className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
       </main>
     );
   }
 
   if (!scan) {
     return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold mb-2">Scan not found</h1>
-          <p className="text-muted-foreground">This scan may have been deleted or doesn't exist.</p>
-        </div>
+      <main className="mx-auto max-w-xl p-6 text-center">
+        <Seo title="Scan Result" />
+        <p className="text-lg font-medium">Scan not found</p>
+        <p className="text-sm text-muted-foreground">This scan may have been deleted.</p>
       </main>
     );
   }
 
-  const weightKg = typeof scan.results?.weightKg === "number"
-    ? scan.results.weightKg
-    : typeof scan.results?.weight === "number"
-      ? scan.results.weight
-      : undefined;
-  const weightLb = weightKg != null
-    ? kgToLb(weightKg)
-    : typeof scan.results?.weightLb === "number"
-      ? scan.results.weightLb
-      : undefined;
-  const weightDisplay = weightKg != null
-    ? formatWeightFromKg(weightKg)
-    : weightLb != null
-      ? `${Math.round(weightLb)} lb`
-      : "—";
-  const bmiDisplay = formatBmi(scan.results?.bmi);
-  const hasWeight = weightDisplay !== "—";
-  const hasBmi = bmiDisplay !== "—";
+  const bfPercent = scan.result?.bf_percent;
+  const bmi = formatBmi(scan.result?.bmi ?? undefined);
+  const showResult = scan.charged && typeof bfPercent === "number";
+  const methodBadge = scan.method ? methodCopy[scan.method] || scan.method : "Unknown";
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo 
-        title="Scan Results – MyBodyScan" 
-        description="View your body scan analysis results and metrics." 
-        canonical={window.location.href} 
-      />
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6">
+      <Seo title="Scan Results – MyBodyScan" description="View your latest photo scan metrics." />
+      <NotMedicalAdviceBanner />
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold">Scan Results</h1>
+        <p className="text-sm text-muted-foreground">Completed on {formatDate(scan.completedAt?.seconds)}</p>
+      </header>
 
-      <h1 className="text-2xl font-semibold mb-6">Scan Results</h1>
+      <Card>
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-3 text-2xl">
+              Result
+              <Badge variant="secondary">{methodBadge}</Badge>
+              <Badge variant={confidenceChip.tone as any}>Confidence: {confidenceChip.label}</Badge>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Mode: {scan.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)"}</p>
+          </div>
+          <Link to="/scan/tips" className="text-sm text-primary underline">
+            How to improve accuracy
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {scan.status !== "completed" && (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+              <RefreshCcw className="h-4 w-4" />
+              Processing — keep this tab open.
+            </div>
+          )}
 
-      <div className="space-y-6">
-        {/* Current Scan Status */}
+          {showResult ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Body Fat</p>
+                <p className="text-3xl font-bold">{bfPercent?.toFixed(1)}%</p>
+                <p className="text-xs text-muted-foreground">Based on anthropometric estimation.</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
+                <p className="text-2xl font-semibold">{bmi}</p>
+                <p className="text-xs text-muted-foreground">Shown when weight is provided.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No numeric results yet. Complete a photo scan that passes quality gates to view body-fat %.
+            </div>
+          )}
+
+          {scan.analysis && (
+            <div className="grid gap-3 md:grid-cols-3">
+              {["neck_cm", "waist_cm", "hip_cm"].map((key) => {
+                const value = scan.analysis?.[key as keyof typeof scan.analysis];
+                return (
+                  <div key={key} className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{key.replace("_cm", "").toUpperCase()}</p>
+                    <p className="text-sm font-medium">{value ? `${(value / 2.54).toFixed(1)} in` : "—"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {scan.qc?.length ? (
+            <div className="rounded-lg border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quality notes</p>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+                {scan.qc.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {history.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Current Scan</CardTitle>
-              <Badge variant={scan.status === "completed" ? "default" : "secondary"}>
-                {scan.status}
-              </Badge>
-            </div>
+            <CardTitle>Recent Scans</CardTitle>
           </CardHeader>
-          <CardContent>
-            {scan.status === "processing" ? (
-              <ProcessingUI />
-            ) : scan.results ? (
-              <div className="grid gap-4">
-                {scan.results.bodyFat && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Body Fat</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Percentage of body weight that is fat tissue</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="text-xl font-semibold">{scan.results.bodyFat}%</span>
+          <CardContent className="space-y-3">
+            {history.map((entry) => {
+              const conf = confidenceLabel(entry.confidence);
+              return (
+                <Link
+                  key={entry.id}
+                  to={`/results/${entry.id}`}
+                  className="flex items-center justify-between rounded-lg border p-3 transition hover:bg-muted"
+                >
+                  <div>
+                    <p className="font-medium">{formatDate(entry.completedAt?.seconds)}</p>
+                    <p className="text-xs text-muted-foreground">{methodCopy[entry.method || ""] || entry.method || "Photo"}</p>
                   </div>
-                )}
-                
-                {hasWeight && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Weight</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Total body weight measurement</p>
-                        </TooltipContent>
-                      </Tooltip>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">{entry.result?.bf_percent?.toFixed(1)}%</p>
+                      <p className="text-xs text-muted-foreground">{formatBmi(entry.result?.bmi ?? undefined)}</p>
                     </div>
-                    <span className="text-xl font-semibold">{weightDisplay}</span>
+                    <Badge variant={conf.tone as any}>{conf.label}</Badge>
                   </div>
-                )}
-
-                {hasBmi && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">BMI</span>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Body Mass Index: weight relative to height</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="text-xl font-semibold">{bmiDisplay}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-4">No results available yet</p>
-            )}
+                </Link>
+              );
+            })}
           </CardContent>
         </Card>
+      )}
 
-        {/* Scan History */}
-        {history.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {history.map((historyScan) => (
-                  <div key={historyScan.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
-                    <div className="text-sm">
-                      {historyScan.createdAt?.seconds 
-                        ? new Date(historyScan.createdAt.seconds * 1000).toLocaleDateString()
-                        : "Recent"
-                      }
-                    </div>
-                    <div className="text-sm font-medium">
-                      {historyScan.results?.bodyFat}% BF
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Need better results?</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Use consistent lighting, mark a standing distance, and wear fitted clothing. If you have a tape measure, add those
+            values during the scan for higher confidence.
+          </p>
+          <Link to="/scan/tips" className="mt-2 inline-block text-sm text-primary underline">
+            Review photo tips
+          </Link>
+        </CardContent>
+      </Card>
     </main>
   );
-};
-
-export default ScanResult;
+}

@@ -22,6 +22,10 @@ function normalizeDate(dateISO: string, offsetMins: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function defaultTotals(): DailyLogDocument["totals"] {
+  return { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 };
+}
+
 function computeCalories(meal: MealRecord) {
   const protein = round(meal.protein || 0, 1);
   const carbs = round(meal.carbs || 0, 1);
@@ -62,13 +66,7 @@ function validateMeal(meal: MealRecord) {
 
 async function upsertMeal(uid: string, day: string, meal: MealRecord) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
-  let totals: DailyLogDocument["totals"] = {
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    alcohol: 0,
-  };
+  let totals: DailyLogDocument["totals"] = defaultTotals();
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(docRef);
     const data = snap.exists ? (snap.data() as DailyLogDocument) : { meals: [], totals };
@@ -88,7 +86,7 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
         fat: round(acc.fat + (item.fat || 0), 1),
         alcohol: round(acc.alcohol + (item.alcohol || 0), 1),
       }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 }
+      defaultTotals()
     );
     tx.set(
       docRef,
@@ -105,17 +103,11 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
 
 async function removeMeal(uid: string, day: string, mealId: string) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
-  let totals: DailyLogDocument["totals"] = {
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    alcohol: 0,
-  };
+  let totals: DailyLogDocument["totals"] = defaultTotals();
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(docRef);
     if (!snap.exists) {
-      totals = { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 };
+      totals = defaultTotals();
       return;
     }
     const data = snap.data() as DailyLogDocument;
@@ -128,7 +120,7 @@ async function removeMeal(uid: string, day: string, mealId: string) {
         fat: round(acc.fat + (item.fat || 0), 1),
         alcohol: round(acc.alcohol + (item.alcohol || 0), 1),
       }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 }
+      defaultTotals()
     );
     tx.set(
       docRef,
@@ -147,13 +139,13 @@ async function readDailyLog(uid: string, day: string) {
   const snap = await db.doc(`users/${uid}/nutritionLogs/${day}`).get();
   if (!snap.exists) {
     return {
-      totals: { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 },
+      totals: defaultTotals(),
       meals: [],
     };
   }
   const data = snap.data() as DailyLogDocument;
   return {
-    totals: data.totals || { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 },
+    totals: data.totals || defaultTotals(),
     meals: data.meals || [],
   };
 }
@@ -212,6 +204,48 @@ async function handleGetLog(req: Request, res: any) {
   res.json(response);
 }
 
+async function handleGetHistory(req: Request, res: any) {
+  await verifyAppCheckSoft(req);
+  const uid = await requireAuth(req);
+  const rangeRaw = (req.body?.range as number | string | undefined) ?? (req.query?.range as string | undefined) ?? 30;
+  const range = Math.min(30, Math.max(1, Number(rangeRaw) || 30));
+  const anchorIso =
+    (req.body?.anchorDateISO as string | undefined) || (req.query?.anchorDateISO as string | undefined) ||
+    new Date().toISOString().slice(0, 10);
+  const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
+  const normalizedAnchor = normalizeDate(anchorIso, tz);
+  const anchorDate = new Date(normalizedAnchor);
+  const tasks: Promise<{ date: string; totals: DailyLogDocument["totals"] }>[] = [];
+  for (let offset = 0; offset < range; offset++) {
+    const day = new Date(anchorDate);
+    day.setUTCDate(anchorDate.getUTCDate() - offset);
+    const iso = day.toISOString().slice(0, 10);
+    const docRef = db.doc(`users/${uid}/nutritionLogs/${iso}`);
+    tasks.push(
+      docRef.get().then((snap) => {
+        if (!snap.exists) {
+          return { date: iso, totals: defaultTotals() };
+        }
+        const data = snap.data() as DailyLogDocument;
+        const totals = data.totals || defaultTotals();
+        return {
+          date: iso,
+          totals: {
+            calories: totals.calories || 0,
+            protein: totals.protein || 0,
+            carbs: totals.carbs || 0,
+            fat: totals.fat || 0,
+            alcohol: totals.alcohol || 0,
+          },
+        };
+      })
+    );
+  }
+  const results = await Promise.all(tasks);
+  results.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  res.json({ days: results });
+}
+
 function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   return onRequest(
     withCors(async (req, res) => {
@@ -239,3 +273,4 @@ export const addMeal = addFoodLog;
 export const deleteMeal = withHandler(handleDeleteMeal);
 export const getDayLog = withHandler(handleGetLog);
 export const getDailyLog = getDayLog;
+export const getNutritionHistory = withHandler(handleGetHistory);

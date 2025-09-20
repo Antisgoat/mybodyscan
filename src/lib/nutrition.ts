@@ -15,6 +15,17 @@ export interface MealEntry {
   notes?: string;
 }
 
+export interface NutritionHistoryDay {
+  date: string;
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    alcohol?: number;
+  };
+}
+
 function round(value: number, decimals = 0) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
@@ -67,6 +78,46 @@ export async function getDailyLog(dateISO: string) {
       return { totals, meals };
     }
     return callFn("/getDailyLog", { dateISO });
+}
+
+export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string): Promise<NutritionHistoryDay[]> {
+  const anchor = anchorDateISO || new Date().toISOString().slice(0, 10);
+  if (isDemoGuest()) {
+    const anchorDate = new Date(anchor);
+    const days: NutritionHistoryDay[] = [];
+    for (let offset = range - 1; offset >= 0; offset--) {
+      const day = new Date(anchorDate);
+      day.setDate(anchorDate.getDate() - offset);
+      const iso = day.toISOString().slice(0, 10);
+      const meals = demoMeals[iso] || seedDemoMeals(iso);
+      const totals = meals.reduce(
+        (acc, meal) => {
+          const macros = computeCalories(meal);
+          acc.calories += macros.calories || 0;
+          acc.protein += meal.protein || 0;
+          acc.carbs += meal.carbs || 0;
+          acc.fat += meal.fat || 0;
+          acc.alcohol += meal.alcohol || 0;
+          return acc;
+        },
+        { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 }
+      );
+      days.push({ date: iso, totals });
+    }
+    return days;
+  }
+  const response = await callFn("/getNutritionHistory", { range, anchorDateISO: anchor });
+  const list = Array.isArray(response?.days) ? response.days : [];
+  return list.map((day: any) => ({
+    date: day.date,
+    totals: {
+      calories: Number(day?.totals?.calories) || 0,
+      protein: Number(day?.totals?.protein) || 0,
+      carbs: Number(day?.totals?.carbs) || 0,
+      fat: Number(day?.totals?.fat) || 0,
+      alcohol: Number(day?.totals?.alcohol) || 0,
+    },
+  }));
 }
 
 // --- demo state ---
