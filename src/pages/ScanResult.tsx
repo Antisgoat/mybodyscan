@@ -38,8 +38,8 @@ const methodCopy: Record<string, string> = {
 
 function confidenceLabel(value?: number) {
   if (value == null) return { label: "Unknown", tone: "secondary" } as const;
-  if (value >= 0.8) return { label: "High", tone: "default" } as const;
-  if (value >= 0.6) return { label: "Medium", tone: "outline" } as const;
+  if (value >= 0.85) return { label: "High", tone: "default" } as const;
+  if (value >= 0.7) return { label: "Medium", tone: "outline" } as const;
   return { label: "Low", tone: "secondary" } as const;
 }
 
@@ -191,6 +191,17 @@ export default function ScanResult() {
               </ul>
             </div>
           ) : null}
+
+          <details className="rounded-lg border p-3 text-sm text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">Accuracy tips</summary>
+            <p className="mt-2">
+              Bright, even lighting and a neutral background improve confidence. Keep arms slightly away from your torso and
+              stand on a marked spot about 8 ft from the camera.
+            </p>
+            <Link to="/scan/tips" className="mt-2 inline-flex text-xs font-medium text-primary underline">
+              View full tips
+            </Link>
+          </details>
         </CardContent>
       </Card>
 
@@ -210,7 +221,11 @@ export default function ScanResult() {
                 >
                   <div>
                     <p className="font-medium">{formatDate(entry.completedAt?.seconds)}</p>
-                    <p className="text-xs text-muted-foreground">{methodCopy[entry.method || ""] || entry.method || "Photo"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(methodCopy[entry.method || ""] || entry.method || "Photo") +
+                        " • " +
+                        (entry.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)")}
+                    </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">

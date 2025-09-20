@@ -1,329 +1,142 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
-import { History as HistoryIcon, TrendingUp, Edit, ArrowUp, ArrowDown } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
-import { auth } from "@/lib/firebase";
-import { watchScans } from "@/lib/scan";
-import { isDemoGuest } from "@/lib/demoFlag";
-import { toast } from "@/hooks/use-toast";
-import { BodyTrendChart } from "@/components/charts/BodyTrendChart";
-import { formatBmi, formatWeightFromKg, kgToLb } from "@/lib/units";
+import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
+import { auth, db } from "@/lib/firebase";
+import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { formatBmi } from "@/lib/units";
+
+interface ScanHistoryEntry {
+  id: string;
+  completedAt?: { seconds: number } | null;
+  status?: string;
+  charged?: boolean;
+  method?: "photo" | "photo+measure" | "bmi_fallback";
+  confidence?: number;
+  mode?: "2" | "4";
+  result?: {
+    bf_percent?: number | null;
+    bmi?: number | null;
+  };
+}
+
+const methodCopy: Record<string, string> = {
+  photo: "Photo",
+  "photo+measure": "Photo + Tape",
+  bmi_fallback: "BMI Fallback",
+};
+
+function confidenceLabel(value?: number) {
+  if (value == null) return { label: "Unknown", tone: "secondary" } as const;
+  if (value >= 0.85) return { label: "High", tone: "default" } as const;
+  if (value >= 0.7) return { label: "Medium", tone: "outline" } as const;
+  return { label: "Low", tone: "secondary" } as const;
+}
+
+function formatDate(seconds?: number) {
+  if (!seconds) return "—";
+  try {
+    return new Date(seconds * 1000).toLocaleDateString();
+  } catch {
+    return "—";
+  }
+}
+
+function modeLabel(mode?: "2" | "4") {
+  return mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)";
+}
 
 export default function History() {
-  const [selectedScans, setSelectedScans] = useState<string[]>([]);
-  const [scans, setScans] = useState<any[]>([]);
-  const [showCompare, setShowCompare] = useState(false);
-  const [editingNote, setEditingNote] = useState<{scanId: string, note: string} | null>(null);
-  const { t } = useI18n();
-
-  const getWeightKg = (scan: any): number | undefined => {
-    const measurementWeight = scan.measurements?.weightKg ?? scan.measurements?.weight;
-    if (typeof measurementWeight === "number") return measurementWeight;
-    if (typeof scan.weightKg === "number") return scan.weightKg;
-    if (typeof scan.weight === "number") return scan.weight;
-    return undefined;
-  };
-
-  const getMuscleMassKg = (scan: any): number | undefined => {
-    const measurementMuscle = scan.measurements?.muscleMass;
-    if (typeof measurementMuscle === "number") return measurementMuscle;
-    if (typeof scan.muscleMass === "number") return scan.muscleMass;
-    return undefined;
-  };
-
-  const trendData = useMemo(() => {
-    return scans
-      .filter((scan) => scan.status === "ready" && getWeightKg(scan) != null)
-      .map((scan) => {
-        const date = scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : scan.createdAt;
-        const weightKg = getWeightKg(scan);
-        const bodyFat = scan.measurements?.bodyFat || scan.measurements?.body_fat;
-        return { date, weight: weightKg != null ? kgToLb(weightKg) : NaN, bodyFat: Number(bodyFat) };
-      })
-      .filter((point) => Number.isFinite(point.weight) && !Number.isNaN(point.bodyFat));
-  }, [scans]);
+  const [entries, setEntries] = useState<ScanHistoryEntry[]>([]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    const unsub = watchScans(uid, setScans);
-    return unsub;
+    const user = auth.currentUser;
+    if (!user) return;
+    const ref = collection(db, "users", user.uid, "scans");
+    const q = query(ref, orderBy("completedAt", "desc"), limit(25));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const list: ScanHistoryEntry[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data() as ScanHistoryEntry;
+        if (!data.charged || data.result?.bf_percent == null) return;
+        list.push({ id: doc.id, ...data });
+      });
+      setEntries(list);
+    });
+    return () => unsub();
   }, []);
 
-  const handleSelectScan = (scanId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedScans(prev => [...prev, scanId]);
-    } else {
-      setSelectedScans(prev => prev.filter(id => id !== scanId));
-    }
-  };
-
-  const canCompare = selectedScans.length === 2;
-  
-  const getSelectedScansData = () => {
-    return selectedScans.map(id => scans.find(scan => scan.id === id)).filter(Boolean);
-  };
-
-  const calculateDelta = (value1?: number, value2?: number) => {
-    if (!value1 || !value2) return null;
-    const delta = value2 - value1;
-    return {
-      value: Math.abs(delta),
-      isIncrease: delta > 0,
-      percentage: ((delta / value1) * 100).toFixed(1)
-    };
-  };
-
-  const saveNote = async (scanId: string, note: string) => {
-    // In a real app, this would save to backend
-    toast({ title: "Note saved" });
-    setEditingNote(null);
-  };
+  const recent = useMemo(() => entries.filter((entry) => entry.charged && entry.result?.bf_percent != null), [entries]);
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="History - MyBodyScan" description="Your body scan results and progress" />
-        <AppHeader />
-        <main className="max-w-md mx-auto p-6 space-y-6">
-          <DemoBanner />
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HistoryIcon className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-semibold">{t('history.title')}</h1>
-          </div>
-          {scans.length > 1 && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!canCompare}
-              onClick={() => setShowCompare(true)}
-              className="flex items-center gap-2"
-            >
-              <TrendingUp className="w-4 h-4" />
-              {t('history.compare')}
-            </Button>
-          )}
-        </div>
+      <Seo title="History – MyBodyScan" description="Review your photo scan history." />
+      <AppHeader />
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
+        <NotMedicalAdviceBanner />
+        <DemoBanner />
+        <header className="space-y-2">
+          <h1 className="text-3xl font-semibold">History</h1>
+          <p className="text-sm text-muted-foreground">Track previous photo scans and revisit your body-fat estimates.</p>
+        </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Progress trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {trendData.length >= 2 ? (
-              <BodyTrendChart data={trendData} />
-            ) : (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                Complete at least two scans to unlock trend insights.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {scans.length > 0 ? (
-          <div className="space-y-4">
-            {scans.map((scan) => (
-              <Card key={scan.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {scans.length > 1 && (
-                        <Checkbox
-                          checked={selectedScans.includes(scan.id)}
-                          onCheckedChange={(checked) => handleSelectScan(scan.id, !!checked)}
-                          disabled={!canCompare && selectedScans.length >= 2 && !selectedScans.includes(scan.id)}
-                        />
-                      )}
-                      <CardTitle className="text-base">
-                        {scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : ""}
-                      </CardTitle>
-                    </div>
-                    <Badge variant={scan.status === "ready" ? "default" : "secondary"}>
-                      {scan.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                {scan.status === "ready" && scan.measurements && (
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-center text-sm">
-                      <div>
-                        <div className="text-lg font-semibold">{scan.measurements.bodyFat || scan.measurements.body_fat}%</div>
-                        <div className="text-xs text-muted-foreground">{t('scan.bodyFat')}</div>
-                      </div>
-                      <div>
-                        <div className="text-lg font-semibold">{formatWeightFromKg(getWeightKg(scan))}</div>
-                        <div className="text-xs text-muted-foreground">{t('scan.weight')}</div>
-                      </div>
-                      <div>
-                        <div className="text-lg font-semibold">{formatBmi(scan.measurements.bmi || scan.bmi)}</div>
-                        <div className="text-xs text-muted-foreground">{t('scan.bmi')}</div>
-                      </div>
-                      <div>
-                        <div className="text-lg font-semibold">{formatWeightFromKg(getMuscleMassKg(scan))}</div>
-                        <div className="text-xs text-muted-foreground">{t('scan.muscleMass')}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">
-                        {scan.note && (
-                          <div className="flex items-center gap-1">
-                            <Edit className="w-3 h-3" />
-                            <span>{scan.note}</span>
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingNote({scanId: scan.id, note: scan.note || ''})}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                )}
-                {scan.status === "Processing" && (
-                  <CardContent>
-                    <div className="text-center py-4">
-                      <div className="animate-pulse text-sm text-muted-foreground">
-                        Your scan is being processed...
-                      </div>
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
-        ) : (
+        {recent.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center">
-              <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">{t('history.noScans')}</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Take your first scan to start tracking your progress
-              </p>
-              <Button onClick={() => window.location.href = '/scan'}>
-                Start Your First Scan
-              </Button>
+            <CardContent className="py-6 text-center text-sm text-muted-foreground">
+              Complete a scan to see it listed here.
             </CardContent>
           </Card>
+        ) : (
+          <div className="space-y-3">
+            {recent.map((entry) => {
+              const confidence = confidenceLabel(entry.confidence);
+              const method = methodCopy[entry.method || ""] || entry.method || "Photo";
+              const bfPercent = entry.result?.bf_percent ?? null;
+              const bmi = entry.result?.bmi ?? null;
+              return (
+                <Link
+                  key={entry.id}
+                  to={`/results/${entry.id}`}
+                  className="block rounded-lg border transition hover:border-primary"
+                >
+                  <Card>
+                    <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{formatDate(entry.completedAt?.seconds)}</CardTitle>
+                        <p className="text-xs text-muted-foreground">{modeLabel(entry.mode)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge>{method}</Badge>
+                        <Badge variant={confidence.tone as any}>{confidence.label}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Body Fat</p>
+                        <p className="text-lg font-semibold">{bfPercent != null ? `${bfPercent.toFixed(1)}%` : "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
+                        <p className="text-lg font-semibold">{bmi != null ? formatBmi(bmi) : "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Mode</p>
+                        <p className="text-lg font-semibold">{modeLabel(entry.mode)}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </main>
       <BottomNav />
-
-      {/* Compare Dialog */}
-      <Dialog open={showCompare} onOpenChange={setShowCompare}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Compare Scans</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-6">
-            {getSelectedScansData().map((scan, index) => (
-              <div key={scan.id} className="space-y-4">
-                <h3 className="font-semibold">
-                  Scan {index + 1} - {scan.createdAt?.toDate?.().toLocaleDateString()}
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>{t('scan.bodyFat')}:</span>
-                    <span>{scan.measurements?.bodyFat || scan.measurements?.body_fat}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t('scan.weight')}:</span>
-                    <span>{formatWeightFromKg(getWeightKg(scan))}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t('scan.bmi')}:</span>
-                    <span>{formatBmi(scan.measurements?.bmi || scan.bmi)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{t('scan.muscleMass')}:</span>
-                    <span>{formatWeightFromKg(getMuscleMassKg(scan))}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {getSelectedScansData().length === 2 && (
-            <div className="mt-6 p-4 bg-muted rounded-lg">
-              <h4 className="font-semibold mb-2">Changes</h4>
-              <div className="space-y-2 text-sm">
-                {(() => {
-                  const [scan1, scan2] = getSelectedScansData();
-                  const bodyFatDelta = calculateDelta(
-                    scan1.measurements?.bodyFat || scan1.measurements?.body_fat,
-                    scan2.measurements?.bodyFat || scan2.measurements?.body_fat
-                  );
-                  const weightDelta = calculateDelta(
-                    (() => { const w = getWeightKg(scan1); return w != null ? kgToLb(w) : undefined; })(),
-                    (() => { const w = getWeightKg(scan2); return w != null ? kgToLb(w) : undefined; })()
-                  );
-                  
-                  return (
-                    <>
-                      {bodyFatDelta && (
-                        <div className="flex items-center gap-2">
-                          {bodyFatDelta.isIncrease ? (
-                            <ArrowUp className="w-4 h-4 text-red-500" />
-                          ) : (
-                            <ArrowDown className="w-4 h-4 text-green-500" />
-                          )}
-                          <span>Body Fat: {bodyFatDelta.isIncrease ? '+' : '-'}{bodyFatDelta.value.toFixed(1)}%</span>
-                        </div>
-                      )}
-                      {weightDelta && (
-                        <div className="flex items-center gap-2">
-                          {weightDelta.isIncrease ? (
-                            <ArrowUp className="w-4 h-4 text-blue-500" />
-                          ) : (
-                            <ArrowDown className="w-4 h-4 text-blue-500" />
-                          )}
-                          <span>Weight: {weightDelta.isIncrease ? '+' : '-'}{weightDelta.value.toFixed(1)} lb</span>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Note Dialog */}
-      <Dialog open={!!editingNote} onOpenChange={() => setEditingNote(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Note</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Label>Scan Note</Label>
-            <Input
-              value={editingNote?.note || ''}
-              onChange={(e) => setEditingNote(prev => prev ? {...prev, note: e.target.value} : null)}
-              placeholder="Add a note about this scan..."
-            />
-            <Button 
-              onClick={() => editingNote && saveNote(editingNote.scanId, editingNote.note)}
-              className="w-full"
-            >
-              Save Note
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

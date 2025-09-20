@@ -17,20 +17,29 @@ async function handler(req: Request, res: any) {
   await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
   const uid = await requireAuth(req);
-  const key = todayKey();
-  const ref = db.doc(`users/${uid}/gate/${key}`);
+  const ref = db.doc(`users/${uid}/gate/${todayKey()}`);
   const now = Timestamp.now();
   let remaining = MAX_DAILY_FAILS;
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    const count = snap.exists ? Number(snap.data()?.failures || 0) : 0;
-    const next = count + 1;
-    remaining = Math.max(0, MAX_DAILY_FAILS - next);
-    tx.set(ref, { failures: next, updatedAt: now }, { merge: true });
+    const data = snap.exists ? snap.data() as any : {};
+    const failed = Number(data.failed || 0) + 1;
+    const passed = Number(data.passed || 0);
+    remaining = Math.max(0, MAX_DAILY_FAILS - failed);
+    tx.set(
+      ref,
+      {
+        failed,
+        passed,
+        updatedAt: now,
+        lastFailedAt: now,
+      },
+      { merge: true }
+    );
   });
 
-  res.json({ ok: true, remainingAttempts: remaining });
+  res.json({ ok: true, remaining });
 }
 
 export const recordGateFailure = onRequest(
@@ -40,10 +49,10 @@ export const recordGateFailure = onRequest(
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const status = error.code === "unauthenticated" ? 401 : 400;
-        res.status(status).json({ error: error.message });
+        res.status(status).json({ ok: false, reason: error.code });
         return;
       }
-      res.status(500).json({ error: error?.message || "error" });
+      res.status(500).json({ ok: false, reason: "server_error" });
     }
   })
 );

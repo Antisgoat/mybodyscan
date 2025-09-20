@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Seo } from "@/components/Seo";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { beginPaidScan, recordGateFailure, refundIfNoResult, startScan } from "@/lib/api";
-import { computeImageHash, runClientGate, type GateImage, type GateResult } from "@/lib/scan/gates";
+import { clientQualityGate, computeImageHash, type GateResult } from "@/lib/scan/gates";
 import { estimateCircumferences } from "@/lib/scan/photoAssist";
 import { computeBodyFat, bmiFromKgCm } from "@/lib/scan/anthro";
 import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@/lib/units";
@@ -55,14 +56,14 @@ function average(values: Array<number | undefined>): number | undefined {
   return valid.reduce((acc, value) => acc + value, 0) / valid.length;
 }
 
-function convertManualToCm(inputs: ManualInputState): { neck_cm?: number; waist_cm?: number; hip_cm?: number } {
+function convertManualToCm(inputs: ManualInputState): { neckCm?: number; waistCm?: number; hipCm?: number } {
   const neck = inputs.neck ? parseFloat(inputs.neck) * CM_PER_IN : undefined;
   const waist = inputs.waist ? parseFloat(inputs.waist) * CM_PER_IN : undefined;
   const hip = inputs.hip ? parseFloat(inputs.hip) * CM_PER_IN : undefined;
   return {
-    neck_cm: Number.isFinite(neck) ? neck : undefined,
-    waist_cm: Number.isFinite(waist) ? waist : undefined,
-    hip_cm: Number.isFinite(hip) ? hip : undefined,
+    neckCm: Number.isFinite(neck) ? neck : undefined,
+    waistCm: Number.isFinite(waist) ? waist : undefined,
+    hipCm: Number.isFinite(hip) ? hip : undefined,
   };
 }
 
@@ -128,28 +129,45 @@ export default function ScanNew() {
       navigate("/settings");
       return;
     }
+    if (sex !== "male" && sex !== "female") {
+      toast({
+        title: "Set your sex",
+        description: "Update your profile sex so we can calculate body-fat percent.",
+        variant: "destructive",
+      });
+      navigate("/settings");
+      return;
+    }
 
-    const imageList: GateImage[] = mode === "2"
+    const imageList: File[] = mode === "2"
       ? [photos.front!, photos.side!]
       : [photos.front!, photos.back!, photos.left!, photos.right!];
 
     resetAnalysisState();
     setStage("gating");
     try {
-      const gate = await runClientGate(imageList, { mode });
+      const gate = await clientQualityGate(imageList);
       setGateResult(gate);
       if (!gate.pass) {
-        setGateFailures((count) => count + 1);
+        let remainingAttempts: number | undefined;
         try {
-          await recordGateFailure();
+          const response = await recordGateFailure();
+          if (typeof response?.remaining === "number") {
+            remainingAttempts = response.remaining;
+            setGateFailures(3 - response.remaining);
+          } else {
+            setGateFailures((count) => Math.min(3, count + 1));
+          }
         } catch (error) {
           console.error("recordGateFailure", error);
+          setGateFailures((count) => Math.min(3, count + 1));
         }
-        toast({
-          title: "Check photo quality",
-          description: gate.reasons[0] || "Retake photos and try again.",
-          variant: "destructive",
-        });
+        const descriptionBase = gate.reasons[0] || "Retake photos and try again.";
+        const description =
+          remainingAttempts != null
+            ? `${descriptionBase} (${remainingAttempts} attempt${remainingAttempts === 1 ? "" : "s"} left today)`
+            : descriptionBase;
+        toast({ title: "Check photo quality", description, variant: "destructive" });
         setStage("idle");
         return;
       }
@@ -167,17 +185,47 @@ export default function ScanNew() {
       });
 
       const hashes = await Promise.all(imageList.map((file) => computeImageHash(file)));
-      await beginPaidScan({ scanId, hashes, gateScore: gate.score, mode });
+      try {
+        await beginPaidScan({ scanId, hashes, gateScore: gate.score, mode });
+      } catch (error: any) {
+        setStage("idle");
+        const reason = error?.message ?? "authorization_failed";
+        if (reason === "duplicate") {
+          toast({
+            title: "Duplicate photos",
+            description: "Those photos match a recent scan. Retake fresh photos to continue.",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (reason === "cap") {
+          toast({
+            title: "Quality cap reached",
+            description: "Too many failed attempts today. Try again tomorrow with new photos.",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (reason === "no_credits") {
+          toast({
+            title: "Need more credits",
+            description: "Add credits before running another scan.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
 
       setStage("analyzing");
       const assist = await estimateCircumferences({
         mode,
         front: photos.front!,
-        side: mode === "2" ? photos.side! : photos.left ?? photos.side ?? photos.right!,
+        side: mode === "2" ? photos.side! : photos.left ?? photos.right ?? photos.side!,
         back: mode === "4" ? photos.back ?? undefined : undefined,
         left: mode === "4" ? photos.left ?? undefined : undefined,
         right: mode === "4" ? photos.right ?? undefined : undefined,
-        height_cm: heightCm,
+        heightCm,
         sex,
       });
 
@@ -185,9 +233,9 @@ export default function ScanNew() {
 
       let confidence = assist.confidence;
       let circumferences = {
-        neck_cm: assist.neck_cm,
-        waist_cm: assist.waist_cm,
-        hip_cm: assist.hip_cm,
+        neckCm: assist.neckCm,
+        waistCm: assist.waistCm,
+        hipCm: assist.hipCm,
       };
       let method: "photo" | "photo+measure" | "bmi_fallback" = "photo";
 
@@ -195,9 +243,9 @@ export default function ScanNew() {
       const hasManual = Object.values(manualCm).some((value) => Number.isFinite(value));
       if (confidence < 0.7 && hasManual) {
         circumferences = {
-          neck_cm: average([assist.neck_cm, manualCm.neck_cm]),
-          waist_cm: average([assist.waist_cm, manualCm.waist_cm]),
-          hip_cm: average([assist.hip_cm, manualCm.hip_cm]),
+          neckCm: average([assist.neckCm, manualCm.neckCm]),
+          waistCm: average([assist.waistCm, manualCm.waistCm]),
+          hipCm: average([assist.hipCm, manualCm.hipCm]),
         };
         confidence = Math.max(confidence, 0.75);
         method = "photo+measure";
@@ -206,21 +254,26 @@ export default function ScanNew() {
 
       const bodyFat = computeBodyFat({
         sex,
-        height_cm: heightCm,
-        neck_cm: circumferences.neck_cm,
-        waist_cm: circumferences.waist_cm,
-        hip_cm: circumferences.hip_cm,
-        weight_kg: weightKg,
+        heightCm,
+        neckCm: circumferences.neckCm,
+        waistCm: circumferences.waistCm,
+        hipCm: circumferences.hipCm,
+        weightKg,
       });
-      let bfPercent = bodyFat.bfPercent ?? null;
+      let bfPercent = Number.isFinite(bodyFat.bfPercent) ? bodyFat.bfPercent : null;
       confidence = Math.min(confidence, bodyFat.confidence || confidence);
+      if (method !== "photo+measure") {
+        method = bodyFat.method;
+      }
 
       let bmi = weightKg && heightCm ? bmiFromKgCm(weightKg, heightCm) : undefined;
 
       if (confidence < 0.7) {
         if (weightKg && window.confirm("Photo confidence is low. Use BMI-only fallback instead?")) {
-          const fallback = computeBodyFat({ sex, height_cm: heightCm, weight_kg: weightKg });
-          bfPercent = fallback.bfPercent ?? bfPercent;
+          const fallback = computeBodyFat({ sex, heightCm, weightKg });
+          if (Number.isFinite(fallback.bfPercent)) {
+            bfPercent = fallback.bfPercent;
+          }
           confidence = Math.min(0.55, fallback.confidence || 0.5);
           method = "bmi_fallback";
           qcAccumulator.push("bmi_fallback_used");
@@ -263,9 +316,9 @@ export default function ScanNew() {
           imageHashes: hashes,
           qc: qcAccumulator,
           analysis: {
-            neck_cm: circumferences.neck_cm ?? null,
-            waist_cm: circumferences.waist_cm ?? null,
-            hip_cm: circumferences.hip_cm ?? null,
+            neck_cm: circumferences.neckCm ?? null,
+            waist_cm: circumferences.waistCm ?? null,
+            hip_cm: circumferences.hipCm ?? null,
           },
           result: {
             bf_percent: bfPercent,
@@ -378,6 +431,25 @@ export default function ScanNew() {
             ))}
           </CardContent>
         </Card>
+
+        {gateResult && !gateResult.pass && (
+          <Alert variant="destructive">
+            <AlertTitle>Photo quality needs work</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>Retake your photos with brighter, even lighting and a neutral background.</p>
+              {gateResult.reasons.length > 0 && (
+                <ul className="list-disc space-y-1 pl-4 text-xs">
+                  {gateResult.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              )}
+              <Link to="/scan/tips" className="text-xs font-medium text-primary underline">
+                Review photo tips
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {gateResult && (
           <Card>

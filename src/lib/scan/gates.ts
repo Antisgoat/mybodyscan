@@ -1,10 +1,8 @@
-export type GateImage = File | Blob | string;
-
-export interface GateResult {
+export type GateResult = {
   pass: boolean;
   score: number;
   reasons: string[];
-}
+};
 
 interface LoadedImage {
   width: number;
@@ -15,8 +13,8 @@ interface LoadedImage {
 const MIN_LONG_EDGE = 1080;
 const MIN_CONTRAST = 18;
 const MIN_SHARPNESS = 14;
-const MAX_BRIGHTNESS = 215;
-const MIN_BRIGHTNESS = 40;
+const BRIGHTNESS_RANGE: [number, number] = [40, 215];
+const ASPECT_RANGE: [number, number] = [0.5, 2.5];
 
 function ensureCanvas(width: number, height: number): HTMLCanvasElement {
   if (typeof document === "undefined") {
@@ -32,22 +30,17 @@ function luminance(r: number, g: number, b: number) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-async function loadImageData(source: GateImage): Promise<LoadedImage> {
+async function loadImageData(file: File): Promise<LoadedImage> {
   if (typeof window === "undefined") {
     throw new Error("Browser APIs required for image analysis");
   }
   const img = new Image();
-  let url: string | null = null;
-  if (typeof source === "string") {
-    url = source;
-  } else {
-    url = URL.createObjectURL(source);
-  }
+  const url = URL.createObjectURL(file);
   img.crossOrigin = "anonymous";
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
     img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error : new Error("image_load_failed"));
-    img.src = url as string;
+    img.src = url;
   });
   const width = img.naturalWidth || img.width;
   const height = img.naturalHeight || img.height;
@@ -58,9 +51,7 @@ async function loadImageData(source: GateImage): Promise<LoadedImage> {
   }
   ctx.drawImage(img, 0, 0, width, height);
   const data = ctx.getImageData(0, 0, width, height);
-  if (typeof source !== "string" && url) {
-    URL.revokeObjectURL(url);
-  }
+  URL.revokeObjectURL(url);
   return { width, height, data };
 }
 
@@ -108,70 +99,10 @@ interface SilhouetteMetrics {
   width: number;
 }
 
-export interface GateEvaluationInput extends SilhouetteMetrics {
+export type GateEvaluationInput = SilhouetteMetrics & {
   longEdge: number;
   imageIndex: number;
-}
-
-export interface GateEvaluationResult {
-  score: number;
-  reasons: string[];
-}
-
-export function evaluateGateMetrics(input: GateEvaluationInput): GateEvaluationResult {
-  const reasons = new Set<string>();
-  let localScore = 1;
-
-  if (input.longEdge < MIN_LONG_EDGE) {
-    reasons.add("Resolution too low — retake photo at higher quality");
-    localScore -= 0.35;
-  }
-  if (input.brightness < MIN_BRIGHTNESS || input.brightness > MAX_BRIGHTNESS) {
-    reasons.add("Lighting needs adjustment — ensure even lighting without harsh shadows");
-    localScore -= 0.2;
-  }
-  if (input.contrast < MIN_CONTRAST) {
-    reasons.add("Contrast too low — increase lighting or use a plain background");
-    localScore -= 0.2;
-  }
-  if (input.sharpness < MIN_SHARPNESS) {
-    reasons.add("Image is blurry — hold the camera steady or step closer");
-    localScore -= 0.25;
-  }
-  if (input.aspectRatio < 1 || input.aspectRatio > 3.5) {
-    reasons.add("Frame full body vertically — keep the camera portrait orientation");
-    localScore -= 0.15;
-  }
-  if (input.centerOffsetRatio > 0.15) {
-    reasons.add("Subject off-center — stand in the middle of the frame");
-    localScore -= 0.1;
-  }
-  if (input.subjectCoverage < 0.18 || input.subjectCoverage > 0.6) {
-    reasons.add("Stand closer — keep your full body filling most of the frame");
-    localScore -= 0.1;
-  }
-  if (input.subjectHeightPx < input.height * 0.6) {
-    reasons.add("Ensure your entire body is visible from head to toe");
-    localScore -= 0.2;
-  }
-
-  if (input.imageIndex === 0) {
-    const shoulderToWaist = input.waistWidth > 0 ? input.shoulderWidth / input.waistWidth : 0;
-    if (!Number.isFinite(shoulderToWaist) || shoulderToWaist < 1.02) {
-      reasons.add("Raise arms slightly so they are visible away from the torso");
-      localScore -= 0.15;
-    }
-    if (input.waistWidth <= 0 || input.hipWidth <= 0) {
-      reasons.add("Torso not detected — retake against a contrasting background");
-      localScore -= 0.2;
-    }
-  }
-
-  return {
-    score: Math.max(0, Math.min(1, localScore)),
-    reasons: Array.from(reasons),
-  };
-}
+};
 
 function analyseSilhouette(image: LoadedImage): SilhouetteMetrics {
   const pixelData = image.data.data;
@@ -245,31 +176,87 @@ function analyseSilhouette(image: LoadedImage): SilhouetteMetrics {
   };
 }
 
-export async function runClientGate(images: GateImage[], _options?: { mode?: "2" | "4" }): Promise<GateResult> {
-  if (!images.length) {
-    return { pass: false, score: 0, reasons: ["No photos supplied"] };
-  }
+export function evaluateGateMetrics(input: GateEvaluationInput): { score: number; reasons: string[] } {
   const reasons = new Set<string>();
-  let accumulatedScore = 0;
+  let localScore = 1;
+  const longEdge = input.longEdge;
 
-  for (let index = 0; index < images.length; index++) {
-    const source = images[index];
-    const img = await loadImageData(source);
-    const { width, height } = img;
-    const longEdge = Math.max(width, height);
-    const metrics = analyseSilhouette(img);
-    const evaluation = evaluateGateMetrics({ ...metrics, longEdge, imageIndex: index });
-    evaluation.reasons.forEach((reason) => reasons.add(reason));
-    accumulatedScore += evaluation.score;
+  if (longEdge < MIN_LONG_EDGE) {
+    reasons.add("Use a higher-resolution photo (long edge ≥1080px)");
+    localScore -= 0.35;
+  }
+  if (input.aspectRatio < ASPECT_RANGE[0] || input.aspectRatio > ASPECT_RANGE[1]) {
+    reasons.add("Retake in portrait orientation with full body visible");
+    localScore -= 0.15;
+  }
+  if (input.brightness < BRIGHTNESS_RANGE[0] || input.brightness > BRIGHTNESS_RANGE[1]) {
+    reasons.add("Adjust lighting so the subject is evenly lit");
+    localScore -= 0.2;
+  }
+  if (input.contrast < MIN_CONTRAST) {
+    reasons.add("Increase contrast with a neutral background");
+    localScore -= 0.2;
+  }
+  if (input.sharpness < MIN_SHARPNESS) {
+    reasons.add("Photo is blurry — steady the camera and retake");
+    localScore -= 0.25;
+  }
+  if (input.centerOffsetRatio > 0.18) {
+    reasons.add("Stand centered in the frame");
+    localScore -= 0.1;
+  }
+  if (input.subjectCoverage < 0.18 || input.subjectCoverage > 0.6) {
+    reasons.add("Stand closer so your body fills most of the frame");
+    localScore -= 0.1;
+  }
+  if (input.subjectHeightPx < input.height * 0.6) {
+    reasons.add("Ensure your full body from head to toe is visible");
+    localScore -= 0.2;
   }
 
-  const score = Math.max(0, Math.min(1, accumulatedScore / images.length));
-  const pass = reasons.size === 0 && score >= 0.65;
+  if (input.imageIndex === 0) {
+    const shoulderToWaist = input.waistWidth > 0 ? input.shoulderWidth / input.waistWidth : 0;
+    if (!Number.isFinite(shoulderToWaist) || shoulderToWaist < 1.02) {
+      reasons.add("Raise arms slightly away from torso");
+      localScore -= 0.15;
+    }
+    if (input.waistWidth <= 0 || input.hipWidth <= 0) {
+      reasons.add("Torso not detected — try a cleaner background");
+      localScore -= 0.2;
+    }
+  }
+
+  return { score: Math.max(0, Math.min(1, localScore)), reasons: Array.from(reasons) };
+}
+
+export async function clientQualityGate(files: File[]): Promise<GateResult> {
+  if (!files.length) {
+    return { pass: false, score: 0, reasons: ["Add the required photos before submitting"] };
+  }
+
+  const reasons = new Set<string>();
+  let scoreSum = 0;
+
+  for (let index = 0; index < files.length; index++) {
+    const file = files[index];
+    const img = await loadImageData(file);
+    const metrics = analyseSilhouette(img);
+    const evaluation = evaluateGateMetrics({
+      ...metrics,
+      longEdge: Math.max(metrics.width, metrics.height),
+      imageIndex: index,
+    });
+    evaluation.reasons.forEach((reason) => reasons.add(reason));
+    scoreSum += evaluation.score;
+  }
+
+  const score = Math.max(0, Math.min(1, scoreSum / files.length));
+  const pass = score >= 0.7 && reasons.size === 0;
   return { pass, score, reasons: Array.from(reasons) };
 }
 
-export async function computeImageHash(source: GateImage): Promise<string> {
-  const img = await loadImageData(source);
+export async function computeImageHash(file: File): Promise<string> {
+  const img = await loadImageData(file);
   const size = 8;
   const canvas = ensureCanvas(size, size);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });

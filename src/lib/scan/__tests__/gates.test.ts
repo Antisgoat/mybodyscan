@@ -28,7 +28,7 @@ describe("scan quality gate", () => {
   it("flags low-resolution images", () => {
     const result = evaluateGateMetrics({ ...baseMetrics, longEdge: 400, imageIndex: 1 });
     expect(result.score).toBeLessThan(1);
-    expect(result.reasons).toContain("Resolution too low — retake photo at higher quality");
+    expect(result.reasons).toContain("Use a higher-resolution photo (long edge ≥1080px)");
   });
 
   it("detects arms resting against torso", () => {

@@ -1,4 +1,15 @@
-import type { GateImage } from "./gates";
+export type PhotoMode = "2" | "4";
+
+export type PhotoInputs = {
+  mode: PhotoMode;
+  front: File;
+  side: File;
+  back?: File;
+  left?: File;
+  right?: File;
+  heightCm: number;
+  sex: "male" | "female";
+};
 
 interface LoadedImage {
   width: number;
@@ -38,22 +49,17 @@ function luminance(r: number, g: number, b: number) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-async function loadImageData(source: GateImage): Promise<LoadedImage> {
+async function loadImageData(file: File): Promise<LoadedImage> {
   if (typeof window === "undefined") {
     throw new Error("Browser APIs unavailable");
   }
   const img = new Image();
-  let url: string | null = null;
-  if (typeof source === "string") {
-    url = source;
-  } else {
-    url = URL.createObjectURL(source);
-  }
+  const url = URL.createObjectURL(file);
   img.crossOrigin = "anonymous";
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
     img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error : new Error("image_load_failed"));
-    img.src = url as string;
+    img.src = url;
   });
   const width = img.naturalWidth || img.width;
   const height = img.naturalHeight || img.height;
@@ -62,9 +68,7 @@ async function loadImageData(source: GateImage): Promise<LoadedImage> {
   if (!ctx) throw new Error("Canvas context unavailable");
   ctx.drawImage(img, 0, 0, width, height);
   const data = ctx.getImageData(0, 0, width, height);
-  if (typeof source !== "string" && url) {
-    URL.revokeObjectURL(url);
-  }
+  URL.revokeObjectURL(url);
   return { width, height, data };
 }
 
@@ -153,30 +157,11 @@ function average(values: number[]) {
   return finite.reduce((acc, value) => acc + value, 0) / finite.length;
 }
 
-export interface PhotoAssistParams {
-  mode: "2" | "4";
-  front: GateImage;
-  side: GateImage;
-  back?: GateImage;
-  left?: GateImage;
-  right?: GateImage;
-  height_cm: number;
-  sex?: "male" | "female";
-}
-
-export interface PhotoAssistEstimate {
-  neck_cm?: number;
-  waist_cm?: number;
-  hip_cm?: number;
-  confidence: number;
-  qc: string[];
-}
-
-export async function estimateCircumferences(params: PhotoAssistParams): Promise<PhotoAssistEstimate> {
+export async function estimateCircumferences(input: PhotoInputs) {
   const qc: string[] = [];
-  const { mode, front, side, back, left, right, height_cm } = params;
-  if (!height_cm || height_cm < 120) {
-    return { confidence: 0, qc: ["missing_height"] };
+  const { mode, front, side, back, left, right, heightCm } = input;
+  if (!heightCm || heightCm < 120) {
+    return { confidence: 0, qc: ["missing_height"] } as const;
   }
 
   const images: Record<string, SilhouetteBands | null> = {
@@ -197,18 +182,18 @@ export async function estimateCircumferences(params: PhotoAssistParams): Promise
     }
   } catch (error) {
     qc.push("image_load_failed");
-    return { confidence: 0, qc };
+    return { confidence: 0, qc } as const;
   }
 
   const frontBands = images.front;
   const sideBands = images.side;
   if (!frontBands || !sideBands) {
     qc.push("insufficient_images");
-    return { confidence: 0, qc };
+    return { confidence: 0, qc } as const;
   }
 
-  const scaleFront = frontBands.subjectHeightPx / height_cm;
-  const scaleSide = sideBands.subjectHeightPx / height_cm;
+  const scaleFront = frontBands.subjectHeightPx / heightCm;
+  const scaleSide = sideBands.subjectHeightPx / heightCm;
   if (!Number.isFinite(scaleFront) || scaleFront < 3) {
     qc.push("front_scale_unreliable");
   }
@@ -221,12 +206,12 @@ export async function estimateCircumferences(params: PhotoAssistParams): Promise
 
   const computeBand = (band: keyof typeof BAND_MAP) => {
     const frontWidth = pixelsToCm(frontBands.bandWidths[band].widthPx, scaleFront);
-    const backWidth = images.back ? pixelsToCm(images.back.bandWidths[band].widthPx, images.back.subjectHeightPx / height_cm) : NaN;
+    const backWidth = images.back ? pixelsToCm(images.back.bandWidths[band].widthPx, images.back.subjectHeightPx / heightCm) : NaN;
     const sideWidth = pixelsToCm(sideBands.bandWidths[band].widthPx, scaleSide);
     const lateral: number[] = [sideWidth];
     if (mode === "4") {
-      if (images.left) lateral.push(pixelsToCm(images.left.bandWidths[band].widthPx, images.left.subjectHeightPx / height_cm));
-      if (images.right) lateral.push(pixelsToCm(images.right.bandWidths[band].widthPx, images.right.subjectHeightPx / height_cm));
+      if (images.left) lateral.push(pixelsToCm(images.left.bandWidths[band].widthPx, images.left.subjectHeightPx / heightCm));
+      if (images.right) lateral.push(pixelsToCm(images.right.bandWidths[band].widthPx, images.right.subjectHeightPx / heightCm));
     }
     const frontAvg = average([frontWidth, backWidth]);
     const sideAvg = average(lateral);
@@ -284,9 +269,9 @@ export async function estimateCircumferences(params: PhotoAssistParams): Promise
   confidence = Math.max(0, Math.min(1, confidence));
 
   return {
-    neck_cm: Number.isFinite(neck.circumference) ? Number((neck.circumference as number).toFixed(1)) : undefined,
-    waist_cm: Number.isFinite(waist.circumference) ? Number((waist.circumference as number).toFixed(1)) : undefined,
-    hip_cm: Number.isFinite(hip.circumference) ? Number((hip.circumference as number).toFixed(1)) : undefined,
+    neckCm: Number.isFinite(neck.circumference) ? Number((neck.circumference as number).toFixed(1)) : undefined,
+    waistCm: Number.isFinite(waist.circumference) ? Number((waist.circumference as number).toFixed(1)) : undefined,
+    hipCm: Number.isFinite(hip.circumference) ? Number((hip.circumference as number).toFixed(1)) : undefined,
     confidence,
     qc,
   };
