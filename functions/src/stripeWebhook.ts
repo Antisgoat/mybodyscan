@@ -11,7 +11,7 @@ function buildStripe(): Stripe | null {
   return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
 }
 
-export const stripeWebhook = onRequest(async (req, res) => {
+export const stripeWebhook = onRequest({ region: "us-central1" }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
     return;
