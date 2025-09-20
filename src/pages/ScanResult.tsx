@@ -8,6 +8,7 @@ import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { formatBmi } from "@/lib/units";
+import { extractScanMetrics } from "@/lib/scans";
 
 interface ScanDocument {
   id: string;
@@ -17,6 +18,14 @@ interface ScanDocument {
   confidence?: number;
   mode?: "2" | "4";
   qc?: string[];
+  metrics?: {
+    bf_percent?: number | null;
+    bmi?: number | null;
+    weight_kg?: number | null;
+    weight_lb?: number | null;
+    method?: string | null;
+    confidence?: number | null;
+  };
   analysis?: {
     neck_cm?: number | null;
     waist_cm?: number | null;
@@ -81,7 +90,8 @@ export default function ScanResult() {
       histSnap.forEach((docSnap) => {
         if (docSnap.id === scanId) return;
         const data = docSnap.data() as ScanDocument;
-        if (data.charged && data.result?.bf_percent != null) {
+        const normalized = extractScanMetrics(data);
+        if (data.charged && normalized.bodyFatPercent != null) {
           list.push({ id: docSnap.id, ...data });
         }
       });
@@ -92,7 +102,11 @@ export default function ScanResult() {
     return () => unsub();
   }, [scanId]);
 
-  const confidenceChip = useMemo(() => confidenceLabel(scan?.confidence), [scan?.confidence]);
+  const normalized = useMemo(() => (scan ? extractScanMetrics(scan) : null), [scan]);
+  const confidenceChip = useMemo(
+    () => confidenceLabel(normalized?.confidence ?? scan?.confidence),
+    [normalized?.confidence, scan?.confidence]
+  );
 
   if (loading) {
     return (
@@ -112,10 +126,11 @@ export default function ScanResult() {
     );
   }
 
-  const bfPercent = scan.result?.bf_percent;
-  const bmi = formatBmi(scan.result?.bmi ?? undefined);
+  const bfPercent = normalized?.bodyFatPercent ?? null;
+  const bmi = formatBmi(normalized?.bmi ?? undefined);
   const showResult = scan.charged && typeof bfPercent === "number";
-  const methodBadge = scan.method ? methodCopy[scan.method] || scan.method : "Unknown";
+  const methodKey = normalized?.method ?? scan.method;
+  const methodBadge = methodKey ? methodCopy[methodKey] || methodKey : "Unknown";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6">
@@ -212,7 +227,15 @@ export default function ScanResult() {
           </CardHeader>
           <CardContent className="space-y-3">
             {history.map((entry) => {
-              const conf = confidenceLabel(entry.confidence);
+              const entryMetrics = extractScanMetrics(entry);
+              const conf = confidenceLabel(entryMetrics.confidence ?? entry.confidence);
+              const method =
+                methodCopy[(entryMetrics.method || entry.method || "") as string] ||
+                entryMetrics.method ||
+                entry.method ||
+                "Photo";
+              const bfValue = entryMetrics.bodyFatPercent;
+              const bmiValue = entryMetrics.bmi;
               return (
                 <Link
                   key={entry.id}
@@ -222,15 +245,13 @@ export default function ScanResult() {
                   <div>
                     <p className="font-medium">{formatDate(entry.completedAt?.seconds)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {(methodCopy[entry.method || ""] || entry.method || "Photo") +
-                        " • " +
-                        (entry.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)")}
+                      {method + " • " + (entry.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)")}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-sm font-semibold">{entry.result?.bf_percent?.toFixed(1)}%</p>
-                      <p className="text-xs text-muted-foreground">{formatBmi(entry.result?.bmi ?? undefined)}</p>
+                      <p className="text-sm font-semibold">{bfValue != null ? `${bfValue.toFixed(1)}%` : "—"}</p>
+                      <p className="text-xs text-muted-foreground">{formatBmi(bmiValue ?? undefined)}</p>
                     </div>
                     <Badge variant={conf.tone as any}>{conf.label}</Badge>
                   </div>

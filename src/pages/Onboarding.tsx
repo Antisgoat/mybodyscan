@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { AppHeader } from "@/components/AppHeader";
 import { Section } from "@/components/ui/section";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
@@ -27,7 +27,17 @@ export default function Onboarding() {
     const uid = getAuth().currentUser?.uid;
     if (!uid) return;
     try {
-      await setDoc(doc(db, `users/${uid}/onboarding`), { ...form, completedOnboarding: true }, { merge: true });
+      await setDoc(
+        doc(db, "users", uid),
+        {
+          onboarding: {
+            ...form,
+            complete: true,
+            completedAt: serverTimestamp()
+          }
+        },
+        { merge: true }
+      );
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
       navigate("/today");
     } catch (err: any) {

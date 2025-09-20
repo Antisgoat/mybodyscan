@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,17 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { 
-  calculateEnergyMetrics, 
-  bodyComposition, 
-  macroPlan, 
+import {
+  calculateEnergyMetrics,
+  bodyComposition,
+  macroPlan,
   waistHeightRatio,
   formatMeasurement,
-  calculateChanges,
   type UserProfile,
   type MacroBreakdown,
   type EnergyMetrics
 } from "@/lib/metrics";
+import { extractScanMetrics } from "@/lib/scans";
 
 interface ReportData {
   scanId: string;
@@ -65,91 +65,130 @@ export default function Report() {
     const loadReport = async () => {
       try {
         setLoading(true);
-        
-        let targetScanId = scanId;
-        
-        // If no scanId provided, get latest scan
+        setError(null);
+
+        const scansCollection = collection(db, "users", user.uid, "scans");
+
+        const findLatestCompleted = async () => {
+          const snapshot = await getDocs(
+            query(scansCollection, orderBy("completedAt", "desc"), limit(5))
+          );
+          for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
+            const metrics = extractScanMetrics(data);
+            const status = (data?.status as string | undefined) || null;
+            if (
+              metrics.bodyFatPercent != null &&
+              data?.charged &&
+              (status === "completed" || status === "done")
+            ) {
+              return { id: docSnap.id, data };
+            }
+          }
+          return null;
+        };
+
+        const redirectToHistory = (message: { title: string; description?: string }) => {
+          toast(message);
+          navigate("/history", { replace: true });
+        };
+
+        let targetScanId = scanId ?? null;
+
         if (!targetScanId) {
-          const scansRef = doc(db, `users/${user.uid}/scans`);
-          // For simplicity, we'll require scanId - in real app would query latest
-          toast({ title: "Please select a specific scan from History" });
-          navigate("/history");
+          const latest = await findLatestCompleted();
+          if (latest) {
+            toast({
+              title: "Showing latest scan",
+              description: "We loaded your most recent completed scan report.",
+            });
+            navigate(`/report/${latest.id}`, { replace: true });
+          } else {
+            redirectToHistory({
+              title: "No completed scans",
+              description: "Complete a scan to generate a report.",
+            });
+          }
           return;
         }
 
-        // Check for existing report
-        const reportRef = doc(db, `users/${user.uid}/reports/${targetScanId}`);
+        const reportRef = doc(db, "users", user.uid, "reports", targetScanId);
         const reportSnap = await getDoc(reportRef);
-        
+
         if (reportSnap.exists()) {
           setReportData(reportSnap.data() as ReportData);
-          setLoading(false);
           return;
         }
 
-        // Generate new report
-        const scanRef = doc(db, `users/${user.uid}/scans/${targetScanId}`);
+        const scanRef = doc(db, "users", user.uid, "scans", targetScanId);
         const scanSnap = await getDoc(scanRef);
-        
+
         if (!scanSnap.exists()) {
-          setError("Scan not found");
-          setLoading(false);
+          const latest = await findLatestCompleted();
+          if (latest) {
+            toast({
+              title: "Scan not found",
+              description: "Showing your most recent completed scan instead.",
+            });
+            navigate(`/report/${latest.id}`, { replace: true });
+          } else {
+            redirectToHistory({
+              title: "Scan not found",
+              description: "Complete a scan to view reports.",
+            });
+          }
           return;
         }
 
         const scanData = scanSnap.data();
-        const results = scanData?.results;
-        
-        if (!results?.bodyFatPct || !results?.weightLb) {
+        const metrics = extractScanMetrics(scanData);
+        const bodyFatPct = metrics.bodyFatPercent;
+        const weightLbs = metrics.weightLb;
+
+        if (bodyFatPct == null || weightLbs == null) {
           setError("Insufficient scan data for report generation");
-          setLoading(false);
           return;
         }
 
-        // Mock user profile - in real app would come from user settings
         const userProfile: UserProfile = {
-          weightLbs: results.weightLb,
-          heightIn: 70, // Mock height - would come from user profile
-          age: 30, // Mock age - would come from user profile
-          gender: 'male', // Mock gender - would come from user profile
-          activityFactor: 1.4
+          weightLbs,
+          heightIn: 70,
+          age: 30,
+          gender: "male",
+          activityFactor: 1.4,
         };
 
-        // Calculate body composition
         const { leanMassLbs, fatMassLbs } = bodyComposition({
-          weightLbs: results.weightLb,
-          bodyFatPct: results.bodyFatPct
+          weightLbs,
+          bodyFatPct,
         });
 
-        // Calculate energy metrics
         const energy = calculateEnergyMetrics(userProfile, leanMassLbs);
 
-        // Calculate macros for each target
         const macros = {
-          cut: macroPlan({ 
-            calories: energy.cutCalories, 
-            lbmLbs: leanMassLbs, 
-            weightLbs: results.weightLb 
+          cut: macroPlan({
+            calories: energy.cutCalories,
+            lbmLbs: leanMassLbs,
+            weightLbs,
           }),
-          maintain: macroPlan({ 
-            calories: energy.maintainCalories, 
-            lbmLbs: leanMassLbs, 
-            weightLbs: results.weightLb 
+          maintain: macroPlan({
+            calories: energy.maintainCalories,
+            lbmLbs: leanMassLbs,
+            weightLbs,
           }),
-          gain: macroPlan({ 
-            calories: energy.gainCalories, 
-            lbmLbs: leanMassLbs, 
-            weightLbs: results.weightLb 
-          })
+          gain: macroPlan({
+            calories: energy.gainCalories,
+            lbmLbs: leanMassLbs,
+            weightLbs,
+          }),
         };
 
-        // Mock measurements - in real app would come from scan analysis
         const measurements = {
           waistIn: 32.0,
           hipIn: 38.0,
           chestIn: 42.0,
           thighIn: 24.0,
-          armIn: 14.0
+          armIn: 14.0,
         };
 
         let waistRatio;
@@ -159,22 +198,21 @@ export default function Report() {
 
         const newReportData: ReportData = {
           scanId: targetScanId,
-          weightLbs: results.weightLb,
-          bodyFatPct: results.bodyFatPct,
+          weightLbs,
+          bodyFatPct,
           leanMassLbs,
           fatMassLbs,
           energy,
           macros,
           measurements,
           waistHeightRatio: waistRatio,
-          changes: null, // Would calculate from previous scan
-          generatedAt: new Date()
+          changes: null,
+          generatedAt: new Date(),
         };
 
-        // Save report to Firestore
         await setDoc(reportRef, newReportData);
         setReportData(newReportData);
-        
+
       } catch (err: any) {
         console.error("Error loading report:", err);
         setError(err.message || "Failed to load report");

@@ -9,12 +9,13 @@ import { collection, query, orderBy, limit as limitFn, onSnapshot } from "fireba
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { formatBmi, formatWeightFromKg } from "@/lib/units";
+import { extractScanMetrics } from "@/lib/scans";
 
 type LastScan = {
   id: string;
   createdAt: Date | null;
-  results?: { bodyFatPct?: number; weightKg?: number; weightLb?: number; BMI?: number };
   status: string;
+  raw: any;
 };
 
 const Home = () => {
@@ -23,13 +24,16 @@ const Home = () => {
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const loggedOnce = useRef(false);
 
-  const done = lastScan?.status === "done";
+  const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
+  const done = lastScan?.status === "done" || lastScan?.status === "completed";
   const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
-  const bf = typeof lastScan?.results?.bodyFatPct === "number" ? lastScan.results!.bodyFatPct!.toFixed(1) : "—";
-  const kg = typeof lastScan?.results?.weightKg === "number" ? lastScan.results!.weightKg! : null;
-  const lb = typeof lastScan?.results?.weightLb === "number" ? lastScan.results!.weightLb! : null;
-  const weight = kg != null ? formatWeightFromKg(kg, 0) : lb != null ? `${lb.toFixed(0)} lb` : "—";
-  const bmi = typeof lastScan?.results?.BMI === "number" ? formatBmi(lastScan.results!.BMI!, 1) : "—";
+  const bf = metrics?.bodyFatPercent != null ? metrics.bodyFatPercent.toFixed(1) : "—";
+  const weight = metrics?.weightKg != null
+    ? formatWeightFromKg(metrics.weightKg, 0)
+    : metrics?.weightLb != null
+      ? `${metrics.weightLb.toFixed(0)} lb`
+      : "—";
+  const bmi = metrics?.bmi != null ? formatBmi(metrics.bmi, 1) : "—";
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -58,8 +62,8 @@ const Home = () => {
         setLastScan({
           id: doc.id,
           createdAt,
-          results: data?.results,
           status: data?.status ?? "unknown",
+          raw: data,
         });
       },
       (err) => {

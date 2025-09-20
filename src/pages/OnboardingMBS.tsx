@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
 import ToastMBS from '../components/ToastMBS';
@@ -28,19 +28,20 @@ export default function OnboardingMBS() {
   const [reminderTime, setReminderTime] = useState<'morning'|'afternoon'|'evening'>('morning');
   const [consent, setConsent] = useState<boolean>(false);
 
+  const userDocRef = useMemo(() => user ? doc(db, 'users', user.uid) : null, [user]);
   const meRef = useMemo(() => user ? doc(db, 'users', user.uid, 'profile', 'profile') : null, [user]);
   const settingsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'settings', 'settings') : null, [user]);
   const prefsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'preferences', 'preferences') : null, [user]);
 
   async function load() {
-    if (!user || !meRef) return;
-    const snap = await getDoc(meRef);
-    if (snap.exists() && snap.data()?.completedOnboarding) {
-      setMsg('Onboarding already completed.'); 
+    if (!user || !userDocRef) return;
+    const snap = await getDoc(userDocRef);
+    if (snap.exists() && snap.data()?.onboarding?.complete) {
+      setMsg('Onboarding already completed.');
     }
   }
 
-  React.useEffect(() => { load().catch(()=>{}); }, [user]);
+  React.useEffect(() => { load().catch(()=>{}); }, [userDocRef]);
 
   function toggle(arr: string[], v: string) {
     return arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v];
@@ -48,7 +49,7 @@ export default function OnboardingMBS() {
 
   async function finish() {
     try {
-      if (!user || !meRef || !settingsRef || !prefsRef) throw new Error('AUTH_REQUIRED');
+      if (!user || !userDocRef || !meRef || !settingsRef || !prefsRef) throw new Error('AUTH_REQUIRED');
       if (!consent) throw new Error('Please grant consent to continue.');
 
       const profile = {
@@ -61,7 +62,6 @@ export default function OnboardingMBS() {
         goals,
         targetWeightKg: targetWeightKg ?? undefined,
         activityLevel: activityLevel || undefined,
-        completedOnboarding: true,
       };
       const settings = { reminderDays, reminderTime };
       const preferences = { scanMode };
@@ -70,6 +70,12 @@ export default function OnboardingMBS() {
         setDoc(meRef, profile, { merge: true }),
         setDoc(settingsRef, settings, { merge: true }),
         setDoc(prefsRef, preferences, { merge: true }),
+        setDoc(userDocRef, {
+          onboarding: {
+            complete: true,
+            completedAt: serverTimestamp(),
+          },
+        }, { merge: true }),
       ]);
       setMsg('Onboarding saved.');
     } catch (e: any) {
