@@ -1,6 +1,8 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase";
+import { softVerifyAppCheck } from "./middleware/appCheck";
+import { withCors } from "./middleware/cors";
 import { requireAuth, verifyAppCheckSoft } from "./http";
 import type { ScanDocument } from "./types";
 
@@ -201,96 +203,111 @@ export const startScan = onCall(async (request) => {
   return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
 });
 
-export const runBodyScan = onRequest(async (req, res) => {
-  try {
-    await handleStartRequest(req, res);
-  } catch (err: any) {
-    respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
-  }
-});
-
-export const startScanSession = onRequest(async (req, res) => {
-  try {
-    await handleStartRequest(req, res);
-  } catch (err: any) {
-    respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
-  }
-});
-
-export const submitScan = onRequest(async (req, res) => {
-  try {
-    await verifyAppCheckSoft(req);
-    const uid = await requireAuth(req);
-    const body = req.body as { scanId?: string; files?: string[] };
-    if (!body?.scanId || !Array.isArray(body.files)) {
-      throw new HttpsError("invalid-argument", "scanId and files required");
+export const runBodyScan = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await softVerifyAppCheck(req as any, res as any);
+      await handleStartRequest(req, res);
+    } catch (err: any) {
+      respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
     }
-    await queueScan(uid, body.scanId, body.files);
-    respond(res, { scanId: body.scanId, status: "queued" });
-  } catch (err: any) {
-    const code = err instanceof HttpsError ? err.code : "internal";
-    const status = code === "unauthenticated" ? 401 : code === "invalid-argument" ? 400 : 500;
-    respond(res, { error: err.message || "error" }, status);
-  }
-});
+  })
+);
 
-export const processQueuedScanHttp = onRequest(async (req, res) => {
-  try {
-    await verifyAppCheckSoft(req);
-    const uid = await requireAuth(req);
-    const scanId = (req.body?.scanId as string) || (req.query?.scanId as string);
-    if (!scanId) {
-      throw new HttpsError("invalid-argument", "scanId required");
+export const startScanSession = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await softVerifyAppCheck(req as any, res as any);
+      await handleStartRequest(req, res);
+    } catch (err: any) {
+      respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
     }
-    const result = await handleProcess(uid, scanId);
-    respond(res, result);
-  } catch (err: any) {
-    const code = err instanceof HttpsError ? err.code : "internal";
-    const status =
-      code === "unauthenticated"
-        ? 401
-        : code === "invalid-argument"
-        ? 400
-        : code === "not-found"
-        ? 404
-        : 500;
-    respond(res, { error: err.message || "error" }, status);
-  }
-});
+  })
+);
+
+export const submitScan = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await softVerifyAppCheck(req as any, res as any);
+      await verifyAppCheckSoft(req);
+      const uid = await requireAuth(req);
+      const body = req.body as { scanId?: string; files?: string[] };
+      if (!body?.scanId || !Array.isArray(body.files)) {
+        throw new HttpsError("invalid-argument", "scanId and files required");
+      }
+      await queueScan(uid, body.scanId, body.files);
+      respond(res, { scanId: body.scanId, status: "queued" });
+    } catch (err: any) {
+      const code = err instanceof HttpsError ? err.code : "internal";
+      const status = code === "unauthenticated" ? 401 : code === "invalid-argument" ? 400 : 500;
+      respond(res, { error: err.message || "error" }, status);
+    }
+  })
+);
+
+export const processQueuedScanHttp = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await softVerifyAppCheck(req as any, res as any);
+      await verifyAppCheckSoft(req);
+      const uid = await requireAuth(req);
+      const scanId = (req.body?.scanId as string) || (req.query?.scanId as string);
+      if (!scanId) {
+        throw new HttpsError("invalid-argument", "scanId required");
+      }
+      const result = await handleProcess(uid, scanId);
+      respond(res, result);
+    } catch (err: any) {
+      const code = err instanceof HttpsError ? err.code : "internal";
+      const status =
+        code === "unauthenticated"
+          ? 401
+          : code === "invalid-argument"
+          ? 400
+          : code === "not-found"
+          ? 404
+          : 500;
+      respond(res, { error: err.message || "error" }, status);
+    }
+  })
+);
 
 export const processScan = onRequest(async (req, res) => {
   await processQueuedScanHttp(req, res);
 });
 
-export const getScanStatus = onRequest(async (req, res) => {
-  try {
-    await verifyAppCheckSoft(req);
-    const uid = await requireAuth(req);
-    const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
-    if (!scanId) {
-      throw new HttpsError("invalid-argument", "scanId required");
+export const getScanStatus = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await softVerifyAppCheck(req as any, res as any);
+      await verifyAppCheckSoft(req);
+      const uid = await requireAuth(req);
+      const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
+      if (!scanId) {
+        throw new HttpsError("invalid-argument", "scanId required");
+      }
+      const snap = await db.doc(`users/${uid}/scans/${scanId}`).get();
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "Scan not found");
+      }
+      const data = snap.data() as Partial<ScanDocument>;
+      const payload: any = { id: snap.id, ...data };
+      if (data.status === "completed") {
+        payload.pipelineStatus = "completed";
+        payload.status = "done";
+      }
+      respond(res, payload);
+    } catch (err: any) {
+      const code = err instanceof HttpsError ? err.code : "internal";
+      const status =
+        code === "unauthenticated"
+          ? 401
+          : code === "invalid-argument"
+          ? 400
+          : code === "not-found"
+          ? 404
+          : 500;
+      respond(res, { error: err.message || "error" }, status);
     }
-    const snap = await db.doc(`users/${uid}/scans/${scanId}`).get();
-    if (!snap.exists) {
-      throw new HttpsError("not-found", "Scan not found");
-    }
-    const data = snap.data() as Partial<ScanDocument>;
-    const payload: any = { id: snap.id, ...data };
-    if (data.status === "completed") {
-      payload.pipelineStatus = "completed";
-      payload.status = "done";
-    }
-    respond(res, payload);
-  } catch (err: any) {
-    const code = err instanceof HttpsError ? err.code : "internal";
-    const status =
-      code === "unauthenticated"
-        ? 401
-        : code === "invalid-argument"
-        ? 400
-        : code === "not-found"
-        ? 404
-        : 500;
-    respond(res, { error: err.message || "error" }, status);
-  }
-});
+  })
+);

@@ -1,12 +1,15 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { requireAuth, verifyAppCheckSoft } from "./http";
+import { softVerifyAppCheck } from "./middleware/appCheck";
+import { withCors } from "./middleware/cors";
 import { consumeCredit, refreshCreditsSummary } from "./credits";
 import { getFirestore } from "./firebase";
 
 const db = getFirestore();
 
 async function handler(req: Request, res: any) {
+  await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
   const uid = await requireAuth(req);
   const ok = await consumeCredit(uid);
@@ -20,15 +23,17 @@ async function handler(req: Request, res: any) {
   res.json({ ok: true, remaining });
 }
 
-export const useCredit = onRequest(async (req, res) => {
-  try {
-    await handler(req, res);
-  } catch (err: any) {
-    if (err instanceof HttpsError) {
-      const status = err.code === "unauthenticated" ? 401 : 400;
-      res.status(status).json({ error: err.message });
-      return;
+export const useCredit = onRequest(
+  withCors(async (req, res) => {
+    try {
+      await handler(req, res);
+    } catch (err: any) {
+      if (err instanceof HttpsError) {
+        const status = err.code === "unauthenticated" ? 401 : 400;
+        res.status(status).json({ error: err.message });
+        return;
+      }
+      res.status(500).json({ error: err?.message || "error" });
     }
-    res.status(500).json({ error: err?.message || "error" });
-  }
-});
+  })
+);

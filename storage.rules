@@ -1,23 +1,30 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isOwnerPath(uid) { return request.auth != null && request.auth.uid == uid; }
-    function authed() { return request.auth != null; }
-    match /uploads/{uid}/{file=**} {
-      allow read, write: if isOwnerPath(uid)
-        && request.resource.size < 50 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*|video/.*');
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
     }
-    match /scans/{uid}/{file=**} {
-      allow read: if isOwnerPath(uid);
-      allow write: if isOwnerPath(uid)
-        && request.resource.size < 50 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*|video/.*');
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
     }
-    match /userUploads/{uid}/{allPaths=**} {
-      allow read, write: if authed() && request.auth.uid == uid;
+
+    // Only allow images or short videos, max 50MB
+    function validContent() {
+      return request.resource.size < 50 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType.matches('video/.*'));
     }
-    match /{allPaths=**} {
+
+    match /scans/{uid}/{scanId}/{filename} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validContent();
+      allow update, delete: if isOwner(uid);
+    }
+
+    // Deny everything else by default
+    match /{all=**} {
       allow read, write: if false;
     }
   }
