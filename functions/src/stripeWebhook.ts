@@ -7,6 +7,8 @@ import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./cr
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+type RequestWithRawBody = Request & Record<'rawBody', Buffer>;
+
 function buildStripe(): Stripe | null {
   if (!STRIPE_SECRET_KEY) return null;
   return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
@@ -33,7 +35,7 @@ export const stripeWebhook = onRequest({
     return;
   }
 
-  const rawBody = (req as Request & { rawBody: Buffer }).rawBody;
+  const rawBody = (req as RequestWithRawBody).rawBody;
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
