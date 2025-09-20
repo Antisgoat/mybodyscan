@@ -1,4 +1,4 @@
-import { BASE as FUNCTIONS_BASE_URL } from "@/lib/api";
+import { FUNCTIONS_BASE, fnUrl } from "@/lib/env";
 
 const USE_MOCKS = import.meta.env.DEV || import.meta.env.VITE_USE_SERVER_MOCKS === "1";
 const TIMEOUT_MS = 3000;
@@ -78,12 +78,13 @@ function mockList(query: string): NutritionItem[] {
   ];
 }
 
-async function callFunctions(path: string, options?: RequestInit) {
-  if (!FUNCTIONS_BASE_URL) {
-    throw new Error("functions_url_missing");
+async function callFunctions(path: string, options?: RequestInit): Promise<Response | null> {
+  const url = fnUrl(path);
+  if (!url) {
+    return null;
   }
   return withTimeout(
-    fetch(`${FUNCTIONS_BASE_URL}${path}`, {
+    fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -95,11 +96,14 @@ async function callFunctions(path: string, options?: RequestInit) {
 
 export async function searchFoods(query: string): Promise<NutritionItem[]> {
   if (!query) return [];
-  if (USE_MOCKS && !FUNCTIONS_BASE_URL) {
+  if (USE_MOCKS && !FUNCTIONS_BASE) {
     return mockList(query);
   }
   try {
     const response = await callFunctions(`/nutritionSearch?q=${encodeURIComponent(query)}`);
+    if (!response) {
+      return USE_MOCKS ? mockList(query) : [];
+    }
     if (!response.ok) {
       throw new Error(`search_${response.status}`);
     }
@@ -117,11 +121,14 @@ export async function searchFoods(query: string): Promise<NutritionItem[]> {
 
 export async function lookupBarcode(code: string): Promise<NutritionItem | null> {
   if (!code) return null;
-  if (USE_MOCKS && !FUNCTIONS_BASE_URL) {
+  if (USE_MOCKS && !FUNCTIONS_BASE) {
     return mockList(code)[0];
   }
   try {
     const response = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code)}`);
+    if (!response) {
+      return USE_MOCKS ? mockList(code)[0] : null;
+    }
     if (response.status === 404) return null;
     if (!response.ok) {
       throw new Error(`barcode_${response.status}`);

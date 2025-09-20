@@ -1,18 +1,17 @@
 import { auth, app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
-
-const BASE = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+import { fnUrl } from "@/lib/env";
 
 async function authedFetch(path: string, init?: RequestInit) {
-  const base = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
-  if (!base) {
+  const url = fnUrl(path);
+  if (!url) {
     toast({ title: "Server not configured" });
     return new Response(null, { status: 503 });
   }
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("Authentication required");
-  return fetch(`${base}${path}`, {
+  return fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -99,4 +98,4 @@ export async function refundIfNoResult(scanId: string) {
   }
   return data as { ok: boolean };
 }
-export { authedFetch, BASE as FUNCTIONS_BASE_URL };
+export { authedFetch };
