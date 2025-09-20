@@ -90,6 +90,8 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_APPCHECK_SITE_KEY` *(optional but recommended)*
 
+Cloud Functions read Stripe credentials from secrets named `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Configure them with `firebase functions:secrets:set` (see Deployment).
+
 ## Testing rules
 
 Run Firestore security rules tests using the emulator suite:
@@ -118,7 +120,9 @@ firebase deploy --only functions:processQueuedScan
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
 
 ```sh
+firebase functions:secrets:set STRIPE_SECRET_KEY
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
 firebase deploy --only functions,hosting
 ```
 
-Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET`, `STRIPE_WEBHOOK`).
+Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`). If you previously configured automation or tooling with the legacy secret names (`STRIPE_SECRET`, `STRIPE_WEBHOOK`), update those references to the new keys when migrating.
