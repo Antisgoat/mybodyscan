@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { auth } from "@/lib/firebase";
 import { watchScans } from "@/lib/scan";
 import { isDemoGuest } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
+import { BodyTrendChart } from "@/components/charts/BodyTrendChart";
 
 export default function History() {
   const [selectedScans, setSelectedScans] = useState<string[]>([]);
@@ -23,6 +24,18 @@ export default function History() {
   const [showCompare, setShowCompare] = useState(false);
   const [editingNote, setEditingNote] = useState<{scanId: string, note: string} | null>(null);
   const { t } = useI18n();
+
+  const trendData = useMemo(() => {
+    return scans
+      .filter((scan) => scan.status === "ready" && (scan.measurements?.weight || scan.weight))
+      .map((scan) => {
+        const date = scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : scan.createdAt;
+        const weight = scan.measurements?.weight || scan.weight;
+        const bodyFat = scan.measurements?.bodyFat || scan.measurements?.body_fat;
+        return { date, weight: Number(weight), bodyFat: Number(bodyFat) };
+      })
+      .filter((point) => !Number.isNaN(point.weight) && !Number.isNaN(point.bodyFat));
+  }, [scans]);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
@@ -67,7 +80,7 @@ export default function History() {
         <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <DemoBanner />
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <HistoryIcon className="w-6 h-6 text-primary" />
             <h1 className="text-2xl font-semibold">{t('history.title')}</h1>
@@ -85,6 +98,21 @@ export default function History() {
             </Button>
           )}
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Progress trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {trendData.length >= 2 ? (
+              <BodyTrendChart data={trendData} />
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                Complete at least two scans to unlock trend insights.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {scans.length > 0 ? (
           <div className="space-y-4">

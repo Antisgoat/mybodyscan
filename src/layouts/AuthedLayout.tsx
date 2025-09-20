@@ -7,25 +7,33 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Menu, User } from "lucide-react";
 import { signOutToAuth } from "@/lib/auth";
 import { CreditsBadge } from "@/components/CreditsBadge";
+import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 
 interface AuthedLayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
-  { to: "/today", label: "Today" },
-  { to: "/scan/new", label: "Scan" },
-  { to: "/coach/tracker", label: "Tracker" },
-  { to: "/plans", label: "Plans" },
+const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
+  { to: "/home", label: "Home" },
+  { to: "/scan", label: "Scan", feature: "scan" },
+  { to: "/today", label: "Today", feature: "health" },
+  { to: "/meals", label: "Meals", feature: "nutrition" },
+  { to: "/workouts", label: "Workouts", feature: "workouts" },
+  { to: "/coach", label: "Coach", feature: "coach" },
+  { to: "/history", label: "History", feature: "scan" },
+  { to: "/plans", label: "Plans", feature: "account" },
+  { to: "/settings", label: "Settings", feature: "account" },
 ];
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
+
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
     <>
-      {navItems.map((item) => (
+      {filteredNavItems.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
