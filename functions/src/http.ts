@@ -1,6 +1,6 @@
 import type { Request } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
-import { getAppCheck, getAuth } from "./firebase";
+import { getAppCheck, getAuth } from "./firebase.js";
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;

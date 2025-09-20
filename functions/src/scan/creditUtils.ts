@@ -1,5 +1,5 @@
 import type { Transaction, DocumentReference } from "firebase-admin/firestore";
-import { Timestamp } from "../firebase";
+import { Timestamp } from "../firebase.js";
 
 interface CreditBucket {
   amount: number;
@@ -30,10 +30,10 @@ export async function consumeCreditBuckets(
   }
   const data = snap.data() as any;
   const now = Timestamp.now();
-  const buckets = Array.isArray(data.creditBuckets)
+  const buckets: CreditBucket[] = Array.isArray(data.creditBuckets)
     ? data.creditBuckets.map((bucket: any) => normalizeBucket(bucket, now))
     : [];
-  buckets.sort((a, b) => {
+  buckets.sort((a: CreditBucket, b: CreditBucket) => {
     const aTime = a.expiresAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
     const bTime = b.expiresAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
     return aTime - bTime;
@@ -52,7 +52,7 @@ export async function consumeCreditBuckets(
   }
 
   const consumed = remaining <= 0;
-  const total = buckets.reduce((sum, bucket) => sum + (bucket.amount || 0), 0);
+  const total = buckets.reduce((sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0), 0);
   return { buckets, consumed, total };
 }
 
@@ -64,7 +64,7 @@ export async function refundCredit(tx: Transaction, ref: DocumentReference, cont
     ? data.creditBuckets.map((bucket: any) => normalizeBucket(bucket, now))
     : [];
   buckets.push({ amount: 1, grantedAt: now, expiresAt: null, sourcePriceId: null, context });
-  const total = buckets.reduce((sum, bucket) => sum + (bucket.amount || 0), 0);
+  const total = buckets.reduce((sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0), 0);
   tx.set(
     ref,
     {

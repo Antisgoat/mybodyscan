@@ -1,10 +1,10 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { withCors } from "../middleware/cors";
-import { softVerifyAppCheck } from "../middleware/appCheck";
-import { requireAuth, verifyAppCheckSoft } from "../http";
-import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search";
+import { withCors } from "../middleware/cors.js";
+import { softVerifyAppCheck } from "../middleware/appCheck.js";
+import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search.js";
 
 const USDA_KEY = defineSecret("USDA_FDC_API_KEY");
 const CACHE_TTL = 1000 * 60 * 60 * 24; // ~24 hours

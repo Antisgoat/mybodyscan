@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { getAppCheck } from "../firebase";
+import { getAppCheck } from "../firebase.js";
 
 export async function softVerifyAppCheck(
   req: Request,
