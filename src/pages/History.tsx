@@ -10,6 +10,7 @@ import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { auth, db } from "@/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { formatBmi } from "@/lib/units";
+import { extractScanMetrics } from "@/lib/scans";
 
 interface ScanHistoryEntry {
   id: string;
@@ -19,6 +20,14 @@ interface ScanHistoryEntry {
   method?: "photo" | "photo+measure" | "bmi_fallback";
   confidence?: number;
   mode?: "2" | "4";
+  metrics?: {
+    bf_percent?: number | null;
+    bmi?: number | null;
+    weight_kg?: number | null;
+    weight_lb?: number | null;
+    method?: string | null;
+    confidence?: number | null;
+  };
   result?: {
     bf_percent?: number | null;
     bmi?: number | null;
@@ -63,7 +72,8 @@ export default function History() {
       const list: ScanHistoryEntry[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data() as ScanHistoryEntry;
-        if (!data.charged || data.result?.bf_percent == null) return;
+        const metrics = extractScanMetrics(data);
+        if (!data.charged || metrics.bodyFatPercent == null) return;
         list.push({ id: doc.id, ...data });
       });
       setEntries(list);
@@ -71,7 +81,14 @@ export default function History() {
     return () => unsub();
   }, []);
 
-  const recent = useMemo(() => entries.filter((entry) => entry.charged && entry.result?.bf_percent != null), [entries]);
+  const recent = useMemo(
+    () =>
+      entries.filter((entry) => {
+        const metrics = extractScanMetrics(entry);
+        return entry.charged && metrics.bodyFatPercent != null;
+      }),
+    [entries]
+  );
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -94,10 +111,15 @@ export default function History() {
         ) : (
           <div className="space-y-3">
             {recent.map((entry) => {
-              const confidence = confidenceLabel(entry.confidence);
-              const method = methodCopy[entry.method || ""] || entry.method || "Photo";
-              const bfPercent = entry.result?.bf_percent ?? null;
-              const bmi = entry.result?.bmi ?? null;
+              const metrics = extractScanMetrics(entry);
+              const confidence = confidenceLabel(metrics.confidence ?? entry.confidence);
+              const method =
+                methodCopy[(metrics.method || entry.method || "") as string] ||
+                metrics.method ||
+                entry.method ||
+                "Photo";
+              const bfPercent = metrics.bodyFatPercent ?? null;
+              const bmi = metrics.bmi ?? null;
               return (
                 <Link
                   key={entry.id}
