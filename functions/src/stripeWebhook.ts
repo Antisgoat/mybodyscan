@@ -1,5 +1,5 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import Stripe from "stripe";
+import Stripe from 'stripe';
 
 import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./credits";
 
