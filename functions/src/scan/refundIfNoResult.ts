@@ -15,39 +15,51 @@ async function handler(req: Request, res: any) {
   const body = req.body as { scanId?: string };
   const scanId = body?.scanId || (req.query?.scanId as string | undefined);
   if (!scanId) {
-    throw new HttpsError("invalid-argument", "scanId required");
+    res.status(400).json({ ok: false, refunded: false, reason: "invalid_request" });
+    return;
   }
 
   const scanRef = db.doc(`users/${uid}/scans/${scanId}`);
   const creditRef = db.doc(`users/${uid}/private/credits`);
   const now = Timestamp.now();
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(scanRef);
-    if (!snap.exists) {
-      throw new HttpsError("not-found", "scan_not_found");
-    }
-    const data = snap.data() as any;
-    if (data.status === "completed" && data.result?.bf_percent != null) {
-      throw new HttpsError("failed-precondition", "scan_already_completed");
-    }
-    if (!data.charged) {
+  let refunded = false;
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(scanRef);
+      if (!snap.exists) {
+        throw new HttpsError("not-found", "scan_not_found");
+      }
+      const data = snap.data() as any;
+      const charged = Boolean(data.charged);
+      const completed = data.status === "completed" && data.result?.bf_percent != null;
+      if (!charged || completed) {
+        return;
+      }
+      await refundCredit(tx, creditRef, `refund:${scanId}`);
+      tx.set(
+        scanRef,
+        {
+          charged: false,
+          status: "aborted",
+          refundedAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      refunded = true;
+    });
+  } catch (error: any) {
+    if (error instanceof HttpsError) {
+      const status = error.code === "not-found" ? 404 : error.code === "unauthenticated" ? 401 : 400;
+      res.status(status).json({ ok: false, refunded: false, reason: error.code });
       return;
     }
-    await refundCredit(tx, creditRef, `refund:${scanId}`);
-    tx.set(
-      scanRef,
-      {
-        charged: false,
-        status: "aborted",
-        refundedAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
-  });
+    res.status(500).json({ ok: false, refunded: false, reason: "server_error" });
+    return;
+  }
 
-  res.json({ ok: true });
+  res.json({ ok: refunded, refunded });
 }
 
 export const refundIfNoResult = onRequest(
@@ -56,20 +68,11 @@ export const refundIfNoResult = onRequest(
       await handler(req as Request, res);
     } catch (error: any) {
       if (error instanceof HttpsError) {
-        const status =
-          error.code === "unauthenticated"
-            ? 401
-            : error.code === "invalid-argument"
-            ? 400
-            : error.code === "not-found"
-            ? 404
-            : error.code === "failed-precondition"
-            ? 409
-            : 400;
-        res.status(status).json({ error: error.message });
+        const status = error.code === "unauthenticated" ? 401 : 400;
+        res.status(status).json({ ok: false, refunded: false, reason: error.code });
         return;
       }
-      res.status(500).json({ error: error?.message || "error" });
+      res.status(500).json({ ok: false, refunded: false, reason: "server_error" });
     }
   })
 );

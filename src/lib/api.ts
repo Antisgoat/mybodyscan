@@ -84,7 +84,7 @@ export async function recordGateFailure() {
   if (!response.ok) {
     throw new Error(data?.error || "gate_failure_not_recorded");
   }
-  return data as { ok: boolean; remainingAttempts?: number };
+  return data as { ok: boolean; remaining?: number };
 }
 
 export async function refundIfNoResult(scanId: string) {
@@ -96,6 +96,6 @@ export async function refundIfNoResult(scanId: string) {
   if (!response.ok) {
     throw new Error(data?.error || "refund_failed");
   }
-  return data as { ok: boolean };
+  return data as { ok: boolean; refunded: boolean };
 }
 export { authedFetch };

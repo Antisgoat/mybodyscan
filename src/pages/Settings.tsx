@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
@@ -11,7 +12,6 @@ import { useI18n } from "@/lib/i18n";
 import { signOutAll } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { useCredits } from "@/hooks/useCredits";
-import { openStripePortal } from "@/lib/api";
 import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
@@ -21,6 +21,10 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { FeatureGate } from "@/components/FeatureGate";
 import { scheduleReminderMock } from "@/lib/remindersShim";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { auth, db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -34,6 +38,15 @@ const Settings = () => {
   const { uid } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
+  const { profile } = useUserProfile();
+  const [weightInput, setWeightInput] = useState("");
+  const [savingMetrics, setSavingMetrics] = useState(false);
+
+  useEffect(() => {
+    if (profile?.weight_kg != null) {
+      setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
+    }
+  }, [profile?.weight_kg]);
 
   const handleScheduleReminder = async (type: 'scan' | 'workout' | 'meal') => {
     setScheduling(true);
@@ -45,6 +58,31 @@ const Settings = () => {
       toast({ title: 'Unable to schedule', description: error?.message || 'Try again later', variant: 'destructive' });
     } finally {
       setScheduling(false);
+    }
+  };
+
+  const handleSaveMetrics = async () => {
+    if (!auth.currentUser) {
+      toast({ title: "Sign in required", description: "Sign in to update your profile.", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+    const weightLb = parseFloat(weightInput);
+    if (!Number.isFinite(weightLb) || weightLb <= 0) {
+      toast({ title: "Enter your weight", description: "Weight must be a positive number in pounds.", variant: "destructive" });
+      return;
+    }
+    setSavingMetrics(true);
+    try {
+      const weightKg = Number(lbToKg(weightLb).toFixed(2));
+      const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
+      await setDoc(profileRef, { weight_kg: weightKg }, { merge: true });
+      toast({ title: "Weight updated" });
+    } catch (error: any) {
+      console.error("save_weight", error);
+      toast({ title: "Unable to save weight", variant: "destructive" });
+    } finally {
+      setSavingMetrics(false);
     }
   };
 
@@ -127,6 +165,33 @@ const Settings = () => {
             <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
           )}
           <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Body metrics</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Height</Label>
+              <p className="text-sm text-muted-foreground">{formatHeightFromCm(profile?.height_cm)}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="weight">Current weight (lb)</Label>
+              <Input
+                id="weight"
+                type="number"
+                inputMode="decimal"
+                placeholder="Enter weight in pounds"
+                value={weightInput}
+                onChange={(event) => setWeightInput(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Saved securely in kilograms for calculations.</p>
+            </div>
+            <Button onClick={handleSaveMetrics} disabled={savingMetrics} className="w-full">
+              {savingMetrics ? "Saving..." : "Save weight"}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Notifications */}
         <SectionCard title={t('settings.notifications')}>
