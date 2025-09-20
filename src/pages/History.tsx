@@ -17,6 +17,7 @@ import { watchScans } from "@/lib/scan";
 import { isDemoGuest } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { BodyTrendChart } from "@/components/charts/BodyTrendChart";
+import { formatBmi, formatWeightFromKg, kgToLb } from "@/lib/units";
 
 export default function History() {
   const [selectedScans, setSelectedScans] = useState<string[]>([]);
@@ -25,16 +26,31 @@ export default function History() {
   const [editingNote, setEditingNote] = useState<{scanId: string, note: string} | null>(null);
   const { t } = useI18n();
 
+  const getWeightKg = (scan: any): number | undefined => {
+    const measurementWeight = scan.measurements?.weightKg ?? scan.measurements?.weight;
+    if (typeof measurementWeight === "number") return measurementWeight;
+    if (typeof scan.weightKg === "number") return scan.weightKg;
+    if (typeof scan.weight === "number") return scan.weight;
+    return undefined;
+  };
+
+  const getMuscleMassKg = (scan: any): number | undefined => {
+    const measurementMuscle = scan.measurements?.muscleMass;
+    if (typeof measurementMuscle === "number") return measurementMuscle;
+    if (typeof scan.muscleMass === "number") return scan.muscleMass;
+    return undefined;
+  };
+
   const trendData = useMemo(() => {
     return scans
-      .filter((scan) => scan.status === "ready" && (scan.measurements?.weight || scan.weight))
+      .filter((scan) => scan.status === "ready" && getWeightKg(scan) != null)
       .map((scan) => {
         const date = scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : scan.createdAt;
-        const weight = scan.measurements?.weight || scan.weight;
+        const weightKg = getWeightKg(scan);
         const bodyFat = scan.measurements?.bodyFat || scan.measurements?.body_fat;
-        return { date, weight: Number(weight), bodyFat: Number(bodyFat) };
+        return { date, weight: weightKg != null ? kgToLb(weightKg) : NaN, bodyFat: Number(bodyFat) };
       })
-      .filter((point) => !Number.isNaN(point.weight) && !Number.isNaN(point.bodyFat));
+      .filter((point) => Number.isFinite(point.weight) && !Number.isNaN(point.bodyFat));
   }, [scans]);
 
   useEffect(() => {
@@ -145,15 +161,15 @@ export default function History() {
                         <div className="text-xs text-muted-foreground">{t('scan.bodyFat')}</div>
                       </div>
                       <div>
-                        <div className="text-lg font-semibold">{scan.measurements.weight || scan.weight}kg</div>
+                        <div className="text-lg font-semibold">{formatWeightFromKg(getWeightKg(scan))}</div>
                         <div className="text-xs text-muted-foreground">{t('scan.weight')}</div>
                       </div>
                       <div>
-                        <div className="text-lg font-semibold">{scan.measurements.bmi || scan.bmi}</div>
+                        <div className="text-lg font-semibold">{formatBmi(scan.measurements.bmi || scan.bmi)}</div>
                         <div className="text-xs text-muted-foreground">{t('scan.bmi')}</div>
                       </div>
                       <div>
-                        <div className="text-lg font-semibold">{scan.muscleMass || scan.measurements.muscleMass}kg</div>
+                        <div className="text-lg font-semibold">{formatWeightFromKg(getMuscleMassKg(scan))}</div>
                         <div className="text-xs text-muted-foreground">{t('scan.muscleMass')}</div>
                       </div>
                     </div>
@@ -225,15 +241,15 @@ export default function History() {
                   </div>
                   <div className="flex justify-between">
                     <span>{t('scan.weight')}:</span>
-                    <span>{scan.measurements?.weight || scan.weight}kg</span>
+                    <span>{formatWeightFromKg(getWeightKg(scan))}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{t('scan.bmi')}:</span>
-                    <span>{scan.measurements?.bmi || scan.bmi}</span>
+                    <span>{formatBmi(scan.measurements?.bmi || scan.bmi)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{t('scan.muscleMass')}:</span>
-                    <span>{scan.muscleMass || scan.measurements?.muscleMass}kg</span>
+                    <span>{formatWeightFromKg(getMuscleMassKg(scan))}</span>
                   </div>
                 </div>
               </div>
@@ -251,8 +267,8 @@ export default function History() {
                     scan2.measurements?.bodyFat || scan2.measurements?.body_fat
                   );
                   const weightDelta = calculateDelta(
-                    scan1.measurements?.weight || scan1.weight,
-                    scan2.measurements?.weight || scan2.weight
+                    (() => { const w = getWeightKg(scan1); return w != null ? kgToLb(w) : undefined; })(),
+                    (() => { const w = getWeightKg(scan2); return w != null ? kgToLb(w) : undefined; })()
                   );
                   
                   return (
@@ -274,7 +290,7 @@ export default function History() {
                           ) : (
                             <ArrowDown className="w-4 h-4 text-blue-500" />
                           )}
-                          <span>Weight: {weightDelta.isIncrease ? '+' : '-'}{weightDelta.value.toFixed(1)}kg</span>
+                          <span>Weight: {weightDelta.isIncrease ? '+' : '-'}{weightDelta.value.toFixed(1)} lb</span>
                         </div>
                       )}
                     </>

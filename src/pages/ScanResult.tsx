@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Info } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { formatBmi, formatWeightFromKg, kgToLb } from "@/lib/units";
 
 type ScanData = {
   id: string;
@@ -126,6 +127,25 @@ const ScanResult = () => {
     );
   }
 
+  const weightKg = typeof scan.results?.weightKg === "number"
+    ? scan.results.weightKg
+    : typeof scan.results?.weight === "number"
+      ? scan.results.weight
+      : undefined;
+  const weightLb = weightKg != null
+    ? kgToLb(weightKg)
+    : typeof scan.results?.weightLb === "number"
+      ? scan.results.weightLb
+      : undefined;
+  const weightDisplay = weightKg != null
+    ? formatWeightFromKg(weightKg)
+    : weightLb != null
+      ? `${Math.round(weightLb)} lb`
+      : "—";
+  const bmiDisplay = formatBmi(scan.results?.bmi);
+  const hasWeight = weightDisplay !== "—";
+  const hasBmi = bmiDisplay !== "—";
+
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo 
@@ -169,7 +189,7 @@ const ScanResult = () => {
                   </div>
                 )}
                 
-                {scan.results.weight && (
+                {hasWeight && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Weight</span>
@@ -182,11 +202,11 @@ const ScanResult = () => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="text-xl font-semibold">{scan.results.weight} lbs</span>
+                    <span className="text-xl font-semibold">{weightDisplay}</span>
                   </div>
                 )}
-                
-                {scan.results.bmi && (
+
+                {hasBmi && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">BMI</span>
@@ -199,7 +219,7 @@ const ScanResult = () => {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="text-xl font-semibold">{scan.results.bmi}</span>
+                    <span className="text-xl font-semibold">{bmiDisplay}</span>
                   </div>
                 )}
               </div>

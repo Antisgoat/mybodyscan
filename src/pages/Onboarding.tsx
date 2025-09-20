@@ -12,6 +12,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
+import HeightInputUS from "@/components/HeightInputUS";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
@@ -70,14 +71,13 @@ export default function Onboarding() {
           </Select>
         </div>
         <div>
-          <Label htmlFor="height">Height (cm)</Label>
-          <Input
-            id="height"
-            placeholder="175"
-            type="number"
-            value={form.height || ""}
-            onChange={(e) => update({ height: Number(e.target.value) })}
-          />
+          <Label>Height</Label>
+          <div className="mt-1">
+            <HeightInputUS
+              valueCm={form.height}
+              onChangeCm={(cm) => update({ height: cm ?? undefined })}
+            />
+          </div>
         </div>
       </div>
     </Section>,

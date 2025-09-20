@@ -10,9 +10,10 @@ import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { useComputePlan } from "@/hooks/useComputePlan";
 import { useToast } from "@/hooks/use-toast";
-import { formatWeight, formatHeight } from "@/lib/utils";
-import { useUserUnits } from "@/hooks/useUserUnits";
 import { Seo } from "@/components/Seo";
+import HeightInputUS from "@/components/HeightInputUS";
+import { kgToLb, lbToKg } from "@/lib/units";
+import { useUnits } from "@/hooks/useUnits";
 
 interface OnboardingData {
   sex?: "male" | "female";
@@ -46,7 +47,7 @@ export default function CoachOnboardingNew() {
   const navigate = useNavigate();
   const { computePlan } = useComputePlan();
   const { toast } = useToast();
-  const { useMetric } = useUserUnits();
+  const units = useUnits();
 
   const updateData = (updates: Partial<OnboardingData>) => {
     setData(prev => ({ ...prev, ...updates }));
@@ -149,35 +150,34 @@ export default function CoachOnboardingNew() {
     <Card>
       <CardHeader>
         <CardTitle>Measurements</CardTitle>
-        <CardDescription>We need your height and weight for accurate calculations</CardDescription>
+        <CardDescription>
+          We need your height and weight for accurate calculations (Units: {units === "us" ? "US – lb, ft/in" : "Metric"})
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <Label htmlFor="height">Height {useMetric ? "(cm)" : `(ft'in")`}</Label>
-          <Input
-            id="height"
-            type="number"
-            placeholder={useMetric ? "170" : "5'8\""}
-            value={useMetric ? data.height_cm || "" : ""}
-            onChange={(e) => {
-              if (useMetric) {
-                updateData({ height_cm: parseInt(e.target.value) || undefined });
-              }
-            }}
+        <div className="space-y-2">
+          <Label>Height</Label>
+          <HeightInputUS
+            valueCm={data.height_cm}
+            onChangeCm={(cm) => updateData({ height_cm: cm ?? undefined })}
           />
         </div>
-        
-        <div>
-          <Label htmlFor="weight">Weight {useMetric ? "(kg)" : "(lbs)"}</Label>
+
+        <div className="space-y-2">
+          <Label htmlFor="weight">Weight (lb)</Label>
           <Input
             id="weight"
             type="number"
-            placeholder={useMetric ? "70" : "154"}
-            value={useMetric ? data.weight_kg || "" : ""}
+            placeholder="154"
+            value={data.weight_kg != null ? Math.round(kgToLb(data.weight_kg)) : ""}
             onChange={(e) => {
-              if (useMetric) {
-                updateData({ weight_kg: parseInt(e.target.value) || undefined });
+              if (e.target.value === "") {
+                updateData({ weight_kg: undefined });
+                return;
               }
+              const value = Number(e.target.value);
+              if (Number.isNaN(value)) return;
+              updateData({ weight_kg: lbToKg(value) ?? undefined });
             }}
           />
         </div>

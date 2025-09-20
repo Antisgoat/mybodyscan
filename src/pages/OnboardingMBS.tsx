@@ -5,6 +5,8 @@ import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
 import ToastMBS from '../components/ToastMBS';
 import { toFriendlyMBS } from '../lib/errors.mbs';
 import ScanTipsMBS from '../components/ScanTipsMBS';
+import HeightInputUS from '../components/HeightInputUS';
+import { kgToLb, lbToKg } from '../lib/units';
 
 type Step = 1|2|3|4;
 
@@ -21,7 +23,6 @@ export default function OnboardingMBS() {
   const [age, setAge] = useState<number | undefined>();
   const [sexAtBirth, setSexAtBirth] = useState<'M'|'F'|'Prefer not'|''>('');
   const [activityLevel, setActivityLevel] = useState<'Low'|'Med'|'High'|''>('');
-  const [units, setUnits] = useState<'Imperial'|'Metric'>('Imperial');
   const [scanMode, setScanMode] = useState<'photos'|'video'>('photos');
   const [reminderDays, setReminderDays] = useState<7|10|14>(10);
   const [reminderTime, setReminderTime] = useState<'morning'|'afternoon'|'evening'>('morning');
@@ -45,9 +46,6 @@ export default function OnboardingMBS() {
     return arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v];
   }
 
-  function toKg(n?: number) { return n ?? undefined; }
-  function toCm(n?: number) { return n ?? undefined; }
-
   async function finish() {
     try {
       if (!user || !meRef || !settingsRef || !prefsRef) throw new Error('AUTH_REQUIRED');
@@ -55,10 +53,10 @@ export default function OnboardingMBS() {
 
       const profile = {
         sexAtBirth: sexAtBirth || undefined,
-        heightCm: units === 'Imperial' ? toCm(heightCm) : heightCm,
-        weightKg: units === 'Imperial' ? toKg(weightKg) : weightKg,
+        heightCm: heightCm ?? undefined,
+        weightKg: weightKg ?? undefined,
         age: age ?? undefined,
-        units,
+        units: 'Imperial',
         experience: experience || undefined,
         goals,
         targetWeightKg: targetWeightKg ?? undefined,
@@ -101,9 +99,18 @@ export default function OnboardingMBS() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">Target weight (kg)
+            <label className="text-sm">Target weight (lb)
               <input type="number" className="mt-1 w-full border rounded-lg px-3 py-2"
-                value={targetWeightKg ?? ''} onChange={e=>setTargetWeightKg(e.target.value?Number(e.target.value):undefined)} />
+                value={targetWeightKg != null ? Math.round(kgToLb(targetWeightKg)) : ''}
+                onChange={e=>{
+                  if (e.target.value === '') {
+                    setTargetWeightKg(undefined);
+                    return;
+                  }
+                  const value = Number(e.target.value);
+                  if (Number.isNaN(value)) return;
+                  setTargetWeightKg(lbToKg(value));
+                }} />
             </label>
             <label className="text-sm">Experience
               <select className="mt-1 w-full border rounded-lg px-3 py-2" value={experience} onChange={e=>setExperience(e.target.value as any)}>
@@ -121,11 +128,23 @@ export default function OnboardingMBS() {
         <div className="rounded-2xl border p-5 bg-white space-y-3">
           <h2 className="font-medium">Basics</h2>
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">Height (cm)
-              <input type="number" className="mt-1 w-full border rounded-lg px-3 py-2" value={heightCm ?? ''} onChange={e=>setHeightCm(e.target.value?Number(e.target.value):undefined)} />
+            <label className="text-sm">Height
+              <div className="mt-1">
+                <HeightInputUS valueCm={heightCm} onChangeCm={cm=>setHeightCm(cm ?? undefined)} />
+              </div>
             </label>
-            <label className="text-sm">Current weight (kg)
-              <input type="number" className="mt-1 w-full border rounded-lg px-3 py-2" value={weightKg ?? ''} onChange={e=>setWeightKg(e.target.value?Number(e.target.value):undefined)} />
+            <label className="text-sm">Current weight (lb)
+              <input type="number" className="mt-1 w-full border rounded-lg px-3 py-2"
+                value={weightKg != null ? Math.round(kgToLb(weightKg)) : ''}
+                onChange={e=>{
+                  if (e.target.value === '') {
+                    setWeightKg(undefined);
+                    return;
+                  }
+                  const value = Number(e.target.value);
+                  if (Number.isNaN(value)) return;
+                  setWeightKg(lbToKg(value));
+                }} />
             </label>
             <label className="text-sm">Age
               <input type="number" className="mt-1 w-full border rounded-lg px-3 py-2" value={age ?? ''} onChange={e=>setAge(e.target.value?Number(e.target.value):undefined)} />
@@ -141,9 +160,9 @@ export default function OnboardingMBS() {
               </select>
             </label>
             <label className="text-sm">Preferred units
-              <select className="mt-1 w-full border rounded-lg px-3 py-2" value={units} onChange={e=>setUnits(e.target.value as any)}>
-                <option>Imperial</option><option>Metric</option>
-              </select>
+              <div className="mt-1 w-full border rounded-lg px-3 py-2 bg-slate-50 text-slate-600">
+                US (lb, ft/in) — defaults for v1
+              </div>
             </label>
             <label className="text-sm">Scan mode
               <select className="mt-1 w-full border rounded-lg px-3 py-2" value={scanMode} onChange={e=>setScanMode(e.target.value as any)}>
