@@ -15,6 +15,8 @@ import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { isDemoGuest } from "@/lib/demoFlag";
+import HeightInputUS from "@/components/HeightInputUS";
+import { kgToLb, lbToKg } from "@/lib/units";
 
 interface CoachPlan {
   id: string;
@@ -213,14 +215,29 @@ export default function Coach() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Height (cm)</Label>
-                  <Input type="number" value={onboardingData.height || ''} 
-                         onChange={(e) => setOnboardingData({...onboardingData, height: parseInt(e.target.value)})} />
+                  <Label>Height</Label>
+                  <div className="mt-1">
+                    <HeightInputUS
+                      valueCm={onboardingData.height}
+                      onChangeCm={(cm) => setOnboardingData({ ...onboardingData, height: cm ?? undefined })}
+                    />
+                  </div>
                 </div>
                 <div>
-                  <Label>Weight (kg)</Label>
-                  <Input type="number" value={onboardingData.weight || ''} 
-                         onChange={(e) => setOnboardingData({...onboardingData, weight: parseInt(e.target.value)})} />
+                  <Label>Weight (lb)</Label>
+                  <Input
+                    type="number"
+                    value={onboardingData.weight != null ? Math.round(kgToLb(onboardingData.weight)) : ''}
+                    onChange={(e) => {
+                      if (e.target.value === "") {
+                        setOnboardingData({ ...onboardingData, weight: undefined });
+                        return;
+                      }
+                      const value = Number(e.target.value);
+                      if (Number.isNaN(value)) return;
+                      setOnboardingData({ ...onboardingData, weight: lbToKg(value) });
+                    }}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

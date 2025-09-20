@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { useI18n } from "@/lib/i18n";
+import { formatWeightFromKg } from "@/lib/units";
 
 interface ScanResult {
   id: string;
@@ -79,7 +80,7 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
           </div>
           <div>
             <div className="text-2xl font-bold">
-              {scan.measurements.weight}kg
+              {formatWeightFromKg(scan.measurements.weight)}
             </div>
             <div className="text-xs text-muted-foreground">{t('scan.weight')}</div>
           </div>
@@ -91,7 +92,7 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
           </div>
           <div>
             <div className="text-lg font-semibold">
-              {scan.measurements.leanMass}kg
+              {formatWeightFromKg(scan.measurements.leanMass)}
             </div>
             <div className="text-xs text-muted-foreground">{t('scan.leanMass')}</div>
           </div>
@@ -101,7 +102,7 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
         <div className="grid grid-cols-2 gap-4 text-center text-sm">
           <div>
             <div className="font-medium">
-              {scan.measurements.muscleMass}kg
+              {formatWeightFromKg(scan.measurements.muscleMass ?? scan.muscleMass)}
             </div>
             <div className="text-xs text-muted-foreground">{t('scan.muscleMass')}</div>
           </div>

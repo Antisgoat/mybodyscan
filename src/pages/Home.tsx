@@ -6,8 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
+import { formatBmi, formatWeightFromKg } from "@/lib/units";
 
 type LastScan = {
   id: string;
@@ -27,8 +28,8 @@ const Home = () => {
   const bf = typeof lastScan?.results?.bodyFatPct === "number" ? lastScan.results!.bodyFatPct!.toFixed(1) : "—";
   const kg = typeof lastScan?.results?.weightKg === "number" ? lastScan.results!.weightKg! : null;
   const lb = typeof lastScan?.results?.weightLb === "number" ? lastScan.results!.weightLb! : null;
-  const weight = kg != null ? `${kg} kg` : lb != null ? `${lb} lb` : "—";
-  const bmi = typeof lastScan?.results?.BMI === "number" ? lastScan.results!.BMI!.toFixed(1) : "—";
+  const weight = kg != null ? formatWeightFromKg(kg, 0) : lb != null ? `${lb.toFixed(0)} lb` : "—";
+  const bmi = typeof lastScan?.results?.BMI === "number" ? formatBmi(lastScan.results!.BMI!, 1) : "—";
 
   useEffect(() => {
     if (!user?.uid) return;

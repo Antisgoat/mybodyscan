@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { formatBmi, formatWeightFromKg, kgToLb } from "@/lib/units";
 type ScanData = {
   id: string;
   status: string;
@@ -29,10 +30,25 @@ type ScanData = {
 // Helper function to normalize field names
 const normalizeFields = (scan: ScanData) => {
   const bodyFat = scan.bodyFatPercentage ?? scan.body_fat ?? scan.bodyfat ?? null;
-  const weightLbs = scan.weight ?? scan.weight_lbs ?? null;
-  const bmi = scan.bmi ?? null;
-  
-  return { bodyFat, weightLbs, bmi };
+  const weightKgCandidates = [
+    scan.weightKg,
+    scan.weight_kg,
+    scan.results?.weightKg,
+    scan.results?.weight_kg,
+    scan.measurements?.weightKg,
+    scan.measurements?.weight
+  ];
+  const weightKg = weightKgCandidates.find((value) => typeof value === "number") as number | undefined;
+  const fallbackLbCandidates = [
+    scan.results?.weightLb,
+    scan.results?.weight_lbs,
+    scan.weight_lbs,
+    scan.weight
+  ];
+  const weightLb = weightKg != null ? kgToLb(weightKg) : (fallbackLbCandidates.find((value) => typeof value === "number") as number | undefined);
+  const bmi = scan.bmi ?? scan.results?.bmi ?? scan.measurements?.bmi ?? null;
+
+  return { bodyFat, weightKg, weightLb, bmi };
 };
 
 // Helper function to format dates
@@ -215,7 +231,12 @@ const Results = () => {
     );
   }
 
-  const { bodyFat, weightLbs, bmi } = normalizeFields(scan);
+  const { bodyFat, weightKg, weightLb, bmi } = normalizeFields(scan);
+  const weightDisplay = weightKg != null
+    ? formatWeightFromKg(weightKg)
+    : weightLb != null
+      ? `${Math.round(weightLb)} lb`
+      : "—";
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
@@ -267,16 +288,16 @@ const Results = () => {
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-3xl font-semibold text-primary">
-                    {weightLbs ? `${weightLbs} lbs` : "—"}
+                    {weightDisplay}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">Weight (lbs)</p>
+                  <p className="text-sm text-muted-foreground mt-1">Weight (lb)</p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-3xl font-semibold text-primary">
-                    {bmi ? bmi : "—"}
+                    {formatBmi(bmi ?? undefined)}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">BMI</p>
                 </CardContent>

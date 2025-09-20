@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  kgToLb,
-  lbToKg,
-  cmToFtIn,
-  ftInToCm,
-} from "@/lib/units";
+import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@/lib/units";
 import { app } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { Button } from "@/components/ui/button";
@@ -14,12 +9,12 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
 import { ChevronRight, Target, Clock, User } from "lucide-react";
+import HeightInputUS from "@/components/HeightInputUS";
 
 type Step = 1 | 2 | 3 | 4;
 
 const CoachOnboarding = () => {
   const [step, setStep] = useState<Step>(1);
-  const [units, setUnits] = useState<"us" | "metric">("us");
   const [form, setForm] = useState<any>({
     goal: "lose_fat",
     style: "ease_in",
@@ -42,17 +37,13 @@ const CoachOnboarding = () => {
     const save = httpsCallable(functions, "saveOnboarding");
     const compute = httpsCallable(functions, "computePlan");
     const payload: any = { ...form };
-    if (units === "us") {
-      const { ft, in: inch } = cmToFtIn(form.height_cm);
-      payload.units = "us";
-      payload.height_ft = ft;
-      payload.height_in = inch;
-      payload.weight_lb = kgToLb(form.weight_kg);
-      delete payload.height_cm;
-      delete payload.weight_kg;
-    } else {
-      payload.units = "metric";
-    }
+    const heightCm = form.height_cm ?? 0;
+    const weightKg = form.weight_kg ?? 0;
+    const { ft, in: inch } = inToFtIn(cmToIn(heightCm));
+    payload.units = "us";
+    payload.height_ft = ft;
+    payload.height_in = inch;
+    payload.weight_lb = kgToLb(weightKg);
     await save(payload);
     const { data } = await compute({});
     setPlan(data);
@@ -178,105 +169,37 @@ const CoachOnboarding = () => {
               </label>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Button
-                variant={units === "us" ? "default" : "secondary"}
-                onClick={() => setUnits("us")}
-              >
-                US
-              </Button>
-              <Button
-                variant={units === "metric" ? "default" : "secondary"}
-                onClick={() => setUnits("metric")}
-              >
-                Metric
-              </Button>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm font-medium">Height</span>
+                <div className="mt-1">
+                  <HeightInputUS
+                    valueCm={form.height_cm}
+                    onChangeCm={(cm) => update("height_cm", cm)}
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium">Weight (lb)</span>
+                <Input
+                  type="number"
+                  min="70"
+                  max="600"
+                  value={form.weight_kg ? Math.round(kgToLb(form.weight_kg)) : ""}
+                  onChange={(e) => {
+                    if (e.target.value === "") {
+                      update("weight_kg", undefined);
+                      return;
+                    }
+                    const value = Number(e.target.value);
+                    if (Number.isNaN(value)) return;
+                    update("weight_kg", lbToKg(value));
+                  }}
+                  className="mt-1"
+                />
+              </label>
             </div>
-
-            {units === "us" ? (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-sm font-medium">Height (ft/in)</span>
-                  <div className="flex gap-2 mt-1">
-                    {(() => {
-                      const { ft, in: inch } = cmToFtIn(form.height_cm);
-                      return (
-                        <>
-                          <Input
-                            type="number"
-                            min="3"
-                            max="8"
-                            value={ft}
-                            onChange={(e) =>
-                              update(
-                                "height_cm",
-                                ftInToCm(Number(e.target.value), inch)
-                              )
-                            }
-                          />
-                          <Input
-                            type="number"
-                            min="0"
-                            max="11"
-                            value={inch}
-                            onChange={(e) =>
-                              update(
-                                "height_cm",
-                                ftInToCm(ft, Number(e.target.value))
-                              )
-                            }
-                          />
-                        </>
-                      );
-                    })()}
-                  </div>
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium">Weight (lb)</span>
-                  <Input
-                    type="number"
-                    min="70"
-                    max="600"
-                    value={Math.round(kgToLb(form.weight_kg))}
-                    onChange={(e) =>
-                      update("weight_kg", lbToKg(Number(e.target.value)))
-                    }
-                    className="mt-1"
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-sm font-medium">Height (cm)</span>
-                  <Input
-                    type="number"
-                    min="120"
-                    max="250"
-                    value={form.height_cm}
-                    onChange={(e) =>
-                      update("height_cm", Number(e.target.value))
-                    }
-                    className="mt-1"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="text-sm font-medium">Weight (kg)</span>
-                  <Input
-                    type="number"
-                    min="30"
-                    max="300"
-                    value={form.weight_kg}
-                    onChange={(e) =>
-                      update("weight_kg", Number(e.target.value))
-                    }
-                    className="mt-1"
-                  />
-                </label>
-              </div>
-            )}
 
             <label className="block">
               <span className="text-sm font-medium">How active are you?</span>
