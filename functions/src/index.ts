@@ -32,5 +32,5 @@ export {
 
 // Payments & credits
 export { createCheckoutSession, createCheckout, createCustomerPortal } from "./payments";
-export { stripeWebhook } from "./stripeWebhook";
+export { stripeWebhook } from "./stripeWebhook.js";
 export { useCredit } from "./useCredit";
