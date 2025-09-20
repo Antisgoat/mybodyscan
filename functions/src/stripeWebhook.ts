@@ -1,4 +1,5 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import type { Request } from 'firebase-functions/v2/https';
 import Stripe from 'stripe';
 
 import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./credits.js";
@@ -29,9 +30,10 @@ export const stripeWebhook = onRequest({ region: "us-central1" }, async (req, re
     return;
   }
 
+  const rawBody = (req as Request & { rawBody: Buffer }).rawBody;
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.rawBody, signature, STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
   } catch (err: any) {
     console.error("stripeWebhook", err?.message);
     res.status(400).send(`invalid: ${err.message}`);
