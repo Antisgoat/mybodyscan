@@ -1,4 +1,5 @@
-import type { Request, Response } from "express";
+import type { Request } from "firebase-functions/v2/https";
+import type { Response } from "express";
 
 const ALLOWED = new Set([
   "https://mybodyscanapp.com",
@@ -6,8 +7,8 @@ const ALLOWED = new Set([
   "https://mybodyscan-f3daf.firebaseapp.com",
 ]);
 
-export function withCors(handler: (req: Request, res: Response) => unknown) {
-  return (req: Request, res: Response) => {
+export function withCors(handler: (req: Request, res: Response) => Promise<void> | void) {
+  return async (req: Request, res: Response): Promise<void> => {
     const origin = req.headers.origin as string | undefined;
     if (origin && ALLOWED.has(origin)) {
       res.setHeader("Vary", "Origin");
@@ -25,6 +26,6 @@ export function withCors(handler: (req: Request, res: Response) => unknown) {
       return;
     }
 
-    return handler(req, res);
+    await handler(req, res);
   };
 }
