@@ -15,10 +15,10 @@ export function cmToIn(cm: number): number {
   return cm / CM_PER_IN;
 }
 
-export function inToFtIn(totalInches: number): { ft: number; in: number } {
+export function inToFtIn(totalInches: number): { ft: number; inches: number } {
   const ft = Math.floor(totalInches / 12);
   const inches = Math.round(totalInches - ft * 12);
-  return { ft, in: inches };
+  return { ft, inches };
 }
 
 export function ftInToCm(ft: number, inches: number): number {
@@ -33,8 +33,8 @@ export function formatWeightFromKg(kg?: number, digits = 0): string {
 
 export function formatHeightFromCm(cm?: number): string {
   if (cm == null) return "—";
-  const { ft, in } = inToFtIn(cmToIn(cm));
-  return `${ft}′ ${in}″`;
+  const { ft, inches } = inToFtIn(cmToIn(cm));
+  return `${ft}′ ${inches}″`;
 }
 
 export function formatBmi(bmi?: number, digits = 1): string {

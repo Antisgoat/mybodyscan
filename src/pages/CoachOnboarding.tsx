@@ -39,7 +39,7 @@ const CoachOnboarding = () => {
     const payload: any = { ...form };
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
-    const { ft, in: inch } = inToFtIn(cmToIn(heightCm));
+    const { ft, inches: inch } = inToFtIn(cmToIn(heightCm));
     payload.units = "us";
     payload.height_ft = ft;
     payload.height_in = inch;
