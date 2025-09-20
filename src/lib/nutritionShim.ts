@@ -1,144 +1,174 @@
 import { FUNCTIONS_BASE, fnUrl } from "@/lib/env";
 
-const USE_MOCKS = import.meta.env.DEV || import.meta.env.VITE_USE_SERVER_MOCKS === "1";
+const USE_MOCKS = Boolean(import.meta.env.DEV) && !FUNCTIONS_BASE;
 const TIMEOUT_MS = 3000;
 
-export interface NutritionItem {
+export type NutritionSource = "USDA" | "OFF";
+
+export interface NormalizedItem {
   id: string;
   name: string;
   brand?: string;
-  upc?: string;
-  source: "USDA" | "OFF" | "mock";
+  source: NutritionSource;
+  gtin?: string;
+  fdcId?: number;
   serving: {
-    text: string | null;
+    qty: number | null;
+    unit: string | null;
+    text?: string | null;
   };
-  perServing: {
+  per_serving: {
     kcal?: number | null;
     protein_g?: number | null;
     carbs_g?: number | null;
     fat_g?: number | null;
   };
-  per100g?: NutritionItem["perServing"];
+  per_100g?: NormalizedItem["per_serving"];
 }
 
-function withTimeout(promise: Promise<Response>) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
-  return promise.finally(() => clearTimeout(timer));
+function toNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? Number(num.toFixed(2)) : null;
 }
 
-function normalizeItem(raw: any, source: "USDA" | "OFF"): NutritionItem {
+function normalizeItem(raw: any): NormalizedItem {
+  const serving = raw?.serving || {};
+  const perServing = raw?.per_serving || {};
+  const per100g = raw?.per_100g || raw?.per100g || undefined;
+  const generatedId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `food-${Math.random().toString(36).slice(2, 10)}`;
   return {
-    id: String(raw.id ?? crypto.randomUUID()),
-    name: raw.name ?? "Food",
-    brand: raw.brand ?? undefined,
-    upc: raw.upc ?? undefined,
-    source,
-    serving: { text: raw.serving ?? null },
-    perServing: {
-      kcal: raw.per_serving?.kcal ?? null,
-      protein_g: raw.per_serving?.protein_g ?? null,
-      carbs_g: raw.per_serving?.carbs_g ?? null,
-      fat_g: raw.per_serving?.fat_g ?? null,
+    id: String(raw?.id ?? generatedId),
+    name: typeof raw?.name === "string" ? raw.name : "Food",
+    brand: typeof raw?.brand === "string" ? raw.brand : undefined,
+    source: raw?.source === "OFF" ? "OFF" : "USDA",
+    gtin: typeof raw?.gtin === "string" ? raw.gtin : typeof raw?.upc === "string" ? raw.upc : undefined,
+    fdcId: toNumber(raw?.fdcId) ?? undefined,
+    serving: {
+      qty: toNumber(serving.qty ?? serving.quantity),
+      unit: typeof serving.unit === "string" ? serving.unit : null,
+      text: typeof serving.text === "string" ? serving.text : undefined,
     },
-    per100g: raw.per_100g
+    per_serving: {
+      kcal: toNumber(perServing.kcal),
+      protein_g: toNumber(perServing.protein_g),
+      carbs_g: toNumber(perServing.carbs_g),
+      fat_g: toNumber(perServing.fat_g),
+    },
+    per_100g: per100g
       ? {
-          kcal: raw.per_100g?.kcal ?? null,
-          protein_g: raw.per_100g?.protein_g ?? null,
-          carbs_g: raw.per_100g?.carbs_g ?? null,
-          fat_g: raw.per_100g?.fat_g ?? null,
+          kcal: toNumber(per100g.kcal),
+          protein_g: toNumber(per100g.protein_g),
+          carbs_g: toNumber(per100g.carbs_g),
+          fat_g: toNumber(per100g.fat_g),
         }
       : undefined,
   };
 }
 
-function mockList(query: string): NutritionItem[] {
+function mockList(query: string): NormalizedItem[] {
   const base = query || "sample";
   return [
     {
       id: `mock-${base}-1`,
-      name: `${base} (USDA Mock)`,
+      name: `${base} (USDA Mock)` ,
       brand: "MyBodyScan",
-      source: "mock",
-      upc: undefined,
-      serving: { text: "100 g" },
-      perServing: { kcal: 180, protein_g: 20, carbs_g: 15, fat_g: 6 },
-      per100g: { kcal: 180, protein_g: 20, carbs_g: 15, fat_g: 6 },
+      source: "USDA",
+      serving: { qty: 100, unit: "g", text: "100 g" },
+      per_serving: { kcal: 180, protein_g: 20, carbs_g: 15, fat_g: 6 },
+      per_100g: { kcal: 180, protein_g: 20, carbs_g: 15, fat_g: 6 },
     },
     {
       id: `mock-${base}-2`,
       name: `${base} (OFF Mock)`,
       brand: "Sample Foods",
-      source: "mock",
-      upc: undefined,
-      serving: { text: "1 serving" },
-      perServing: { kcal: 210, protein_g: 18, carbs_g: 22, fat_g: 7 },
-      per100g: undefined,
+      source: "OFF",
+      serving: { qty: 1, unit: "serving", text: "1 serving" },
+      per_serving: { kcal: 210, protein_g: 18, carbs_g: 22, fat_g: 7 },
+      per_100g: undefined,
     },
   ];
 }
 
-async function callFunctions(path: string, options?: RequestInit): Promise<Response | null> {
+async function callFunctions(path: string, init?: RequestInit): Promise<Response | null> {
   const url = fnUrl(path);
   if (!url) {
     return null;
   }
-  return withTimeout(
-    fetch(url, {
-      ...options,
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      ...init,
       headers: {
         "Content-Type": "application/json",
-        ...(options?.headers || {}),
+        ...(init?.headers || {}),
       },
-    })
-  );
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+  } catch (error) {
+    clearTimeout(timer);
+    throw error;
+  }
 }
 
-export async function searchFoods(query: string): Promise<NutritionItem[]> {
-  if (!query) return [];
-  if (USE_MOCKS && !FUNCTIONS_BASE) {
-    return mockList(query);
+export async function searchFoods(query: string): Promise<NormalizedItem[]> {
+  if (!query?.trim()) return [];
+  if (USE_MOCKS) {
+    const mock = mockList(query.trim());
+    if (!FUNCTIONS_BASE) {
+      return mock;
+    }
   }
   try {
-    const response = await callFunctions(`/nutritionSearch?q=${encodeURIComponent(query)}`);
+    const response = await callFunctions(`/nutritionSearch?q=${encodeURIComponent(query.trim())}`);
     if (!response) {
-      return USE_MOCKS ? mockList(query) : [];
+      return USE_MOCKS ? mockList(query.trim()) : [];
     }
     if (!response.ok) {
-      throw new Error(`search_${response.status}`);
+      if (USE_MOCKS) return mockList(query.trim());
+      return [];
     }
     const data = await response.json();
     if (!Array.isArray(data?.items)) {
-      return USE_MOCKS ? mockList(query) : [];
+      return USE_MOCKS ? mockList(query.trim()) : [];
     }
-    return data.items.map((item: any) => normalizeItem(item, item.source === "OFF" ? "OFF" : "USDA"));
+    return data.items.map((item: any) => normalizeItem(item));
   } catch (error) {
     console.error("nutrition_search_error", error);
-    if (USE_MOCKS) return mockList(query);
-    throw error;
+    return USE_MOCKS ? mockList(query.trim()) : [];
   }
 }
 
-export async function lookupBarcode(code: string): Promise<NutritionItem | null> {
-  if (!code) return null;
-  if (USE_MOCKS && !FUNCTIONS_BASE) {
-    return mockList(code)[0];
+export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
+  if (!code?.trim()) return null;
+  if (USE_MOCKS) {
+    const list = mockList(code.trim());
+    if (!FUNCTIONS_BASE) {
+      return list[0] ?? null;
+    }
   }
   try {
-    const response = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code)}`);
+    const response = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code.trim())}`);
     if (!response) {
-      return USE_MOCKS ? mockList(code)[0] : null;
+      return USE_MOCKS ? mockList(code.trim())[0] ?? null : null;
     }
-    if (response.status === 404) return null;
+    if (response.status === 404) {
+      return null;
+    }
     if (!response.ok) {
-      throw new Error(`barcode_${response.status}`);
+      if (USE_MOCKS) return mockList(code.trim())[0] ?? null;
+      return null;
     }
     const data = await response.json();
-    if (!data?.item) return null;
-    return normalizeItem(data.item, data.item.source === "OFF" ? "OFF" : "USDA");
+    if (!data?.item) {
+      return null;
+    }
+    return normalizeItem(data.item);
   } catch (error) {
     console.error("nutrition_barcode_error", error);
-    if (USE_MOCKS) return mockList(code)[0];
-    throw error;
+    return USE_MOCKS ? mockList(code.trim())[0] ?? null : null;
   }
 }

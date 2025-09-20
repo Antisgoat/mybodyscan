@@ -1,36 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Flashlight, FlashlightOff, Square, Play, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { lookupBarcode } from "@/lib/nutritionShim";
+import { lookupBarcode, type NormalizedItem } from "@/lib/nutritionShim";
 import { addMeal } from "@/lib/nutrition";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
+import { ServingEditor } from "@/components/nutrition/ServingEditor";
+
+const SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.11/dist/quagga.min.js";
 
 export default function BarcodeScan() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [manualCode, setManualCode] = useState("");
-  const [scanning, setScanning] = useState(false);
+  const [quaggaReady, setQuaggaReady] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const [detectedCode, setDetectedCode] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [item, setItem] = useState<NormalizedItem | null>(null);
+  const [loadingItem, setLoadingItem] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const defaultCountry = useMemo(
     () => defaultCountryFromLocale(typeof navigator !== "undefined" ? navigator.language : undefined),
-    []
+    [],
   );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if ((window as any).Quagga) {
-      setScanning(true);
+      setQuaggaReady(true);
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.11/dist/quagga.min.js";
+    script.src = SCRIPT_SRC;
     script.async = true;
-    script.onload = () => setScanning(true);
+    script.onload = () => setQuaggaReady(true);
     script.onerror = () => toast({ title: "Scanner unavailable", description: "Unable to load barcode library." });
     document.body.appendChild(script);
     return () => {
@@ -38,9 +47,33 @@ export default function BarcodeScan() {
     };
   }, []);
 
-  useEffect(() => {
+  const teardown = useCallback(() => {
     const Quagga = (window as any).Quagga;
-    if (!scanning || !Quagga || !containerRef.current) return;
+    if (Quagga?.stop) {
+      Quagga.stop();
+    }
+    setRunning(false);
+    setTorchOn(false);
+    setTorchAvailable(false);
+  }, []);
+
+  const onDetected = useCallback(
+    async (data: any) => {
+      const code = data?.codeResult?.code;
+      if (!code) return;
+      setDetectedCode(code);
+      teardown();
+      await fetchItem(code);
+    },
+    [teardown],
+  );
+
+  const startScanner = useCallback(() => {
+    const Quagga = (window as any).Quagga;
+    if (!Quagga || !containerRef.current) {
+      toast({ title: "Scanner not ready", description: "Library not loaded" });
+      return;
+    }
     Quagga.init(
       {
         inputStream: {
@@ -49,111 +82,148 @@ export default function BarcodeScan() {
           target: containerRef.current,
           constraints: {
             facingMode: "environment",
-            width: 640,
-            height: 480,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
         },
         decoder: {
-          readers: ["ean_reader", "upc_reader", "upc_e_reader"],
+          readers: ["ean_reader", "upc_reader", "upc_e_reader", "code_128_reader"],
         },
         locate: true,
       },
-      (err) => {
+      (err: Error | null) => {
         if (err) {
           console.error("quagga_init_error", err);
-          toast({ title: "Camera unavailable", description: "Use manual entry instead." });
-          setScanning(false);
+          toast({ title: "Camera unavailable", description: "Check permissions or try manual entry." });
           return;
         }
         Quagga.start();
-        setScanning(true);
-      }
+        setRunning(true);
+        Quagga.onDetected(onDetected);
+        const track = Quagga.CameraAccess?.getActiveTrack?.();
+        if (track && track.getCapabilities) {
+          const caps = track.getCapabilities();
+          if ((caps as any).torch) {
+            setTorchAvailable(true);
+          }
+        }
+      },
     );
+  }, [onDetected]);
 
-    const onDetected = (data: any) => {
-      const code = data?.codeResult?.code;
-      if (code) {
-        setDetectedCode(code);
-        Quagga.stop();
-        setScanning(false);
-        fetchResult(code);
-      }
-    };
-
-    Quagga.onDetected(onDetected);
-    return () => {
+  const stopScanner = () => {
+    const Quagga = (window as any).Quagga;
+    if (Quagga?.offDetected) {
       Quagga.offDetected(onDetected);
-      if (Quagga.running) {
-        Quagga.stop();
-      }
-    };
-  }, [scanning]);
+    }
+    teardown();
+  };
 
-  const fetchResult = async (code: string) => {
+  const toggleTorch = async () => {
+    const Quagga = (window as any).Quagga;
+    const track = Quagga?.CameraAccess?.getActiveTrack?.();
+    if (!track?.applyConstraints) return;
     try {
-      const item = await lookupBarcode(code);
-      setResult(item);
-      if (!item) {
-        toast({ title: "No match", description: "Try manual entry" });
-      }
-    } catch (error: any) {
-      toast({ title: "Lookup failed", description: error?.message || "Try again" });
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      setTorchOn((prev) => !prev);
+    } catch (error) {
+      console.error("torch_toggle_error", error);
+      toast({ title: "Torch unsupported", description: "Use additional light if needed." });
     }
   };
 
-  const handleManualSubmit = async (event: React.FormEvent) => {
+  const fetchItem = async (code: string) => {
+    setLoadingItem(true);
+    setItem(null);
+    try {
+      const found = await lookupBarcode(code);
+      setItem(found);
+      if (!found) {
+        toast({ title: "No match", description: "Try manual entry or search." });
+      }
+    } catch (error: any) {
+      toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
+    } finally {
+      setLoadingItem(false);
+    }
+  };
+
+  const handleManual = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!manualCode) return;
-    await fetchResult(manualCode);
+    if (!manualCode.trim()) return;
+    await fetchItem(manualCode.trim());
   };
 
-  const handleAdd = async () => {
-    if (!result) return;
-    const today = new Date().toISOString().slice(0, 10);
+  const handleLog = async ({ meal }: any) => {
+    if (!item) return;
+    setProcessing(true);
     try {
-      await addMeal(today, {
-        name: result.name,
-        protein: result.perServing.protein_g ?? undefined,
-        carbs: result.perServing.carbs_g ?? undefined,
-        fat: result.perServing.fat_g ?? undefined,
-        calories: result.perServing.kcal ?? undefined,
-      });
-      toast({ title: "Logged", description: `${result.name} added to today` });
+      await addMeal(new Date().toISOString().slice(0, 10), { ...meal, entrySource: "barcode" });
+      toast({ title: "Logged", description: `${item.name} added to today` });
     } catch (error: any) {
-      toast({ title: "Unable to log", description: error?.message || "Try again" });
+      toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
+    } finally {
+      setProcessing(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6">
-      <Seo title="Barcode Scan" description="Scan UPC to log foods" />
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6 pb-20 md:pb-10">
+      <Seo title="Barcode Scan" description="Scan UPCs to log foods" />
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Barcode Scanner</h1>
         <p className="text-muted-foreground">
-          Align the barcode within the frame. The camera will focus automatically. If scanning fails, enter the code manually.
+          Align the barcode within the frame. Scanning defaults to region {defaultCountry}. Use the torch in low light or enter the code manually.
         </p>
       </header>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Live Scanner</CardTitle>
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Camera className="h-4 w-4" /> Live scanner
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button size="sm" variant={running ? "outline" : "default"} onClick={running ? stopScanner : startScanner} disabled={!quaggaReady}>
+              {running ? (
+                <>
+                  <Square className="mr-1 h-4 w-4" /> Stop
+                </>
+              ) : (
+                <>
+                  <Play className="mr-1 h-4 w-4" /> Start
+                </>
+              )}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={toggleTorch} disabled={!torchAvailable}>
+              {torchOn ? <FlashlightOff className="h-4 w-4" /> : <Flashlight className="h-4 w-4" />}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div ref={containerRef} className="h-64 w-full overflow-hidden rounded-lg bg-black" />
+        <CardContent className="space-y-3">
+          <div ref={containerRef} className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
+            <div className="pointer-events-none absolute inset-0 border-2 border-white/40" />
+          </div>
           <p className="text-xs text-muted-foreground">
-            {scanning ? "Scanning... tap to refocus" : detectedCode ? `Detected ${detectedCode}` : "Camera inactive"}
+            {running ? "Scanning…" : quaggaReady ? "Tap start to begin scanning" : "Loading scanner…"}
+            {detectedCode ? ` • Last detected: ${detectedCode}` : ""}
           </p>
-          <p className="text-xs text-muted-foreground">Default region: {defaultCountry}</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Manual Entry</CardTitle>
+          <CardTitle>Manual entry</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleManualSubmit} className="flex gap-2">
-            <div className="flex-1">
+          <form onSubmit={handleManual} className="flex gap-2">
+            <div className="flex-1 space-y-2">
               <Label htmlFor="manual-code">Barcode</Label>
               <Input
                 id="manual-code"
@@ -162,30 +232,39 @@ export default function BarcodeScan() {
                 placeholder={`Enter UPC (${defaultCountry})`}
               />
             </div>
-            <Button type="submit" className="self-end">
+            <Button type="submit" className="self-end" disabled={!manualCode.trim()}>
               Lookup
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{result.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>{result.brand || "Unknown brand"}</p>
-            <p>
-              {result.perServing.kcal ?? "—"} kcal • {result.perServing.protein_g ?? "—"}g protein • {result.perServing.carbs_g ?? "—"}
-              g carbs • {result.perServing.fat_g ?? "—"}g fat
-            </p>
-            <Button onClick={handleAdd} className="w-full">
-              Add to Today
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Result</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loadingItem && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Looking up food…
+            </div>
+          )}
+          {!loadingItem && !item && <p className="text-sm text-muted-foreground">No food selected yet.</p>}
+          {item && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-lg font-semibold text-foreground">{item.name}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.brand || item.source}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.per_serving.kcal ?? "—"} kcal • {item.per_serving.protein_g ?? "—"}g P • {item.per_serving.carbs_g ?? "—"}g C •
+                  {item.per_serving.fat_g ?? "—"}g F
+                </p>
+              </div>
+              <ServingEditor item={item} entrySource="barcode" onConfirm={handleLog} busy={processing} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

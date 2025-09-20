@@ -4,25 +4,34 @@ import { defineSecret } from "firebase-functions/params";
 import { withCors } from "../middleware/cors";
 import { softVerifyAppCheck } from "../middleware/appCheck";
 import { requireAuth, verifyAppCheckSoft } from "../http";
-import { fromOpenFoodFacts, fromUsdaFood } from "./search";
+import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search";
 
 const USDA_KEY = defineSecret("USDA_FDC_API_KEY");
-const cache = new Map<string, { value: any; expires: number }>();
-const TTL = 1000 * 60 * 10;
+const CACHE_TTL = 1000 * 60 * 60 * 24; // ~24 hours
+
+interface CacheEntry {
+  expires: number;
+  value: { item: NormalizedItem; source: "OFF" | "USDA" } | null;
+}
+
+const cache = new Map<string, CacheEntry>();
 
 async function fetchOff(code: string) {
-  const url = `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`;
-  const response = await fetch(url, { headers: { "User-Agent": "mybodyscan-functions" } });
+  const response = await fetch(
+    `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`,
+    { headers: { "User-Agent": "mybodyscan-functions" } },
+  );
   if (!response.ok) {
     throw new Error(`off_${response.status}`);
   }
   const data = await response.json();
-  return data?.product ? fromOpenFoodFacts(data.product) : null;
+  if (!data?.product) return null;
+  const normalized = fromOpenFoodFacts(data.product);
+  return normalized ? { item: normalized, source: "OFF" as const } : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
-  const url = "https://api.nal.usda.gov/fdc/v1/foods/search";
-  const response = await fetch(url, {
+  const response = await fetch("https://api.nal.usda.gov/fdc/v1/foods/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query: code, pageSize: 5, dataType: ["Branded"] }),
@@ -32,52 +41,66 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
     throw new Error(`usda_${response.status}`);
   }
   const data = await response.json();
-  if (!Array.isArray(data?.foods)) return null;
-  const match = data.foods.find((food: any) => String(food.gtinUpc || "") === code);
-  return match ? fromUsdaFood(match) : fromUsdaFood(data.foods[0]);
+  if (!Array.isArray(data?.foods) || !data.foods.length) return null;
+  const normalized = data.foods
+    .map((food: any) => fromUsdaFood(food))
+    .filter(Boolean)
+    .find((item: any) => item?.gtin === code) as NormalizedItem | undefined;
+  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as
+    | NormalizedItem
+    | undefined;
+  const item = normalized || fallback || null;
+  return item ? { item, source: "USDA" as const } : null;
 }
 
 async function handler(req: Request, res: any) {
   await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
   await requireAuth(req);
+
   const code = String(req.query?.code || req.body?.code || "").trim();
   if (!code) {
     throw new HttpsError("invalid-argument", "code required");
   }
 
-  const cached = cache.get(code);
   const now = Date.now();
+  const cached = cache.get(code);
   if (cached && cached.expires > now) {
-    res.json({ item: cached.value });
+    if (!cached.value) {
+      res.status(404).json({ error: "not_found", cached: true });
+      return;
+    }
+    res.json({ item: cached.value.item, code, source: cached.value.source, cached: true });
     return;
   }
 
-  let item = null;
+  let result: { item: NormalizedItem; source: "OFF" | "USDA" } | null = null;
+
   try {
-    item = await fetchOff(code);
+    result = await fetchOff(code);
   } catch (error) {
     console.error("off_barcode_error", error);
   }
 
-  if (!item) {
+  if (!result) {
     try {
       const key = USDA_KEY.value();
       if (key) {
-        item = await fetchUsdaByBarcode(key, code);
+        result = await fetchUsdaByBarcode(key, code);
       }
     } catch (error) {
       console.error("usda_barcode_error", error);
     }
   }
 
-  if (!item) {
+  if (!result) {
+    cache.set(code, { value: null, expires: now + CACHE_TTL });
     res.status(404).json({ error: "not_found" });
     return;
   }
 
-  cache.set(code, { value: item, expires: now + TTL });
-  res.json({ item });
+  cache.set(code, { value: result, expires: now + CACHE_TTL });
+  res.json({ item: result.item, code, source: result.source, cached: false });
 }
 
 export const nutritionBarcode = onRequest({ secrets: [USDA_KEY] }, withCors(async (req, res) => {
@@ -85,7 +108,12 @@ export const nutritionBarcode = onRequest({ secrets: [USDA_KEY] }, withCors(asyn
     await handler(req as Request, res);
   } catch (error: any) {
     if (error instanceof HttpsError) {
-      const status = error.code === "unauthenticated" ? 401 : error.code === "invalid-argument" ? 400 : 400;
+      const status =
+        error.code === "unauthenticated"
+          ? 401
+          : error.code === "invalid-argument"
+          ? 400
+          : 400;
       res.status(status).json({ error: error.message });
       return;
     }

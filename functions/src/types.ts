@@ -11,6 +11,40 @@ export interface ScanDocument {
   mock?: boolean;
 }
 
+export interface NutritionItemSnapshot {
+  id?: string;
+  name: string;
+  brand?: string | null;
+  source?: "USDA" | "OFF" | string;
+  serving?: {
+    qty?: number | null;
+    unit?: string | null;
+    text?: string | null;
+  } | null;
+  per_serving?: {
+    kcal?: number | null;
+    protein_g?: number | null;
+    carbs_g?: number | null;
+    fat_g?: number | null;
+  } | null;
+  per_100g?: {
+    kcal?: number | null;
+    protein_g?: number | null;
+    carbs_g?: number | null;
+    fat_g?: number | null;
+  } | null;
+  fdcId?: number | null;
+  gtin?: string | null;
+}
+
+export interface MealServingSelection {
+  qty?: number;
+  unit?: string;
+  grams?: number | null;
+  originalQty?: number | null;
+  originalUnit?: string | null;
+}
+
 export interface MealRecord {
   id: string;
   name: string;
@@ -22,6 +56,9 @@ export interface MealRecord {
   caloriesFromMacros?: number;
   caloriesInput?: number;
   notes?: string | null;
+  serving?: MealServingSelection | null;
+  item?: NutritionItemSnapshot | null;
+  entrySource?: "search" | "barcode" | "manual" | string;
 }
 
 export interface DailyLogDocument {

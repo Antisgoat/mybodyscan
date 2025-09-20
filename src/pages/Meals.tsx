@@ -1,109 +1,157 @@
-import { useEffect, useMemo, useState } from "react";
-import { Utensils, Plus, History, Sparkles, Copy, Barcode } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Utensils, Plus, History, Copy, Barcode, ListPlus, Star, Trash } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { addMeal, deleteMeal, getDailyLog, computeCalories, type MealEntry } from "@/lib/nutrition";
-import { searchFoods, type NutritionItem } from "@/lib/nutritionShim";
+import {
+  addMeal,
+  deleteMeal,
+  getDailyLog,
+  getNutritionHistory,
+  type MealEntry,
+  type NutritionHistoryDay,
+} from "@/lib/nutrition";
+import { type NormalizedItem } from "@/lib/nutritionShim";
+import {
+  subscribeFavorites,
+  subscribeTemplates,
+  saveTemplate,
+  deleteTemplate,
+  type FavoriteDocWithId,
+  type TemplateDocWithId,
+} from "@/lib/nutritionCollections";
+import {
+  calculateSelection,
+  type ServingUnit,
+  buildMealEntry,
+  normalizedFromSnapshot,
+} from "@/lib/nutritionMath";
+import { ServingEditor } from "@/components/nutrition/ServingEditor";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 
+const RECENTS_KEY = "mbs_nutrition_recents_v2";
+const MAX_RECENTS = 50;
 const DAILY_TARGET = 2200;
-const RECENTS_KEY = "mbs_recent_foods";
 
-interface RecentItem {
-  name: string;
-  perServing: NutritionItem["perServing"];
+interface RecentItem extends NormalizedItem {}
+
+function readRecents(): RecentItem[] {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(RECENTS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.slice(0, MAX_RECENTS);
+    }
+  } catch (error) {
+    console.warn("recents_parse_error", error);
+  }
+  return [];
+}
+
+function storeRecents(items: RecentItem[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, MAX_RECENTS)));
 }
 
 export default function Meals() {
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>({ totals: { calories: 0 }, meals: [] });
+  const [history7, setHistory7] = useState<NutritionHistoryDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<MealEntry | null>(null);
-  const [editMacros, setEditMacros] = useState({ protein: "", carbs: "", fat: "", calories: "" });
-  const [recents, setRecents] = useState<RecentItem[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [recents, setRecents] = useState<RecentItem[]>(() => readRecents());
+  const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
+  const [templates, setTemplates] = useState<TemplateDocWithId[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorItem, setEditorItem] = useState<NormalizedItem | null>(null);
+  const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
+  const [editorQty, setEditorQty] = useState<number>(1);
 
   useEffect(() => {
+    refreshLog();
+    refreshHistory();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const unsub = subscribeFavorites(setFavorites);
+      return () => unsub?.();
+    } catch (error) {
+      console.warn("favorites_subscribe_error", error);
+      return undefined;
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const unsub = subscribeTemplates(setTemplates);
+      return () => unsub?.();
+    } catch (error) {
+      console.warn("templates_subscribe_error", error);
+      return undefined;
+    }
+  }, []);
+
+  const refreshLog = useCallback(() => {
+    setLoading(true);
     getDailyLog(todayISO)
       .then((data) => {
         setLog(data);
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
-    const stored = localStorage.getItem(RECENTS_KEY);
-    if (stored) {
-      try {
-        setRecents(JSON.parse(stored));
-      } catch {
-        setRecents([]);
-      }
-    }
+      .finally(() => setLoading(false));
   }, [todayISO]);
 
-  const totalCalories = log.totals.calories || 0;
-  const remaining = DAILY_TARGET - totalCalories;
-  const progress = Math.min(100, (totalCalories / DAILY_TARGET) * 100);
+  const refreshHistory = useCallback(() => {
+    getNutritionHistory(7)
+      .then(setHistory7)
+      .catch(() => setHistory7([]));
+  }, []);
 
-  const updateRecents = (item: NutritionItem) => {
-    const next: RecentItem[] = [
-      { name: item.name, perServing: item.perServing },
-      ...recents.filter((recent) => recent.name !== item.name),
-    ].slice(0, 6);
-    setRecents(next);
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  const updateRecents = useCallback(
+    (item: NormalizedItem) => {
+      const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
+      setRecents(next);
+      storeRecents(next);
+    },
+    [recents],
+  );
+
+  const openEditor = (item: NormalizedItem, qty = 1, unit: ServingUnit = "serving") => {
+    setEditorItem(item);
+    setEditorQty(qty);
+    setEditorUnit(unit);
+    setEditorOpen(true);
   };
 
-  const refreshLog = async () => {
-    const updated = await getDailyLog(todayISO);
-    setLog(updated);
+  const handleEditorConfirm = async ({ qty, unit, meal }: any) => {
+    if (!editorItem) return;
+    setProcessing(true);
+    try {
+      await addMeal(todayISO, { ...meal, entrySource: "search" });
+      toast({ title: "Meal logged", description: `${editorItem.name} added` });
+      updateRecents(editorItem);
+      refreshLog();
+      refreshHistory();
+    } catch (error: any) {
+      toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
+    } finally {
+      setProcessing(false);
+      setEditorOpen(false);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteMeal(todayISO, id);
+  const handleDelete = async (mealId: string | undefined) => {
+    if (!mealId) return;
+    await deleteMeal(todayISO, mealId);
     toast({ title: "Meal removed" });
     refreshLog();
-  };
-
-  const handleEdit = (meal: MealEntry) => {
-    setEditing(meal);
-    setEditMacros({
-      protein: meal.protein?.toString() ?? "",
-      carbs: meal.carbs?.toString() ?? "",
-      fat: meal.fat?.toString() ?? "",
-      calories: meal.calories?.toString() ?? "",
-    });
-  };
-
-  const saveEdit = async () => {
-    if (!editing) return;
-    const updated: MealEntry = {
-      ...editing,
-      protein: parseFloat(editMacros.protein) || 0,
-      carbs: parseFloat(editMacros.carbs) || 0,
-      fat: parseFloat(editMacros.fat) || 0,
-      calories: parseFloat(editMacros.calories) || undefined,
-    };
-    await addMeal(todayISO, updated);
-    toast({ title: "Meal updated" });
-    setEditing(null);
-    refreshLog();
-  };
-
-  const quickAdd = async (item: RecentItem) => {
-    const entry: MealEntry = {
-      name: item.name,
-      protein: item.perServing.protein_g ?? undefined,
-      carbs: item.perServing.carbs_g ?? undefined,
-      fat: item.perServing.fat_g ?? undefined,
-      calories: item.perServing.kcal ?? undefined,
-    };
-    await addMeal(todayISO, entry);
-    toast({ title: "Meal logged", description: `${item.name} added` });
-    refreshLog();
+    refreshHistory();
   };
 
   const copyYesterday = async () => {
@@ -113,216 +161,300 @@ export default function Meals() {
       toast({ title: "No meals yesterday", description: "Nothing to copy." });
       return;
     }
-    for (const meal of prior.meals) {
-      await addMeal(todayISO, { ...meal, id: undefined });
-    }
-    toast({ title: "Copied", description: "Yesterday's meals added" });
-    refreshLog();
-  };
-
-  const templateAdds = async () => {
-    const template: NutritionItem = {
-      id: "template-balance",
-      name: "Balanced Plate",
-      brand: "Template",
-      serving: { text: "1 meal" },
-      source: "mock",
-      upc: undefined,
-      perServing: { kcal: 550, protein_g: 40, carbs_g: 45, fat_g: 18 },
-    };
-    updateRecents(template);
-    await addMeal(todayISO, {
-      name: template.name,
-      protein: template.perServing.protein_g ?? undefined,
-      carbs: template.perServing.carbs_g ?? undefined,
-      fat: template.perServing.fat_g ?? undefined,
-      calories: template.perServing.kcal ?? undefined,
-    });
-    toast({ title: "Template added", description: "Balanced Plate logged" });
-    refreshLog();
-  };
-
-  const handleSearchQuickAdd = async () => {
-    const items = await searchFoods("protein");
-    if (items[0]) {
-      updateRecents(items[0]);
-      await addMeal(todayISO, {
-        name: items[0].name,
-        protein: items[0].perServing.protein_g ?? undefined,
-        carbs: items[0].perServing.carbs_g ?? undefined,
-        fat: items[0].perServing.fat_g ?? undefined,
-        calories: items[0].perServing.kcal ?? undefined,
-      });
-      toast({ title: "Quick add", description: `${items[0].name} logged` });
+    setProcessing(true);
+    try {
+      for (const meal of prior.meals) {
+        await addMeal(todayISO, { ...meal, id: undefined });
+      }
+      toast({ title: "Copied", description: "Yesterday's meals added" });
       refreshLog();
+      refreshHistory();
+    } finally {
+      setProcessing(false);
     }
   };
+
+  const saveTodayAsTemplate = async () => {
+    const eligible = log.meals.filter((meal) => meal.item && meal.serving?.qty && meal.serving.unit);
+    if (!eligible.length) {
+      toast({ title: "No template items", description: "Log meals with nutrition data to save templates." });
+      return;
+    }
+    const name = window.prompt("Template name?");
+    if (!name) return;
+    const items = eligible.map((meal) => ({
+      item: normalizedFromSnapshot(meal.item!),
+      qty: meal.serving?.qty ?? 1,
+      unit: (meal.serving?.unit as ServingUnit) || "serving",
+    }));
+    try {
+      await saveTemplate(null, name, items);
+      toast({ title: "Template saved", description: name });
+    } catch (error: any) {
+      toast({ title: "Unable to save", description: error?.message || "Try again", variant: "destructive" });
+    }
+  };
+
+  const applyTemplate = async (template: TemplateDocWithId) => {
+    if (!template.items?.length) return;
+    setProcessing(true);
+    try {
+      for (const entry of template.items) {
+        const unit = (entry.unit as ServingUnit) || "serving";
+        const qty = entry.qty ?? 1;
+        const item = entry.item as NormalizedItem;
+        const result = calculateSelection(item, qty, unit);
+        const meal = buildMealEntry(item, qty, unit, result, "template");
+        await addMeal(todayISO, meal);
+        updateRecents(item);
+      }
+      toast({ title: "Template applied", description: template.name });
+      refreshLog();
+      refreshHistory();
+    } catch (error: any) {
+      toast({ title: "Template failed", description: error?.message || "Try again", variant: "destructive" });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      await deleteTemplate(id);
+      toast({ title: "Template removed" });
+    } catch (error: any) {
+      toast({ title: "Delete failed", description: error?.message || "Try again", variant: "destructive" });
+    }
+  };
+
+  const totalCalories = log.totals.calories || 0;
+  const ringProgress = Math.min(1, totalCalories / DAILY_TARGET);
+  const ringCircumference = 2 * Math.PI * 54;
+
+  const chartData = history7.map((day) => ({
+    date: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    calories: day.totals.calories || 0,
+    protein: day.totals.protein || 0,
+    carbs: day.totals.carbs || 0,
+    fat: day.totals.fat || 0,
+  }));
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Seo title="Meals - MyBodyScan" description="Track your daily nutrition" />
       <AppHeader />
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-3xl font-semibold text-foreground">Today's Meals</h1>
-          <p className="text-sm text-muted-foreground">Log foods from search, barcode, or quick adds. Units shown in US measurements.</p>
+          <p className="text-sm text-muted-foreground">Log foods from search, barcode, favorites, and templates. Macros shown in kcal and US units.</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Daily Progress</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-foreground">{Math.round(totalCalories)}</div>
-              <div className="text-sm text-muted-foreground">of {DAILY_TARGET} calories</div>
+          <CardContent className="grid gap-6 md:grid-cols-[200px_1fr] md:items-center">
+            <div className="flex flex-col items-center justify-center">
+              <svg className="h-40 w-40" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="54" strokeWidth="8" className="fill-none stroke-muted" />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  strokeWidth="8"
+                  className="fill-none stroke-primary transition-all"
+                  strokeDasharray={`${ringCircumference} ${ringCircumference}`}
+                  strokeDashoffset={`${ringCircumference - ringCircumference * ringProgress}`}
+                  strokeLinecap="round"
+                />
+                <text x="60" y="60" textAnchor="middle" dominantBaseline="central" className="text-2xl font-semibold fill-foreground">
+                  {Math.round(totalCalories)}
+                </text>
+              </svg>
+              <p className="text-xs text-muted-foreground">Target {DAILY_TARGET} kcal</p>
             </div>
-            <div className="h-3 w-full rounded-full bg-muted">
-              <div className="h-3 rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Protein: {log.totals.protein ?? 0}g</span>
-              <span>Carbs: {log.totals.carbs ?? 0}g</span>
-              <span>Fat: {log.totals.fat ?? 0}g</span>
-            </div>
-            <div className="text-center text-sm font-medium">
-              {remaining >= 0 ? `${remaining} calories remaining` : `${Math.abs(remaining)} over target`}
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="default" size="sm" asChild>
-                <a href="/meals/search">
-                  <Plus className="mr-1 h-4 w-4" /> Search Foods
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a href="/barcode">
-                  <Barcode className="mr-1 h-4 w-4" /> Scan Barcode
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleSearchQuickAdd}>
-                <Sparkles className="mr-1 h-4 w-4" /> Quick Suggestion
-              </Button>
+            <div className="space-y-3 text-sm">
+              <p>
+                Protein: <span className="font-medium">{log.totals.protein ?? 0} g</span>
+              </p>
+              <p>
+                Carbs: <span className="font-medium">{log.totals.carbs ?? 0} g</span>
+              </p>
+              <p>
+                Fat: <span className="font-medium">{log.totals.fat ?? 0} g</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" asChild>
+                  <a href="/meals/search">
+                    <Plus className="mr-1 h-4 w-4" /> Search foods
+                  </a>
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <a href="/barcode">
+                    <Barcode className="mr-1 h-4 w-4" /> Scan barcode
+                  </a>
+                </Button>
+                <Button size="sm" variant="outline" onClick={copyYesterday} disabled={processing}>
+                  <Copy className="mr-1 h-4 w-4" /> Copy yesterday
+                </Button>
+                <Button size="sm" variant="ghost" asChild>
+                  <a href="/meals/history">
+                    <History className="mr-1 h-4 w-4" /> History
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Add</CardTitle>
+            <CardTitle>7-day chart</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap gap-2">
-              {recents.map((item) => (
-                <Button key={item.name} size="sm" variant="secondary" onClick={() => quickAdd(item)}>
+          <CardContent>{chartData.length ? <NutritionMacrosChart data={chartData} /> : <p className="text-sm text-muted-foreground">No data yet.</p>}</CardContent>
+        </Card>
+
+        {favorites.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="h-4 w-4 text-yellow-500" /> Favorites
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {favorites.map((fav) => (
+                <Button key={fav.id} size="sm" variant="secondary" onClick={() => openEditor(fav.item)}>
+                  {fav.item.name}
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {recents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ListPlus className="h-4 w-4" /> Recents
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {recents.slice(0, 8).map((item) => (
+                <Button key={item.id} variant="outline" size="sm" onClick={() => openEditor(item)}>
                   {item.name}
                 </Button>
               ))}
-              {!recents.length && <p className="text-xs text-muted-foreground">Search foods to build your recents list.</p>}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={templateAdds}>
-                <Sparkles className="mr-1 h-4 w-4" /> Balanced Plate
+            </CardContent>
+          </Card>
+        )}
+
+        {templates.length > 0 && (
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ListPlus className="h-4 w-4" /> Templates
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={saveTodayAsTemplate}>
+                Save today
               </Button>
-              <Button variant="outline" size="sm" onClick={copyYesterday}>
-                <Copy className="mr-1 h-4 w-4" /> Copy Yesterday
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {templates.map((template) => (
+                <div key={template.id} className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <p className="font-medium text-foreground">{template.name}</p>
+                    <p className="text-xs text-muted-foreground">{template.items?.length ?? 0} items</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => applyTemplate(template)} disabled={processing}>
+                      Apply
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(template.id)}>
+                      <Trash className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {templates.length === 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Templates</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">Save recurring meals and apply them in one tap.</p>
+              <Button size="sm" variant="outline" onClick={saveTodayAsTemplate}>
+                Save today as template
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>Logged Meals</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/meals/history">
-                <History className="mr-1 h-4 w-4" /> History
-              </a>
-            </Button>
+          <CardHeader>
+            <CardTitle>Logged meals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading && <p className="text-sm text-muted-foreground">Loading meals…</p>}
-            {!loading && !log.meals.length && (
-              <p className="text-sm text-muted-foreground">No meals logged yet. Start with search, barcode, or quick add.</p>
-            )}
-            {log.meals.map((meal) => (
-              <Card key={meal.id || meal.name} className="border">
-                <CardContent className="space-y-2 py-4 text-sm">
-                  <div className="flex items-center justify-between">
+            {!loading && !log.meals.length && <p className="text-sm text-muted-foreground">No meals logged yet. Start with search or barcode.</p>}
+            {log.meals.map((meal) => {
+              const item = meal.item ? normalizedFromSnapshot(meal.item) : null;
+              const qty = meal.serving?.qty ?? 1;
+              const unit = (meal.serving?.unit as ServingUnit) || "serving";
+              return (
+                <Card key={meal.id || meal.name} className="border">
+                  <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{meal.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {meal.calories ?? computeCalories(meal).calories} kcal • {meal.protein ?? 0}g P • {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
+                        {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P • {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
                       </p>
+                      {meal.serving?.grams ? (
+                        <p className="text-xs text-muted-foreground">
+                          {qty} {unit} · approx {Math.round(meal.serving.grams)} g
+                        </p>
+                      ) : null}
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handleEdit(meal)}>
-                        Edit
-                      </Button>
+                    <div className="flex flex-wrap gap-2">
+                      {item && (
+                        <Button size="sm" variant="outline" onClick={() => openEditor(item, qty, unit)}>
+                          Edit
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => meal.id && handleDelete(meal.id)}>
                         Remove
                       </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </CardContent>
         </Card>
-
-        {editing && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Edit {editing.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="protein">Protein (g)</Label>
-                <Input
-                  id="protein"
-                  type="number"
-                  value={editMacros.protein}
-                  onChange={(event) => setEditMacros((prev) => ({ ...prev, protein: event.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="carbs">Carbs (g)</Label>
-                <Input
-                  id="carbs"
-                  type="number"
-                  value={editMacros.carbs}
-                  onChange={(event) => setEditMacros((prev) => ({ ...prev, carbs: event.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="fat">Fat (g)</Label>
-                <Input
-                  id="fat"
-                  type="number"
-                  value={editMacros.fat}
-                  onChange={(event) => setEditMacros((prev) => ({ ...prev, fat: event.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="calories">Calories</Label>
-                <Input
-                  id="calories"
-                  type="number"
-                  value={editMacros.calories}
-                  onChange={(event) => setEditMacros((prev) => ({ ...prev, calories: event.target.value }))}
-                />
-              </div>
-              <div className="sm:col-span-2 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditing(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={saveEdit}>Save</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </main>
       <BottomNav />
+
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{editorItem ? `Log ${editorItem.name}` : "Log food"}</DialogTitle>
+          </DialogHeader>
+          {editorItem && (
+            <ServingEditor
+              item={editorItem}
+              defaultQty={editorQty}
+              defaultUnit={editorUnit}
+              onConfirm={handleEditorConfirm}
+              busy={processing}
+              entrySource="manual"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
