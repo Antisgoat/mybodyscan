@@ -1,12 +1,13 @@
 {
   "name": "mybodyscan-functions",
   "private": true,
+  "type": "module",
   "engines": {
     "node": "20"
   },
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p ."
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",
