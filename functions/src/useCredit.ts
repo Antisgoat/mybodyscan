@@ -1,10 +1,10 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { requireAuth, verifyAppCheckSoft } from "./http";
-import { softVerifyAppCheck } from "./middleware/appCheck";
-import { withCors } from "./middleware/cors";
-import { consumeCredit, refreshCreditsSummary } from "./credits";
-import { getFirestore } from "./firebase";
+import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { withCors } from "./middleware/cors.js";
+import { consumeCredit, refreshCreditsSummary } from "./credits.js";
+import { getFirestore } from "./firebase.js";
 
 const db = getFirestore();
 

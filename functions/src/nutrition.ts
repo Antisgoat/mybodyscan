@@ -1,16 +1,16 @@
 import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { Timestamp, getFirestore } from "./firebase";
-import { softVerifyAppCheck } from "./middleware/appCheck";
-import { withCors } from "./middleware/cors";
-import { requireAuth, verifyAppCheckSoft } from "./http";
+import { Timestamp, getFirestore } from "./firebase.js";
+import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { withCors } from "./middleware/cors.js";
+import { requireAuth, verifyAppCheckSoft } from "./http.js";
 import type {
   DailyLogDocument,
   MealRecord,
   MealServingSelection,
   NutritionItemSnapshot,
-} from "./types";
+} from "./types.js";
 
 const db = getFirestore();
 

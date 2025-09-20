@@ -5,9 +5,10 @@
   "engines": {
     "node": "20"
   },
-  "main": "dist/index.js",
+  "main": "lib/index.js",
+  "exports": "./lib/index.js",
   "scripts": {
-    "build": "tsc -p ."
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",

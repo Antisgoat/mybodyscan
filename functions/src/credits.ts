@@ -1,4 +1,4 @@
-import { Timestamp, getFirestore } from "./firebase";
+import { Timestamp, getFirestore } from "./firebase.js";
 
 const db = getFirestore();
 

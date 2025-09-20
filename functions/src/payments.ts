@@ -2,9 +2,9 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
-import { softVerifyAppCheck } from "./middleware/appCheck";
-import { withCors } from "./middleware/cors";
-import { requireAuth, verifyAppCheckSoft } from "./http";
+import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { withCors } from "./middleware/cors.js";
+import { requireAuth, verifyAppCheckSoft } from "./http.js";
 
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://mybodyscanapp.com";
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;

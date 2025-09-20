@@ -1,7 +1,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import Stripe from 'stripe';
 
-import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./credits";
+import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./credits.js";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
