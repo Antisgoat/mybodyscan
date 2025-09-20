@@ -14,7 +14,7 @@ export default function HeightInputUS({ valueCm, onChangeCm, disabled }: Props) 
 
   useEffect(() => {
     if (valueCm != null) {
-      const { ft: nextFt, in: nextIn } = inToFtIn(cmToIn(valueCm));
+      const { ft: nextFt, inches: nextIn } = inToFtIn(cmToIn(valueCm));
       setFt(nextFt);
       setInch(nextIn);
     }
