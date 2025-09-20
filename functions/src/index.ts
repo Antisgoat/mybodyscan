@@ -10,9 +10,14 @@ export {
   processScan,
   getScanStatus,
 } from "./scan";
+export { beginPaidScan } from "./scan/beginPaidScan";
+export { recordGateFailure } from "./scan/recordGateFailure";
+export { refundIfNoResult } from "./scan/refundIfNoResult";
 
 // Nutrition endpoints
-export { addFoodLog, addMeal, deleteMeal, getDayLog, getDailyLog } from "./nutrition";
+export { addFoodLog, addMeal, deleteMeal, getDayLog, getDailyLog, getNutritionHistory } from "./nutrition";
+export { nutritionSearch } from "./nutrition/search";
+export { nutritionBarcode } from "./nutrition/barcode";
 
 // Workouts / Coach
 export {

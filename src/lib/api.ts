@@ -50,4 +50,53 @@ export async function openStripePortal() {
   const { url } = await r.json();
   if (url) window.open(url, "_blank", "noopener,noreferrer");
 }
+
+async function handleJsonResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
+export async function beginPaidScan(payload: {
+  scanId: string;
+  hashes: string[];
+  gateScore: number;
+  mode: "2" | "4";
+}) {
+  const response = await authedFetch(`/beginPaidScan`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  const data = await handleJsonResponse(response);
+  if (!response.ok) {
+    const message = data?.error || data?.reason || "authorization_failed";
+    throw new Error(message);
+  }
+  return data as { ok: boolean; remainingCredits?: number };
+}
+
+export async function recordGateFailure() {
+  const response = await authedFetch(`/recordGateFailure`, { method: "POST" });
+  const data = await handleJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(data?.error || "gate_failure_not_recorded");
+  }
+  return data as { ok: boolean; remainingAttempts?: number };
+}
+
+export async function refundIfNoResult(scanId: string) {
+  const response = await authedFetch(`/refundIfNoResult`, {
+    method: "POST",
+    body: JSON.stringify({ scanId }),
+  });
+  const data = await handleJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(data?.error || "refund_failed");
+  }
+  return data as { ok: boolean };
+}
 export { authedFetch, BASE as FUNCTIONS_BASE_URL };
