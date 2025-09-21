@@ -1,5 +1,5 @@
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
 import { softVerifyAppCheck } from "./middleware/appCheck.js";
@@ -14,33 +14,62 @@ function buildStripe(): Stripe | null {
   return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
 }
 
+type CheckoutMode = "payment" | "subscription";
+
+interface CheckoutSessionPayload {
+  priceId: string;
+  mode: CheckoutMode;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+interface CheckoutSessionResult {
+  url: string | null;
+  mock?: true;
+}
+
+function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {
+  const body = (data || {}) as Partial<CheckoutSessionPayload>;
+  const { priceId, mode, successUrl, cancelUrl } = body;
+  if (
+    typeof priceId !== "string" ||
+    typeof successUrl !== "string" ||
+    typeof cancelUrl !== "string" ||
+    (mode !== "payment" && mode !== "subscription")
+  ) {
+    throw new HttpsError("invalid-argument", "Missing checkout parameters");
+  }
+  return { priceId, mode, successUrl, cancelUrl };
+}
+
+async function createCheckoutSessionForUid(
+  uid: string,
+  payload: CheckoutSessionPayload
+): Promise<CheckoutSessionResult> {
+  const stripe = buildStripe();
+  if (!stripe) {
+    const fallbackUrl = `${APP_BASE_URL}/plans/checkout?price=${encodeURIComponent(
+      payload.priceId
+    )}&mode=${payload.mode}`;
+    return { url: fallbackUrl, mock: true };
+  }
+  const session = await stripe.checkout.sessions.create({
+    mode: payload.mode,
+    line_items: [{ price: payload.priceId, quantity: 1 }],
+    success_url: payload.successUrl,
+    cancel_url: payload.cancelUrl,
+    client_reference_id: uid,
+    metadata: { uid, priceId: payload.priceId },
+  });
+  return { url: session.url };
+}
+
 async function handleCheckoutSession(req: Request, res: any) {
   await verifyAppCheckSoft(req);
   const uid = await requireAuth(req);
-  const body = req.body as {
-    priceId?: string;
-    mode?: "payment" | "subscription";
-    successUrl?: string;
-    cancelUrl?: string;
-  };
-  if (!body?.priceId || !body.mode || !body.successUrl || !body.cancelUrl) {
-    throw new HttpsError("invalid-argument", "Missing checkout parameters");
-  }
-  const stripe = buildStripe();
-  if (!stripe) {
-    const fallbackUrl = `${APP_BASE_URL}/plans/checkout?price=${encodeURIComponent(body.priceId)}&mode=${body.mode}`;
-    res.json({ url: fallbackUrl, mock: true });
-    return;
-  }
-  const session = await stripe.checkout.sessions.create({
-    mode: body.mode,
-    line_items: [{ price: body.priceId, quantity: 1 }],
-    success_url: body.successUrl,
-    cancel_url: body.cancelUrl,
-    client_reference_id: uid,
-    metadata: { uid, priceId: body.priceId },
-  });
-  res.json({ url: session.url });
+  const payload = parseCheckoutSessionPayload(req.body);
+  const result = await createCheckoutSessionForUid(uid, payload);
+  res.json(result);
 }
 
 async function handleCustomerPortal(req: Request, res: any) {
@@ -89,10 +118,22 @@ function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   );
 }
 
-export const createCheckoutSession = withHandler(handleCheckoutSession);
+export const createCheckoutSession = onCall(
+  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
+  async (request: CallableRequest<Partial<CheckoutSessionPayload>>) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const rawRequest = request.rawRequest as Request;
+    await softVerifyAppCheck(rawRequest as any, {} as any);
+    await verifyAppCheckSoft(rawRequest);
+    const payload = parseCheckoutSessionPayload(request.data);
+    return createCheckoutSessionForUid(uid, payload);
+  }
+);
+
 export const createCustomerPortal = withHandler(handleCustomerPortal);
 
-export const createCheckout = withHandler(async (req, res) => {
-  await handleCheckoutSession(req, res);
-});
+export const createCheckout = withHandler(handleCheckoutSession);
 
