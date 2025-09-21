@@ -1,4 +1,5 @@
-import { auth, db, storage } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { isDemoGuest } from "./demoFlag";
 import { ref, uploadBytes } from "firebase/storage";
@@ -26,7 +27,9 @@ export async function startScan() {
       status: "queued",
     };
   }
-  return callFn("/startScanSession", {});
+  const startScanFn = httpsCallable(functions, "startScan");
+  const { data } = await startScanFn();
+  return data as { scanId: string; uploadPathPrefix: string; status?: string };
 }
 
 export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files: File[]) {
@@ -53,7 +56,9 @@ export async function runBodyScan(file: string) {
       result: { bodyFatPct: 18.7, weightKg: 78.1, bmi: 24.6, mock: true },
     };
   }
-  return callFn("/runBodyScan", { file });
+  const runBodyScanFn = httpsCallable(functions, "runBodyScan");
+  const { data } = await runBodyScanFn({ file });
+  return data as { scanId: string; uploadPathPrefix?: string; status?: string };
 }
 
 export async function uploadScanFile(uid: string, scanId: string, file: File) {
