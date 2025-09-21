@@ -203,16 +203,13 @@ export const startScan = onCall(async (request) => {
   return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
 });
 
-export const runBodyScan = onRequest(
-  withCors(async (req, res) => {
-    try {
-      await softVerifyAppCheck(req as any, res as any);
-      await handleStartRequest(req, res);
-    } catch (err: any) {
-      respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
-    }
-  })
-);
+export const runBodyScan = onCall(async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "Login required");
+  }
+  const session = await createScanSession(request.auth.uid);
+  return session;
+});
 
 export const startScanSession = onRequest(
   withCors(async (req, res) => {
