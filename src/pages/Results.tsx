@@ -10,8 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { formatBmi, formatWeightFromKg } from "@/lib/units";
 import { extractScanMetrics } from "@/lib/scans";
+import { summarizeScanMetrics } from "@/lib/scanDisplay";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -193,13 +193,10 @@ const Results = () => {
   }
 
   const metrics = extractScanMetrics(scan);
-  const bodyFat = metrics.bodyFatPercent != null ? metrics.bodyFatPercent.toFixed(1) : null;
-  const weightDisplay = metrics.weightKg != null
-    ? formatWeightFromKg(metrics.weightKg)
-    : metrics.weightLb != null
-      ? `${Math.round(metrics.weightLb)} lb`
-      : "—";
-  const bmiDisplay = formatBmi(metrics.bmi ?? undefined);
+  const summary = summarizeScanMetrics(metrics);
+  const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
+  const weightDisplay = summary.weightText;
+  const bmiDisplay = summary.bmiText;
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
@@ -242,7 +239,7 @@ const Results = () => {
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-3xl font-semibold text-primary">
-                    {bodyFat ? `${bodyFat}%` : "—"}
+                    {bodyFatText}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">Body Fat %</p>
                 </CardContent>
@@ -253,7 +250,7 @@ const Results = () => {
                   <p className="text-3xl font-semibold text-primary">
                     {weightDisplay}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">Weight (lb)</p>
+                  <p className="text-sm text-muted-foreground mt-1">Weight</p>
                 </CardContent>
               </Card>
 

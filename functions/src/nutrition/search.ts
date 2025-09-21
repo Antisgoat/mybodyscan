@@ -1,11 +1,9 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
 import { withCors } from "../middleware/cors.js";
 import { softVerifyAppCheck } from "../middleware/appCheck.js";
 import { requireAuth, verifyAppCheckSoft } from "../http.js";
 
-const USDA_KEY = defineSecret("USDA_FDC_API_KEY");
 const SEARCH_CACHE_TTL = 1000 * 60 * 5; // ~5 minutes
 
 interface Nutrients {
@@ -188,7 +186,7 @@ async function handler(req: Request, res: any) {
     return;
   }
 
-  const usdaKey = USDA_KEY.value();
+  const usdaKey = process.env.USDA_FDC_API_KEY;
   let usdaResults: NormalizedItem[] = [];
   try {
     if (usdaKey) {
@@ -212,7 +210,7 @@ async function handler(req: Request, res: any) {
   res.json({ items: merged, q: queryText, cached: false });
 }
 
-export const nutritionSearch = onRequest({ secrets: [USDA_KEY] }, withCors(async (req, res) => {
+export const nutritionSearch = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"] }, withCors(async (req, res) => {
   try {
     await handler(req as Request, res);
   } catch (error: any) {

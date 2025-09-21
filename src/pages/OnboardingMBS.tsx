@@ -32,16 +32,17 @@ export default function OnboardingMBS() {
   const meRef = useMemo(() => user ? doc(db, 'users', user.uid, 'profile', 'profile') : null, [user]);
   const settingsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'settings', 'settings') : null, [user]);
   const prefsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'preferences', 'preferences') : null, [user]);
+  const onboardingRef = useMemo(() => user ? doc(db, `users/${user.uid}/meta/onboarding`) : null, [user]);
 
   async function load() {
-    if (!user || !userDocRef) return;
-    const snap = await getDoc(userDocRef);
-    if (snap.exists() && snap.data()?.onboarding?.complete) {
+    if (!user || !onboardingRef) return;
+    const snap = await getDoc(onboardingRef);
+    if (snap.exists() && snap.data()?.completed) {
       setMsg('Onboarding already completed.');
     }
   }
 
-  React.useEffect(() => { load().catch(()=>{}); }, [userDocRef]);
+  React.useEffect(() => { load().catch(()=>{}); }, [onboardingRef]);
 
   function toggle(arr: string[], v: string) {
     return arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v];
@@ -49,7 +50,7 @@ export default function OnboardingMBS() {
 
   async function finish() {
     try {
-      if (!user || !userDocRef || !meRef || !settingsRef || !prefsRef) throw new Error('AUTH_REQUIRED');
+      if (!user || !userDocRef || !meRef || !settingsRef || !prefsRef || !onboardingRef) throw new Error('AUTH_REQUIRED');
       if (!consent) throw new Error('Please grant consent to continue.');
 
       const profile = {
@@ -66,16 +67,25 @@ export default function OnboardingMBS() {
       const settings = { reminderDays, reminderTime };
       const preferences = { scanMode };
 
+      const timestamp = serverTimestamp();
       await Promise.all([
         setDoc(meRef, profile, { merge: true }),
         setDoc(settingsRef, settings, { merge: true }),
         setDoc(prefsRef, preferences, { merge: true }),
-        setDoc(userDocRef, {
-          onboarding: {
-            complete: true,
-            completedAt: serverTimestamp(),
+        setDoc(onboardingRef, { completed: true, updatedAt: timestamp }, { merge: true }),
+        setDoc(
+          userDocRef,
+          {
+            onboarding: {
+              ...profile,
+              goals,
+              targetWeightKg: targetWeightKg ?? undefined,
+              consent,
+              completedAt: timestamp,
+            },
           },
-        }, { merge: true }),
+          { merge: true }
+        ),
       ]);
       setMsg('Onboarding saved.');
     } catch (e: any) {

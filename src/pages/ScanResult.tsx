@@ -7,8 +7,8 @@ import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { formatBmi } from "@/lib/units";
 import { extractScanMetrics } from "@/lib/scans";
+import { summarizeScanMetrics, formatCentimetersAsInches } from "@/lib/scanDisplay";
 
 interface ScanDocument {
   id: string;
@@ -43,6 +43,13 @@ const methodCopy: Record<string, string> = {
   photo: "Photo",
   "photo+measure": "Photo + Tape",
   bmi_fallback: "BMI Fallback",
+};
+
+const analysisFields = ["neck_cm", "waist_cm", "hip_cm"] as const;
+const analysisLabels: Record<(typeof analysisFields)[number], string> = {
+  neck_cm: "Neck",
+  waist_cm: "Waist",
+  hip_cm: "Hip",
 };
 
 function confidenceLabel(value?: number) {
@@ -103,6 +110,7 @@ export default function ScanResult() {
   }, [scanId]);
 
   const normalized = useMemo(() => (scan ? extractScanMetrics(scan) : null), [scan]);
+  const summary = useMemo(() => summarizeScanMetrics(normalized), [normalized]);
   const confidenceChip = useMemo(
     () => confidenceLabel(normalized?.confidence ?? scan?.confidence),
     [normalized?.confidence, scan?.confidence]
@@ -126,11 +134,13 @@ export default function ScanResult() {
     );
   }
 
-  const bfPercent = normalized?.bodyFatPercent ?? null;
-  const bmi = formatBmi(normalized?.bmi ?? undefined);
+  const bfPercent = summary.bodyFatPercent;
   const showResult = scan.charged && typeof bfPercent === "number";
+  const bmiText = summary.bmiText;
+  const weightText = summary.weightText;
   const methodKey = normalized?.method ?? scan.method;
   const methodBadge = methodKey ? methodCopy[methodKey] || methodKey : "Unknown";
+  const hasWeight = summary.weightLb != null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6">
@@ -164,15 +174,22 @@ export default function ScanResult() {
           )}
 
           {showResult ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Body Fat</p>
                 <p className="text-3xl font-bold">{bfPercent?.toFixed(1)}%</p>
                 <p className="text-xs text-muted-foreground">Based on anthropometric estimation.</p>
               </div>
               <div className="rounded-lg border p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Weight</p>
+                <p className="text-2xl font-semibold">{weightText}</p>
+                <p className="text-xs text-muted-foreground">
+                  {hasWeight ? "Latest reading from scan metrics." : "Add weight info to see this metric."}
+                </p>
+              </div>
+              <div className="rounded-lg border p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
-                <p className="text-2xl font-semibold">{bmi}</p>
+                <p className="text-2xl font-semibold">{bmiText}</p>
                 <p className="text-xs text-muted-foreground">Shown when weight is provided.</p>
               </div>
             </div>
@@ -184,12 +201,14 @@ export default function ScanResult() {
 
           {scan.analysis && (
             <div className="grid gap-3 md:grid-cols-3">
-              {["neck_cm", "waist_cm", "hip_cm"].map((key) => {
-                const value = scan.analysis?.[key as keyof typeof scan.analysis];
+              {analysisFields.map((field) => {
+                const value = scan.analysis?.[field];
                 return (
-                  <div key={key} className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{key.replace("_cm", "").toUpperCase()}</p>
-                    <p className="text-sm font-medium">{value ? `${(value / 2.54).toFixed(1)} in` : "—"}</p>
+                  <div key={field} className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{analysisLabels[field]}</p>
+                    <p className="text-sm font-medium">
+                      {typeof value === "number" ? formatCentimetersAsInches(value) : "—"}
+                    </p>
                   </div>
                 );
               })}
@@ -228,14 +247,16 @@ export default function ScanResult() {
           <CardContent className="space-y-3">
             {history.map((entry) => {
               const entryMetrics = extractScanMetrics(entry);
+              const entrySummary = summarizeScanMetrics(entryMetrics);
               const conf = confidenceLabel(entryMetrics.confidence ?? entry.confidence);
               const method =
                 methodCopy[(entryMetrics.method || entry.method || "") as string] ||
                 entryMetrics.method ||
                 entry.method ||
                 "Photo";
-              const bfValue = entryMetrics.bodyFatPercent;
-              const bmiValue = entryMetrics.bmi;
+              const bfValue = entrySummary.bodyFatPercent;
+              const bmiValue = entrySummary.bmiText;
+              const weightValue = entrySummary.weightText;
               return (
                 <Link
                   key={entry.id}
@@ -251,7 +272,7 @@ export default function ScanResult() {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-sm font-semibold">{bfValue != null ? `${bfValue.toFixed(1)}%` : "—"}</p>
-                      <p className="text-xs text-muted-foreground">{formatBmi(bmiValue ?? undefined)}</p>
+                      <p className="text-xs text-muted-foreground">{weightValue} • BMI {bmiValue}</p>
                     </div>
                     <Badge variant={conf.tone as any}>{conf.label}</Badge>
                   </div>
