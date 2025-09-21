@@ -7,28 +7,36 @@ import { getFirestore } from "./firebase.js";
 
 const db = getFirestore();
 
-export const useCredit = onCall(
-  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
-  async (request: CallableRequest<{ reason?: string }>) => {
-    const uid = request.auth?.uid;
-    if (!uid) {
-      throw new HttpsError("unauthenticated", "Authentication required");
-    }
+type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
-    const rawRequest = request.rawRequest as Request | undefined;
-    if (rawRequest) {
-      await softVerifyAppCheck(rawRequest as any, {} as any);
-      await verifyAppCheckSoft(rawRequest);
-    }
-
-    const ok = await consumeCredit(uid);
-    if (!ok) {
-      throw new HttpsError("failed-precondition", "no_credits");
-    }
-
-    await refreshCreditsSummary(uid);
-    const snap = await db.doc(`users/${uid}/private/credits`).get();
-    const remaining = (snap.data()?.creditsSummary?.totalAvailable as number | undefined) || 0;
-    return { ok: true, remaining };
+export async function useCreditHandler(
+  _data: { reason?: string },
+  context: UseCreditContext
+) {
+  const uid = context.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
   }
+
+  const rawRequest = context.rawRequest as Request | undefined;
+  if (rawRequest) {
+    await softVerifyAppCheck(rawRequest as any, {} as any);
+    await verifyAppCheckSoft(rawRequest);
+  }
+
+  const ok = await consumeCredit(uid);
+  if (!ok) {
+    throw new HttpsError("failed-precondition", "no_credits");
+  }
+
+  await refreshCreditsSummary(uid);
+  const snap = await db.doc(`users/${uid}/private/credits`).get();
+  const remaining = (snap.data()?.creditsSummary?.totalAvailable as number | undefined) || 0;
+  return { ok: true, remaining };
+}
+
+export const useCredit = onCall<{ reason?: string }>(
+  { region: "us-central1" },
+  async (request: CallableRequest<{ reason?: string }>) =>
+    useCreditHandler(request.data, request)
 );
