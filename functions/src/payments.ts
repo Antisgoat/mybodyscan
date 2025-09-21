@@ -118,19 +118,29 @@ function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   );
 }
 
-export const createCheckoutSession = onCall(
-  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
-  async (request: CallableRequest<Partial<CheckoutSessionPayload>>) => {
-    const uid = request.auth?.uid;
-    if (!uid) {
-      throw new HttpsError("unauthenticated", "Authentication required");
-    }
-    const rawRequest = request.rawRequest as Request;
+type CheckoutCallableContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
+
+export async function createCheckoutSessionHandler(
+  data: Partial<CheckoutSessionPayload>,
+  context: CheckoutCallableContext
+) {
+  const uid = context.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+  const rawRequest = context.rawRequest as Request | undefined;
+  if (rawRequest) {
     await softVerifyAppCheck(rawRequest as any, {} as any);
     await verifyAppCheckSoft(rawRequest);
-    const payload = parseCheckoutSessionPayload(request.data);
-    return createCheckoutSessionForUid(uid, payload);
   }
+  const payload = parseCheckoutSessionPayload(data);
+  return createCheckoutSessionForUid(uid, payload);
+}
+
+export const createCheckoutSession = onCall<Partial<CheckoutSessionPayload>>(
+  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
+  async (request: CallableRequest<Partial<CheckoutSessionPayload>>) =>
+    createCheckoutSessionHandler(request.data, request)
 );
 
 export const createCustomerPortal = withHandler(handleCustomerPortal);

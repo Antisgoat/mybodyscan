@@ -1,5 +1,5 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
 import { softVerifyAppCheck } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
@@ -8,6 +8,8 @@ import type { ScanDocument } from "./types.js";
 
 const db = getFirestore();
 const storage = getStorage();
+
+type ScanCallableContext = Pick<CallableRequest<unknown>, "auth">;
 
 function buildUploadPrefix(uid: string, scanId: string) {
   return `uploads/${uid}/${scanId}/raw/`;
@@ -194,22 +196,38 @@ async function handleStartRequest(req: Request, res: any) {
   respond(res, session);
 }
 
-export const startScan = onCall({ region: "us-central1" }, async (request) => {
-  if (!request.auth?.uid) {
+export async function startScanHandler(
+  _data: unknown,
+  context: ScanCallableContext
+) {
+  const uid = context.auth?.uid;
+  if (!uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }
-  const uid = request.auth.uid;
   const session = await createScanSession(uid);
   return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
-});
+}
 
-export const runBodyScan = onCall({ region: "us-central1" }, async (request) => {
-  if (!request.auth?.uid) {
+export async function runBodyScanHandler(
+  _data: unknown,
+  context: ScanCallableContext
+) {
+  const uid = context.auth?.uid;
+  if (!uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }
-  const session = await createScanSession(request.auth.uid);
-  return session;
-});
+  return createScanSession(uid);
+}
+
+export const startScan = onCall(
+  { region: "us-central1" },
+  async (request: CallableRequest<unknown>) => startScanHandler(request.data, request)
+);
+
+export const runBodyScan = onCall(
+  { region: "us-central1" },
+  async (request: CallableRequest<unknown>) => runBodyScanHandler(request.data, request)
+);
 
 export const startScanSession = onRequest(
   withCors(async (req, res) => {
