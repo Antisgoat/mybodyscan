@@ -8,8 +8,8 @@ import { toast } from "@/hooks/use-toast";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
-import { formatBmi, formatWeightFromKg } from "@/lib/units";
 import { extractScanMetrics } from "@/lib/scans";
+import { summarizeScanMetrics } from "@/lib/scanDisplay";
 
 type LastScan = {
   id: string;
@@ -25,15 +25,12 @@ const Home = () => {
   const loggedOnce = useRef(false);
 
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
+  const summary = summarizeScanMetrics(metrics);
   const done = lastScan?.status === "done" || lastScan?.status === "completed";
   const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
-  const bf = metrics?.bodyFatPercent != null ? metrics.bodyFatPercent.toFixed(1) : "—";
-  const weight = metrics?.weightKg != null
-    ? formatWeightFromKg(metrics.weightKg, 0)
-    : metrics?.weightLb != null
-      ? `${metrics.weightLb.toFixed(0)} lb`
-      : "—";
-  const bmi = metrics?.bmi != null ? formatBmi(metrics.bmi, 1) : "—";
+  const bf = summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
+  const weight = summary.weightText;
+  const bmi = summary.bmiText;
 
   useEffect(() => {
     if (!user?.uid) return;

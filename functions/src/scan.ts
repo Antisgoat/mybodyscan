@@ -194,7 +194,7 @@ async function handleStartRequest(req: Request, res: any) {
   respond(res, session);
 }
 
-export const startScan = onCall(async (request) => {
+export const startScan = onCall({ region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }
@@ -203,7 +203,7 @@ export const startScan = onCall(async (request) => {
   return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
 });
 
-export const runBodyScan = onCall(async (request) => {
+export const runBodyScan = onCall({ region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] }, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }

@@ -27,17 +27,27 @@ export default function Onboarding() {
     const uid = getAuth().currentUser?.uid;
     if (!uid) return;
     try {
-      await setDoc(
-        doc(db, "users", uid),
-        {
-          onboarding: {
-            ...form,
-            complete: true,
-            completedAt: serverTimestamp()
-          }
-        },
-        { merge: true }
-      );
+      const timestamp = serverTimestamp();
+      await Promise.all([
+        setDoc(
+          doc(db, "users", uid),
+          {
+            onboarding: {
+              ...form,
+              completedAt: timestamp,
+            },
+          },
+          { merge: true }
+        ),
+        setDoc(
+          doc(db, `users/${uid}/meta/onboarding`),
+          {
+            completed: true,
+            updatedAt: timestamp,
+          },
+          { merge: true }
+        ),
+      ]);
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
       navigate("/today");
     } catch (err: any) {

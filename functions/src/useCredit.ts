@@ -1,39 +1,34 @@
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
+import type { CallableRequest, Request } from "firebase-functions/v2/https";
+import { verifyAppCheckSoft } from "./http.js";
 import { softVerifyAppCheck } from "./middleware/appCheck.js";
-import { withCors } from "./middleware/cors.js";
 import { consumeCredit, refreshCreditsSummary } from "./credits.js";
 import { getFirestore } from "./firebase.js";
 
 const db = getFirestore();
 
-async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
-  await verifyAppCheckSoft(req);
-  const uid = await requireAuth(req);
-  const ok = await consumeCredit(uid);
-  if (!ok) {
-    res.status(402).json({ error: "no_credits" });
-    return;
-  }
-  await refreshCreditsSummary(uid);
-  const snap = await db.doc(`users/${uid}/private/credits`).get();
-  const remaining = (snap.data()?.creditsSummary?.totalAvailable as number | undefined) || 0;
-  res.json({ ok: true, remaining });
-}
-
-export const useCredit = onRequest(
-  withCors(async (req, res) => {
-    try {
-      await handler(req, res);
-    } catch (err: any) {
-      if (err instanceof HttpsError) {
-        const status = err.code === "unauthenticated" ? 401 : 400;
-        res.status(status).json({ error: err.message });
-        return;
-      }
-      res.status(500).json({ error: err?.message || "error" });
+export const useCredit = onCall(
+  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
+  async (request: CallableRequest<{ reason?: string }>) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
     }
-  })
+
+    const rawRequest = request.rawRequest as Request | undefined;
+    if (rawRequest) {
+      await softVerifyAppCheck(rawRequest as any, {} as any);
+      await verifyAppCheckSoft(rawRequest);
+    }
+
+    const ok = await consumeCredit(uid);
+    if (!ok) {
+      throw new HttpsError("failed-precondition", "no_credits");
+    }
+
+    await refreshCreditsSummary(uid);
+    const snap = await db.doc(`users/${uid}/private/credits`).get();
+    const remaining = (snap.data()?.creditsSummary?.totalAvailable as number | undefined) || 0;
+    return { ok: true, remaining };
+  }
 );

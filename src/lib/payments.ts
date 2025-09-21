@@ -2,6 +2,9 @@ import { log } from "./logger";
 import { isDemoGuest } from "./demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { track } from "./analytics";
+import { FirebaseError } from "firebase/app";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
 
 export async function startCheckout(
     priceId: string,
@@ -21,26 +24,18 @@ export async function startCheckout(
     const { getAuth } = await import("firebase/auth");
     const user = getAuth().currentUser;
     if (!user) throw new Error("Not signed in");
-    const token = await user.getIdToken();
-    const res = await fetch(
-    `${import.meta.env.VITE_FUNCTIONS_URL}/createCheckoutSession`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        priceId,
-        mode,
-        successUrl: window.location.origin + "/checkout/success",
-        cancelUrl: window.location.origin + "/checkout/canceled",
-      }),
+    const createSession = httpsCallable(functions, "createCheckoutSession");
+    const { data } = await createSession({
+      priceId,
+      mode,
+      successUrl: window.location.origin + "/checkout/success",
+      cancelUrl: window.location.origin + "/checkout/canceled",
+    });
+    const payload = data as { url?: string | null };
+    if (!payload?.url) {
+      throw new Error("Checkout failed");
     }
-  );
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Checkout failed");
-  window.location.assign(json.url as string);
+    window.location.assign(payload.url);
 }
 
 export async function consumeOneCredit(): Promise<number> {
@@ -58,20 +53,21 @@ export async function consumeOneCredit(): Promise<number> {
     const { getAuth } = await import("firebase/auth");
     const user = getAuth().currentUser;
     if (!user) throw new Error("Not signed in");
-    const token = await user.getIdToken();
   try {
-    const res = await fetch(`${import.meta.env.VITE_FUNCTIONS_URL}/useCredit`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.status === 402) {
+    const fn = httpsCallable(functions, "useCredit");
+    const result = await fn({ reason: "scan" });
+    const payload = result.data as { ok?: boolean; remaining?: number };
+    if (!payload?.ok) {
       log("warn", "useCredit:no_credits");
       throw new Error("No credits available");
     }
-    const json = await res.json();
-    log("info", "useCredit:success", { remaining: json.remaining });
-    return json.remaining as number;
+    log("info", "useCredit:success", { remaining: payload.remaining });
+    return payload.remaining ?? 0;
   } catch (err: any) {
+    if (err instanceof FirebaseError && err.code === "functions/failed-precondition") {
+      log("warn", "useCredit:no_credits");
+      throw new Error("No credits available");
+    }
     log("warn", "useCredit:error", { message: err?.message });
     throw err;
   }

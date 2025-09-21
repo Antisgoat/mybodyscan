@@ -9,8 +9,8 @@ import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { auth, db } from "@/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { formatBmi } from "@/lib/units";
 import { extractScanMetrics } from "@/lib/scans";
+import { summarizeScanMetrics } from "@/lib/scanDisplay";
 
 interface ScanHistoryEntry {
   id: string;
@@ -112,14 +112,16 @@ export default function History() {
           <div className="space-y-3">
             {recent.map((entry) => {
               const metrics = extractScanMetrics(entry);
+              const summary = summarizeScanMetrics(metrics);
               const confidence = confidenceLabel(metrics.confidence ?? entry.confidence);
               const method =
                 methodCopy[(metrics.method || entry.method || "") as string] ||
                 metrics.method ||
                 entry.method ||
                 "Photo";
-              const bfPercent = metrics.bodyFatPercent ?? null;
-              const bmi = metrics.bmi ?? null;
+              const bfPercent = summary.bodyFatPercent;
+              const bmiText = summary.bmiText;
+              const weightText = summary.weightText;
               return (
                 <Link
                   key={entry.id}
@@ -143,12 +145,12 @@ export default function History() {
                         <p className="text-lg font-semibold">{bfPercent != null ? `${bfPercent.toFixed(1)}%` : "—"}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
-                        <p className="text-lg font-semibold">{bmi != null ? formatBmi(bmi) : "—"}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Weight</p>
+                        <p className="text-lg font-semibold">{weightText}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Mode</p>
-                        <p className="text-lg font-semibold">{modeLabel(entry.mode)}</p>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
+                        <p className="text-lg font-semibold">{bmiText}</p>
                       </div>
                     </CardContent>
                   </Card>
