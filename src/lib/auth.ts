@@ -6,8 +6,6 @@ import {
   browserLocalPersistence,
   signOut,
   GoogleAuthProvider,
-  OAuthProvider,
-  signInWithPopup,
   linkWithCredential,
   EmailAuthProvider,
   createUserWithEmailAndPassword,
@@ -15,6 +13,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from "firebase/auth";
+import { OAuthProvider, signInWithPopup } from "firebase/auth";
 
 export async function initAuthPersistence() {
   await setPersistence(auth, browserLocalPersistence);
@@ -47,13 +46,23 @@ export function signInWithGoogle() {
 }
 
 export async function signInWithApple() {
-  if (import.meta.env.VITE_APPLE_AUTH_ENABLED !== "true") {
-    throw new Error("Apple Sign-In not configured");
+  try {
+    const provider = new OAuthProvider("apple.com");
+    const result = await signInWithPopup(auth, provider);
+
+    // User info
+    const user = result.user;
+
+    // Access token & ID token (if needed for backend validation)
+    const credential = OAuthProvider.credentialFromResult(result);
+    const idToken = credential?.idToken;
+
+    console.log("Apple sign-in successful:", { uid: user.uid, idToken });
+    return { user, idToken };
+  } catch (error: any) {
+    console.error("Apple sign-in error:", error);
+    throw error;
   }
-  const provider = new OAuthProvider("apple.com");
-  provider.addScope("name");
-  provider.addScope("email");
-  await signInWithPopup(auth, provider);
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {
