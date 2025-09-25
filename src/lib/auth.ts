@@ -48,14 +48,40 @@ export function signInWithGoogle() {
 export async function signInWithApple() {
   try {
     const provider = new OAuthProvider("apple.com");
-    const result = await signInWithPopup(auth, provider);
+    provider.addScope("email");
+    provider.addScope("name");
 
-    // User info
+    // Check if we're on iOS Safari and should use redirect
+    const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent);
+    
+    let result;
+    try {
+      // Try popup first
+      result = await signInWithPopup(auth, provider);
+    } catch (popupError: any) {
+      // If popup fails or on iOS Safari, fallback to redirect
+      if (popupError.code === 'auth/popup-blocked' || isIOSSafari) {
+        const { signInWithRedirect } = await import("firebase/auth");
+        await signInWithRedirect(auth, provider);
+        return; // Redirect will handle the rest
+      }
+      throw popupError;
+    }
+
     const user = result.user;
-
-    // Access token & ID token (if needed for backend validation)
     const credential = OAuthProvider.credentialFromResult(result);
     const idToken = credential?.idToken;
+
+    // Handle first sign-in profile data
+    if (result.additionalUserInfo?.isNewUser && !user.displayName) {
+      const profile = result.additionalUserInfo?.profile as any;
+      if (profile?.name) {
+        const displayName = `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim();
+        if (displayName) {
+          await updateProfile(user, { displayName });
+        }
+      }
+    }
 
     console.log("Apple sign-in successful:", { uid: user.uid, idToken });
     return { user, idToken };
