@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
-import { searchFoodsMock } from "@/lib/nutritionShim";
+import { searchFoods } from "@/lib/nutritionShim";
 
 export default function MealsBarcode() {
   const { t } = useI18n();
@@ -21,7 +21,7 @@ export default function MealsBarcode() {
     if (!code) return;
     setLoading(true);
     try {
-      const results = await searchFoodsMock(code);
+      const results = await searchFoods(code);
       setManualResult(results[0]?.name || null);
       toast({ title: "Barcode lookup stub", description: "Full scanner coming soon." });
     } catch (error: any) {
