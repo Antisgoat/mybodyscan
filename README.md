@@ -126,3 +126,16 @@ firebase deploy --only functions,hosting
 ```
 
 Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`). If you previously configured automation or tooling with the legacy secret names (`STRIPE_SECRET`, `STRIPE_WEBHOOK`), update those references to the new keys when migrating.
+
+## Auth env setup (fix for `auth/api-key-not-valid`)
+1) Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
+2) In **Lovable → Project Settings → Environment**, add the same `VITE_FIREBASE_*` variables.
+3) Firebase Console → **Authentication → Settings → Authorized domains**: add
+   - localhost
+   - 127.0.0.1
+   - mybodyscan-f3daf.web.app
+   - mybodyscan-f3daf.firebaseapp.com
+   - your custom domain(s) (e.g., mybodyscan.app, www.mybodyscan.app)
+   - your Lovable preview domain
+4) Rebuild locally: `npm ci && npm run build && npm run preview`
+5) Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
