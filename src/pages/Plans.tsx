@@ -64,7 +64,7 @@ export default function Plans() {
       credits: "Unlimited scans + Coach + Nutrition",
       priceId: "price_monthly_intro",
       mode: "subscription" as const,
-      features: ["Unlimited body scans", "AI Coach & workout plans", "Nutrition tracking & advice", "Progress analytics", "Priority support"]
+      features: ["3 scans per month", "AI Coach & workout plans", "Nutrition tracking & advice", "Progress analytics", "Priority support"]
     },
     {
       name: "Annual",
@@ -129,6 +129,9 @@ export default function Plans() {
                     </li>
                   ))}
                 </ul>
+                {plan.features.some((feature) => feature.includes("3 scans per month")) && (
+                  <p className="text-xs text-muted-foreground mt-2">*Unused scans roll over for 12 months.*</p>
+                )}
                 <Button
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
