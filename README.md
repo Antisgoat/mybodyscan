@@ -92,6 +92,20 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 
 Cloud Functions read Stripe credentials from secrets named `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Configure them with `firebase functions:secrets:set` (see Deployment).
 
+## Firebase Web config (Lovable without env vars)
+We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
+
+Authorized domains (Firebase Console → Auth → Settings):
+- localhost
+- 127.0.0.1
+- mybodyscan-f3daf.web.app
+- mybodyscan-f3daf.firebaseapp.com
+- your Lovable preview domain (copy from the preview URL)
+- your custom domain(s)
+
+Notes:
+- The Storage bucket must be `mybodyscan-f3daf.appspot.com` (the canonical bucket), not `...firebasestorage.app` which is a download host.
+
 ## Testing rules
 
 Run Firestore security rules tests using the emulator suite:
