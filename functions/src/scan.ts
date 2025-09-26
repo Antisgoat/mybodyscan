@@ -5,6 +5,7 @@ import { softVerifyAppCheck } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckSoft } from "./http.js";
 import type { ScanDocument } from "./types.js";
+import { consumeOne } from "./credits.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -215,6 +216,10 @@ export async function runBodyScanHandler(
   const uid = context.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login required");
+  }
+  const ok = await consumeOne(uid);
+  if (!ok) {
+    throw new HttpsError("failed-precondition", "No scan credits available.");
   }
   return createScanSession(uid);
 }
