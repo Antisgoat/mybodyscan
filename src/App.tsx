@@ -39,6 +39,11 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import ScanNew from "./pages/ScanNew";
 import ScanResult from "./pages/ScanResult";
+import ScanStart from "./pages/Scan/Start";
+import ScanCapture from "./pages/Scan/Capture";
+import ScanFlowResult from "./pages/Scan/Result";
+import ScanRefine from "./pages/Scan/Refine";
+import ScanFlowHistory from "./pages/Scan/History";
 import Report from "./pages/Report";
 import DebugCredits from "./pages/DebugCredits";
 import CoachOnboarding from "./pages/CoachOnboarding";
@@ -387,6 +392,76 @@ const App = () => {
             <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
             {/* New scan routes */}
+            <Route
+              path="/scan/start"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanStart />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/scan/capture"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanCapture />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/scan/result"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanFlowResult />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/scan/refine"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanRefine />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/scan/history"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanFlowHistory />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
             <Route path="/scan/tips" element={<ProtectedRoute><AuthedLayout><ScanTips /></AuthedLayout></ProtectedRoute>} />
