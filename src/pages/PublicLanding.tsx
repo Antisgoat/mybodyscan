@@ -59,11 +59,11 @@ const PublicLanding = () => {
 
       <section className="py-8">
         <h2 className="text-xl font-semibold">Pricing snapshot</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          {[PRICING_CATALOG.oneScan, PRICING_CATALOG.threePack, PRICING_CATALOG.fivePack, PRICING_CATALOG.monthly, PRICING_CATALOG.yearly].map((card) => (
-            <article key={card.id} className="rounded-lg border p-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {[PRICING_CATALOG.oneScan, PRICING_CATALOG.monthly, PRICING_CATALOG.yearly].map((card) => (
+            <article key={card.id} className="rounded-xl border bg-card p-4">
               <h3 className="font-medium">{card.label}</h3>
-              <p className="text-sm text-muted-foreground">{card.priceText}</p>
+              <p className="text-sm text-foreground mt-1">{card.priceText}</p>
               {card.blurb ? (
                 <p className="text-xs text-muted-foreground mt-1">{card.blurb}</p>
               ) : null}

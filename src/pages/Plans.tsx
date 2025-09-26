@@ -34,27 +34,18 @@ export default function Plans() {
     }
   };
 
-  const plans = [
+  const ENABLE_SCAN_PACKS = false;
+
+  const corePlans = [
     {
-      name: "Single Scan",
+      name: "One Scan",
       price: "$9.99",
       period: "one-time",
       credits: "1 scan credit",
       priceId: "price_single_scan",
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
-      description: "Perfect for trying out MyBodyScan"
-    },
-    {
-      name: "Extra Scan", 
-      price: "$9.99",
-      period: "one-time",
-      credits: "1 scan credit",
-      priceId: "price_extra_scan",
-      mode: "payment" as const,
-      features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
-      description: "For subscribers who need extra scans",
-      subscriberOnly: true
+      description: "Perfect for trying out MyBodyScan",
     },
     {
       name: "Monthly",
@@ -64,19 +55,53 @@ export default function Plans() {
       credits: "3 scans/month + Coach + Nutrition",
       priceId: "price_monthly_intro",
       mode: "subscription" as const,
-      features: ["3 scans per month", "AI Coach & workout plans", "Nutrition tracking & advice", "Progress analytics", "Priority support"]
+      features: [
+        "3 scans per month",
+        "AI Coach & workout plans",
+        "Nutrition tracking & advice",
+        "Progress analytics",
+        "Priority support",
+      ],
     },
     {
-      name: "Annual",
+      name: "Yearly",
       price: "$199.99",
       period: "per year",
-      credits: "Everything included",
+      credits: "3 scans/month + Everything included",
       priceId: "price_annual",
       mode: "subscription" as const,
       popular: true,
-      features: ["All Monthly features", "Save $99.89 vs monthly", "Advanced analytics", "Export data", "Early access to new features"],
-      badge: "Best Value"
-    }
+      features: [
+        "3 scans per month",
+        "All Monthly features",
+        "Save $99.89 vs monthly",
+        "Advanced analytics",
+        "Export data",
+        "Early access to new features",
+      ],
+      badge: "Best Value",
+    },
+  ];
+
+  const scanPackPlans = [
+    {
+      name: "Extra Scan",
+      price: "$9.99",
+      period: "one-time",
+      credits: "1 scan credit",
+      priceId: "price_extra_scan",
+      mode: "payment" as const,
+      features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
+      description: "For subscribers who need extra scans",
+      subscriberOnly: true,
+    },
+  ];
+
+  const plans = [
+    corePlans[0],
+    ...(ENABLE_SCAN_PACKS ? scanPackPlans : []),
+    corePlans[1],
+    corePlans[2],
   ];
 
   return (

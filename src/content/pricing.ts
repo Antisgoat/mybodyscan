@@ -41,9 +41,27 @@ if (!catalog) {
     oneScan:   { id: "one-scan",   label: "1 Scan",  priceText: "$9.99" },
     threePack: { id: "three-pack", label: "3 Scans", priceText: "$19.99" },
     fivePack:  { id: "five-pack",  label: "5 Scans", priceText: "$29.99" },
-    monthly:   { id: "monthly",    label: "Monthly", priceText: "$14.99", blurb: "First month, then $24.99/mo" },
+    monthly:   {
+      id: "monthly",
+      label: "Monthly",
+      priceText: "$14.99",
+      blurb: "First month, then $24.99/mo · 3 scans/month",
+    },
     yearly:    { id: "yearly",     label: "Yearly",  priceText: "$199.99", blurb: "3 scans/month" },
   };
 }
 
-export const PRICING_CATALOG: PricingCatalog = catalog;
+const baseCatalog = catalog as PricingCatalog;
+
+export const PRICING_CATALOG = {
+  oneScan: baseCatalog.oneScan,
+  monthly: baseCatalog.monthly,
+  yearly: baseCatalog.yearly,
+} as const;
+
+const UNUSED_SCAN_PACKS = {
+  threePack: baseCatalog.threePack,
+  fivePack: baseCatalog.fivePack,
+};
+
+void UNUSED_SCAN_PACKS;
