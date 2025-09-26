@@ -2,7 +2,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import type { Request } from 'firebase-functions/v2/https';
 import Stripe from 'stripe';
 
-import { grantCredits, refreshCreditsSummary, setSubscriptionStatus } from "./credits.js";
+import { addCredits, setSubscriptionStatus } from "./credits.js";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -52,8 +52,7 @@ export const stripeWebhook = onRequest({
         const uid = (session.metadata?.uid as string) || null;
         const priceId = (session.metadata?.priceId as string) || null;
         if (uid && priceId) {
-          await grantCredits(uid, 1, 365, priceId, "checkout.session.completed");
-          await refreshCreditsSummary(uid);
+          await addCredits(uid, 1, `Checkout ${priceId}`, 12);
         }
         break;
       }
@@ -61,6 +60,15 @@ export const stripeWebhook = onRequest({
         const invoice = event.data.object as Stripe.Invoice;
         const uid = (invoice.metadata?.uid as string) || null;
         if (uid) {
+          const lines = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
+          const isMonthly = lines.some((line) => line.price?.recurring?.interval === "month");
+          const isAnnual = lines.some((line) => line.price?.recurring?.interval === "year");
+          if (isMonthly) {
+            await addCredits(uid, 3, "Monthly subscription", 12);
+          }
+          if (isAnnual) {
+            await addCredits(uid, 36, "Annual subscription (3/mo x 12)", 12);
+          }
           await setSubscriptionStatus(
             uid,
             "active",
