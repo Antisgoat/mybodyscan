@@ -1,51 +1,77 @@
-import { useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Seo } from "@/components/Seo";
+import type { ManualInputKey } from "./scanRefineStore";
+import { commitManualInput, setManualInput, useScanRefineStore } from "./scanRefineStore";
+
+interface RefineMeasurementsFormProps {
+  onSubmit?: () => void;
+  footer?: ReactNode;
+}
+
+const FIELD_CONFIG: Array<{ key: ManualInputKey; label: string; id: string; help?: string }> = [
+  { key: "neck", label: "Neck (in)", id: "refine-neck" },
+  { key: "waist", label: "Waist (in)", id: "refine-waist" },
+  { key: "hip", label: "Hip (in)", id: "refine-hip" },
+];
+
+export function RefineMeasurementsForm({ onSubmit, footer }: RefineMeasurementsFormProps) {
+  const { manualInputs } = useScanRefineStore();
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSubmit?.();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {FIELD_CONFIG.map(({ key, label, id, help }) => (
+        <div key={key} className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor={id}>{label}</Label>
+            {help ? <span className="text-xs text-muted-foreground">{help}</span> : null}
+          </div>
+          <Input
+            id={id}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.1"
+            value={manualInputs[key]}
+            onChange={(event) => setManualInput(key, event.target.value)}
+            onBlur={(event) => commitManualInput(key, event.target.value)}
+          />
+        </div>
+      ))}
+      {footer ?? null}
+    </form>
+  );
+}
 
 export default function ScanRefine() {
-  const [open, setOpen] = useState(true);
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
       <Seo title="Refine Estimate – MyBodyScan" description="Fine-tune your scan results with manual inputs." />
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold">Refine Scan</h1>
+        <h1 className="text-3xl font-semibold">Refine measurements</h1>
         <p className="text-muted-foreground">Adjust the estimate with quick manual measurements.</p>
       </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline">Edit measurements</Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Refine estimate</DialogTitle>
-            <DialogDescription>Enter manual measurements to update the result preview.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="refine-neck">Neck (in)</Label>
-              <Input id="refine-neck" type="number" min="0" step="0.1" placeholder="13.5" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="refine-waist">Waist (in)</Label>
-              <Input id="refine-waist" type="number" min="0" step="0.1" placeholder="32.0" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="refine-hip">Hip (in)</Label>
-              <Input id="refine-hip" type="number" min="0" step="0.1" placeholder="38.5" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+      <RefineMeasurementsForm
+        onSubmit={() => navigate("/scan/result")}
+        footer={
+          <div className="flex flex-col-reverse items-stretch justify-end gap-2 sm:flex-row">
+            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
               Cancel
             </Button>
-            <Button disabled>Save adjustments</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button type="submit">Save and return</Button>
+          </div>
+        }
+      />
     </div>
   );
 }
