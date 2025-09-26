@@ -8,8 +8,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
@@ -22,6 +20,9 @@ import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scanCaptureStore";
+import { RefineMeasurementsForm } from "./Refine";
+import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
+import type { ManualCircumferences } from "./scanRefineStore";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -39,11 +40,29 @@ function formatDecimal(value: number | null | undefined): string | null {
   return numeric.toFixed(1);
 }
 
+function toInches(value?: number | null, scale?: number | null): number | undefined {
+  if (!Number.isFinite(value ?? NaN) || !Number.isFinite(scale ?? NaN)) {
+    return undefined;
+  }
+  if (!value || value <= 0 || !scale || scale <= 0) {
+    return undefined;
+  }
+  return value * (scale as number);
+}
+
+function parseManualCircumference(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
 export default function ScanFlowResult() {
   const { mode, files } = useScanCaptureStore();
   const { profile } = useUserProfile();
   const [refineOpen, setRefineOpen] = useState(false);
-  const [refineForm, setRefineForm] = useState({ neck: "", waist: "", hip: "" });
+  const { manualInputs } = useScanRefineStore();
   const [photoFeatures, setPhotoFeatures] = useState<PhotoFeatures | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -110,6 +129,36 @@ export default function ScanFlowResult() {
   const profileWeightLb = profile?.weight_kg ? kgToLb(profile.weight_kg) : undefined;
   const weightLb = lastWeight ?? profileWeightLb ?? undefined;
 
+  useEffect(() => {
+    if (!photoFeatures || !heightIn) {
+      setPhotoCircumferences(null);
+      return;
+    }
+
+    const averages = photoFeatures.averages;
+    const heightPixels = averages?.heightPixels;
+    if (!Number.isFinite(heightPixels ?? NaN) || (heightPixels as number) <= 0) {
+      setPhotoCircumferences(null);
+      return;
+    }
+
+    const scale = heightIn / (heightPixels as number);
+    const neckIn = toInches(averages?.neckWidth, scale);
+    const waistIn = toInches(averages?.waistWidth, scale);
+    const hipIn = toInches(averages?.hipWidth, scale);
+    setPhotoCircumferences({ neckIn, waistIn, hipIn });
+  }, [photoFeatures, heightIn]);
+
+  const manualCircumferences = useMemo<ManualCircumferences | null>(() => {
+    const neckIn = parseManualCircumference(manualInputs.neck);
+    const waistIn = parseManualCircumference(manualInputs.waist);
+    const hipIn = parseManualCircumference(manualInputs.hip);
+    if (neckIn == null && waistIn == null && hipIn == null) {
+      return null;
+    }
+    return { neckIn, waistIn, hipIn };
+  }, [manualInputs]);
+
   const estimate = useMemo(() => {
     if (!photoFeatures) return null;
     if (!heightIn || !sex) return null;
@@ -119,8 +168,9 @@ export default function ScanFlowResult() {
       heightIn,
       weightLb: weightLb ?? undefined,
       photoFeatures,
+      manualCircumferences: manualCircumferences ?? undefined,
     });
-  }, [age, heightIn, photoFeatures, sex, weightLb]);
+  }, [age, heightIn, manualCircumferences, photoFeatures, sex, weightLb]);
 
   const bodyFatValue = formatDecimal(estimate?.bodyFatPct ?? null);
   const bmiValue = formatDecimal(estimate?.bmi ?? null);
@@ -167,47 +217,14 @@ export default function ScanFlowResult() {
                   <DialogTitle>Refine estimate</DialogTitle>
                   <DialogDescription>Enter manual measurements to update the result preview.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="refine-neck">Neck (in)</Label>
-                    <Input
-                      id="refine-neck"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={refineForm.neck}
-                      onChange={(event) => setRefineForm((prev) => ({ ...prev, neck: event.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="refine-waist">Waist (in)</Label>
-                    <Input
-                      id="refine-waist"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={refineForm.waist}
-                      onChange={(event) => setRefineForm((prev) => ({ ...prev, waist: event.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="refine-hip">Hip (in)</Label>
-                    <Input
-                      id="refine-hip"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={refineForm.hip}
-                      onChange={(event) => setRefineForm((prev) => ({ ...prev, hip: event.target.value }))}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setRefineOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button disabled>Save adjustments</Button>
-                </DialogFooter>
+                <RefineMeasurementsForm
+                  onSubmit={() => setRefineOpen(false)}
+                  footer={
+                    <DialogFooter>
+                      <Button type="submit">Close</Button>
+                    </DialogFooter>
+                  }
+                />
               </DialogContent>
             </Dialog>
           </div>
