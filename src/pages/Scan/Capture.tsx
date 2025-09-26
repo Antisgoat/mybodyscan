@@ -1,18 +1,103 @@
-import { useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Seo } from "@/components/Seo";
-
-const PHOTO_SETS: Record<"2" | "4", string[]> = {
-  "2": ["Front", "Side"],
-  "4": ["Front", "Back", "Left", "Right"],
-};
+import {
+  CAPTURE_VIEW_SETS,
+  type CaptureView,
+  pruneCaptureFiles,
+  setCaptureFile,
+  setCaptureMode,
+  useScanCaptureStore,
+} from "./scanCaptureStore";
 
 export default function ScanCapture() {
-  const [mode, setMode] = useState<"2" | "4">("2");
+  const navigate = useNavigate();
+  const { mode, files } = useScanCaptureStore();
+  const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
+  const inputRefs = useRef<Partial<Record<CaptureView, HTMLInputElement | null>>>({});
+  const [previews, setPreviews] = useState<Partial<Record<CaptureView, string>>>({});
+  const fileRefs = useRef<Partial<Record<CaptureView, File>>>({});
+  const previewRef = useRef(previews);
 
-  const shots = useMemo(() => PHOTO_SETS[mode], [mode]);
+  useEffect(() => {
+    setPreviews((prev) => {
+      const next: Partial<Record<CaptureView, string>> = {};
+      const nextFileRefs: Partial<Record<CaptureView, File>> = {};
+
+      for (const view of Object.keys(files) as CaptureView[]) {
+        const file = files[view];
+        if (!file) continue;
+
+        const prevFile = fileRefs.current[view];
+        const prevUrl = prev[view];
+        if (prevFile === file && prevUrl) {
+          next[view] = prevUrl;
+        } else {
+          if (prevUrl) {
+            URL.revokeObjectURL(prevUrl);
+          }
+          next[view] = URL.createObjectURL(file);
+        }
+        nextFileRefs[view] = file;
+      }
+
+      for (const view of Object.keys(prev) as CaptureView[]) {
+        if (!next[view]) {
+          const prevUrl = prev[view];
+          if (prevUrl) {
+            URL.revokeObjectURL(prevUrl);
+          }
+        }
+      }
+
+      fileRefs.current = nextFileRefs;
+      return next;
+    });
+  }, [files]);
+
+  useEffect(() => {
+    previewRef.current = previews;
+  }, [previews]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(previewRef.current)) {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      }
+    };
+  }, []);
+
+  const handleModeChange = (value: string) => {
+    if (value === "2" || value === "4") {
+      setCaptureMode(value);
+      pruneCaptureFiles(CAPTURE_VIEW_SETS[value]);
+    }
+  };
+
+  const handleFileChange = (view: CaptureView) => (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setCaptureFile(view, file);
+    event.target.value = "";
+  };
+
+  const handleRemove = (view: CaptureView) => {
+    setCaptureFile(view, undefined);
+  };
+
+  const allCaptured = useMemo(
+    () => shots.every((view) => Boolean(files[view])),
+    [shots, files],
+  );
+
+  const onAnalyze = () => {
+    if (!allCaptured) return;
+    navigate("/scan/result");
+  };
 
   return (
     <div className="space-y-6">
@@ -26,11 +111,7 @@ export default function ScanCapture() {
         <ToggleGroup
           type="single"
           value={mode}
-          onValueChange={(value) => {
-            if (value === "2" || value === "4") {
-              setMode(value);
-            }
-          }}
+          onValueChange={handleModeChange}
           className="grid w-full grid-cols-2 gap-2"
         >
           <ToggleGroupItem value="2" aria-label="Capture two photos" className="py-3">
@@ -47,17 +128,66 @@ export default function ScanCapture() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-3">
-            {shots.map((label) => (
-              <li key={label} className="flex items-center justify-between">
-                <span>{label}</span>
-                <Button variant="outline" size="sm" disabled>
-                  Pending
-                </Button>
-              </li>
-            ))}
+            {shots.map((view) => {
+              const previewUrl = previews[view];
+              const file = files[view];
+
+              return (
+                <li
+                  key={view}
+                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt={`${view} preview`} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="px-2 text-center text-xs text-muted-foreground">No photo</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">{view}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {file ? file.name : "Add a photo to continue."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={(node) => {
+                        inputRefs.current[view] = node;
+                      }}
+                      id={`capture-${view}`}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileChange(view)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => inputRefs.current[view]?.click()}
+                    >
+                      {file ? "Retake" : "Upload"}
+                    </Button>
+                    {file ? (
+                      <Button variant="ghost" size="sm" type="button" onClick={() => handleRemove(view)}>
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </CardContent>
       </Card>
+      <div className="flex justify-end">
+        <Button onClick={onAnalyze} disabled={!allCaptured}>
+          Analyze
+        </Button>
+      </div>
     </div>
   );
 }
