@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { auth } from "@/lib/firebase";
 import silhouetteFront from "@/assets/silhouette-front.png";
+import { HOW_IT_WORKS } from "@/content/howItWorks";
+import { PRICING_CATALOG } from "@/content/pricing";
 
 const PublicLanding = () => {
   const navigate = useNavigate();
@@ -15,7 +17,7 @@ const PublicLanding = () => {
     <>
       <Seo
         title="Body scans from your phone – MyBodyScan"
-        description="Estimate body fat %, weight, and BMI from photos or a 10s video. Track progress over time."
+        description="Estimate body fat %, weight, and BMI from either a 4-photo scan or quick 2-photo scan. Track progress over time."
         canonical="https://mybodyscanapp.com/"
       />
       <section className="py-8">
@@ -25,7 +27,7 @@ const PublicLanding = () => {
             Body scans from your phone
             </h1>
             <p className="mt-3 text-muted-foreground">
-              Estimate body fat %, weight, and BMI from 4 photos or a 10s video. Track progress over time.
+              Estimate body fat %, weight, and BMI from 4 photos (front, left, right, back) or a quick 2-photo scan (front + side). Track progress over time.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button size="lg" onClick={handleLaunch}>Launch Web App</Button>
@@ -46,44 +48,27 @@ const PublicLanding = () => {
       <section className="py-8">
         <h2 className="text-xl font-semibold">How it works</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">1) Capture</h3>
-            <p className="text-sm text-muted-foreground mt-1">Take 4 photos or a quick 10-second video.</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">2) Process</h3>
-            <p className="text-sm text-muted-foreground mt-1">Our smart system estimates body fat %, weight, and BMI.</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">3) Track</h3>
-            <p className="text-sm text-muted-foreground mt-1">Build history and visualize progress over time.</p>
-          </article>
+          {HOW_IT_WORKS.map((item) => (
+            <article key={item.step} className="rounded-lg border p-4">
+              <h3 className="font-medium">{item.step}</h3>
+              <p className="text-sm text-muted-foreground mt-1">{item.text}</p>
+            </article>
+          ))}
         </div>
       </section>
 
       <section className="py-8">
         <h2 className="text-xl font-semibold">Pricing snapshot</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">1 Scan</h3>
-            <p className="text-sm text-muted-foreground">$9.99</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">3 Scans</h3>
-            <p className="text-sm text-muted-foreground">$19.99</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">5 Scans</h3>
-            <p className="text-sm text-muted-foreground">$29.99</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">Monthly</h3>
-            <p className="text-sm text-muted-foreground">$14.99</p>
-          </article>
-          <article className="rounded-lg border p-4">
-            <h3 className="font-medium">Yearly</h3>
-            <p className="text-sm text-muted-foreground">$99.99</p>
-          </article>
+          {[PRICING_CATALOG.oneScan, PRICING_CATALOG.threePack, PRICING_CATALOG.fivePack, PRICING_CATALOG.monthly, PRICING_CATALOG.yearly].map((card) => (
+            <article key={card.id} className="rounded-lg border p-4">
+              <h3 className="font-medium">{card.label}</h3>
+              <p className="text-sm text-muted-foreground">{card.priceText}</p>
+              {card.blurb ? (
+                <p className="text-xs text-muted-foreground mt-1">{card.blurb}</p>
+              ) : null}
+            </article>
+          ))}
         </div>
       </section>
 
