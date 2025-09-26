@@ -46,6 +46,10 @@ export default function Plans() {
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
+      popular: false,
+      badge: undefined,
+      originalPrice: undefined,
+      subscriberOnly: false,
     },
     {
       name: "Monthly",
@@ -62,6 +66,10 @@ export default function Plans() {
         "Progress analytics",
         "Priority support",
       ],
+      popular: false,
+      badge: undefined,
+      description: undefined,
+      subscriberOnly: false,
     },
     {
       name: "Yearly",
@@ -80,6 +88,9 @@ export default function Plans() {
         "Early access to new features",
       ],
       badge: "Best Value",
+      description: undefined,
+      originalPrice: undefined,
+      subscriberOnly: false,
     },
   ];
 
@@ -94,6 +105,9 @@ export default function Plans() {
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
       subscriberOnly: true,
+      popular: false,
+      badge: undefined,
+      originalPrice: undefined,
     },
   ];
 
