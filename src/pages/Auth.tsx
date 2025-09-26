@@ -14,6 +14,7 @@ import {
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import { enableDemoGuest } from "@/lib/demoFlag";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -35,8 +36,6 @@ const Auth = () => {
   useEffect(() => {
     if (user) navigate("/today", { replace: true });
   }, [user, navigate]);
-
-  const appleEnabled = import.meta.env.VITE_APPLE_AUTH_ENABLED === "true";
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +69,7 @@ const Auth = () => {
   const onApple = async () => {
     setLoading(true);
     try {
-      await signInWithApple();
+      await signInWithApple(auth);
       navigate(from, { replace: true });
     } catch (err: any) {
       toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
@@ -116,7 +115,7 @@ const Auth = () => {
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -139,50 +138,48 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-            <div className="mt-4 grid gap-2">
-              <Button
-                variant="secondary"
-                onClick={appleEnabled ? onApple : undefined}
-                disabled={loading || !appleEnabled}
-                className="w-full flex items-center justify-center gap-2"
-                aria-label="Continue with Apple"
-              >
-                <AppleIcon />
-                {appleEnabled ? "Continue with Apple" : "Sign in with Apple (coming soon)"}
-              </Button>
-              {!appleEnabled && (
-                <p className="text-center text-xs text-muted-foreground">Apple sign-in will activate once approved.</p>
-              )}
-              <Button
-                variant="secondary"
-                onClick={onGoogle}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2"
-              >
-                Continue with Google
-              </Button>
-            </div>
-            <div className="mt-4">
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => {
-                  enableDemoGuest();
-                  navigate("/today");
-                }}
-              >
-                👀 Explore demo (no sign-up)
-              </Button>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                Browse demo data. Create a free account to unlock scanning and save your progress.
-              </p>
-            </div>
+          <div className="mt-6 space-y-3">
+            <Button
+              variant="secondary"
+              onClick={onApple}
+              disabled={loading}
+              className="w-full h-11 inline-flex items-center justify-center gap-2"
+              aria-label="Continue with Apple"
+            >
+              <AppleIcon />
+              Continue with Apple
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={onGoogle}
+              disabled={loading}
+              className="w-full h-11 inline-flex items-center justify-center gap-2"
+            >
+              Continue with Google
+            </Button>
+          </div>
+          <div className="mt-6">
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                enableDemoGuest();
+                navigate("/today");
+              }}
+            >
+              👀 Explore demo (no sign-up)
+            </Button>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Browse demo data. Create a free account to unlock scanning and save your progress.
+            </p>
+          </div>
+          <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
+            <a href="/privacy" className="underline hover:no-underline">Privacy</a>
+            <span>·</span>
+            <a href="/terms" className="underline hover:no-underline">Terms</a>
+          </div>
         </CardContent>
       </Card>
-      <div className="mt-4 text-center text-xs text-muted-foreground">
-        <a href="/legal/privacy" className="underline hover:text-primary">Privacy</a> · 
-        <a href="/legal/terms" className="underline hover:text-primary">Terms</a>
-      </div>
     </main>
   );
 };

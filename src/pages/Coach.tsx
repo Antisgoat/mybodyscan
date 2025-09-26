@@ -15,8 +15,8 @@ import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { isDemoGuest } from "@/lib/demoFlag";
-import HeightInputUS from "@/components/HeightInputUS";
-import { kgToLb, lbToKg } from "@/lib/units";
+import { kgToLb, lbToKg, cmToIn, inToFtIn, ftInToCm } from "@/lib/units";
+import numberInputStyles from "./coach-number-inputs.module.css";
 
 interface CoachPlan {
   id: string;
@@ -59,6 +59,38 @@ export default function Coach() {
   const [plan, setPlan] = useState<CoachPlan | null>(null);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [heightFtInput, setHeightFtInput] = useState<string>("");
+  const [heightInInput, setHeightInInput] = useState<string>("");
+
+  useEffect(() => {
+    if (onboardingData.height == null) {
+      setHeightFtInput("");
+      setHeightInInput("");
+      return;
+    }
+    const { ft, inches } = inToFtIn(cmToIn(onboardingData.height));
+    setHeightFtInput(ft.toString());
+    setHeightInInput(inches.toString());
+  }, [onboardingData.height]);
+
+  const updateHeightInputs = (nextFt: string, nextIn: string) => {
+    setOnboardingData((prev) => {
+      const parsedFt = nextFt === "" ? 0 : Number(nextFt);
+      if (nextFt !== "" && Number.isNaN(parsedFt)) {
+        return prev;
+      }
+      const parsedIn = nextIn === "" ? 0 : Number(nextIn);
+      if (nextIn !== "" && Number.isNaN(parsedIn)) {
+        return prev;
+      }
+      const clampedFt = Math.max(0, parsedFt);
+      const clampedIn = Math.max(0, Math.min(11, parsedIn));
+      if ((nextFt === "" && nextIn === "") || (clampedFt === 0 && clampedIn === 0)) {
+        return { ...prev, height: undefined };
+      }
+      return { ...prev, height: ftInToCm(clampedFt, clampedIn) };
+    });
+  };
 
   useEffect(() => {
     // Try to load existing plan
@@ -208,48 +240,106 @@ export default function Coach() {
         <Progress value={(step / onboardingSteps.length) * 100} />
 
         {step === 0 && (
-          <Card>
+          <Card className={numberInputStyles.numberCard}>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Height</Label>
-                  <div className="mt-1">
-                    <HeightInputUS
-                      valueCm={onboardingData.height}
-                      onChangeCm={(cm) => setOnboardingData({ ...onboardingData, height: cm ?? undefined })}
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Height</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      value={heightFtInput}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (next === "") {
+                          setHeightFtInput("");
+                          updateHeightInputs("", heightInInput);
+                          return;
+                        }
+                        const numeric = Number(next);
+                        if (Number.isNaN(numeric)) return;
+                        const sanitized = Math.max(0, numeric);
+                        const stringValue = sanitized.toString();
+                        setHeightFtInput(stringValue);
+                        updateHeightInputs(stringValue, heightInInput);
+                      }}
+                      className="h-11"
+                      placeholder="ft"
                     />
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      value={heightInInput}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (next === "") {
+                          setHeightInInput("");
+                          updateHeightInputs(heightFtInput, "");
+                          return;
+                        }
+                        const numeric = Number(next);
+                        if (Number.isNaN(numeric)) return;
+                        const clamped = Math.max(0, Math.min(11, numeric));
+                        const stringValue = clamped.toString();
+                        setHeightInInput(stringValue);
+                        updateHeightInputs(heightFtInput, stringValue);
+                      }}
+                      className="h-11"
+                      placeholder="in"
+                    />
+                    <div className="hidden md:block" />
                   </div>
                 </div>
-                <div>
-                  <Label>Weight (lb)</Label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Weight (lb)</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={onboardingData.weight != null ? Math.round(kgToLb(onboardingData.weight)) : ""}
+                      onChange={(e) => {
+                        if (e.target.value === "") {
+                          setOnboardingData({ ...onboardingData, weight: undefined });
+                          return;
+                        }
+                        const value = Number(e.target.value);
+                        if (Number.isNaN(value)) return;
+                        setOnboardingData({ ...onboardingData, weight: lbToKg(value) });
+                      }}
+                      className="h-11 pr-12"
+                      placeholder="160"
+                    />
+                    <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">lb</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Age</label>
                   <Input
                     type="number"
-                    value={onboardingData.weight != null ? Math.round(kgToLb(onboardingData.weight)) : ''}
+                    inputMode="numeric"
+                    value={onboardingData.age ?? ""}
                     onChange={(e) => {
-                      if (e.target.value === "") {
-                        setOnboardingData({ ...onboardingData, weight: undefined });
+                      const value = e.target.value;
+                      if (value === "") {
+                        setOnboardingData({ ...onboardingData, age: undefined });
                         return;
                       }
-                      const value = Number(e.target.value);
-                      if (Number.isNaN(value)) return;
-                      setOnboardingData({ ...onboardingData, weight: lbToKg(value) });
+                      const numeric = Number(value);
+                      if (Number.isNaN(numeric)) return;
+                      setOnboardingData({ ...onboardingData, age: numeric });
                     }}
+                    className="h-11"
+                    placeholder="Age"
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Age</Label>
-                  <Input type="number" value={onboardingData.age || ''} 
-                         onChange={(e) => setOnboardingData({...onboardingData, age: parseInt(e.target.value)})} />
-                </div>
-                <div>
-                  <Label>Sex</Label>
-                  <Select value={onboardingData.sex} onValueChange={(value: 'male' | 'female') => setOnboardingData({...onboardingData, sex: value})}>
-                    <SelectTrigger>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Sex</label>
+                  <Select value={onboardingData.sex} onValueChange={(value: 'male' | 'female') => setOnboardingData({ ...onboardingData, sex: value })}>
+                    <SelectTrigger className="h-11">
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
