@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReferenceChart } from "@/components/ReferenceChart";
 import { Seo } from "@/components/Seo";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { estimateBodyComp } from "@/lib/estimator";
@@ -19,6 +20,7 @@ import type { Landmarks } from "@/lib/vision/landmarks";
 import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
+import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
 import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scanCaptureStore";
 import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
@@ -173,6 +175,23 @@ export default function ScanFlowResult() {
   }, [age, heightIn, manualCircumferences, photoFeatures, sex, weightLb]);
 
   const bodyFatValue = formatDecimal(estimate?.bodyFatPct ?? null);
+  const bodyFatPctNumber = Number.isFinite(estimate?.bodyFatPct ?? NaN)
+    ? (estimate?.bodyFatPct as number)
+    : null;
+  const referenceRanges = useMemo<LabeledRange[]>(() => {
+    if (!sex || age == null) return [];
+    return getSexAgeBands(sex, age);
+  }, [age, sex]);
+  const ageBandLabel = referenceRanges[0]?.band ?? null;
+  const currentReferenceRange =
+    bodyFatPctNumber != null ? findRangeForValue(referenceRanges, bodyFatPctNumber) : null;
+  const sexLabel = sex ? `${sex.charAt(0).toUpperCase()}${sex.slice(1)}` : null;
+  const rangeLabel = currentReferenceRange?.label ?? null;
+  const percentText = bodyFatPctNumber != null ? bodyFatPctNumber.toFixed(1) : null;
+  const referenceContextText =
+    sexLabel && ageBandLabel && percentText && rangeLabel
+      ? `For ${sexLabel} age ${ageBandLabel}, ${percentText}% places you in the ${rangeLabel} range.`
+      : null;
   const bmiValue = formatDecimal(estimate?.bmi ?? null);
   const weightValue = formatDecimal((estimate?.usedWeight ?? weightLb) ?? null);
 
@@ -206,6 +225,12 @@ export default function ScanFlowResult() {
               Estimated BMI: {bmiValue ?? "—"} · Weight: {weightValue ? `${weightValue} lb` : "—"}
             </p>
             <p className="text-xs text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
+            {referenceContextText ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">{referenceContextText}</p>
+                <ReferenceChart sex={sex} age={age} bfPct={bodyFatPctNumber} />
+              </div>
+            ) : null}
             <Dialog open={refineOpen} onOpenChange={setRefineOpen}>
               <DialogTrigger asChild>
                 <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
