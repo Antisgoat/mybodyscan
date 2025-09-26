@@ -244,10 +244,10 @@ export default function Coach() {
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Height</label>
+                  <label className="text-sm font-medium text-foreground">Height</label>
                   <div className="grid grid-cols-3 gap-2">
                     <Input
                       type="number"
@@ -295,7 +295,7 @@ export default function Coach() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Weight (lb)</label>
+                  <label className="text-sm font-medium text-foreground">Weight (lb)</label>
                   <div className="relative">
                     <Input
                       type="number"
@@ -317,7 +317,7 @@ export default function Coach() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Age</label>
+                  <label className="text-sm font-medium text-foreground">Age</label>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -337,7 +337,7 @@ export default function Coach() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Sex</label>
+                  <label className="text-sm font-medium text-foreground">Sex</label>
                   <Select value={onboardingData.sex} onValueChange={(value: 'male' | 'female') => setOnboardingData({ ...onboardingData, sex: value })}>
                     <SelectTrigger className="h-11">
                       <SelectValue placeholder="Select" />

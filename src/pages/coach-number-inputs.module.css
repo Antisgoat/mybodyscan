@@ -1,10 +1,9 @@
-.numberCard {}
-
-:global(input[type="number"]::-webkit-outer-spin-button),
-:global(input[type="number"]::-webkit-inner-spin-button) {
+.numberCard input[type="number"]::-webkit-outer-spin-button,
+.numberCard input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-:global(input[type="number"]) {
+
+.numberCard input[type="number"] {
   -moz-appearance: textfield;
 }

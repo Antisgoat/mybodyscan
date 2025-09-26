@@ -61,7 +61,7 @@ export default function Plans() {
       price: "$14.99",
       originalPrice: "$24.99",
       period: "first month, then $24.99/mo",
-      credits: "Unlimited scans + Coach + Nutrition",
+      credits: "3 scans/month + Coach + Nutrition",
       priceId: "price_monthly_intro",
       mode: "subscription" as const,
       features: ["3 scans per month", "AI Coach & workout plans", "Nutrition tracking & advice", "Progress analytics", "Priority support"]

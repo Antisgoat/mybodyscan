@@ -89,7 +89,7 @@ const Auth = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-center gap-2 mb-6">
+          <div className="flex justify-center gap-2 mb-4">
             <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
               Sign in
             </Button>
@@ -98,7 +98,7 @@ const Auth = () => {
             </Button>
           </div>
           
-          <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+          <div className="mb-4 p-4 bg-slate-50 rounded-lg">
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -115,7 +115,7 @@ const Auth = () => {
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-6">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -138,7 +138,7 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <div className="mt-6 space-y-3">
+          <div className="space-y-3">
             <Button
               variant="secondary"
               onClick={onApple}
@@ -172,11 +172,11 @@ const Auth = () => {
             <p className="text-xs text-muted-foreground text-center mt-2">
               Browse demo data. Create a free account to unlock scanning and save your progress.
             </p>
-          </div>
-          <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
-            <a href="/privacy" className="underline hover:no-underline">Privacy</a>
-            <span>·</span>
-            <a href="/terms" className="underline hover:no-underline">Terms</a>
+            <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
+              <a href="/privacy" className="underline hover:no-underline">Privacy</a>
+              <span>·</span>
+              <a href="/terms" className="underline hover:no-underline">Terms</a>
+            </div>
           </div>
         </CardContent>
       </Card>

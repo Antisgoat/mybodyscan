@@ -155,31 +155,34 @@ export default function CoachOnboardingNew() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label>Height</Label>
-          <HeightInputUS
-            valueCm={data.height_cm}
-            onChangeCm={(cm) => updateData({ height_cm: cm ?? undefined })}
-          />
-        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-foreground">Height</Label>
+            <HeightInputUS
+              valueCm={data.height_cm}
+              onChangeCm={(cm) => updateData({ height_cm: cm ?? undefined })}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="weight">Weight (lb)</Label>
-          <Input
-            id="weight"
-            type="number"
-            placeholder="154"
-            value={data.weight_kg != null ? Math.round(kgToLb(data.weight_kg)) : ""}
-            onChange={(e) => {
-              if (e.target.value === "") {
-                updateData({ weight_kg: undefined });
-                return;
-              }
-              const value = Number(e.target.value);
-              if (Number.isNaN(value)) return;
-              updateData({ weight_kg: lbToKg(value) ?? undefined });
-            }}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="weight" className="text-sm font-medium text-foreground">Weight (lb)</Label>
+            <Input
+              id="weight"
+              type="number"
+              placeholder="154"
+              value={data.weight_kg != null ? Math.round(kgToLb(data.weight_kg)) : ""}
+              onChange={(e) => {
+                if (e.target.value === "") {
+                  updateData({ weight_kg: undefined });
+                  return;
+                }
+                const value = Number(e.target.value);
+                if (Number.isNaN(value)) return;
+                updateData({ weight_kg: lbToKg(value) ?? undefined });
+              }}
+              className="h-11"
+            />
+          </div>
         </div>
 
         <div className="flex justify-between">
