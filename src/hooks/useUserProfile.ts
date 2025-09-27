@@ -13,6 +13,9 @@ export interface CoachProfile {
   timeframe_weeks?: number;
   style?: "ease_in" | "all_in";
   medical_flags?: Record<string, boolean>;
+  currentProgramId?: string;
+  lastCompletedWeekIdx?: number;
+  lastCompletedDayIdx?: number;
 }
 
 export interface CoachPlan {

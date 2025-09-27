@@ -58,6 +58,7 @@ import Scan from "./pages/Scan";
 import Workouts from "./pages/Workouts";
 import Meals from "./pages/Meals";
 import Coach from "./pages/Coach";
+import CoachDay from "./pages/Coach/Day";
 import Nutrition from "./pages/Nutrition";
 import { ConsentGate } from "./components/ConsentGate";
 import MealsSearch from "./pages/MealsSearch";
@@ -159,6 +160,20 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <Coach />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/coach/day"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <CoachDay />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
