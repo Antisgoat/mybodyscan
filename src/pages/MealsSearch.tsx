@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, Barcode, Loader2, Star, StarOff, ListPlus, Check, Trash } from "lucide-react";
+import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { searchFoods, type NormalizedItem } from "@/lib/nutritionShim";
 import { addMeal } from "@/lib/nutrition";
@@ -16,19 +15,11 @@ import {
   subscribeFavorites,
   type FavoriteDocWithId,
 } from "@/lib/nutritionCollections";
-import { ServingEditor } from "@/components/nutrition/ServingEditor";
-import { type ServingUnit, calculateSelection } from "@/lib/nutritionMath";
+import { ServingChooser } from "@/components/ServingChooser";
+import { calcMacrosFromGrams, fromOFF, fromUSDA, type FoodNormalized } from "@/lib/nutrition/measureMap";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v2";
 const MAX_RECENTS = 50;
-
-interface QueuedEntry {
-  id: string;
-  item: NormalizedItem;
-  qty: number;
-  unit: ServingUnit;
-  macros: ReturnType<typeof calculateSelection>;
-}
 
 function readRecents(): NormalizedItem[] {
   if (typeof window === "undefined") return [];
@@ -54,12 +45,10 @@ export default function MealsSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<NormalizedItem[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogItem, setDialogItem] = useState<NormalizedItem | null>(null);
-  const [queued, setQueued] = useState<QueuedEntry[]>([]);
-  const [processing, setProcessing] = useState(false);
   const [recents, setRecents] = useState<NormalizedItem[]>(() => readRecents());
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
+  const [chooser, setChooser] = useState<{ item: NormalizedItem; food: FoodNormalized } | null>(null);
+  const [logging, setLogging] = useState(false);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
@@ -94,9 +83,14 @@ export default function MealsSearch() {
     return () => window.clearTimeout(handle);
   }, [query]);
 
-  const openDialog = (item: NormalizedItem) => {
-    setDialogItem(item);
-    setDialogOpen(true);
+  const openChooser = (item: NormalizedItem) => {
+    try {
+      const food = mapToFoodNormalized(item);
+      setChooser({ item, food });
+    } catch (error) {
+      console.error("serving_chooser_error", error);
+      toast({ title: "Unable to load servings", description: "Try another food", variant: "destructive" });
+    }
   };
 
   const updateRecents = useCallback(
@@ -108,54 +102,57 @@ export default function MealsSearch() {
     [recents],
   );
 
-  const addToQueue = ({ qty, unit, result }: { qty: number; unit: ServingUnit; result: ReturnType<typeof calculateSelection> }) => {
-    if (!dialogItem) return;
-    const id = `${dialogItem.id}-${Date.now()}`;
-    setQueued((prev) => [...prev, { id, item: dialogItem, qty, unit, macros: result }]);
-    setDialogOpen(false);
-  };
-
-  const clearQueue = () => setQueued([]);
-
-  const logEntries = async (entries: QueuedEntry[]) => {
-    if (!entries.length) return;
-    setProcessing(true);
+  const handleChooserConfirm = async (selection: { grams: number; label: string; quantity: number }) => {
+    if (!chooser || logging) return;
+    const current = chooser;
+    setChooser(null);
+    setLogging(true);
     try {
-      for (const entry of entries) {
-        await addMeal(today, {
-          name: entry.item.name,
-          protein: entry.macros.protein ?? undefined,
-          carbs: entry.macros.carbs ?? undefined,
-          fat: entry.macros.fat ?? undefined,
-          calories: entry.macros.calories ?? undefined,
+      const macros = calcMacrosFromGrams(current.food.basePer100g, selection.grams);
+      await addMeal(today, {
+        name: current.food.name,
+        protein: macros.protein,
+        carbs: macros.carbs,
+        fat: macros.fat,
+        calories: macros.kcal,
+        serving: {
+          qty: selection.quantity,
+          unit: selection.label,
+          grams: selection.grams,
+        },
+        item: {
+          id: current.food.id,
+          name: current.food.name,
+          brand: current.food.brand ?? null,
+          source: current.food.source,
           serving: {
-            qty: entry.qty,
-            unit: entry.unit,
-            grams: entry.macros.grams,
-            originalQty: entry.item.serving.qty ?? null,
-            originalUnit: entry.item.serving.unit ?? null,
+            qty: selection.quantity,
+            unit: selection.label,
+            text: `${selection.quantity} ${selection.label}`,
           },
-          item: {
-            id: entry.item.id,
-            name: entry.item.name,
-            brand: entry.item.brand,
-            source: entry.item.source,
-            serving: entry.item.serving,
-            per_serving: entry.item.per_serving,
-            per_100g: entry.item.per_100g ?? null,
-            fdcId: entry.item.fdcId ?? null,
-            gtin: entry.item.gtin ?? null,
+          per_serving: {
+            kcal: macros.kcal,
+            protein_g: macros.protein,
+            carbs_g: macros.carbs,
+            fat_g: macros.fat,
           },
-          entrySource: "search",
-        });
-        updateRecents(entry.item);
-      }
-      toast({ title: "Foods logged", description: `${entries.length} item(s) added` });
-      setQueued((prev) => prev.filter((entry) => !entries.includes(entry)));
+          per_100g: {
+            kcal: current.food.basePer100g.kcal,
+            protein_g: current.food.basePer100g.protein,
+            carbs_g: current.food.basePer100g.carbs,
+            fat_g: current.food.basePer100g.fat,
+          },
+          fdcId: current.item.fdcId ?? null,
+          gtin: current.item.gtin,
+        },
+        entrySource: "search",
+      });
+      toast({ title: "Food logged", description: current.food.name });
+      updateRecents(current.item);
     } catch (error: any) {
       toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
     } finally {
-      setProcessing(false);
+      setLogging(false);
     }
   };
 
@@ -173,8 +170,6 @@ export default function MealsSearch() {
       toast({ title: "Favorite update failed", description: error?.message || "Try again", variant: "destructive" });
     }
   };
-
-  const queuedTotal = queued.reduce((sum, entry) => sum + (entry.macros.calories ?? 0), 0);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -211,7 +206,7 @@ export default function MealsSearch() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {favorites.map((fav) => (
-                <Button key={fav.id} variant="secondary" size="sm" onClick={() => openDialog(fav.item)}>
+                <Button key={fav.id} variant="secondary" size="sm" onClick={() => openChooser(fav.item)}>
                   {fav.item.name}
                 </Button>
               ))}
@@ -228,7 +223,7 @@ export default function MealsSearch() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {recents.slice(0, 8).map((item) => (
-                <Button key={item.id} variant="outline" size="sm" onClick={() => openDialog(item)}>
+                <Button key={item.id} variant="outline" size="sm" onClick={() => openChooser(item)}>
                   {item.name}
                 </Button>
               ))}
@@ -248,13 +243,9 @@ export default function MealsSearch() {
               </div>
             )}
             {!loading && !results.length && query.trim().length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                No matches. Try alternate spelling or scan the barcode.
-              </p>
+              <p className="text-sm text-muted-foreground">No matches. Try alternate spelling or scan the barcode.</p>
             )}
-            {!loading && !query.trim() && (
-              <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
-            )}
+            {!loading && !query.trim() && <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>}
             {results.map((item) => {
               const favorite = favorites.find((fav) => fav.id === item.id);
               return (
@@ -276,7 +267,7 @@ export default function MealsSearch() {
                           <StarOff className="h-4 w-4" />
                         )}
                       </Button>
-                      <Button size="sm" onClick={() => openDialog(item)}>
+                      <Button size="sm" onClick={() => openChooser(item)} disabled={logging}>
                         <Plus className="mr-1 h-4 w-4" /> Add
                       </Button>
                     </div>
@@ -286,65 +277,16 @@ export default function MealsSearch() {
             })}
           </CardContent>
         </Card>
-
-        {queued.length > 0 && (
-          <Card>
-            <CardHeader className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListPlus className="h-4 w-4" /> Queued ({queued.length})
-              </CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={clearQueue} disabled={processing}>
-                  Clear
-                </Button>
-                <Button size="sm" onClick={() => logEntries(queued)} disabled={processing}>
-                  {processing ? "Logging…" : `Log all (${Math.round(queuedTotal)} kcal)`}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {queued.map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <p className="font-medium text-foreground">{entry.item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {entry.qty} {entry.unit} • {entry.macros.calories ?? "—"} kcal
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => logEntries([entry])}
-                      disabled={processing}
-                    >
-                      <Check className="mr-1 h-4 w-4" /> Log
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setQueued((prev) => prev.filter((item) => item.id !== entry.id))}
-                      disabled={processing}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
       </main>
       <BottomNav />
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Add {dialogItem?.name}</DialogTitle>
-          </DialogHeader>
-          {dialogItem && <ServingEditor item={dialogItem} onConfirm={addToQueue} />}
-        </DialogContent>
-      </Dialog>
+      {chooser && (
+        <ServingChooser
+          food={chooser.food}
+          onClose={() => setChooser(null)}
+          onConfirm={handleChooserConfirm}
+        />
+      )}
     </div>
   );
 }
@@ -358,4 +300,128 @@ function HistoryIcon() {
       <line x1="12" y1="12" x2="15" y2="15" />
     </svg>
   );
+}
+
+function mapToFoodNormalized(item: NormalizedItem): FoodNormalized {
+  if (item.source === "USDA" && item.raw) {
+    try {
+      return fromUSDA(item.raw);
+    } catch (error) {
+      console.warn("usda_map_error", error);
+    }
+  }
+  if (item.source === "OFF" && item.raw) {
+    try {
+      return fromOFF(item.raw);
+    } catch (error) {
+      console.warn("off_map_error", error);
+    }
+  }
+  return fallbackFoodNormalized(item);
+}
+
+function fallbackFoodNormalized(item: NormalizedItem): FoodNormalized {
+  const base: FoodNormalized["basePer100g"] = {
+    kcal: numberOrZero(item.per_100g?.kcal),
+    protein: numberOrZero(item.per_100g?.protein_g, 1),
+    carbs: numberOrZero(item.per_100g?.carbs_g, 1),
+    fat: numberOrZero(item.per_100g?.fat_g, 1),
+  };
+
+  const servingGrams = parseServingGrams(item);
+  if (servingGrams && !baseHasValues(base)) {
+    const factor = 100 / servingGrams;
+    base.kcal = numberOrZero((item.per_serving.kcal ?? 0) * factor, 0);
+    base.protein = numberOrZero((item.per_serving.protein_g ?? 0) * factor, 1);
+    base.carbs = numberOrZero((item.per_serving.carbs_g ?? 0) * factor, 1);
+    base.fat = numberOrZero((item.per_serving.fat_g ?? 0) * factor, 1);
+  }
+
+  const servings: FoodNormalized["servings"] = [
+    { id: "100g", label: "100 g", grams: 100, isDefault: true },
+  ];
+
+  if (servingGrams) {
+    const label =
+      (typeof item.serving.text === "string" && item.serving.text.trim()) ||
+      buildServingLabel(item.serving.qty, item.serving.unit) ||
+      `${servingGrams} g`;
+    if (!servings.some((option) => option.label === label)) {
+      servings.push({ id: `${item.id}-serving`, label, grams: Number(servingGrams.toFixed(2)) });
+    }
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    brand: item.brand,
+    source: item.source,
+    basePer100g: base,
+    servings,
+  };
+}
+
+function numberOrZero(value: unknown, decimals = 0): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const factor = 10 ** decimals;
+  return Math.round(num * factor) / factor;
+}
+
+function baseHasValues(base: FoodNormalized["basePer100g"]): boolean {
+  return Boolean(base.kcal || base.protein || base.carbs || base.fat);
+}
+
+function parseServingGrams(item: NormalizedItem): number | null {
+  const qty = typeof item.serving.qty === "number" ? item.serving.qty : null;
+  const unit = typeof item.serving.unit === "string" ? item.serving.unit : null;
+  const gramsFromUnit = convertToGrams(qty, unit);
+  if (gramsFromUnit) return gramsFromUnit;
+  if (typeof item.serving.text === "string") {
+    const match = item.serving.text.match(/([\d.,]+)\s*(g|oz|ml|kg|lb)/i);
+    if (match) {
+      return convertToGrams(Number(match[1].replace(/,/g, "")), match[2]);
+    }
+  }
+  return null;
+}
+
+function convertToGrams(quantity: number | null, unit: string | null): number | null {
+  if (!quantity || quantity <= 0 || !unit) return null;
+  const normalized = unit.trim().toLowerCase();
+  switch (normalized) {
+    case "g":
+    case "gram":
+    case "grams":
+      return quantity;
+    case "kg":
+    case "kilogram":
+    case "kilograms":
+      return quantity * 1000;
+    case "oz":
+    case "ounce":
+    case "ounces":
+      return quantity * 28.3495231;
+    case "lb":
+    case "lbs":
+    case "pound":
+    case "pounds":
+      return quantity * 453.59237;
+    case "ml":
+    case "milliliter":
+    case "milliliters":
+      return quantity;
+    case "l":
+    case "liter":
+    case "liters":
+      return quantity * 1000;
+    default:
+      return null;
+  }
+}
+
+function buildServingLabel(qty: number | null | undefined, unit: string | null | undefined): string | null {
+  if (!qty || !unit) return null;
+  const roundedQty = Math.round(qty * 100) / 100;
+  return `${roundedQty} ${unit}`;
 }
