@@ -235,6 +235,7 @@ export const runBodyScan = onCall(
 );
 
 export const startScanSession = onRequest(
+  { invoker: "public" },
   withCors(async (req, res) => {
     try {
       await softVerifyAppCheck(req as any, res as any);
@@ -246,6 +247,7 @@ export const startScanSession = onRequest(
 );
 
 export const submitScan = onRequest(
+  { invoker: "public" },
   withCors(async (req, res) => {
     try {
       await softVerifyAppCheck(req as any, res as any);
@@ -266,6 +268,7 @@ export const submitScan = onRequest(
 );
 
 export const processQueuedScanHttp = onRequest(
+  { invoker: "public" },
   withCors(async (req, res) => {
     try {
       await softVerifyAppCheck(req as any, res as any);
@@ -292,11 +295,12 @@ export const processQueuedScanHttp = onRequest(
   })
 );
 
-export const processScan = onRequest(async (req, res) => {
+export const processScan = onRequest({ invoker: "public" }, async (req, res) => {
   await processQueuedScanHttp(req, res);
 });
 
 export const getScanStatus = onRequest(
+  { invoker: "public" },
   withCors(async (req, res) => {
     try {
       await softVerifyAppCheck(req as any, res as any);

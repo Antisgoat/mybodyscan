@@ -43,6 +43,7 @@ async function handler(req: Request, res: any) {
 }
 
 export const recordGateFailure = onRequest(
+  { invoker: "public" },
   withCors(async (req, res) => {
     try {
       await handler(req as Request, res);

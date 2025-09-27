@@ -210,7 +210,7 @@ async function handler(req: Request, res: any) {
   res.json({ items: merged, q: queryText, cached: false });
 }
 
-export const nutritionSearch = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"] }, withCors(async (req, res) => {
+export const nutritionSearch = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public" }, withCors(async (req, res) => {
   try {
     await handler(req as Request, res);
   } catch (error: any) {
