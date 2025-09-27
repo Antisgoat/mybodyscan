@@ -7,6 +7,17 @@
   "durationPerSessionMin": 70,
   "tags": ["4 day", "Power + hypertrophy", "Upper lower"],
   "summary": "Alternating power and hypertrophy focused days to build strength and size together.",
+  "rationale": "Heavy compound work at the start of the week reinforces neural drive so you can express strength, while higher-rep hypertrophy days accumulate volume for muscle growth. The split repeats twice weekly for each muscle group, giving optimal frequency with built-in intensity variation.",
+  "faqs": [
+    {
+      "q": "How should I pace the power sets?",
+      "a": "Rest 2–3 minutes between heavy compound sets so you can produce maximal force without technique breakdown."
+    },
+    {
+      "q": "Do I need to train six days?",
+      "a": "No, four dedicated lifting sessions cover the plan; add optional light cardio or mobility on off days if desired."
+    }
+  ],
   "weeks": [
     {
       "days": [

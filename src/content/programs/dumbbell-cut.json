@@ -7,6 +7,17 @@
   "durationPerSessionMin": 45,
   "tags": ["Fat loss", "Dumbbell only", "Metabolic"],
   "summary": "Higher-rep dumbbell circuits with optional fourth conditioning day to support a cut.",
+  "rationale": "Alternating strength moves with metabolic finishers keeps total work high enough to drive calorie expenditure while maintaining lean tissue. Sessions stay dumbbell-only so you can push close to failure with minimal setup, and RIR targets help manage fatigue during a caloric deficit.",
+  "faqs": [
+    {
+      "q": "How should I progress weights while cutting?",
+      "a": "Aim to maintain or slightly increase loads week to week; if energy dips, keep weight steady but try to match previous rep counts."
+    },
+    {
+      "q": "Can I add extra cardio?",
+      "a": "Yes—slot easy zone-2 cardio on rest days or after the optional day as long as it does not interfere with recovery."
+    }
+  ],
   "weeks": [
     {
       "days": [

@@ -11,8 +11,8 @@ export type ProgramEquipment =
   | "bands";
 
 export interface ProgramFaq {
-  question: string;
-  answer: string;
+  q: string;
+  a: string;
 }
 
 export interface Program {
@@ -28,6 +28,11 @@ export interface Program {
   tags?: string[];
   heroImg?: string;
   faqs?: ProgramFaq[];
+  rationale?: string;
+  /**
+   * 1-based week numbers that should automatically run as deloads.
+   */
+  deloadWeeks?: number[];
 }
 
 export interface Week {

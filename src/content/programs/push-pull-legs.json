@@ -7,14 +7,16 @@
   "durationPerSessionMin": 65,
   "tags": ["Push/pull/legs", "High volume", "Bodybuilding"],
   "summary": "A classic push, pull, legs split that stacks volume across six weekly sessions for experienced lifters.",
+  "rationale": "Each muscle group gets a heavy day and a pump-focused day, allowing you to accumulate 10–20 quality sets per week without burning out. Rotating rep targets and RIR guidelines keep progressive overload structured while still leaving room to chase a pump on accessory work.",
+  "deloadWeeks": [2],
   "faqs": [
     {
-      "question": "Can I reduce to five days?",
-      "answer": "You can drop one accessory-focused day when life gets busy and resume the full split the following week."
+      "q": "Can I reduce to five days?",
+      "a": "You can drop one accessory-focused day when life gets busy and resume the full split the following week."
     },
     {
-      "question": "What if I am short on equipment?",
-      "answer": "Swap cable or machine accessories for dumbbell variations when needed and keep the compound lifts consistent."
+      "q": "What if I am short on equipment?",
+      "a": "Swap cable or machine accessories for dumbbell variations when needed and keep the compound lifts consistent."
     }
   ],
   "weeks": [

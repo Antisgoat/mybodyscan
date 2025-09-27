@@ -7,6 +7,17 @@
   "durationPerSessionMin": 65,
   "tags": ["5x5", "Strength focus", "Simple progression"],
   "summary": "A classic three day 5x5 strength split built around the squat, press, and pull.",
+  "rationale": "Heavy 5x5 work delivers enough volume in the 70–85% 1RM range to drive strength without overshooting recovery. Small accessory supersets shore up weak links while the repeated exposure to core lifts ensures you can track progress clearly.",
+  "faqs": [
+    {
+      "q": "What if I stall on a lift?",
+      "a": "Repeat the same weight the following week; if you miss twice, drop 5–7% and build back up."
+    },
+    {
+      "q": "Can I add conditioning?",
+      "a": "Keep conditioning to short low-intensity sessions after lifting or on rest days so leg strength is not compromised."
+    }
+  ],
   "weeks": [
     {
       "days": [

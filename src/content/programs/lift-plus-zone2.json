@@ -7,6 +7,17 @@
   "durationPerSessionMin": 60,
   "tags": ["Strength + cardio", "Zone 2", "3 day"],
   "summary": "Two strength-focused sessions plus one mixed conditioning day with dedicated zone 2 cardio.",
+  "rationale": "Strength sessions focus on compound lifts to preserve muscle while the dedicated zone 2 block builds an aerobic base that supports recovery and fat oxidation. The week balances higher-intensity intervals with easy steady-state cardio to improve work capacity without compromising lifting performance.",
+  "faqs": [
+    {
+      "q": "What heart rate should I target for zone 2?",
+      "a": "Aim for roughly 60–70% of max heart rate—breathing should be controlled enough to speak in full sentences."
+    },
+    {
+      "q": "Can I rearrange the days?",
+      "a": "Yes, keep at least one rest day between the lifting sessions and place the cardio day where it best fits your schedule."
+    }
+  ],
   "weeks": [
     {
       "days": [
