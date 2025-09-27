@@ -7,7 +7,7 @@
   "durationPerSessionMin": 30,
   "tags": ["Mobility", "Core", "Active recovery"],
   "summary": "Two refreshing sessions that mix mobility flows with focused core work—ideal alongside heavier training.",
-  "rationale": "Sequences cycle from mobility drills into trunk stability work so you open up key joints before reinforcing new ranges. Low-load isometrics and anti-rotation moves build resilience without adding much systemic fatigue, making the plan perfect for active recovery."
+  "rationale": "Sequences cycle from mobility drills into trunk stability work so you open up key joints before reinforcing new ranges. Low-load isometrics and anti-rotation moves build resilience without adding much systemic fatigue, making the plan perfect for active recovery.",
   "weeks": [
     {
       "days": [
@@ -51,7 +51,11 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "days": [
         {
           "name": "Day 2 – Hips & Antirotation",
           "blocks": [
