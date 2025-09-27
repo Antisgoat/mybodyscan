@@ -59,6 +59,11 @@ function storeRecents(items: RecentItem[]) {
   window.localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, MAX_RECENTS)));
 }
 
+function formatServingQuantity(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toString();
+}
+
 export default function Meals() {
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>({ totals: { calories: 0 }, meals: [] });
@@ -405,6 +410,9 @@ export default function Meals() {
               const item = meal.item ? normalizedFromSnapshot(meal.item) : null;
               const qty = meal.serving?.qty ?? 1;
               const unit = (meal.serving?.unit as ServingUnit) || "serving";
+              const qtyDisplay =
+                typeof meal.serving?.qty === "number" ? formatServingQuantity(meal.serving.qty) : null;
+              const unitLabel = typeof meal.serving?.unit === "string" ? meal.serving.unit : null;
               return (
                 <Card key={meal.id || meal.name} className="border">
                   <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
@@ -413,11 +421,12 @@ export default function Meals() {
                       <p className="text-xs text-muted-foreground">
                         {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P • {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
                       </p>
-                      {meal.serving?.grams ? (
+                      {(qtyDisplay || unitLabel || meal.serving?.grams) && (
                         <p className="text-xs text-muted-foreground">
-                          {qty} {unit} · approx {Math.round(meal.serving.grams)} g
+                          {qtyDisplay && unitLabel ? `${qtyDisplay} × ${unitLabel}` : qtyDisplay || unitLabel || ""}
+                          {meal.serving?.grams ? ` · approx ${Math.round(meal.serving.grams)} g` : ""}
                         </p>
-                      ) : null}
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {item && (

@@ -12,6 +12,7 @@ interface FoodSearchApiItem {
   fdcId?: number | string | null;
   gtin?: string | null;
   upc?: string | null;
+  raw?: any;
   serving?: {
     qty?: number | null;
     unit?: string | null;
@@ -38,6 +39,7 @@ export interface NormalizedItem {
   source: NutritionSource;
   gtin?: string;
   fdcId?: number;
+  raw?: any;
   serving: {
     qty: number | null;
     unit: string | null;
@@ -90,6 +92,7 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
         ? raw.upc
         : undefined,
     fdcId: toNumber(raw?.fdcId) ?? undefined,
+    raw: raw?.raw,
     serving: {
       qty: toNumber(serving?.qty),
       unit: typeof serving?.unit === "string" && serving.unit.trim().length ? serving.unit : null,
@@ -127,6 +130,7 @@ function normalizeItem(raw: any): NormalizedItem {
     source: raw?.source === "OFF" ? "OFF" : "USDA",
     gtin: typeof raw?.gtin === "string" ? raw.gtin : typeof raw?.upc === "string" ? raw.upc : undefined,
     fdcId: toNumber(raw?.fdcId) ?? undefined,
+    raw: raw?.raw,
     serving: {
       qty: toNumber(serving.qty ?? serving.quantity),
       unit: typeof serving.unit === "string" ? serving.unit : null,
