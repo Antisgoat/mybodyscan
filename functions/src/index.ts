@@ -35,5 +35,8 @@ export { createCheckoutSession, createCheckout, createCustomerPortal } from "./p
 export { stripeWebhook } from "./stripeWebhook.js";
 export { useCredit } from "./useCredit.js";
 
+// Auth triggers
+export { handleUserCreate } from "./authTriggers.js";
+
 // Food search
 export { foodSearch } from "./foodSearch.js";
