@@ -6,79 +6,119 @@ import { softVerifyAppCheck } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckSoft } from "./http.js";
 
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://mybodyscanapp.com";
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-
-function buildStripe(): Stripe | null {
-  if (!STRIPE_SECRET_KEY) return null;
-  return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
-}
+const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || "";
+const ORIGIN = process.env.HOST_BASE_URL || "https://mybodyscanapp.com";
 
 type CheckoutMode = "payment" | "subscription";
 
+type PlanKey = "single" | "monthly" | "yearly" | "extra";
+
+const PLAN_CONFIG: Record<PlanKey, { priceId: string; mode: CheckoutMode }> = {
+  single: { priceId: "price_single_scan", mode: "payment" },
+  monthly: { priceId: "price_monthly_intro", mode: "subscription" },
+  yearly: { priceId: "price_annual", mode: "subscription" },
+  extra: { priceId: "price_extra_scan", mode: "payment" },
+};
+
 interface CheckoutSessionPayload {
-  priceId: string;
-  mode: CheckoutMode;
-  successUrl: string;
-  cancelUrl: string;
+  plan: PlanKey;
 }
 
 interface CheckoutSessionResult {
   url: string | null;
-  mock?: true;
+}
+
+class CheckoutError extends Error {
+  constructor(readonly kind: "config" | "internal") {
+    super(kind);
+  }
+}
+
+function buildStripe(plan?: PlanKey): Stripe {
+  if (!STRIPE_SECRET) {
+    console.error("checkout_config_error", { plan: plan ?? null, reason: "missing_secret" });
+    throw new CheckoutError("config");
+  }
+  return new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
 }
 
 function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {
-  const body = (data || {}) as Partial<CheckoutSessionPayload>;
-  const { priceId, mode, successUrl, cancelUrl } = body;
-  if (
-    typeof priceId !== "string" ||
-    typeof successUrl !== "string" ||
-    typeof cancelUrl !== "string" ||
-    (mode !== "payment" && mode !== "subscription")
-  ) {
-    throw new HttpsError("invalid-argument", "Missing checkout parameters");
+  const body = (data || {}) as Record<string, unknown>;
+  const rawPlan = body?.plan;
+  const plan = Array.isArray(rawPlan)
+    ? (rawPlan[0] as string | undefined)
+    : (rawPlan as string | undefined);
+  if (plan !== "single" && plan !== "monthly" && plan !== "yearly" && plan !== "extra") {
+    throw new HttpsError("invalid-argument", "Invalid checkout plan");
   }
-  return { priceId, mode, successUrl, cancelUrl };
+  return { plan };
+}
+
+function getPlanConfig(plan: PlanKey) {
+  const config = PLAN_CONFIG[plan];
+  if (!config?.priceId) {
+    console.error("checkout_config_error", { plan, reason: "missing_price" });
+    throw new CheckoutError("config");
+  }
+  return config;
 }
 
 async function createCheckoutSessionForUid(
   uid: string,
   payload: CheckoutSessionPayload
 ): Promise<CheckoutSessionResult> {
-  const stripe = buildStripe();
-  if (!stripe) {
-    const fallbackUrl = `${APP_BASE_URL}/plans/checkout?price=${encodeURIComponent(
-      payload.priceId
-    )}&mode=${payload.mode}`;
-    return { url: fallbackUrl, mock: true };
+  const { plan } = payload;
+  const { priceId, mode } = getPlanConfig(plan);
+  const stripe = buildStripe(plan);
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${ORIGIN}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${ORIGIN}/plans?canceled=1`,
+      client_reference_id: uid,
+      metadata: { uid, priceId, plan },
+    });
+    return { url: session.url ?? null };
+  } catch (err: any) {
+    console.error("checkout_internal_error", {
+      plan,
+      message: err?.message,
+    });
+    throw new CheckoutError("internal");
   }
-  const session = await stripe.checkout.sessions.create({
-    mode: payload.mode,
-    line_items: [{ price: payload.priceId, quantity: 1 }],
-    success_url: payload.successUrl,
-    cancel_url: payload.cancelUrl,
-    client_reference_id: uid,
-    metadata: { uid, priceId: payload.priceId },
-  });
-  return { url: session.url };
 }
 
 async function handleCheckoutSession(req: Request, res: any) {
   await verifyAppCheckSoft(req);
   const uid = await requireAuth(req);
-  const payload = parseCheckoutSessionPayload(req.body);
-  const result = await createCheckoutSessionForUid(uid, payload);
-  res.json(result);
+  const source = req.body && Object.keys(req.body || {}).length ? req.body : req.query;
+  const payload = parseCheckoutSessionPayload(source);
+  try {
+    const result = await createCheckoutSessionForUid(uid, payload);
+    res.json(result);
+  } catch (err) {
+    if (err instanceof CheckoutError) {
+      const status = err.kind === "config" ? 400 : 500;
+      res.status(status).json({ error: err.kind });
+      return;
+    }
+    throw err;
+  }
 }
 
 async function handleCustomerPortal(req: Request, res: any) {
   await verifyAppCheckSoft(req);
   const uid = await requireAuth(req);
-  const stripe = buildStripe();
-  if (!stripe) {
-    res.json({ url: `${APP_BASE_URL}/plans` });
-    return;
+  let stripe: Stripe;
+  try {
+    stripe = buildStripe();
+  } catch (err) {
+    if (err instanceof CheckoutError && err.kind === "config") {
+      res.json({ url: `${ORIGIN}/plans` });
+      return;
+    }
+    throw err;
   }
   const user = await getAuth().getUser(uid);
   if (!user.email) {
@@ -90,19 +130,28 @@ async function handleCustomerPortal(req: Request, res: any) {
   }
   const session = await stripe.billingPortal.sessions.create({
     customer: customers.data[0].id,
-    return_url: `${APP_BASE_URL}/plans`,
+    return_url: `${ORIGIN}/plans`,
   });
   res.json({ url: session.url });
 }
 
 function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   return onRequest(
-    { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"], invoker: "public" },
+    {
+      region: "us-central1",
+      secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY"],
+      invoker: "public",
+    },
     withCors(async (req, res) => {
       try {
         await softVerifyAppCheck(req as any, res as any);
         await handler(req, res);
       } catch (err: any) {
+        if (err instanceof CheckoutError) {
+          const status = err.kind === "config" ? 400 : 500;
+          res.status(status).json({ error: err.kind });
+          return;
+        }
         const code = err instanceof HttpsError ? err.code : "internal";
         const status =
           code === "unauthenticated"
@@ -134,11 +183,19 @@ export async function createCheckoutSessionHandler(
     await verifyAppCheckSoft(rawRequest);
   }
   const payload = parseCheckoutSessionPayload(data);
-  return createCheckoutSessionForUid(uid, payload);
+  try {
+    return await createCheckoutSessionForUid(uid, payload);
+  } catch (err) {
+    if (err instanceof CheckoutError) {
+      const code = err.kind === "config" ? "failed-precondition" : "internal";
+      throw new HttpsError(code as any, err.kind);
+    }
+    throw err;
+  }
 }
 
 export const createCheckoutSession = onCall<Partial<CheckoutSessionPayload>>(
-  { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
+  { region: "us-central1", secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY"] },
   async (request: CallableRequest<Partial<CheckoutSessionPayload>>) =>
     createCheckoutSessionHandler(request.data, request)
 );

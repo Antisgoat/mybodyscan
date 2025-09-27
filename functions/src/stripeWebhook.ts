@@ -4,19 +4,19 @@ import Stripe from 'stripe';
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 type RequestWithRawBody = Request & Record<'rawBody', Buffer>;
 
 function buildStripe(): Stripe | null {
-  if (!STRIPE_SECRET_KEY) return null;
-  return new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
+  if (!STRIPE_SECRET) return null;
+  return new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
 }
 
 export const stripeWebhook = onRequest({
   region: "us-central1",
-  secrets: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+  secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
   invoker: "public",
 }, async (req, res) => {
   if (req.method !== "POST") {
@@ -47,6 +47,7 @@ export const stripeWebhook = onRequest({
   }
 
   try {
+    console.log("stripe_webhook_event", { type: event.type, id: event.id });
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;

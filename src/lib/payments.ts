@@ -5,15 +5,15 @@ import { track } from "./analytics";
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
+import { authedFetch } from "@/lib/api";
 
-export async function startCheckout(
-    priceId: string,
-    mode: "payment" | "subscription"
-  ) {
+export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
+
+export async function startCheckout(plan: CheckoutPlanKey) {
     if (isDemoGuest()) {
       track("demo_block", { action: "checkout" });
       try {
-        toast({ 
+        toast({
           title: "Sign up to use this feature",
           description: "Create a free account to continue.",
         });
@@ -24,18 +24,60 @@ export async function startCheckout(
     const { getAuth } = await import("firebase/auth");
     const user = getAuth().currentUser;
     if (!user) throw new Error("Not signed in");
-    const createSession = httpsCallable(functions, "createCheckoutSession");
-    const { data } = await createSession({
-      priceId,
-      mode,
-      successUrl: window.location.origin + "/checkout/success",
-      cancelUrl: window.location.origin + "/checkout/canceled",
+    const response = await authedFetch(`/createCheckout`, {
+      method: "POST",
+      body: JSON.stringify({ plan }),
     });
-    const payload = data as { url?: string | null };
-    if (!payload?.url) {
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as Record<string, unknown>;
+
+    const errorCode = typeof (payload as any)?.error === "string" ? ((payload as any).error as string) : undefined;
+
+    if (!response.ok) {
+      if (errorCode === "config") {
+        toast({
+          title: "Checkout not configured",
+          description: "Checkout not configured. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (errorCode === "internal") {
+        toast({
+          title: "Checkout error",
+          description: "Checkout error. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      throw new Error(errorCode || "Checkout failed");
+    }
+
+    if (errorCode) {
+      if (errorCode === "config") {
+        toast({
+          title: "Checkout not configured",
+          description: "Checkout not configured. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (errorCode === "internal") {
+        toast({
+          title: "Checkout error",
+          description: "Checkout error. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const url = typeof (payload as any)?.url === "string" ? ((payload as any).url as string) : null;
+    if (!url) {
       throw new Error("Checkout failed");
     }
-    window.location.assign(payload.url);
+    window.location.assign(url);
 }
 
 export async function consumeOneCredit(): Promise<number> {

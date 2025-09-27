@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { startCheckout } from "@/lib/payments";
+import { startCheckout, type CheckoutPlanKey } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -13,10 +13,10 @@ import { isDemoGuest } from "@/lib/demoFlag";
 
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (priceId: string, mode: "payment" | "subscription") => {
+  const handleCheckout = async (plan: CheckoutPlanKey, mode: "payment" | "subscription") => {
     try {
-      track("checkout_start", { plan: priceId });
-      await startCheckout(priceId, mode);
+      track("checkout_start", { plan });
+      await startCheckout(plan);
     } catch (err: any) {
       if (err?.message?.includes("Backend URL not configured")) {
         toast({
@@ -42,7 +42,7 @@ export default function Plans() {
       price: "$9.99",
       period: "one-time",
       credits: "1 scan credit",
-      priceId: "price_single_scan",
+      plan: "single" as const,
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -57,7 +57,7 @@ export default function Plans() {
       originalPrice: "$24.99",
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
-      priceId: "price_monthly_intro",
+      plan: "monthly" as const,
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -76,7 +76,7 @@ export default function Plans() {
       price: "$199.99",
       period: "per year",
       credits: "3 scans/month + Everything included",
-      priceId: "price_annual",
+      plan: "yearly" as const,
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -100,7 +100,7 @@ export default function Plans() {
       price: "$9.99",
       period: "one-time",
       credits: "1 scan credit",
-      priceId: "price_extra_scan",
+      plan: "extra" as const,
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
@@ -174,7 +174,7 @@ export default function Plans() {
                 <Button
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleCheckout(plan.priceId, plan.mode)}
+                  onClick={() => handleCheckout(plan.plan, plan.mode)}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>
