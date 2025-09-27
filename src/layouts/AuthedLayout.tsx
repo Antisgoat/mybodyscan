@@ -19,6 +19,7 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
   { to: "/today", label: "Today", feature: "health" },
   { to: "/meals", label: "Meals", feature: "nutrition" },
   { to: "/workouts", label: "Workouts", feature: "workouts" },
+  { to: "/programs", label: "Programs", feature: "coach" },
   { to: "/coach", label: "Coach", feature: "coach" },
   { to: "/history", label: "History", feature: "scan" },
   { to: "/plans", label: "Plans", feature: "account" },

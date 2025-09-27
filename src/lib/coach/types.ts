@@ -1,8 +1,33 @@
+export type ProgramGoal = "hypertrophy" | "strength" | "cut" | "general";
+
+export type ProgramLevel = "beginner" | "intermediate" | "advanced";
+
+export type ProgramEquipment =
+  | "none"
+  | "dumbbells"
+  | "kettlebells"
+  | "barbell"
+  | "machines"
+  | "bands";
+
+export interface ProgramFaq {
+  question: string;
+  answer: string;
+}
+
 export interface Program {
   id: string;
   title: string;
-  goal: "hypertrophy" | "strength" | "cut";
+  goal: ProgramGoal;
   weeks: Week[];
+  summary?: string;
+  description?: string;
+  level?: ProgramLevel;
+  equipment?: ProgramEquipment[];
+  durationPerSessionMin?: number;
+  tags?: string[];
+  heroImg?: string;
+  faqs?: ProgramFaq[];
 }
 
 export interface Week {
