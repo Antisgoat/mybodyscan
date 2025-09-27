@@ -11,7 +11,8 @@ const Terms = () => {
       <article className="prose prose-neutral dark:prose-invert max-w-none">
         <h1>Terms of Service</h1>
         <p>
-          MyBodyScan provides general-wellness information and is not a medical device. Results are estimates and should not be used for diagnosis or treatment. Always consult a qualified professional for medical advice.
+          MyBodyScan provides general-wellness information and is not a medical device. Estimates only. Not a medical diagnosis.
+          Always consult a qualified professional for medical advice.
         </p>
         <p>
           Purchases are non-refundable once a scan has been processed, except where required by applicable law.

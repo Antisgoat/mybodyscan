@@ -16,6 +16,7 @@ const Privacy = () => {
         <p>
           You can request data deletion at any time by contacting <a href="mailto:support@mybodyscanapp.com">support@mybodyscanapp.com</a>.
         </p>
+        <p className="text-sm text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
       </article>
     </>
   );

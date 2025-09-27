@@ -20,7 +20,7 @@ const Privacy = () => {
         <p>
           Credits expire 12 months after purchase and transaction logs are kept only as required for payments.
         </p>
-        <p className="text-sm text-muted-foreground">This app is not medical advice.</p>
+        <p className="text-sm text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
       </article>
     </>
   );
