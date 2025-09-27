@@ -17,6 +17,7 @@ function buildStripe(): Stripe | null {
 export const stripeWebhook = onRequest({
   region: "us-central1",
   secrets: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+  invoker: "public",
 }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");

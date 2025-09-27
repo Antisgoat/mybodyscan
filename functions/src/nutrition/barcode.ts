@@ -101,7 +101,7 @@ async function handler(req: Request, res: any) {
   res.json({ item: result.item, code, source: result.source, cached: false });
 }
 
-export const nutritionBarcode = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"] }, withCors(async (req, res) => {
+export const nutritionBarcode = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public" }, withCors(async (req, res) => {
   try {
     await handler(req as Request, res);
   } catch (error: any) {

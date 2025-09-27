@@ -218,6 +218,7 @@ async function handleGetWorkouts(req: Request, res: any) {
 
 function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   return onRequest(
+    { invoker: "public" },
     withCors(async (req, res) => {
       try {
         await softVerifyAppCheck(req as any, res as any);

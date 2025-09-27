@@ -97,7 +97,7 @@ async function handleCustomerPortal(req: Request, res: any) {
 
 function withHandler(handler: (req: Request, res: any) => Promise<void>) {
   return onRequest(
-    { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"] },
+    { region: "us-central1", secrets: ["STRIPE_SECRET_KEY"], invoker: "public" },
     withCors(async (req, res) => {
       try {
         await softVerifyAppCheck(req as any, res as any);

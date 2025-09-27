@@ -130,7 +130,7 @@ async function handler(req: Request, res: Response) {
   res.json({ items: results.map(toResponseItem) });
 }
 
-export const foodSearch = onRequest({ region: "us-central1" }, withCors(async (req, res) => {
+export const foodSearch = onRequest({ region: "us-central1", invoker: "public" }, withCors(async (req, res) => {
   try {
     await handler(req as Request, res as Response);
   } catch (error: any) {
