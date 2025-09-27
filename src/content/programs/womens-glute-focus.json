@@ -7,6 +7,17 @@
   "durationPerSessionMin": 60,
   "tags": ["Glute focus", "3-4 day", "Lower body"],
   "summary": "Targeted glute and leg training with one optional pump day for extra volume.",
+  "rationale": "Heavy hip hinge and squat variations provide the mechanical tension needed for glute growth, while pump sessions layer on metabolite work for extra stimulus. The optional day lets you auto-regulate volume based on recovery so you can stay consistent during busy weeks.",
+  "faqs": [
+    {
+      "q": "Do I need to perform the optional day?",
+      "a": "Use it when you feel fresh—skip it during stressful weeks so core sessions stay high quality."
+    },
+    {
+      "q": "What if a machine isn't available?",
+      "a": "Swap to dumbbell or banded alternatives that mimic the same direction of resistance and rep range."
+    }
+  ],
   "weeks": [
     {
       "days": [

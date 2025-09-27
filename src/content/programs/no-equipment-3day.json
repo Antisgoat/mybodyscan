@@ -7,6 +7,17 @@
   "durationPerSessionMin": 35,
   "tags": ["Bodyweight", "Home friendly", "3 day"],
   "summary": "Minimalist three day plan using only bodyweight, perfect for travel or at-home training.",
+  "rationale": "Supersets pair pushing, pulling, and single-leg drills so you keep heart rate elevated and stimulate muscle without equipment. Tempo work and unilateral loading challenge stability, driving strength gains with progressive variations instead of added weight.",
+  "faqs": [
+    {
+      "q": "How do I make sessions harder over time?",
+      "a": "Add reps to the higher end of each range, slow the lowering phase, or reduce rest between circuits before introducing weighted backpacks."
+    },
+    {
+      "q": "Can I split the workouts across the day?",
+      "a": "Yes—perform one or two circuits in the morning and finish the rest later if that helps you stay consistent."
+    }
+  ],
   "weeks": [
     {
       "days": [

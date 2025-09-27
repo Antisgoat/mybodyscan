@@ -82,6 +82,57 @@ function isCompoundLift(name: string): boolean {
   return keywords.some((keyword) => normalized.includes(keyword));
 }
 
+function formatRepValue(value: number): string {
+  if (Number.isNaN(value)) {
+    return "";
+  }
+  if (Number.isInteger(value)) {
+    return `${value}`;
+  }
+  return value.toFixed(1).replace(/\.0$/, "");
+}
+
+export function isDeloadWeek(weekIdx: number, deloadWeeks?: number[]): boolean {
+  if (!Array.isArray(deloadWeeks) || !deloadWeeks.length) {
+    return false;
+  }
+  return deloadWeeks.some((week) => {
+    if (typeof week !== "number" || Number.isNaN(week)) {
+      return false;
+    }
+    const normalized = Math.max(0, Math.trunc(week) - 1);
+    return normalized === weekIdx;
+  });
+}
+
+export function applyDeloadToDay(day: Day): Day {
+  return {
+    ...day,
+    blocks: day.blocks.map((block) => ({
+      ...block,
+      exercises: block.exercises.map((exercise) => {
+        const reducedSets = Math.max(1, Math.round(exercise.sets * 0.7));
+        const repRange = parseRepRange(exercise.reps);
+        let adjustedReps = exercise.reps;
+        if (repRange && repRange.lower !== null && repRange.upper !== null) {
+          const lower = Math.max(1, repRange.lower - 1);
+          const upper = Math.max(lower, repRange.upper - 1);
+          if (lower === upper) {
+            adjustedReps = formatRepValue(lower);
+          } else {
+            adjustedReps = `${formatRepValue(lower)}-${formatRepValue(upper)}`;
+          }
+        }
+        return {
+          ...exercise,
+          sets: reducedSets,
+          reps: adjustedReps,
+        };
+      }),
+    })),
+  };
+}
+
 export function computeNextTargets(params: {
   exerciseName: string;
   lastSets: { reps: number; weight?: number }[];

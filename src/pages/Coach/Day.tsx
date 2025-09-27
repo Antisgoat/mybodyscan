@@ -19,7 +19,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { computeNextTargets, flattenDay, nextProgressionHint } from "@/lib/coach/progression";
+import {
+  applyDeloadToDay,
+  computeNextTargets,
+  flattenDay,
+  isDeloadWeek,
+  nextProgressionHint,
+} from "@/lib/coach/progression";
 import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import {
@@ -155,6 +161,11 @@ export default function CoachDay() {
   const dayParam = Number.parseInt(searchParams.get("day") ?? "0", 10);
   const safeDayIdx = week?.days?.length ? clampIndex(dayParam, 0, week.days.length - 1) : 0;
   const day = week?.days?.[safeDayIdx];
+  const isCurrentWeekDeload = rawProgram ? isDeloadWeek(safeWeekIdx, rawProgram.deloadWeeks) : false;
+  const effectiveDay = useMemo(() => {
+    if (!day) return undefined;
+    return isCurrentWeekDeload ? applyDeloadToDay(day) : day;
+  }, [day, isCurrentWeekDeload]);
 
   const substitutionDisplayMap = useMemo(() => {
     const entries = Object.entries(selectedSubstitutions);
@@ -168,22 +179,22 @@ export default function CoachDay() {
   }, [selectedSubstitutions]);
 
   const blocks = useMemo(
-    () => structureBlocks(day, selectedSubstitutions),
-    [day, selectedSubstitutions]
+    () => structureBlocks(effectiveDay, selectedSubstitutions),
+    [effectiveDay, selectedSubstitutions]
   );
-  const baseFlattened = useMemo(() => (day ? flattenDay(day) : []), [day]);
+  const baseFlattened = useMemo(() => (effectiveDay ? flattenDay(effectiveDay) : []), [effectiveDay]);
   const flattened = useMemo(
-    () => (day ? flattenDay(day, substitutionDisplayMap) : []),
-    [day, substitutionDisplayMap]
+    () => (effectiveDay ? flattenDay(effectiveDay, substitutionDisplayMap) : []),
+    [effectiveDay, substitutionDisplayMap]
   );
   const hasActiveTimers = Object.keys(activeTimers).length > 0;
 
   useEffect(() => {
     setSelectedSubstitutions({});
-  }, [day]);
+  }, [effectiveDay]);
 
   useEffect(() => {
-    if (!day) return;
+    if (!effectiveDay) return;
     const initial: Record<string, SetEntry> = {};
     baseFlattened.forEach((row) => {
       const key = `${row.exIdx}-${row.set}`;
@@ -195,7 +206,7 @@ export default function CoachDay() {
     });
     setSetData(initial);
     setActiveTimers({});
-  }, [day, baseFlattened]);
+  }, [effectiveDay, baseFlattened]);
 
   useEffect(() => {
     if (!hasActiveTimers) return;
@@ -219,7 +230,7 @@ export default function CoachDay() {
 
     async function loadTargets() {
       const user = auth.currentUser;
-      if (!day || !rawProgram || !user) {
+      if (!effectiveDay || !rawProgram || !user) {
         if (!cancelled) {
           setNextTargets([]);
         }
@@ -262,7 +273,7 @@ export default function CoachDay() {
         }
 
         const suggestions: string[] = [];
-        day.blocks.forEach((block) => {
+        effectiveDay.blocks.forEach((block) => {
           block.exercises.forEach((exercise) => {
             const lastSets = setMap.get(exercise.name) ?? [];
             if (!lastSets.length) {
@@ -294,7 +305,7 @@ export default function CoachDay() {
     return () => {
       cancelled = true;
     };
-  }, [day, rawProgram?.id, safeDayIdx]);
+  }, [effectiveDay, rawProgram?.id, safeDayIdx]);
 
   const updateSet = (key: string, partial: Partial<SetEntry>) => {
     setSetData((prev) => {
@@ -453,7 +464,14 @@ export default function CoachDay() {
           </Button>
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">{rawProgram.title}</p>
-            <h1 className="text-2xl font-semibold">{day.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">{day.name}</h1>
+              {isCurrentWeekDeload && (
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                  Deload week
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               Week {safeWeekIdx + 1} • Day {safeDayIdx + 1}
             </p>

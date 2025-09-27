@@ -7,6 +7,17 @@
   "durationPerSessionMin": 45,
   "tags": ["Kettlebell", "Power endurance", "3 day"],
   "summary": "Three efficient kettlebell sessions combining strength, power, and conditioning.",
+  "rationale": "Each day layers grinds with ballistic work so you develop strength, power, and aerobic capacity together. Density blocks control work-to-rest ratios, keeping heart rate in a productive range while repeated exposure to swings and cleans sharpens technique.",
+  "faqs": [
+    {
+      "q": "How heavy should my kettlebells be?",
+      "a": "Choose a bell that challenges the final reps while maintaining crisp technique—usually 16–24 kg for swings and 8–16 kg for presses, adjusting to your strength."
+    },
+    {
+      "q": "Can I run this alongside other training?",
+      "a": "Yes, pair it with low-intensity cardio or bodyweight mobility work on off days; avoid stacking heavy barbell sessions on back-to-back days."
+    }
+  ],
   "weeks": [
     {
       "days": [

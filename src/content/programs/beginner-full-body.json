@@ -7,14 +7,16 @@
   "durationPerSessionMin": 55,
   "tags": ["Full body", "3-day split", "Strength foundations"],
   "summary": "Three focused full-body sessions each week to build strength and muscle with classic compound lifts.",
+  "rationale": "Alternating full-body days distributes volume across big movement patterns so beginners get frequent practice without overwhelming soreness. Progressive overload is baked in through moderate jumps in sets and rep ranges while RIR targets ensure technique stays crisp as load increases.",
+  "deloadWeeks": [4],
   "faqs": [
     {
-      "question": "How many days a week will I train?",
-      "answer": "You will train three days each week with at least one rest day between sessions."
+      "q": "How many days a week will I train?",
+      "a": "You will train three days each week with at least one rest day between sessions to lock in recovery."
     },
     {
-      "question": "Is this friendly for beginners?",
-      "answer": "Yes. The program introduces key movement patterns with moderate volume so you can master form and progress safely."
+      "q": "Is this friendly for beginners?",
+      "a": "Yes. The plan layers in compound lifts with accessory support so you can groove form, add weight gradually, and still have energy for life outside the gym."
     }
   ],
   "weeks": [

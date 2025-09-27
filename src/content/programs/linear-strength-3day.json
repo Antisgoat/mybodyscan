@@ -7,6 +7,17 @@
   "durationPerSessionMin": 55,
   "tags": ["Linear progression", "3 day", "Full body"],
   "summary": "Three focused strength sessions each week with small linear jumps and optional accessory swaps.",
+  "rationale": "Main lifts stay in low-to-moderate rep ranges so you can add small amounts of weight weekly while maintaining technical quality. Accessories use higher reps and controlled RIR to build muscle that supports the big lifts without overwhelming CNS fatigue.",
+  "faqs": [
+    {
+      "q": "How quickly should I add weight?",
+      "a": "Add 2.5–5 lb when you hit all prescribed reps with the listed RIR; if you miss, keep the load the same next week."
+    },
+    {
+      "q": "Can I swap accessories?",
+      "a": "Yes—use the suggested substitutions or choose movements that hit the same muscle group for similar reps and tempo."
+    }
+  ],
   "weeks": [
     {
       "days": [

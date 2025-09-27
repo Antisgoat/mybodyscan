@@ -51,6 +51,9 @@ type RankedProgram = {
 
 const hasHeroImage = (meta: ProgramMeta) => Boolean(meta.heroImg);
 
+const equipmentLabel = (value: ProgramEquipment) =>
+  EQUIPMENT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+
 const deriveSummary = (program: Program, meta: ProgramMeta) => {
   if (program.summary) return program.summary;
   return `A ${meta.daysPerWeek}-day, ${meta.weeks}-week plan focused on ${goalLabels[meta.goal].toLowerCase()}.`;
@@ -257,6 +260,13 @@ export default function ProgramsCatalog() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rankedPrograms.map(({ entry, score }) => {
             const { meta, program } = entry;
+            const weeksLabel = meta.weeks === 1 ? "wk" : "wks";
+            const sessionLengthLabel = meta.durationPerSessionMin
+              ? `${meta.durationPerSessionMin} min`
+              : "~45 min";
+            const scheduleCaption = `${meta.daysPerWeek} d/wk • ${meta.weeks} ${weeksLabel} • ${sessionLengthLabel}`;
+            const hasDeload = Boolean(program.deloadWeeks && program.deloadWeeks.length);
+            const equipmentSummary = Array.from(new Set(meta.equipment)).map((item) => equipmentLabel(item)).join(" • ");
             return (
               <Card
                 key={meta.id}
@@ -269,49 +279,59 @@ export default function ProgramsCatalog() {
                     navigate(`/programs/${meta.id}`);
                   }
                 }}
-                className="group flex h-full flex-col overflow-hidden transition hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="group flex h-full flex-col overflow-hidden border bg-card/70 transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               >
-                <div className="relative overflow-hidden">
+                <div className="relative">
                   <AspectRatio ratio={16 / 9}>
-                    {hasHeroImage(meta) ? (
-                      <img
-                        src={meta.heroImg}
-                        alt={program.title}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-primary/20 via-primary/5 to-background" />
-                    )}
+                    <div className="relative h-full w-full">
+                      {hasHeroImage(meta) ? (
+                        <img
+                          src={meta.heroImg}
+                          alt={program.title}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-primary/25 via-primary/10 to-background" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/30 to-transparent" />
+                      <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 text-[11px] font-semibold text-foreground">
+                        <span className="rounded-full bg-background/80 px-3 py-1 shadow-sm backdrop-blur-sm">
+                          {goalLabels[meta.goal]}
+                        </span>
+                        <span className="rounded-full bg-background/70 px-3 py-1 shadow-sm backdrop-blur-sm">
+                          {levelLabels[meta.level]}
+                        </span>
+                      </div>
+                    </div>
                   </AspectRatio>
                 </div>
-                <CardHeader className="flex-1 space-y-2">
-                  <CardTitle className="text-xl">{program.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {deriveSummary(program, meta)}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <Badge variant="secondary">{goalLabels[meta.goal]}</Badge>
-                    <Badge variant="outline">{levelLabels[meta.level]}</Badge>
-                    <Badge variant="outline">{meta.daysPerWeek} days / wk</Badge>
-                    <Badge variant="outline">{meta.weeks} weeks</Badge>
+                <div className="flex flex-1 flex-col gap-4 p-5">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-foreground">{program.title}</h3>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {scheduleCaption}
+                    </p>
+                    <p className="text-sm text-muted-foreground line-clamp-3">
+                      {deriveSummary(program, meta)}
+                    </p>
                   </div>
                   {program.tags && program.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-xs">
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       {program.tags.map((tag) => (
-                        <span key={tag} className="rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                        <span key={tag} className="rounded-full bg-muted px-2 py-1 text-[11px]">
                           {tag}
                         </span>
                       ))}
                     </div>
                   )}
-                  {hasActiveFilters && (
-                    <p className="text-xs font-medium text-primary">
-                      Match score: {score}%
-                    </p>
-                  )}
-                </CardContent>
+                  <div className="mt-auto flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>{equipmentSummary}</span>
+                    {hasDeload && <span className="rounded-full bg-muted px-2 py-1 text-[10px] uppercase">Deload built-in</span>}
+                    {hasActiveFilters && (
+                      <span className="ml-auto font-medium text-primary">Match score: {score}%</span>
+                    )}
+                  </div>
+                </div>
               </Card>
             );
           })}

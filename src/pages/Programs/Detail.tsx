@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import type { Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
+import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
@@ -174,6 +175,17 @@ export default function ProgramDetail() {
   }
 
   const equipment = meta.equipment.length ? meta.equipment : ["none"];
+  const equipmentDisplay = equipment.map((item) => equipmentLabels[item] ?? item);
+  const deloadWeeks = program.deloadWeeks ?? [];
+  const hasDeloadWeeks = deloadWeeks.length > 0;
+  const deloadWeekLabel = deloadWeeks
+    .map((week) => (Number.isFinite(week) ? `Week ${week}` : null))
+    .filter(Boolean)
+    .join(", ");
+  const sessionLengthLabel = meta.durationPerSessionMin
+    ? `${meta.durationPerSessionMin} min`
+    : "~45 min";
+  const scheduleCaption = `${meta.daysPerWeek} d/wk • ${meta.weeks} week${meta.weeks === 1 ? "" : "s"} • ${sessionLengthLabel}`;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -185,31 +197,45 @@ export default function ProgramDetail() {
         </Button>
 
         <Card className="overflow-hidden border bg-card/60">
-          <AspectRatio ratio={16 / 7}>
-            {meta.heroImg ? (
-              <img src={meta.heroImg} alt={program.title} className="h-full w-full object-cover" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-primary/20 via-primary/5 to-background" />
-            )}
-          </AspectRatio>
+          <div className="relative">
+            <AspectRatio ratio={16 / 7}>
+              <div className="relative h-full w-full">
+                {meta.heroImg ? (
+                  <img src={meta.heroImg} alt={program.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full bg-gradient-to-br from-primary/30 via-primary/10 to-background" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+                <div className="absolute bottom-4 left-4 flex flex-wrap gap-2 text-xs font-semibold text-foreground">
+                  <span className="rounded-full bg-background/80 px-3 py-1 shadow-sm backdrop-blur-sm">
+                    {goalLabels[program.goal]}
+                  </span>
+                  <span className="rounded-full bg-background/70 px-3 py-1 shadow-sm backdrop-blur-sm">
+                    {levelLabels[meta.level]}
+                  </span>
+                </div>
+              </div>
+            </AspectRatio>
+          </div>
           <CardHeader className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-3xl font-semibold">{program.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {program.summary ?? `A ${meta.daysPerWeek}-day plan for ${levelLabels[meta.level]}.`}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{goalLabels[program.goal]}</Badge>
-                <Badge variant="outline">{levelLabels[meta.level]}</Badge>
-                <Badge variant="outline">{meta.daysPerWeek} days / wk</Badge>
-                <Badge variant="outline">{meta.weeks} weeks</Badge>
-                <Badge variant="outline">{formatDuration(meta.durationPerSessionMin)}</Badge>
-              </div>
+            <div className="space-y-2">
+              <CardTitle className="text-3xl font-semibold">{program.title}</CardTitle>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {program.summary ?? `A ${meta.daysPerWeek}-day plan for ${levelLabels[meta.level]}.`}
+              </p>
             </div>
-            {program.description && (
-              <p className="text-sm text-muted-foreground">{program.description}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{scheduleCaption}</p>
+            {program.tags && program.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {program.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
           </CardHeader>
         </Card>
@@ -217,20 +243,90 @@ export default function ProgramDetail() {
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <Card className="border bg-card/60">
             <CardHeader>
+              <CardTitle className="text-xl">What you’ll do</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {program.description ??
+                  program.summary ??
+                  `Follow ${meta.daysPerWeek} structured sessions each week focused on ${goalLabels[meta.goal].toLowerCase()}.`}
+              </p>
+              {program.rationale && (
+                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    Why this plan works
+                  </span>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{program.rationale}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border bg-card/60">
+            <CardHeader>
+              <CardTitle className="text-xl">At a glance</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <dl className="grid gap-3 text-sm">
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Level</dt>
+                  <dd className="font-medium text-foreground">{levelLabels[meta.level]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Days / week</dt>
+                  <dd className="font-medium text-foreground">{meta.daysPerWeek}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Total weeks</dt>
+                  <dd className="font-medium text-foreground">{meta.weeks}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Session length</dt>
+                  <dd className="font-medium text-foreground">{formatDuration(meta.durationPerSessionMin)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Equipment</dt>
+                  <dd className="font-medium text-foreground">{equipmentDisplay.join(" • ")}</dd>
+                </div>
+              </dl>
+              {hasDeloadWeeks && deloadWeekLabel && (
+                <p className="text-xs text-muted-foreground">Includes deload week(s): {deloadWeekLabel}</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <Card className="border bg-card/60">
+            <CardHeader>
               <CardTitle className="text-xl">Weekly schedule overview</CardTitle>
             </CardHeader>
             <CardContent>
+              {hasDeloadWeeks && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Deload weeks automatically dial back volume so you can recover before the next block.
+                </p>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">Week</TableHead>
+                    <TableHead className="w-28">Week</TableHead>
                     <TableHead>Training Days</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {program.weeks.map((week, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">Week {index + 1}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>Week {index + 1}</span>
+                          {isDeloadWeek(index, program.deloadWeeks) && (
+                            <Badge variant="outline" className="border-primary/40 text-primary">
+                              Deload
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {week.days.map((day) => day.name).join(" • ")}
                       </TableCell>
@@ -310,10 +406,10 @@ export default function ProgramDetail() {
                 {program.faqs.map((faq: ProgramFaq, index) => (
                   <AccordionItem key={index} value={`faq-${index}`}>
                     <AccordionTrigger className="text-left text-sm font-medium">
-                      {faq.question}
+                      {faq.q}
                     </AccordionTrigger>
                     <AccordionContent className="text-sm text-muted-foreground">
-                      {faq.answer}
+                      {faq.a}
                     </AccordionContent>
                   </AccordionItem>
                 ))}
