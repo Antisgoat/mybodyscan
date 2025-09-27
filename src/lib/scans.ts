@@ -28,9 +28,11 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   const bodyFatPercent = firstNumber(
     metrics.bf_percent,
     metrics.bodyFatPct,
+    metrics.bfPct,
     metrics.body_fat,
     results.bf_percent,
     results.bodyFatPct,
+    fallback.bfPct,
     fallback.bodyFatPercentage,
     fallback.body_fat,
     fallback.bodyfat,
@@ -39,8 +41,10 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
 
   const bmi = firstNumber(
     metrics.bmi,
+    metrics.body_mass_index,
     results.bmi,
     fallback.bmi,
+    fallback.bmiValue,
     measurements.bmi
   );
 
@@ -58,6 +62,7 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   const weightLbDirect = firstNumber(
     metrics.weight_lb,
     metrics.weightLb,
+    metrics.weight,
     results.weight_lb,
     results.weightLb,
     fallback.weight_lbs,
