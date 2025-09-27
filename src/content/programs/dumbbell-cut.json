@@ -1,0 +1,112 @@
+{
+  "id": "dumbbell-cut",
+  "title": "Dumbbell Cut (3-4 Day)",
+  "goal": "cut",
+  "level": "intermediate",
+  "equipment": ["dumbbells"],
+  "durationPerSessionMin": 45,
+  "tags": ["Fat loss", "Dumbbell only", "Metabolic"],
+  "summary": "Higher-rep dumbbell circuits with optional fourth conditioning day to support a cut.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Full Body Strength",
+          "blocks": [
+            {
+              "title": "Compound Sets",
+              "exercises": [
+                {
+                  "name": "Dumbbell Goblet Squat",
+                  "sets": 4,
+                  "reps": "10",
+                  "restSec": 75,
+                  "substitutions": [
+                    {
+                      "name": "Bodyweight Tempo Squat",
+                      "reason": "Use when dumbbells are limited"
+                    }
+                  ]
+                },
+                {
+                  "name": "Dumbbell Bench Press",
+                  "sets": 4,
+                  "reps": "10",
+                  "restSec": 75,
+                  "substitutions": [
+                    {
+                      "name": "Floor Press",
+                      "reason": "Great when you don't have a bench"
+                    }
+                  ]
+                },
+                { "name": "Single-Arm Row", "sets": 3, "reps": "12/side", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Conditioning Mix",
+          "blocks": [
+            {
+              "title": "AMRAP Circuit (20 min)",
+              "exercises": [
+                { "name": "Dumbbell Thruster", "sets": 3, "reps": "12", "restSec": 0 },
+                { "name": "Renegade Row", "sets": 3, "reps": "10", "restSec": 0 },
+                { "name": "Mountain Climber", "sets": 3, "reps": "40", "restSec": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Upper/Lower Split",
+          "blocks": [
+            {
+              "title": "Lower Body",
+              "exercises": [
+                {
+                  "name": "Dumbbell Romanian Deadlift",
+                  "sets": 4,
+                  "reps": "12",
+                  "restSec": 90
+                },
+                {
+                  "name": "Reverse Lunge",
+                  "sets": 3,
+                  "reps": "12/leg",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Step-Back Lunge",
+                      "reason": "Bodyweight swap to keep moving"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Upper Body",
+              "exercises": [
+                { "name": "Dumbbell Push Press", "sets": 3, "reps": "12", "restSec": 75 },
+                { "name": "Hammer Curl", "sets": 3, "reps": "15", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 4 – Optional Sweat",
+          "blocks": [
+            {
+              "title": "Intervals",
+              "exercises": [
+                { "name": "Alternating Snatch", "sets": 4, "reps": "12/side", "restSec": 45 },
+                { "name": "Dumbbell Swing", "sets": 4, "reps": "20", "restSec": 45 },
+                { "name": "Plank", "sets": 3, "reps": "60s", "restSec": 30 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

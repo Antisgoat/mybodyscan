@@ -1,0 +1,99 @@
+{
+  "id": "no-equipment-3day",
+  "title": "No Equipment 3-Day",
+  "goal": "general",
+  "level": "beginner",
+  "equipment": ["none"],
+  "durationPerSessionMin": 35,
+  "tags": ["Bodyweight", "Home friendly", "3 day"],
+  "summary": "Minimalist three day plan using only bodyweight, perfect for travel or at-home training.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Push + Core",
+          "blocks": [
+            {
+              "title": "Circuit x3",
+              "exercises": [
+                {
+                  "name": "Push-Up",
+                  "sets": 3,
+                  "reps": "AMRAP",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Knee Push-Up",
+                      "reason": "Reduce the difficulty to keep form"
+                    }
+                  ]
+                },
+                { "name": "Dip on Bench", "sets": 3, "reps": "12", "restSec": 30 },
+                {
+                  "name": "Plank",
+                  "sets": 3,
+                  "reps": "45s",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "High Plank Shoulder Tap",
+                      "reason": "Add anti-rotation challenge"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Lower Body",
+          "blocks": [
+            {
+              "title": "Interval Sets",
+              "exercises": [
+                {
+                  "name": "Reverse Lunge",
+                  "sets": 4,
+                  "reps": "15/leg",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Split Squat Hold",
+                      "reason": "Static version when space is tight"
+                    }
+                  ]
+                },
+                { "name": "Bodyweight Squat", "sets": 4, "reps": "20", "restSec": 30 },
+                { "name": "Glute Bridge", "sets": 3, "reps": "20", "restSec": 30 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Conditioning",
+          "blocks": [
+            {
+              "title": "EMOM 20",
+              "exercises": [
+                {
+                  "name": "Burpee",
+                  "sets": 5,
+                  "reps": "12",
+                  "restSec": 0,
+                  "substitutions": [
+                    {
+                      "name": "Step-Back Burpee",
+                      "reason": "Lower impact version"
+                    }
+                  ]
+                },
+                { "name": "Jumping Jack", "sets": 5, "reps": "40", "restSec": 0 },
+                { "name": "V-Sit Hold", "sets": 5, "reps": "30s", "restSec": 0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

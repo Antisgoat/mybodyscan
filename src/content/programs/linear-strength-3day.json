@@ -1,0 +1,145 @@
+{
+  "id": "linear-strength-3day",
+  "title": "Linear Strength 3-Day",
+  "goal": "strength",
+  "level": "beginner",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 55,
+  "tags": ["Linear progression", "3 day", "Full body"],
+  "summary": "Three focused strength sessions each week with small linear jumps and optional accessory swaps.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Squat Push",
+          "blocks": [
+            {
+              "title": "Main Lifts",
+              "exercises": [
+                {
+                  "name": "Back Squat",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Goblet Squat",
+                      "reason": "Works if you only have dumbbells",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Bench Press",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Machine Chest Press",
+                      "reason": "Great if you need more control",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Split Squat", "sets": 3, "reps": "10/leg", "restSec": 90 },
+                { "name": "Incline Dumbbell Press", "sets": 3, "reps": "10", "restSec": 90 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Pull and Posterior",
+          "blocks": [
+            {
+              "title": "Main Lifts",
+              "exercises": [
+                {
+                  "name": "Deadlift",
+                  "sets": 3,
+                  "reps": "5",
+                  "restSec": 180,
+                  "substitutions": [
+                    {
+                      "name": "Romanian Deadlift",
+                      "reason": "Keeps posterior-chain emphasis with less fatigue",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Bent-Over Row",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 120,
+                  "substitutions": [
+                    {
+                      "name": "Lat Pulldown",
+                      "reason": "Simpler pulling pattern",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Hip Thrust", "sets": 3, "reps": "8", "restSec": 120 },
+                { "name": "Face Pull", "sets": 3, "reps": "15", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Press and Volume",
+          "blocks": [
+            {
+              "title": "Main Lifts",
+              "exercises": [
+                {
+                  "name": "Front Squat",
+                  "sets": 3,
+                  "reps": "6",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Leg Press",
+                      "reason": "Use when you need a machine-supported squat pattern",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Overhead Press",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 120,
+                  "substitutions": [
+                    {
+                      "name": "Dumbbell Shoulder Press",
+                      "reason": "Joint friendly overhead work",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Seated Row", "sets": 3, "reps": "10", "restSec": 90 },
+                { "name": "Farmer Carry", "sets": 3, "reps": "40m", "restSec": 90 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "id": "mobility-core-2day",
+  "title": "Mobility + Core 2-Day",
+  "goal": "general",
+  "level": "beginner",
+  "equipment": ["none", "bands"],
+  "durationPerSessionMin": 30,
+  "tags": ["Mobility", "Core", "Active recovery"],
+  "summary": "Two refreshing sessions that mix mobility flows with focused core work—ideal alongside heavier training.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Flow & Stability",
+          "blocks": [
+            {
+              "title": "Mobility Flow",
+              "exercises": [
+                {
+                  "name": "World's Greatest Stretch",
+                  "sets": 3,
+                  "reps": "6/side",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Couch Stretch",
+                      "reason": "Focus on hip flexors if knees bother you"
+                    }
+                  ]
+                },
+                { "name": "Cat Cow", "sets": 3, "reps": "10", "restSec": 30 }
+              ]
+            },
+            {
+              "title": "Core Stability",
+              "exercises": [
+                {
+                  "name": "Dead Bug",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Bird Dog",
+                      "reason": "Great when lying on your back is uncomfortable"
+                    }
+                  ]
+                },
+                { "name": "Side Plank", "sets": 3, "reps": "30s/side", "restSec": 30 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Hips & Antirotation",
+          "blocks": [
+            {
+              "title": "Mobility",
+              "exercises": [
+                {
+                  "name": "90/90 Hip Switch",
+                  "sets": 3,
+                  "reps": "10/side",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Seated Hip Internal Rotation",
+                      "reason": "Simplify when knees feel tight"
+                    }
+                  ]
+                },
+                {
+                  "name": "Thoracic Rotation on All Fours",
+                  "sets": 3,
+                  "reps": "12/side",
+                  "restSec": 30
+                }
+              ]
+            },
+            {
+              "title": "Core",
+              "exercises": [
+                {
+                  "name": "Pallof Press",
+                  "sets": 3,
+                  "reps": "12/side",
+                  "restSec": 45,
+                  "substitutions": [
+                    {
+                      "name": "Band Hold Out",
+                      "reason": "Static version if you prefer to brace",
+                      "equipment": ["bands"]
+                    }
+                  ]
+                },
+                { "name": "Hollow Body Hold", "sets": 3, "reps": "30s", "restSec": 45 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
