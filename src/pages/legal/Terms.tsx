@@ -16,6 +16,7 @@ const Terms = () => {
         </p>
         <p>Keep your account secure and use the service responsibly.</p>
         <p>We may terminate accounts for misuse or non-payment.</p>
+        <p className="text-sm text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
         <p>These terms are governed by the laws of your jurisdiction.</p>
       </article>
     </>
