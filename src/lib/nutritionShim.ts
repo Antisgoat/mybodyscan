@@ -3,6 +3,32 @@ import { FUNCTIONS_BASE, fnUrl } from "@/lib/env";
 const USE_MOCKS = Boolean(import.meta.env.DEV) && !FUNCTIONS_BASE;
 const TIMEOUT_MS = 3000;
 
+interface FoodSearchApiItem {
+  id?: string | number;
+  name?: string;
+  brand?: string | null;
+  kcals?: number | null;
+  source?: string;
+  fdcId?: number | string | null;
+  gtin?: string | null;
+  upc?: string | null;
+  serving?: {
+    qty?: number | null;
+    unit?: string | null;
+    text?: string | null;
+  };
+  per_serving?: {
+    kcal?: number | null;
+    protein_g?: number | null;
+    carbs_g?: number | null;
+    fat_g?: number | null;
+  };
+  per_100g?: FoodSearchApiItem["per_serving"] | null;
+  protein_g?: number | null;
+  carbs_g?: number | null;
+  fat_g?: number | null;
+}
+
 export type NutritionSource = "USDA" | "OFF";
 
 export interface NormalizedItem {
@@ -29,6 +55,61 @@ export interface NormalizedItem {
 function toNumber(value: unknown): number | null {
   const num = Number(value);
   return Number.isFinite(num) ? Number(num.toFixed(2)) : null;
+}
+
+function buildFoodSearchUrl(query: string): string | null {
+  if (FUNCTIONS_BASE) {
+    const base = fnUrl("/food/search");
+    if (!base) return null;
+    return `${base}?q=${encodeURIComponent(query)}`;
+  }
+  if (typeof window !== "undefined") {
+    return `/food/search?q=${encodeURIComponent(query)}`;
+  }
+  return null;
+}
+
+function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
+  const serving = raw?.serving ?? {};
+  const perServing = raw?.per_serving ?? {};
+  const per100 = raw?.per_100g ?? undefined;
+  const generatedId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `food-${Math.random().toString(36).slice(2, 10)}`;
+
+  return {
+    id: String(raw?.id ?? generatedId),
+    name: typeof raw?.name === "string" && raw.name.trim().length ? raw.name : "Food",
+    brand: typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand : undefined,
+    source: raw?.source === "OFF" ? "OFF" : "USDA",
+    gtin:
+      typeof raw?.gtin === "string" && raw.gtin.trim().length
+        ? raw.gtin
+        : typeof raw?.upc === "string" && raw.upc.trim().length
+        ? raw.upc
+        : undefined,
+    fdcId: toNumber(raw?.fdcId) ?? undefined,
+    serving: {
+      qty: toNumber(serving?.qty),
+      unit: typeof serving?.unit === "string" && serving.unit.trim().length ? serving.unit : null,
+      text: typeof serving?.text === "string" && serving.text.trim().length ? serving.text : undefined,
+    },
+    per_serving: {
+      kcal: toNumber(raw?.kcals ?? perServing?.kcal),
+      protein_g: toNumber(perServing?.protein_g ?? raw?.protein_g),
+      carbs_g: toNumber(perServing?.carbs_g ?? raw?.carbs_g),
+      fat_g: toNumber(perServing?.fat_g ?? raw?.fat_g),
+    },
+    per_100g: per100
+      ? {
+          kcal: toNumber(per100.kcal),
+          protein_g: toNumber(per100.protein_g),
+          carbs_g: toNumber(per100.carbs_g),
+          fat_g: toNumber(per100.fat_g),
+        }
+      : undefined,
+  };
 }
 
 function normalizeItem(raw: any): NormalizedItem {
@@ -123,19 +204,30 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
     }
   }
   try {
-    const response = await callFunctions(`/nutritionSearch?q=${encodeURIComponent(query.trim())}`);
-    if (!response) {
-      return USE_MOCKS ? mockList(query.trim()) : [];
+    const trimmed = query.trim();
+    const url = buildFoodSearchUrl(trimmed);
+    if (!url) {
+      return USE_MOCKS ? mockList(trimmed) : [];
     }
-    if (!response.ok) {
-      if (USE_MOCKS) return mockList(query.trim());
-      return [];
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        if (USE_MOCKS) return mockList(trimmed);
+        return [];
+      }
+      const data = await response.json();
+      if (!Array.isArray(data?.items)) {
+        return USE_MOCKS ? mockList(trimmed) : [];
+      }
+      return data.items.map((item: FoodSearchApiItem) => normalizeApiItem(item));
+    } finally {
+      clearTimeout(timer);
     }
-    const data = await response.json();
-    if (!Array.isArray(data?.items)) {
-      return USE_MOCKS ? mockList(query.trim()) : [];
-    }
-    return data.items.map((item: any) => normalizeItem(item));
   } catch (error) {
     console.error("nutrition_search_error", error);
     return USE_MOCKS ? mockList(query.trim()) : [];

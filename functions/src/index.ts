@@ -34,3 +34,6 @@ export {
 export { createCheckoutSession, createCheckout, createCustomerPortal } from "./payments.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { useCredit } from "./useCredit.js";
+
+// Food search
+export { foodSearch } from "./foodSearch.js";
