@@ -2,6 +2,21 @@
   "id": "beginner-full-body",
   "title": "Beginner Full Body",
   "goal": "hypertrophy",
+  "level": "beginner",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 55,
+  "tags": ["Full body", "3-day split", "Strength foundations"],
+  "summary": "Three focused full-body sessions each week to build strength and muscle with classic compound lifts.",
+  "faqs": [
+    {
+      "question": "How many days a week will I train?",
+      "answer": "You will train three days each week with at least one rest day between sessions."
+    },
+    {
+      "question": "Is this friendly for beginners?",
+      "answer": "Yes. The program introduces key movement patterns with moderate volume so you can master form and progress safely."
+    }
+  ],
   "weeks": [
     {
       "days": [

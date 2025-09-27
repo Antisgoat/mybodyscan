@@ -14,8 +14,12 @@ export interface CoachProfile {
   style?: "ease_in" | "all_in";
   medical_flags?: Record<string, boolean>;
   currentProgramId?: string;
+  activeProgramId?: string;
   lastCompletedWeekIdx?: number;
   lastCompletedDayIdx?: number;
+  currentWeekIdx?: number;
+  currentDayIdx?: number;
+  startedAt?: string;
 }
 
 export interface CoachPlan {

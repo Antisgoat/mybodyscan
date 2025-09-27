@@ -13,21 +13,8 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { flattenDay, nextProgressionHint } from "@/lib/coach/progression";
 import type { Day as ProgramDay, Exercise, Program } from "@/lib/coach/types";
-import beginnerFullBody from "@/content/programs/beginner-full-body.json";
-import upperLower from "@/content/programs/upper-lower.json";
-import pushPullLegs from "@/content/programs/push-pull-legs.json";
+import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import { collection, addDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
-
-const PROGRAMS: Program[] = [
-  beginnerFullBody as Program,
-  upperLower as Program,
-  pushPullLegs as Program,
-];
-
-const PROGRAM_MAP = PROGRAMS.reduce<Record<string, Program>>((acc, program) => {
-  acc[program.id] = program;
-  return acc;
-}, {});
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -73,15 +60,43 @@ export default function CoachDay() {
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [startTime] = useState(() => Date.now());
+  const [programEntries, setProgramEntries] = useState<CatalogEntry[]>([]);
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    setIsLoadingPrograms(true);
+    loadAllPrograms()
+      .then((items) => {
+        if (!mounted) return;
+        setProgramEntries(items);
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsLoadingPrograms(false);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const programMap = useMemo(() => {
+    return programEntries.reduce<Record<string, CatalogEntry>>((acc, entry) => {
+      acc[entry.meta.id] = entry;
+      return acc;
+    }, {});
+  }, [programEntries]);
 
   const programIdParam = searchParams.get("programId") ?? DEFAULT_PROGRAM_ID;
-  const rawProgram = PROGRAM_MAP[programIdParam] ?? PROGRAM_MAP[DEFAULT_PROGRAM_ID];
+  const fallbackProgram = programMap[DEFAULT_PROGRAM_ID]?.program ?? programEntries[0]?.program ?? null;
+  const rawProgram = programMap[programIdParam]?.program ?? fallbackProgram;
 
   const weekParam = Number.parseInt(searchParams.get("week") ?? "0", 10);
-  const safeWeekIdx = rawProgram.weeks.length
+  const safeWeekIdx = rawProgram?.weeks.length
     ? clampIndex(weekParam, 0, rawProgram.weeks.length - 1)
     : 0;
-  const week = rawProgram.weeks[safeWeekIdx];
+  const week = rawProgram?.weeks?.[safeWeekIdx];
 
   const dayParam = Number.parseInt(searchParams.get("day") ?? "0", 10);
   const safeDayIdx = week?.days?.length ? clampIndex(dayParam, 0, week.days.length - 1) : 0;
@@ -136,7 +151,7 @@ export default function CoachDay() {
   };
 
   const handleComplete = async () => {
-    if (!day) return;
+    if (!day || !rawProgram) return;
     const user = auth.currentUser;
     if (!user) {
       toast({ title: "Please sign in", description: "You need an account to log workouts." });
@@ -188,8 +203,11 @@ export default function CoachDay() {
         doc(db, "users", user.uid, "coach", "profile"),
         {
           currentProgramId: rawProgram.id,
+          activeProgramId: rawProgram.id,
           lastCompletedWeekIdx: safeWeekIdx,
           lastCompletedDayIdx: safeDayIdx,
+          currentWeekIdx: safeWeekIdx,
+          currentDayIdx: safeDayIdx,
         },
         { merge: true }
       );
@@ -206,6 +224,22 @@ export default function CoachDay() {
       setIsSaving(false);
     }
   };
+
+  if (isLoadingPrograms || !rawProgram) {
+    return (
+      <div className="min-h-screen bg-background pb-16 md:pb-0">
+        <Seo title="Coach Day" description="Workout details" />
+        <AppHeader />
+        <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
+          <NotMedicalAdviceBanner />
+          <div className="h-48 animate-pulse rounded-lg bg-muted/40" />
+          <div className="h-6 w-1/2 animate-pulse rounded bg-muted/40" />
+          <div className="h-6 w-2/3 animate-pulse rounded bg-muted/40" />
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
 
   if (!day) {
     return (

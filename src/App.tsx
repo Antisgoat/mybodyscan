@@ -59,6 +59,9 @@ import Workouts from "./pages/Workouts";
 import Meals from "./pages/Meals";
 import Coach from "./pages/Coach";
 import CoachDay from "./pages/Coach/Day";
+import ProgramsCatalog from "./pages/Programs";
+import ProgramDetail from "./pages/Programs/Detail";
+import ProgramsQuiz from "./pages/Programs/Quiz";
 import Nutrition from "./pages/Nutrition";
 import { ConsentGate } from "./components/ConsentGate";
 import MealsSearch from "./pages/MealsSearch";
@@ -174,6 +177,48 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <CoachDay />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/programs"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ProgramsCatalog />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/programs/quiz"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ProgramsQuiz />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/programs/:id"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ProgramDetail />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>

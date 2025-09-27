@@ -2,6 +2,21 @@
   "id": "upper-lower",
   "title": "Upper / Lower Split",
   "goal": "strength",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 60,
+  "tags": ["Upper/lower", "Strength focus", "4-day split"],
+  "summary": "Alternating upper and lower body strength sessions with accessory finishers to drive progressive overload.",
+  "faqs": [
+    {
+      "question": "Who is this program best for?",
+      "answer": "Intermediate lifters who want a balanced mix of heavy compounds and hypertrophy accessories across four days."
+    },
+    {
+      "question": "Can I add cardio?",
+      "answer": "Yes, add light cardio on rest days or after lifts as long as it does not interfere with recovery."
+    }
+  ],
   "weeks": [
     {
       "days": [

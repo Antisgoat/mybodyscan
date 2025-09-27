@@ -2,6 +2,21 @@
   "id": "push-pull-legs",
   "title": "Push / Pull / Legs",
   "goal": "hypertrophy",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 65,
+  "tags": ["Push/pull/legs", "High volume", "Bodybuilding"],
+  "summary": "A classic push, pull, legs split that stacks volume across six weekly sessions for experienced lifters.",
+  "faqs": [
+    {
+      "question": "Can I reduce to five days?",
+      "answer": "You can drop one accessory-focused day when life gets busy and resume the full split the following week."
+    },
+    {
+      "question": "What if I am short on equipment?",
+      "answer": "Swap cable or machine accessories for dumbbell variations when needed and keep the compound lifts consistent."
+    }
+  ],
   "weeks": [
     {
       "days": [

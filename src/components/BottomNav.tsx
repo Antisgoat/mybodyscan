@@ -1,4 +1,15 @@
-import { Home as HomeIcon, Camera, CalendarCheck, Dumbbell, Utensils, Bot, History, CreditCard, Settings } from "lucide-react";
+import {
+  Home as HomeIcon,
+  Camera,
+  CalendarCheck,
+  Dumbbell,
+  Utensils,
+  Bot,
+  History,
+  CreditCard,
+  Settings,
+  Layers,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -10,6 +21,7 @@ const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?:
   { path: "/today", icon: CalendarCheck, label: "Today", feature: "health" },
   { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
   { path: "/workouts", icon: Dumbbell, label: "Workouts", feature: "workouts" },
+  { path: "/programs", icon: Layers, label: "Programs", feature: "coach" },
   { path: "/coach", icon: Bot, label: "Coach", feature: "coach" },
   { path: "/history", icon: History, label: "History", feature: "scan" },
   { path: "/plans", icon: CreditCard, label: "Plans", feature: "account" },
