@@ -1,0 +1,196 @@
+{
+  "id": "phul",
+  "title": "PHUL (Power Hypertrophy Upper Lower)",
+  "goal": "hypertrophy",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 70,
+  "tags": ["4 day", "Power + hypertrophy", "Upper lower"],
+  "summary": "Alternating power and hypertrophy focused days to build strength and size together.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Upper Power",
+          "blocks": [
+            {
+              "title": "Power Moves",
+              "exercises": [
+                {
+                  "name": "Bench Press",
+                  "sets": 4,
+                  "reps": "3-5",
+                  "restSec": 180,
+                  "substitutions": [
+                    {
+                      "name": "Close Grip Bench Press",
+                      "reason": "Keeps heavy pressing with tricep focus",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Bent-Over Row",
+                  "sets": 4,
+                  "reps": "3-5",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Pendlay Row",
+                      "reason": "Explosive alternative for the upper back",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Overhead Press",
+                  "sets": 3,
+                  "reps": "5",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Push Press",
+                      "reason": "Use legs to drive heavier loads",
+                      "equipment": ["barbell"]
+                    },
+                    {
+                      "name": "Seated Dumbbell Press",
+                      "reason": "Joint friendly option",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Weighted Chin-Up", "sets": 3, "reps": "6-8", "restSec": 120 },
+                { "name": "Dumbbell Incline Press", "sets": 3, "reps": "8-10", "restSec": 90 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Lower Power",
+          "blocks": [
+            {
+              "title": "Power Moves",
+              "exercises": [
+                {
+                  "name": "Back Squat",
+                  "sets": 4,
+                  "reps": "3-5",
+                  "restSec": 210,
+                  "substitutions": [
+                    {
+                      "name": "Safety Bar Squat",
+                      "reason": "Friendly for long torsos",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Deadlift",
+                  "sets": 3,
+                  "reps": "3-5",
+                  "restSec": 210,
+                  "substitutions": [
+                    {
+                      "name": "Trap Bar Deadlift",
+                      "reason": "More upright pull with similar stimulus",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Walking Lunge", "sets": 3, "reps": "12/leg", "restSec": 90 },
+                { "name": "Hanging Leg Raise", "sets": 3, "reps": "12-15", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Upper Hypertrophy",
+          "blocks": [
+            {
+              "title": "Volume Work",
+              "exercises": [
+                {
+                  "name": "Incline Dumbbell Press",
+                  "sets": 4,
+                  "reps": "8-10",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Machine Chest Press",
+                      "reason": "Controlled pressing without spotter",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Seated Cable Row",
+                  "sets": 4,
+                  "reps": "10-12",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Single-Arm Dumbbell Row",
+                      "reason": "Keeps focus on lats with minimal equipment",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                },
+                { "name": "Lateral Raise", "sets": 3, "reps": "12-15", "restSec": 60 },
+                { "name": "Cable Triceps Pressdown", "sets": 3, "reps": "12", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 4 – Lower Hypertrophy",
+          "blocks": [
+            {
+              "title": "Volume Work",
+              "exercises": [
+                {
+                  "name": "Front Squat",
+                  "sets": 3,
+                  "reps": "8",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Leg Press",
+                      "reason": "When knees need a more guided track",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Romanian Deadlift",
+                  "sets": 3,
+                  "reps": "8-10",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Good Morning",
+                      "reason": "Keeps hinge stimulus with lighter load",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                { "name": "Leg Curl", "sets": 3, "reps": "12", "restSec": 60 },
+                { "name": "Calf Raise", "sets": 4, "reps": "15", "restSec": 45 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

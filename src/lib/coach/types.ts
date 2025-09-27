@@ -44,6 +44,12 @@ export interface Block {
   exercises: Exercise[];
 }
 
+export interface ExerciseSubstitution {
+  name: string;
+  reason?: string;
+  equipment?: string[];
+}
+
 export interface Exercise {
   name: string;
   sets: number;
@@ -51,4 +57,5 @@ export interface Exercise {
   restSec?: number;
   rir?: number;
   tempo?: string;
+  substitutions?: ExerciseSubstitution[];
 }

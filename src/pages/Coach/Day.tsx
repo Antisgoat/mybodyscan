@@ -9,12 +9,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { flattenDay, nextProgressionHint } from "@/lib/coach/progression";
-import type { Day as ProgramDay, Exercise, Program } from "@/lib/coach/types";
+import { computeNextTargets, flattenDay, nextProgressionHint } from "@/lib/coach/progression";
+import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { collection, addDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  doc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -26,7 +44,12 @@ type SetEntry = {
 
 type StructuredBlock = {
   title: string;
-  exercises: Array<{ exercise: Exercise; globalIndex: number }>;
+  exercises: Array<{
+    exercise: Exercise;
+    displayName: string;
+    globalIndex: number;
+    substitution?: ExerciseSubstitution;
+  }>;
 };
 
 function formatTimer(seconds: number) {
@@ -41,15 +64,39 @@ function clampIndex(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function structureBlocks(day: ProgramDay | undefined): StructuredBlock[] {
+function parseLoggedNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".");
+    const match = normalized.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const parsed = Number.parseFloat(match[0]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function structureBlocks(
+  day: ProgramDay | undefined,
+  substitutions?: Record<number, ExerciseSubstitution | undefined>
+): StructuredBlock[] {
   if (!day) return [];
   let cursor = 0;
   return day.blocks.map((block) => ({
     title: block.title,
-    exercises: block.exercises.map((exercise) => ({
-      exercise,
-      globalIndex: cursor++,
-    })),
+    exercises: block.exercises.map((exercise) => {
+      const index = cursor;
+      const substitution = substitutions?.[index];
+      cursor += 1;
+      return {
+        exercise,
+        displayName: substitution?.name ?? exercise.name,
+        globalIndex: index,
+        substitution,
+      };
+    }),
   }));
 }
 
@@ -62,6 +109,13 @@ export default function CoachDay() {
   const [startTime] = useState(() => Date.now());
   const [programEntries, setProgramEntries] = useState<CatalogEntry[]>([]);
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
+  const [selectedSubstitutions, setSelectedSubstitutions] = useState<
+    Record<number, ExerciseSubstitution>
+  >({});
+  const [activeSwap, setActiveSwap] = useState<
+    { index: number; options: ExerciseSubstitution[]; originalName: string } | null
+  >(null);
+  const [nextTargets, setNextTargets] = useState<string[] | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -102,14 +156,36 @@ export default function CoachDay() {
   const safeDayIdx = week?.days?.length ? clampIndex(dayParam, 0, week.days.length - 1) : 0;
   const day = week?.days?.[safeDayIdx];
 
-  const blocks = useMemo(() => structureBlocks(day), [day]);
-  const flattened = useMemo(() => (day ? flattenDay(day) : []), [day]);
+  const substitutionDisplayMap = useMemo(() => {
+    const entries = Object.entries(selectedSubstitutions);
+    if (!entries.length) return {} as Record<number, string>;
+    return entries.reduce<Record<number, string>>((acc, [key, value]) => {
+      if (value?.name) {
+        acc[Number.parseInt(key, 10)] = value.name;
+      }
+      return acc;
+    }, {});
+  }, [selectedSubstitutions]);
+
+  const blocks = useMemo(
+    () => structureBlocks(day, selectedSubstitutions),
+    [day, selectedSubstitutions]
+  );
+  const baseFlattened = useMemo(() => (day ? flattenDay(day) : []), [day]);
+  const flattened = useMemo(
+    () => (day ? flattenDay(day, substitutionDisplayMap) : []),
+    [day, substitutionDisplayMap]
+  );
   const hasActiveTimers = Object.keys(activeTimers).length > 0;
+
+  useEffect(() => {
+    setSelectedSubstitutions({});
+  }, [day]);
 
   useEffect(() => {
     if (!day) return;
     const initial: Record<string, SetEntry> = {};
-    flattened.forEach((row) => {
+    baseFlattened.forEach((row) => {
       const key = `${row.exIdx}-${row.set}`;
       initial[key] = {
         done: false,
@@ -119,7 +195,7 @@ export default function CoachDay() {
     });
     setSetData(initial);
     setActiveTimers({});
-  }, [day, flattened]);
+  }, [day, baseFlattened]);
 
   useEffect(() => {
     if (!hasActiveTimers) return;
@@ -138,6 +214,88 @@ export default function CoachDay() {
     return () => window.clearInterval(timer);
   }, [hasActiveTimers]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTargets() {
+      const user = auth.currentUser;
+      if (!day || !rawProgram || !user) {
+        if (!cancelled) {
+          setNextTargets([]);
+        }
+        return;
+      }
+
+      try {
+        const logsRef = collection(db, "users", user.uid, "workoutLogs");
+        const recentQuery = query(logsRef, orderBy("completedAt", "desc"), limit(20));
+        const snapshot = await getDocs(recentQuery);
+        const entries = snapshot.docs.map((docSnap) => docSnap.data());
+        const lastMatch = entries.find(
+          (entry) => entry?.programId === rawProgram.id && entry?.dayIdx === safeDayIdx
+        );
+
+        if (!lastMatch || !Array.isArray(lastMatch.sets)) {
+          if (!cancelled) {
+            setNextTargets([]);
+          }
+          return;
+        }
+
+        const setMap = new Map<string, { reps: number; weight?: number }[]>();
+        lastMatch.sets.forEach((item: any) => {
+          const planName = typeof item?.exercise === "string" ? item.exercise : "";
+          if (!planName) return;
+          const repsValue = parseLoggedNumber(item?.reps);
+          if (repsValue === null) return;
+          const weightValue = parseLoggedNumber(item?.weight);
+          const bucket = setMap.get(planName) ?? [];
+          bucket.push({ reps: repsValue, weight: weightValue ?? undefined });
+          setMap.set(planName, bucket);
+        });
+
+        if (setMap.size === 0) {
+          if (!cancelled) {
+            setNextTargets([]);
+          }
+          return;
+        }
+
+        const suggestions: string[] = [];
+        day.blocks.forEach((block) => {
+          block.exercises.forEach((exercise) => {
+            const lastSets = setMap.get(exercise.name) ?? [];
+            if (!lastSets.length) {
+              suggestions.push(`${exercise.name} maintain`);
+              return;
+            }
+            const { suggestion } = computeNextTargets({
+              exerciseName: exercise.name,
+              lastSets,
+              planTarget: { sets: exercise.sets, reps: exercise.reps, rir: exercise.rir },
+            });
+            suggestions.push(`${exercise.name} ${suggestion}`);
+          });
+        });
+
+        if (!cancelled) {
+          setNextTargets(suggestions);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setNextTargets([]);
+        }
+      }
+    }
+
+    setNextTargets(null);
+    void loadTargets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [day, rawProgram?.id, safeDayIdx]);
+
   const updateSet = (key: string, partial: Partial<SetEntry>) => {
     setSetData((prev) => {
       const existing = prev[key] ?? { done: false, reps: "", weight: "" };
@@ -148,6 +306,20 @@ export default function CoachDay() {
   const startTimer = (key: string, duration?: number) => {
     if (!duration) return;
     setActiveTimers((prev) => ({ ...prev, [key]: duration }));
+  };
+
+  const handleChooseSubstitution = (choice?: ExerciseSubstitution) => {
+    if (!activeSwap) return;
+    setSelectedSubstitutions((prev) => {
+      const next = { ...prev };
+      if (!choice) {
+        delete next[activeSwap.index];
+      } else {
+        next[activeSwap.index] = choice;
+      }
+      return next;
+    });
+    setActiveSwap(null);
   };
 
   const handleComplete = async () => {
@@ -167,14 +339,23 @@ export default function CoachDay() {
         reps: string;
         done: boolean;
         weight?: string;
+        performedExercise?: string;
+        substitutionName?: string;
       } = {
-        exercise: row.name,
+        exercise: row.planName,
         set: row.set,
         reps: entry?.reps ?? row.targetReps,
         done: entry?.done ?? false,
       };
       if (entry?.weight) {
         payload.weight = entry.weight;
+      }
+      const substitution = selectedSubstitutions[row.exIdx];
+      if (substitution) {
+        payload.performedExercise = row.name;
+        payload.substitutionName = substitution.name;
+      } else if (row.name !== row.planName) {
+        payload.performedExercise = row.name;
       }
       return payload;
     });
@@ -282,13 +463,44 @@ export default function CoachDay() {
           </div>
         </div>
 
+        {nextTargets !== null && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm leading-relaxed">
+            <span className="font-semibold text-primary">Next session targets:</span>{" "}
+            {nextTargets.length
+              ? nextTargets.join("; ")
+              : "Complete this day once to generate personalized targets."}
+          </div>
+        )}
+
         {blocks.map((block, blockIdx) => (
           <section key={blockIdx} className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">{block.title}</h2>
-            {block.exercises.map(({ exercise, globalIndex }) => (
+            {block.exercises.map(({ exercise, displayName, globalIndex, substitution }) => (
               <Card key={globalIndex}>
-                <CardHeader className="space-y-1">
-                  <CardTitle className="text-xl">{exercise.name}</CardTitle>
+                <CardHeader className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-xl">{displayName}</CardTitle>
+                      {substitution ? (
+                        <p className="text-xs text-muted-foreground">Swapped from {exercise.name}</p>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0 text-xs"
+                      onClick={() =>
+                        setActiveSwap({
+                          index: globalIndex,
+                          options: exercise.substitutions ?? [],
+                          originalName: exercise.name,
+                        })
+                      }
+                    >
+                      Swap
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {exercise.sets} sets • {exercise.reps} target reps
                   </p>
@@ -361,6 +573,64 @@ export default function CoachDay() {
             {isSaving ? "Saving..." : "Mark Day Complete"}
           </Button>
         </div>
+
+        <Dialog open={Boolean(activeSwap)} onOpenChange={(open) => !open && setActiveSwap(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Swap exercise</DialogTitle>
+              <DialogDescription>
+                Choose an alternative for {activeSwap?.originalName}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => handleChooseSubstitution()}
+              >
+                Keep {activeSwap?.originalName}
+              </Button>
+              {activeSwap?.options.length ? (
+                <div className="space-y-2">
+                  {activeSwap.options.map((option) => {
+                    const current = activeSwap
+                      ? selectedSubstitutions[activeSwap.index]
+                      : undefined;
+                    const isActive = current?.name === option.name;
+                    return (
+                      <Button
+                        key={option.name}
+                        type="button"
+                        variant={isActive ? "default" : "outline"}
+                        className="flex h-auto w-full flex-col items-start gap-1 p-3 text-left"
+                        onClick={() => handleChooseSubstitution(option)}
+                      >
+                        <span className="font-medium">{option.name}</span>
+                        {option.reason ? (
+                          <span className="text-xs text-muted-foreground">{option.reason}</span>
+                        ) : null}
+                        {option.equipment?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {option.equipment.map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-[10px] uppercase tracking-wide">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </Button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No substitutions available yet. Check back soon!
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
       <BottomNav />
     </div>

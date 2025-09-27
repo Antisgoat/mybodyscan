@@ -1,0 +1,157 @@
+{
+  "id": "womens-glute-focus",
+  "title": "Women's Glute & Lower Body Focus",
+  "goal": "hypertrophy",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells", "bands", "machines"],
+  "durationPerSessionMin": 60,
+  "tags": ["Glute focus", "3-4 day", "Lower body"],
+  "summary": "Targeted glute and leg training with one optional pump day for extra volume.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Glute Strength",
+          "blocks": [
+            {
+              "title": "Primary Lifts",
+              "exercises": [
+                {
+                  "name": "Barbell Hip Thrust",
+                  "sets": 4,
+                  "reps": "6-8",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Smith Machine Hip Thrust",
+                      "reason": "Keeps load heavy with more stability",
+                      "equipment": ["machines"]
+                    },
+                    {
+                      "name": "Dumbbell Hip Thrust",
+                      "reason": "For home setups",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Romanian Deadlift",
+                  "sets": 4,
+                  "reps": "8",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Single-Leg Romanian Deadlift",
+                      "reason": "Great when loads are lighter",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Accessory Volume",
+              "exercises": [
+                { "name": "Cable Kickback", "sets": 3, "reps": "12", "restSec": 60 },
+                { "name": "Walking Lunge", "sets": 3, "reps": "12/leg", "restSec": 90 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Upper Body Balance",
+          "blocks": [
+            {
+              "title": "Upper Push/Pull",
+              "exercises": [
+                {
+                  "name": "Incline Dumbbell Press",
+                  "sets": 3,
+                  "reps": "8-10",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Push-Up",
+                      "reason": "Bodyweight option when equipment is limited",
+                      "equipment": ["none"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Lat Pulldown",
+                  "sets": 3,
+                  "reps": "10-12",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Assisted Pull-Up",
+                      "reason": "Keeps vertical pulling stimulus",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Arm & Shoulder Finish",
+              "exercises": [
+                { "name": "Cable Lateral Raise", "sets": 3, "reps": "15", "restSec": 45 },
+                { "name": "Rope Triceps Pressdown", "sets": 3, "reps": "12", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Glute Volume",
+          "blocks": [
+            {
+              "title": "Glute Giant Set",
+              "exercises": [
+                {
+                  "name": "Bulgarian Split Squat",
+                  "sets": 3,
+                  "reps": "10/leg",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Leg Press",
+                      "reason": "Still hits quads and glutes if balance is limiting",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                },
+                { "name": "Cable Abduction", "sets": 3, "reps": "15", "restSec": 45 },
+                { "name": "Back Extension", "sets": 3, "reps": "12", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 4 – Optional Pump",
+          "blocks": [
+            {
+              "title": "Band & Bodyweight",
+              "exercises": [
+                {
+                  "name": "Banded Glute Bridge",
+                  "sets": 4,
+                  "reps": "20",
+                  "restSec": 45,
+                  "substitutions": [
+                    {
+                      "name": "Hip Circle Walk",
+                      "reason": "Quick travel-friendly option",
+                      "equipment": ["bands"]
+                    }
+                  ]
+                },
+                { "name": "Step-Up", "sets": 3, "reps": "15/leg", "restSec": 60 },
+                { "name": "Side Plank", "sets": 3, "reps": "45s/side", "restSec": 45 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "id": "kettlebell-3day",
+  "title": "Kettlebell Power 3-Day",
+  "goal": "general",
+  "level": "intermediate",
+  "equipment": ["kettlebells"],
+  "durationPerSessionMin": 45,
+  "tags": ["Kettlebell", "Power endurance", "3 day"],
+  "summary": "Three efficient kettlebell sessions combining strength, power, and conditioning.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Strength & Swing",
+          "blocks": [
+            {
+              "title": "Strength",
+              "exercises": [
+                {
+                  "name": "Double Kettlebell Front Squat",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 90,
+                  "substitutions": [
+                    {
+                      "name": "Goblet Squat",
+                      "reason": "Use when you only have one bell"
+                    }
+                  ]
+                },
+                {
+                  "name": "Kettlebell Row",
+                  "sets": 4,
+                  "reps": "8/side",
+                  "restSec": 75
+                }
+              ]
+            },
+            {
+              "title": "Swing Finisher",
+              "exercises": [
+                {
+                  "name": "Two-Hand Swing",
+                  "sets": 5,
+                  "reps": "20",
+                  "restSec": 45,
+                  "substitutions": [
+                    {
+                      "name": "Single-Arm Swing",
+                      "reason": "Adds anti-rotation challenge"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Press & Carry",
+          "blocks": [
+            {
+              "title": "Press Ladder",
+              "exercises": [
+                {
+                  "name": "Single-Arm Clean and Press",
+                  "sets": 4,
+                  "reps": "5/side",
+                  "restSec": 75,
+                  "substitutions": [
+                    {
+                      "name": "Push Press",
+                      "reason": "Add leg drive for heavier bells"
+                    }
+                  ]
+                },
+                { "name": "Half Kneeling Windmill", "sets": 3, "reps": "6/side", "restSec": 60 }
+              ]
+            },
+            {
+              "title": "Carry",
+              "exercises": [
+                { "name": "Farmer Carry", "sets": 4, "reps": "40m", "restSec": 60 },
+                {
+                  "name": "Front Rack Carry",
+                  "sets": 3,
+                  "reps": "30m",
+                  "restSec": 60,
+                  "substitutions": [
+                    {
+                      "name": "Suitcase Carry",
+                      "reason": "Focuses on obliques with lighter bells"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Conditioning Complex",
+          "blocks": [
+            {
+              "title": "Complex x4",
+              "exercises": [
+                { "name": "Kettlebell Snatch", "sets": 4, "reps": "10/side", "restSec": 30 },
+                { "name": "Kettlebell Lunge Press", "sets": 4, "reps": "8/side", "restSec": 30 },
+                {
+                  "name": "Russian Twist",
+                  "sets": 4,
+                  "reps": "20",
+                  "restSec": 30,
+                  "substitutions": [
+                    {
+                      "name": "Dead Bug",
+                      "reason": "Great when twisting bothers the back"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

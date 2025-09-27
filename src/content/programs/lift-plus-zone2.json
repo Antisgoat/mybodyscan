@@ -1,0 +1,166 @@
+{
+  "id": "lift-plus-zone2",
+  "title": "Lift + Zone 2 (3 Day)",
+  "goal": "general",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells", "machines"],
+  "durationPerSessionMin": 60,
+  "tags": ["Strength + cardio", "Zone 2", "3 day"],
+  "summary": "Two strength-focused sessions plus one mixed conditioning day with dedicated zone 2 cardio.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Full Body + Zone 2",
+          "blocks": [
+            {
+              "title": "Strength",
+              "exercises": [
+                {
+                  "name": "Back Squat",
+                  "sets": 3,
+                  "reps": "6",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Leg Press",
+                      "reason": "Use if you need a machine-guided squat",
+                      "equipment": ["machines"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Bench Press",
+                  "sets": 3,
+                  "reps": "6",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Dumbbell Bench Press",
+                      "reason": "Works for limited barbell access",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Zone 2",
+              "exercises": [
+                {
+                  "name": "Treadmill Zone 2 Walk",
+                  "sets": 1,
+                  "reps": "20 min",
+                  "substitutions": [
+                    {
+                      "name": "Stationary Bike Zone 2",
+                      "reason": "Low impact cardio alternative",
+                      "equipment": ["machines"]
+                    },
+                    {
+                      "name": "Outdoor Brisk Walk",
+                      "reason": "No gym access needed",
+                      "equipment": ["none"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Upper + Conditioning",
+          "blocks": [
+            {
+              "title": "Strength",
+              "exercises": [
+                {
+                  "name": "Overhead Press",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "restSec": 120,
+                  "substitutions": [
+                    {
+                      "name": "Seated Dumbbell Press",
+                      "reason": "Joint friendly overhead option",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                },
+                { "name": "Single-Arm Row", "sets": 3, "reps": "10/side", "restSec": 90 }
+              ]
+            },
+            {
+              "title": "Cardio Finisher",
+              "exercises": [
+                {
+                  "name": "Row Erg Zone 2",
+                  "sets": 1,
+                  "reps": "15 min",
+                  "substitutions": [
+                    {
+                      "name": "Battle Rope Intervals",
+                      "reason": "Higher heart rate if you want variety",
+                      "equipment": ["none"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Posterior + Long Zone 2",
+          "blocks": [
+            {
+              "title": "Strength",
+              "exercises": [
+                {
+                  "name": "Romanian Deadlift",
+                  "sets": 3,
+                  "reps": "8",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Good Morning",
+                      "reason": "Keep hinge stimulus if you prefer",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Walking Lunge",
+                  "sets": 3,
+                  "reps": "12/leg",
+                  "restSec": 90
+                }
+              ]
+            },
+            {
+              "title": "Zone 2",
+              "exercises": [
+                {
+                  "name": "Bike Zone 2 Ride",
+                  "sets": 1,
+                  "reps": "30 min",
+                  "substitutions": [
+                    {
+                      "name": "Elliptical Zone 2",
+                      "reason": "Lower impact for knees",
+                      "equipment": ["machines"]
+                    },
+                    {
+                      "name": "Outdoor Jog",
+                      "reason": "Simple endurance option",
+                      "equipment": ["none"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "id": "strength-5x5",
+  "title": "Strength 5x5",
+  "goal": "strength",
+  "level": "intermediate",
+  "equipment": ["barbell", "dumbbells"],
+  "durationPerSessionMin": 65,
+  "tags": ["5x5", "Strength focus", "Simple progression"],
+  "summary": "A classic three day 5x5 strength split built around the squat, press, and pull.",
+  "weeks": [
+    {
+      "days": [
+        {
+          "name": "Day 1 – Heavy Squat",
+          "blocks": [
+            {
+              "title": "Main Work",
+              "exercises": [
+                {
+                  "name": "Back Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 180,
+                  "substitutions": [
+                    {
+                      "name": "Front Squat",
+                      "reason": "Keeps the upright squat pattern when you need a change",
+                      "equipment": ["barbell"]
+                    },
+                    {
+                      "name": "Safety Bar Squat",
+                      "reason": "Friendlier on shoulders and elbows",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Bench Press",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Incline Bench Press",
+                      "reason": "Add more upper chest while keeping a heavy press",
+                      "equipment": ["barbell"]
+                    },
+                    {
+                      "name": "Dumbbell Bench Press",
+                      "reason": "Great when racks are busy and for shoulder balance",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Barbell Row",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 120,
+                  "substitutions": [
+                    {
+                      "name": "Chest Supported Row",
+                      "reason": "Reduces lower-back fatigue",
+                      "equipment": ["machines"]
+                    },
+                    {
+                      "name": "Single-Arm Dumbbell Row",
+                      "reason": "Still heavy pulling with less spinal load",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Hanging Leg Raise", "sets": 3, "reps": "12", "restSec": 60 },
+                { "name": "Face Pull", "sets": 3, "reps": "15", "restSec": 60 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 2 – Heavy Pull",
+          "blocks": [
+            {
+              "title": "Main Work",
+              "exercises": [
+                {
+                  "name": "Deadlift",
+                  "sets": 3,
+                  "reps": "5",
+                  "restSec": 210,
+                  "substitutions": [
+                    {
+                      "name": "Trap Bar Deadlift",
+                      "reason": "More quad friendly pull",
+                      "equipment": ["barbell"]
+                    },
+                    {
+                      "name": "Romanian Deadlift",
+                      "reason": "Keeps posterior chain focus with less fatigue",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Overhead Press",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 150,
+                  "substitutions": [
+                    {
+                      "name": "Push Press",
+                      "reason": "Adds a little leg drive for heavier weights",
+                      "equipment": ["barbell"]
+                    },
+                    {
+                      "name": "Seated Dumbbell Press",
+                      "reason": "Shoulder friendly pressing",
+                      "equipment": ["dumbbells"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Pull-Up", "sets": 3, "reps": "AMRAP", "restSec": 120 },
+                { "name": "Barbell Hip Thrust", "sets": 3, "reps": "8", "restSec": 120 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Day 3 – Volume Bench",
+          "blocks": [
+            {
+              "title": "Main Work",
+              "exercises": [
+                {
+                  "name": "Front Squat",
+                  "sets": 5,
+                  "reps": "3",
+                  "restSec": 150
+                },
+                {
+                  "name": "Bench Press",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 120,
+                  "substitutions": [
+                    {
+                      "name": "Paused Bench Press",
+                      "reason": "Builds control off the chest",
+                      "equipment": ["barbell"]
+                    }
+                  ]
+                },
+                {
+                  "name": "Barbell Row",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 120
+                }
+              ]
+            },
+            {
+              "title": "Assistance",
+              "exercises": [
+                { "name": "Dumbbell Romanian Deadlift", "sets": 3, "reps": "10", "restSec": 90 },
+                { "name": "Cable Chop", "sets": 3, "reps": "12/side", "restSec": 60 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
