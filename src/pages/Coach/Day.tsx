@@ -28,8 +28,8 @@ import {
 } from "@/lib/coach/progression";
 import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
+import { workoutLogsCol } from "@/lib/db/coachPaths";
 import {
-  collection,
   addDoc,
   doc,
   getDocs,
@@ -238,7 +238,7 @@ export default function CoachDay() {
       }
 
       try {
-        const logsRef = collection(db, "users", user.uid, "workoutLogs");
+        const logsRef = workoutLogsCol(user.uid);
         const recentQuery = query(logsRef, orderBy("completedAt", "desc"), limit(20));
         const snapshot = await getDocs(recentQuery);
         const entries = snapshot.docs.map((docSnap) => docSnap.data());
@@ -381,7 +381,7 @@ export default function CoachDay() {
 
     setIsSaving(true);
     try {
-      const logsRef = collection(db, "users", user.uid, "workoutLogs");
+      const logsRef = workoutLogsCol(user.uid);
       await addDoc(logsRef, {
         programId: rawProgram.id,
         weekIdx: safeWeekIdx,

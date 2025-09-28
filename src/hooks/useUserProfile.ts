@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
+import { coachPlanDoc } from "@/lib/db/coachPaths";
 
 export interface CoachProfile {
   sex?: "male" | "female";
@@ -44,7 +45,7 @@ export function useUserProfile() {
     const unsub1 = onSnapshot(profileRef, (snap) => {
       setProfile((snap.data() as CoachProfile) || null);
     });
-    const planRef = doc(db, "users", uid, "coach", "plan", "current");
+    const planRef = coachPlanDoc(uid);
     const unsub2 = onSnapshot(planRef, (snap) => {
       setPlan((snap.data() as CoachPlan) || null);
     });
