@@ -15,7 +15,8 @@ import { auth, db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import type { Program } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { coachPlanDoc } from "@/lib/db/coachPaths";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -50,6 +51,8 @@ export default function CoachOverview() {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [weekIdx, setWeekIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [planExists, setPlanExists] = useState<boolean | null>(null);
+  const uid = auth.currentUser?.uid ?? null;
 
   useEffect(() => {
     let isMounted = true;
@@ -81,7 +84,36 @@ export default function CoachOverview() {
     setSelectedProgramId((prev) => prev ?? programEntries[0]?.program.id ?? DEFAULT_PROGRAM_ID);
   }, [programEntries]);
 
-  const activeProgramId = profile?.activeProgramId ?? profile?.currentProgramId ?? null;
+  const rawActiveProgramId = profile?.activeProgramId ?? profile?.currentProgramId ?? null;
+  const activeProgramId = planExists === false ? null : rawActiveProgramId;
+
+  useEffect(() => {
+    if (!uid) {
+      setPlanExists(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkPlan = async () => {
+      try {
+        const snapshot = await getDoc(coachPlanDoc(uid));
+        if (!cancelled) {
+          setPlanExists(snapshot.exists());
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPlanExists(false);
+        }
+      }
+    };
+
+    void checkPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, rawActiveProgramId]);
 
   useEffect(() => {
     if (!profile || !programEntries.length || hydrated) return;
@@ -182,7 +214,7 @@ export default function CoachOverview() {
       <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         <NotMedicalAdviceBanner />
-        {profile && !activeProgramId && (
+        {(profile || planExists === false) && !activeProgramId && (
           <Card className="border border-dashed border-primary/40 bg-primary/5">
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
