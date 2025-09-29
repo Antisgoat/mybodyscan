@@ -30,7 +30,18 @@ function normalizeUnit(unit: string | null | undefined) {
   return clean;
 }
 
+function defaultServingOption(item: NormalizedItem) {
+  if (Array.isArray(item.servings) && item.servings.length) {
+    return item.servings.find((option) => option.isDefault) ?? item.servings[0];
+  }
+  return null;
+}
+
 export function estimateServingWeight(item: NormalizedItem): number | null {
+  const defaultServing = defaultServingOption(item);
+  if (defaultServing?.grams) {
+    return round(defaultServing.grams, 2);
+  }
   const servingUnit = normalizeUnit(item.serving?.unit || item.serving?.text || null);
   const servingQty = typeof item.serving?.qty === "number" ? item.serving.qty : null;
   if (servingQty && servingUnit === "g") {

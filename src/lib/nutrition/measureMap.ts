@@ -231,6 +231,67 @@ export function fromUSDA(raw: any): FoodNormalized {
   };
 }
 
+export function fromSearchItem(data: {
+  id: string;
+  name: string;
+  brand?: string | null;
+  source: "USDA" | "OFF";
+  basePer100g?: Partial<FoodNormalized["basePer100g"]> | null;
+  servings?: ServingOption[] | null;
+}): FoodNormalized {
+  const basePer100g = ensureBasePer100g(data.basePer100g ?? {});
+  const servings: ServingOption[] = [];
+  const seen = new Map<string, ServingOption>();
+
+  if (Array.isArray(data.servings)) {
+    data.servings.forEach((option, index) => {
+      const grams = ensurePositive(option?.grams);
+      if (!grams) return;
+      const label =
+        typeof option?.label === "string" && option.label.trim().length
+          ? option.label.trim()
+          : `${round(grams, 2)} g`;
+      addServingOption(
+        servings,
+        {
+          id: option?.id || makeId("srv", index, grams.toFixed(2)),
+          label,
+          grams,
+          isDefault: option?.isDefault,
+        },
+        seen,
+        Boolean(option?.isDefault),
+      );
+    });
+  }
+
+  if (!servings.some((option) => Math.abs(option.grams - 100) < 0.001)) {
+    addServingOption(
+      servings,
+      { id: "100g", label: "100 g", grams: 100, isDefault: servings.length === 0 },
+      seen,
+      servings.length === 0,
+    );
+  }
+
+  if (!servings.some((option) => option.isDefault)) {
+    if (servings.length) {
+      servings[0].isDefault = true;
+    } else {
+      addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen, true);
+    }
+  }
+
+  return {
+    id: data.id,
+    name: data.name || "Food",
+    brand: data.brand ?? null,
+    source: data.source,
+    basePer100g,
+    servings,
+  };
+}
+
 function parseOffServingSize(raw: any): { label: string; grams: number } | null {
   const quantity = ensurePositive(toNumber(raw?.serving_quantity));
   const unit = typeof raw?.serving_size_unit === "string" ? raw.serving_size_unit : null;
