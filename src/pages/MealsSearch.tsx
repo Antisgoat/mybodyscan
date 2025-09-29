@@ -16,7 +16,7 @@ import {
   type FavoriteDocWithId,
 } from "@/lib/nutritionCollections";
 import { ServingChooser } from "@/components/ServingChooser";
-import { calcMacrosFromGrams, fromOFF, fromUSDA, type FoodNormalized } from "@/lib/nutrition/measureMap";
+import { calcMacrosFromGrams, fromOFF, fromSearchItem, fromUSDA, type FoodNormalized } from "@/lib/nutrition/measureMap";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v2";
 const MAX_RECENTS = 50;
@@ -74,9 +74,17 @@ export default function MealsSearch() {
     const handle = window.setTimeout(() => {
       searchFoods(trimmed)
         .then(setResults)
-        .catch((error) => {
+        .catch((error: any) => {
           console.error(error);
-          toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
+          if (typeof error?.status === "number" && error.status >= 500) {
+            toast({
+              title: "Nutrition search temporarily unavailable.",
+              description: "Please try again later.",
+              variant: "destructive",
+            });
+          } else {
+            toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
+          }
         })
         .finally(() => setLoading(false));
     }, 250);
@@ -243,17 +251,18 @@ export default function MealsSearch() {
               </div>
             )}
             {!loading && !results.length && query.trim().length > 0 && (
-              <p className="text-sm text-muted-foreground">No matches. Try alternate spelling or scan the barcode.</p>
+              <p className="text-sm text-muted-foreground">No matches. Try another term or scan the barcode.</p>
             )}
             {!loading && !query.trim() && <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>}
             {results.map((item) => {
               const favorite = favorites.find((fav) => fav.id === item.id);
+              const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
               return (
                 <Card key={item.id} className="border">
                   <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.brand || item.source}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
                       <p className="text-xs text-muted-foreground">
                         {item.per_serving.kcal ?? "—"} kcal • {item.per_serving.protein_g ?? "—"}g P • {item.per_serving.carbs_g ?? "—"}g C •
                         {item.per_serving.fat_g ?? "—"}g F
@@ -303,6 +312,34 @@ function HistoryIcon() {
 }
 
 function mapToFoodNormalized(item: NormalizedItem): FoodNormalized {
+  const hasServings = Array.isArray(item.servings) && item.servings.length > 0;
+  const baseFromItem = item.basePer100g
+    ? {
+        kcal: numberOrZero(item.basePer100g.kcal),
+        protein: numberOrZero(item.basePer100g.protein, 1),
+        carbs: numberOrZero(item.basePer100g.carbs, 1),
+        fat: numberOrZero(item.basePer100g.fat, 1),
+      }
+    : item.per_100g
+    ? {
+        kcal: numberOrZero(item.per_100g.kcal),
+        protein: numberOrZero(item.per_100g.protein_g, 1),
+        carbs: numberOrZero(item.per_100g.carbs_g, 1),
+        fat: numberOrZero(item.per_100g.fat_g, 1),
+      }
+    : null;
+
+  if (hasServings && baseFromItem) {
+    return fromSearchItem({
+      id: item.id,
+      name: item.name,
+      brand: item.brand ?? null,
+      source: item.source,
+      basePer100g: baseFromItem,
+      servings: item.servings ?? [],
+    });
+  }
+
   if (item.source === "USDA" && item.raw) {
     try {
       return fromUSDA(item.raw);
@@ -321,12 +358,19 @@ function mapToFoodNormalized(item: NormalizedItem): FoodNormalized {
 }
 
 function fallbackFoodNormalized(item: NormalizedItem): FoodNormalized {
-  const base: FoodNormalized["basePer100g"] = {
-    kcal: numberOrZero(item.per_100g?.kcal),
-    protein: numberOrZero(item.per_100g?.protein_g, 1),
-    carbs: numberOrZero(item.per_100g?.carbs_g, 1),
-    fat: numberOrZero(item.per_100g?.fat_g, 1),
-  };
+  const base: FoodNormalized["basePer100g"] = item.basePer100g
+    ? {
+        kcal: numberOrZero(item.basePer100g.kcal),
+        protein: numberOrZero(item.basePer100g.protein, 1),
+        carbs: numberOrZero(item.basePer100g.carbs, 1),
+        fat: numberOrZero(item.basePer100g.fat, 1),
+      }
+    : {
+        kcal: numberOrZero(item.per_100g?.kcal),
+        protein: numberOrZero(item.per_100g?.protein_g, 1),
+        carbs: numberOrZero(item.per_100g?.carbs_g, 1),
+        fat: numberOrZero(item.per_100g?.fat_g, 1),
+      };
 
   const servingGrams = parseServingGrams(item);
   if (servingGrams && !baseHasValues(base)) {
