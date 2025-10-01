@@ -3,6 +3,29 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 
+export function buildUrl(path: string, params?: Record<string, string>) {
+  const origin =
+    typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";
+  const url = new URL(path, origin);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+  }
+  return url.toString();
+}
+
+export function nutritionFnUrl(params?: Record<string, string>) {
+  const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
+  const url = new URL(base);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+  }
+  return url.toString();
+}
+
 async function authedFetch(path: string, init?: RequestInit) {
   const url = fnUrl(path);
   if (!url) {
@@ -16,17 +39,6 @@ async function authedFetch(path: string, init?: RequestInit) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${t}`,
-      ...(init?.headers || {}),
-    },
-  });
-}
-
-export function fetchNutritionSearch(query: string, init?: RequestInit) {
-  const url = `/api/nutrition/search?q=${encodeURIComponent(query)}`;
-  return fetch(url, {
-    ...init,
-    headers: {
-      Accept: "application/json",
       ...(init?.headers || {}),
     },
   });

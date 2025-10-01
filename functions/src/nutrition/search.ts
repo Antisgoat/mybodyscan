@@ -1,6 +1,5 @@
 import * as functions from "firebase-functions";
 import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https";
-import { withCors } from "../middleware/cors.js";
 import { softVerifyAppCheck } from "../middleware/appCheck.js";
 import { requireAuth, verifyAppCheckSoft } from "../http.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
@@ -30,11 +29,31 @@ interface NormalizedFood {
   fdcId?: number;
 }
 
+type SearchError = {
+  source: "USDA" | "OFF";
+  code: string;
+  message: string;
+};
+
 const USDA_KEY =
   process.env.USDA_FDC_API_KEY || (functions.config().usda && functions.config().usda.key) || "";
 
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
+
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -370,71 +389,106 @@ async function handler(req: Request, res: any) {
   await enforceRateLimit({ uid, key: "nutrition_search", limit: 100, windowMs: 60 * 60 * 1000 });
 
   if (req.headers["x-firebase-appcheck"] === undefined) {
-    console.warn("nutritionSearch: no AppCheck token");
+    console.warn("nutrition.appcheck_missing", { uid });
   }
 
-  const queryText = String(req.query?.q || req.body?.q || "").trim();
+  const queryText = String(req.query?.q || "").trim();
   if (!queryText) {
-    res.status(400).json({ items: [] });
+    res.set("Cache-Control", "public, max-age=300");
+    res.status(200).json({ items: [] });
     return;
   }
 
+  console.info("nutrition.search_request", { uid, query: queryText });
+
+  const errors: SearchError[] = [];
   let items: NormalizedFood[] = [];
-  let usdaErrored = false;
-  let fallbackError: unknown = null;
 
   try {
     items = await searchUsda(queryText);
+    if (items.length) {
+      console.info("nutrition.usda_success", { uid, query: queryText, count: items.length });
+    } else {
+      console.info("nutrition.usda_empty", { uid, query: queryText });
+    }
   } catch (error) {
-    usdaErrored = true;
-    console.error("usda_search_error", error);
+    const message = describeError(error);
+    errors.push({ source: "USDA", code: "usda_error", message });
+    console.error("nutrition.usda_error", { uid, query: queryText, error: message });
   }
 
   if (!items.length) {
     try {
       items = await searchOpenFoodFacts(queryText);
+      if (items.length) {
+        console.info("nutrition.off_success", { uid, query: queryText, count: items.length });
+      } else {
+        console.info("nutrition.off_empty", { uid, query: queryText });
+      }
     } catch (error) {
-      fallbackError = error;
-      console.error("off_search_error", error);
+      const message = describeError(error);
+      errors.push({ source: "OFF", code: "off_error", message });
+      console.error("nutrition.off_error", { uid, query: queryText, error: message });
     }
   }
 
-  if (!items.length && fallbackError && usdaErrored) {
-    res.status(500).json({ items: [], error: "upstream_error" });
-    return;
+  if (!items.length) {
+    console.info("nutrition.search_no_results", { uid, query: queryText });
   }
 
-  if (!items.length && fallbackError && !usdaErrored) {
-    res.status(500).json({ items: [], error: "upstream_error" });
-    return;
+  const payload: { items: NormalizedFood[]; errors?: SearchError[] } = { items };
+  if (errors.length) {
+    payload.errors = errors;
   }
 
   res.set("Cache-Control", "public, max-age=300");
-  res.json({ items });
+  res.status(200).json(payload);
 }
 
-export const nutritionSearch = onRequest({
-  region: "us-central1",
-  secrets: ["USDA_FDC_API_KEY"],
-  invoker: "public",
-  concurrency: 20,
-}, withCors(async (req, res) => {
-  try {
-    await handler(req as Request, res);
-  } catch (error: any) {
-    if (error instanceof HttpsError) {
-      const status =
-        error.code === "unauthenticated"
-          ? 401
-          : error.code === "invalid-argument"
-          ? 400
-          : error.code === "resource-exhausted"
-          ? 429
-          : 400;
-      res.status(status).json({ error: error.message });
+export const nutritionSearch = onRequest(
+  {
+    region: "us-central1",
+    secrets: ["USDA_FDC_API_KEY"],
+    invoker: "public",
+    concurrency: 20,
+  },
+  async (req, res) => {
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Firebase-AppCheck",
+    };
+
+    res.set(corsHeaders);
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
       return;
     }
-    console.error("nutrition_search_unhandled", error);
-    res.status(500).json({ error: error?.message || "error" });
-  }
-}));
+
+    if (req.method !== "GET") {
+      res.status(405).json({ items: [], error: { code: "method_not_allowed", message: "Use GET" } });
+      return;
+    }
+
+    try {
+      await handler(req as Request, res);
+    } catch (error: any) {
+      if (error instanceof HttpsError) {
+        const status =
+          error.code === "unauthenticated"
+            ? 401
+            : error.code === "invalid-argument"
+            ? 400
+            : error.code === "resource-exhausted"
+            ? 429
+            : 400;
+        res.status(status).json({ items: [], error: { code: error.code, message: error.message } });
+        return;
+      }
+      const message = describeError(error);
+      console.error("nutrition.search_unhandled", { error: message });
+      res.status(500).json({ items: [], error: { code: "internal", message } });
+    }
+  },
+);
