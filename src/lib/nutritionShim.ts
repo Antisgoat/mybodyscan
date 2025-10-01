@@ -1,4 +1,4 @@
-import { fetchNutritionSearch } from "@/lib/api";
+import { buildUrl, nutritionFnUrl } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
 
 const TIMEOUT_MS = 3000;
@@ -344,21 +344,49 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
 }
 
 export async function searchFoods(query: string): Promise<NormalizedItem[]> {
-  if (!query?.trim()) return [];
-  const trimmed = query.trim();
+  const trimmed = query?.trim();
+  if (!trimmed) return [];
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
   try {
-    const response = await fetchNutritionSearch(trimmed, { signal: controller.signal });
-    if (!response.ok) {
-      const error: any = new Error("nutrition-search");
-      error.status = response.status;
-      throw error;
+    const rewriteUrl = buildUrl("/api/nutrition/search", { q: trimmed });
+    let response: Response;
+    try {
+      response = await fetch(rewriteUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const error: any = new Error(`rewrite_status_${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      const fnUrl = nutritionFnUrl({ q: trimmed });
+      response = await fetch(fnUrl, {
+        method: "GET",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const fallbackError: any = new Error(`fn_status_${response.status}`);
+        fallbackError.status = response.status;
+        throw fallbackError;
+      }
     }
-    const data = await response.json();
+
+    const data = await response
+      .json()
+      .catch(() => ({ items: [] as FoodSearchApiItem[] }));
+
     if (!Array.isArray(data?.items)) {
       return [];
     }
+
     return data.items.map((item: FoodSearchApiItem) => normalizeApiItem(item));
   } finally {
     clearTimeout(timer);
