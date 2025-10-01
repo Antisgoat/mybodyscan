@@ -1,6 +1,6 @@
-import { FUNCTIONS_BASE, fnUrl } from "@/lib/env";
+import { fetchNutritionSearch } from "@/lib/api";
+import { fnUrl } from "@/lib/env";
 
-const USE_MOCKS = Boolean(import.meta.env.DEV) && !FUNCTIONS_BASE;
 const TIMEOUT_MS = 3000;
 
 interface FoodSearchApiServing {
@@ -321,45 +321,6 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
   };
 }
 
-function mockList(query: string): NormalizedItem[] {
-  const key = query.trim() || "sample";
-  const chicken = normalizeApiItem({
-    id: `mock-${key}-1`,
-    name: `${key} grilled chicken`,
-    brand: "Sample Farms",
-    source: "USDA",
-    basePer100g: { kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-    servings: [
-      { id: "100g", label: "100 g", grams: 100, isDefault: true },
-      { id: "mock-serv-1", label: "1 breast (120 g)", grams: 120 },
-    ],
-  });
-  const cereal = normalizeApiItem({
-    id: `mock-${key}-2`,
-    name: `${key} cereal`,
-    brand: "Sample Kitchen",
-    source: "OFF",
-    basePer100g: { kcal: 380, protein: 6, carbs: 82, fat: 3 },
-    servings: [
-      { id: "100g", label: "100 g", grams: 100, isDefault: true },
-      { id: "mock-serv-2", label: "1 cup (30 g)", grams: 30 },
-    ],
-  });
-  return [chicken, cereal];
-}
-
-function buildFoodSearchUrl(query: string): string | null {
-  if (FUNCTIONS_BASE) {
-    const base = fnUrl("/food/search");
-    if (!base) return null;
-    return `${base}?q=${encodeURIComponent(query)}`;
-  }
-  if (typeof window !== "undefined") {
-    return `/food/search?q=${encodeURIComponent(query)}`;
-  }
-  return null;
-}
-
 async function callFunctions(path: string, init?: RequestInit): Promise<Response | null> {
   const url = fnUrl(path);
   if (!url) {
@@ -384,21 +345,11 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
 
 export async function searchFoods(query: string): Promise<NormalizedItem[]> {
   if (!query?.trim()) return [];
-  if (USE_MOCKS) {
-    return mockList(query.trim());
-  }
   const trimmed = query.trim();
-  const url = buildFoodSearchUrl(trimmed);
-  if (!url) {
-    return [];
-  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetchNutritionSearch(trimmed, { signal: controller.signal });
     if (!response.ok) {
       const error: any = new Error("nutrition-search");
       error.status = response.status;
@@ -416,10 +367,6 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
 
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
   if (!code?.trim()) return null;
-  if (USE_MOCKS) {
-    const list = mockList(code.trim());
-    return list[0] ?? null;
-  }
   const response = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code.trim())}`);
   if (!response) {
     return null;

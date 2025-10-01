@@ -84,6 +84,10 @@
         }
       },
       {
+        "source": "/api/nutrition/search",
+        "function": "nutritionSearch"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
