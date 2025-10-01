@@ -1,11 +1,7 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
-import { verifyAppCheckSoft } from "./http.js";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
-import { consumeCredit, refreshCreditsSummary } from "./credits.js";
-import { getFirestore } from "./firebase.js";
-
-const db = getFirestore();
+import { verifyAppCheckStrict } from "./http.js";
+import { consumeCredit } from "./credits.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
@@ -20,18 +16,14 @@ export async function useCreditHandler(
 
   const rawRequest = context.rawRequest as Request | undefined;
   if (rawRequest) {
-    await softVerifyAppCheck(rawRequest as any, {} as any);
-    await verifyAppCheckSoft(rawRequest);
+    await verifyAppCheckStrict(rawRequest);
   }
 
-  const ok = await consumeCredit(uid);
-  if (!ok) {
+  const { consumed, remaining } = await consumeCredit(uid);
+  if (!consumed) {
     throw new HttpsError("failed-precondition", "no_credits");
   }
 
-  await refreshCreditsSummary(uid);
-  const snap = await db.doc(`users/${uid}/private/credits`).get();
-  const remaining = (snap.data()?.creditsSummary?.totalAvailable as number | undefined) || 0;
   return { ok: true, remaining };
 }
 

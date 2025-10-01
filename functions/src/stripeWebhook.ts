@@ -3,9 +3,13 @@ import type { Request } from 'firebase-functions/v2/https';
 import Stripe from 'stripe';
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
+import { ensureEnvVars, reportMissingEnv } from "./env.js";
 
-const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+ensureEnvVars(["STRIPE_SECRET", "STRIPE_SECRET_KEY"], "stripeWebhook");
+reportMissingEnv("STRIPE_WEBHOOK_SECRET", "stripeWebhook");
+
+const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || "";
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 type RequestWithRawBody = Request & Record<'rawBody', Buffer>;
 
@@ -18,6 +22,7 @@ export const stripeWebhook = onRequest({
   region: "us-central1",
   secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
   invoker: "public",
+  concurrency: 5,
 }, async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -25,8 +30,14 @@ export const stripeWebhook = onRequest({
   }
 
   const stripe = buildStripe();
-  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
-    res.status(200).send("mock-ok");
+  if (!stripe) {
+    console.error("stripeWebhook", "Stripe secret missing at runtime");
+    res.status(500).send("stripe_not_configured");
+    return;
+  }
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("stripeWebhook", "Webhook secret missing");
+    res.status(500).send("stripe_not_configured");
     return;
   }
 

@@ -3,6 +3,7 @@ import type { Request } from "firebase-functions/v2/https";
 import { withCors } from "../middleware/cors.js";
 import { softVerifyAppCheck } from "../middleware/appCheck.js";
 import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // ~24 hours
@@ -54,7 +55,8 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
 async function handler(req: Request, res: any) {
   await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
-  await requireAuth(req);
+  const uid = await requireAuth(req);
+  await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
 
   const code = String(req.query?.code || req.body?.code || "").trim();
   if (!code) {
@@ -101,20 +103,25 @@ async function handler(req: Request, res: any) {
   res.json({ item: result.item, code, source: result.source, cached: false });
 }
 
-export const nutritionBarcode = onRequest({ region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public" }, withCors(async (req, res) => {
-  try {
-    await handler(req as Request, res);
-  } catch (error: any) {
-    if (error instanceof HttpsError) {
-      const status =
-        error.code === "unauthenticated"
-          ? 401
-          : error.code === "invalid-argument"
-          ? 400
-          : 400;
-      res.status(status).json({ error: error.message });
-      return;
+export const nutritionBarcode = onRequest(
+  { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
+  withCors(async (req, res) => {
+    try {
+      await handler(req as Request, res);
+    } catch (error: any) {
+      if (error instanceof HttpsError) {
+        const status =
+          error.code === "unauthenticated"
+            ? 401
+            : error.code === "invalid-argument"
+            ? 400
+            : error.code === "resource-exhausted"
+            ? 429
+            : 400;
+        res.status(status).json({ error: error.message });
+        return;
+      }
+      res.status(500).json({ error: error?.message || "error" });
     }
-    res.status(500).json({ error: error?.message || "error" });
-  }
-}));
+  })
+);

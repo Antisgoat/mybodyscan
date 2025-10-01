@@ -16,14 +16,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem("mbs_user");
-    if (raw) setUser(JSON.parse(raw));
+    const legacy = localStorage.getItem("mbs_user");
+    if (legacy) {
+      localStorage.removeItem("mbs_user");
+    }
+    const storedUid = localStorage.getItem("mbs_user_uid");
+    if (storedUid) {
+      setUser({ uid: storedUid, email: "" });
+    }
   }, []);
 
   useEffect(() => {
-    if (user) localStorage.setItem("mbs_user", JSON.stringify(user));
-    else localStorage.removeItem("mbs_user");
-  }, [user]);
+    if (user?.uid) {
+      localStorage.setItem("mbs_user_uid", user.uid);
+    } else {
+      localStorage.removeItem("mbs_user_uid");
+    }
+  }, [user?.uid]);
 
   const signIn = async (email: string, _password: string) => {
     // Placeholder – replace with Firebase Auth

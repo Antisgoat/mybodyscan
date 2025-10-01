@@ -2,9 +2,10 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { softVerifyAppCheck } from "../middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
+import { enforceRateLimit } from "../middleware/rateLimit.js";
+import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;
@@ -16,12 +17,21 @@ function todayKey() {
 }
 
 async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
-  await verifyAppCheckSoft(req);
+  await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
-  const body = req.body as { scanId?: string; hashes?: string[]; gateScore?: number; mode?: "2" | "4" };
-  if (!body?.scanId || !Array.isArray(body.hashes) || typeof body.gateScore !== "number") {
-    res.status(400).json({ ok: false, reason: "invalid_request" });
+  const validation = validateBeginPaidScanPayload(req.body);
+  if (!validation.success) {
+    console.warn("beginPaidScan_invalid_payload", { uid, errors: validation.errors });
+    res.status(400).json({ ok: false, reason: "invalid_request", errors: validation.errors });
+    return;
+  }
+  const payload = validation.data;
+
+  try {
+    await enforceRateLimit({ uid, key: "beginPaidScan", limit: 10, windowMs: 60 * 60 * 1000 });
+  } catch (err) {
+    console.warn("beginPaidScan_rate_limited", { uid });
+    res.status(429).json({ ok: false, reason: "rate_limited" });
     return;
   }
 
@@ -31,12 +41,6 @@ async function handler(req: Request, res: any) {
   const failedCount = Number(gateData.failed || 0);
   if (failedCount >= MAX_DAILY_FAILS) {
     res.status(429).json({ ok: false, reason: "cap" });
-    return;
-  }
-
-  const hashes = body.hashes.filter((hash) => typeof hash === "string" && hash.length > 0);
-  if (!hashes.length) {
-    res.status(400).json({ ok: false, reason: "invalid_hashes" });
     return;
   }
 
@@ -52,14 +56,14 @@ async function handler(req: Request, res: any) {
     const data = docSnap.data() as any;
     const docHashes: string[] = Array.isArray(data.imageHashes) ? data.imageHashes : [];
     if (!docHashes.length) continue;
-    const duplicate = hashes.some((hash) => docHashes.includes(hash));
+    const duplicate = payload.hashes.some((hash) => docHashes.includes(hash));
     if (duplicate) {
       res.status(409).json({ ok: false, reason: "duplicate" });
       return;
     }
   }
 
-  const scanRef = db.doc(`users/${uid}/scans/${body.scanId}`);
+  const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
   const creditRef = db.doc(`users/${uid}/private/credits`);
   const now = Timestamp.now();
   let remainingCredits = 0;
@@ -93,10 +97,10 @@ async function handler(req: Request, res: any) {
           charged: true,
           authorizedAt: now,
           updatedAt: now,
-          gateScore: body.gateScore,
-          mode: body.mode || "2",
-          imageHashes: hashes,
-          gate: { clientScore: body.gateScore, authorizedAt: now },
+          gateScore: payload.gateScore,
+          mode: payload.mode,
+          imageHashes: payload.hashes,
+          gate: { clientScore: payload.gateScore, authorizedAt: now },
         },
         { merge: true }
       );
@@ -129,7 +133,7 @@ async function handler(req: Request, res: any) {
 }
 
 export const beginPaidScan = onRequest(
-  { invoker: "public" },
+  { invoker: "public", concurrency: 10 },
   withCors(async (req, res) => {
     try {
       await handler(req as Request, res);

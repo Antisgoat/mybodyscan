@@ -1,11 +1,11 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import type { ScanDocument } from "./types.js";
 import { consumeOne } from "./credits.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -29,6 +29,7 @@ function defaultMetrics(scanId: string) {
 }
 
 async function createScanSession(uid: string) {
+  await enforceRateLimit({ uid, key: "scan_create", limit: 10, windowMs: 60 * 60 * 1000 });
   const ref = db.collection(`users/${uid}/scans`).doc();
   const now = Timestamp.now();
   const doc: ScanDocument = {
@@ -191,7 +192,7 @@ function respond(res: any, body: any, status = 200) {
 }
 
 async function handleStartRequest(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+  await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
   const session = await createScanSession(uid);
   respond(res, session);
@@ -235,10 +236,9 @@ export const runBodyScan = onCall(
 );
 
 export const startScanSession = onRequest(
-  { invoker: "public" },
+  { invoker: "public", concurrency: 15 },
   withCors(async (req, res) => {
     try {
-      await softVerifyAppCheck(req as any, res as any);
       await handleStartRequest(req, res);
     } catch (err: any) {
       respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
@@ -247,11 +247,10 @@ export const startScanSession = onRequest(
 );
 
 export const submitScan = onRequest(
-  { invoker: "public" },
+  { invoker: "public", concurrency: 15 },
   withCors(async (req, res) => {
     try {
-      await softVerifyAppCheck(req as any, res as any);
-      await verifyAppCheckSoft(req);
+      await verifyAppCheckStrict(req);
       const uid = await requireAuth(req);
       const body = req.body as { scanId?: string; files?: string[] };
       if (!body?.scanId || !Array.isArray(body.files)) {
@@ -268,11 +267,10 @@ export const submitScan = onRequest(
 );
 
 export const processQueuedScanHttp = onRequest(
-  { invoker: "public" },
+  { invoker: "public", concurrency: 10 },
   withCors(async (req, res) => {
     try {
-      await softVerifyAppCheck(req as any, res as any);
-      await verifyAppCheckSoft(req);
+      await verifyAppCheckStrict(req);
       const uid = await requireAuth(req);
       const scanId = (req.body?.scanId as string) || (req.query?.scanId as string);
       if (!scanId) {
@@ -295,16 +293,15 @@ export const processQueuedScanHttp = onRequest(
   })
 );
 
-export const processScan = onRequest({ invoker: "public" }, async (req, res) => {
+export const processScan = onRequest({ invoker: "public", concurrency: 10 }, async (req, res) => {
   await processQueuedScanHttp(req, res);
 });
 
 export const getScanStatus = onRequest(
-  { invoker: "public" },
+  { invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await softVerifyAppCheck(req as any, res as any);
-      await verifyAppCheckSoft(req);
+      await verifyAppCheckStrict(req);
       const uid = await requireAuth(req);
       const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
       if (!scanId) {
