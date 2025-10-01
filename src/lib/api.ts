@@ -21,6 +21,17 @@ async function authedFetch(path: string, init?: RequestInit) {
   });
 }
 
+export function fetchNutritionSearch(query: string, init?: RequestInit) {
+  const url = `/api/nutrition/search?q=${encodeURIComponent(query)}`;
+  return fetch(url, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+}
+
 export async function startScan(params: {
   filename: string;
   size: number;
