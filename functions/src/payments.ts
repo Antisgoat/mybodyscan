@@ -2,9 +2,12 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { CallableRequest, Request } from "firebase-functions/v2/https";
 import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { ensureEnvVars, reportMissingEnv } from "./env.js";
+
+ensureEnvVars(["STRIPE_SECRET", "STRIPE_SECRET_KEY"], "payments");
+reportMissingEnv("HOST_BASE_URL", "payments");
 
 const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || "";
 const ORIGIN = process.env.HOST_BASE_URL || "https://mybodyscanapp.com";
@@ -90,7 +93,7 @@ async function createCheckoutSessionForUid(
 }
 
 async function handleCheckoutSession(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+  await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
   const source = req.body && Object.keys(req.body || {}).length ? req.body : req.query;
   const payload = parseCheckoutSessionPayload(source);
@@ -108,7 +111,7 @@ async function handleCheckoutSession(req: Request, res: any) {
 }
 
 async function handleCustomerPortal(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+  await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
   let stripe: Stripe;
   try {
@@ -141,10 +144,11 @@ function withHandler(handler: (req: Request, res: any) => Promise<void>) {
       region: "us-central1",
       secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY"],
       invoker: "public",
+      concurrency: 10,
     },
     withCors(async (req, res) => {
       try {
-        await softVerifyAppCheck(req as any, res as any);
+        await verifyAppCheckStrict(req);
         await handler(req, res);
       } catch (err: any) {
         if (err instanceof CheckoutError) {
@@ -179,8 +183,7 @@ export async function createCheckoutSessionHandler(
   }
   const rawRequest = context.rawRequest as Request | undefined;
   if (rawRequest) {
-    await softVerifyAppCheck(rawRequest as any, {} as any);
-    await verifyAppCheckSoft(rawRequest);
+    await verifyAppCheckStrict(rawRequest);
   }
   const payload = parseCheckoutSessionPayload(data);
   try {

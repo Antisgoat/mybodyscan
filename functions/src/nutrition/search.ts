@@ -3,6 +3,7 @@ import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https
 import { withCors } from "../middleware/cors.js";
 import { softVerifyAppCheck } from "../middleware/appCheck.js";
 import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { enforceRateLimit } from "../middleware/rateLimit.js";
 
 type MacroBreakdown = {
   kcal: number;
@@ -365,7 +366,8 @@ async function searchOpenFoodFacts(query: string): Promise<NormalizedFood[]> {
 async function handler(req: Request, res: any) {
   await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
-  await requireAuth(req);
+  const uid = await requireAuth(req);
+  await enforceRateLimit({ uid, key: "nutrition_search", limit: 100, windowMs: 60 * 60 * 1000 });
 
   if (req.headers["x-firebase-appcheck"] === undefined) {
     console.warn("nutritionSearch: no AppCheck token");
@@ -415,6 +417,7 @@ export const nutritionSearch = onRequest({
   region: "us-central1",
   secrets: ["USDA_FDC_API_KEY"],
   invoker: "public",
+  concurrency: 20,
 }, withCors(async (req, res) => {
   try {
     await handler(req as Request, res);
@@ -425,6 +428,8 @@ export const nutritionSearch = onRequest({
           ? 401
           : error.code === "invalid-argument"
           ? 400
+          : error.code === "resource-exhausted"
+          ? 429
           : 400;
       res.status(status).json({ error: error.message });
       return;
