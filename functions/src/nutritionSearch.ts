@@ -1,8 +1,7 @@
 import * as functions from "firebase-functions";
-import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { onRequest, type Request } from "firebase-functions/v2/https";
+import type { Response } from "express";
+import { verifyAppCheckSoft } from "./http.js";
 
 type MacroBreakdown = {
   kcal: number;
@@ -12,43 +11,30 @@ type MacroBreakdown = {
 };
 
 type ServingOption = {
-  id: string;
   label: string;
   grams: number;
   isDefault?: boolean;
 };
 
-interface NormalizedFood {
+type NormalizedFood = {
   id: string;
-  source: "USDA" | "Open Food Facts";
   name: string;
   brand: string | null;
+  source: "USDA" | "Open Food Facts";
   basePer100g: MacroBreakdown;
   servings: ServingOption[];
-  gtin?: string | null;
   fdcId?: number;
-}
-
-type SearchError = {
-  source: "USDA" | "Open Food Facts";
-  code: string;
-  message: string;
+  gtin?: string;
 };
 
 const USDA_KEY =
   process.env.USDA_FDC_API_KEY || (functions.config().usda && functions.config().usda.key) || "";
-
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
-const OFF_SOURCE = "Open Food Facts" as const;
 
 function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);
   } catch {
@@ -67,37 +53,35 @@ function round(value: number, decimals = 0): number {
   return Math.round(value * factor) / factor;
 }
 
-function ensureMacroBreakdown(input: Partial<MacroBreakdown>): MacroBreakdown {
+function ensureMacroBreakdown(values: Partial<MacroBreakdown>): MacroBreakdown {
   return {
-    kcal: input.kcal != null && Number.isFinite(input.kcal) ? round(input.kcal, 0) : 0,
-    protein: input.protein != null && Number.isFinite(input.protein) ? round(input.protein, 1) : 0,
-    carbs: input.carbs != null && Number.isFinite(input.carbs) ? round(input.carbs, 1) : 0,
-    fat: input.fat != null && Number.isFinite(input.fat) ? round(input.fat, 1) : 0,
+    kcal: values.kcal != null && Number.isFinite(values.kcal) ? round(values.kcal, 0) : 0,
+    protein: values.protein != null && Number.isFinite(values.protein) ? round(values.protein, 1) : 0,
+    carbs: values.carbs != null && Number.isFinite(values.carbs) ? round(values.carbs, 1) : 0,
+    fat: values.fat != null && Number.isFinite(values.fat) ? round(values.fat, 1) : 0,
   };
 }
 
-function makeServingId(prefix: string, index: number, grams: number) {
-  return `${prefix}-${index}-${round(grams, 3)}`;
-}
-
 function addServingOption(
-  list: ServingOption[],
-  option: ServingOption,
+  servings: ServingOption[],
   seen: Set<string>,
+  option: ServingOption,
   forceDefault = false,
 ) {
   const key = `${option.label.toLowerCase()}-${round(option.grams, 3)}`;
-  if (seen.has(key)) {
-    return;
-  }
-  seen.add(key);
+  if (seen.has(key)) return;
   if (forceDefault) {
-    list.forEach((entry) => {
-      entry.isDefault = false;
+    servings.forEach((serving) => {
+      serving.isDefault = false;
     });
     option.isDefault = true;
   }
-    list.push(option);
+  seen.add(key);
+  servings.push({
+    label: option.label,
+    grams: round(option.grams, 2),
+    isDefault: option.isDefault,
+  });
 }
 
 function normalizeUsdaFood(food: any): NormalizedFood | null {
@@ -105,10 +89,10 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
 
   const servings: ServingOption[] = [];
   const seen = new Set<string>();
-  addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen, true);
+  addServingOption(servings, seen, { label: "100 g", grams: 100, isDefault: true }, true);
 
   const portions = Array.isArray(food?.foodPortions) ? food.foodPortions : [];
-  const sortedPortions = portions
+  const validPortions = portions
     .filter((portion: any) => toNumber(portion?.gramWeight) && toNumber(portion?.gramWeight)! > 0)
     .sort((a: any, b: any) => {
       const aSeq = toNumber(a?.sequenceNumber) ?? 0;
@@ -118,7 +102,7 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
 
   let referenceGrams: number | null = null;
 
-  sortedPortions.forEach((portion: any, index: number) => {
+  validPortions.forEach((portion: any, index: number) => {
     const gramWeight = toNumber(portion?.gramWeight);
     if (!gramWeight || gramWeight <= 0) return;
     if (referenceGrams === null) {
@@ -136,16 +120,14 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
       amount && amount !== 1 ? amount : null,
       description || modifier || measureAbbr || measureName || "serving",
     ].filter(Boolean);
-    const label = labelParts.join(" ");
 
     addServingOption(
       servings,
-      {
-        id: makeServingId("usda", index, gramWeight),
-        label: label || `${round(amount ?? 1, 2)} serving`,
-        grams: round(gramWeight, 2),
-      },
       seen,
+      {
+        label: labelParts.join(" ") || `${round(amount ?? 1, 2)} serving`,
+        grams: gramWeight,
+      },
     );
   });
 
@@ -158,15 +140,7 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
         typeof food?.householdServingFullText === "string" && food.householdServingFullText.trim().length
           ? food.householdServingFullText.trim()
           : `${round(servingSize, 2)} g`;
-      addServingOption(
-        servings,
-        {
-          id: makeServingId("usda-default", 0, servingSize),
-          label,
-          grams: round(servingSize, 2),
-        },
-        seen,
-      );
+      addServingOption(servings, seen, { label, grams: servingSize });
     }
   }
 
@@ -193,7 +167,7 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
   };
 
   const label = food?.labelNutrients ?? {};
-  const servingGrams = referenceGrams ?? toNumber(food?.servingSizeUnit === "g" ? food?.servingSize : null);
+  const servingGrams = referenceGrams ?? (food?.servingSizeUnit === "g" ? toNumber(food?.servingSize) : null);
   if (servingGrams && servingGrams > 0) {
     const factor = 100 / servingGrams;
     const calories = toNumber(label?.calories?.value ?? label?.calories);
@@ -209,7 +183,7 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
   const normalizedBase = ensureMacroBreakdown(base);
 
   if (!servings.length) {
-    addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen, true);
+    addServingOption(servings, seen, { label: "100 g", grams: 100, isDefault: true }, true);
   }
 
   const description = typeof food?.description === "string" ? food.description.trim() : "";
@@ -220,13 +194,13 @@ function normalizeUsdaFood(food: any): NormalizedFood | null {
 
   return {
     id: String(food?.fdcId ?? food?.id ?? `${Date.now()}`),
-    source: "USDA",
     name: description || "Food",
     brand: brandOwner,
+    source: "USDA",
     basePer100g: normalizedBase,
     servings,
-    gtin: typeof food?.gtinUpc === "string" && food.gtinUpc.trim().length ? food.gtinUpc : undefined,
     fdcId: toNumber(food?.fdcId) ?? undefined,
+    gtin: typeof food?.gtinUpc === "string" && food.gtinUpc.trim().length ? food.gtinUpc : undefined,
   };
 }
 
@@ -236,7 +210,8 @@ function parseOffServing(product: any): { label: string; grams: number } | null 
   const normalizedUnit = unitRaw ? unitRaw.trim().toLowerCase() : null;
 
   const servingSizeText = typeof product?.serving_size === "string" ? product.serving_size.trim() : "";
-  const tryConvert = (qty: number | null, unit: string | null): number | null => {
+
+  const convert = (qty: number | null, unit: string | null): number | null => {
     if (!qty || qty <= 0 || !unit) return null;
     switch (unit.toLowerCase()) {
       case "g":
@@ -266,22 +241,23 @@ function parseOffServing(product: any): { label: string; grams: number } | null 
     }
   };
 
-  let grams = tryConvert(quantity, normalizedUnit);
+  let grams = convert(quantity, normalizedUnit);
   if (!grams && servingSizeText) {
     const match = servingSizeText.match(/([\d.,]+)\s*(g|kg|oz|lb|ml|l)/i);
     if (match) {
-      grams = tryConvert(toNumber(match[1]?.replace(/,/g, "")), match[2]);
+      grams = convert(toNumber(match[1]?.replace(/,/g, "")), match[2]);
     }
   }
 
   if (!grams || grams <= 0) return null;
 
   const label = servingSizeText || `${round(quantity ?? 1, 2)} ${unitRaw ?? "serving"}`;
-  return { label, grams: round(grams, 2) };
+  return { label, grams: grams };
 }
 
 function normalizeOffProduct(product: any): NormalizedFood | null {
   if (!product) return null;
+
   const nutriments = product?.nutriments ?? {};
   const energy =
     toNumber(nutriments["energy-kcal_100g"]) ??
@@ -295,19 +271,11 @@ function normalizeOffProduct(product: any): NormalizedFood | null {
 
   const servings: ServingOption[] = [];
   const seen = new Set<string>();
-  addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen, true);
+  addServingOption(servings, seen, { label: "100 g", grams: 100, isDefault: true }, true);
 
   const parsed = parseOffServing(product);
   if (parsed) {
-    addServingOption(
-      servings,
-      {
-        id: makeServingId("off", 0, parsed.grams),
-        label: parsed.label,
-        grams: parsed.grams,
-      },
-      seen,
-    );
+    addServingOption(servings, seen, { label: parsed.label, grams: parsed.grams });
   }
 
   const name =
@@ -325,9 +293,9 @@ function normalizeOffProduct(product: any): NormalizedFood | null {
 
   return {
     id: String(product?.code ?? product?.id ?? name),
-    source: OFF_SOURCE,
     name,
     brand: brand || null,
+    source: "Open Food Facts",
     basePer100g: base,
     servings,
     gtin: typeof product?.code === "string" && product.code.trim().length ? product.code : undefined,
@@ -336,8 +304,10 @@ function normalizeOffProduct(product: any): NormalizedFood | null {
 
 async function searchUsda(query: string): Promise<NormalizedFood[]> {
   if (!USDA_KEY) {
+    console.warn("nutrition.usda_missing_key");
     return [];
   }
+
   const url = new URL(USDA_SEARCH_URL);
   url.searchParams.set("query", query);
   url.searchParams.set("pageSize", "15");
@@ -348,12 +318,14 @@ async function searchUsda(query: string): Promise<NormalizedFood[]> {
 
   const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!response.ok) {
-    throw new Error(`usda_${response.status}`);
+    throw new Error(`usda_status_${response.status}`);
   }
+
   const data = await response.json();
   if (!Array.isArray(data?.foods)) {
     return [];
   }
+
   return data.foods
     .map((food: any) => normalizeUsdaFood(food))
     .filter((item): item is NormalizedFood => Boolean(item));
@@ -371,89 +343,63 @@ async function searchOpenFoodFacts(query: string): Promise<NormalizedFood[]> {
     headers: { "User-Agent": "mybodyscan-functions" },
     signal: AbortSignal.timeout(5000),
   });
+
   if (!response.ok) {
-    throw new Error(`off_${response.status}`);
+    throw new Error(`off_status_${response.status}`);
   }
+
   const data = await response.json();
   if (!Array.isArray(data?.products)) {
     return [];
   }
+
   return data.products
     .map((product: any) => normalizeOffProduct(product))
     .filter((item): item is NormalizedFood => Boolean(item));
 }
 
-export type NormalizedItem = NormalizedFood;
-
-export function fromUsdaFood(food: any): NormalizedItem | null {
-  return normalizeUsdaFood(food);
-}
-
-export function fromOpenFoodFacts(product: any): NormalizedItem | null {
-  return normalizeOffProduct(product);
-}
-
-async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
+async function handleRequest(req: Request, res: Response) {
   await verifyAppCheckSoft(req);
-  const uid = await requireAuth(req);
-  await enforceRateLimit({ uid, key: "nutrition_search", limit: 100, windowMs: 60 * 60 * 1000 });
 
-  if (req.headers["x-firebase-appcheck"] === undefined) {
-    console.warn("nutrition.appcheck_missing", { uid });
-  }
+  const queryText = String(req.query?.q ?? "").trim();
+  res.set("Cache-Control", "public, max-age=300");
 
-  const queryText = String(req.query?.q || "").trim();
   if (!queryText) {
-    res.set("Cache-Control", "public, max-age=300");
     res.status(200).json({ items: [] });
     return;
   }
 
-  console.info("nutrition.search_request", { uid, query: queryText });
-
-  const errors: SearchError[] = [];
   let items: NormalizedFood[] = [];
 
   try {
     items = await searchUsda(queryText);
     if (items.length) {
-      console.info("nutrition.usda_success", { uid, query: queryText, count: items.length });
+      console.info("nutrition.usda_success", { query: queryText, count: items.length });
     } else {
-      console.info("nutrition.usda_empty", { uid, query: queryText });
+      console.info("nutrition.usda_empty", { query: queryText });
     }
   } catch (error) {
-    const message = describeError(error);
-    errors.push({ source: "USDA", code: "usda_error", message });
-    console.error("nutrition.usda_error", { uid, query: queryText, error: message });
+    console.error("nutrition.usda_error", { query: queryText, error: describeError(error) });
   }
 
   if (!items.length) {
     try {
       items = await searchOpenFoodFacts(queryText);
       if (items.length) {
-        console.info("nutrition.off_success", { uid, query: queryText, count: items.length });
+        console.info("nutrition.off_success", { query: queryText, count: items.length });
       } else {
-        console.info("nutrition.off_empty", { uid, query: queryText });
+        console.info("nutrition.off_empty", { query: queryText });
       }
     } catch (error) {
-      const message = describeError(error);
-      errors.push({ source: OFF_SOURCE, code: "off_error", message });
-      console.error("nutrition.off_error", { uid, query: queryText, error: message });
+      console.error("nutrition.off_error", { query: queryText, error: describeError(error) });
     }
   }
 
   if (!items.length) {
-    console.info("nutrition.search_no_results", { uid, query: queryText });
+    console.info("nutrition.no_results", { query: queryText });
   }
 
-  const payload: { items: NormalizedFood[]; errors?: SearchError[] } = { items };
-  if (errors.length) {
-    payload.errors = errors;
-  }
-
-  res.set("Cache-Control", "public, max-age=300");
-  res.status(200).json(payload);
+  res.status(200).json({ items });
 }
 
 export const nutritionSearch = onRequest(
@@ -461,16 +407,17 @@ export const nutritionSearch = onRequest(
     region: "us-central1",
     secrets: ["USDA_FDC_API_KEY"],
     invoker: "public",
-    concurrency: 20,
   },
   async (req, res) => {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, X-Firebase-AppCheck",
-    };
+    } as Record<string, string>;
 
-    res.set(corsHeaders);
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.set(key, value);
+    });
 
     if (req.method === "OPTIONS") {
       res.status(204).send("");
@@ -478,47 +425,15 @@ export const nutritionSearch = onRequest(
     }
 
     if (req.method !== "GET") {
-      res.status(200).json({
-        items: [],
-        errors: [
-          {
-            source: "USDA",
-            code: "method_not_allowed",
-            message: "Use GET",
-          },
-        ],
-      });
+      res.status(200).json({ items: [] });
       return;
     }
 
     try {
-      await handler(req as Request, res);
-    } catch (error: any) {
-      if (error instanceof HttpsError) {
-        res.status(200).json({
-          items: [],
-          errors: [
-            {
-              source: "USDA",
-              code: error.code,
-              message: error.message,
-            },
-          ],
-        });
-        return;
-      }
-      const message = describeError(error);
-      console.error("nutrition.search_unhandled", { error: message });
-      res.status(200).json({
-        items: [],
-        errors: [
-          {
-            source: "USDA",
-            code: "internal",
-            message,
-          },
-        ],
-      });
+      await handleRequest(req as Request, res as Response);
+    } catch (error) {
+      console.error("nutrition.unhandled", { error: describeError(error) });
+      res.status(200).json({ items: [] });
     }
   },
 );
