@@ -15,7 +15,7 @@ export interface NutritionItemSnapshot {
   id?: string;
   name: string;
   brand?: string | null;
-  source?: "USDA" | "OFF" | string;
+  source?: "USDA" | "Open Food Facts" | string;
   serving?: {
     qty?: number | null;
     unit?: string | null;

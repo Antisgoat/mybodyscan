@@ -4,13 +4,13 @@ import { withCors } from "../middleware/cors.js";
 import { softVerifyAppCheck } from "../middleware/appCheck.js";
 import { requireAuth, verifyAppCheckSoft } from "../http.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
-import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search.js";
+import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "../nutritionSearch.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // ~24 hours
 
 interface CacheEntry {
   expires: number;
-  value: { item: NormalizedItem; source: "OFF" | "USDA" } | null;
+  value: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -26,7 +26,7 @@ async function fetchOff(code: string) {
   const data = await response.json();
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
-  return normalized ? { item: normalized, source: "OFF" as const } : null;
+  return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
@@ -74,7 +74,7 @@ async function handler(req: Request, res: any) {
     return;
   }
 
-  let result: { item: NormalizedItem; source: "OFF" | "USDA" } | null = null;
+  let result: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null = null;
 
   try {
     result = await fetchOff(code);

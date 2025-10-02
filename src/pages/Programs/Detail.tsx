@@ -26,9 +26,10 @@ import {
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import type { Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
+import { coachPlanDoc } from "@/lib/db/coachPaths";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -106,10 +107,16 @@ export default function ProgramDetail() {
     try {
       setIsSaving(true);
       await setDoc(
-        doc(db, "users", user.uid, "coach", "profile"),
+        coachPlanDoc(user.uid),
         {
-          currentProgramId: program.id,
+          programId: program.id,
           activeProgramId: program.id,
+          programTitle: program.title,
+          goal: meta.goal,
+          level: meta.level,
+          daysPerWeek: meta.daysPerWeek,
+          weeks: meta.weeks,
+          equipment: meta.equipment,
           startedAt: new Date().toISOString(),
           currentWeekIdx: 0,
           currentDayIdx: 0,

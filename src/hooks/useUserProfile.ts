@@ -31,6 +31,18 @@ export interface CoachPlan {
   protein_g: number;
   fat_g: number;
   carbs_g: number;
+  programId?: string;
+  programTitle?: string;
+  level?: string;
+  activeProgramId?: string;
+  currentWeekIdx?: number;
+  currentDayIdx?: number;
+  lastCompletedWeekIdx?: number;
+  lastCompletedDayIdx?: number;
+  daysPerWeek?: number;
+  weeks?: number;
+  equipment?: string[];
+  startedAt?: string;
   [k: string]: unknown;
 }
 

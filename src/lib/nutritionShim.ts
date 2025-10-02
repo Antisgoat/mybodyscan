@@ -40,7 +40,7 @@ interface FoodSearchApiItem {
   raw?: any;
 }
 
-export type NutritionSource = "USDA" | "OFF";
+export type NutritionSource = "USDA" | "Open Food Facts" | "OFF";
 
 export interface ServingOption {
   id: string;
@@ -266,7 +266,16 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
 
   const name = typeof raw?.name === "string" && raw.name.trim().length ? raw.name.trim() : "Food";
   const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : undefined;
-  const source: NutritionSource = raw?.source === "OFF" ? "OFF" : "USDA";
+  const rawSource = typeof raw?.source === "string" ? raw.source : "";
+  let source: NutritionSource = "USDA";
+  if (rawSource) {
+    const normalized = rawSource.toLowerCase();
+    if (normalized.includes("open food facts") || normalized === "off") {
+      source = "Open Food Facts";
+    } else if (normalized.includes("usda")) {
+      source = "USDA";
+    }
+  }
   const base = normalizeBasePer100g(raw);
   const servings = normalizeServings(raw);
   const defaultServing = servings.find((option) => option.isDefault) ?? servings[0] ?? null;

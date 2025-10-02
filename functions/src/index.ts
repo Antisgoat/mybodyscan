@@ -16,7 +16,7 @@ export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 
 // Nutrition endpoints
 export { addFoodLog, addMeal, deleteMeal, getDayLog, getDailyLog, getNutritionHistory } from "./nutrition.js";
-export { nutritionSearch } from "./nutrition/search.js";
+export { nutritionSearch } from "./nutritionSearch.js";
 export { nutritionBarcode } from "./nutrition/barcode.js";
 
 // Workouts / Coach
@@ -34,6 +34,9 @@ export {
 export { createCheckoutSession, createCheckout, createCustomerPortal } from "./payments.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { useCredit } from "./useCredit.js";
+
+// Coach chat
+export { coachChat } from "./coachChat.js";
 
 // Auth triggers
 export { handleUserCreate } from "./authTriggers.js";

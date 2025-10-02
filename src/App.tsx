@@ -59,6 +59,7 @@ import Workouts from "./pages/Workouts";
 import Meals from "./pages/Meals";
 import Coach from "./pages/Coach";
 import CoachDay from "./pages/Coach/Day";
+import CoachChat from "./pages/Coach/Chat";
 import ProgramsCatalog from "./pages/Programs";
 import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
@@ -177,6 +178,20 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <CoachDay />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/coach/chat"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <CoachChat />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>

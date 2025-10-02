@@ -13,9 +13,10 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { loadAllPrograms, matchScore, type CatalogEntry } from "@/lib/coach/catalog";
 import type { ProgramEquipment, ProgramGoal, ProgramLevel } from "@/lib/coach/types";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
+import { coachPlanDoc } from "@/lib/db/coachPaths";
 
 const goalOptions: Array<{ value: ProgramGoal; label: string; description: string }> = [
   { value: "hypertrophy", label: "Build muscle", description: "Hypertrophy-focused growth" },
@@ -142,11 +143,18 @@ export default function ProgramsQuiz() {
     }
     try {
       setIsSaving(true);
+      const { program, meta } = topRecommendation.entry;
       await setDoc(
-        doc(db, "users", user.uid, "coach", "profile"),
+        coachPlanDoc(user.uid),
         {
-          currentProgramId: topRecommendation.entry.program.id,
-          activeProgramId: topRecommendation.entry.program.id,
+          programId: program.id,
+          activeProgramId: program.id,
+          programTitle: program.title,
+          goal: meta.goal,
+          level: meta.level,
+          daysPerWeek: meta.daysPerWeek,
+          weeks: meta.weeks,
+          equipment: meta.equipment,
           startedAt: new Date().toISOString(),
           currentWeekIdx: 0,
           currentDayIdx: 0,

@@ -2,14 +2,14 @@ import { config } from "firebase-functions";
 import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https";
 import type { Response } from "express";
 import { withCors } from "./middleware/cors.js";
-import { fromUsdaFood, fromOpenFoodFacts, type NormalizedItem as NutritionItem } from "./nutrition/search.js";
+import { fromUsdaFood, fromOpenFoodFacts, type NormalizedItem as NutritionItem } from "./nutritionSearch.js";
 
 interface FoodSearchItem {
   id: string;
   name: string;
   brand: string | null;
   kcals: number | null;
-  source: "USDA" | "OFF";
+  source: "USDA" | "Open Food Facts";
   serving: NutritionItem["serving"];
   per_serving: NutritionItem["per_serving"];
   per_100g: NutritionItem["per_100g"] | null;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, MessageCircle, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -11,11 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import type { Program } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { setDoc } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
@@ -43,7 +43,7 @@ function nextTargetFor(program: Program, lastWeek: number, lastDay: number) {
 }
 
 export default function CoachOverview() {
-  const { profile } = useUserProfile();
+  const { profile, plan } = useUserProfile();
   const navigate = useNavigate();
   const [hydrated, setHydrated] = useState(false);
   const [programEntries, setProgramEntries] = useState<CatalogEntry[]>([]);
@@ -51,7 +51,6 @@ export default function CoachOverview() {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [weekIdx, setWeekIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-  const [planExists, setPlanExists] = useState<boolean | null>(null);
   const uid = auth.currentUser?.uid ?? null;
 
   useEffect(() => {
@@ -84,51 +83,29 @@ export default function CoachOverview() {
     setSelectedProgramId((prev) => prev ?? programEntries[0]?.program.id ?? DEFAULT_PROGRAM_ID);
   }, [programEntries]);
 
-  const rawActiveProgramId = profile?.activeProgramId ?? profile?.currentProgramId ?? null;
-  const activeProgramId = planExists === false ? null : rawActiveProgramId;
+  const planProgramId = plan?.activeProgramId ?? plan?.programId ?? null;
+  const rawActiveProgramId = planProgramId ?? profile?.activeProgramId ?? profile?.currentProgramId ?? null;
+  const activeProgramId = rawActiveProgramId;
 
   useEffect(() => {
-    if (!uid) {
-      setPlanExists(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const checkPlan = async () => {
-      try {
-        const snapshot = await getDoc(coachPlanDoc(uid));
-        if (!cancelled) {
-          setPlanExists(snapshot.exists());
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setPlanExists(false);
-        }
-      }
-    };
-
-    void checkPlan();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [uid, rawActiveProgramId]);
-
-  useEffect(() => {
-    if (!profile || !programEntries.length || hydrated) return;
+    if ((!plan && !profile) || !programEntries.length || hydrated) return;
     const fallbackId = programEntries[0]?.program.id ?? DEFAULT_PROGRAM_ID;
     const nextId = activeProgramId && programMap[activeProgramId] ? activeProgramId : fallbackId;
     setSelectedProgramId(nextId);
     const weeksInProgram = programMap[nextId]?.program.weeks.length ?? 1;
-    const initialWeek = typeof profile.currentWeekIdx === "number"
-      ? profile.currentWeekIdx
-      : typeof profile.lastCompletedWeekIdx === "number"
-        ? profile.lastCompletedWeekIdx
-        : 0;
+    const initialWeek =
+      typeof plan?.currentWeekIdx === "number"
+        ? plan.currentWeekIdx
+        : typeof plan?.lastCompletedWeekIdx === "number"
+          ? plan.lastCompletedWeekIdx
+          : typeof profile?.currentWeekIdx === "number"
+            ? profile.currentWeekIdx
+            : typeof profile?.lastCompletedWeekIdx === "number"
+              ? profile.lastCompletedWeekIdx
+              : 0;
     setWeekIdx(Math.max(0, Math.min(initialWeek, Math.max(weeksInProgram - 1, 0))));
     setHydrated(true);
-  }, [profile, programEntries, hydrated, programMap, activeProgramId]);
+  }, [plan, profile, programEntries, hydrated, programMap, activeProgramId]);
 
   const selectedEntry = selectedProgramId ? programMap[selectedProgramId] : undefined;
   const program = selectedEntry?.program;
@@ -142,32 +119,36 @@ export default function CoachOverview() {
   }, [program, weekIdx]);
 
   const lastWeekForProgram = useMemo(() => {
-    if (!profile || !program) return -1;
+    if (!program) return -1;
     if (activeProgramId !== program.id) return -1;
-    if (typeof profile.lastCompletedWeekIdx === "number") return profile.lastCompletedWeekIdx;
-    if (typeof profile.currentWeekIdx === "number") return profile.currentWeekIdx;
+    if (typeof plan?.lastCompletedWeekIdx === "number") return plan.lastCompletedWeekIdx;
+    if (typeof plan?.currentWeekIdx === "number") return plan.currentWeekIdx;
+    if (typeof profile?.lastCompletedWeekIdx === "number") return profile.lastCompletedWeekIdx;
+    if (typeof profile?.currentWeekIdx === "number") return profile.currentWeekIdx;
     return -1;
-  }, [profile, program?.id, activeProgramId]);
+  }, [plan, profile, program?.id, activeProgramId]);
 
   const lastDayForProgram = useMemo(() => {
-    if (!profile || !program) return -1;
+    if (!program) return -1;
     if (activeProgramId !== program.id) return -1;
-    if (typeof profile.lastCompletedDayIdx === "number") return profile.lastCompletedDayIdx;
-    if (typeof profile.currentDayIdx === "number") return profile.currentDayIdx;
+    if (typeof plan?.lastCompletedDayIdx === "number") return plan.lastCompletedDayIdx;
+    if (typeof plan?.currentDayIdx === "number") return plan.currentDayIdx;
+    if (typeof profile?.lastCompletedDayIdx === "number") return profile.lastCompletedDayIdx;
+    if (typeof profile?.currentDayIdx === "number") return profile.currentDayIdx;
     return -1;
-  }, [profile, program?.id, activeProgramId]);
+  }, [plan, profile, program?.id, activeProgramId]);
 
   const nextTarget = useMemo(() => {
     if (!program) return { weekIdx: 0, dayIdx: 0 };
     return nextTargetFor(program, lastWeekForProgram, lastDayForProgram);
   }, [program, lastWeekForProgram, lastDayForProgram]);
 
-  const persistProfile = async (partial: Record<string, unknown>) => {
+  const persistPlan = async (partial: Record<string, unknown>) => {
     const user = auth.currentUser;
     if (!user) return;
     try {
       setIsSaving(true);
-      await setDoc(doc(db, "users", user.uid, "coach", "profile"), partial, { merge: true });
+      await setDoc(coachPlanDoc(user.uid), partial, { merge: true });
     } catch (error) {
       toast({ title: "Unable to save preference", description: "Please try again.", variant: "destructive" });
     } finally {
@@ -178,8 +159,8 @@ export default function CoachOverview() {
   const handleProgramChange = (value: string) => {
     setSelectedProgramId(value);
     setWeekIdx(0);
-    persistProfile({
-      currentProgramId: value,
+    persistPlan({
+      programId: value,
       activeProgramId: value,
       currentWeekIdx: 0,
       currentDayIdx: 0,
@@ -214,7 +195,7 @@ export default function CoachOverview() {
       <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         <NotMedicalAdviceBanner />
-        {(profile || planExists === false) && !activeProgramId && (
+        {(profile || plan) && !activeProgramId && (
           <Card className="border border-dashed border-primary/40 bg-primary/5">
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
@@ -278,6 +259,14 @@ export default function CoachOverview() {
                   : "Program length TBD"}
               {" "}• {daysThisWeek} days this week
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/coach/chat")}
+              className="sm:ml-auto"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" /> Coach Chat
+            </Button>
           </div>
         </header>
 

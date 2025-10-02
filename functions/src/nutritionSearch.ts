@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions";
 import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https";
-import { softVerifyAppCheck } from "../middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "../http.js";
-import { enforceRateLimit } from "../middleware/rateLimit.js";
+import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
 
 type MacroBreakdown = {
   kcal: number;
@@ -20,7 +20,7 @@ type ServingOption = {
 
 interface NormalizedFood {
   id: string;
-  source: "USDA" | "OFF";
+  source: "USDA" | "Open Food Facts";
   name: string;
   brand: string | null;
   basePer100g: MacroBreakdown;
@@ -30,7 +30,7 @@ interface NormalizedFood {
 }
 
 type SearchError = {
-  source: "USDA" | "OFF";
+  source: "USDA" | "Open Food Facts";
   code: string;
   message: string;
 };
@@ -40,6 +40,7 @@ const USDA_KEY =
 
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
+const OFF_SOURCE = "Open Food Facts" as const;
 
 function describeError(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -96,7 +97,7 @@ function addServingOption(
     });
     option.isDefault = true;
   }
-  list.push(option);
+    list.push(option);
 }
 
 function normalizeUsdaFood(food: any): NormalizedFood | null {
@@ -324,7 +325,7 @@ function normalizeOffProduct(product: any): NormalizedFood | null {
 
   return {
     id: String(product?.code ?? product?.id ?? name),
-    source: "OFF",
+    source: OFF_SOURCE,
     name,
     brand: brand || null,
     basePer100g: base,
@@ -382,6 +383,16 @@ async function searchOpenFoodFacts(query: string): Promise<NormalizedFood[]> {
     .filter((item): item is NormalizedFood => Boolean(item));
 }
 
+export type NormalizedItem = NormalizedFood;
+
+export function fromUsdaFood(food: any): NormalizedItem | null {
+  return normalizeUsdaFood(food);
+}
+
+export function fromOpenFoodFacts(product: any): NormalizedItem | null {
+  return normalizeOffProduct(product);
+}
+
 async function handler(req: Request, res: any) {
   await softVerifyAppCheck(req as any, res as any);
   await verifyAppCheckSoft(req);
@@ -427,7 +438,7 @@ async function handler(req: Request, res: any) {
       }
     } catch (error) {
       const message = describeError(error);
-      errors.push({ source: "OFF", code: "off_error", message });
+      errors.push({ source: OFF_SOURCE, code: "off_error", message });
       console.error("nutrition.off_error", { uid, query: queryText, error: message });
     }
   }
@@ -467,7 +478,16 @@ export const nutritionSearch = onRequest(
     }
 
     if (req.method !== "GET") {
-      res.status(405).json({ items: [], error: { code: "method_not_allowed", message: "Use GET" } });
+      res.status(200).json({
+        items: [],
+        errors: [
+          {
+            source: "USDA",
+            code: "method_not_allowed",
+            message: "Use GET",
+          },
+        ],
+      });
       return;
     }
 
@@ -475,20 +495,30 @@ export const nutritionSearch = onRequest(
       await handler(req as Request, res);
     } catch (error: any) {
       if (error instanceof HttpsError) {
-        const status =
-          error.code === "unauthenticated"
-            ? 401
-            : error.code === "invalid-argument"
-            ? 400
-            : error.code === "resource-exhausted"
-            ? 429
-            : 400;
-        res.status(status).json({ items: [], error: { code: error.code, message: error.message } });
+        res.status(200).json({
+          items: [],
+          errors: [
+            {
+              source: "USDA",
+              code: error.code,
+              message: error.message,
+            },
+          ],
+        });
         return;
       }
       const message = describeError(error);
       console.error("nutrition.search_unhandled", { error: message });
-      res.status(500).json({ items: [], error: { code: "internal", message } });
+      res.status(200).json({
+        items: [],
+        errors: [
+          {
+            source: "USDA",
+            code: "internal",
+            message,
+          },
+        ],
+      });
     }
   },
 );

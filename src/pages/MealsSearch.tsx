@@ -242,7 +242,6 @@ export default function MealsSearch() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Results</CardTitle>
-            <div className="text-xs text-muted-foreground">USDA primary · OFF fallback</div>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading && (
@@ -256,7 +255,7 @@ export default function MealsSearch() {
             {!loading && !query.trim() && <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>}
             {results.map((item) => {
               const favorite = favorites.find((fav) => fav.id === item.id);
-              const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
+              const subtitle = item.brand || (isOpenFoodFactsSource(item.source) ? "Open Food Facts" : "USDA");
               return (
                 <Card key={item.id} className="border">
                   <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
@@ -347,7 +346,7 @@ function mapToFoodNormalized(item: NormalizedItem): FoodNormalized {
       console.warn("usda_map_error", error);
     }
   }
-  if (item.source === "OFF" && item.raw) {
+  if (isOpenFoodFactsSource(item.source) && item.raw) {
     try {
       return fromOFF(item.raw);
     } catch (error) {
@@ -468,4 +467,8 @@ function buildServingLabel(qty: number | null | undefined, unit: string | null |
   if (!qty || !unit) return null;
   const roundedQty = Math.round(qty * 100) / 100;
   return `${roundedQty} ${unit}`;
+}
+
+function isOpenFoodFactsSource(source: NormalizedItem["source"]): boolean {
+  return source === "Open Food Facts" || source === "OFF";
 }

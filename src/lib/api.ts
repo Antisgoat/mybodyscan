@@ -3,27 +3,36 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 
-export function buildUrl(path: string, params?: Record<string, string>) {
+type QueryValue = string | number | boolean | null | undefined;
+
+export function buildUrl(path: string, params?: Record<string, QueryValue>) {
   const origin =
     typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";
   const url = new URL(path, origin);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
+      if (value === undefined || value === null) return;
+      url.searchParams.set(key, String(value));
     });
   }
   return url.toString();
 }
 
-export function nutritionFnUrl(params?: Record<string, string>) {
-  const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
-  const url = new URL(base);
+const DIRECT_FN_BASE = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net";
+
+export function directFunctionUrl(name: string, params?: Record<string, QueryValue>) {
+  const url = new URL(`${DIRECT_FN_BASE}/${name}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
+      if (value === undefined || value === null) return;
+      url.searchParams.set(key, String(value));
     });
   }
   return url.toString();
+}
+
+export function nutritionFnUrl(params?: Record<string, QueryValue>) {
+  return directFunctionUrl("nutritionSearch", params);
 }
 
 async function authedFetch(path: string, init?: RequestInit) {

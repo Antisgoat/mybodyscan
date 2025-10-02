@@ -89,6 +89,11 @@
         "functionRegion": "us-central1"
       },
       {
+        "source": "/api/coach/chat",
+        "function": "coachChat",
+        "functionRegion": "us-central1"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

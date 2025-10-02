@@ -28,17 +28,8 @@ import {
 } from "@/lib/coach/progression";
 import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { workoutLogsCol } from "@/lib/db/coachPaths";
-import {
-  addDoc,
-  doc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { coachPlanDoc, workoutLogsCol } from "@/lib/db/coachPaths";
+import { addDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc } from "firebase/firestore";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -392,14 +383,16 @@ export default function CoachDay() {
       });
 
       await setDoc(
-        doc(db, "users", user.uid, "coach", "profile"),
+        coachPlanDoc(user.uid),
         {
-          currentProgramId: rawProgram.id,
+          programId: rawProgram.id,
+          programTitle: rawProgram.title,
           activeProgramId: rawProgram.id,
           lastCompletedWeekIdx: safeWeekIdx,
           lastCompletedDayIdx: safeDayIdx,
           currentWeekIdx: safeWeekIdx,
           currentDayIdx: safeDayIdx,
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
