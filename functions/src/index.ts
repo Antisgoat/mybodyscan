@@ -16,8 +16,8 @@ export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 
 // Nutrition endpoints
 export { addFoodLog, addMeal, deleteMeal, getDayLog, getDailyLog, getNutritionHistory } from "./nutrition.js";
-export { nutritionSearch } from "./nutrition/search.js";
-export { nutritionBarcode } from "./nutrition/barcode.js";
+export { nutritionSearch } from "./nutritionSearch.js";
+export { nutritionBarcode } from "./nutritionBarcode.js";
 
 // Workouts / Coach
 export {
