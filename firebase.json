@@ -103,6 +103,16 @@
         "functionRegion": "us-central1"
       },
       {
+        "source": "/api/scan/start",
+        "function": "startScanSession",
+        "functionRegion": "us-central1"
+      },
+      {
+        "source": "/api/scan/submit",
+        "function": "submitScan",
+        "functionRegion": "us-central1"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
