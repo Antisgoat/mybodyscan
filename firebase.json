@@ -60,10 +60,8 @@
       },
       {
         "source": "/api/nutrition/search",
-        "function": {
-          "functionId": "nutritionSearch",
-          "region": "us-central1"
-        }
+        "function": "nutritionSearch",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/api/scan/start",

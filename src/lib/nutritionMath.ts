@@ -1,4 +1,4 @@
-import type { NormalizedItem } from "@/lib/nutritionShim";
+import type { FoodItem } from "@/lib/nutrition/types";
 import type { MealEntry, MealItemSnapshot } from "@/lib/nutrition";
 
 export const SERVING_UNITS = ["serving", "g", "oz", "cups", "slices", "pieces"] as const;
@@ -30,14 +30,14 @@ function normalizeUnit(unit: string | null | undefined) {
   return clean;
 }
 
-function defaultServingOption(item: NormalizedItem) {
+function defaultServingOption(item: FoodItem) {
   if (Array.isArray(item.servings) && item.servings.length) {
     return item.servings.find((option) => option.isDefault) ?? item.servings[0];
   }
   return null;
 }
 
-export function estimateServingWeight(item: NormalizedItem): number | null {
+export function estimateServingWeight(item: FoodItem): number | null {
   const defaultServing = defaultServingOption(item);
   if (defaultServing?.grams) {
     return round(defaultServing.grams, 2);
@@ -71,7 +71,7 @@ export function estimateServingWeight(item: NormalizedItem): number | null {
   return round(grams, 2);
 }
 
-function gramsForSelection(item: NormalizedItem, qty: number, unit: ServingUnit): number | null {
+function gramsForSelection(item: FoodItem, qty: number, unit: ServingUnit): number | null {
   switch (unit) {
     case "g":
       return qty;
@@ -98,7 +98,7 @@ export interface SelectionResult {
 }
 
 export function calculateSelection(
-  item: NormalizedItem,
+  item: FoodItem,
   qty: number,
   unit: ServingUnit,
 ): SelectionResult {
@@ -127,7 +127,7 @@ export function calculateSelection(
   };
 }
 
-export function snapshotFromItem(item: NormalizedItem): MealItemSnapshot {
+export function snapshotFromItem(item: FoodItem): MealItemSnapshot {
   return {
     id: item.id,
     name: item.name,
@@ -145,7 +145,7 @@ export function snapshotFromItem(item: NormalizedItem): MealItemSnapshot {
   };
 }
 
-export function normalizedFromSnapshot(snapshot: MealItemSnapshot): NormalizedItem {
+export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
   return {
     id: snapshot.id || `snapshot-${Math.random().toString(36).slice(2, 8)}`,
     name: snapshot.name,
@@ -179,7 +179,7 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): NormalizedIt
 }
 
 export function buildMealEntry(
-  item: NormalizedItem,
+  item: FoodItem,
   qty: number,
   unit: ServingUnit,
   result: SelectionResult,

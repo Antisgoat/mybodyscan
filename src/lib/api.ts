@@ -1,6 +1,7 @@
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
+import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 
 export function buildUrl(path: string, params?: Record<string, string>) {
   const origin =
@@ -23,6 +24,154 @@ export function nutritionFnUrl(params?: Record<string, string>) {
     });
   }
   return url.toString();
+}
+
+const NUTRITION_SEARCH_TIMEOUT_MS = 6000;
+
+function normalizeServingOption(raw: any, index: number): ServingOption | null {
+  const grams = Number(raw?.grams);
+  if (!Number.isFinite(grams) || grams <= 0) return null;
+  const label =
+    typeof raw?.label === "string" && raw.label.trim().length
+      ? raw.label.trim()
+      : `${Math.round(grams * 100) / 100} g`;
+  const idRaw = raw?.id;
+  const id =
+    typeof idRaw === "string" && idRaw.trim().length
+      ? idRaw.trim()
+      : typeof idRaw === "number"
+      ? String(idRaw)
+      : `srv-${index}`;
+  return {
+    id,
+    label,
+    grams: Math.round(grams * 100) / 100,
+    isDefault: Boolean(raw?.isDefault),
+  };
+}
+
+function sanitizeFoodItem(raw: any): FoodItem {
+  const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : null;
+
+  const base = raw?.basePer100g ?? {};
+  const basePer100g = {
+    kcal: Number(base?.kcal) || 0,
+    protein: Number(base?.protein) || 0,
+    carbs: Number(base?.carbs) || 0,
+    fat: Number(base?.fat) || 0,
+  };
+
+  const servings = Array.isArray(raw?.servings)
+    ? (raw.servings as any[])
+        .map((option, index) => normalizeServingOption(option, index))
+        .filter((option): option is ServingOption => Boolean(option))
+    : [];
+
+  if (!servings.length) {
+    servings.push({ id: "100g", label: "100 g", grams: 100, isDefault: true });
+  }
+
+  if (!servings.some((option) => option.isDefault)) {
+    servings[0]!.isDefault = true;
+  }
+
+  const servingRaw = raw?.serving ?? {};
+  const perServingRaw = raw?.per_serving ?? {};
+  const per100Raw = raw?.per_100g ?? undefined;
+
+  return {
+    id: String(
+      raw?.id ??
+        raw?.fdcId ??
+        raw?.gtin ??
+        (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `food-${Math.random().toString(36).slice(2, 10)}`),
+    ),
+    name:
+      typeof raw?.name === "string" && raw.name.trim().length ? raw.name.trim() : "Food",
+    brand,
+    source: raw?.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
+    basePer100g,
+    servings,
+    serving: {
+      qty: typeof servingRaw?.qty === "number" ? servingRaw.qty : null,
+      unit: typeof servingRaw?.unit === "string" ? servingRaw.unit : null,
+      text:
+        typeof servingRaw?.text === "string" && servingRaw.text.trim().length
+          ? servingRaw.text.trim()
+          : undefined,
+    },
+    per_serving: {
+      kcal: typeof perServingRaw?.kcal === "number" ? perServingRaw.kcal : null,
+      protein_g:
+        typeof perServingRaw?.protein_g === "number" ? perServingRaw.protein_g : null,
+      carbs_g:
+        typeof perServingRaw?.carbs_g === "number" ? perServingRaw.carbs_g : null,
+      fat_g: typeof perServingRaw?.fat_g === "number" ? perServingRaw.fat_g : null,
+    },
+    per_100g: per100Raw
+      ? {
+          kcal: typeof per100Raw?.kcal === "number" ? per100Raw.kcal : null,
+          protein_g:
+            typeof per100Raw?.protein_g === "number" ? per100Raw.protein_g : null,
+          carbs_g: typeof per100Raw?.carbs_g === "number" ? per100Raw.carbs_g : null,
+          fat_g: typeof per100Raw?.fat_g === "number" ? per100Raw.fat_g : null,
+        }
+      : undefined,
+    fdcId:
+      typeof raw?.fdcId === "number"
+        ? raw.fdcId
+        : typeof raw?.fdcId === "string" && raw.fdcId.trim().length && !Number.isNaN(Number(raw.fdcId))
+        ? Number(raw.fdcId)
+        : undefined,
+    gtin:
+      typeof raw?.gtin === "string" && raw.gtin.trim().length
+        ? raw.gtin.trim()
+        : undefined,
+    raw: raw?.raw ?? raw,
+  };
+}
+
+export async function fetchFoods(q: string): Promise<FoodItem[]> {
+  const query = q?.trim();
+  if (!query) return [];
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
+
+  try {
+    let response: Response;
+    const rewriteUrl = buildUrl("/api/nutrition/search", { q: query });
+
+    try {
+      response = await fetch(rewriteUrl, { method: "GET", signal: controller.signal });
+      if (!response.ok) {
+        const err: any = new Error(`rewrite_status_${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      const fallbackUrl = nutritionFnUrl({ q: query });
+      response = await fetch(fallbackUrl, { method: "GET", signal: controller.signal });
+      if (!response.ok) {
+        const fallbackError: any = new Error(`fn_status_${response.status}`);
+        fallbackError.status = response.status;
+        throw fallbackError;
+      }
+    }
+
+    const data = await response.json().catch(() => ({ items: [] as any[] }));
+    if (!Array.isArray(data?.items)) {
+      return [];
+    }
+    return data.items.map(sanitizeFoodItem);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function authedFetch(path: string, init?: RequestInit) {

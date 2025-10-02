@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { lookupBarcode, type NormalizedItem } from "@/lib/nutritionShim";
+import { lookupBarcode } from "@/lib/nutritionShim";
+import type { FoodItem } from "@/lib/nutrition/types";
 import { addMeal } from "@/lib/nutrition";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
@@ -21,7 +22,7 @@ export default function BarcodeScan() {
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [detectedCode, setDetectedCode] = useState<string | null>(null);
-  const [item, setItem] = useState<NormalizedItem | null>(null);
+  const [item, setItem] = useState<FoodItem | null>(null);
   const [loadingItem, setLoadingItem] = useState(false);
   const [processing, setProcessing] = useState(false);
 
