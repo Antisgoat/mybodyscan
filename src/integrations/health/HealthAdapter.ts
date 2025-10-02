@@ -2,7 +2,7 @@ export type DailySummary = {
   activeEnergyKcal?: number;
   steps?: number;
   restingHeartRate?: number;
-  source: "mock" | "healthkit" | "healthconnect" | "googlefit";
+  source: "web" | "healthkit" | "healthconnect" | "googlefit";
 };
 
 export interface HealthAdapter {

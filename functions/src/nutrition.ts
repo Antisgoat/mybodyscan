@@ -1,10 +1,10 @@
 import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { requireAuth } from "./http.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -203,8 +203,7 @@ async function readDailyLog(uid: string, day: string) {
   };
 }
 
-async function handleAddMeal(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleAddMeal(req: Request, res: Response) {
   const uid = await requireAuth(req);
   const body = req.body as { dateISO?: string; meal?: Partial<MealRecord> };
   if (!body?.dateISO || !body.meal?.name) {
@@ -235,8 +234,7 @@ async function handleAddMeal(req: Request, res: any) {
   res.json({ totals, meal });
 }
 
-async function handleDeleteMeal(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleDeleteMeal(req: Request, res: Response) {
   const uid = await requireAuth(req);
   const body = req.body as { dateISO?: string; mealId?: string };
   if (!body?.dateISO || !body.mealId) {
@@ -248,8 +246,7 @@ async function handleDeleteMeal(req: Request, res: any) {
   res.json({ totals });
 }
 
-async function handleGetLog(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleGetLog(req: Request, res: Response) {
   const uid = await requireAuth(req);
   const dateISO = (req.body?.dateISO as string) || (req.query?.dateISO as string);
   if (!dateISO) {
@@ -260,13 +257,12 @@ async function handleGetLog(req: Request, res: any) {
   const log = await readDailyLog(uid, day);
   const response = {
     ...log,
-    source: process.env.USDA_API_KEY ? "usda" : process.env.OPENFOODFACTS_USER_AGENT ? "openfoodfacts" : "mock",
+    source: process.env.USDA_API_KEY ? "usda" : process.env.OPENFOODFACTS_USER_AGENT ? "openfoodfacts" : "unknown",
   };
   res.json(response);
 }
 
-async function handleGetHistory(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleGetHistory(req: Request, res: Response) {
   const uid = await requireAuth(req);
   const rangeRaw = (req.body?.range as number | string | undefined) ?? (req.query?.range as string | undefined) ?? 30;
   const range = Math.min(30, Math.max(1, Number(rangeRaw) || 30));
@@ -307,13 +303,13 @@ async function handleGetHistory(req: Request, res: any) {
   res.json({ days: results });
 }
 
-function withHandler(handler: (req: Request, res: any) => Promise<void>) {
+function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return onRequest(
     { invoker: "public" },
     withCors(async (req, res) => {
       try {
-        await softVerifyAppCheck(req as any, res as any);
-        await handler(req, res);
+        await requireAppCheckStrict(req as any, res as any);
+        await handler(req as unknown as Request, res as unknown as Response);
       } catch (err: any) {
         const code = err instanceof HttpsError ? err.code : "internal";
         const status =

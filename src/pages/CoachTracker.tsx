@@ -37,24 +37,32 @@ const CoachTracker = () => {
 
   useEffect(() => {
     if (!uid) return;
-    (async () => {
-      const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", dateStr));
-      if (snap.exists()) {
-        setLog({
-          calories: snap.data().calories || 0,
-          protein_g: snap.data().protein_g || 0,
-          carbs_g: snap.data().carbs_g || 0,
-          fat_g: snap.data().fat_g || 0,
-        });
-      } else {
-        setLog({
-          calories: 0,
-          protein_g: 0,
-          carbs_g: 0,
-          fat_g: 0,
-        });
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", dateStr));
+        if (cancelled) return;
+        if (snap.exists()) {
+          setLog({
+            calories: snap.data().calories || 0,
+            protein_g: snap.data().protein_g || 0,
+            carbs_g: snap.data().carbs_g || 0,
+            fat_g: snap.data().fat_g || 0,
+          });
+        } else {
+          setLog({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+        }
+      } catch (error) {
+        console.warn("coachTracker.loadLog", error);
+        if (!cancelled) {
+          setLog({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+        }
       }
-    })();
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [uid, dateStr]);
 
   async function save() {
@@ -92,13 +100,24 @@ const CoachTracker = () => {
     const arr: any[] = [];
     for (let i = 6; i >= 0; i--) {
       const day = format(subDays(new Date(), i), "yyyy-MM-dd");
-      const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", day));
-      arr.push({ date: day, calories: snap.exists() ? snap.data().calories || 0 : 0 });
+      try {
+        const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", day));
+        arr.push({ date: day, calories: snap.exists() ? snap.data().calories || 0 : 0 });
+      } catch (error) {
+        console.warn("coachTracker.chartDay", { day, error });
+        arr.push({ date: day, calories: 0 });
+      }
     }
     setChart(arr);
     const yDay = format(subDays(new Date(), 1), "yyyy-MM-dd");
-    const ySnap = await getDoc(doc(db, "users", uid, "healthDaily", yDay));
-    if (ySnap.exists()) setYesterday(ySnap.data());
+    try {
+      const ySnap = await getDoc(doc(db, "users", uid, "healthDaily", yDay));
+      if (ySnap.exists()) setYesterday(ySnap.data());
+      else setYesterday(null);
+    } catch (error) {
+      console.warn("coachTracker.yesterday", error);
+      setYesterday(null);
+    }
   }
 
   useEffect(() => {

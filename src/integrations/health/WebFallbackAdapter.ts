@@ -1,6 +1,6 @@
 import { DailySummary, HealthAdapter } from "./HealthAdapter";
 
-export class WebMockAdapter implements HealthAdapter {
+export class WebFallbackAdapter implements HealthAdapter {
   platform: "web" = "web";
 
   async canImport(): Promise<boolean> {
@@ -11,8 +11,8 @@ export class WebMockAdapter implements HealthAdapter {
     return false;
   }
 
-  async getDailySummary(date: string): Promise<DailySummary> {
-    return { source: "mock" };
+  async getDailySummary(_date: string): Promise<DailySummary> {
+    return { source: "web" };
   }
 }
 

@@ -1,8 +1,9 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAppCheckStrict } from "../middleware/appCheck.js";
+import { requireAuth } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
@@ -16,8 +17,8 @@ function todayKey() {
   return `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}`;
 }
 
-async function handler(req: Request, res: any) {
-  await verifyAppCheckStrict(req);
+async function handler(req: ExpressRequest, res: ExpressResponse) {
+  await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
   const validation = validateBeginPaidScanPayload(req.body);
   if (!validation.success) {
@@ -136,8 +137,11 @@ export const beginPaidScan = onRequest(
   { invoker: "public", concurrency: 10 },
   withCors(async (req, res) => {
     try {
-      await handler(req as Request, res);
+      await handler(req as ExpressRequest, res as ExpressResponse);
     } catch (error: any) {
+      if (res.headersSent) {
+        return;
+      }
       if (error instanceof HttpsError) {
         const status = error.code === "unauthenticated" ? 401 : 400;
         res.status(status).json({ ok: false, reason: error.code });

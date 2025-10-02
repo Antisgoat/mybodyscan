@@ -3,7 +3,12 @@ import App from './App.tsx';
 import './index.css';
 import './styles/mbs.theme.css';
 import { killSW } from './lib/killSW';
+import ErrorBoundary from './components/ErrorBoundary';
 
 killSW();
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);

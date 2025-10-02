@@ -1,7 +1,8 @@
 import * as functions from "firebase-functions";
-import { HttpsError, onRequest, type Request } from "firebase-functions/v2/https";
-import { softVerifyAppCheck } from "../middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import type { Request, Response } from "express";
+import { softAppCheck } from "../middleware/appCheck.js";
+import { requireAuth } from "../http.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 
 type MacroBreakdown = {
@@ -382,9 +383,8 @@ async function searchOpenFoodFacts(query: string): Promise<NormalizedFood[]> {
     .filter((item): item is NormalizedFood => Boolean(item));
 }
 
-async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
-  await verifyAppCheckSoft(req);
+async function handler(req: Request, res: Response) {
+  await softAppCheck(req as any);
   const uid = await requireAuth(req);
   await enforceRateLimit({ uid, key: "nutrition_search", limit: 100, windowMs: 60 * 60 * 1000 });
 
@@ -472,7 +472,7 @@ export const nutritionSearch = onRequest(
     }
 
     try {
-      await handler(req as Request, res);
+      await handler(req as unknown as Request, res as unknown as Response);
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const status =
