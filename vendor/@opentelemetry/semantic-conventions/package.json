@@ -1,0 +1,16 @@
+{
+  "name": "@opentelemetry/semantic-conventions",
+  "version": "1.34.0",
+  "description": "Stubbed semantic conventions for offline installs.",
+  "license": "Apache-2.0",
+  "main": "./index.cjs",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs",
+      "default": "./index.js"
+    }
+  }
+}

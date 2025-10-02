@@ -1,0 +1,16 @@
+{
+  "name": "inquirer",
+  "version": "8.2.5",
+  "description": "Stubbed inquirer for offline installs.",
+  "license": "MIT",
+  "main": "./index.cjs",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs",
+      "default": "./index.cjs"
+    }
+  }
+}

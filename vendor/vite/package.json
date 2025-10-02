@@ -1,0 +1,20 @@
+{
+  "name": "vite",
+  "version": "5.4.19",
+  "description": "Stubbed Vite build tool for offline builds.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.cjs",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "bin": {
+    "vite": "./bin/vite.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs",
+      "default": "./index.cjs"
+    }
+  }
+}

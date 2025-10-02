@@ -1,0 +1,16 @@
+{
+  "name": "picomatch",
+  "version": "4.0.0",
+  "description": "Stubbed picomatch for offline installs.",
+  "license": "MIT",
+  "main": "./index.cjs",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs",
+      "default": "./index.js"
+    }
+  }
+}
