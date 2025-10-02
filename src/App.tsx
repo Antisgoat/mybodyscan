@@ -58,6 +58,7 @@ import Scan from "./pages/Scan";
 import Workouts from "./pages/Workouts";
 import Meals from "./pages/Meals";
 import Coach from "./pages/Coach";
+import CoachChat from "./pages/Coach/Chat";
 import CoachDay from "./pages/Coach/Day";
 import ProgramsCatalog from "./pages/Programs";
 import ProgramDetail from "./pages/Programs/Detail";
@@ -160,7 +161,7 @@ const App = () => {
             <Route
               path="/coach"
               element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
@@ -172,9 +173,23 @@ const App = () => {
               }
             />
             <Route
+              path="/coach/chat"
+              element={
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <CoachChat />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
               path="/coach/day"
               element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>

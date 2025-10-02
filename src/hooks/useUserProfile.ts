@@ -23,15 +23,26 @@ export interface CoachProfile {
   startedAt?: string;
 }
 
+export interface CoachPlanBlock {
+  title: string;
+  focus: string;
+  work: string[];
+}
+
+export interface CoachPlanSession {
+  day: string;
+  blocks: CoachPlanBlock[];
+}
+
 export interface CoachPlan {
-  tdee: number;
-  target_kcal: number;
-  goal: string;
-  style: string;
-  protein_g: number;
-  fat_g: number;
-  carbs_g: number;
-  [k: string]: unknown;
+  days: number;
+  split: string;
+  sessions: CoachPlanSession[];
+  progression: { deloadEvery: number };
+  calorieTarget: number;
+  proteinFloor: number;
+  disclaimer?: string;
+  updatedAt?: Date;
 }
 
 export function useUserProfile() {
@@ -47,7 +58,13 @@ export function useUserProfile() {
     });
     const planRef = coachPlanDoc(uid);
     const unsub2 = onSnapshot(planRef, (snap) => {
-      setPlan((snap.data() as CoachPlan) || null);
+      if (!snap.exists) {
+        setPlan(null);
+        return;
+      }
+      const data = snap.data() as CoachPlan & { updatedAt?: { toDate?: () => Date } };
+      const updatedAt = data.updatedAt?.toDate?.() ?? data.updatedAt;
+      setPlan({ ...data, updatedAt: updatedAt instanceof Date ? updatedAt : undefined });
     });
     return () => {
       unsub1();

@@ -3,10 +3,10 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
+import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck.js";
 import { requireAuth } from "./http.js";
 import type { ScanDocument } from "./types.js";
-import { consumeOne } from "./credits.js";
+import { consumeOne, consumeCredit, addCredits } from "./credits.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 
 const db = getFirestore();
@@ -28,6 +28,81 @@ function defaultMetrics(scanId: string) {
     leanMassKg: leanMass,
     bmi,
   };
+}
+
+type ScanSummary = {
+  bfPct: number;
+  range: { low: number; high: number };
+  confidence: "low" | "medium" | "high";
+  notes: string[];
+};
+
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function buildSummary(metrics: Record<string, any>, usedFallback: boolean): ScanSummary {
+  const rawBf = Number(metrics?.bodyFatPct ?? metrics?.bodyFat ?? metrics?.body_fat ?? 22.5);
+  const bfPct = Number(clamp(rawBf, 3, 60).toFixed(1));
+  const spread = usedFallback ? 2.5 : 1.8;
+  const low = Number(clamp(bfPct - spread, 3, 60).toFixed(1));
+  const high = Number(clamp(bfPct + spread, 3, 60).toFixed(1));
+  const confidence: ScanSummary["confidence"] = usedFallback ? "low" : "medium";
+  const notes = [
+    usedFallback
+      ? "Fallback estimate generated because the primary model was unavailable."
+      : "Vision model estimate based on your uploaded photos.",
+    "Educational use only. Estimates only — not medical advice.",
+  ];
+  return {
+    bfPct,
+    range: { low, high },
+    confidence,
+    notes,
+  };
+}
+
+async function cleanupUploads(files: string[]): Promise<void> {
+  await Promise.allSettled(
+    files.map(async (path) => {
+      if (!path) return;
+      try {
+        await storage.bucket().file(path).delete({ ignoreNotFound: true });
+      } catch (error) {
+        console.warn("scan_cleanup_error", { path, message: (error as any)?.message });
+      }
+    })
+  );
+}
+
+async function isFounder(uid: string): Promise<boolean> {
+  try {
+    const snap = await db.doc(`users/${uid}`).get();
+    if (!snap.exists) return false;
+    return Boolean((snap.data() as any)?.meta?.founder);
+  } catch (error) {
+    console.warn("scan_founder_lookup_error", { uid, message: (error as any)?.message });
+    return false;
+  }
+}
+
+function sanitizeFileList(uid: string, scanId: string, files: unknown): string[] {
+  if (!Array.isArray(files)) {
+    throw new HttpsError("invalid-argument", "files_required");
+  }
+  const sanitized = files
+    .map((file) => (typeof file === "string" ? file.trim() : ""))
+    .filter(Boolean);
+  if (sanitized.length !== 4) {
+    throw new HttpsError("invalid-argument", "exactly_four_files_required");
+  }
+  sanitized.forEach((path) => {
+    if (!path.startsWith(`uploads/${uid}/${scanId}/`)) {
+      throw new HttpsError("invalid-argument", "invalid_upload_path");
+    }
+  });
+  return sanitized;
 }
 
 async function createScanSession(uid: string) {
@@ -149,7 +224,7 @@ function normalizeProviderMetrics(raw: any): Record<string, any> | null {
   };
 }
 
-async function completeScan(uid: string, scanId: string, result: ProviderResult) {
+async function completeScan(uid: string, scanId: string, result: ProviderResult, summary: ScanSummary) {
   const ref = db.doc(`users/${uid}/scans/${scanId}`);
   const now = Timestamp.now();
   await ref.set(
@@ -164,28 +239,37 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult)
       usedFallback: result.usedFallback,
       provider: result.provider || (result.usedFallback ? "fallback" : "replicate"),
       notes: result.notes || [],
+      result: summary,
     },
     { merge: true }
   );
 }
 
-async function handleProcess(uid: string, scanId: string) {
+async function handleProcess(uid: string, scanId: string, overrideFiles?: string[]) {
   const ref = db.doc(`users/${uid}/scans/${scanId}`);
   const snap = await ref.get();
   if (!snap.exists) {
     throw new HttpsError("not-found", "Scan not found");
   }
   const data = snap.data() as Partial<ScanDocument>;
-  const files = Array.isArray(data.files) ? data.files : [];
-  await ref.set({ status: "processing", updatedAt: Timestamp.now() }, { merge: true });
+  const files = overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
+  if (files.length !== 4) {
+    throw new HttpsError("invalid-argument", "expected_four_images");
+  }
+  await ref.set(
+    { status: "processing", updatedAt: Timestamp.now(), files, fileCount: files.length },
+    { merge: true }
+  );
   const result = await runScanProvider(uid, scanId, files);
-  await completeScan(uid, scanId, result);
+  const summary = buildSummary(result.metrics, result.usedFallback);
+  await completeScan(uid, scanId, result, summary);
   return {
     scanId,
     status: "done",
     pipelineStatus: "completed",
     metrics: result.metrics,
     usedFallback: result.usedFallback,
+    result: summary,
   };
 }
 
@@ -257,18 +341,53 @@ export const submitScan = onRequest(
     try {
       await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
       const uid = await requireAuth(req);
-      const body = req.body as { scanId?: string; files?: string[] };
-      if (!body?.scanId || !Array.isArray(body.files)) {
-        throw new HttpsError("invalid-argument", "scanId and files required");
+      const body = req.body as { scanId?: string; files?: unknown };
+      if (!body?.scanId) {
+        throw new HttpsError("invalid-argument", "scanId required");
       }
-      await queueScan(uid, body.scanId, body.files);
-      respond(res, { scanId: body.scanId, status: "queued" });
+
+      const files = sanitizeFileList(uid, body.scanId, body.files);
+      const founder = await isFounder(uid);
+      let creditRemaining: number | null = null;
+      let creditConsumed = false;
+
+      if (!founder) {
+        const creditResult = await consumeCredit(uid);
+        if (!creditResult.consumed) {
+          throw new HttpsError("failed-precondition", "no_credits");
+        }
+        creditConsumed = true;
+        creditRemaining = creditResult.remaining;
+      }
+
+      await queueScan(uid, body.scanId, files);
+
+      let result: Awaited<ReturnType<typeof handleProcess>>;
+      try {
+        result = await handleProcess(uid, body.scanId, files);
+      } catch (error) {
+        if (creditConsumed) {
+          await addCredits(uid, 1, "Scan auto-refund", 12).catch(() => undefined);
+        }
+        throw error;
+      } finally {
+        await cleanupUploads(files);
+      }
+
+      respond(res, { ...result, creditsRemaining: creditRemaining });
     } catch (err: any) {
       if (res.headersSent) {
         return;
       }
       const code = err instanceof HttpsError ? err.code : "internal";
-      const status = code === "unauthenticated" ? 401 : code === "invalid-argument" ? 400 : 500;
+      const status =
+        code === "unauthenticated"
+          ? 401
+          : code === "invalid-argument"
+          ? 400
+          : code === "failed-precondition"
+          ? 402
+          : 500;
       respond(res, { error: err.message || "error" }, status);
     }
   })
@@ -312,7 +431,7 @@ export const getScanStatus = onRequest(
   { invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
+      await softAppCheck(req as ExpressRequest);
       const uid = await requireAuth(req);
       const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
       if (!scanId) {

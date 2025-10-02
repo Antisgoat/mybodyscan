@@ -14,6 +14,11 @@ export { beginPaidScan } from "./scan/beginPaidScan.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 
+// Coach
+export { coachChat } from "./coachChat.js";
+export { generatePlan } from "./coachPlan.js";
+export { ensureTestCredits } from "./testWhitelist.js";
+
 // Nutrition endpoints
 export { addFoodLog, addMeal, deleteMeal, getDayLog, getDailyLog, getNutritionHistory } from "./nutrition.js";
 export { nutritionSearch } from "./nutritionSearch.js";
@@ -22,7 +27,6 @@ export { nutritionBarcode } from "./nutritionBarcode.js";
 // Workouts / Coach
 export {
   generateWorkoutPlan,
-  generatePlan,
   getPlan,
   getCurrentPlan,
   markExerciseDone,
