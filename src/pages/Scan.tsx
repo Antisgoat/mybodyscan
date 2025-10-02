@@ -1,203 +1,388 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { CheckCircle2, Camera, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
-import { consumeOneCredit } from "@/lib/payments";
-import { startScan, uploadScanPhotos, submitScan } from "@/lib/scan";
-import { isDemoGuest } from "@/lib/demoFlag";
-import { track } from "@/lib/analytics";
-import { log } from "@/lib/logger";
-import { useI18n } from "@/lib/i18n";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { cmToIn, kgToLb } from "@/lib/units";
+import { cn } from "@/lib/utils";
+import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
 
-const checklist = [
-  "Good lighting - natural light works best",
-  "Full body visible from head to toe",
-  "Plain background - avoid patterns",
-  "Form-fitting clothes or minimal clothing",
-  "Stand straight with arms slightly away from body",
-  "Remove shoes and accessories"
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+const POSES: Array<{ key: PoseKey; label: string; helper: string }> = [
+  { key: "front", label: "Front", helper: "Face forward, arms relaxed" },
+  { key: "back", label: "Back", helper: "Back to camera, feet shoulder-width" },
+  { key: "left", label: "Left", helper: "Left profile, arms slightly out" },
+  { key: "right", label: "Right", helper: "Right profile, arms slightly out" },
 ];
 
+type FileMap = Record<PoseKey, File | null>;
+type PreviewMap = Record<PoseKey, string>;
+
+type Stage = "idle" | "starting" | "uploading" | "analyzing" | "complete";
+
+function emptyFileMap(): FileMap {
+  return { front: null, back: null, left: null, right: null };
+}
+
+function emptyPreviewMap(): PreviewMap {
+  return { front: "", back: "", left: "", right: "" };
+}
+
 export default function Scan() {
-  const [files, setFiles] = useState<File[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
+  const [files, setFiles] = useState<FileMap>(emptyFileMap);
+  const [previews, setPreviews] = useState<PreviewMap>(emptyPreviewMap);
+  const [stage, setStage] = useState<Stage>("idle");
+  const [progressText, setProgressText] = useState<string>("");
+  const [uploadIndex, setUploadIndex] = useState<number>(0);
+  const [result, setResult] = useState<ScanResultResponse | null>(null);
+  const [weight, setWeight] = useState<string>("");
+  const [height, setHeight] = useState<string>("");
+  const [age, setAge] = useState<string>("");
+  const [sex, setSex] = useState<"male" | "female" | "">("");
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { profile } = useUserProfile();
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || []);
-    
-    // Validate file types
-    const invalidFiles = selectedFiles.filter(file => !file.type.startsWith('image/'));
-    if (invalidFiles.length > 0) {
-      toast({ 
-        title: "Invalid files", 
-        description: "Only image files are allowed",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setFiles(selectedFiles.slice(0, 4)); // Limit to 4 files
-  };
-
-  const removeFile = (index: number) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
-
-  const canSubmit = files.length === 4;
-
-  const handleStartScan = async () => {
-    if (isDemoGuest()) {
-      toast({ title: t('auth.create_account') });
-      navigate("/auth");
-      return;
-    }
-
-    if (!canSubmit) {
-      toast({ 
-        title: "Missing photos", 
-        description: "Please upload exactly 4 photos (front, left, right, back)",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsScanning(true);
-    try {
-      await consumeOneCredit();
-      const scan = await startScan();
-      const paths = await uploadScanPhotos(scan, files);
-      await submitScan(scan.scanId, paths as string[]);
-      track("scan_submit");
-      log("info", "scan_submit", { scanId: scan.scanId });
-      toast({ title: "Scan submitted successfully" });
-      navigate(`/processing/${scan.scanId}`);
-    } catch (err: any) {
-      if (err?.message === "No credits available") {
-        toast({ title: "No scan credits", description: "Get more credits to run scans." });
-        navigate("/plans");
-      } else if (err?.message !== "demo-blocked") {
-        toast({
-          title: "Scan failed",
-          description: err?.message || "Something went wrong. Please try again.",
-          variant: "destructive",
-        });
+  useEffect(() => {
+    const next: PreviewMap = emptyPreviewMap();
+    const urls: string[] = [];
+    POSES.forEach(({ key }) => {
+      const file = files[key];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        next[key] = url;
+        urls.push(url);
       }
+    });
+    setPreviews(next);
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [files]);
+
+  useEffect(() => {
+    if (profile?.weight_kg != null && !weight) {
+      setWeight(kgToLb(profile.weight_kg).toFixed(1));
+    }
+    if (profile?.height_cm != null && !height) {
+      setHeight(cmToIn(profile.height_cm).toFixed(1));
+    }
+    if (profile?.age != null && !age) {
+      setAge(String(profile.age));
+    }
+    if (profile?.sex && !sex) {
+      setSex(profile.sex);
+    }
+  }, [profile?.weight_kg, profile?.height_cm, profile?.age, profile?.sex, weight, height, age, sex]);
+
+  const allPhotosSelected = useMemo(() => POSES.every(({ key }) => Boolean(files[key])), [files]);
+
+  const handleFileChange = (pose: PoseKey, fileList: FileList | null) => {
+    const file = fileList?.[0] || null;
+    if (!file) {
+      setFiles((prev) => ({ ...prev, [pose]: null }));
+      return;
+    }
+    const typeValid = file.type === "image/jpeg" || file.name.toLowerCase().endsWith(".jpg") || file.name.toLowerCase().endsWith(".jpeg");
+    if (!typeValid) {
+      toast({ title: "Unsupported file", description: "Please upload a .jpg or .jpeg photo.", variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      toast({ title: "Photo too large", description: "Each photo must be under 10 MB.", variant: "destructive" });
+      return;
+    }
+    setFiles((prev) => ({ ...prev, [pose]: file }));
+  };
+
+  const clearPhoto = (pose: PoseKey) => {
+    setFiles((prev) => ({ ...prev, [pose]: null }));
+  };
+
+  const resetState = () => {
+    setStage("idle");
+    setProgressText("");
+    setUploadIndex(0);
+  };
+
+  const handleAnalyze = async () => {
+    if (submitting) return;
+    if (!allPhotosSelected) {
+      toast({ title: "Add all photos", description: "Front, back, left, and right photos are required." });
+      return;
+    }
+
+    const fileMap: Record<PoseKey, File> = {
+      front: files.front!,
+      back: files.back!,
+      left: files.left!,
+      right: files.right!,
+    };
+
+    const payload = { scanId: "" } as SubmitPayload;
+
+    const weightValue = parseFloat(weight);
+    if (Number.isFinite(weightValue) && weightValue > 0) {
+      payload.weightLb = Number(weightValue.toFixed(1));
+    }
+    const heightValue = parseFloat(height);
+    if (Number.isFinite(heightValue) && heightValue > 0) {
+      payload.heightIn = Number(heightValue.toFixed(1));
+    }
+    const ageValue = parseInt(age, 10);
+    if (Number.isFinite(ageValue) && ageValue > 0) {
+      payload.age = ageValue;
+    }
+    if (sex) {
+      payload.sex = sex;
+    }
+
+    setSubmitting(true);
+    setStage("starting");
+    setProgressText("Creating secure upload session...");
+    setUploadIndex(0);
+    setResult(null);
+
+    try {
+      const session = await startLiveScan();
+      payload.scanId = session.scanId;
+      setStage("uploading");
+      await uploadScanImages(session.uploadUrls, fileMap, ({ pose, index, total }) => {
+        setUploadIndex(index + 1);
+        const label = POSES.find((item) => item.key === pose)?.label || pose;
+        setProgressText(`Uploading ${label} (${index + 1}/${total})`);
+      });
+      setStage("analyzing");
+      setProgressText("Analyzing photos with OpenAI Vision...");
+      const response = await submitLiveScan(payload);
+      setStage("complete");
+      setProgressText("Estimate ready");
+      setResult(response);
+      toast({ title: "Estimate ready", description: "Your result has been saved to History." });
+    } catch (err: any) {
+      console.error("scan_analyze_error", err);
+      let description = err?.message || "Unable to process scan right now.";
+      if (err?.code === "app_check_unavailable") {
+        description = "Secure token missing. Refresh the page and try again.";
+      } else if (err?.status === 402 || err?.message === "no_credits") {
+        description = "Add credits to run another scan.";
+        toast({ title: "No scan credits", description, variant: "destructive" });
+        resetState();
+        setSubmitting(false);
+        navigate("/plans");
+        return;
+      } else if (err?.status === 503 || err?.message === "scan_engine_unavailable") {
+        description = "Vision model is temporarily unavailable. Please try again later.";
+      } else if (err?.status === 400) {
+        description = "Upload failed. Ensure all four photos were added and try again.";
+      } else if (err?.status === 401) {
+        description = "Sign in again to continue.";
+        navigate("/auth");
+      }
+      toast({ title: "Scan failed", description, variant: "destructive" });
+      resetState();
     } finally {
-      setIsScanning(false);
+      setSubmitting(false);
     }
   };
+
+  const disableAnalyze = !allPhotosSelected || submitting;
+  const selectSexValue = sex === "" ? undefined : sex;
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title={t('scan.title')} description="Take a new body composition scan" />
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <Seo title="Live Scan – MyBodyScan" description="Capture four angles to estimate your body-fat percentage." />
       <AppHeader />
       <NotMedicalAdviceBanner />
       <main className="max-w-md mx-auto p-6 space-y-6">
         <div className="text-center space-y-2">
           <Camera className="w-12 h-12 text-primary mx-auto" />
-          <h1 className="text-2xl font-semibold text-foreground">{t('scan.newScan')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('scan.photosRequired')}
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground">Live Body Scan</h1>
+          <p className="text-sm text-muted-foreground">Upload four clear photos for a visual estimate of body-fat percentage.</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5 text-accent" />
-              {t('scan.takePhotos')}
+              <Upload className="w-5 h-5 text-primary" />
+              Upload Required Angles
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="cursor-pointer"
-            />
-            
-            {files.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {files.map((file, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Photo ${index + 1}`}
-                      className="w-full h-24 object-cover rounded border"
-                    />
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> Photos are processed for this estimate and then deleted. We store only your result.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {POSES.map(({ key, label, helper }) => {
+                const file = files[key];
+                const preview = previews[key];
+                const inputId = `pose-${key}`;
+                return (
+                  <div key={key} className="space-y-2">
+                    <Label className="text-sm font-medium text-foreground">{label}</Label>
+                    <label
+                      htmlFor={inputId}
+                      className={cn(
+                        "relative flex h-32 w-full items-center justify-center rounded-lg border border-dashed transition",
+                        file ? "border-primary/60" : "border-muted-foreground/40 hover:border-primary/60",
+                        "overflow-hidden"
+                      )}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 text-center">
-                      {['Front', 'Left', 'Right', 'Back'][index] || `Photo ${index + 1}`}
-                    </div>
+                      {preview ? (
+                        <img src={preview} alt={`${label} preview`} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground">
+                          <ImageIcon className="h-6 w-6" />
+                          <span className="text-xs font-medium">Tap to add {label}</span>
+                          <span className="text-[10px] leading-tight">{helper}</span>
+                        </div>
+                      )}
+                    </label>
+                    <input
+                      id={inputId}
+                      type="file"
+                      accept="image/jpeg,.jpg,.jpeg"
+                      className="hidden"
+                      onChange={(event) => handleFileChange(key, event.target.files)}
+                    />
+                    {file ? (
+                      <Button variant="ghost" size="sm" className="w-full" onClick={() => clearPhoto(key)}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
+                      </Button>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">JPG only · Under 10 MB</p>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-
-            {!canSubmit && files.length > 0 && (
-              <p className="text-sm text-muted-foreground text-center">
-                {4 - files.length} more photos needed
-              </p>
-            )}
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-accent" />
-              Preparation Checklist
-            </CardTitle>
+            <CardTitle className="text-base">Optional details</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {checklist.map((item, index) => (
-                <li key={index} className="flex items-start gap-3 text-sm">
-                  <div className="w-4 h-4 rounded-full border border-primary flex-shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground">{item}</span>
-                </li>
-              ))}
-            </ul>
+          <CardContent className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="weight">Weight (lb)</Label>
+              <Input
+                id="weight"
+                type="number"
+                inputMode="decimal"
+                placeholder="e.g. 170"
+                value={weight}
+                onChange={(event) => setWeight(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="height">Height (in)</Label>
+              <Input
+                id="height"
+                type="number"
+                inputMode="decimal"
+                placeholder="e.g. 70"
+                value={height}
+                onChange={(event) => setHeight(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="age">Age</Label>
+              <Input
+                id="age"
+                type="number"
+                inputMode="numeric"
+                placeholder="e.g. 32"
+                value={age}
+                onChange={(event) => setAge(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Sex</Label>
+              <Select value={selectSexValue} onValueChange={(value) => setSex(value as "male" | "female")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
+        {submitting && (
+          <Card>
+            <CardContent className="flex items-start gap-3 py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div>
+                <p className="text-sm font-medium text-foreground">{progressText || "Processing..."}</p>
+                {stage === "uploading" && (
+                  <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {result && (
+          <Card className="border-primary/40">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>Estimate • OpenAI Vision</span>
+                <Badge variant="outline" className="uppercase text-[10px] tracking-wide">{result.result.confidence} confidence</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-4xl font-semibold text-foreground">{result.result.bfPercent.toFixed(1)}%</p>
+                <p className="text-sm text-muted-foreground">Range {result.result.low.toFixed(1)}% – {result.result.high.toFixed(1)}%</p>
+              </div>
+              <p className="text-sm text-muted-foreground">{result.result.notes}</p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>This estimate is saved to your History automatically.</p>
+                {typeof result.creditsRemaining === "number" && (
+                  <p>Credits remaining: {result.creditsRemaining}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate("/history")}>View history</Button>
+                <Button variant="ghost" onClick={() => navigate("/plans")}>Add credits</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="space-y-3">
-          <Button
-            onClick={handleStartScan}
-            disabled={isScanning || !canSubmit}
-            className="w-full h-12 text-base"
-          >
-            {isScanning ? "Processing..." : "Start Scan"}
+          <Button className="w-full h-12 text-base" disabled={disableAnalyze} onClick={handleAnalyze}>
+            {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+            {submitting ? "Analyzing…" : "Analyze"}
           </Button>
-          
-          <p className="text-xs text-center text-muted-foreground">
-            By starting a scan, you agree to our{" "}
-            <a href="/legal/terms" className="underline hover:text-primary">
-              {t('legal.terms')}
-            </a>{" "}
-            and{" "}
-            <a href="/legal/privacy" className="underline hover:text-primary">
-              {t('legal.privacy')}
-            </a>
-          </p>
+          <p className="text-xs text-center text-muted-foreground">1 credit will be used once analysis completes. Results are estimates only.</p>
         </div>
       </main>
       <BottomNav />
     </div>
   );
 }
+
+type SubmitPayload = {
+  scanId: string;
+  weightLb?: number;
+  heightIn?: number;
+  age?: number;
+  sex?: "male" | "female";
+};

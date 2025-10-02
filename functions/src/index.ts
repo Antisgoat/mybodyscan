@@ -4,12 +4,12 @@ export { health } from "./health.js";
 export {
   startScan,
   runBodyScan,
-  startScanSession,
-  submitScan,
   processQueuedScanHttp,
   processScan,
   getScanStatus,
 } from "./scan.js";
+export { startScanSession } from "./scan/start.js";
+export { submitScan } from "./scan/submit.js";
 export { beginPaidScan } from "./scan/beginPaidScan.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
