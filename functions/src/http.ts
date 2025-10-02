@@ -1,4 +1,4 @@
-import type { Request } from "firebase-functions/v2/https";
+import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
 

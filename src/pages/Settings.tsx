@@ -19,8 +19,6 @@ import { isDemoGuest } from "@/lib/demoFlag";
 import { Download, Trash2 } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
-import { FeatureGate } from "@/components/FeatureGate";
-import { scheduleReminderMock } from "@/lib/remindersShim";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -34,7 +32,6 @@ const Settings = () => {
     renewalReminder: true
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [scheduling, setScheduling] = useState(false);
   const { uid } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
@@ -47,19 +44,6 @@ const Settings = () => {
       setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
     }
   }, [profile?.weight_kg]);
-
-  const handleScheduleReminder = async (type: 'scan' | 'workout' | 'meal') => {
-    setScheduling(true);
-    try {
-      const sendAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      const reminder = await scheduleReminderMock({ type, sendAt, channel: 'push' });
-      toast({ title: 'Reminder scheduled', description: `${type} reminder queued (${reminder.reminderId}).` });
-    } catch (error: any) {
-      toast({ title: 'Unable to schedule', description: error?.message || 'Try again later', variant: 'destructive' });
-    } finally {
-      setScheduling(false);
-    }
-  };
 
   const handleSaveMetrics = async () => {
     if (!auth.currentUser) {
@@ -83,6 +67,53 @@ const Settings = () => {
       toast({ title: "Unable to save weight", variant: "destructive" });
     } finally {
       setSavingMetrics(false);
+    }
+  };
+
+  const deleteDatabase = (name: string) =>
+    new Promise<void>((resolve) => {
+      try {
+        const request = window.indexedDB.deleteDatabase(name);
+        request.onsuccess = request.onerror = request.onblocked = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+
+  const handleResetLocalData = async () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.clear();
+      try {
+        window.sessionStorage.clear();
+      } catch {
+        // ignore
+      }
+      if (window.indexedDB) {
+        const anyIndexedDB = window.indexedDB as typeof window.indexedDB & {
+          databases?: () => Promise<Array<{ name?: string | undefined }>>;
+        };
+        const list = anyIndexedDB.databases ? await anyIndexedDB.databases() : [];
+        if (Array.isArray(list)) {
+          for (const info of list) {
+            if (info?.name) {
+              await deleteDatabase(info.name);
+            }
+          }
+        }
+        const known = [
+          "firebaseLocalStorageDb",
+          "firebase-heartbeat-database",
+          "firebase-installations-database",
+        ];
+        for (const name of known) {
+          await deleteDatabase(name);
+        }
+      }
+      toast({ title: "Local data cleared" });
+    } catch (error) {
+      console.error("reset_local_data", error);
+      toast({ title: "Unable to clear data", variant: "destructive" });
     }
   };
 
@@ -223,22 +254,6 @@ const Settings = () => {
           </div>
         </SectionCard>
 
-        <FeatureGate name="reminders">
-          <SectionCard title="Quick reminders" description="Send yourself a demo push to preview the flow.">
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('scan')}>
-                Schedule scan reminder
-              </Button>
-              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('workout')}>
-                Schedule workout reminder
-              </Button>
-              <Button size="sm" variant="outline" disabled={scheduling} onClick={() => handleScheduleReminder('meal')}>
-                Schedule meal reminder
-              </Button>
-            </div>
-          </SectionCard>
-        </FeatureGate>
-
         {/* Language */}
         <Card>
           <CardHeader>
@@ -340,6 +355,13 @@ const Settings = () => {
               className="w-full"
             >
               Copy diagnostics
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleResetLocalData}
+              className="w-full"
+            >
+              Reset local data
             </Button>
           </div>
         </CardContent>

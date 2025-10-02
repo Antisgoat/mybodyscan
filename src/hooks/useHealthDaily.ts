@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import type { DailySummary, HealthAdapter } from "@/integrations/health/HealthAdapter";
-import { WebMockAdapter } from "@/integrations/health/WebMockAdapter";
+import { WebFallbackAdapter } from "@/integrations/health/WebFallbackAdapter";
 import { IOSHealthKitAdapter } from "@/integrations/health/IOSHealthKitAdapter";
 import { AndroidHealthConnectAdapter } from "@/integrations/health/AndroidHealthConnectAdapter";
 
@@ -13,7 +13,7 @@ export function useHealthDaily() {
   const adapter: HealthAdapter = useMemo(() => {
     if (platform === "ios") return new IOSHealthKitAdapter();
     if (platform === "android") return new AndroidHealthConnectAdapter();
-    return new WebMockAdapter();
+    return new WebFallbackAdapter();
   }, [platform]);
 
   async function connect() {

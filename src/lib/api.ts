@@ -1,5 +1,4 @@
-import { auth, app } from "@/lib/firebase";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 
@@ -44,15 +43,24 @@ async function authedFetch(path: string, init?: RequestInit) {
   });
 }
 
-export async function startScan(params: {
-  filename: string;
-  size: number;
-  contentType: string;
-}) {
-  const functions = getFunctions(app);
-  const fn = httpsCallable(functions, "startScan");
-  const { data } = await fn(params);
-  return data as { scanId: string };
+export async function startScan(params?: Record<string, unknown>) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error("Authentication required");
+  }
+  const response = await fetch("/api/scan/start", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(params ?? {}),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "scan_start_failed");
+  }
+  return (await response.json()) as { scanId: string };
 }
 
 export async function openStripeCheckout(priceId: string, plan: string, mode: "payment" | "subscription") {

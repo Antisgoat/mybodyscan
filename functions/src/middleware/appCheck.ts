@@ -1,29 +1,34 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import { getAppCheck } from "../firebase.js";
 
-export async function softVerifyAppCheck(
-  req: Request,
-  _res: Response,
-  next?: NextFunction
-): Promise<void> {
-  const header =
-    req.get("X-Firebase-AppCheck") || req.get("x-firebase-appcheck") || "";
-  let verified = false;
+function getHeader(req: Request, key: string): string | undefined {
+  return req.get(key) ?? req.get(key.toLowerCase()) ?? undefined;
+}
 
-  if (!header) {
-    console.info("softVerifyAppCheck: missing App Check token");
-  } else {
-    try {
-      await getAppCheck().verifyToken(header);
-      verified = true;
-    } catch (err) {
-      console.warn("softVerifyAppCheck: invalid token", err);
-    }
+export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
+  const token = getHeader(req, "X-Firebase-AppCheck");
+  if (!token) {
+    res.status(401).json({ ok: false, reason: "missing_appcheck" });
+    throw new Error("missing_appcheck");
   }
+  try {
+    await getAppCheck().verifyToken(token);
+  } catch (error) {
+    res.status(401).json({ ok: false, reason: "invalid_appcheck" });
+    throw error;
+  }
+}
 
-  (req as any).appCheckVerified = verified;
-
-  if (next) {
-    next();
+export async function softAppCheck(req: Request): Promise<boolean> {
+  const token = getHeader(req, "X-Firebase-AppCheck");
+  if (!token) {
+    return false;
+  }
+  try {
+    await getAppCheck().verifyToken(token);
+    return true;
+  } catch (error) {
+    console.warn("appcheck_soft_invalid", { message: (error as Error)?.message });
+    return false;
   }
 }

@@ -8,7 +8,7 @@ export interface ScanDocument {
   statusV1?: string;
   files?: string[];
   metrics?: Record<string, any>;
-  mock?: boolean;
+  usedFallback?: boolean;
 }
 
 export interface NutritionItemSnapshot {

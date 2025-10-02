@@ -1,8 +1,8 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import type { Request, Response } from "express";
 import { withCors } from "../middleware/cors.js";
-import { softVerifyAppCheck } from "../middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "../http.js";
+import { requireAppCheckStrict } from "../middleware/appCheck.js";
+import { requireAuth } from "../http.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search.js";
 
@@ -52,9 +52,8 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   return item ? { item, source: "USDA" as const } : null;
 }
 
-async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
-  await verifyAppCheckSoft(req);
+async function handler(req: Request, res: Response) {
+  await requireAppCheckStrict(req as any, res as any);
   const uid = await requireAuth(req);
   await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
 
@@ -107,7 +106,7 @@ export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await handler(req as Request, res);
+      await handler(req as unknown as Request, res as unknown as Response);
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const status =

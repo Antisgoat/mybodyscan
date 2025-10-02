@@ -84,6 +84,20 @@
         }
       },
       {
+        "source": "/api/scan/start",
+        "function": {
+          "functionId": "startScanSession",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/scan/submit",
+        "function": {
+          "functionId": "submitScan",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/nutrition/search",
         "function": "nutritionSearch",
         "functionRegion": "us-central1"

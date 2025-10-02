@@ -1,6 +1,4 @@
 import { auth } from "./firebase";
-import { isDemoGuest } from "./demoFlag";
-import { track } from "./analytics";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -84,60 +82,21 @@ async function callFn(path: string, body?: any, method = "POST") {
 }
 
 export async function addMeal(dateISO: string, meal: MealEntry) {
-    if (isDemoGuest()) {
-      track("demo_block", { action: "meal_add" });
-      const list = demoMeals[dateISO] || seedDemoMeals(dateISO);
-      const entry = { id: crypto.randomUUID(), ...meal, ...computeCalories(meal) };
-      demoMeals[dateISO] = [...list, entry];
-      return entry;
-    }
-    return callFn("/addMeal", { dateISO, meal });
+  const entry = { ...meal, ...computeCalories(meal) };
+  const result = await callFn("/addMeal", { dateISO, meal: entry });
+  return result;
 }
 
 export async function deleteMeal(dateISO: string, mealId: string) {
-    if (isDemoGuest()) {
-      const list = demoMeals[dateISO] || seedDemoMeals(dateISO);
-      demoMeals[dateISO] = list.filter((m) => m.id !== mealId);
-      return;
-    }
-    return callFn("/deleteMeal", { dateISO, mealId });
+  return callFn("/deleteMeal", { dateISO, mealId });
 }
 
 export async function getDailyLog(dateISO: string) {
-    if (isDemoGuest()) {
-      const meals = demoMeals[dateISO] || seedDemoMeals(dateISO);
-      const totals = { calories: meals.reduce((s, m) => s + (m.calories || 0), 0) };
-      return { totals, meals };
-    }
-    return callFn("/getDailyLog", { dateISO });
+  return callFn("/getDailyLog", { dateISO });
 }
 
 export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string): Promise<NutritionHistoryDay[]> {
   const anchor = anchorDateISO || new Date().toISOString().slice(0, 10);
-  if (isDemoGuest()) {
-    const anchorDate = new Date(anchor);
-    const days: NutritionHistoryDay[] = [];
-    for (let offset = range - 1; offset >= 0; offset--) {
-      const day = new Date(anchorDate);
-      day.setDate(anchorDate.getDate() - offset);
-      const iso = day.toISOString().slice(0, 10);
-      const meals = demoMeals[iso] || seedDemoMeals(iso);
-      const totals = meals.reduce(
-        (acc, meal) => {
-          const macros = computeCalories(meal);
-          acc.calories += macros.calories || 0;
-          acc.protein += meal.protein || 0;
-          acc.carbs += meal.carbs || 0;
-          acc.fat += meal.fat || 0;
-          acc.alcohol += meal.alcohol || 0;
-          return acc;
-        },
-        { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 }
-      );
-      days.push({ date: iso, totals });
-    }
-    return days;
-  }
   const response = await callFn("/getNutritionHistory", { range, anchorDateISO: anchor });
   const list = Array.isArray(response?.days) ? response.days : [];
   return list.map((day: any) => ({
@@ -152,17 +111,3 @@ export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string)
   }));
 }
 
-// --- demo state ---
-const demoMeals: Record<string, MealEntry[]> = {};
-
-function seedDemoMeals(dateISO: string): MealEntry[] {
-  if (!demoMeals[dateISO]) {
-    const seed: MealEntry[] = [
-      { id: "1", name: "Oatmeal", protein: 6, carbs: 27, fat: 3 },
-      { id: "2", name: "Chicken Salad", protein: 30, carbs: 10, fat: 8 },
-      { id: "3", name: "Greek Yogurt", protein: 17, carbs: 9, fat: 0 },
-    ].map((m) => ({ ...m, ...computeCalories(m) }));
-    demoMeals[dateISO] = seed;
-  }
-  return demoMeals[dateISO];
-}

@@ -1,8 +1,10 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import type { CallableRequest, Request } from "firebase-functions/v2/https";
+import type { CallableRequest } from "firebase-functions/v2/https";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
+import { requireAuth } from "./http.js";
 import type { ScanDocument } from "./types.js";
 import { consumeOne } from "./credits.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
@@ -39,7 +41,7 @@ async function createScanSession(uid: string) {
     legacyStatus: "awaiting_upload",
     statusV1: "awaiting_upload",
     files: [],
-    mock: false,
+    usedFallback: false,
   };
   await ref.set(doc);
   return {
@@ -70,7 +72,7 @@ async function queueScan(uid: string, scanId: string, files: string[]) {
 
 interface ProviderResult {
   metrics: Record<string, any>;
-  usedMock: boolean;
+  usedFallback: boolean;
   provider?: string;
   notes?: string[];
 }
@@ -79,10 +81,10 @@ async function runScanProvider(uid: string, scanId: string, files: string[]): Pr
   const fallback = defaultMetrics(scanId);
   const replicateKey = process.env.REPLICATE_API_KEY;
   if (!replicateKey) {
-    return { metrics: fallback, usedMock: true, notes: ["replicate_key_missing"] };
+    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
   }
   if (!files.length) {
-    return { metrics: fallback, usedMock: true, notes: ["no_files"] };
+    return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
   }
   try {
     const bucket = storage.bucket();
@@ -121,10 +123,10 @@ async function runScanProvider(uid: string, scanId: string, files: string[]): Pr
     }
     const raw = prediction?.output || prediction?.results || prediction;
     const metrics = normalizeProviderMetrics(raw) || fallback;
-    return { metrics, usedMock: false, provider: "replicate", notes: ["replicate_success"] };
+    return { metrics, usedFallback: false, provider: "replicate", notes: ["replicate_success"] };
   } catch (err) {
     console.error("runScanProvider", err);
-    return { metrics: fallback, usedMock: true, notes: ["replicate_error"] };
+    return { metrics: fallback, usedFallback: true, notes: ["replicate_error"] };
   }
 }
 
@@ -159,8 +161,8 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult)
       completedAt: now,
       updatedAt: now,
       metrics: result.metrics,
-      mock: result.usedMock,
-      provider: result.provider || (result.usedMock ? "mock" : "replicate"),
+      usedFallback: result.usedFallback,
+      provider: result.provider || (result.usedFallback ? "fallback" : "replicate"),
       notes: result.notes || [],
     },
     { merge: true }
@@ -183,7 +185,7 @@ async function handleProcess(uid: string, scanId: string) {
     status: "done",
     pipelineStatus: "completed",
     metrics: result.metrics,
-    mock: result.usedMock,
+    usedFallback: result.usedFallback,
   };
 }
 
@@ -191,8 +193,8 @@ function respond(res: any, body: any, status = 200) {
   res.status(status).json(body);
 }
 
-async function handleStartRequest(req: Request, res: any) {
-  await verifyAppCheckStrict(req);
+async function handleStartRequest(req: ExpressRequest, res: ExpressResponse) {
+  await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
   const session = await createScanSession(uid);
   respond(res, session);
@@ -239,8 +241,11 @@ export const startScanSession = onRequest(
   { invoker: "public", concurrency: 15 },
   withCors(async (req, res) => {
     try {
-      await handleStartRequest(req, res);
+      await handleStartRequest(req as ExpressRequest, res as ExpressResponse);
     } catch (err: any) {
+      if (res.headersSent) {
+        return;
+      }
       respond(res, { error: err.message || "error" }, err.code === "unauthenticated" ? 401 : 500);
     }
   })
@@ -250,7 +255,7 @@ export const submitScan = onRequest(
   { invoker: "public", concurrency: 15 },
   withCors(async (req, res) => {
     try {
-      await verifyAppCheckStrict(req);
+      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
       const uid = await requireAuth(req);
       const body = req.body as { scanId?: string; files?: string[] };
       if (!body?.scanId || !Array.isArray(body.files)) {
@@ -259,6 +264,9 @@ export const submitScan = onRequest(
       await queueScan(uid, body.scanId, body.files);
       respond(res, { scanId: body.scanId, status: "queued" });
     } catch (err: any) {
+      if (res.headersSent) {
+        return;
+      }
       const code = err instanceof HttpsError ? err.code : "internal";
       const status = code === "unauthenticated" ? 401 : code === "invalid-argument" ? 400 : 500;
       respond(res, { error: err.message || "error" }, status);
@@ -270,7 +278,7 @@ export const processQueuedScanHttp = onRequest(
   { invoker: "public", concurrency: 10 },
   withCors(async (req, res) => {
     try {
-      await verifyAppCheckStrict(req);
+      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
       const uid = await requireAuth(req);
       const scanId = (req.body?.scanId as string) || (req.query?.scanId as string);
       if (!scanId) {
@@ -279,6 +287,9 @@ export const processQueuedScanHttp = onRequest(
       const result = await handleProcess(uid, scanId);
       respond(res, result);
     } catch (err: any) {
+      if (res.headersSent) {
+        return;
+      }
       const code = err instanceof HttpsError ? err.code : "internal";
       const status =
         code === "unauthenticated"
@@ -301,7 +312,7 @@ export const getScanStatus = onRequest(
   { invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await verifyAppCheckStrict(req);
+      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
       const uid = await requireAuth(req);
       const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
       if (!scanId) {
@@ -319,6 +330,9 @@ export const getScanStatus = onRequest(
       }
       respond(res, payload);
     } catch (err: any) {
+      if (res.headersSent) {
+        return;
+      }
       const code = err instanceof HttpsError ? err.code : "internal";
       const status =
         code === "unauthenticated"

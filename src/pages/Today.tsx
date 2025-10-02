@@ -24,20 +24,69 @@ export default function Today() {
   const [workout, setWorkout] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
   useEffect(() => {
-    getDailyLog(todayISO).then((d) => setMealTotals(d.totals));
-    getPlan().then(async (p) => {
-      if (!p) return;
-      const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date().getDay()];
-      const idx = p.days.findIndex((d: any) => d.day === dayName);
-      if (idx >= 0) {
-        const uid = auth.currentUser?.uid;
-        if (uid) {
-          const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`));
-          const done = snap.exists() ? (snap.data()?.completed as string[])?.length || 0 : 0;
-          setWorkout({ done, total: p.days[idx].exercises.length });
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const log = await getDailyLog(todayISO);
+        if (!cancelled) {
+          setMealTotals(log?.totals ?? { calories: 0 });
+        }
+      } catch (error) {
+        console.warn("today.loadDailyLog", error);
+        if (!cancelled) {
+          setMealTotals({ calories: 0 });
         }
       }
-    });
+
+      try {
+        const plan = await getPlan();
+        if (!plan) {
+          if (!cancelled) {
+            setWorkout({ done: 0, total: 0 });
+          }
+          return;
+        }
+        const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date().getDay()];
+        const idx = plan.days.findIndex((d: any) => d.day === dayName);
+        if (idx < 0) {
+          if (!cancelled) {
+            setWorkout({ done: 0, total: 0 });
+          }
+          return;
+        }
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          if (!cancelled) {
+            setWorkout({ done: 0, total: plan.days[idx].exercises.length });
+          }
+          return;
+        }
+        try {
+          const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${plan.id}/progress/${todayISO}`));
+          const done = snap.exists() ? ((snap.data()?.completed as string[])?.length ?? 0) : 0;
+          if (!cancelled) {
+            setWorkout({ done, total: plan.days[idx].exercises.length });
+          }
+        } catch (error) {
+          console.warn("today.loadWorkout", error);
+          if (!cancelled) {
+            setWorkout({ done: 0, total: plan.days[idx].exercises.length });
+          }
+        }
+      } catch (error) {
+        console.warn("today.loadPlan", error);
+        if (!cancelled) {
+          setWorkout({ done: 0, total: 0 });
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [todayISO]);
 
   const handleScan = async () => {

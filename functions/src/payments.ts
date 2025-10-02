@@ -1,8 +1,10 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import type { CallableRequest, Request } from "firebase-functions/v2/https";
+import type { CallableRequest } from "firebase-functions/v2/https";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
 import { withCors } from "./middleware/cors.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { ensureEnvVars, reportMissingEnv } from "./env.js";
 
@@ -92,8 +94,8 @@ async function createCheckoutSessionForUid(
   }
 }
 
-async function handleCheckoutSession(req: Request, res: any) {
-  await verifyAppCheckStrict(req);
+async function handleCheckoutSession(req: ExpressRequest, res: ExpressResponse) {
+  await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
   const source = req.body && Object.keys(req.body || {}).length ? req.body : req.query;
   const payload = parseCheckoutSessionPayload(source);
@@ -110,8 +112,8 @@ async function handleCheckoutSession(req: Request, res: any) {
   }
 }
 
-async function handleCustomerPortal(req: Request, res: any) {
-  await verifyAppCheckStrict(req);
+async function handleCustomerPortal(req: ExpressRequest, res: ExpressResponse) {
+  await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
   let stripe: Stripe;
   try {
@@ -138,7 +140,7 @@ async function handleCustomerPortal(req: Request, res: any) {
   res.json({ url: session.url });
 }
 
-function withHandler(handler: (req: Request, res: any) => Promise<void>) {
+function withHandler(handler: (req: ExpressRequest, res: ExpressResponse) => Promise<void>) {
   return onRequest(
     {
       region: "us-central1",
@@ -148,9 +150,11 @@ function withHandler(handler: (req: Request, res: any) => Promise<void>) {
     },
     withCors(async (req, res) => {
       try {
-        await verifyAppCheckStrict(req);
-        await handler(req, res);
+        await handler(req as ExpressRequest, res as ExpressResponse);
       } catch (err: any) {
+        if (res.headersSent) {
+          return;
+        }
         if (err instanceof CheckoutError) {
           const status = err.kind === "config" ? 400 : 500;
           res.status(status).json({ error: err.kind });
@@ -181,7 +185,7 @@ export async function createCheckoutSessionHandler(
   if (!uid) {
     throw new HttpsError("unauthenticated", "Authentication required");
   }
-  const rawRequest = context.rawRequest as Request | undefined;
+  const rawRequest = context.rawRequest as ExpressRequest | undefined;
   if (rawRequest) {
     await verifyAppCheckStrict(rawRequest);
   }

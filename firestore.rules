@@ -1,7 +1,5 @@
+// UNUSED: database.rules.json is the authoritative ruleset.
 rules_version = '2';
-// NOTE: These rules mirror database.rules.json to prevent divergence if this
-// legacy file is accidentally deployed. The authoritative rules live in
-// database.rules.json and should be used for all deployments.
 service cloud.firestore {
   match /databases/{database}/documents {
 
