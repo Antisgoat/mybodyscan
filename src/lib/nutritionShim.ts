@@ -40,7 +40,7 @@ interface FoodSearchApiItem {
   raw?: any;
 }
 
-export type NutritionSource = "USDA" | "OFF";
+export type NutritionSource = "USDA" | "Open Food Facts" | "OFF";
 
 export interface ServingOption {
   id: string;
@@ -59,12 +59,12 @@ export interface MacroPer100g {
 export interface NormalizedItem {
   id: string;
   name: string;
-  brand?: string;
+  brand?: string | null;
   source: NutritionSource;
   gtin?: string;
   fdcId?: number;
   raw?: any;
-  basePer100g?: MacroPer100g;
+  basePer100g?: MacroPer100g | null;
   servings?: ServingOption[];
   serving: {
     qty: number | null;
@@ -265,8 +265,17 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
       : `food-${Math.random().toString(36).slice(2, 10)}`;
 
   const name = typeof raw?.name === "string" && raw.name.trim().length ? raw.name.trim() : "Food";
-  const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : undefined;
-  const source: NutritionSource = raw?.source === "OFF" ? "OFF" : "USDA";
+  const brand =
+    typeof raw?.brand === "string" && raw.brand.trim().length
+      ? raw.brand.trim()
+      : raw?.brand === null
+      ? null
+      : undefined;
+  const rawSource = typeof raw?.source === "string" ? raw.source : null;
+  const source: NutritionSource =
+    rawSource === "Open Food Facts" || rawSource === "OFF"
+      ? "Open Food Facts"
+      : "USDA";
   const base = normalizeBasePer100g(raw);
   const servings = normalizeServings(raw);
   const defaultServing = servings.find((option) => option.isDefault) ?? servings[0] ?? null;
@@ -387,7 +396,14 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
       return [];
     }
 
-    return data.items.map((item: FoodSearchApiItem) => normalizeApiItem(item));
+    return data.items.map((item: FoodSearchApiItem) => {
+      const normalized = normalizeApiItem(item);
+      return {
+        ...normalized,
+        brand: normalized.brand ?? null,
+        source: normalized.source === "OFF" ? "Open Food Facts" : normalized.source,
+      };
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -409,5 +425,10 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   if (!data?.item) {
     return null;
   }
-  return normalizeApiItem(data.item as FoodSearchApiItem);
+  const normalized = normalizeApiItem(data.item as FoodSearchApiItem);
+  return {
+    ...normalized,
+    brand: normalized.brand ?? null,
+    source: normalized.source === "OFF" ? "Open Food Facts" : normalized.source,
+  };
 }

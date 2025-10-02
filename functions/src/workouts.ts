@@ -1,10 +1,10 @@
 import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
+import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { softVerifyAppCheck } from "./middleware/appCheck.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 
 const db = getFirestore();
@@ -97,7 +97,7 @@ async function resolvePlanDays(prefs: PlanPrefs): Promise<{ days: WorkoutDay[]; 
   if (aiPlan && aiPlan.length) {
     return { days: aiPlan, source: "openai" };
   }
-  return { days: deterministicPlan(prefs), source: "mock" };
+  return { days: deterministicPlan(prefs), source: "deterministic" };
 }
 
 async function persistPlan(uid: string, prefs: PlanPrefs) {
@@ -133,23 +133,23 @@ async function fetchCurrentPlan(uid: string) {
   return { id: planId, ...(snap.data() as WorkoutPlan) };
 }
 
-async function handleGenerate(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleGenerate(req: Request, res: Response) {
+  await requireAppCheckStrict(req as any, res as any);
   const uid = await requireAuth(req);
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
 }
 
-async function handleGetPlan(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleGetPlan(req: Request, res: Response) {
+  await requireAppCheckStrict(req as any, res as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
-async function handleMarkDone(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleMarkDone(req: Request, res: Response) {
+  await requireAppCheckStrict(req as any, res as any);
   const uid = await requireAuth(req);
   const body = req.body as {
     planId?: string;
@@ -195,8 +195,8 @@ async function handleMarkDone(req: Request, res: any) {
   res.json({ ratio });
 }
 
-async function handleGetWorkouts(req: Request, res: any) {
-  await verifyAppCheckSoft(req);
+async function handleGetWorkouts(req: Request, res: Response) {
+  await requireAppCheckStrict(req as any, res as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
@@ -216,13 +216,13 @@ async function handleGetWorkouts(req: Request, res: any) {
   res.json({ planId: plan.id, days: plan.days, progress });
 }
 
-function withHandler(handler: (req: Request, res: any) => Promise<void>) {
+function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return onRequest(
     { invoker: "public" },
     withCors(async (req, res) => {
       try {
-        await softVerifyAppCheck(req as any, res as any);
-        await handler(req, res);
+        await requireAppCheckStrict(req as any, res as any);
+        await handler(req as unknown as Request, res as unknown as Response);
       } catch (err: any) {
         const code = err instanceof HttpsError ? err.code : "internal";
         const status =

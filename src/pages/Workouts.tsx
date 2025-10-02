@@ -28,44 +28,109 @@ export default function Workouts() {
   const todayISO = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    getPlan().then(async (p) => {
-      if (p) {
-        setPlan(p);
-        await loadProgress(p);
-        const wk = await getWeeklyCompletion(p.id);
-        setWeekRatio(wk);
+    let cancelled = false;
+
+    const hydrate = async () => {
+      try {
+        const currentPlan = await getPlan();
+        if (!currentPlan) {
+          if (!cancelled) {
+            setPlan(null);
+            setCompleted([]);
+            setRatio(0);
+            setWeekRatio(0);
+          }
+          return;
+        }
+        if (!cancelled) {
+          setPlan(currentPlan);
+        }
+        await loadProgress(currentPlan, () => cancelled);
+        try {
+          const wk = await getWeeklyCompletion(currentPlan.id);
+          if (!cancelled) {
+            setWeekRatio(wk);
+          }
+        } catch (error) {
+          console.warn("workouts.weekly", error);
+          if (!cancelled) {
+            setWeekRatio(0);
+          }
+        }
+      } catch (error) {
+        console.warn("workouts.plan", error);
+        if (!cancelled) {
+          setPlan(null);
+          setCompleted([]);
+          setRatio(0);
+          setWeekRatio(0);
+        }
       }
-    });
+    };
+
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  async function loadProgress(p: any) {
+  async function loadProgress(p: any, isCancelled?: () => boolean) {
     const idx = p.days.findIndex((d: any) => d.day === todayName);
     if (idx < 0) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`));
-    const done = snap.exists() ? (snap.data()?.completed as string[]) || [] : [];
-    setCompleted(done);
-    setRatio(p.days[idx].exercises.length ? done.length / p.days[idx].exercises.length : 0);
+    try {
+      const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`));
+      if (isCancelled?.()) return;
+      const done = snap.exists() ? ((snap.data()?.completed as string[]) ?? []) : [];
+      if (!isCancelled?.()) {
+        setCompleted(done);
+        setRatio(p.days[idx].exercises.length ? done.length / p.days[idx].exercises.length : 0);
+      }
+    } catch (error) {
+      console.warn("workouts.progress", error);
+      if (!isCancelled?.()) {
+        setCompleted([]);
+        setRatio(0);
+      }
+    }
   }
 
   const handleToggle = async (exerciseId: string) => {
     const idx = plan.days.findIndex((d: any) => d.day === todayName);
     const done = !completed.includes(exerciseId);
+    try {
       const res = await markExerciseDone(plan.id, idx, exerciseId, done);
       setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
       setRatio(res.ratio);
       if (done) track("workout_mark_done", { exerciseId });
       if (isDemoGuest()) toast({ title: "Sign up to save your progress." });
-    };
+    } catch (error: any) {
+      if (error?.message === "demo-blocked") {
+        toast({ title: "Create an account", description: "Demo mode cannot save workouts.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Update failed", description: "Please try again.", variant: "destructive" });
+    }
+  };
 
   const handleGenerate = async () => {
-    const res = await generateWorkoutPlan({ focus: "back" });
-    const newPlan = { id: res.planId, days: res.days };
-    setPlan(newPlan);
-    setCompleted([]);
-    setRatio(0);
-    setWeekRatio(0);
+    try {
+      const res = await generateWorkoutPlan({ focus: "back" });
+      if (!res) return;
+      const newPlan = { id: res.planId, days: res.days };
+      setPlan(newPlan);
+      setCompleted([]);
+      setRatio(0);
+      setWeekRatio(0);
+    } catch (error: any) {
+      if (error?.message === "demo-blocked") {
+        toast({ title: "Create an account", description: "Demo mode cannot generate plans.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Unable to generate", description: "Please try again later.", variant: "destructive" });
+    }
   };
 
   if (!plan) {

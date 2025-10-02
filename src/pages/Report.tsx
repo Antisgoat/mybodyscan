@@ -113,7 +113,15 @@ export default function Report() {
         }
 
         const reportRef = doc(db, "users", user.uid, "reports", targetScanId);
-        const reportSnap = await getDoc(reportRef);
+        let reportSnap;
+        try {
+          reportSnap = await getDoc(reportRef);
+        } catch (error) {
+          console.warn("report.loadReportDoc", error);
+          setError("Unable to load report");
+          setLoading(false);
+          return;
+        }
 
         if (reportSnap.exists()) {
           setReportData(reportSnap.data() as ReportData);
@@ -121,9 +129,15 @@ export default function Report() {
         }
 
         const scanRef = doc(db, "users", user.uid, "scans", targetScanId);
-        const scanSnap = await getDoc(scanRef);
+        let scanSnap;
+        try {
+          scanSnap = await getDoc(scanRef);
+        } catch (error) {
+          console.warn("report.loadScanDoc", error);
+          scanSnap = null;
+        }
 
-        if (!scanSnap.exists()) {
+        if (!scanSnap?.exists()) {
           const latest = await findLatestCompleted();
           if (latest) {
             toast({

@@ -1,16 +1,16 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request } from "firebase-functions/v2/https";
-import { withCors } from "../middleware/cors.js";
-import { softVerifyAppCheck } from "../middleware/appCheck.js";
-import { requireAuth, verifyAppCheckSoft } from "../http.js";
-import { enforceRateLimit } from "../middleware/rateLimit.js";
-import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./search.js";
+import type { Request, Response } from "express";
+import { withCors } from "./middleware/cors.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
+import { requireAuth } from "./http.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./nutritionSearch.js";
 
-const CACHE_TTL = 1000 * 60 * 60 * 24; // ~24 hours
+const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 interface CacheEntry {
   expires: number;
-  value: { item: NormalizedItem; source: "OFF" | "USDA" } | null;
+  value: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -18,7 +18,7 @@ const cache = new Map<string, CacheEntry>();
 async function fetchOff(code: string) {
   const response = await fetch(
     `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`,
-    { headers: { "User-Agent": "mybodyscan-functions" } },
+    { headers: { "User-Agent": "mybodyscan-nutrition-barcode/1.0" }, signal: AbortSignal.timeout(4000) },
   );
   if (!response.ok) {
     throw new Error(`off_${response.status}`);
@@ -26,15 +26,19 @@ async function fetchOff(code: string) {
   const data = await response.json();
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
-  return normalized ? { item: normalized, source: "OFF" as const } : null;
+  return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
-  const response = await fetch("https://api.nal.usda.gov/fdc/v1/foods/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query: code, pageSize: 5, dataType: ["Branded"] }),
-    signal: AbortSignal.timeout(3000),
+  const url = new URL("https://api.nal.usda.gov/fdc/v1/foods/search");
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("query", code);
+  url.searchParams.set("pageSize", "5");
+  url.searchParams.set("dataType", "Branded");
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(4000),
   });
   if (!response.ok) {
     throw new Error(`usda_${response.status}`);
@@ -45,16 +49,19 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
     .map((food: any) => fromUsdaFood(food))
     .filter(Boolean)
     .find((item: any) => item?.gtin === code) as NormalizedItem | undefined;
-  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as
-    | NormalizedItem
-    | undefined;
+  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as NormalizedItem | undefined;
   const item = normalized || fallback || null;
   return item ? { item, source: "USDA" as const } : null;
 }
 
-async function handler(req: Request, res: any) {
-  await softVerifyAppCheck(req as any, res as any);
-  await verifyAppCheckSoft(req);
+async function handler(req: Request, res: Response) {
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  await requireAppCheckStrict(req as any, res as any);
+
   const uid = await requireAuth(req);
   await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
 
@@ -74,12 +81,12 @@ async function handler(req: Request, res: any) {
     return;
   }
 
-  let result: { item: NormalizedItem; source: "OFF" | "USDA" } | null = null;
+  let result: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null = null;
 
   try {
     result = await fetchOff(code);
   } catch (error) {
-    console.error("off_barcode_error", error);
+    console.error("nutrition_barcode_off_error", { code, message: (error as Error)?.message });
   }
 
   if (!result) {
@@ -89,7 +96,7 @@ async function handler(req: Request, res: any) {
         result = await fetchUsdaByBarcode(key, code);
       }
     } catch (error) {
-      console.error("usda_barcode_error", error);
+      console.error("nutrition_barcode_usda_error", { code, message: (error as Error)?.message });
     }
   }
 
@@ -107,7 +114,7 @@ export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await handler(req as Request, res);
+      await handler(req as unknown as Request, res as unknown as Response);
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const status =
@@ -123,5 +130,5 @@ export const nutritionBarcode = onRequest(
       }
       res.status(500).json({ error: error?.message || "error" });
     }
-  })
+  }),
 );

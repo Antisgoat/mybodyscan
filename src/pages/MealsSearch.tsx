@@ -28,7 +28,13 @@ function readRecents(): NormalizedItem[] {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, MAX_RECENTS);
+      return parsed
+        .slice(0, MAX_RECENTS)
+        .map((item: NormalizedItem) => ({
+          ...item,
+          brand: item.brand ?? null,
+          source: item.source === "OFF" ? "Open Food Facts" : item.source,
+        }));
     }
   } catch (error) {
     console.warn("recents_parse_error", error);
@@ -256,7 +262,7 @@ export default function MealsSearch() {
             {!loading && !query.trim() && <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>}
             {results.map((item) => {
               const favorite = favorites.find((fav) => fav.id === item.id);
-              const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
+              const subtitle = item.brand ?? item.source;
               return (
                 <Card key={item.id} className="border">
                   <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
@@ -347,7 +353,7 @@ function mapToFoodNormalized(item: NormalizedItem): FoodNormalized {
       console.warn("usda_map_error", error);
     }
   }
-  if (item.source === "OFF" && item.raw) {
+  if ((item.source === "Open Food Facts" || item.source === "OFF") && item.raw) {
     try {
       return fromOFF(item.raw);
     } catch (error) {

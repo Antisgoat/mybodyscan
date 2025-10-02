@@ -1,9 +1,11 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import type { Request } from 'firebase-functions/v2/https';
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import Stripe from 'stripe';
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { ensureEnvVars, reportMissingEnv } from "./env.js";
+import { requireAppCheckStrict } from "./middleware/appCheck.js";
 
 ensureEnvVars(["STRIPE_SECRET", "STRIPE_SECRET_KEY"], "stripeWebhook");
 reportMissingEnv("STRIPE_WEBHOOK_SECRET", "stripeWebhook");
@@ -13,8 +15,10 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 type RequestWithRawBody = Request & Record<'rawBody', Buffer>;
 
-function buildStripe(): Stripe | null {
-  if (!STRIPE_SECRET) return null;
+function buildStripe(): Stripe {
+  if (!STRIPE_SECRET) {
+    throw new Error("stripe_secret_missing");
+  }
   return new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
 }
 
@@ -29,21 +33,34 @@ export const stripeWebhook = onRequest({
     return;
   }
 
-  const stripe = buildStripe();
-  if (!stripe) {
-    console.error("stripeWebhook", "Stripe secret missing at runtime");
-    res.status(500).send("stripe_not_configured");
-    return;
-  }
-  if (!STRIPE_WEBHOOK_SECRET) {
-    console.error("stripeWebhook", "Webhook secret missing");
-    res.status(500).send("stripe_not_configured");
-    return;
+  const hasStripeSignature = typeof req.headers["stripe-signature"] === "string";
+  if (!hasStripeSignature) {
+    try {
+      await requireAppCheckStrict(req as unknown as ExpressRequest, res as ExpressResponse);
+    } catch (error) {
+      if (!res.headersSent) {
+        res.status(401).json({ error: "appcheck_required" });
+      }
+      return;
+    }
   }
 
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("stripeWebhook", "Webhook secret missing");
+    res.status(500).json({ error: "missing_secret" });
+    return;
+  }
+  let stripe: Stripe;
+  try {
+    stripe = buildStripe();
+  } catch (error) {
+    console.error("stripeWebhook", "Stripe secret missing", error);
+    res.status(500).json({ error: "missing_secret" });
+    return;
+  }
   const signature = req.headers["stripe-signature"];
   if (typeof signature !== "string") {
-    res.status(400).send("missing-signature");
+    res.status(400).json({ error: "missing_signature" });
     return;
   }
 
@@ -53,7 +70,7 @@ export const stripeWebhook = onRequest({
     event = stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
   } catch (err: any) {
     console.error("stripeWebhook", err?.message);
-    res.status(400).send(`invalid: ${err.message}`);
+    res.status(400).json({ error: "invalid_signature" });
     return;
   }
 
@@ -103,9 +120,9 @@ export const stripeWebhook = onRequest({
         // ignore unsupported events
         break;
     }
-    res.status(200).send("ok");
+    res.status(200).json({ ok: true });
   } catch (err: any) {
     console.error("stripeWebhook handler", err?.message);
-    res.status(500).send("error");
+    res.status(500).json({ error: "handler_error" });
   }
 });
