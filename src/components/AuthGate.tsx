@@ -1,6 +1,8 @@
 import { ReactNode, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "@/lib/firebase";
+import { isDemoMode } from "@/lib/demo";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -12,6 +14,14 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const demo = isDemoMode(user, window.location);
+    if (demo) return;
+    const ensureCredits = httpsCallable(functions, "ensureTestCredits");
+    ensureCredits({ demo }).catch(() => {});
+  }, [user]);
 
   // Show loading spinner while checking auth state
   if (user === undefined) {

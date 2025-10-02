@@ -27,3 +27,14 @@ npx firebase-tools deploy --only functions,hosting --project mybodyscan-f3daf --
    - Visit `https://mybodyscanapp.com/build.txt` and ensure `sha` matches the deployed commit.
 3. Smoke-test demo mode:
    - Browse `https://mybodyscanapp.com/welcome?demo=1` and confirm no seeded data appears.
+
+## Final verification checklist
+
+- Secrets in Secret Manager include: `USDA_FDC_API_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK`, and `OPENAI_API_KEY`.
+- Deploy command: `npx firebase-tools deploy --only functions,hosting --project mybodyscan-f3daf --force`
+- Post-deploy manual tests:
+  - https://mybodyscanapp.com → footer build tag matches latest commit.
+  - https://mybodyscanapp.com/welcome?demo=1 → browse freely, ensure write actions are blocked and no seeded calories appear.
+  - Meals search “chicken” → confirm live USDA results; Open Food Facts fallback banner shows only if USDA fails.
+  - Sign in as developer@adlrlabs.com → verify 3 free credits, run an end-to-end scan, confirm status transitions, and result saved under `users/{uid}/scans`.
+  - Coach Chat responds to a prompt and Regenerate Plan refreshes the weekly card.

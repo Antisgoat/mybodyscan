@@ -78,6 +78,13 @@
         }
       },
       {
+        "source": "/api/coach/chat",
+        "function": {
+          "functionId": "coachChat",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

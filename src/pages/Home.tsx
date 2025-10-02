@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
@@ -10,6 +11,8 @@ import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 
 type LastScan = {
   id: string;
@@ -21,6 +24,7 @@ type LastScan = {
 const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
+  const demo = useDemoMode();
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const loggedOnce = useRef(false);
 
@@ -75,6 +79,34 @@ const Home = () => {
     return () => unsub();
   }, [user]);
 
+  const renderStartButton = (props: { variant?: "default" | "secondary" | "outline"; className?: string } = {}) => {
+    if (!demo) {
+      return (
+        <Button
+          variant={props.variant}
+          className={props.className}
+          onClick={() => navigate("/scan/new")}
+        >
+          Start a Scan
+        </Button>
+      );
+    }
+    const spanClass = props.className ? `inline-flex ${props.className}` : "inline-flex";
+    const buttonClass = props.className ? `${props.className} pointer-events-none` : "pointer-events-none";
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={spanClass} onClick={() => demoToast()}>
+            <Button variant={props.variant} disabled className={buttonClass}>
+              Start a Scan
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>Sign in to use</TooltipContent>
+      </Tooltip>
+    );
+  };
+
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
@@ -125,7 +157,7 @@ const Home = () => {
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
+                  {renderStartButton()}
                   <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
                 </div>
               </div>
@@ -134,7 +166,7 @@ const Home = () => {
         </Card>
 
         <div className="grid gap-3">
-          <Button onClick={() => navigate("/scan/new")}>Start a Scan</Button>
+          {renderStartButton({ className: "w-full" })}
           <a href="/onboarding" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2">Personalize results (1 min)</a>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>

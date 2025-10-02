@@ -7,7 +7,6 @@ import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -55,7 +54,6 @@ export default function CoachOverview() {
   const [weekIdx, setWeekIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [planExists, setPlanExists] = useState<boolean | null>(null);
-  const [chatMessage, setChatMessage] = useState("");
   const uid = auth.currentUser?.uid ?? null;
   const demo = useDemoMode();
 
@@ -203,16 +201,6 @@ export default function CoachOverview() {
   const handleOpenDay = (dayIdx: number) => {
     if (!program) return;
     navigate(`/coach/day?programId=${program.id}&week=${weekIdx}&day=${dayIdx}`);
-  };
-
-  const handleSendMessage = () => {
-    if (demo) {
-      demoToast();
-      return;
-    }
-    if (!chatMessage.trim()) return;
-    toast({ title: "Message sent", description: "Your coach will reply soon." });
-    setChatMessage("");
   };
 
   const currentWeek = program?.weeks[weekIdx] ?? program?.weeks[0];
@@ -400,30 +388,31 @@ export default function CoachOverview() {
         )}
 
         <Card className="border bg-card/60">
-          <CardHeader>
+          <CardHeader className="space-y-2">
             <CardTitle className="text-xl">Coach chat</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Ask quick questions and get guidance from your coach. Responses arrive via email and in-app notifications.
+              Get near real-time suggestions and regenerate your weekly plan. Estimates only — not medical advice.
             </p>
-            <Textarea
-              value={chatMessage}
-              onChange={(event) => setChatMessage(event.target.value)}
-              placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
-              rows={3}
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Conversations are saved to keep context for smarter tweaks.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (demo) {
+                  demoToast();
+                  return;
+                }
+                navigate("/coach/chat");
+              }}
               disabled={demo}
-            />
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                onClick={handleSendMessage}
-                disabled={demo || !chatMessage.trim()}
-                title={demo ? "Demo mode: sign in to save" : undefined}
-              >
-                Send
-              </Button>
-            </div>
+              title={demo ? "Demo mode: sign in to chat" : undefined}
+            >
+              Open chat
+            </Button>
           </CardContent>
         </Card>
       </main>

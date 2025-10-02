@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Seo } from "@/components/Seo";
 import { getLastWeight, setLastWeight } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
@@ -78,17 +79,43 @@ export default function ScanStart() {
             />
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
-          <Button type="submit" size="lg" disabled={demo} title={demo ? "Demo mode: sign in to save" : undefined}>
-            Save and continue
-          </Button>
+          {demo ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span onClick={() => demoToast()}>
+                  <Button type="button" size="lg" disabled className="pointer-events-none">
+                    Save and continue
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Sign in to use</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button type="submit" size="lg">
+              Save and continue
+            </Button>
+          )}
         </form>
       ) : (
         <div className="space-y-4">
           <p className="text-lg font-medium">Is your weight still {formatWeight(storedWeight!)} lb?</p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" onClick={goToCapture} disabled={demo} title={demo ? "Demo mode: sign in to save" : undefined}>
-              Yes
-            </Button>
+            {demo ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span onClick={() => demoToast()}>
+                    <Button size="lg" disabled className="pointer-events-none">
+                      Yes
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Sign in to use</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button size="lg" onClick={goToCapture}>
+                Yes
+              </Button>
+            )}
             <Button
               type="button"
               size="lg"
