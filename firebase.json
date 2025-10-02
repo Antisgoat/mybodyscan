@@ -52,13 +52,6 @@
     ],
     "rewrites": [
       {
-        "source": "/food/**",
-        "function": {
-          "functionId": "foodSearch",
-          "region": "us-central1"
-        }
-      },
-      {
         "source": "/api/nutrition/search",
         "function": "nutritionSearch",
         "functionRegion": "us-central1"

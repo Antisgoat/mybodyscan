@@ -4,13 +4,13 @@ import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { requireAuth } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { fromOpenFoodFacts, fromUsdaFood, type NormalizedItem } from "./nutritionSearch.js";
+import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 interface CacheEntry {
   expires: number;
-  value: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null;
+  value: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -48,8 +48,8 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   const normalized = data.foods
     .map((food: any) => fromUsdaFood(food))
     .filter(Boolean)
-    .find((item: any) => item?.gtin === code) as NormalizedItem | undefined;
-  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as NormalizedItem | undefined;
+    .find((item: any) => item?.gtin === code) as FoodItem | undefined;
+  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as FoodItem | undefined;
   const item = normalized || fallback || null;
   return item ? { item, source: "USDA" as const } : null;
 }
@@ -81,7 +81,7 @@ async function handler(req: Request, res: Response) {
     return;
   }
 
-  let result: { item: NormalizedItem; source: "Open Food Facts" | "USDA" } | null = null;
+  let result: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null = null;
 
   try {
     result = await fetchOff(code);

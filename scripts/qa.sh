@@ -5,6 +5,11 @@ npx tsc -p tsconfig.json --noEmit
 npm run build
 npm --prefix functions run build
 
+if [ ! -d functions/lib ]; then
+  echo "functions/lib missing after build" >&2
+  exit 1
+fi
+
 if rg -n "SAMPLE FOODS" src/lib/nutrition src/pages/Meals >/dev/null 2>&1; then
   echo "Found forbidden mock string: SAMPLE FOODS" >&2
   exit 1

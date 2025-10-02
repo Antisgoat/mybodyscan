@@ -22,8 +22,9 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const uid = await requireAuth(req);
   const validation = validateBeginPaidScanPayload(req.body);
   if (!validation.success) {
-    console.warn("beginPaidScan_invalid_payload", { uid, errors: validation.errors });
-    res.status(400).json({ ok: false, reason: "invalid_request", errors: validation.errors });
+    const errors = "errors" in validation ? validation.errors : [];
+    console.warn("beginPaidScan_invalid_payload", { uid, errors });
+    res.status(400).json({ ok: false, reason: "invalid_request", errors });
     return;
   }
   const payload = validation.data;

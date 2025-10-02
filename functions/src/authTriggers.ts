@@ -1,4 +1,4 @@
-import { onAuthUserCreate } from "firebase-functions/v2/auth";
+import { auth } from "firebase-functions/v1";
 import { config } from "firebase-functions";
 
 import { getFirestore } from "./firebase.js";
@@ -20,13 +20,13 @@ function parseFounderEmails(): Set<string> {
   }
 }
 
-export const handleUserCreate = onAuthUserCreate({ region: "us-central1" }, async (event) => {
-  const email = event.data.email?.toLowerCase();
+export const handleUserCreate = auth.user().onCreate(async (user) => {
+  const email = user.email?.toLowerCase();
   if (!email) return;
   const founders = parseFounderEmails();
   if (!founders.has(email)) return;
 
-  const uid = event.data.uid;
+  const uid = user.uid;
   console.log("founder_signup", { uid, email });
   await Promise.all([
     addCredits(uid, 30, "Founder", 12),
