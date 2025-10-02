@@ -3,18 +3,6 @@ import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 
-export function buildUrl(path: string, params?: Record<string, string>) {
-  const origin =
-    typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost";
-  const url = new URL(path, origin);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
-    });
-  }
-  return url.toString();
-}
-
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
   const url = new URL(base);
@@ -24,6 +12,33 @@ export function nutritionFnUrl(params?: Record<string, string>) {
     });
   }
   return url.toString();
+}
+
+export async function nutritionSearch(
+  query: string,
+  init?: RequestInit,
+): Promise<{ items?: unknown[] }> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return { items: [] };
+  }
+  const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
+  const headers = new Headers(init?.headers ?? undefined);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  const response = await fetch(url, {
+    ...init,
+    headers,
+    credentials: "include",
+    method: "GET",
+  });
+  if (!response.ok) {
+    const err: any = new Error(`rewrite_status_${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
 }
 
 const NUTRITION_SEARCH_TIMEOUT_MS = 6000;
@@ -141,34 +156,28 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
   const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
 
   try {
-    let response: Response;
-    const rewriteUrl = buildUrl("/api/nutrition/search", { q: query });
+    let payload: { items?: unknown[] } | undefined;
 
     try {
-      response = await fetch(rewriteUrl, { method: "GET", signal: controller.signal });
-      if (!response.ok) {
-        const err: any = new Error(`rewrite_status_${response.status}`);
-        err.status = response.status;
-        throw err;
-      }
+      payload = await nutritionSearch(query, { signal: controller.signal });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw error;
       }
       const fallbackUrl = nutritionFnUrl({ q: query });
-      response = await fetch(fallbackUrl, { method: "GET", signal: controller.signal });
+      const response = await fetch(fallbackUrl, { method: "GET", signal: controller.signal });
       if (!response.ok) {
         const fallbackError: any = new Error(`fn_status_${response.status}`);
         fallbackError.status = response.status;
         throw fallbackError;
       }
+      payload = await response.json().catch(() => ({ items: [] as any[] }));
     }
 
-    const data = await response.json().catch(() => ({ items: [] as any[] }));
-    if (!Array.isArray(data?.items)) {
+    if (!Array.isArray(payload?.items)) {
       return [];
     }
-    return data.items.map(sanitizeFoodItem);
+    return payload.items.map(sanitizeFoodItem);
   } finally {
     clearTimeout(timer);
   }
