@@ -21,7 +21,7 @@ export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
       const snap = await tx.get(ref);
       const data = snap.exists ? (snap.data() as any) : {};
       const events: Timestamp[] = Array.isArray(data.events)
-        ? data.events.filter((item): item is Timestamp => item instanceof Timestamp)
+        ? data.events.filter((item: unknown): item is Timestamp => item instanceof Timestamp)
         : [];
       const recent = events.filter((event) => event.toMillis() >= windowStart);
       if (recent.length >= limit) {

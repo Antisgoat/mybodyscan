@@ -322,19 +322,28 @@ export function fromUsdaFood(food: any): FoodItem | null {
     });
   });
 
+  const labelCalories = toNumber(food?.labelNutrients?.calories?.value);
+  const nutrientCalories = toNumber(
+    food?.foodNutrients?.find((n: any) => n?.nutrientId === 1008)?.value
+  );
+  const labelProtein = toNumber(food?.labelNutrients?.protein?.value);
+  const nutrientProtein = toNumber(
+    food?.foodNutrients?.find((n: any) => n?.nutrientId === 1003)?.value
+  );
+  const labelCarbs = toNumber(food?.labelNutrients?.carbohydrates?.value ?? food?.labelNutrients?.carbs?.value);
+  const nutrientCarbs = toNumber(
+    food?.foodNutrients?.find((n: any) => n?.nutrientId === 1005)?.value
+  );
+  const labelFat = toNumber(food?.labelNutrients?.fat?.value);
+  const nutrientFat = toNumber(
+    food?.foodNutrients?.find((n: any) => n?.nutrientId === 1004)?.value
+  );
+
   const base = ensureMacroBreakdown({
-    kcal:
-      toNumber(food?.labelNutrients?.calories?.value) ??
-      toNumber(food?.foodNutrients?.find((n: any) => n?.nutrientId === 1008)?.value),
-    protein:
-      toNumber(food?.labelNutrients?.protein?.value) ??
-      toNumber(food?.foodNutrients?.find((n: any) => n?.nutrientId === 1003)?.value),
-    carbs:
-      toNumber(food?.labelNutrients?.carbohydrates?.value ?? food?.labelNutrients?.carbs?.value) ??
-      toNumber(food?.foodNutrients?.find((n: any) => n?.nutrientId === 1005)?.value),
-    fat:
-      toNumber(food?.labelNutrients?.fat?.value) ??
-      toNumber(food?.foodNutrients?.find((n: any) => n?.nutrientId === 1004)?.value),
+    kcal: labelCalories ?? nutrientCalories ?? undefined,
+    protein: labelProtein ?? nutrientProtein ?? undefined,
+    carbs: labelCarbs ?? nutrientCarbs ?? undefined,
+    fat: labelFat ?? nutrientFat ?? undefined,
   });
 
   const defaultServing = ensureDefaultServing(servings);
@@ -443,14 +452,18 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
   }
 
   const nutriments = product?.nutriments ?? {};
+  const energyKcal = toNumber(nutriments?.["energy-kcal_100g"]);
+  const energyKcalAlt = toNumber(nutriments?.energy_kcal_100g);
+  const energyKj = toNumber(nutriments?.energy_100g);
+  const protein100g = toNumber(nutriments?.proteins_100g);
+  const carbs100g = toNumber(nutriments?.carbohydrates_100g);
+  const fat100g = toNumber(nutriments?.fat_100g);
+
   const base = ensureMacroBreakdown({
-    kcal:
-      toNumber(nutriments?.["energy-kcal_100g"]) ??
-      toNumber(nutriments?.energy_kcal_100g) ??
-      (toNumber(nutriments?.energy_100g) ? toNumber(nutriments?.energy_100g)! / 4.184 : null),
-    protein: toNumber(nutriments?.proteins_100g),
-    carbs: toNumber(nutriments?.carbohydrates_100g),
-    fat: toNumber(nutriments?.fat_100g),
+    kcal: energyKcal ?? energyKcalAlt ?? (energyKj != null ? energyKj / 4.184 : undefined),
+    protein: protein100g ?? undefined,
+    carbs: carbs100g ?? undefined,
+    fat: fat100g ?? undefined,
   });
 
   const defaultServing = ensureDefaultServing(servings);
