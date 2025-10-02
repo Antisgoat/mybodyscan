@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { NormalizedItem } from "@/lib/nutritionShim";
+import type { FoodItem } from "@/lib/nutrition/types";
 import {
   SERVING_UNITS,
   type ServingUnit,
@@ -16,7 +16,7 @@ import {
 import type { MealEntry } from "@/lib/nutrition";
 
 interface ServingEditorProps {
-  item: NormalizedItem;
+  item: FoodItem;
   defaultQty?: number;
   defaultUnit?: ServingUnit;
   confirmLabel?: string;

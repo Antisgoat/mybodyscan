@@ -16,7 +16,7 @@ import {
   type MealEntry,
   type NutritionHistoryDay,
 } from "@/lib/nutrition";
-import { type NormalizedItem } from "@/lib/nutritionShim";
+import type { FoodItem } from "@/lib/nutrition/types";
 import {
   subscribeFavorites,
   subscribeTemplates,
@@ -35,11 +35,11 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 
-const RECENTS_KEY = "mbs_nutrition_recents_v2";
+const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
 const DAILY_TARGET = 2200;
 
-interface RecentItem extends NormalizedItem {}
+interface RecentItem extends FoodItem {}
 
 function readRecents(): RecentItem[] {
   if (typeof window === "undefined") return [];
@@ -76,7 +76,7 @@ export default function Meals() {
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [templates, setTemplates] = useState<TemplateDocWithId[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editorItem, setEditorItem] = useState<NormalizedItem | null>(null);
+  const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
   const [editorQty, setEditorQty] = useState<number>(1);
   const demo = useDemoMode();
@@ -122,7 +122,7 @@ export default function Meals() {
   }, []);
 
   const updateRecents = useCallback(
-    (item: NormalizedItem) => {
+    (item: FoodItem) => {
       const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
       setRecents(next);
       storeRecents(next);
@@ -130,7 +130,7 @@ export default function Meals() {
     [recents],
   );
 
-  const openEditor = (item: NormalizedItem, qty = 1, unit: ServingUnit = "serving") => {
+  const openEditor = (item: FoodItem, qty = 1, unit: ServingUnit = "serving") => {
     setEditorItem(item);
     setEditorQty(qty);
     setEditorUnit(unit);
@@ -231,7 +231,7 @@ export default function Meals() {
       for (const entry of template.items) {
         const unit = (entry.unit as ServingUnit) || "serving";
         const qty = entry.qty ?? 1;
-        const item = entry.item as NormalizedItem;
+        const item = entry.item as FoodItem;
         const result = calculateSelection(item, qty, unit);
         const meal = buildMealEntry(item, qty, unit, result, "template");
         await addMeal(todayISO, meal);

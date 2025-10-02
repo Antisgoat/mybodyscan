@@ -1,7 +1,15 @@
-import { buildUrl, nutritionFnUrl } from "@/lib/api";
+import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
+import type {
+  FoodItem,
+  MacroBreakdown,
+  ServingOption,
+  NutritionSource,
+} from "@/lib/nutrition/types";
 
 const TIMEOUT_MS = 3000;
+
+type ApiNutritionSource = NutritionSource | "OFF";
 
 interface FoodSearchApiServing {
   id?: string | number;
@@ -14,11 +22,11 @@ interface FoodSearchApiItem {
   id?: string | number;
   name?: string;
   brand?: string | null;
-  source?: string;
+  source?: ApiNutritionSource;
   fdcId?: number | string | null;
   gtin?: string | null;
   upc?: string | null;
-  basePer100g?: Partial<MacroPer100g> | null;
+  basePer100g?: Partial<MacroBreakdown> | null;
   servings?: FoodSearchApiServing[] | null;
   serving?: {
     qty?: number | null;
@@ -40,50 +48,7 @@ interface FoodSearchApiItem {
   raw?: any;
 }
 
-export type NutritionSource = "USDA" | "Open Food Facts" | "OFF";
-
-export interface ServingOption {
-  id: string;
-  label: string;
-  grams: number;
-  isDefault?: boolean;
-}
-
-export interface MacroPer100g {
-  kcal: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
-
-export interface NormalizedItem {
-  id: string;
-  name: string;
-  brand?: string | null;
-  source: NutritionSource;
-  gtin?: string;
-  fdcId?: number;
-  raw?: any;
-  basePer100g?: MacroPer100g | null;
-  servings?: ServingOption[];
-  serving: {
-    qty: number | null;
-    unit: string | null;
-    text?: string | null;
-  };
-  per_serving: {
-    kcal: number | null;
-    protein_g: number | null;
-    carbs_g: number | null;
-    fat_g: number | null;
-  };
-  per_100g?: {
-    kcal: number | null;
-    protein_g: number | null;
-    carbs_g: number | null;
-    fat_g: number | null;
-  };
-}
+export type NormalizedItem = FoodItem;
 
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -130,7 +95,7 @@ function convertToGrams(quantity: number | null | undefined, unit: string | null
   }
 }
 
-function ensureMacroBreakdown(values: Partial<MacroPer100g>): MacroPer100g {
+function ensureMacroBreakdown(values: Partial<MacroBreakdown>): MacroBreakdown {
   return {
     kcal: values.kcal != null && Number.isFinite(values.kcal) ? round(values.kcal, 0) : 0,
     protein: values.protein != null && Number.isFinite(values.protein) ? round(values.protein, 1) : 0,
@@ -139,12 +104,12 @@ function ensureMacroBreakdown(values: Partial<MacroPer100g>): MacroPer100g {
   };
 }
 
-function normalizeBasePer100g(raw: FoodSearchApiItem): MacroPer100g {
+function normalizeBasePer100g(raw: FoodSearchApiItem): MacroBreakdown {
   const base = raw?.basePer100g ?? {};
   const per100g = raw?.per_100g ?? {};
-  const values: Partial<MacroPer100g> = {};
+  const values: Partial<MacroBreakdown> = {};
 
-  const assign = (key: keyof MacroPer100g, value: unknown) => {
+  const assign = (key: keyof MacroBreakdown, value: unknown) => {
     const num = toNumber(value);
     if (num != null) {
       values[key] = num;
@@ -219,7 +184,7 @@ function normalizeServings(raw: FoodSearchApiItem): ServingOption[] {
   return list;
 }
 
-function buildPerServing(base: MacroPer100g, grams: number | null): {
+function buildPerServing(base: MacroBreakdown, grams: number | null): {
   kcal: number | null;
   protein_g: number | null;
   carbs_g: number | null;
@@ -237,7 +202,7 @@ function buildPerServing(base: MacroPer100g, grams: number | null): {
   };
 }
 
-function buildPer100g(base: MacroPer100g, per100gRaw?: FoodSearchApiItem["per_100g"] | null) {
+function buildPer100g(base: MacroBreakdown, per100gRaw?: FoodSearchApiItem["per_100g"] | null) {
   const result = {
     kcal: base.kcal ? round(base.kcal, 0) : base.kcal === 0 ? 0 : null,
     protein_g: base.protein ? round(base.protein, 1) : base.protein === 0 ? 0 : null,
@@ -353,60 +318,7 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
 }
 
 export async function searchFoods(query: string): Promise<NormalizedItem[]> {
-  const trimmed = query?.trim();
-  if (!trimmed) return [];
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  try {
-    const rewriteUrl = buildUrl("/api/nutrition/search", { q: trimmed });
-    let response: Response;
-    try {
-      response = await fetch(rewriteUrl, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const error: any = new Error(`rewrite_status_${response.status}`);
-        error.status = response.status;
-        throw error;
-      }
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw error;
-      }
-      const fnUrl = nutritionFnUrl({ q: trimmed });
-      response = await fetch(fnUrl, {
-        method: "GET",
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const fallbackError: any = new Error(`fn_status_${response.status}`);
-        fallbackError.status = response.status;
-        throw fallbackError;
-      }
-    }
-
-    const data = await response
-      .json()
-      .catch(() => ({ items: [] as FoodSearchApiItem[] }));
-
-    if (!Array.isArray(data?.items)) {
-      return [];
-    }
-
-    return data.items.map((item: FoodSearchApiItem) => {
-      const normalized = normalizeApiItem(item);
-      return {
-        ...normalized,
-        brand: normalized.brand ?? null,
-        source: normalized.source === "OFF" ? "Open Food Facts" : normalized.source,
-      };
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchFoods(query);
 }
 
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {

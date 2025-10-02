@@ -9,17 +9,17 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import type { NormalizedItem } from "@/lib/nutritionShim";
+import type { FoodItem } from "@/lib/nutrition/types";
 
 export interface FavoriteDoc {
   name: string;
   brand?: string;
-  item: NormalizedItem;
+  item: FoodItem;
   updatedAt?: any;
 }
 
 export interface TemplateItem {
-  item: NormalizedItem;
+  item: FoodItem;
   qty: number;
   unit: string;
 }
@@ -70,7 +70,7 @@ export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => voi
   });
 }
 
-export async function saveFavorite(item: NormalizedItem) {
+export async function saveFavorite(item: FoodItem) {
   const uid = assertUid();
   const ref = doc(db, `users/${uid}/nutrition/favorites/${item.id}`);
   const payload: FavoriteDoc = {
