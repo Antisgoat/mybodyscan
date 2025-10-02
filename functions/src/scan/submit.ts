@@ -431,6 +431,8 @@ export const submitScan = onRequest(
         return;
       }
 
+      const savedScan: StoredScan = saved;
+
       console.info("scan_complete", {
         uid,
         scanId: payload.scanId,
@@ -440,13 +442,13 @@ export const submitScan = onRequest(
 
       const responsePayload = {
         id: docRef.id,
-        createdAt: saved.createdAt.toMillis(),
-        completedAt: saved.completedAt.toMillis(),
-        engine: saved.engine,
-        status: saved.status,
-        inputs: saved.inputs,
-        result: saved.result,
-        metadata: saved.metadata,
+        createdAt: savedScan.createdAt.toMillis(),
+        completedAt: savedScan.completedAt.toMillis(),
+        engine: savedScan.engine,
+        status: savedScan.status,
+        inputs: savedScan.inputs,
+        result: savedScan.result,
+        metadata: savedScan.metadata,
         creditsRemaining: remainingCredits,
       };
 

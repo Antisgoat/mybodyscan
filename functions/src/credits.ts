@@ -47,9 +47,9 @@ function sanitizeBucket(raw: any, now: Timestamp): CreditBucket | null {
 function normalizeBuckets(data: any, now: Timestamp): CreditBucket[] {
   const rawBuckets = Array.isArray(data?.creditBuckets) ? data.creditBuckets : [];
   const buckets = rawBuckets
-    .map((bucket: any) => sanitizeBucket(bucket, now))
-    .filter((bucket): bucket is CreditBucket => Boolean(bucket));
-  buckets.sort((a, b) => {
+    .map((bucket: unknown): CreditBucket | null => sanitizeBucket(bucket, now))
+    .filter((bucket: CreditBucket | null): bucket is CreditBucket => bucket !== null);
+  buckets.sort((a: CreditBucket, b: CreditBucket) => {
     const aExpires = a.expiresAt ? a.expiresAt.toMillis() : Number.MAX_SAFE_INTEGER;
     const bExpires = b.expiresAt ? b.expiresAt.toMillis() : Number.MAX_SAFE_INTEGER;
     if (aExpires !== bExpires) {

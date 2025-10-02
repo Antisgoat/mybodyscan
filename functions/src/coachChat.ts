@@ -167,7 +167,7 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
   const text = sanitizeInput((req.body as any)?.text);
   await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
 
-  let responseText: string;
+  let responseText = "";
   let usedLLM = false;
 
   if (process.env.OPENAI_API_KEY) {

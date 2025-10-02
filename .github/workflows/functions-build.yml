@@ -1,0 +1,26 @@
+name: Functions Build
+
+on:
+  pull_request:
+    paths:
+      - 'functions/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --no-audit --ignore-scripts
+          fi
+          npm ci --no-audit --ignore-scripts
+      - name: Build
+        run: npm run build
