@@ -1,7 +1,7 @@
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAuth, verifyAppCheckSoft } from "./http.js";
+import { Timestamp, getAppCheck, getFirestore } from "./firebase.js";
+import { requireAuth } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 
@@ -22,6 +22,36 @@ type ChatRecord = {
   createdAt: Timestamp;
   usedLLM: boolean;
 };
+
+
+function readAppCheckToken(req: ExpressRequest): string | null {
+  const header = req.get("X-Firebase-AppCheck") || req.get("x-firebase-appcheck");
+  if (typeof header === "string" && header.trim().length) {
+    return header.trim();
+  }
+  const raw = req.headers["x-firebase-appcheck"];
+  if (Array.isArray(raw)) {
+    for (const value of raw) {
+      if (typeof value === "string" && value.trim().length) {
+        return value.trim();
+      }
+    }
+  }
+  return null;
+}
+
+async function requireStrictAppCheck(req: ExpressRequest): Promise<void> {
+  const token = readAppCheckToken(req);
+  if (!token) {
+    throw new HttpsError("unauthenticated", "App Check token required");
+  }
+  try {
+    await getAppCheck().verifyToken(token);
+  } catch (error) {
+    console.warn("coach_chat_appcheck_invalid", { message: (error as Error)?.message });
+    throw new HttpsError("permission-denied", "Invalid App Check token");
+  }
+}
 
 function sanitizeInput(raw: unknown): string {
   if (typeof raw !== "string") {
@@ -131,8 +161,8 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
     return;
   }
 
-  await verifyAppCheckSoft(req as any);
   const uid = await requireAuth(req as any);
+  await requireStrictAppCheck(req as ExpressRequest);
 
   const text = sanitizeInput((req.body as any)?.text);
   await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
@@ -183,6 +213,7 @@ export const coachChat = onRequest(
         const statusMap: Record<string, number> = {
           "invalid-argument": 400,
           "unauthenticated": 401,
+          "permission-denied": 403,
           "failed-precondition": 503,
           "resource-exhausted": 429,
           unavailable: 503,

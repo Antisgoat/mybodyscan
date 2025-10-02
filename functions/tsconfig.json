@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "lib",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -12,8 +12,8 @@
     "strict": false,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": false
   },
-  "include": ["dummy.ts"],
-  "exclude": ["src/**/*"]
+  "include": ["src/**/*.ts"],
+  "exclude": []
 }
