@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Seo } from "@/components/Seo";
 import { getLastWeight, setLastWeight } from "@/lib/userState";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -18,12 +20,24 @@ export default function ScanStart() {
   const [mode, setMode] = useState<"confirm" | "input">(initialWeight == null ? "input" : "confirm");
   const [weightInput, setWeightInput] = useState<string>(initialWeight != null ? initialWeight.toString() : "");
   const [error, setError] = useState<string | null>(null);
+  const demo = useDemoMode();
 
-  const goToCapture = () => navigate("/scan/capture");
+  const goToCapture = () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
+    navigate("/scan/capture");
+  };
 
   const handleSave = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     setError(null);
+
+    if (demo) {
+      demoToast();
+      return;
+    }
 
     const parsed = Number(weightInput.trim());
     if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -64,7 +78,7 @@ export default function ScanStart() {
             />
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" disabled={demo} title={demo ? "Demo mode: sign in to save" : undefined}>
             Save and continue
           </Button>
         </form>
@@ -72,7 +86,7 @@ export default function ScanStart() {
         <div className="space-y-4">
           <p className="text-lg font-medium">Is your weight still {formatWeight(storedWeight!)} lb?</p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" onClick={goToCapture}>
+            <Button size="lg" onClick={goToCapture} disabled={demo} title={demo ? "Demo mode: sign in to save" : undefined}>
               Yes
             </Button>
             <Button

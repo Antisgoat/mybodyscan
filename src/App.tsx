@@ -64,6 +64,7 @@ import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
 import Nutrition from "./pages/Nutrition";
 import { ConsentGate } from "./components/ConsentGate";
+import { DemoModeProvider } from "./components/DemoModeProvider";
 import MealsSearch from "./pages/MealsSearch";
 import BarcodeScan from "./pages/BarcodeScan";
 import MealsHistory from "./pages/MealsHistory";
@@ -92,7 +93,8 @@ const App = () => {
         <AuthGate>
           <ConsentGate>
             <BrowserRouter>
-              <OnboardingRedirectMBS>
+              <DemoModeProvider>
+                <OnboardingRedirectMBS>
               <Routes>
             {/* Root route - flag-controlled */}
             <Route 
@@ -543,10 +545,11 @@ const App = () => {
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
               </Routes>
-            </OnboardingRedirectMBS>
-          </BrowserRouter>
-        </ConsentGate>
-      </AuthGate>
+                </OnboardingRedirectMBS>
+              </DemoModeProvider>
+            </BrowserRouter>
+          </ConsentGate>
+        </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>
   );

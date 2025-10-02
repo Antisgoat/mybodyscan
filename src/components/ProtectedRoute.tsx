@@ -1,10 +1,13 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
-import { isDemoGuest } from "@/lib/demoFlag";
+import { isPathAllowedInDemo } from "@/lib/demo";
+import { useDemoMode } from "./DemoModeProvider";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuthUser();
+  const location = useLocation();
+  const demo = useDemoMode();
 
   if (loading) {
     return (
@@ -14,8 +17,19 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user && !isDemoGuest())
-    return <Navigate to="/auth" replace state={{ from: window.location.pathname }} />;
+  if (!user) {
+    if (demo && isPathAllowedInDemo(location.pathname)) {
+      return <>{children}</>;
+    }
+
+    return (
+      <Navigate
+        to={demo ? "/welcome" : "/auth"}
+        replace
+        state={{ from: `${location.pathname}${location.search}` }}
+      />
+    );
+  }
 
   return <>{children}</>;
 }

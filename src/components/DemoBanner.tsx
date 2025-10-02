@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { isDemoGuest } from "@/lib/demoFlag";
 import { useNavigate } from "react-router-dom";
+import { useDemoMode } from "./DemoModeProvider";
 
 export function DemoBanner() {
   const navigate = useNavigate();
+  const demo = useDemoMode();
 
-  if (!isDemoGuest()) return null;
+  if (!demo) return null;
 
   return (
     <Card className="bg-muted/50 border-muted">

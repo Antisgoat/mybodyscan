@@ -164,7 +164,6 @@ const Auth = () => {
               className="w-full"
               onClick={() => {
                 enableDemoGuest();
-                navigate("/today");
               }}
             >
               👀 Explore demo (no sign-up)

@@ -1,39 +1,106 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuth() { return request.auth != null; }
-    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
-    function changedKeys() {
-      return exists(resource.name) ? request.resource.data.diff(resource.data).changedKeys() : request.resource.data.keys();
+    function isSignedIn() {
+      return request.auth != null;
     }
-    function noServerOwnedWrites() {
-      return changedKeys().hasAny(['credits','stripe','plan','subscription','role','stripeCustomerId']) == false;
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function serverOwnedKeys() {
+      return ['credits', 'stripe', 'plan', 'subscription', 'role', 'stripeCustomerId'];
+    }
+
+    function clientPreservesServerFields() {
+      return isAdmin() || (
+        !request.resource.data.keys().hasAny(serverOwnedKeys()) &&
+        !(exists(resource.name) && request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys()))
+      );
+    }
+
+    function targetName() {
+      return request.resource != null ? request.resource.__name__ : resource.__name__;
+    }
+
+    function isScanDocument() {
+      return targetName().segments.size() >= 6 && targetName().segments[5] == 'scans';
+    }
+
+    function isNutritionLogDocument() {
+      return targetName().segments.size() >= 6 && targetName().segments[5] == 'nutritionLogs';
+    }
+
+    function isNumber(value) {
+      return value is int || value is float;
+    }
+
+    function optionalNumberField(data, field, min, max) {
+      return !(field in data) || (isNumber(data[field]) && data[field] >= min && data[field] <= max);
+    }
+
+    function validNutritionTotals(totals) {
+      return totals is map &&
+        totals.keys().hasOnly(['calories', 'protein', 'carbs', 'fat', 'alcohol']) &&
+        optionalNumberField(totals, 'calories', 0, 20000) &&
+        optionalNumberField(totals, 'protein', 0, 2000) &&
+        optionalNumberField(totals, 'carbs', 0, 2000) &&
+        optionalNumberField(totals, 'fat', 0, 2000) &&
+        optionalNumberField(totals, 'alcohol', 0, 2000);
+    }
+
+    function validNutritionLog(dateId) {
+      let data = request.resource.data;
+      return dateId.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.keys().hasOnly(['calories', 'protein_g', 'carbs_g', 'fat_g', 'alcohol', 'meals', 'totals', 'updatedAt']) &&
+        optionalNumberField(data, 'calories', 0, 20000) &&
+        optionalNumberField(data, 'protein_g', 0, 2000) &&
+        optionalNumberField(data, 'carbs_g', 0, 2000) &&
+        optionalNumberField(data, 'fat_g', 0, 2000) &&
+        optionalNumberField(data, 'alcohol', 0, 2000) &&
+        (!("updatedAt" in data) || data.updatedAt is timestamp) &&
+        (!("meals" in data) || (data.meals is list && data.meals.size() <= 200)) &&
+        (!("totals" in data) || validNutritionTotals(data.totals));
+    }
+
+    function validScanCreate() {
+      return request.resource.data.keys().hasOnly(['createdAt', 'status', 'notes', 'inputs']) &&
+        request.resource.data.status in ['queued', 'processing', 'complete', 'failed'] &&
+        request.resource.data.createdAt is timestamp &&
+        (!("notes" in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000)) &&
+        (!("inputs" in request.resource.data) || request.resource.data.inputs is map);
     }
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && noServerOwnedWrites();
+      allow create, update: if isOwner(uid) && clientPreservesServerFields();
       allow delete: if false;
 
-      match /coach/{docId} {
-        allow read: if isOwner(uid);
-        allow create, update: if isOwner(uid) && noServerOwnedWrites();
+      match /scans/{scanId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && clientPreservesServerFields() && validScanCreate();
+        allow update: if
+          (isOwner(uid) && clientPreservesServerFields() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notes', 'inputs']) &&
+            (!("notes" in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000)) &&
+            (!("inputs" in request.resource.data) || request.resource.data.inputs is map))
+          || isAdmin();
         allow delete: if false;
       }
 
-      match /workoutLogs/{logId} {
-        allow read, create, update: if isOwner(uid);
-        allow delete: if isOwner(uid);
+      match /nutritionLogs/{dateId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && clientPreservesServerFields() && validNutritionLog(dateId);
+        allow delete: if false;
       }
 
-      match /scans/{scanId} {
+      match /{document=**} {
         allow read: if isOwner(uid);
-        allow create: if isOwner(uid) &&
-          request.resource.data.keys().hasOnly(['createdAt','status','notes','inputs','result','engine']) &&
-          request.resource.data.status in ['queued','processing','complete','failed'];
-        allow update: if isOwner(uid) &&
-          request.resource.data.status in ['processing','complete','failed'] &&
-          noServerOwnedWrites();
+        allow create, update: if isOwner(uid) && clientPreservesServerFields() && !isScanDocument() && !isNutritionLogDocument();
         allow delete: if false;
       }
     }
