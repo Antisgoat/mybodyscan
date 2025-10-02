@@ -149,8 +149,11 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): NormalizedIt
   return {
     id: snapshot.id || `snapshot-${Math.random().toString(36).slice(2, 8)}`,
     name: snapshot.name,
-    brand: snapshot.brand || undefined,
-    source: snapshot.source === "OFF" ? "OFF" : "USDA",
+    brand: snapshot.brand ?? null,
+    source:
+      snapshot.source === "Open Food Facts" || snapshot.source === "OFF"
+        ? "Open Food Facts"
+        : "USDA",
     serving: {
       qty: snapshot.serving?.qty ?? null,
       unit: snapshot.serving?.unit ?? null,
