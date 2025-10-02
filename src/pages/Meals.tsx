@@ -6,6 +6,8 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 import {
   addMeal,
   deleteMeal,
@@ -77,6 +79,7 @@ export default function Meals() {
   const [editorItem, setEditorItem] = useState<NormalizedItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
   const [editorQty, setEditorQty] = useState<number>(1);
+  const demo = useDemoMode();
 
   useEffect(() => {
     refreshLog();
@@ -136,6 +139,11 @@ export default function Meals() {
 
   const handleEditorConfirm = async ({ qty, unit, meal }: any) => {
     if (!editorItem) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
+
     setProcessing(true);
     try {
       await addMeal(todayISO, { ...meal, entrySource: "search" });
@@ -153,6 +161,10 @@ export default function Meals() {
 
   const handleDelete = async (mealId: string | undefined) => {
     if (!mealId) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
     await deleteMeal(todayISO, mealId);
     toast({ title: "Meal removed" });
     refreshLog();
@@ -160,6 +172,10 @@ export default function Meals() {
   };
 
   const copyYesterday = async () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     const prior = await getDailyLog(yesterday);
     if (!prior.meals.length) {
@@ -180,6 +196,10 @@ export default function Meals() {
   };
 
   const saveTodayAsTemplate = async () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
     const eligible = log.meals.filter((meal) => meal.item && meal.serving?.qty && meal.serving.unit);
     if (!eligible.length) {
       toast({ title: "No template items", description: "Log meals with nutrition data to save templates." });
@@ -202,6 +222,10 @@ export default function Meals() {
 
   const applyTemplate = async (template: TemplateDocWithId) => {
     if (!template.items?.length) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
     setProcessing(true);
     try {
       for (const entry of template.items) {
@@ -224,6 +248,10 @@ export default function Meals() {
   };
 
   const handleDeleteTemplate = async (id: string) => {
+    if (demo) {
+      demoToast();
+      return;
+    }
     try {
       await deleteTemplate(id);
       toast({ title: "Template removed" });
@@ -300,7 +328,13 @@ export default function Meals() {
                     <Barcode className="mr-1 h-4 w-4" /> Scan barcode
                   </a>
                 </Button>
-                <Button size="sm" variant="outline" onClick={copyYesterday} disabled={processing}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={copyYesterday}
+                  disabled={processing || demo}
+                  title={demo ? "Demo mode: sign in to save" : undefined}
+                >
                   <Copy className="mr-1 h-4 w-4" /> Copy yesterday
                 </Button>
                 <Button size="sm" variant="ghost" asChild>
@@ -360,7 +394,13 @@ export default function Meals() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <ListPlus className="h-4 w-4" /> Templates
               </CardTitle>
-              <Button size="sm" variant="outline" onClick={saveTodayAsTemplate}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={saveTodayAsTemplate}
+                disabled={demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
                 Save today
               </Button>
             </CardHeader>
@@ -372,10 +412,21 @@ export default function Meals() {
                     <p className="text-xs text-muted-foreground">{template.items?.length ?? 0} items</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => applyTemplate(template)} disabled={processing}>
+                    <Button
+                      size="sm"
+                      onClick={() => applyTemplate(template)}
+                      disabled={processing || demo}
+                      title={demo ? "Demo mode: sign in to save" : undefined}
+                    >
                       Apply
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDeleteTemplate(template.id)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteTemplate(template.id)}
+                      disabled={demo}
+                      title={demo ? "Demo mode: sign in to save" : undefined}
+                    >
                       <Trash className="h-4 w-4" />
                     </Button>
                   </div>
@@ -392,7 +443,13 @@ export default function Meals() {
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <p className="text-muted-foreground">Save recurring meals and apply them in one tap.</p>
-              <Button size="sm" variant="outline" onClick={saveTodayAsTemplate}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={saveTodayAsTemplate}
+                disabled={demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
                 Save today as template
               </Button>
             </CardContent>
@@ -430,11 +487,23 @@ export default function Meals() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {item && (
-                        <Button size="sm" variant="outline" onClick={() => openEditor(item, qty, unit)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditor(item, qty, unit)}
+                          disabled={demo}
+                          title={demo ? "Demo mode: sign in to save" : undefined}
+                        >
                           Edit
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => meal.id && handleDelete(meal.id)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => meal.id && handleDelete(meal.id)}
+                        disabled={demo}
+                        title={demo ? "Demo mode: sign in to save" : undefined}
+                      >
                         Remove
                       </Button>
                     </div>
@@ -460,6 +529,8 @@ export default function Meals() {
               onConfirm={handleEditorConfirm}
               busy={processing}
               entrySource="manual"
+              readOnly={demo}
+              onDemoAttempt={demoToast}
             />
           )}
         </DialogContent>

@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
@@ -54,6 +56,7 @@ export default function Scan() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
+  const demo = useDemoMode();
 
   useEffect(() => {
     const next: PreviewMap = emptyPreviewMap();
@@ -119,6 +122,10 @@ export default function Scan() {
 
   const handleAnalyze = async () => {
     if (submitting) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
     if (!allPhotosSelected) {
       toast({ title: "Add all photos", description: "Front, back, left, and right photos are required." });
       return;
@@ -198,7 +205,7 @@ export default function Scan() {
     }
   };
 
-  const disableAnalyze = !allPhotosSelected || submitting;
+  const disableAnalyze = !allPhotosSelected || submitting || demo;
   const selectSexValue = sex === "" ? undefined : sex;
 
   return (
@@ -367,9 +374,14 @@ export default function Scan() {
         )}
 
         <div className="space-y-3">
-          <Button className="w-full h-12 text-base" disabled={disableAnalyze} onClick={handleAnalyze}>
+          <Button
+            className="w-full h-12 text-base"
+            disabled={disableAnalyze}
+            onClick={handleAnalyze}
+            title={demo ? "Demo mode: sign in to save" : undefined}
+          >
             {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-            {submitting ? "Analyzing…" : "Analyze"}
+            {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
           </Button>
           <p className="text-xs text-center text-muted-foreground">1 credit will be used once analysis completes. Results are estimates only.</p>
         </div>

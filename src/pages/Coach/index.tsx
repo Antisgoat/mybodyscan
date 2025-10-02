@@ -7,10 +7,13 @@ import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "@/hooks/use-toast";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 import { auth, db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import type { Program } from "@/lib/coach/types";
@@ -52,7 +55,9 @@ export default function CoachOverview() {
   const [weekIdx, setWeekIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [planExists, setPlanExists] = useState<boolean | null>(null);
+  const [chatMessage, setChatMessage] = useState("");
   const uid = auth.currentUser?.uid ?? null;
+  const demo = useDemoMode();
 
   useEffect(() => {
     let isMounted = true;
@@ -198,6 +203,16 @@ export default function CoachOverview() {
   const handleOpenDay = (dayIdx: number) => {
     if (!program) return;
     navigate(`/coach/day?programId=${program.id}&week=${weekIdx}&day=${dayIdx}`);
+  };
+
+  const handleSendMessage = () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
+    if (!chatMessage.trim()) return;
+    toast({ title: "Message sent", description: "Your coach will reply soon." });
+    setChatMessage("");
   };
 
   const currentWeek = program?.weeks[weekIdx] ?? program?.weeks[0];
@@ -383,6 +398,34 @@ export default function CoachOverview() {
             )}
           </div>
         )}
+
+        <Card className="border bg-card/60">
+          <CardHeader>
+            <CardTitle className="text-xl">Coach chat</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Ask quick questions and get guidance from your coach. Responses arrive via email and in-app notifications.
+            </p>
+            <Textarea
+              value={chatMessage}
+              onChange={(event) => setChatMessage(event.target.value)}
+              placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
+              rows={3}
+              disabled={demo}
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={handleSendMessage}
+                disabled={demo || !chatMessage.trim()}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
+                Send
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
       <BottomNav />
     </div>

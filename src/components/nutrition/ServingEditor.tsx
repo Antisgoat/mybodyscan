@@ -24,6 +24,8 @@ interface ServingEditorProps {
   onCancel?: () => void;
   busy?: boolean;
   entrySource?: MealEntry["entrySource"];
+  readOnly?: boolean;
+  onDemoAttempt?: () => void;
 }
 
 export function ServingEditor({
@@ -35,6 +37,8 @@ export function ServingEditor({
   onCancel,
   busy,
   entrySource = "search",
+  readOnly = false,
+  onDemoAttempt,
 }: ServingEditorProps) {
   const [quantity, setQuantity] = useState<number>(defaultQty);
   const [unit, setUnit] = useState<ServingUnit>(defaultUnit);
@@ -50,6 +54,10 @@ export function ServingEditor({
   const servingWeight = useMemo(() => estimateServingWeight(item), [item]);
 
   const submit = () => {
+    if (readOnly) {
+      onDemoAttempt?.();
+      return;
+    }
     const meal = buildMealEntry(item, quantity, unit, result, entrySource);
     if (notes.trim()) {
       meal.notes = notes.trim();
@@ -128,8 +136,13 @@ export function ServingEditor({
             Cancel
           </Button>
         )}
-        <Button type="button" onClick={submit} disabled={busy || quantity <= 0}>
-          {busy ? "Adding…" : confirmLabel}
+        <Button
+          type="button"
+          onClick={submit}
+          disabled={busy || quantity <= 0 || readOnly}
+          title={readOnly ? "Demo mode: sign in to save" : undefined}
+        >
+          {readOnly ? "Demo only" : busy ? "Adding…" : confirmLabel}
         </Button>
       </div>
     </div>

@@ -29,6 +29,8 @@ import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoToast } from "@/lib/demoToast";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -72,6 +74,7 @@ export default function ProgramDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [entry, setEntry] = useState<CatalogEntry | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const demo = useDemoMode();
 
   useEffect(() => {
     let mounted = true;
@@ -98,6 +101,10 @@ export default function ProgramDetail() {
 
   const handleStartProgram = async () => {
     if (!program || !meta) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
     const user = auth.currentUser;
     if (!user) {
       toast({ title: "Sign in required", description: "Log in to save your training program." });
@@ -430,8 +437,13 @@ export default function ProgramDetail() {
               <Button size="sm" variant="outline" onClick={handlePreview}>
                 Preview week 1
               </Button>
-              <Button size="sm" onClick={handleStartProgram} disabled={isSaving}>
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Start program
+              <Button
+                size="sm"
+                onClick={handleStartProgram}
+                disabled={isSaving || demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" /> {demo ? "Demo only" : "Start program"}
               </Button>
             </div>
           </CardContent>

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/validate-programs.mjs && vite build",
+    "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/print-build-tag.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
