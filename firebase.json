@@ -53,8 +53,10 @@
     "rewrites": [
       {
         "source": "/api/nutrition/search",
-        "function": "nutritionSearch",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "nutritionSearch",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/scan/start",
