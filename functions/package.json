@@ -1,6 +1,8 @@
 {
   "type": "module",
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "20"
+  },
   "main": "lib/index.js",
   "scripts": {
     "clean": "rimraf lib",
