@@ -1,11 +1,22 @@
-import { getAppCheck } from "firebase-admin/app-check";
+import * as admin from "firebase-admin";
 
-export async function requireAppCheckFromHeader(req: any) {
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+/** Throws 401-like error if missing/invalid App Check token */
+export async function verifyAppCheckFromHeader(req: any) {
   const token = req.header("X-Firebase-AppCheck");
-  if (!token) throw Object.assign(new Error("missing app check"), { status: 401 });
+  if (!token) {
+    const error: any = new Error("missing app check");
+    error.status = 401;
+    throw error;
+  }
   try {
-    await getAppCheck().verifyToken(token);
+    await admin.appCheck().verifyToken(token);
   } catch {
-    throw Object.assign(new Error("invalid app check"), { status: 401 });
+    const error: any = new Error("invalid app check");
+    error.status = 401;
+    throw error;
   }
 }

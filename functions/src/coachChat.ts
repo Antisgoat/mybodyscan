@@ -4,7 +4,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { requireAppCheckFromHeader } from "./appCheck.js";
+import { verifyAppCheckFromHeader } from "./appCheck.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -133,14 +133,8 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
   }
 
   const uid = await requireAuth(req as any);
-  try {
-    await requireAppCheckFromHeader(req);
-  } catch (error: any) {
-    console.warn("coach_chat_appcheck_rejected", { message: error?.message });
-    throw new HttpsError("unauthenticated", error?.message ?? "App Check required");
-  }
 
-  const text = sanitizeInput((req.body as any)?.text);
+  const text = sanitizeInput((req.body as any)?.text ?? (req.body as any)?.message);
   await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
 
   let responseText = "";
@@ -181,6 +175,17 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
 export const coachChat = onRequest(
   { invoker: "public", region: "us-central1" },
   withCors(async (req, res) => {
+    try {
+      await verifyAppCheckFromHeader(req);
+    } catch (error: any) {
+      if (!res.headersSent) {
+        console.warn("coach_chat_appcheck_rejected", { message: error?.message });
+        const status = typeof error?.status === "number" ? error.status : 401;
+        res.status(status).json({ error: error?.message ?? "app_check_required" });
+      }
+      return;
+    }
+
     try {
       await handleChat(req as ExpressRequest, res as ExpressResponse);
     } catch (err: any) {

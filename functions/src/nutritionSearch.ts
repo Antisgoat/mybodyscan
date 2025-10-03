@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAuth, getFirestore, Timestamp } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAppCheckFromHeader } from "./appCheck.js";
+import { verifyAppCheckFromHeader } from "./appCheck.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -519,13 +519,6 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  try {
-    await requireAppCheckFromHeader(req);
-  } catch (error) {
-    console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
-    throw error;
-  }
-
   const query = String(req.query?.q ?? req.query?.query ?? "").trim();
   if (!query) {
     res.status(200).json({ items: [] });
@@ -573,6 +566,17 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
+    try {
+      await verifyAppCheckFromHeader(req);
+    } catch (error: any) {
+      if (!res.headersSent) {
+        console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
+        const status = typeof error?.status === "number" ? error.status : 401;
+        res.status(status).json({ error: error?.message ?? "app_check_required" });
+      }
+      return;
+    }
+
     try {
       await handleRequest(req as Request, res as Response);
     } catch (error: any) {

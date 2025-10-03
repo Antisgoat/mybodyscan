@@ -55,6 +55,44 @@ export async function nutritionSearch(
   return response.json();
 }
 
+export async function coachChat(payload: { message: string }) {
+  const message = payload.message?.trim();
+  if (!message) {
+    const error: any = new Error("message_required");
+    error.code = "message_required";
+    throw error;
+  }
+  const user = auth.currentUser;
+  if (!user) {
+    const error: any = new Error("auth_required");
+    error.code = "auth_required";
+    throw error;
+  }
+  const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), fetchAppCheckToken()]);
+  if (!appCheckToken) {
+    const error: any = new Error("app_check_unavailable");
+    error.code = "app_check_unavailable";
+    throw error;
+  }
+  const response = await fetch(`/api/coach/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+      "X-Firebase-AppCheck": appCheckToken,
+    },
+    credentials: "include",
+    body: JSON.stringify({ message, text: message }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
 const NUTRITION_SEARCH_TIMEOUT_MS = 6000;
 
 function normalizeServingOption(raw: any, index: number): ServingOption | null {
