@@ -7,6 +7,7 @@ import { requireAuth } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
+import { isStaff } from "../claims.js";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;
@@ -20,6 +21,10 @@ function todayKey() {
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
+  const staffBypass = await isStaff(uid);
+  if (staffBypass) {
+    console.info("beginPaidScan_staff_bypass", { uid });
+  }
   const validation = validateBeginPaidScanPayload(req.body);
   if (!validation.success) {
     const errors = "errors" in validation ? validation.errors : [];
@@ -68,7 +73,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
   const creditRef = db.doc(`users/${uid}/private/credits`);
   const now = Timestamp.now();
-  let remainingCredits = 0;
+  let remainingCredits: number | undefined;
 
   try {
     await db.runTransaction(async (tx) => {
@@ -77,26 +82,28 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
-      if (!consumed) {
-        throw new HttpsError("failed-precondition", "no_credits");
-      }
-      remainingCredits = total;
+      if (!staffBypass) {
+        const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
+        if (!consumed) {
+          throw new HttpsError("failed-precondition", "no_credits");
+        }
+        remainingCredits = total;
 
-      tx.set(
-        creditRef,
-        {
-          creditBuckets: buckets,
-          creditsSummary: { totalAvailable: total, lastUpdated: now },
-        },
-        { merge: true }
-      );
+        tx.set(
+          creditRef,
+          {
+            creditBuckets: buckets,
+            creditsSummary: { totalAvailable: total, lastUpdated: now },
+          },
+          { merge: true }
+        );
+      }
 
       tx.set(
         scanRef,
         {
           status: "authorized",
-          charged: true,
+          charged: !staffBypass,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,
@@ -131,7 +138,11 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
     { merge: true }
   );
 
-  res.json({ ok: true, remainingCredits });
+  const response: { ok: true; remainingCredits?: number } = { ok: true };
+  if (typeof remainingCredits === "number") {
+    response.remainingCredits = remainingCredits;
+  }
+  res.json(response);
 }
 
 export const beginPaidScan = onRequest(

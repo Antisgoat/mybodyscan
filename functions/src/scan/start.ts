@@ -3,6 +3,7 @@ import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
 import { getFirestore, getStorage } from "../firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { isStaff } from "../claims.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -61,13 +62,20 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
 async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
+  const staffBypass = await isStaff(uid);
 
-  const [founder, hasCredits] = await Promise.all([
-    hasFounderBypass(uid),
-    hasAvailableCredits(uid),
-  ]);
+  if (staffBypass) {
+    console.info("scan_start_staff_bypass", { uid });
+  }
 
-  if (!founder && !hasCredits) {
+  const [founder, hasCredits] = staffBypass
+    ? [false, true]
+    : await Promise.all([
+        hasFounderBypass(uid),
+        hasAvailableCredits(uid),
+      ]);
+
+  if (!staffBypass && !founder && !hasCredits) {
     console.warn("scan_start_no_credits", { uid });
     res.status(402).json({ error: "no_credits" });
     return;

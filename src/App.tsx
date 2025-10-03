@@ -46,6 +46,7 @@ import ScanRefine from "./pages/Scan/Refine";
 import ScanFlowHistory from "./pages/Scan/History";
 import Report from "./pages/Report";
 import DebugCredits from "./pages/DebugCredits";
+import PreviewFrame from "./pages/PreviewFrame";
 import CoachOnboarding from "./pages/CoachOnboarding";
 import CoachTracker from "./pages/CoachTracker";
 import SettingsHealth from "./pages/SettingsHealth";
@@ -106,6 +107,7 @@ const App = () => {
                   : <Index />
               }
             />
+            <Route path="/__previewframe/*" element={<PreviewFrame />} />
             <Route
               path="/demo"
               element={
