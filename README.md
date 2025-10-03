@@ -90,7 +90,7 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_APPCHECK_SITE_KEY` *(required when deploying with enforced App Check)*
 
-Cloud Functions read Stripe credentials from secrets named `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. Configure them with `firebase functions:secrets:set` (see Deployment).
+Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
 
 ## Firebase Web config (Lovable without env vars)
 We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
@@ -134,12 +134,12 @@ firebase deploy --only functions:processQueuedScan
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
 
 ```sh
-firebase functions:secrets:set STRIPE_SECRET_KEY
-firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
+firebase functions:secrets:set STRIPE_SECRET
+firebase functions:secrets:set STRIPE_WEBHOOK
 firebase deploy --only functions,hosting
 ```
 
-Stripe secret key and webhook secret should be stored in Cloud Functions secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`). If you previously configured automation or tooling with the legacy secret names (`STRIPE_SECRET`, `STRIPE_WEBHOOK`), update those references to the new keys when migrating.
+Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
 
 ## Auth env setup (fix for `auth/api-key-not-valid`)
 1) Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
