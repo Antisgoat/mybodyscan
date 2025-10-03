@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
-import { getAppCheck, getAuth, getFirestore, Timestamp } from "./firebase.js";
+import { getAuth, getFirestore, Timestamp } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
+import { requireAppCheckFromHeader } from "./appCheck.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -67,38 +68,6 @@ const blockCache = new Map<string, BlockCache>();
 
 const db = getFirestore();
 const auth = getAuth();
-
-function readAppCheckToken(req: Request): string | null {
-  const header = req.get("X-Firebase-AppCheck") || req.get("x-firebase-appcheck");
-  if (typeof header === "string" && header.trim().length) {
-    return header.trim();
-  }
-  const raw = req.headers["x-firebase-appcheck"];
-  if (Array.isArray(raw)) {
-    for (const value of raw) {
-      if (typeof value === "string" && value.trim().length) {
-        return value.trim();
-      }
-    }
-  }
-  return null;
-}
-
-async function enforceAppCheck(req: Request, res: Response): Promise<boolean> {
-  const token = readAppCheckToken(req);
-  if (!token) {
-    res.status(401).json({ error: "missing_app_check" });
-    return false;
-  }
-  try {
-    await getAppCheck().verifyToken(token);
-    return true;
-  } catch (error) {
-    console.warn("nutrition_search_appcheck_invalid", { message: describeError(error) });
-    res.status(403).json({ error: "invalid_app_check" });
-    return false;
-  }
-}
 
 function describeError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -544,19 +513,17 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
 }
 
 async function handleRequest(req: Request, res: Response): Promise<void> {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
-
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET,OPTIONS");
     res.status(405).json({ error: "method_not_allowed" });
     return;
   }
 
-  if (!(await enforceAppCheck(req, res))) {
-    return;
+  try {
+    await requireAppCheckFromHeader(req);
+  } catch (error) {
+    console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
+    throw error;
   }
 
   const query = String(req.query?.q ?? req.query?.query ?? "").trim();
@@ -608,9 +575,16 @@ export const nutritionSearch = onRequest(
   withCors(async (req, res) => {
     try {
       await handleRequest(req as Request, res as Response);
-    } catch (error) {
+    } catch (error: any) {
+      if (res.headersSent) {
+        return;
+      }
+      if (typeof error?.status === "number") {
+        res.status(error.status).json({ error: error.message ?? "request_failed" });
+        return;
+      }
       console.error("nutrition_search_unhandled", { message: describeError(error) });
-      res.status(200).json({ items: [] });
+      res.status(500).json({ error: "server_error" });
     }
   }),
 );

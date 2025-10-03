@@ -2,6 +2,7 @@ import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
+import { fetchAppCheckToken } from "@/lib/appCheck";
 
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
@@ -26,6 +27,19 @@ export async function nutritionSearch(
   const headers = new Headers(init?.headers ?? undefined);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
+  }
+  const idTokenPromise: Promise<string | null> = headers.has("Authorization")
+    ? Promise.resolve<string | null>(null)
+    : Promise.resolve(auth.currentUser ? auth.currentUser.getIdToken() : null);
+  const [idToken, appCheckToken] = await Promise.all([idTokenPromise, fetchAppCheckToken()]);
+  if (!appCheckToken) {
+    const error: any = new Error("app_check_unavailable");
+    error.code = "app_check_unavailable";
+    throw error;
+  }
+  headers.set("X-Firebase-AppCheck", appCheckToken);
+  if (idToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${idToken}`);
   }
   const response = await fetch(url, {
     ...init,
@@ -165,7 +179,27 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         throw error;
       }
       const fallbackUrl = nutritionFnUrl({ q: query });
-      const response = await fetch(fallbackUrl, { method: "GET", signal: controller.signal });
+      const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
+        auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
+        fetchAppCheckToken(),
+      ]);
+      if (!fallbackAppCheckToken) {
+        const appCheckError: any = new Error("app_check_unavailable");
+        appCheckError.code = "app_check_unavailable";
+        throw appCheckError;
+      }
+      const fallbackHeaders = new Headers({
+        Accept: "application/json",
+        "X-Firebase-AppCheck": fallbackAppCheckToken,
+      });
+      if (fallbackIdToken) {
+        fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
+      }
+      const response = await fetch(fallbackUrl, {
+        method: "GET",
+        signal: controller.signal,
+        headers: fallbackHeaders,
+      });
       if (!response.ok) {
         const fallbackError: any = new Error(`fn_status_${response.status}`);
         fallbackError.status = response.status;

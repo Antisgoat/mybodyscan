@@ -1,9 +1,10 @@
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { Timestamp, getAppCheck, getFirestore } from "./firebase.js";
+import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { requireAppCheckFromHeader } from "./appCheck.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -22,36 +23,6 @@ type ChatRecord = {
   createdAt: Timestamp;
   usedLLM: boolean;
 };
-
-
-function readAppCheckToken(req: ExpressRequest): string | null {
-  const header = req.get("X-Firebase-AppCheck") || req.get("x-firebase-appcheck");
-  if (typeof header === "string" && header.trim().length) {
-    return header.trim();
-  }
-  const raw = req.headers["x-firebase-appcheck"];
-  if (Array.isArray(raw)) {
-    for (const value of raw) {
-      if (typeof value === "string" && value.trim().length) {
-        return value.trim();
-      }
-    }
-  }
-  return null;
-}
-
-async function requireStrictAppCheck(req: ExpressRequest): Promise<void> {
-  const token = readAppCheckToken(req);
-  if (!token) {
-    throw new HttpsError("unauthenticated", "App Check token required");
-  }
-  try {
-    await getAppCheck().verifyToken(token);
-  } catch (error) {
-    console.warn("coach_chat_appcheck_invalid", { message: (error as Error)?.message });
-    throw new HttpsError("permission-denied", "Invalid App Check token");
-  }
-}
 
 function sanitizeInput(raw: unknown): string {
   if (typeof raw !== "string") {
@@ -162,7 +133,12 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
   }
 
   const uid = await requireAuth(req as any);
-  await requireStrictAppCheck(req as ExpressRequest);
+  try {
+    await requireAppCheckFromHeader(req);
+  } catch (error: any) {
+    console.warn("coach_chat_appcheck_rejected", { message: error?.message });
+    throw new HttpsError("unauthenticated", error?.message ?? "App Check required");
+  }
 
   const text = sanitizeInput((req.body as any)?.text);
   await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
@@ -220,6 +196,10 @@ export const coachChat = onRequest(
         };
         const status = statusMap[err.code] ?? 500;
         res.status(status).json({ error: err.message, code: err.code });
+        return;
+      }
+      if (typeof err?.status === "number") {
+        res.status(err.status).json({ error: err.message ?? "request_failed" });
         return;
       }
       console.error("coach_chat_unhandled", { message: err?.message });
