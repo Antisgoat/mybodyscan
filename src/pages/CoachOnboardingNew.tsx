@@ -7,13 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc } from "firebase/firestore";
 import { useComputePlan } from "@/hooks/useComputePlan";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
 import HeightInputUS from "@/components/HeightInputUS";
 import { kgToLb, lbToKg } from "@/lib/units";
 import { useUnits } from "@/hooks/useUnits";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 interface OnboardingData {
   sex?: "male" | "female";
@@ -359,9 +361,9 @@ export default function CoachOnboardingNew() {
           <Button variant="outline" onClick={prevStep}>
             Back
           </Button>
-          <Button onClick={handleComputePlan} disabled={computing}>
+          <DemoWriteButton onClick={handleComputePlan} disabled={computing}>
             {computing ? "Computing Plan..." : "Compute Plan"}
-          </Button>
+          </DemoWriteButton>
         </div>
       </CardContent>
     </Card>
@@ -416,9 +418,9 @@ export default function CoachOnboardingNew() {
           <Button variant="outline" onClick={prevStep}>
             Back
           </Button>
-          <Button onClick={finish}>
+          <DemoWriteButton onClick={finish}>
             Start Tracking
-          </Button>
+          </DemoWriteButton>
         </div>
       </CardContent>
     </Card>

@@ -8,10 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { updateDoc } from "@/lib/dbWrite";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { DemoBanner } from "@/components/DemoBanner";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -104,6 +107,8 @@ const Results = () => {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
         <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <DemoBanner />
+        <DemoBanner />
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">Results</h1>
           <Card>
@@ -124,6 +129,8 @@ const Results = () => {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
         <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <DemoBanner />
+        <DemoBanner />
         <h1 className="text-2xl font-semibold mb-6">Results</h1>
         
         <Card className="mb-6">
@@ -201,6 +208,7 @@ const Results = () => {
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+      <DemoBanner />
       
       <h1 className="text-2xl font-semibold mb-6">Results</h1>
 
@@ -281,14 +289,14 @@ const Results = () => {
                 onChange={(e) => setNote(e.target.value)}
                 className="min-h-[80px]"
               />
-              <Button 
+              <DemoWriteButton
                 onClick={onSaveNote}
                 disabled={!note.trim() || saving}
                 variant="secondary"
                 className="w-full"
               >
                 {saving ? "Saving..." : "Save Note"}
-              </Button>
+              </DemoWriteButton>
             </div>
           </CardContent>
         </Card>

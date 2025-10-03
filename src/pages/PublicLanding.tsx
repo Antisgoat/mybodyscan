@@ -32,6 +32,9 @@ const PublicLanding = () => {
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button size="lg" onClick={handleLaunch}>Launch Web App</Button>
               <Button size="lg" variant="outline" onClick={() => navigate("/plans")}>Pricing</Button>
+              <Link to="/demo" className="btn-secondary">
+                Try Demo (read-only)
+              </Link>
             </div>
           </article>
           <aside className="justify-self-center md:justify-self-end">

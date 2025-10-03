@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import {
   type EnergyMetrics
 } from "@/lib/metrics";
 import { extractScanMetrics } from "@/lib/scans";
+import { DEMO_MODE } from "@/env";
 
 interface ReportData {
   scanId: string;
@@ -224,7 +226,9 @@ export default function Report() {
           generatedAt: new Date(),
         };
 
-        await setDoc(reportRef, newReportData);
+        if (!DEMO_MODE) {
+          await setDoc(reportRef, newReportData);
+        }
         setReportData(newReportData);
 
       } catch (err: any) {

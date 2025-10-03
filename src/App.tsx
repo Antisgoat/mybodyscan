@@ -98,13 +98,23 @@ const App = () => {
                 <OnboardingRedirectMBS>
               <Routes>
             {/* Root route - flag-controlled */}
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
-                MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE 
+                MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE
                   ? <PublicLayout><PublicLanding /></PublicLayout>
                   : <Index />
-              } 
+              }
+            />
+            <Route
+              path="/demo"
+              element={
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <Today />
+                  </RouteBoundary>
+                </AuthedLayout>
+              }
             />
             {/* Marketing page */}
             <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />

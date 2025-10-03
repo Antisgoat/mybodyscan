@@ -17,8 +17,10 @@ import { auth, db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import type { Program } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, getDoc } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
+import { disabledIfDemo } from "@/lib/demoGuard";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -56,6 +58,7 @@ export default function CoachOverview() {
   const [planExists, setPlanExists] = useState<boolean | null>(null);
   const uid = auth.currentUser?.uid ?? null;
   const demo = useDemoMode();
+  const { disabled: demoDisabled, title: demoTitle } = disabledIfDemo();
 
   useEffect(() => {
     let isMounted = true;
@@ -260,9 +263,12 @@ export default function CoachOverview() {
             <Select
               value={program?.id}
               onValueChange={handleProgramChange}
-              disabled={isSaving || isLoadingPrograms || !programEntries.length}
+              disabled={demoDisabled || isSaving || isLoadingPrograms || !programEntries.length}
             >
-              <SelectTrigger className="w-full sm:w-64">
+              <SelectTrigger
+                className="w-full sm:w-64"
+                title={demoDisabled ? demoTitle : undefined}
+              >
                 <SelectValue placeholder={isLoadingPrograms ? "Loading programs..." : "Select program"} />
               </SelectTrigger>
               <SelectContent>

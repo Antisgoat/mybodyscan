@@ -1,4 +1,7 @@
+import { DEMO_MODE } from "@/env";
+
 export function isDemoMode(user: { uid?: string } | null, location: Location): boolean {
+  if (DEMO_MODE) return true;
   if (!user && (location.pathname === "/welcome" || location.search.includes("demo=1"))) return true;
   return false;
 }
@@ -8,6 +11,7 @@ export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
   "/welcome",
   "/home",
+  "/demo",
   "/meals",
   "/programs",
   "/coach",

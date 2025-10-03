@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, onSnapshot } from "firebase/firestore";
 
 export type UnitSystem = "US" | "metric";
 

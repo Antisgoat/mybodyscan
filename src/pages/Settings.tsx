@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -21,8 +22,10 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
+import { DemoBanner } from "@/components/DemoBanner";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -192,6 +195,7 @@ const Settings = () => {
       <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
+          <DemoBanner />
           {isDemoGuest() && (
             <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
           )}
@@ -218,9 +222,9 @@ const Settings = () => {
               />
               <p className="text-xs text-muted-foreground">Saved securely in kilograms for calculations.</p>
             </div>
-            <Button onClick={handleSaveMetrics} disabled={savingMetrics} className="w-full">
+            <DemoWriteButton onClick={handleSaveMetrics} disabled={savingMetrics} className="w-full">
               {savingMetrics ? "Saving..." : "Save weight"}
-            </Button>
+            </DemoWriteButton>
           </CardContent>
         </Card>
 
@@ -336,9 +340,9 @@ const Settings = () => {
                   <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
                     Cancel
                   </Button>
-                  <Button variant="destructive" onClick={handleDeleteAccount}>
+                  <DemoWriteButton variant="destructive" onClick={handleDeleteAccount}>
                     Delete Account
-                  </Button>
+                  </DemoWriteButton>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

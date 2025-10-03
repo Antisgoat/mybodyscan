@@ -1,7 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 import { useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, serverTimestamp } from "firebase/firestore";
 import type { DailySummary, HealthAdapter } from "@/integrations/health/HealthAdapter";
 import { WebFallbackAdapter } from "@/integrations/health/WebFallbackAdapter";
 import { IOSHealthKitAdapter } from "@/integrations/health/IOSHealthKitAdapter";
