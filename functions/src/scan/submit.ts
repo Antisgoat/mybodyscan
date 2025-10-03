@@ -3,6 +3,7 @@ import type { Request } from "firebase-functions/v2/https";
 import { getFirestore, getStorage, Timestamp } from "../firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
+import { isStaff } from "../claims.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -302,12 +303,16 @@ export const submitScan = onRequest(
       }
       await verifyAppCheckStrict(req as Request);
       const uid = await requireAuth(req as Request);
-
       const payload = validatePayload(req.body);
       if (!payload) {
         console.warn("scan_submit_invalid_payload", { uid });
         res.status(400).json({ error: "invalid_payload" });
         return;
+      }
+
+      const staffBypass = await isStaff(uid);
+      if (staffBypass) {
+        console.info("scan_submit_staff_bypass", { uid, scanId: payload.scanId });
       }
 
       const founder = await isFounder(uid);
@@ -360,7 +365,7 @@ export const submitScan = onRequest(
       let remainingCredits: number | null = null;
 
       await db.runTransaction(async (tx) => {
-        if (!founder) {
+        if (!founder && !staffBypass) {
           const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
           if (!consumed) {
             creditFailure = true;

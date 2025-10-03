@@ -21,7 +21,7 @@
         ]
       },
       {
-        "source": "**",
+        "source": "/**",
         "headers": [
           {
             "key": "Strict-Transport-Security",
@@ -46,6 +46,19 @@
           {
             "key": "Content-Security-Policy",
             "value": "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self'; script-src 'self' https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; connect-src 'self' https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.cloudfunctions.net https://api.stripe.com https://checkout.stripe.com https://api.openai.com; frame-src https://js.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
+          }
+        ]
+      },
+      {
+        "source": "/__previewframe/**",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self'; script-src 'self' https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; connect-src 'self' https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.cloudfunctions.net https://api.stripe.com https://checkout.stripe.com https://api.openai.com; frame-src https://js.stripe.com https://checkout.stripe.com; frame-ancestors 'self' https://*.lovable.dev https://*.lovable.app; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
           }
         ]
       }
