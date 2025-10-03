@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { format, subDays, addDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const CoachTracker = () => {
   const { plan } = useUserProfile();
@@ -273,9 +275,9 @@ const CoachTracker = () => {
                     />
                   </div>
                 </div>
-                <Button onClick={addMeal} className="w-full">
+                <DemoWriteButton onClick={addMeal} className="w-full">
                   Add to {isToday ? "Today" : format(selectedDate, "MMM dd")}
-                </Button>
+                </DemoWriteButton>
               </div>
             </DialogContent>
           </Dialog>

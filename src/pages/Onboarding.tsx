@@ -8,11 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { AppHeader } from "@/components/AppHeader";
 import { Section } from "@/components/ui/section";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import HeightInputUS from "@/components/HeightInputUS";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
@@ -259,9 +261,9 @@ export default function Onboarding() {
               Next
             </Button>
           ) : (
-            <Button onClick={finish} className="flex-1">
+            <DemoWriteButton onClick={finish} className="flex-1">
               Complete Setup
-            </Button>
+            </DemoWriteButton>
           )}
         </div>
       </main>

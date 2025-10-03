@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { setDoc } from '../lib/dbWrite';
+import { DemoWriteButton } from '../components/DemoWriteGuard';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
 import ToastMBS from '../components/ToastMBS';
@@ -214,7 +216,9 @@ export default function OnboardingMBS() {
           </label>
           <div className="flex justify-between">
             <button className="px-4 py-2 rounded-xl border" onClick={()=>setStep(3)}>Back</button>
-            <button className="px-4 py-2 rounded-xl bg-blue-600 text-white" onClick={finish}>Finish</button>
+            <DemoWriteButton asChild>
+              <button className="px-4 py-2 rounded-xl bg-blue-600 text-white" onClick={finish}>Finish</button>
+            </DemoWriteButton>
           </div>
         </div>
       )}

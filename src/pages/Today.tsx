@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { track } from "@/lib/analytics";
 import { startScan } from "@/lib/scan";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 export default function Today() {
   const navigate = useNavigate();
@@ -175,9 +176,9 @@ export default function Today() {
         </Card>
 
         <div className="grid grid-cols-3 gap-2">
-          <Button onClick={handleScan} className="w-full">
+          <DemoWriteButton onClick={handleScan} className="w-full">
             {t('today.scan')}
-          </Button>
+          </DemoWriteButton>
           <Button variant="secondary" onClick={handleLogMeal} className="w-full">
             {t('today.logMeal')}
           </Button>

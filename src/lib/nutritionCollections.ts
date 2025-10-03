@@ -1,13 +1,5 @@
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { deleteDoc, setDoc } from "@/lib/dbWrite";
+import { collection, doc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
 

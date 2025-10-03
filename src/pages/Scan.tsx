@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
+import { DemoBanner } from "@/components/DemoBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -214,6 +215,7 @@ export default function Scan() {
       <AppHeader />
       <NotMedicalAdviceBanner />
       <main className="max-w-md mx-auto p-6 space-y-6">
+        <DemoBanner />
         <div className="text-center space-y-2">
           <Camera className="w-12 h-12 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">Live Body Scan</h1>

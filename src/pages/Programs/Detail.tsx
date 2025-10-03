@@ -27,10 +27,12 @@ import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import type { Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -437,14 +439,14 @@ export default function ProgramDetail() {
               <Button size="sm" variant="outline" onClick={handlePreview}>
                 Preview week 1
               </Button>
-              <Button
+              <DemoWriteButton
                 size="sm"
                 onClick={handleStartProgram}
                 disabled={isSaving || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" /> {demo ? "Demo only" : "Start program"}
-              </Button>
+              </DemoWriteButton>
             </div>
           </CardContent>
         </Card>

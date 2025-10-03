@@ -6,6 +6,7 @@ import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
@@ -19,7 +20,8 @@ import {
 } from "@/lib/nutritionCollections";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { auth, db } from "@/lib/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc } from "@/lib/dbWrite";
+import { collection, serverTimestamp } from "firebase/firestore";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -187,13 +189,13 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
               Cancel
             </Button>
-            <Button
+            <DemoWriteButton
               type="button"
               onClick={() => onConfirm({ grams: grams, quantity })}
               disabled={busy || disableAdd}
             >
               {busy ? "Adding…" : "Add"}
-            </Button>
+            </DemoWriteButton>
           </div>
         </div>
       </DialogContent>
@@ -423,13 +425,13 @@ export default function MealsSearch() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => toggleFavorite(item)}>
+                      <DemoWriteButton size="sm" variant="ghost" onClick={() => toggleFavorite(item)}>
                         {favorite ? (
                           <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
                         ) : (
                           <StarOff className="h-4 w-4" />
                         )}
-                      </Button>
+                      </DemoWriteButton>
                       <Button size="sm" onClick={() => setSelectedItem(item)}>
                         <Plus className="mr-1 h-4 w-4" /> Add
                       </Button>

@@ -29,16 +29,9 @@ import {
 import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import { workoutLogsCol } from "@/lib/db/coachPaths";
-import {
-  addDoc,
-  doc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+import { addDoc, setDoc } from "@/lib/dbWrite";
+import { doc, getDocs, limit, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -587,9 +580,9 @@ export default function CoachDay() {
         ))}
 
         <div className="flex justify-end">
-          <Button size="lg" onClick={handleComplete} disabled={isSaving}>
+          <DemoWriteButton size="lg" onClick={handleComplete} disabled={isSaving}>
             {isSaving ? "Saving..." : "Mark Day Complete"}
-          </Button>
+          </DemoWriteButton>
         </div>
 
         <Dialog open={Boolean(activeSwap)} onOpenChange={(open) => !open && setActiveSwap(null)}>

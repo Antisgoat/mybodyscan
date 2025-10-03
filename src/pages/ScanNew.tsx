@@ -11,7 +11,8 @@ import { Seo } from "@/components/Seo";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { beginPaidScan, recordGateFailure, refundIfNoResult, startScan } from "@/lib/api";
 import { clientQualityGate, computeImageHash, type GateResult } from "@/lib/scan/gates";
 import { estimateCircumferences } from "@/lib/scan/photoAssist";
@@ -19,6 +20,7 @@ import { computeBodyFat, bmiFromKgCm } from "@/lib/scan/anthro";
 import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@/lib/units";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { cn } from "@/lib/utils";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const MODE_OPTIONS: { value: "2" | "4"; label: string; description: string }[] = [
   { value: "2", label: "Quick (2 photos)", description: "Front + Side" },
@@ -510,13 +512,13 @@ export default function ScanNew() {
         </Card>
 
         <div className="space-y-3">
-          <Button onClick={handleAnalyze} disabled={busy || !canSubmit} className="w-full">
+          <DemoWriteButton onClick={handleAnalyze} disabled={busy || !canSubmit} className="w-full">
             {stage === "idle" && "Analyze & Spend 1 Credit"}
             {stage === "gating" && "Checking quality..."}
             {stage === "authorizing" && "Reserving credit..."}
             {stage === "analyzing" && "Estimating measurements..."}
             {stage === "saving" && "Saving results..."}
-          </Button>
+          </DemoWriteButton>
           <p className="text-center text-xs text-muted-foreground">
             Need help? View <Link className="underline" to="/scan/tips">photo tips</Link>. Quality fails today: {gateFailures}/3.
           </p>

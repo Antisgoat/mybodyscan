@@ -9,11 +9,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc, onSnapshot } from "firebase/firestore";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Seo } from "@/components/Seo";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 interface NutritionLog {
   calories: number;
@@ -260,9 +262,9 @@ export default function CoachTrackerNew() {
                         />
                       </div>
                     </div>
-                    <Button onClick={addMeal} className="w-full">
+                    <DemoWriteButton onClick={addMeal} className="w-full">
                       Add Meal
-                    </Button>
+                    </DemoWriteButton>
                   </div>
                 </DialogContent>
               </Dialog>

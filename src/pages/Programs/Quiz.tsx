@@ -14,8 +14,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { loadAllPrograms, matchScore, type CatalogEntry } from "@/lib/coach/catalog";
 import type { ProgramEquipment, ProgramGoal, ProgramLevel } from "@/lib/coach/types";
 import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
+import { doc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
+import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const goalOptions: Array<{ value: ProgramGoal; label: string; description: string }> = [
   { value: "hypertrophy", label: "Build muscle", description: "Hypertrophy-focused growth" },
@@ -315,9 +317,13 @@ export default function ProgramsQuiz() {
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Button variant="outline" size="sm" onClick={() => navigate("/programs")}>View catalog</Button>
-                  <Button size="sm" onClick={handleStartRecommended} disabled={!topRecommendation || isSaving}>
+                  <DemoWriteButton
+                    size="sm"
+                    onClick={handleStartRecommended}
+                    disabled={!topRecommendation || isSaving}
+                  >
                     Start recommended
-                  </Button>
+                  </DemoWriteButton>
                 </div>
               </div>
             </CardContent>
