@@ -78,7 +78,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
     }
 
     try {
-      console.log("stripe_webhook_event", { type: event.type, id: event.id });
+      console.info("stripe_webhook_event", { type: event.type, id: event.id });
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session;

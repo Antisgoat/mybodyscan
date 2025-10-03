@@ -27,7 +27,7 @@ export const handleUserCreate = auth.user().onCreate(async (user) => {
   if (!founders.has(email)) return;
 
   const uid = user.uid;
-  console.log("founder_signup", { uid, email });
+  console.info("founder_signup", { uid, email });
   await Promise.all([
     addCredits(uid, 30, "Founder", 12),
     db.doc(`users/${uid}`).set(

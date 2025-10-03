@@ -16,7 +16,7 @@ import { auth, db, functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { fetchAppCheckToken } from "@/lib/appCheck";
+import { coachChat as sendCoachChat } from "@/lib/api";
 
 interface ChatMessage {
   id: string;
@@ -102,36 +102,11 @@ export default function CoachChatPage() {
     if (!trimmed) return;
     setPending(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("auth");
-      const [token, appCheckToken] = await Promise.all([
-        user.getIdToken(),
-        fetchAppCheckToken(),
-      ]);
-      if (!appCheckToken) {
-        const error: any = new Error("App Check required");
-        error.code = "app_check";
-        throw error;
-      }
-      const response = await fetch("/api/coach/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Firebase-AppCheck": appCheckToken,
-        },
-        body: JSON.stringify({ text: trimmed }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        const description = typeof data?.error === "string" ? data.error : "Unable to send message.";
-        toast({ title: "Message not sent", description, variant: "destructive" });
-        return;
-      }
+      await sendCoachChat({ message: trimmed });
       setInput("");
     } catch (error: any) {
       const description =
-        error?.code === "app_check"
+        error?.code === "app_check_unavailable"
           ? "We couldn’t verify your App Check token. Refresh and try again."
           : error?.message ?? "Check your connection.";
       toast({ title: "Message not sent", description, variant: "destructive" });
