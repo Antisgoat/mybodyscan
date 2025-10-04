@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* All @apply must be inside a selector within a layer */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -48,6 +49,10 @@
     --ring: 217.2 32.6% 17.5%;
   }
 
-  * { @apply border-border; }
+  /* valid @apply usage */
+  *,
+  ::before,
+  ::after { @apply border-border; }
+
   body { @apply bg-background text-foreground; }
 }
