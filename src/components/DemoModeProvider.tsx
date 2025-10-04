@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
-import { DEMO_QUERY_PARAM, isDemoMode } from "@/lib/demo";
+import { DEMO_QUERY_PARAM, isDemoMode } from "@/lib/demoFlag";
 
 interface DemoModeContextValue {
   demo: boolean;
