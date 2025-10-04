@@ -8,7 +8,7 @@ function getHeader(req: Request, key: string): string | undefined {
 export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
   const token = getHeader(req, "X-Firebase-AppCheck");
   if (!token) {
-    // Soft enforce for now: allow request but log. Tighten later.
+    // Soft enforce for now: allow request but log. Flip to strict later.
     console.warn("appcheck_soft_missing", { path: req.path });
     return;
   }
