@@ -1,5 +1,4 @@
 import * as admin from "firebase-admin";
-
 async function main() {
   if (!admin.apps.length) admin.initializeApp();
   const arg = process.argv[2];
@@ -9,6 +8,6 @@ async function main() {
   const user = await auth.getUser(uid);
   const claims = { ...(user.customClaims || {}), staff: true };
   await auth.setCustomUserClaims(uid, claims);
-  console.log(`✅ set { staff:true } for uid=${uid}`);
+  console.log(`set { staff:true } for uid=${uid}`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
