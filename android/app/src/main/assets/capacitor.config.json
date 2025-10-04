@@ -1,0 +1,9 @@
+{
+	"appId": "app.lovable.cf8140baedcc42369166fb030db04005",
+	"appName": "MyBodyScan",
+	"webDir": "dist",
+	"server": {
+		"url": "https://cf8140ba-edcc-4236-9166-fb030db04005.lovableproject.com?forceHideBadge=true",
+		"cleartext": true
+	}
+}
