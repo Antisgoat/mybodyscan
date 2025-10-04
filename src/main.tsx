@@ -4,7 +4,7 @@ import './index.css';
 import './styles/mbs.theme.css';
 import { killSW } from './lib/killSW';
 import ErrorBoundary from './components/ErrorBoundary';
-import { ensureAppCheck } from '@/appCheck';
+import { ensureAppCheck } from './appCheck';
 
 killSW();
 void ensureAppCheck();
