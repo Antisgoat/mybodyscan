@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
-import { isPathAllowedInDemo } from "@/lib/demo";
+import { isPathAllowedInDemo } from "@/lib/demoFlag";
 import { useDemoMode } from "./DemoModeProvider";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {

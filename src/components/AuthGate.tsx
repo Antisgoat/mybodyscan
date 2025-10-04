@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { auth, functions } from "@/lib/firebase";
-import { isDemoMode } from "@/lib/demo";
+import { isDemoMode } from "@/lib/demoFlag";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
