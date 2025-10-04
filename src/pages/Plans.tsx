@@ -199,7 +199,7 @@ export default function Plans() {
               <span className="text-muted-foreground">📊 DEXA scans</span>
               <span className="font-semibold">~$150/scan</span>
             </div>
-            <hr className="border-border my-2" />
+            <hr className="my-2 border-t" />
             <div className="flex justify-between items-center py-2 text-lg">
               <span className="text-primary font-bold">MyBodyScan</span>
               <div className="text-right">

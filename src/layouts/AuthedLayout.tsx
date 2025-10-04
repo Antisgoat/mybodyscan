@@ -113,7 +113,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                     <nav className="flex flex-col gap-2 text-sm">
                       <NavLinks mobile />
                     </nav>
-                    <hr className="border-border" />
+                    <hr className="border-t" />
                     <div className="flex flex-col gap-2 text-sm">
                       <button
                         className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"

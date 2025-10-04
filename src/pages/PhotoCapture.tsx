@@ -115,9 +115,9 @@ const PhotoCapture = () => {
                 <div 
                   key={s} 
                   className={`rounded-md border p-2 transition-colors ${
-                    isComplete 
-                      ? "border-primary bg-primary/10 text-primary" 
-                      : "border-border"
+                    isComplete
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border"
                   }`}
                 >
                   {isComplete && <span className="block text-xs">✓</span>}

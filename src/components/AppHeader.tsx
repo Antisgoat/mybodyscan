@@ -45,7 +45,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="border-b border-border bg-card">
+    <header className="border-b bg-card">
       <div className="max-w-md mx-auto p-4">
         <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4">

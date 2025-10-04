@@ -33,7 +33,7 @@ export function BottomNav() {
   const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden">
       <div className="flex items-center justify-around">
         {filteredNavItems.map(({ path, icon: Icon, label }) => {
           const isActive =

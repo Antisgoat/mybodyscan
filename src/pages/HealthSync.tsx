@@ -95,7 +95,7 @@ export default function HealthSync() {
               Sync yesterday
             </Button>
             {sync && (
-              <div className="grid grid-cols-3 gap-3 rounded-md border border-border p-3 text-center text-xs">
+              <div className="grid grid-cols-3 gap-3 rounded-md border p-3 text-center text-xs">
                 <div>
                   <div className="text-muted-foreground">Steps</div>
                   <div className="text-lg font-semibold">{sync.steps}</div>

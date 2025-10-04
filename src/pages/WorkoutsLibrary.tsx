@@ -52,7 +52,7 @@ export default function WorkoutsLibrary() {
                 <p className="text-muted-foreground">{plan.today.summary}</p>
                 <ul className="space-y-2">
                   {plan.today.exercises.map((exercise) => (
-                    <li key={exercise.id} className="flex flex-col rounded-md border border-border p-3">
+                    <li key={exercise.id} className="flex flex-col rounded-md border p-3">
                       <div className="text-sm font-semibold text-foreground">{exercise.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {exercise.sets} sets × {exercise.reps} • {exercise.focus}
@@ -78,7 +78,7 @@ export default function WorkoutsLibrary() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {plan.library.map((session) => (
-                  <div key={session.id} className="rounded-md border border-border p-3">
+                  <div key={session.id} className="rounded-md border p-3">
                     <div className="flex items-center justify-between text-sm">
                       <div>
                         <div className="font-medium text-foreground">{session.name}</div>
