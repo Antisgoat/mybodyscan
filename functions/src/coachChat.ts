@@ -5,6 +5,7 @@ import { requireAuth } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyAppCheckFromHeader } from "./appCheck.js";
+import { verifyRateLimit } from "./rateLimit.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -133,8 +134,22 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
   }
 
   const uid = await requireAuth(req as any);
+  (req as any).auth = { uid };
 
   const text = sanitizeInput((req.body as any)?.text ?? (req.body as any)?.message);
+  try {
+    await verifyRateLimit(req, {
+      key: "coach",
+      max: Number(process.env.COACH_RPM || 6),
+      windowSeconds: 60,
+    });
+  } catch (error: any) {
+    if (error?.status === 429) {
+      res.status(429).json({ error: "Too Many Requests" });
+      return;
+    }
+    throw error;
+  }
   await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
 
   let responseText = "";

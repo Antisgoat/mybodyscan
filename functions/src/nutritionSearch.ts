@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
-import { getAuth, getFirestore, Timestamp } from "./firebase.js";
+import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyAppCheckFromHeader } from "./appCheck.js";
+import { verifyRateLimit } from "./rateLimit.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -50,23 +50,11 @@ export interface FoodItem {
   raw?: unknown;
 }
 
-type RateBucket = { count: number; reset: number };
-type BlockCache = { until: number; checkedAt: number };
-
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
 
 const FETCH_TIMEOUT_MS = 6500;
-const RATE_LIMIT = 60;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const FIRESTORE_CACHE_MS = 30_000;
-
-const memoryBuckets = new Map<string, RateBucket>();
-const blockCache = new Map<string, BlockCache>();
-
-
-const db = getFirestore();
 const auth = getAuth();
 
 function describeError(error: unknown): string {
@@ -157,17 +145,6 @@ function normalizeBrand(value: unknown): string | null {
   return null;
 }
 
-function getClientIp(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.trim().length) {
-    return forwarded.split(",")[0]!.trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length) {
-    return forwarded[0]!.split(",")[0]!.trim();
-  }
-  return req.ip || "unknown";
-}
-
 async function extractUid(req: Request): Promise<string | null> {
   const header = req.headers.authorization || (req.headers.Authorization as string | undefined);
   if (!header || typeof header !== "string") return null;
@@ -180,71 +157,6 @@ async function extractUid(req: Request): Promise<string | null> {
     console.warn("nutrition_search_token_invalid", { message: describeError(error) });
     return null;
   }
-}
-
-function hashKey(key: string): string {
-  return createHash("sha1").update(key).digest("hex");
-}
-
-async function readBlockFromStore(key: string, now: number): Promise<number> {
-  const cached = blockCache.get(key);
-  if (cached) {
-    if (cached.until > now) return cached.until;
-    if (cached.checkedAt + FIRESTORE_CACHE_MS > now) return cached.until;
-  }
-
-  try {
-    const ref = db.doc(`rateLimits/nutritionSearch_${hashKey(key)}`);
-    const snap = await ref.get();
-    const until = snap.exists ? Number((snap.data() as any)?.blockedUntil) || 0 : 0;
-    blockCache.set(key, { until, checkedAt: now });
-    return until;
-  } catch (error) {
-    console.error("nutrition_search_rate_limit_read_error", { message: describeError(error) });
-    blockCache.set(key, { until: 0, checkedAt: now });
-    return 0;
-  }
-}
-
-async function setBlockInStore(key: string, now: number): Promise<number> {
-  const until = now + RATE_LIMIT_WINDOW_MS;
-  try {
-    const ref = db.doc(`rateLimits/nutritionSearch_${hashKey(key)}`);
-    await ref.set(
-      {
-        key,
-        blockedUntil: until,
-        updatedAt: Timestamp.now(),
-      },
-      { merge: true },
-    );
-    blockCache.set(key, { until, checkedAt: now });
-  } catch (error) {
-    console.error("nutrition_search_rate_limit_write_error", { message: describeError(error) });
-    blockCache.set(key, { until, checkedAt: now });
-  }
-  return until;
-}
-
-async function isRateLimited(key: string, now: number): Promise<boolean> {
-  const blockedUntil = await readBlockFromStore(key, now);
-  if (blockedUntil > now) {
-    return true;
-  }
-
-  let bucket = memoryBuckets.get(key);
-  if (!bucket || bucket.reset <= now) {
-    bucket = { count: 0, reset: now + RATE_LIMIT_WINDOW_MS };
-  }
-  bucket.count += 1;
-  memoryBuckets.set(key, bucket);
-
-  if (bucket.count > RATE_LIMIT) {
-    await setBlockInStore(key, now);
-    return true;
-  }
-
-  return false;
 }
 
 function buildServingSnapshot(serving: ServingOption | undefined) {
@@ -526,16 +438,25 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   }
 
   const uid = await extractUid(req);
-  const key = uid ? `uid:${uid}` : `ip:${getClientIp(req)}`;
-  const now = Date.now();
+  if (uid) {
+    (req as any).auth = { uid };
+  } else if ((req as any).auth) {
+    delete (req as any).auth;
+  }
 
-  if (await isRateLimited(key, now)) {
-    console.warn("nutrition_search_rate_limited", {
-      keyType: uid ? "uid" : "ip",
-      keyHash: hashKey(key),
+  try {
+    await verifyRateLimit(req, {
+      key: "nutrition",
+      max: Number(process.env.NUTRITION_RPM || 20),
+      windowSeconds: 60,
     });
-    res.status(200).json({ items: [] });
-    return;
+  } catch (error: any) {
+    if (error?.status === 429) {
+      console.warn("nutrition_search_rate_limited", { type: uid ? "uid" : "ip" });
+      res.status(429).json({ error: "Too Many Requests" });
+      return;
+    }
+    throw error;
   }
 
   let items: FoodItem[] = [];
