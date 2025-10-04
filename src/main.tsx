@@ -3,11 +3,10 @@ import App from './App.tsx';
 import './index.css';
 import './styles/mbs.theme.css';
 import { killSW } from './lib/killSW';
-import { ensureAppCheckInitialized } from './lib/appCheck';
 import ErrorBoundary from './components/ErrorBoundary';
+import '@/appCheck';
 
 killSW();
-ensureAppCheckInitialized();
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
