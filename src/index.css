@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 @layer base {
-  :root{
+  :root {
+    /* Light theme (shadcn defaults) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96.1%;
@@ -25,7 +26,8 @@
     --ring: 215 20.2% 65.1%;
     --radius: 0.5rem;
   }
-  .dark{
+  .dark {
+    /* Dark theme (shadcn defaults) */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -47,7 +49,7 @@
     --ring: 217.2 32.6% 17.5%;
   }
 
-  /* Use raw CSS for base styling; DO NOT use @apply here */
+  /* Base resets without @apply */
   html, body { height: 100%; }
   body { background-color: hsl(var(--background)); color: hsl(var(--foreground)); }
   *, ::before, ::after { border-color: hsl(var(--border)); }

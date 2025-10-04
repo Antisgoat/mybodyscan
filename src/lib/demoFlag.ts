@@ -1,37 +1,13 @@
-import { auth } from "@/lib/firebase";
-import { isDemoMode } from "./demo";
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
-function currentDemo(): boolean {
-  if (typeof window === "undefined") return false;
-  return isDemoMode(auth.currentUser, window.location);
+const DEMO_KEY = "mbs_demo";
+export function isDemoActive(): boolean {
+  if (DEMO_MODE) return true; // env-enforced demo
+  return localStorage.getItem(DEMO_KEY) === "1" || new URLSearchParams(location.search).get("demo") === "1";
 }
-
-export function isDemoGuest(): boolean {
-  if (typeof window === "undefined") return false;
-  return currentDemo();
+export function enableDemo() {
+  localStorage.setItem(DEMO_KEY, "1");
 }
-
-export function enableDemoGuest(): void {
-  if (typeof window !== "undefined") {
-    const url = new URL(window.location.href);
-    url.pathname = "/welcome";
-    url.searchParams.set("demo", "1");
-    window.location.href = `${url.pathname}${url.search}${url.hash}`;
-  }
-}
-
-export function disableDemoGuest(): void {
-  if (typeof window !== "undefined") {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("demo");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }
-}
-
-export async function demoGuard<T>(action: () => Promise<T> | T, onBlocked?: () => void): Promise<T | undefined> {
-  if (isDemoGuest()) {
-    onBlocked?.();
-    return undefined;
-  }
-  return await action();
+export function disableDemo() {
+  localStorage.removeItem(DEMO_KEY);
 }

@@ -15,7 +15,7 @@ import {
   useAuthUser,
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
-import { enableDemoGuest } from "@/lib/demoFlag";
+import { enableDemo } from "@/lib/demoFlag";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -76,6 +76,11 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onExplore = () => {
+    enableDemo();
+    navigate("/app");
   };
 
   return (
@@ -159,13 +164,7 @@ const Auth = () => {
             </Button>
           </div>
           <div className="mt-6">
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                enableDemoGuest();
-              }}
-            >
+            <Button variant="ghost" className="w-full" onClick={onExplore}>
               👀 Explore demo (no sign-up)
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">

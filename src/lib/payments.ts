@@ -1,5 +1,5 @@
 import { log } from "./logger";
-import { isDemoGuest } from "./demoFlag";
+import { isDemoActive } from "./demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { track } from "./analytics";
 import { FirebaseError } from "firebase/app";
@@ -10,17 +10,17 @@ import { authedFetch } from "@/lib/api";
 export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
 
 export async function startCheckout(plan: CheckoutPlanKey) {
-    if (isDemoGuest()) {
-      track("demo_block", { action: "checkout" });
-      try {
-        toast({
-          title: "Sign up to use this feature",
-          description: "Create a free account to continue.",
-        });
-      } catch {}
-      window.location.assign("/auth");
-      return;
-    }
+  if (isDemoActive()) {
+    track("demo_block", { action: "checkout" });
+    try {
+      toast({
+        title: "Sign up to use this feature",
+        description: "Create a free account to continue.",
+      });
+    } catch {}
+    window.location.assign("/auth");
+    return;
+  }
     const { getAuth } = await import("firebase/auth");
     const user = getAuth().currentUser;
     if (!user) throw new Error("Not signed in");
@@ -81,17 +81,17 @@ export async function startCheckout(plan: CheckoutPlanKey) {
 }
 
 export async function consumeOneCredit(): Promise<number> {
-    if (isDemoGuest()) {
-      track("demo_block", { action: "scan" });
-      try {
-        toast({ 
-          title: "Sign up to use this feature",
-          description: "Create a free account to start scanning.",
-        });
-      } catch {}
-      window.location.assign("/auth");
-      throw new Error("demo-blocked");
-    }
+  if (isDemoActive()) {
+    track("demo_block", { action: "scan" });
+    try {
+      toast({
+        title: "Sign up to use this feature",
+        description: "Create a free account to start scanning.",
+      });
+    } catch {}
+    window.location.assign("/auth");
+    throw new Error("demo-blocked");
+  }
     const { getAuth } = await import("firebase/auth");
     const user = getAuth().currentUser;
     if (!user) throw new Error("Not signed in");

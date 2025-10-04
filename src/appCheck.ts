@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 
 let _appCheck: import("firebase/app-check").AppCheck | null = null;
 
-function getOrInitApp() {
+function app() {
   return getApps().length
     ? getApp()
     : initializeApp({
@@ -18,9 +18,8 @@ function getOrInitApp() {
 export async function ensureAppCheck() {
   if (typeof window === "undefined") return null;
   if (_appCheck) return _appCheck;
-  const app = getOrInitApp();
   const { initializeAppCheck, ReCaptchaV3Provider } = await import("firebase/app-check");
-  _appCheck = initializeAppCheck(app, {
+  _appCheck = initializeAppCheck(app(), {
     provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY),
     isTokenAutoRefreshEnabled: true,
   });
@@ -29,8 +28,8 @@ export async function ensureAppCheck() {
 
 export async function getAppCheckToken(forceRefresh = false) {
   if (typeof window === "undefined") return null;
-  await ensureAppCheck();
   const { getToken } = await import("firebase/app-check");
+  await ensureAppCheck();
   if (!_appCheck) return null;
   const res = await getToken(_appCheck, forceRefresh);
   return res.token;

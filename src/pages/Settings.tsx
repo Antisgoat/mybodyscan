@@ -16,7 +16,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
-import { isDemoGuest } from "@/lib/demoFlag";
+import { isDemoActive } from "@/lib/demoFlag";
 import { Download, Trash2 } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
@@ -120,18 +120,18 @@ const Settings = () => {
     }
   };
 
-    const handleSignOut = async () => {
-      if (isDemoGuest()) {
-        toast({ title: "Create a free account to save settings." });
-        navigate("/auth");
-        return;
-      }
-      await signOutAll();
+  const handleSignOut = async () => {
+    if (isDemoActive()) {
+      toast({ title: "Create a free account to save settings." });
       navigate("/auth");
-    };
+      return;
+    }
+    await signOutAll();
+    navigate("/auth");
+  };
 
   const handleExportData = async () => {
-    if (isDemoGuest()) {
+    if (isDemoActive()) {
       toast({ title: "Create a free account to export data." });
       navigate("/auth");
       return;
@@ -139,17 +139,17 @@ const Settings = () => {
     
     try {
       // Call backend exportData() function
-      const response = await fetch('/api/exportData', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${await uid}` }
+      const response = await fetch("/api/exportData", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await uid}` }
       });
       
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = `mybodyscan-data-${new Date().toISOString().split('T')[0]}.zip`;
+        a.download = `mybodyscan-data-${new Date().toISOString().split("T")[0]}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -162,7 +162,7 @@ const Settings = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (isDemoGuest()) {
+    if (isDemoActive()) {
       toast({ title: "Create a free account to manage account." });
       navigate("/auth");
       return;
@@ -170,9 +170,9 @@ const Settings = () => {
     
     try {
       // Call backend deleteAccount() function
-      const response = await fetch('/api/deleteAccount', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${await uid}` }
+      const response = await fetch("/api/deleteAccount", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await uid}` }
       });
       
       if (response.ok) {
@@ -196,7 +196,7 @@ const Settings = () => {
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
           <DemoBanner />
-          {isDemoGuest() && (
+          {isDemoActive() && (
             <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
           )}
           <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
