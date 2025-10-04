@@ -1,0 +1,106 @@
+import { onRequest } from "firebase-functions/v2/https";
+import { randomUUID } from "node:crypto";
+import { getFirestore, getStorage } from "../firebase.js";
+import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { isStaff } from "../claims.js";
+const db = getFirestore();
+const storage = getStorage();
+const UPLOAD_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
+const POSES = ["front", "back", "left", "right"];
+async function hasFounderBypass(uid) {
+    try {
+        const snap = await db.doc(`users/${uid}`).get();
+        if (!snap.exists)
+            return false;
+        const data = snap.data();
+        return Boolean(data?.meta?.founder);
+    }
+    catch (err) {
+        console.warn("scan_start_founder_lookup_error", { uid, message: err?.message });
+        return false;
+    }
+}
+async function hasAvailableCredits(uid) {
+    try {
+        const snap = await db.doc(`users/${uid}/private/credits`).get();
+        if (!snap.exists)
+            return false;
+        const data = snap.data();
+        const total = Number(data?.creditsSummary?.totalAvailable ?? 0);
+        return Number.isFinite(total) && total > 0;
+    }
+    catch (err) {
+        console.warn("scan_start_credit_lookup_error", { uid, message: err?.message });
+        return false;
+    }
+}
+async function createSignedUploadUrl(path, expires) {
+    const bucket = storage.bucket();
+    const file = bucket.file(path);
+    const [url] = await file.getSignedUrl({
+        version: "v4",
+        action: "write",
+        expires,
+        contentType: "image/jpeg",
+    });
+    return url;
+}
+function buildUploadPath(uid, scanId, pose) {
+    return `uploads/${uid}/${scanId}/${pose}.jpg`;
+}
+async function handleStart(req, res) {
+    await verifyAppCheckStrict(req);
+    const uid = await requireAuth(req);
+    const staffBypass = await isStaff(uid);
+    if (staffBypass) {
+        console.info("scan_start_staff_bypass", { uid });
+    }
+    const [founder, hasCredits] = staffBypass
+        ? [false, true]
+        : await Promise.all([
+            hasFounderBypass(uid),
+            hasAvailableCredits(uid),
+        ]);
+    if (!staffBypass && !founder && !hasCredits) {
+        console.warn("scan_start_no_credits", { uid });
+        res.status(402).json({ error: "no_credits" });
+        return;
+    }
+    const scanId = randomUUID();
+    const expiresAt = new Date(Date.now() + UPLOAD_EXPIRATION_MS);
+    const uploadUrls = {
+        front: "",
+        back: "",
+        left: "",
+        right: "",
+    };
+    try {
+        await Promise.all(POSES.map(async (pose) => {
+            const path = buildUploadPath(uid, scanId, pose);
+            const url = await createSignedUploadUrl(path, expiresAt);
+            uploadUrls[pose] = url;
+        }));
+    }
+    catch (err) {
+        console.error("scan_start_signed_url_error", { uid, scanId, message: err?.message });
+        res.status(500).json({ error: "signing_failed" });
+        return;
+    }
+    console.info("scan_start", { uid, scanId, expiresAt: expiresAt.toISOString() });
+    const payload = {
+        scanId,
+        uploadUrls,
+        expiresAt: expiresAt.toISOString(),
+    };
+    res.json(payload);
+}
+export const startScanSession = onRequest({ invoker: "public", concurrency: 20, region: "us-central1" }, async (req, res) => {
+    try {
+        await handleStart(req, res);
+    }
+    catch (err) {
+        console.error("scan_start_unhandled", { message: err?.message });
+        res.status(500).json({ error: "server_error" });
+    }
+});
+//# sourceMappingURL=start.js.map
