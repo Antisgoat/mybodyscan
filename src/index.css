@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Use CSS vars for global colors; avoid @apply at top level */
 @layer base {
   :root{
     --background: 0 0% 100%;
@@ -48,7 +47,8 @@
     --ring: 217.2 32.6% 17.5%;
   }
 
-  /* set defaults via CSS, not @apply */
-  *, ::before, ::after { border-color: hsl(var(--border)); }
+  /* Use raw CSS for base styling; DO NOT use @apply here */
+  html, body { height: 100%; }
   body { background-color: hsl(var(--background)); color: hsl(var(--foreground)); }
+  *, ::before, ::after { border-color: hsl(var(--border)); }
 }
