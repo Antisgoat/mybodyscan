@@ -2,14 +2,14 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
-import { fetchAppCheckToken } from "@/lib/appCheck";
+import { getAppCheckToken } from "@/appCheck";
 
 async function authedPost(path: string, body: Record<string, unknown>) {
   const user = auth.currentUser;
   if (!user) throw new Error("auth");
   const [token, appCheckToken] = await Promise.all([
     user.getIdToken(),
-    fetchAppCheckToken(),
+    getAppCheckToken(),
   ]);
   if (!appCheckToken) {
     const error: any = new Error("app_check_required");

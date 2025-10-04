@@ -1,5 +1,5 @@
 import { auth } from "@/lib/firebase";
-import { fetchAppCheckToken } from "@/lib/appCheck";
+import { getAppCheckToken } from "@/appCheck";
 
 export type PoseKey = "front" | "back" | "left" | "right";
 
@@ -47,7 +47,7 @@ async function authedRequest(path: string, init: RequestInit = {}): Promise<Resp
   }
   const [idToken, appCheckToken] = await Promise.all([
     user.getIdToken(),
-    fetchAppCheckToken(),
+    getAppCheckToken(),
   ]);
   if (!appCheckToken) {
     const error = new Error("app_check_unavailable");
