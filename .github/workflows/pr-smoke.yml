@@ -1,0 +1,30 @@
+name: PR Smoke
+
+on:
+  pull_request:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || npm i
+
+      - name: Build (non-blocking)
+        run: npx vite build || true
+
+      - name: Check CSP header contains required sources
+        run: node scripts/check-csp.mjs
+        env:
+          HOST_URL: https://mybodyscan-f3daf.web.app
+
+      - name: Smoke routes and headers (dry-run)
+        run: bash scripts/smoke.sh --dry-run --host-url https://mybodyscan-f3daf.web.app
