@@ -2,6 +2,8 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
+import { runOpenAIVisionScan } from "./providers/openaiVision.js";
+import { getVisionModel } from "./appConfig.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck.js";
 import { requireAuth } from "./http.js";
@@ -230,26 +232,72 @@ async function handleProcess(uid: string, scanId: string, overrideFiles?: string
   if (!snap.exists) {
     throw new HttpsError("not-found", "Scan not found");
   }
-  const data = snap.data() as Partial<ScanDocument>;
-  const files = overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
-  if (files.length !== 4) {
-    throw new HttpsError("invalid-argument", "expected_four_images");
+  const data = snap.data() as Partial<ScanDocument> & { results?: any; status?: string };
+
+  // Idempotent: return existing if complete
+  if (data?.status === "complete" && data?.results) {
+    return { scanId, status: "done", pipelineStatus: "completed", results: data.results };
   }
+
+  const files = overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
+  if (!files.length) {
+    throw new HttpsError("invalid-argument", "missing_image_files");
+  }
+
+  // Use the first image for vision estimation (photo-only)
+  const firstPath = files[0]!;
+  const bucket = storage.bucket();
+  const fileRef = bucket.file(firstPath);
+  const [exists] = await fileRef.exists();
+  if (!exists) {
+    throw new HttpsError("not-found", "image_missing");
+  }
+  const expires = new Date(Date.now() + 5 * 60 * 1000);
+  const [downloadUrl] = await fileRef.getSignedUrl({ version: "v4", action: "read", expires });
+
+  const profileSnap = await db.doc(`users/${uid}`).get().catch(() => null as any);
+  const heightCm: number | undefined = Number((profileSnap?.data() as any)?.height_cm) || undefined;
+  const weightKgFromProfile: number | undefined = Number((profileSnap?.data() as any)?.weight_kg) || undefined;
+
   await ref.set(
     { status: "processing", updatedAt: Timestamp.now(), files, fileCount: files.length },
     { merge: true }
   );
-  const result = await runScanProvider(uid, scanId, files);
-  const summary = buildSummary(result.metrics, result.usedFallback);
-  await completeScan(uid, scanId, result, summary);
-  return {
-    scanId,
-    status: "done",
-    pipelineStatus: "completed",
-    metrics: result.metrics,
-    usedFallback: result.usedFallback,
-    result: summary,
+
+  const vision = await runOpenAIVisionScan({
+    imageUrl: downloadUrl,
+    heightCm,
+    weightKg: weightKgFromProfile,
+    model: getVisionModel(),
+  });
+
+  // Compute BMI if missing and height/weight available
+  let bmi: number | null = vision.bmi;
+  const hMeters = heightCm ? heightCm / 100 : null;
+  const wKg = typeof vision.weight === "number" ? vision.weight : weightKgFromProfile ?? null;
+  if ((bmi == null || Number.isNaN(bmi)) && hMeters && wKg) {
+    const computed = wKg / (hMeters * hMeters);
+    bmi = Number((Math.max(10, Math.min(80, computed))).toFixed(1));
+  }
+
+  const results = {
+    bodyFatPercent: vision.bodyFatPercent,
+    bmi: bmi ?? null,
+    weight: wKg ?? null,
   };
+
+  await ref.set(
+    {
+      status: "complete",
+      completedAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      results,
+      reasoning: vision.reasoning || null,
+    },
+    { merge: true }
+  );
+
+  return { scanId, status: "done", pipelineStatus: "completed", results };
 }
 
 function respond(res: any, body: any, status = 200) {
