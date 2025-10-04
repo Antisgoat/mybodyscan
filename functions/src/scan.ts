@@ -2,6 +2,7 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
+import { analyzeBodyComposition } from "./providers/openaiVision.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck.js";
 import { requireAuth } from "./http.js";
@@ -152,56 +153,35 @@ interface ProviderResult {
   notes?: string[];
 }
 
-async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
+async function runScanProvider(_uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
   const fallback = defaultMetrics(scanId);
-  const replicateKey = process.env.REPLICATE_API_KEY;
-  if (!replicateKey) {
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
+  if (!Array.isArray(files) || files.length !== 4) {
+    return { metrics: fallback, usedFallback: true, notes: ["invalid_files"] };
   }
-  if (!files.length) {
-    return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
+
+  async function getSignedUrlForPath(path: string): Promise<string> {
+    const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+    if (path.startsWith("gs://")) {
+      const withoutScheme = path.replace(/^gs:\/\//, "");
+      const [bucketName, ...rest] = withoutScheme.split("/");
+      const objectPath = rest.join("/");
+      const file = getStorage().bucket(bucketName).file(objectPath);
+      const [url] = await file.getSignedUrl({ version: "v4", action: "read", expires: fiveMinutesFromNow });
+      return url;
+    }
+    const file = getStorage().bucket().file(path);
+    const [url] = await file.getSignedUrl({ version: "v4", action: "read", expires: fiveMinutesFromNow });
+    return url;
   }
+
   try {
-    const bucket = storage.bucket();
-    const imagePath = `gs://${bucket.name}/${files[0]}`;
-    const version = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
-    const createResp = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${replicateKey}`,
-      },
-      body: JSON.stringify({
-        version,
-        input: { image: imagePath },
-      }),
-    });
-    if (!createResp.ok) {
-      throw new Error(`replicate create failed: ${createResp.status}`);
-    }
-    let prediction: any = await createResp.json();
-    let status = prediction?.status;
-    let attempts = 0;
-    while (status && ["starting", "processing"].includes(status) && attempts < 10) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (!prediction?.urls?.get) break;
-      const poll = await fetch(prediction.urls.get, {
-        headers: { Authorization: `Bearer ${replicateKey}` },
-      });
-      if (!poll.ok) break;
-      prediction = await poll.json();
-      status = prediction?.status;
-      attempts += 1;
-    }
-    if (status !== "succeeded") {
-      throw new Error(`replicate status ${status || "unknown"}`);
-    }
-    const raw = prediction?.output || prediction?.results || prediction;
-    const metrics = normalizeProviderMetrics(raw) || fallback;
-    return { metrics, usedFallback: false, provider: "replicate", notes: ["replicate_success"] };
+    const urls = await Promise.all(files.map((p) => getSignedUrlForPath(p)));
+    const result = await analyzeBodyComposition(urls);
+    const metrics = { bodyFatPct: result.bfPercent } as Record<string, any>;
+    return { metrics, usedFallback: false, provider: "openai-vision", notes: ["openai_success"] };
   } catch (err) {
-    console.error("runScanProvider", err);
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_error"] };
+    console.error("runScanProvider_openai", (err as any)?.message || err);
+    return { metrics: fallback, usedFallback: true, notes: ["openai_error"] };
   }
 }
 
@@ -252,6 +232,19 @@ async function handleProcess(uid: string, scanId: string, overrideFiles?: string
     throw new HttpsError("not-found", "Scan not found");
   }
   const data = snap.data() as Partial<ScanDocument>;
+  // Idempotency: if already completed, return existing result
+  if (data.status === "completed" || data.legacyStatus === "done" || data.statusV1 === "done") {
+    const existingSummary = data.result as any;
+    const existingMetrics = (data.metrics as any) || {};
+    return {
+      scanId,
+      status: "done",
+      pipelineStatus: "completed",
+      metrics: existingMetrics,
+      usedFallback: Boolean(data.usedFallback),
+      result: existingSummary || buildSummary(existingMetrics, Boolean(data.usedFallback)),
+    };
+  }
   const files = overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
   if (files.length !== 4) {
     throw new HttpsError("invalid-argument", "expected_four_images");

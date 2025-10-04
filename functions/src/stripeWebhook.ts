@@ -39,7 +39,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       return;
     }
 
-    const stripe = new Stripe(stripeSecret, { apiVersion: "2024-06-20" });
+    const stripe = new Stripe(stripeSecret, { apiVersion: "2023-10-16" });
 
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {

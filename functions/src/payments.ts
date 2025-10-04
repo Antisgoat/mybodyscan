@@ -44,7 +44,7 @@ function buildStripe(plan?: PlanKey): Stripe {
     console.error("checkout_config_error", { plan: plan ?? null, reason: "missing_secret" });
     throw new CheckoutError("config");
   }
-  return new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
+  return new Stripe(STRIPE_SECRET, { apiVersion: "2023-10-16" });
 }
 
 function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {

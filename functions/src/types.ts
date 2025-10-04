@@ -9,6 +9,12 @@ export interface ScanDocument {
   files?: string[];
   metrics?: Record<string, any>;
   usedFallback?: boolean;
+  result?: {
+    bfPct: number;
+    range: { low: number; high: number };
+    confidence: "low" | "medium" | "high";
+    notes: string[];
+  };
 }
 
 export interface NutritionItemSnapshot {
