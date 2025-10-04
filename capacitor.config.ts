@@ -1,13 +1,9 @@
 import { CapacitorConfig } from "@capacitor/cli";
-
 const config: CapacitorConfig = {
-  appId: "app.lovable.cf8140baedcc42369166fb030db04005",
+  appId: "com.adlrlabs.mybodyscan",
   appName: "MyBodyScan",
   webDir: "dist",
-  server: {
-    url: "https://cf8140ba-edcc-4236-9166-fb030db04005.lovableproject.com?forceHideBadge=true",
-    cleartext: true,
-  },
+  bundledWebRuntime: false,
+  server: { cleartext: false, allowNavigation: ["mybodyscanapp.com","mybodyscan-f3daf.web.app"] }
 };
-
 export default config;
