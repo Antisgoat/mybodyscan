@@ -2,7 +2,7 @@ import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
-import { fetchAppCheckToken } from "@/lib/appCheck";
+import { getAppCheckToken } from "@/appCheck";
 
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
@@ -31,7 +31,7 @@ export async function nutritionSearch(
   const idTokenPromise: Promise<string | null> = headers.has("Authorization")
     ? Promise.resolve<string | null>(null)
     : Promise.resolve(auth.currentUser ? auth.currentUser.getIdToken() : null);
-  const [idToken, appCheckToken] = await Promise.all([idTokenPromise, fetchAppCheckToken()]);
+  const [idToken, appCheckToken] = await Promise.all([idTokenPromise, getAppCheckToken()]);
   if (!appCheckToken) {
     const error: any = new Error("app_check_unavailable");
     error.code = "app_check_unavailable";
@@ -68,7 +68,7 @@ export async function coachChat(payload: { message: string }) {
     error.code = "auth_required";
     throw error;
   }
-  const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), fetchAppCheckToken()]);
+  const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), getAppCheckToken()]);
   if (!appCheckToken) {
     const error: any = new Error("app_check_unavailable");
     error.code = "app_check_unavailable";
@@ -219,7 +219,7 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
       const fallbackUrl = nutritionFnUrl({ q: query });
       const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
         auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
-        fetchAppCheckToken(),
+        getAppCheckToken(),
       ]);
       if (!fallbackAppCheckToken) {
         const appCheckError: any = new Error("app_check_unavailable");
