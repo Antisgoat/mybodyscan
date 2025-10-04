@@ -72,6 +72,13 @@
         }
       },
       {
+        "source": "/api/nutrition/barcode",
+        "function": {
+          "functionId": "nutritionBarcode",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/scan/start",
         "function": {
           "functionId": "startScanSession",

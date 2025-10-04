@@ -44,9 +44,22 @@ export async function signOutToAuth(): Promise<void> {
 }
 
 // New helpers
-export function signInWithGoogle() {
+export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
-  return signInWithPopup(firebaseAuth, provider);
+  try {
+    return await signInWithPopup(firebaseAuth, provider);
+  } catch (err: any) {
+    const code = String(err?.code || "");
+    if (
+      code.includes("popup-blocked") ||
+      code.includes("popup-closed-by-user") ||
+      code.includes("operation-not-supported-in-this-environment")
+    ) {
+      await signInWithRedirect(firebaseAuth, provider);
+      return;
+    }
+    throw err;
+  }
 }
 
 type AppleAdditionalProfile = {

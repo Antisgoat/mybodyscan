@@ -17,6 +17,8 @@ import {
 import { auth } from "@/lib/firebase";
 import { enableDemo } from "@/lib/demoFlag";
 
+const APPLE_ENABLED = import.meta.env.VITE_APPLE_ENABLED === "true";
+
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
     <path d="M10.24 9.1c.01 2.16 1.86 2.88 1.88 2.89-.01.04-.3 1.03-1 2.03-.6.86-1.23 1.72-2.22 1.74-.97.02-1.28-.56-2.38-.56-1.1 0-1.44.54-2.35.58-.94.04-1.66-.93-2.27-1.79C.68 12.5-.2 10 0 7.66c.13-1.26.73-2.43 1.7-3.11.75-.51 1.67-.73 2.56-.6.6.12 1.1.36 1.48.56.38.2.68.37.88.36.18 0 .5-.18.88-.37.53-.28 1.13-.6 1.93-.6.01 0 .01 0 .02 0 .72.01 2.26.18 3.33 1.77-.09.06-1.98 1.15-1.93 3.43ZM7.3 1.62C7.9.88 8.97.33 9.88.32c.1.98-.29 1.96-.87 2.64C8.4 3.7 7.39 4.28 6.37 4.2c-.1-.96.4-1.98.93-2.58Z" fill="currentColor"/>
@@ -144,16 +146,18 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            <Button
-              variant="secondary"
-              onClick={onApple}
-              disabled={loading}
-              className="w-full h-11 inline-flex items-center justify-center gap-2"
-              aria-label="Continue with Apple"
-            >
-              <AppleIcon />
-              Continue with Apple
-            </Button>
+            {APPLE_ENABLED && (
+              <Button
+                variant="secondary"
+                onClick={onApple}
+                disabled={loading}
+                className="w-full h-11 inline-flex items-center justify-center gap-2"
+                aria-label="Continue with Apple"
+              >
+                <AppleIcon />
+                Continue with Apple
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={onGoogle}

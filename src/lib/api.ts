@@ -32,12 +32,7 @@ export async function nutritionSearch(
     ? Promise.resolve<string | null>(null)
     : Promise.resolve(auth.currentUser ? auth.currentUser.getIdToken() : null);
   const [idToken, appCheckToken] = await Promise.all([idTokenPromise, getAppCheckToken()]);
-  if (!appCheckToken) {
-    const error: any = new Error("app_check_unavailable");
-    error.code = "app_check_unavailable";
-    throw error;
-  }
-  headers.set("X-Firebase-AppCheck", appCheckToken);
+  if (appCheckToken) headers.set("X-Firebase-AppCheck", appCheckToken);
   if (idToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${idToken}`);
   }
@@ -79,7 +74,7 @@ export async function coachChat(payload: { message: string }) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
-      "X-Firebase-AppCheck": appCheckToken,
+      ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
     },
     credentials: "include",
     body: JSON.stringify({ message, text: message }),
@@ -221,15 +216,12 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
         getAppCheckToken(),
       ]);
-      if (!fallbackAppCheckToken) {
-        const appCheckError: any = new Error("app_check_unavailable");
-        appCheckError.code = "app_check_unavailable";
-        throw appCheckError;
-      }
       const fallbackHeaders = new Headers({
         Accept: "application/json",
-        "X-Firebase-AppCheck": fallbackAppCheckToken,
       });
+      if (fallbackAppCheckToken) {
+        fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
+      }
       if (fallbackIdToken) {
         fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
       }

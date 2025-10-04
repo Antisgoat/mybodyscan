@@ -120,7 +120,8 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           break;
         }
         default: {
-          console.warn("stripeWebhook", "Ignoring unsupported event", event.type);
+          // Defensive guard: ignore non-transactional events without crashing
+          console.warn("stripeWebhook_ignored_event", { type: event.type, id: event.id });
           break;
         }
       }

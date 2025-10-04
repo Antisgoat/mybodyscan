@@ -21,7 +21,7 @@ export default function Today() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const todayISO = new Date().toISOString().slice(0, 10);
-  const [mealTotals, setMealTotals] = useState<any>({ calories: 0 });
+  const [mealTotals, setMealTotals] = useState<any>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [workout, setWorkout] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
   useEffect(() => {
@@ -160,6 +160,9 @@ export default function Today() {
             </div>
             <div className="text-xs text-muted-foreground">
               {Math.max(0, 2200 - (mealTotals.calories || 0))} calories remaining
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Consumed • P {mealTotals.protein ?? 0}g · C {mealTotals.carbs ?? 0}g · F {mealTotals.fat ?? 0}g
             </div>
           </CardContent>
         </Card>

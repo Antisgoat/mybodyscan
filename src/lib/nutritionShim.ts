@@ -1,5 +1,7 @@
 import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
+import { auth } from "@/lib/firebase";
+import { getAppCheckToken } from "@/appCheck";
 import type {
   FoodItem,
   MacroBreakdown,
@@ -323,12 +325,22 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
 
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
   if (!code?.trim()) return null;
-  const response = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code.trim())}`);
-  if (!response) {
-    return null;
-  }
-  if (response.status === 404) {
-    return null;
+  // Prefer Hosting rewrite path
+  const [idToken, appCheckToken] = await Promise.all([
+    auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
+    getAppCheckToken(),
+  ]);
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  if (appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
+  let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+    method: "GET",
+    headers,
+  });
+  if (!response.ok && response.status !== 404) {
+    // Fallback to direct function URL if configured
+    const fallback = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code.trim())}`);
+    if (fallback) response = fallback;
   }
   if (!response.ok) {
     return null;

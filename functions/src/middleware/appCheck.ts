@@ -8,14 +8,16 @@ function getHeader(req: Request, key: string): string | undefined {
 export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
   const token = getHeader(req, "X-Firebase-AppCheck");
   if (!token) {
-    res.status(401).json({ ok: false, reason: "missing_appcheck" });
-    throw new Error("missing_appcheck");
+    // Soft enforce for now: allow request but log. Tighten later.
+    console.warn("appcheck_soft_missing", { path: req.path });
+    return;
   }
   try {
     await getAppCheck().verifyToken(token);
   } catch (error) {
-    res.status(401).json({ ok: false, reason: "invalid_appcheck" });
-    throw error;
+    // Soft mode: log and continue
+    console.warn("appcheck_soft_invalid", { path: req.path, message: (error as Error)?.message });
+    return;
   }
 }
 

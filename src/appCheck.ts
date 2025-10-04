@@ -15,15 +15,39 @@ function app() {
       });
 }
 
+function isDevOrDemo() {
+  if (import.meta.env.VITE_DEMO_MODE === "true") return true;
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname || "";
+  return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
+}
+
 export async function ensureAppCheck() {
   if (typeof window === "undefined") return null;
   if (_appCheck) return _appCheck;
-  const { initializeAppCheck, ReCaptchaV3Provider } = await import("firebase/app-check");
-  _appCheck = initializeAppCheck(app(), {
-    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY),
-    isTokenAutoRefreshEnabled: true,
-  });
-  return _appCheck;
+  const siteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined;
+  try {
+    const { initializeAppCheck, ReCaptchaV3Provider } = await import("firebase/app-check");
+    if (!siteKey) {
+      if (isDevOrDemo()) {
+        console.warn("AppCheck: site key missing; soft mode enabled (dev/demo)");
+        return null;
+      }
+      console.warn("AppCheck: site key missing; initialization skipped");
+      return null;
+    }
+    _appCheck = initializeAppCheck(app(), {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+    return _appCheck;
+  } catch (error) {
+    if (isDevOrDemo()) {
+      console.warn("AppCheck init failed; continuing in soft mode", error);
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function getAppCheckToken(forceRefresh = false) {
@@ -31,6 +55,21 @@ export async function getAppCheckToken(forceRefresh = false) {
   const { getToken } = await import("firebase/app-check");
   await ensureAppCheck();
   if (!_appCheck) return null;
-  const res = await getToken(_appCheck, forceRefresh);
-  return res.token;
+  try {
+    const res = await getToken(_appCheck, forceRefresh);
+    return res.token;
+  } catch (error) {
+    if (isDevOrDemo()) {
+      console.warn("AppCheck token unavailable; soft mode", error);
+      return null;
+    }
+    throw error;
+  }
+}
+
+// Alias for clarity in startup
+export const initAppCheck = ensureAppCheck;
+
+export function isAppCheckActive(): boolean {
+  return _appCheck != null;
 }

@@ -46,3 +46,6 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
+
+// Re-export App Check status flag for convenience
+export { isAppCheckActive } from "@/appCheck";

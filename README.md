@@ -72,9 +72,12 @@ To connect a domain, navigate to Project > Settings > Domains and click Connect 
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 
-## App Check
+## Runbook (envs, demo, App Check, rewrites)
 
-To harden client requests, this project can enable Firebase App Check with reCAPTCHA Enterprise. Set `VITE_APPCHECK_SITE_KEY` in your environment (see `.env.development`) to initialize App Check. After verifying legitimate clients, enforce App Check in the Firebase console. The `/api/nutrition/search` and `/api/coach/chat` endpoints now require a valid App Check token and will also expect a Firebase Auth ID token whenever user-protected data is requested.
+- VITE_RECAPTCHA_V3_SITE_KEY: site key for Firebase App Check (reCAPTCHA v3). If unset in dev/demo, App Check runs in soft mode and does not block.
+- VITE_DEMO_MODE: set to `true` to always enable demo. Demo also auto-enables on localhost/127.0.0.1/lovable hosts or with `?demo=1`.
+- SPA rewrites: `firebase.json` places API rewrites (e.g., `/api/nutrition/*`) before the final catch-all to `/index.html` to avoid 404s on deep links.
+- Nutrition endpoints: frontend uses only `/api/nutrition/search` and `/api/nutrition/barcode`.
 
 ## Environment variables
 
@@ -88,7 +91,9 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID`
 - `VITE_FUNCTIONS_BASE_URL`
-- `VITE_APPCHECK_SITE_KEY` *(required when deploying with enforced App Check)*
+- `VITE_RECAPTCHA_V3_SITE_KEY` *(App Check; soft in dev/demo if missing)*
+- `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
+- `VITE_APPLE_ENABLED` *(optional; gate Apple sign-in button)*
 
 Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
 
