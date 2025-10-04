@@ -1,13 +1,12 @@
-import { isDemoActive } from "./demoFlag";
+import { isDemo, isDemoActive, assertReadOnly } from "./demoFlag";
 
 export function assertNotDemoWrite() {
-  if (isDemoActive()) {
-    const err = new Error("Read-only demo mode");
-    (err as any).code = "demo/read-only";
-    throw err;
-  }
+  // Keep old behavior for callers, delegate to normalized guard
+  assertReadOnly("write");
 }
 
 export function disabledIfDemo(): { disabled: boolean; title?: string } {
-  return isDemoActive() ? { disabled: true, title: "Read-only demo mode" } : { disabled: false };
+  return (isDemo() || isDemoActive())
+    ? { disabled: true, title: "Read-only demo mode" }
+    : { disabled: false };
 }
