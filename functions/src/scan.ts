@@ -8,6 +8,7 @@ import { requireAuth } from "./http.js";
 import type { ScanDocument } from "./types.js";
 import { consumeOne, consumeCredit, addCredits } from "./credits.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { getScanProvider, getLeanLenseConfig } from "./appConfig.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -153,55 +154,33 @@ interface ProviderResult {
 }
 
 async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
+  const provider = getScanProvider();
   const fallback = defaultMetrics(scanId);
-  const replicateKey = process.env.REPLICATE_API_KEY;
-  if (!replicateKey) {
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
+  if (provider === "mock") {
+    return { metrics: fallback, usedFallback: false, provider: "mock", notes: ["mock_provider"] };
+  }
+  const { endpoint, secret } = getLeanLenseConfig();
+  if (!endpoint || !secret) {
+    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["leanlense_config_missing"] };
   }
   if (!files.length) {
-    return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
+    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["no_files"] };
   }
   try {
     const bucket = storage.bucket();
     const imagePath = `gs://${bucket.name}/${files[0]}`;
-    const version = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
-    const createResp = await fetch("https://api.replicate.com/v1/predictions", {
+    const resp = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${replicateKey}`,
-      },
-      body: JSON.stringify({
-        version,
-        input: { image: imagePath },
-      }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
+      body: JSON.stringify({ image: imagePath, uid, scanId }),
     });
-    if (!createResp.ok) {
-      throw new Error(`replicate create failed: ${createResp.status}`);
-    }
-    let prediction: any = await createResp.json();
-    let status = prediction?.status;
-    let attempts = 0;
-    while (status && ["starting", "processing"].includes(status) && attempts < 10) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (!prediction?.urls?.get) break;
-      const poll = await fetch(prediction.urls.get, {
-        headers: { Authorization: `Bearer ${replicateKey}` },
-      });
-      if (!poll.ok) break;
-      prediction = await poll.json();
-      status = prediction?.status;
-      attempts += 1;
-    }
-    if (status !== "succeeded") {
-      throw new Error(`replicate status ${status || "unknown"}`);
-    }
-    const raw = prediction?.output || prediction?.results || prediction;
-    const metrics = normalizeProviderMetrics(raw) || fallback;
-    return { metrics, usedFallback: false, provider: "replicate", notes: ["replicate_success"] };
+    if (!resp.ok) throw new Error(`leanlense_status_${resp.status}`);
+    const data = await resp.json();
+    const metrics = normalizeProviderMetrics(data) || fallback;
+    return { metrics, usedFallback: false, provider: "leanlense", notes: ["leanlense_success"] };
   } catch (err) {
     console.error("runScanProvider", err);
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_error"] };
+    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["leanlense_error"] };
   }
 }
 
@@ -237,7 +216,7 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult,
       updatedAt: now,
       metrics: result.metrics,
       usedFallback: result.usedFallback,
-      provider: result.provider || (result.usedFallback ? "fallback" : "replicate"),
+    provider: result.provider || (result.usedFallback ? "fallback" : getScanProvider()),
       notes: result.notes || [],
       result: summary,
     },

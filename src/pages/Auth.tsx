@@ -14,10 +14,11 @@ import {
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
+import { VITE_APPLE_ENABLED } from "@/lib/env";
 import { auth } from "@/lib/firebase";
 import { enableDemo } from "@/lib/demoFlag";
 
-const APPLE_ENABLED = import.meta.env.VITE_APPLE_ENABLED === "true";
+const APPLE_ENABLED = VITE_APPLE_ENABLED;
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>

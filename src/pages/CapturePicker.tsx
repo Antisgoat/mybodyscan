@@ -5,6 +5,7 @@ import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { VITE_SCAN_MODE } from "@/lib/env";
 
 const CapturePicker = () => {
   const navigate = useNavigate();
@@ -41,18 +42,22 @@ const CapturePicker = () => {
       />
       <h1 className="text-2xl font-semibold mb-4">Start a Scan</h1>
       <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Photos</CardTitle>
-          </CardHeader>
-          <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
-        </Card>
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Video</CardTitle>
-          </CardHeader>
-          <CardContent>{renderButton("Record Video", "/capture/video")}</CardContent>
-        </Card>
+        {(VITE_SCAN_MODE === "photos" || VITE_SCAN_MODE === "both") && (
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Photos</CardTitle>
+            </CardHeader>
+            <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
+          </Card>
+        )}
+        {(VITE_SCAN_MODE === "video" || VITE_SCAN_MODE === "both") && (
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Video</CardTitle>
+            </CardHeader>
+            <CardContent>{renderButton("Record Video", "/capture/video")}</CardContent>
+          </Card>
+        )}
       </div>
     </main>
   );

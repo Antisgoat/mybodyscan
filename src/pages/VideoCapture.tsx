@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
+import { VITE_SCAN_MODE } from "@/lib/env";
 import { consumeOneCredit } from "@/lib/payments";
 import { sanitizeFilename } from "@/lib/utils";
 
@@ -72,6 +73,23 @@ const VideoCapture = () => {
       setLoading(false);
     }
   };
+
+  if (VITE_SCAN_MODE === "photos") {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo title="Video disabled" description="Video capture is disabled in this deployment." />
+        <Card>
+          <CardHeader>
+            <CardTitle>Video capture disabled</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">This environment only allows photo-based scans.</p>
+            <Button className="mt-4" onClick={() => navigate("/capture/photos")}>Use Photo Capture</Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">

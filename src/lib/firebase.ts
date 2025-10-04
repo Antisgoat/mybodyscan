@@ -4,6 +4,15 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { FIREBASE_PUBLIC_CONFIG } from "@/config/firebase.public";
+import {
+  VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID,
+  VITE_FIREBASE_MEASUREMENT_ID,
+} from "@/lib/env";
 
 /**
  * Prefer Vite env vars when present; otherwise fall back to committed public config.
@@ -15,13 +24,13 @@ function env(name: string): string | undefined {
 
 function mergedConfig(): FirebaseOptions {
   const envConfig = {
-    apiKey: env("VITE_FIREBASE_API_KEY"),
-    authDomain: env("VITE_FIREBASE_AUTH_DOMAIN"),
-    projectId: env("VITE_FIREBASE_PROJECT_ID"),
-    storageBucket: env("VITE_FIREBASE_STORAGE_BUCKET"),
-    messagingSenderId: env("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-    appId: env("VITE_FIREBASE_APP_ID"),
-    measurementId: env("VITE_FIREBASE_MEASUREMENT_ID"),
+    apiKey: VITE_FIREBASE_API_KEY,
+    authDomain: VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: VITE_FIREBASE_PROJECT_ID,
+    storageBucket: VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: VITE_FIREBASE_APP_ID,
+    measurementId: VITE_FIREBASE_MEASUREMENT_ID,
   };
 
   // If apiKey (required) is missing, use the committed public config.

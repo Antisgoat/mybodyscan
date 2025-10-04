@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { APPCHECK_SITE_KEY } from "@/lib/env";
 
 let _appCheck: import("firebase/app-check").AppCheck | null = null;
 
@@ -25,7 +26,7 @@ function isDevOrDemo() {
 export async function ensureAppCheck() {
   if (typeof window === "undefined") return null;
   if (_appCheck) return _appCheck;
-  const siteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined;
+  const siteKey = APPCHECK_SITE_KEY as string | undefined;
   try {
     const { initializeAppCheck, ReCaptchaV3Provider } = await import("firebase/app-check");
     if (!siteKey) {

@@ -93,9 +93,9 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           const invoice = event.data.object as Stripe.Invoice;
           const uid = (invoice.metadata?.uid as string) || null;
           if (uid) {
-            const lines = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
-            const isMonthly = lines.some((line) => line.price?.recurring?.interval === "month");
-            const isAnnual = lines.some((line) => line.price?.recurring?.interval === "year");
+            const lines: Array<Stripe.InvoiceLineItem> = Array.isArray(invoice.lines?.data) ? (invoice.lines.data as Array<Stripe.InvoiceLineItem>) : [];
+            const isMonthly = lines.some((line: Stripe.InvoiceLineItem) => line.price?.recurring?.interval === "month");
+            const isAnnual = lines.some((line: Stripe.InvoiceLineItem) => line.price?.recurring?.interval === "year");
             if (isMonthly) {
               await addCredits(uid, 3, "Monthly subscription", 12);
             }

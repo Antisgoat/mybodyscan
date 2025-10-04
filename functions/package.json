@@ -6,7 +6,7 @@
   "main": "lib/index.js",
   "scripts": {
     "clean": "rimraf lib",
-    "build": "tsc --project ./tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "deploy:functions": "npm run build && firebase deploy --only functions --project mybodyscan-f3daf",
     "set:staff": "ts-node scripts/setStaffClaim.ts"
   },
