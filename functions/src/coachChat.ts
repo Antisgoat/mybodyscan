@@ -6,6 +6,7 @@ import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyAppCheckFromHeader } from "./appCheck.js";
 import { verifyRateLimit } from "./rateLimit.js";
+import { formatCoachReply } from "./coachUtils.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -175,16 +176,18 @@ async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<vo
     usedLLM = false;
   }
 
+  const reply = formatCoachReply(responseText);
+
   const record: ChatRecord = {
     text,
-    response: responseText,
+    response: reply,
     createdAt: Timestamp.now(),
     usedLLM,
   };
 
   await storeMessage(uid, record);
 
-  res.json({ response: responseText, usedLLM });
+  res.status(200).json({ reply, usedLLM });
 }
 
 export const coachChat = onRequest(
