@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { kcalFromMacros } from "./nutritionMath";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -62,7 +63,7 @@ function round(value: number, decimals = 0) {
 }
 
 export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, calories }: MealEntry) {
-  const kcal = round(protein * 4 + carbs * 4 + fat * 9 + alcohol * 7, 0);
+  const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
   if (typeof calories === "number" && Math.abs(calories - kcal) <= 5) {
     return { calories, reconciled: false, caloriesFromMacros: kcal, caloriesInput: calories };
   }
@@ -72,9 +73,10 @@ export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, 
 async function callFn(path: string, body?: any, method = "POST") {
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("auth");
+  const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;
   const r = await fetch(`${FUNCTIONS_URL}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}`, "x-tz-offset-mins": String(tzOffsetMins) },
     body: method === "POST" ? JSON.stringify(body || {}) : undefined,
   });
   if (!r.ok) throw new Error(await r.text());

@@ -17,6 +17,14 @@ export function gramsToOunces(grams?: number | null) {
   return round(grams / GRAMS_PER_OUNCE, 2);
 }
 
+export function kcalFromMacros(macros: { protein?: number | null; carbs?: number | null; fat?: number | null; alcohol?: number | null }): number {
+  const p = Number(macros.protein || 0);
+  const c = Number(macros.carbs || 0);
+  const f = Number(macros.fat || 0);
+  const a = Number(macros.alcohol || 0);
+  return Math.round(p * 4 + c * 4 + f * 9 + a * 7);
+}
+
 function normalizeUnit(unit: string | null | undefined) {
   if (!unit) return null;
   const clean = unit.toLowerCase();

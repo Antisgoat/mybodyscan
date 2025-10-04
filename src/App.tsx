@@ -569,7 +569,8 @@ const App = () => {
                 </React.Suspense>
               }
             />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Friendly not-found route and wildcard */}
+            <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
               </Routes>
                 </OnboardingRedirectMBS>

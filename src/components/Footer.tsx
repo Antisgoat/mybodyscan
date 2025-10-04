@@ -25,7 +25,7 @@ export default function Footer() {
   }, []);
 
   const buildLabel = build
-    ? `${build.sha} · ${new Date(build.builtAtISO).toLocaleString()}`
+    ? `${build.sha} · ${new Date(build.builtAtISO).toLocaleDateString()} ${new Date(build.builtAtISO).toLocaleTimeString()}`
     : null;
 
   return (

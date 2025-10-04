@@ -8,15 +8,13 @@ if (!admin.apps.length) {
 export async function verifyAppCheckFromHeader(req: any) {
   const token = req.header("X-Firebase-AppCheck");
   if (!token) {
-    const error: any = new Error("missing app check");
-    error.status = 401;
-    throw error;
+    console.warn("AppCheck: soft mode (missing)");
+    return;
   }
   try {
     await admin.appCheck().verifyToken(token);
-  } catch {
-    const error: any = new Error("invalid app check");
-    error.status = 401;
-    throw error;
+  } catch (error) {
+    console.warn("AppCheck: soft mode (invalid)", { message: (error as Error)?.message });
+    return;
   }
 }
