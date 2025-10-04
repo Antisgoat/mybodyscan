@@ -10,7 +10,7 @@ import { requireAuth } from "./http.js";
 import type { ScanDocument } from "./types.js";
 import { consumeOne, consumeCredit, addCredits } from "./credits.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { getScanProvider, getLeanLenseConfig } from "./appConfig.js";
+// All legacy provider code removed; OpenAI Vision only
 
 const db = getFirestore();
 const storage = getStorage();
@@ -148,83 +148,7 @@ async function queueScan(uid: string, scanId: string, files: string[]) {
   );
 }
 
-interface ProviderResult {
-  metrics: Record<string, any>;
-  usedFallback: boolean;
-  provider?: string;
-  notes?: string[];
-}
-
-async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
-  const provider = getScanProvider();
-  const fallback = defaultMetrics(scanId);
-  if (provider === "mock") {
-    return { metrics: fallback, usedFallback: false, provider: "mock", notes: ["mock_provider"] };
-  }
-  const { endpoint, secret } = getLeanLenseConfig();
-  if (!endpoint || !secret) {
-    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["leanlense_config_missing"] };
-  }
-  if (!files.length) {
-    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["no_files"] };
-  }
-  try {
-    const bucket = storage.bucket();
-    const imagePath = `gs://${bucket.name}/${files[0]}`;
-    const resp = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${secret}` },
-      body: JSON.stringify({ image: imagePath, uid, scanId }),
-    });
-    if (!resp.ok) throw new Error(`leanlense_status_${resp.status}`);
-    const data = await resp.json();
-    const metrics = normalizeProviderMetrics(data) || fallback;
-    return { metrics, usedFallback: false, provider: "leanlense", notes: ["leanlense_success"] };
-  } catch (err) {
-    console.error("runScanProvider", err);
-    return { metrics: fallback, usedFallback: true, provider: "leanlense", notes: ["leanlense_error"] };
-  }
-}
-
-function normalizeProviderMetrics(raw: any): Record<string, any> | null {
-  if (!raw) return null;
-  if (Array.isArray(raw)) {
-    const obj = raw.find((item) => typeof item === "object" && item !== null);
-    if (obj) return normalizeProviderMetrics(obj);
-  }
-  const source = typeof raw === "object" ? raw : {};
-  const bodyFat = source.body_fat ?? source.bodyFat ?? source.bodyFatPct ?? null;
-  const leanMass = source.lean_mass ?? source.leanMass ?? null;
-  const bmi = source.bmi ?? null;
-  if (bodyFat == null && leanMass == null && bmi == null) return null;
-  return {
-    bodyFatPct: typeof bodyFat === "number" ? Number(bodyFat.toFixed(1)) : bodyFat,
-    leanMassKg: typeof leanMass === "number" ? Number(leanMass.toFixed(1)) : leanMass,
-    bmi: typeof bmi === "number" ? Number(bmi.toFixed(1)) : bmi,
-    source: "replicate",
-  };
-}
-
-async function completeScan(uid: string, scanId: string, result: ProviderResult, summary: ScanSummary) {
-  const ref = db.doc(`users/${uid}/scans/${scanId}`);
-  const now = Timestamp.now();
-  await ref.set(
-    {
-      status: "completed",
-      legacyStatus: "done",
-      statusV1: "done",
-      statusLabels: FieldValue.arrayUnion("completed", "done"),
-      completedAt: now,
-      updatedAt: now,
-      metrics: result.metrics,
-      usedFallback: result.usedFallback,
-    provider: result.provider || (result.usedFallback ? "fallback" : getScanProvider()),
-      notes: result.notes || [],
-      result: summary,
-    },
-    { merge: true }
-  );
-}
+// Legacy provider support removed: OpenAI Vision is the sole provider now.
 
 async function handleProcess(uid: string, scanId: string, overrideFiles?: string[]) {
   const ref = db.doc(`users/${uid}/scans/${scanId}`);

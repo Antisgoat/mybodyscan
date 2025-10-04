@@ -17,9 +17,9 @@ export async function runOpenAIVisionScan(args: {
     throw new Error("openai_api_key_missing");
   }
 
-  const model = args.model || process.env.OPENAI_VISION_MODEL || "gpt-4o";
+  const model = args.model || process.env.OPENAI_VISION_MODEL || "o4-mini";
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), 25_000);
 
   try {
     // Structured output schema
@@ -55,41 +55,51 @@ export async function runOpenAIVisionScan(args: {
       .filter(Boolean)
       .join(" ");
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const makeRequest = async (format: any) =>
+      fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        input: [
-          { role: "system", content: [{ type: "text", text: systemPrompt }] },
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: taskText },
-              { type: "input_image", image_url: args.imageUrl },
-            ],
-          },
-        ],
-        response_format: { type: "json_schema", json_schema: jsonSchema },
-        max_output_tokens: 300,
-      }),
-    });
+        body: JSON.stringify({
+          model,
+          input: [
+            { role: "system", content: [{ type: "text", text: systemPrompt }] },
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: taskText },
+                { type: "input_image", image_url: args.imageUrl },
+              ],
+            },
+          ],
+          response_format: format,
+          max_output_tokens: 1200,
+        }),
+      });
 
+    // Attempt strict JSON schema first, then retry once with json_object
+    let response = await makeRequest({ type: "json_schema", json_schema: jsonSchema });
     if (!response.ok) {
       const errText = await safeText(response);
-      console.error("openai_vision_error", { status: response.status, body: errText?.slice?.(0, 500) });
-      throw new Error("vision_request_failed");
+      console.error("openai_vision_error", { component: "scan", functionName: "runOpenAIVisionScan", phase: "json_schema", status: response.status, body: errText?.slice?.(0, 500) });
+      // Retry with json_object
+      response = await makeRequest({ type: "json_object" });
     }
-    const data: any = await response.json().catch(() => ({}));
 
-    // Prefer structured output
-    const parsed: any = data?.output_parsed || tryParseJson(data?.output_text) || {};
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
 
-    const bodyFatPercent = sanitizeNumber(parsed?.bodyFatPercent, 0, 70);
+    // Prefer structured output; tolerate text JSON when present
+    const parsed: any = data?.output_parsed || tryParseJson(data?.output_text) || tryParseJson(data?.output) || {};
+
+    const bodyFatPercent = roundToHalf(clampNumber(parsed?.bodyFatPercent, 3, 70));
     const bmi = sanitizeNumber(parsed?.bmi, 8, 80);
     const weight = sanitizeNumber(parsed?.weight, 0, 600);
     const reasoning = typeof parsed?.reasoning === "string" ? parsed.reasoning.trim().slice(0, 400) : undefined;
@@ -97,14 +107,25 @@ export async function runOpenAIVisionScan(args: {
     return { bodyFatPercent, bmi, weight, reasoning };
   } catch (error) {
     if ((error as any)?.name === "AbortError") {
-      console.error("openai_vision_timeout");
+      console.error("openai_vision_timeout", { component: "scan", functionName: "runOpenAIVisionScan" });
     } else {
-      console.error("openai_vision_exception", { message: (error as Error)?.message });
+      console.error("openai_vision_exception", { component: "scan", functionName: "runOpenAIVisionScan", message: (error as Error)?.message, "@type": "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent" });
     }
     throw new Error("vision_unavailable");
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function clampNumber(value: unknown, min: number, max: number): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Math.max(min, Math.min(max, num));
+}
+
+function roundToHalf(value: number | null): number | null {
+  if (value == null) return null;
+  return Math.round(value * 2) / 2;
 }
 
 function sanitizeNumber(value: unknown, min: number, max: number): number | null {

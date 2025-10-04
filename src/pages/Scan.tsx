@@ -361,6 +361,7 @@ export default function Scan() {
                 <p className="text-sm text-muted-foreground">Range {result.result.low.toFixed(1)}% – {result.result.high.toFixed(1)}%</p>
               </div>
               <p className="text-sm text-muted-foreground">{result.result.notes}</p>
+              <p className="text-xs text-muted-foreground">These are estimates for wellness/fitness only and are not medical advice.</p>
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>This estimate is saved to your History automatically.</p>
                 {typeof result.creditsRemaining === "number" && (

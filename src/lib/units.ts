@@ -42,3 +42,27 @@ export function formatBmi(bmi?: number, digits = 1): string {
   // BMI is unitless; just format
   return bmi.toFixed(digits);
 }
+
+// Convenience wrappers per app decisions
+export function toMetric(heightIn?: number | null, weightLb?: number | null): { heightCm?: number; weightKg?: number } {
+  const heightCm = typeof heightIn === "number" && Number.isFinite(heightIn) ? heightIn * CM_PER_IN : undefined;
+  const weightKg = typeof weightLb === "number" && Number.isFinite(weightLb) ? weightLb * KG_PER_LB : undefined;
+  return { heightCm, weightKg };
+}
+
+export function toUS(heightCm?: number | null, weightKg?: number | null): { heightIn?: number; weightLb?: number } {
+  const heightIn = typeof heightCm === "number" && Number.isFinite(heightCm) ? heightCm / CM_PER_IN : undefined;
+  const weightLb = typeof weightKg === "number" && Number.isFinite(weightKg) ? weightKg / KG_PER_LB : undefined;
+  return { heightIn, weightLb };
+}
+
+export function formatWeight(kg?: number | null, digits = 0): string {
+  if (kg == null) return "—";
+  return `${kgToLb(kg).toFixed(digits)} lb`;
+}
+
+export function formatHeight(cm?: number | null): string {
+  if (cm == null) return "—";
+  const { ft, inches } = inToFtIn(cmToIn(cm));
+  return `${ft}′ ${inches}″`;
+}
