@@ -9,7 +9,7 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
-import { isDemoGuest } from "@/lib/demoFlag";
+import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
@@ -105,7 +105,7 @@ export default function Workouts() {
       setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
       setRatio(res.ratio);
       if (done) track("workout_mark_done", { exerciseId });
-      if (isDemoGuest()) toast({ title: "Sign up to save your progress." });
+      if (isDemoActive()) toast({ title: "Sign up to save your progress." });
     } catch (error: any) {
       if (error?.message === "demo-blocked") {
         toast({ title: "Create an account", description: "Demo mode cannot save workouts.", variant: "destructive" });

@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
-import { isDemoGuest } from "./demoFlag";
+import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
@@ -18,7 +18,7 @@ async function callFn(path: string, body?: any) {
 }
 
 export async function generateWorkoutPlan(prefs?: Record<string, any>) {
-  if (isDemoGuest()) {
+  if (isDemoActive()) {
     track("demo_block", { action: "workout_generate" });
     throw new Error("demo-blocked");
   }
@@ -26,7 +26,7 @@ export async function generateWorkoutPlan(prefs?: Record<string, any>) {
 }
 
 export async function getPlan() {
-  if (isDemoGuest()) {
+  if (isDemoActive()) {
     track("demo_block", { action: "workout_plan" });
     return null;
   }
@@ -39,7 +39,7 @@ export async function getPlan() {
 }
 
 export async function markExerciseDone(planId: string, dayIndex: number, exerciseId: string, done: boolean) {
-  if (isDemoGuest()) {
+  if (isDemoActive()) {
     track("demo_block", { action: "workout_done" });
     throw new Error("demo-blocked");
   }
@@ -47,7 +47,7 @@ export async function markExerciseDone(planId: string, dayIndex: number, exercis
 }
 
 export async function getWeeklyCompletion(planId: string) {
-  if (isDemoGuest()) {
+  if (isDemoActive()) {
     track("demo_block", { action: "workout_weekly" });
     return 0;
   }

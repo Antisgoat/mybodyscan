@@ -1,16 +1,18 @@
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
-import './styles/mbs.theme.css';
-import { killSW } from './lib/killSW';
-import ErrorBoundary from './components/ErrorBoundary';
-import { ensureAppCheck } from './appCheck';
+import { StrictMode } from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+import "./index.css";
+import { AppErrorBoundary } from "./app/AppErrorBoundary";
+import { ensureAppCheck } from "./appCheck";
+import { killSW } from "./lib/killSW";
 
 killSW();
-void ensureAppCheck();
+void ensureAppCheck().catch((e) => console.warn("AppCheck init skipped:", e));
 
-createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+  </StrictMode>
 );

@@ -1,7 +1,7 @@
-import { DEMO_MODE } from "@/env";
+import { isDemoActive } from "./demoFlag";
 
 export function assertNotDemoWrite() {
-  if (DEMO_MODE) {
+  if (isDemoActive()) {
     const err = new Error("Read-only demo mode");
     (err as any).code = "demo/read-only";
     throw err;
@@ -9,7 +9,7 @@ export function assertNotDemoWrite() {
 }
 
 export function disabledIfDemo(): { disabled: boolean; title?: string } {
-  return DEMO_MODE
+  return isDemoActive()
     ? { disabled: true, title: "Read-only demo (sign up to save changes)" }
     : { disabled: false };
 }

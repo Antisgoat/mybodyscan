@@ -1,7 +1,9 @@
 import { DEMO_MODE } from "@/env";
+import { isDemoActive } from "./demoFlag";
 
 export function isDemoMode(user: { uid?: string } | null, location: Location): boolean {
   if (DEMO_MODE) return true;
+  if (typeof window !== "undefined" && isDemoActive()) return true;
   if (!user && (location.pathname === "/welcome" || location.search.includes("demo=1"))) return true;
   return false;
 }
