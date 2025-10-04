@@ -34,3 +34,5 @@ functions/lib/
 *.njsproj
 *.sln
 *.sw?
+.firebase/
+functions/lib/

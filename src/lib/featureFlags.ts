@@ -1,3 +1,6 @@
+export const APP_CHECK_SOFT = true; // flip to false after 24h
+export const AUTO_PURGE_IMAGES_DAYS = 0; // 0 = off; consider 180 later
+
 export const APP_CHECK_SOFT = true; // flip to false after 24h healthy traffic
 export const AUTO_PURGE_IMAGES_DAYS = 0; // 0 = off; set to 180 later if desired
 
