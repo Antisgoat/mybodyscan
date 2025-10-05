@@ -162,6 +162,15 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
       snapshot.source === "Open Food Facts" || snapshot.source === "OFF"
         ? "Open Food Facts"
         : "USDA",
+    basePer100g: snapshot.per_100g
+      ? {
+          kcal: snapshot.per_100g.kcal ?? 0,
+          protein: snapshot.per_100g.protein_g ?? 0,
+          carbs: snapshot.per_100g.carbs_g ?? 0,
+          fat: snapshot.per_100g.fat_g ?? 0,
+        }
+      : { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+    servings: [{ id: "100g", label: "100 g", grams: 100, isDefault: true }],
     serving: {
       qty: snapshot.serving?.qty ?? null,
       unit: snapshot.serving?.unit ?? null,

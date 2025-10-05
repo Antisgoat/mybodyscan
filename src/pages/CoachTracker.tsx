@@ -127,7 +127,7 @@ const CoachTracker = () => {
   }, [uid]);
 
   const total = log.calories || 0;
-  const target = plan?.target_kcal || 0;
+  const target = plan?.calorieTarget || 0;
   const adjusted = offset ? target + (yesterday?.activeEnergyKcal || 0) : target;
 
   const progressPercent = target > 0 ? Math.min((total / adjusted) * 100, 100) : 0;
@@ -204,21 +204,21 @@ const CoachTracker = () => {
               <div className="text-lg font-semibold text-primary">{log.protein_g}g</div>
               <div className="text-xs text-muted-foreground">Protein</div>
               {plan && (
-                <div className="text-xs text-muted-foreground">Goal: {plan.protein_g}g</div>
+                <div className="text-xs text-muted-foreground">Goal: {plan.proteinFloor}g</div>
               )}
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-accent">{log.fat_g}g</div>
               <div className="text-xs text-muted-foreground">Fat</div>
               {plan && (
-                <div className="text-xs text-muted-foreground">Goal: {plan.fat_g}g</div>
+                <div className="text-xs text-muted-foreground">Goal: —g</div>
               )}
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-warning">{log.carbs_g}g</div>
               <div className="text-xs text-muted-foreground">Carbs</div>
               {plan && (
-                <div className="text-xs text-muted-foreground">Goal: {plan.carbs_g}g</div>
+                <div className="text-xs text-muted-foreground">Goal: —g</div>
               )}
             </div>
           </div>

@@ -62,18 +62,15 @@ export default function Nutrition() {
       <AppHeader />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">{t("nutrition.title", "Nutrition")}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Nutrition</h1>
           <p className="text-sm text-muted-foreground">
-            {t(
-              "nutrition.subtitle",
-              "Review your recent intake and manage logs from the Meals tab."
-            )}
+            Review your recent intake and manage logs from the Meals tab.
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>{t("nutrition.today", "Today's totals")}</CardTitle>
+            <CardTitle>Today's totals</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -84,19 +81,19 @@ export default function Nutrition() {
             ) : (
               <div className="space-y-1 text-sm text-foreground">
                 <div className="flex items-center justify-between">
-                  <span>{t("nutrition.calories", "Calories")}</span>
+                  <span>Calories</span>
                   <span>{Math.round(totals.calories || 0)} kcal</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>{t("nutrition.protein", "Protein")}</span>
+                  <span>Protein</span>
                   <span>{Math.round(totals.protein || 0)} g</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>{t("nutrition.carbs", "Carbs")}</span>
+                  <span>Carbs</span>
                   <span>{Math.round(totals.carbs || 0)} g</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>{t("nutrition.fat", "Fat")}</span>
+                  <span>Fat</span>
                   <span>{Math.round(totals.fat || 0)} g</span>
                 </div>
               </div>
@@ -106,7 +103,7 @@ export default function Nutrition() {
 
         <Card>
           <CardHeader>
-            <CardTitle>{t("nutrition.recent", "Last 7 days")}</CardTitle>
+            <CardTitle>Last 7 days</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
@@ -125,7 +122,7 @@ export default function Nutrition() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">{t("nutrition.none", "No nutrition logs yet.")}</p>
+              <p className="text-sm text-muted-foreground">No nutrition logs yet.</p>
             )}
           </CardContent>
         </Card>
@@ -139,17 +136,14 @@ export default function Nutrition() {
         <Card>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              {t(
-                "nutrition.cta",
-                "Log meals, barcode scans, and macros from the Meals tab to see them here."
-              )}
+              Log meals, barcode scans, and macros from the Meals tab to see them here.
             </p>
             <Button className="w-full" onClick={() => navigate("/meals")}> 
-              {t("nutrition.openMeals", "Go to Meals")}
+              Go to Meals
             </Button>
             {mostRecent && (
               <p className="text-xs text-muted-foreground">
-                {t("nutrition.latest", "Latest entry")}: {mostRecent.date} · {Math.round(mostRecent.totals.calories || 0)} kcal
+                Latest entry: {mostRecent.date} · {Math.round(mostRecent.totals.calories || 0)} kcal
               </p>
             )}
           </CardContent>

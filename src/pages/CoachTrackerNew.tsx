@@ -97,13 +97,13 @@ export default function CoachTrackerNew() {
           data.push({
             date: format(date, "MMM dd"),
             calories: snapshot.data()?.calories || 0,
-            target: plan?.target_kcal,
+            target: plan?.calorieTarget,
           });
         } catch (error) {
           data.push({
             date: format(date, "MMM dd"),
             calories: 0,
-            target: plan?.target_kcal,
+            target: plan?.calorieTarget,
           });
         }
       }
@@ -159,7 +159,7 @@ export default function CoachTrackerNew() {
     setMealDialogOpen(false);
   };
 
-  const targetCalories = plan?.target_kcal || 2000;
+  const targetCalories = plan?.calorieTarget || 2000;
   const remaining = Math.max(0, targetCalories - log.calories);
   const progressPercent = Math.min(100, (log.calories / targetCalories) * 100);
 
@@ -295,7 +295,7 @@ export default function CoachTrackerNew() {
                 <div className="text-sm text-muted-foreground">Protein</div>
                 {plan && (
                   <div className="text-xs text-muted-foreground">
-                    Target: {plan.protein_g}g
+                    Target: {plan.proteinFloor}g
                   </div>
                 )}
               </div>
@@ -304,7 +304,7 @@ export default function CoachTrackerNew() {
                 <div className="text-sm text-muted-foreground">Carbs</div>
                 {plan && (
                   <div className="text-xs text-muted-foreground">
-                    Target: {plan.carbs_g}g
+                    Target: —g
                   </div>
                 )}
               </div>
@@ -313,7 +313,7 @@ export default function CoachTrackerNew() {
                 <div className="text-sm text-muted-foreground">Fat</div>
                 {plan && (
                   <div className="text-xs text-muted-foreground">
-                    Target: {plan.fat_g}g
+                    Target: —g
                   </div>
                 )}
               </div>
@@ -368,7 +368,7 @@ export default function CoachTrackerNew() {
                   strokeWidth={2}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 0, r: 4 }}
                 />
-                {plan?.target_kcal && (
+                {plan?.calorieTarget && (
                   <Line 
                     type="monotone" 
                     dataKey="target" 

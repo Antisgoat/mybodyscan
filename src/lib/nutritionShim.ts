@@ -353,6 +353,6 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   return {
     ...normalized,
     brand: normalized.brand ?? null,
-    source: normalized.source === "OFF" ? "Open Food Facts" : normalized.source,
+    source: (normalized.source as any) === "OFF" ? "Open Food Facts" : normalized.source,
   };
 }

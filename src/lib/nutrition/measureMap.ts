@@ -87,6 +87,7 @@ function addServingOption(
   servings: ServingOption[],
   option: ServingOption,
   seen: Map<string, ServingOption>,
+  _isDefault?: boolean,
 ) {
   const gramsKey = round(option.grams, 3).toString();
   const key = `${option.label.toLowerCase()}-${gramsKey}`;
