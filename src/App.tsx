@@ -570,8 +570,8 @@ const App = () => {
               }
             />
             {/* Friendly not-found route and wildcard */}
-            <Route path="/not-found" element={<NotFound />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/not-found" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
                 </OnboardingRedirectMBS>
               </DemoModeProvider>
