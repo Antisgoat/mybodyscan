@@ -1,4 +1,4 @@
-const raw = (import.meta as any)?.env?.VITE_FUNCTIONS_BASE_URL ?? '';
+const raw = (import.meta as any)?.env?.VITE_FUNCTIONS_BASE_URL;
 /** Cloud Functions base URL without trailing slash. */
 export const FUNCTIONS_BASE: string = typeof raw === 'string' ? raw.replace(/\/+$/, '') : '';
 

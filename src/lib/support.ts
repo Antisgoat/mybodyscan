@@ -2,8 +2,10 @@ import { auth } from "@/lib/firebase";
 
 export function supportMailto(extra?: Record<string, string>) {
   const lines: string[] = [];
-  const version = (import.meta.env.VITE_APP_VERSION as string) || "0.0.0";
-  lines.push(`version=${version}`);
+  const version = import.meta.env.VITE_APP_VERSION as string | undefined;
+  if (version) {
+    lines.push(`version=${version}`);
+  }
 
   const user = auth.currentUser;
   if (user) {

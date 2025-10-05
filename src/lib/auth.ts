@@ -46,6 +46,7 @@ export async function signOutToAuth(): Promise<void> {
 // New helpers
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
   try {
     return await signInWithPopup(firebaseAuth, provider);
   } catch (err: any) {

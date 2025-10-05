@@ -9,6 +9,9 @@ import { demoToast } from "@/lib/demoToast";
 const CapturePicker = () => {
   const navigate = useNavigate();
   const demo = useDemoMode();
+  const mode = import.meta.env.VITE_SCAN_MODE;
+  const photosEnabled = !mode || mode === "photos" || mode === "both";
+  const videoEnabled = mode === "video" || mode === "both";
 
   const renderButton = (label: string, path: string) => {
     if (!demo) {
@@ -41,18 +44,22 @@ const CapturePicker = () => {
       />
       <h1 className="text-2xl font-semibold mb-4">Start a Scan</h1>
       <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Photos</CardTitle>
-          </CardHeader>
-          <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
-        </Card>
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Video</CardTitle>
-          </CardHeader>
-          <CardContent>{renderButton("Record Video", "/capture/video")}</CardContent>
-        </Card>
+        {photosEnabled && (
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Photos</CardTitle>
+            </CardHeader>
+            <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
+          </Card>
+        )}
+        {videoEnabled && (
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Video</CardTitle>
+            </CardHeader>
+            <CardContent>{renderButton("Record Video", "/capture/video")}</CardContent>
+          </Card>
+        )}
       </div>
     </main>
   );

@@ -3,6 +3,7 @@ import { auth, db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { getAppCheckToken } from "@/appCheck";
+import { fnUrl } from "./env";
 
 async function authedPost(path: string, body: Record<string, unknown>) {
   const user = auth.currentUser;
@@ -16,7 +17,11 @@ async function authedPost(path: string, body: Record<string, unknown>) {
     error.code = "app_check";
     throw error;
   }
-  const response = await fetch(path, {
+  const url = fnUrl(path);
+  if (!url) {
+    throw new Error("functions_base_unconfigured");
+  }
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -33,8 +38,16 @@ async function authedPost(path: string, body: Record<string, unknown>) {
 }
 
 export async function startScan() {
-  const data = await authedPost("/api/scan/start", {});
-  return data as { scanId: string; uploadPathPrefix: string; status?: string };
+  const mode = import.meta.env.VITE_SCAN_MODE;
+  if (mode && mode !== "photos") {
+    throw new Error("scan_mode_disabled");
+  }
+  const idempotencyKey =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const data = await authedPost("/scan/start", { idempotencyKey });
+  return data as { scanId: string; uploadPathPrefix: string; status?: string; creditsRemaining?: number | null; idempotencyKey?: string | null };
 }
 
 export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files: File[]) {
@@ -49,7 +62,7 @@ export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files
 }
 
 export async function submitScan(scanId: string, files: string[]) {
-  return authedPost("/api/scan/submit", { scanId, files }) as Promise<{ scanId: string; status?: string }>;
+  return authedPost("/scan/submit", { scanId, files }) as Promise<{ scanId: string; status?: string }>;
 }
 
 export async function runBodyScan(file: string) {

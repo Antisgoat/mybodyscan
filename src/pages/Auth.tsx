@@ -82,7 +82,7 @@ const Auth = () => {
 
   const onExplore = () => {
     enableDemo();
-    navigate("/app");
+    navigate("/demo");
   };
 
   return (

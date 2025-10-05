@@ -9,6 +9,10 @@ export interface ScanDocument {
   files?: string[];
   metrics?: Record<string, any>;
   usedFallback?: boolean;
+  idempotencyKey?: string | null;
+  creditReserved?: boolean;
+  creditsRemaining?: number | null;
+  statusLabels?: string[];
 }
 
 export interface NutritionItemSnapshot {

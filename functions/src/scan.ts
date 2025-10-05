@@ -30,12 +30,30 @@ function defaultMetrics(scanId: string) {
   };
 }
 
+function defaultWeight(scanId: string) {
+  const seed = scanId.charCodeAt(scanId.length - 1) || scanId.charCodeAt(0) || 42;
+  return Number((70 + (seed % 25) * 0.8).toFixed(1));
+}
+
 type ScanSummary = {
   bfPct: number;
   range: { low: number; high: number };
   confidence: "low" | "medium" | "high";
   notes: string[];
 };
+
+interface StartScanPayload {
+  idempotencyKey?: string | null;
+}
+
+function parseStartPayload(data: unknown): StartScanPayload {
+  if (!data || typeof data !== "object") return {};
+  const keyRaw = (data as any)?.idempotencyKey;
+  if (typeof keyRaw !== "string") return {};
+  const trimmed = keyRaw.trim();
+  if (!trimmed) return {};
+  return { idempotencyKey: trimmed.slice(0, 128) };
+}
 
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -87,6 +105,32 @@ async function isFounder(uid: string): Promise<boolean> {
   }
 }
 
+async function findScanByIdempotency(uid: string, key: string) {
+  if (!key) return null;
+  try {
+    const snapshot = await db
+      .collection(`users/${uid}/scans`)
+      .where("idempotencyKey", "==", key)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { id: doc.id, data: doc.data() as Partial<ScanDocument> };
+  } catch (error) {
+    console.warn("scan_idempotency_lookup_error", { uid, key, message: (error as any)?.message });
+    return null;
+  }
+}
+
+async function reserveScanCredit(uid: string): Promise<number> {
+  const result = await consumeCredit(uid);
+  if (!result.consumed) {
+    throw new HttpsError("failed-precondition", "no_credits");
+  }
+  console.info("scan_credit_reserved", { uid, remaining: result.remaining });
+  return result.remaining;
+}
+
 function sanitizeFileList(uid: string, scanId: string, files: unknown): string[] {
   if (!Array.isArray(files)) {
     throw new HttpsError("invalid-argument", "files_required");
@@ -105,24 +149,35 @@ function sanitizeFileList(uid: string, scanId: string, files: unknown): string[]
   return sanitized;
 }
 
-async function createScanSession(uid: string) {
+interface CreateScanOptions {
+  idempotencyKey?: string | null;
+  creditReserved?: boolean;
+  creditsRemaining?: number | null;
+}
+
+async function createScanSession(uid: string, options: CreateScanOptions = {}) {
   await enforceRateLimit({ uid, key: "scan_create", limit: 10, windowMs: 60 * 60 * 1000 });
   const ref = db.collection(`users/${uid}/scans`).doc();
   const now = Timestamp.now();
   const doc: ScanDocument = {
     createdAt: now,
     updatedAt: now,
-    status: "awaiting_upload",
-    legacyStatus: "awaiting_upload",
-    statusV1: "awaiting_upload",
+    status: "queued",
+    legacyStatus: "queued",
+    statusV1: "queued",
     files: [],
     usedFallback: false,
+    idempotencyKey: options.idempotencyKey ?? null,
+    creditReserved: Boolean(options.creditReserved),
+    creditsRemaining: options.creditsRemaining ?? null,
   };
-  await ref.set(doc);
+  await ref.set({ ...doc, statusLabels: ["queued"] });
   return {
     scanId: ref.id,
     uploadPathPrefix: buildUploadPrefix(uid, ref.id),
-    status: "awaiting_upload",
+    status: "queued" as const,
+    creditsRemaining: options.creditsRemaining ?? null,
+    idempotencyKey: options.idempotencyKey ?? null,
   };
 }
 
@@ -136,10 +191,11 @@ async function queueScan(uid: string, scanId: string, files: string[]) {
     {
       files,
       fileCount: files.length,
-      status: "queued",
-      legacyStatus: "queued",
-      statusV1: "queued",
+      status: "awaiting_processing",
+      legacyStatus: "awaiting_processing",
+      statusV1: "awaiting_processing",
       updatedAt: Timestamp.now(),
+      statusLabels: FieldValue.arrayUnion("awaiting_processing"),
     },
     { merge: true }
   );
@@ -152,76 +208,150 @@ interface ProviderResult {
   notes?: string[];
 }
 
-async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
-  const fallback = defaultMetrics(scanId);
-  const replicateKey = process.env.REPLICATE_API_KEY;
-  if (!replicateKey) {
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
-  }
-  if (!files.length) {
-    return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
-  }
-  try {
-    const bucket = storage.bucket();
-    const imagePath = `gs://${bucket.name}/${files[0]}`;
-    const version = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
-    const createResp = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${replicateKey}`,
-      },
-      body: JSON.stringify({
-        version,
-        input: { image: imagePath },
-      }),
-    });
-    if (!createResp.ok) {
-      throw new Error(`replicate create failed: ${createResp.status}`);
-    }
-    let prediction: any = await createResp.json();
-    let status = prediction?.status;
-    let attempts = 0;
-    while (status && ["starting", "processing"].includes(status) && attempts < 10) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (!prediction?.urls?.get) break;
-      const poll = await fetch(prediction.urls.get, {
-        headers: { Authorization: `Bearer ${replicateKey}` },
+async function generateSignedUrls(files: string[]): Promise<string[]> {
+  const bucket = storage.bucket();
+  const expires = new Date(Date.now() + 60 * 60 * 1000);
+  const urls = await Promise.all(
+    files.map(async (path) => {
+      const file = bucket.file(path);
+      const [url] = await file.getSignedUrl({
+        action: "read",
+        expires,
+        version: "v4",
       });
-      if (!poll.ok) break;
-      prediction = await poll.json();
-      status = prediction?.status;
-      attempts += 1;
-    }
-    if (status !== "succeeded") {
-      throw new Error(`replicate status ${status || "unknown"}`);
-    }
-    const raw = prediction?.output || prediction?.results || prediction;
-    const metrics = normalizeProviderMetrics(raw) || fallback;
-    return { metrics, usedFallback: false, provider: "replicate", notes: ["replicate_success"] };
-  } catch (err) {
-    console.error("runScanProvider", err);
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_error"] };
-  }
+      return url;
+    })
+  );
+  return urls;
 }
 
-function normalizeProviderMetrics(raw: any): Record<string, any> | null {
-  if (!raw) return null;
-  if (Array.isArray(raw)) {
-    const obj = raw.find((item) => typeof item === "object" && item !== null);
-    if (obj) return normalizeProviderMetrics(obj);
-  }
-  const source = typeof raw === "object" ? raw : {};
-  const bodyFat = source.body_fat ?? source.bodyFat ?? source.bodyFatPct ?? null;
-  const leanMass = source.lean_mass ?? source.leanMass ?? null;
-  const bmi = source.bmi ?? null;
-  if (bodyFat == null && leanMass == null && bmi == null) return null;
+function runMockScan(scanId: string): ProviderResult {
+  const fallback = defaultMetrics(scanId);
+  const weightKg = defaultWeight(scanId);
   return {
-    bodyFatPct: typeof bodyFat === "number" ? Number(bodyFat.toFixed(1)) : bodyFat,
-    leanMassKg: typeof leanMass === "number" ? Number(leanMass.toFixed(1)) : leanMass,
-    bmi: typeof bmi === "number" ? Number(bmi.toFixed(1)) : bmi,
-    source: "replicate",
+    metrics: {
+      bodyFatPct: fallback.bodyFatPct,
+      leanMassKg: fallback.leanMassKg,
+      BMI: Number(fallback.bmi.toFixed(1)),
+      bmi: fallback.bmi,
+      weightKg,
+      source: "mock",
+    },
+    usedFallback: true,
+    provider: "mock",
+    notes: ["mock_result"],
   };
+}
+
+async function runOpenAIVisionScan(signedImageUrls: string[]): Promise<ProviderResult> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return runMockScan("openai_missing_key");
+  }
+
+  const model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120000);
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Estimate body fat %, weight (kg), and BMI for this person based on the photos. Return JSON with keys: bfPercent, weightKg, BMI.",
+            },
+            ...signedImageUrls.map((url) => ({ type: "image_url", image_url: url })),
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+    }),
+    signal: controller.signal,
+  });
+  clearTimeout(timeout);
+
+  if (!response.ok) {
+    throw new Error(`openai_status_${response.status}`);
+  }
+
+  const payload = await response.json();
+  const choice = payload?.choices?.[0];
+  const messageContent = choice?.message?.content;
+  let text: string | null = null;
+  if (typeof messageContent === "string") {
+    text = messageContent;
+  } else if (Array.isArray(messageContent)) {
+    const textPart = messageContent.find((part: any) => typeof part === "string" || typeof part?.text === "string");
+    if (typeof textPart === "string") {
+      text = textPart;
+    } else if (textPart && typeof textPart.text === "string") {
+      text = textPart.text;
+    }
+  } else if (choice?.message?.tool_calls?.length) {
+    text = choice.message.tool_calls[0]?.function?.arguments ?? null;
+  }
+
+  if (!text) {
+    throw new Error("openai_empty_response");
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error("openai_invalid_json");
+  }
+
+  const rawBf = Number(parsed?.bfPercent ?? parsed?.bodyFatPct ?? parsed?.bodyFat);
+  const rawWeight = Number(parsed?.weightKg ?? parsed?.weight_kg ?? parsed?.weight);
+  const rawBmi = Number(parsed?.BMI ?? parsed?.bmi ?? parsed?.bodyMassIndex);
+
+  const bodyFatPct = Number(clamp(rawBf, 3, 70).toFixed(1));
+  const weightKg = Number.isFinite(rawWeight) ? Number(rawWeight.toFixed(1)) : undefined;
+  const BMI = Number.isFinite(rawBmi) ? Number(rawBmi.toFixed(1)) : undefined;
+
+  const metrics: Record<string, any> = {
+    bodyFatPct,
+  };
+  if (typeof weightKg === "number" && Number.isFinite(weightKg)) {
+    metrics.weightKg = weightKg;
+  }
+  if (typeof BMI === "number" && Number.isFinite(BMI)) {
+    metrics.BMI = BMI;
+  }
+
+  return {
+    metrics,
+    usedFallback: false,
+    provider: "openai-vision",
+    notes: ["openai_vision_success"],
+  };
+}
+
+async function selectScanProvider(
+  scanId: string,
+  signedUrls: string[],
+  preference: "openai" | "mock"
+): Promise<ProviderResult> {
+  if (preference === "openai") {
+    try {
+      return await runOpenAIVisionScan(signedUrls);
+    } catch (error) {
+      console.error("openai_scan_error", {
+        scanId,
+        message: (error as any)?.message,
+      });
+    }
+  }
+  return runMockScan(scanId);
 }
 
 async function completeScan(uid: string, scanId: string, result: ProviderResult, summary: ScanSummary) {
@@ -237,7 +367,7 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult,
       updatedAt: now,
       metrics: result.metrics,
       usedFallback: result.usedFallback,
-      provider: result.provider || (result.usedFallback ? "fallback" : "replicate"),
+      provider: result.provider || (result.usedFallback ? "mock" : "openai-vision"),
       notes: result.notes || [],
       result: summary,
     },
@@ -245,22 +375,50 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult,
   );
 }
 
-async function handleProcess(uid: string, scanId: string, overrideFiles?: string[]) {
+interface HandleProcessOptions {
+  overrideFiles?: string[];
+  provider?: "openai" | "mock";
+}
+
+async function handleProcess(uid: string, scanId: string, options: HandleProcessOptions = {}) {
   const ref = db.doc(`users/${uid}/scans/${scanId}`);
   const snap = await ref.get();
   if (!snap.exists) {
     throw new HttpsError("not-found", "Scan not found");
   }
   const data = snap.data() as Partial<ScanDocument>;
-  const files = overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
+  const files = options.overrideFiles ?? (Array.isArray(data.files) ? data.files : []);
   if (files.length !== 4) {
     throw new HttpsError("invalid-argument", "expected_four_images");
   }
   await ref.set(
-    { status: "processing", updatedAt: Timestamp.now(), files, fileCount: files.length },
+    {
+      status: "processing",
+      updatedAt: Timestamp.now(),
+      files,
+      fileCount: files.length,
+      statusLabels: FieldValue.arrayUnion("processing"),
+    },
     { merge: true }
   );
-  const result = await runScanProvider(uid, scanId, files);
+  const signedUrls = await generateSignedUrls(files);
+  const fallback = defaultMetrics(scanId);
+  const fallbackMetrics = {
+    bodyFatPct: fallback.bodyFatPct,
+    leanMassKg: fallback.leanMassKg,
+    BMI: Number(fallback.bmi.toFixed(1)),
+    bmi: fallback.bmi,
+    weightKg: defaultWeight(scanId),
+  };
+  const providerPreference = options.provider ?? (process.env.OPENAI_API_KEY ? "openai" : "mock");
+  const rawResult = await selectScanProvider(scanId, signedUrls, providerPreference);
+  const mergedMetrics = { ...fallbackMetrics, ...rawResult.metrics };
+  const result: ProviderResult = {
+    metrics: mergedMetrics,
+    usedFallback: rawResult.usedFallback,
+    provider: rawResult.provider,
+    notes: rawResult.notes,
+  };
   const summary = buildSummary(result.metrics, result.usedFallback);
   await completeScan(uid, scanId, result, summary);
   return {
@@ -280,20 +438,58 @@ function respond(res: any, body: any, status = 200) {
 async function handleStartRequest(req: ExpressRequest, res: ExpressResponse) {
   await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
-  const session = await createScanSession(uid);
+  const context = { auth: { uid } } as ScanCallableContext;
+  const session = await startScanHandler(req.body, context);
   respond(res, session);
 }
 
 export async function startScanHandler(
-  _data: unknown,
+  data: unknown,
   context: ScanCallableContext
 ) {
   const uid = context.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }
-  const session = await createScanSession(uid);
-  return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
+  const payload = parseStartPayload(data);
+  const idempotencyKey = payload.idempotencyKey ?? null;
+
+  if (idempotencyKey) {
+    const existing = await findScanByIdempotency(uid, idempotencyKey);
+    if (existing) {
+      return {
+        scanId: existing.id,
+        uploadPathPrefix: buildUploadPrefix(uid, existing.id),
+        status: existing.data.status ?? "queued",
+        creditsRemaining:
+          typeof existing.data.creditsRemaining === "number" ? existing.data.creditsRemaining : null,
+        idempotencyKey,
+      };
+    }
+  }
+
+  const founder = await isFounder(uid);
+  let creditsRemaining: number | null = null;
+  let creditReserved = false;
+
+  if (!founder) {
+    creditsRemaining = await reserveScanCredit(uid);
+    creditReserved = true;
+  }
+
+  const session = await createScanSession(uid, {
+    idempotencyKey,
+    creditReserved,
+    creditsRemaining,
+  });
+
+  return {
+    scanId: session.scanId,
+    uploadPathPrefix: session.uploadPathPrefix,
+    status: session.status,
+    creditsRemaining: session.creditsRemaining ?? creditsRemaining,
+    idempotencyKey,
+  };
 }
 
 export async function runBodyScanHandler(
@@ -346,25 +542,44 @@ export const submitScan = onRequest(
         throw new HttpsError("invalid-argument", "scanId required");
       }
 
+      const ref = db.doc(`users/${uid}/scans/${body.scanId}`);
       const files = sanitizeFileList(uid, body.scanId, body.files);
       const founder = await isFounder(uid);
       let creditRemaining: number | null = null;
       let creditConsumed = false;
 
-      if (!founder) {
+      const existing = await ref.get();
+      const existingData = existing.exists ? (existing.data() as Partial<ScanDocument>) : null;
+      if (existingData?.creditReserved) {
+        creditRemaining =
+          typeof existingData.creditsRemaining === "number" ? existingData.creditsRemaining : null;
+      }
+
+      if (!founder && !existingData?.creditReserved) {
         const creditResult = await consumeCredit(uid);
         if (!creditResult.consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
         }
         creditConsumed = true;
         creditRemaining = creditResult.remaining;
+        await ref.set(
+          {
+            creditReserved: true,
+            creditsRemaining: creditRemaining,
+            statusLabels: FieldValue.arrayUnion("credit_reserved"),
+          },
+          { merge: true }
+        );
       }
 
       await queueScan(uid, body.scanId, files);
 
       let result: Awaited<ReturnType<typeof handleProcess>>;
       try {
-        result = await handleProcess(uid, body.scanId, files);
+        result = await handleProcess(uid, body.scanId, {
+          overrideFiles: files,
+          provider: process.env.OPENAI_API_KEY ? "openai" : "mock",
+        });
       } catch (error) {
         if (creditConsumed) {
           await addCredits(uid, 1, "Scan auto-refund", 12).catch(() => undefined);
@@ -403,7 +618,9 @@ export const processQueuedScanHttp = onRequest(
       if (!scanId) {
         throw new HttpsError("invalid-argument", "scanId required");
       }
-      const result = await handleProcess(uid, scanId);
+      const result = await handleProcess(uid, scanId, {
+        provider: process.env.OPENAI_API_KEY ? "openai" : "mock",
+      });
       respond(res, result);
     } catch (err: any) {
       if (res.headersSent) {
