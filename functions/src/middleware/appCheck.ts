@@ -1,23 +1,47 @@
 import type { Request, Response } from "express";
+import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck } from "../firebase.js";
+
+const softEnforce = (process.env.APPCHECK_SOFT_ENFORCE ?? "true").toLowerCase() !== "false";
+
+function endpointFrom(req: Request): string {
+  return req.path || req.url || "unknown";
+}
+
+function logViolation(reason: string, req: Request, error?: unknown): void {
+  const uid = (req as any)?.authUid ?? null;
+  const context: Record<string, unknown> = {
+    reason,
+    endpoint: endpointFrom(req),
+    uid,
+  };
+  if (error instanceof Error) {
+    context.message = error.message;
+  }
+  console.warn("appcheck_violation", context);
+}
 
 function getHeader(req: Request, key: string): string | undefined {
   return req.get(key) ?? req.get(key.toLowerCase()) ?? undefined;
 }
 
-export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
+export async function requireAppCheckStrict(req: Request, _res: Response): Promise<void> {
   const token = getHeader(req, "X-Firebase-AppCheck");
   if (!token) {
-    // Soft enforce for now: allow request but log. Tighten later.
-    console.warn("appcheck_soft_missing", { path: req.path });
-    return;
+    logViolation("missing", req);
+    if (softEnforce) {
+      return;
+    }
+    throw new HttpsError("failed-precondition", "app_check_required");
   }
   try {
     await getAppCheck().verifyToken(token);
   } catch (error) {
-    // Soft mode: log and continue
-    console.warn("appcheck_soft_invalid", { path: req.path, message: (error as Error)?.message });
-    return;
+    logViolation("invalid", req, error);
+    if (softEnforce) {
+      return;
+    }
+    throw new HttpsError("failed-precondition", "app_check_invalid");
   }
 }
 
@@ -30,7 +54,7 @@ export async function softAppCheck(req: Request): Promise<boolean> {
     await getAppCheck().verifyToken(token);
     return true;
   } catch (error) {
-    console.warn("appcheck_soft_invalid", { message: (error as Error)?.message });
+    logViolation("soft_invalid", req, error);
     return false;
   }
 }

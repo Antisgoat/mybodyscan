@@ -2,13 +2,16 @@ import { auth, db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
-
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+import { fnUrl } from "./env";
 
 async function callFn(path: string, body?: any) {
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("auth");
-  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
+  const url = fnUrl(path.startsWith("/") ? path : `/${path}`);
+  if (!url) {
+    throw new Error("functions_base_unconfigured");
+  }
+  const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
     body: JSON.stringify(body || {}),

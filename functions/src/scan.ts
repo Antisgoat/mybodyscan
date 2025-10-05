@@ -37,6 +37,19 @@ type ScanSummary = {
   notes: string[];
 };
 
+interface StartScanPayload {
+  idempotencyKey?: string | null;
+}
+
+function parseStartPayload(data: unknown): StartScanPayload {
+  if (!data || typeof data !== "object") return {};
+  const keyRaw = (data as any)?.idempotencyKey;
+  if (typeof keyRaw !== "string") return {};
+  const trimmed = keyRaw.trim();
+  if (!trimmed) return {};
+  return { idempotencyKey: trimmed.slice(0, 128) };
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(value, min), max);
@@ -87,6 +100,32 @@ async function isFounder(uid: string): Promise<boolean> {
   }
 }
 
+async function findScanByIdempotency(uid: string, key: string) {
+  if (!key) return null;
+  try {
+    const snapshot = await db
+      .collection(`users/${uid}/scans`)
+      .where("idempotencyKey", "==", key)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { id: doc.id, data: doc.data() as Partial<ScanDocument> };
+  } catch (error) {
+    console.warn("scan_idempotency_lookup_error", { uid, key, message: (error as any)?.message });
+    return null;
+  }
+}
+
+async function reserveScanCredit(uid: string): Promise<number> {
+  const result = await consumeCredit(uid);
+  if (!result.consumed) {
+    throw new HttpsError("failed-precondition", "no_credits");
+  }
+  console.info("scan_credit_reserved", { uid, remaining: result.remaining });
+  return result.remaining;
+}
+
 function sanitizeFileList(uid: string, scanId: string, files: unknown): string[] {
   if (!Array.isArray(files)) {
     throw new HttpsError("invalid-argument", "files_required");
@@ -105,24 +144,35 @@ function sanitizeFileList(uid: string, scanId: string, files: unknown): string[]
   return sanitized;
 }
 
-async function createScanSession(uid: string) {
+interface CreateScanOptions {
+  idempotencyKey?: string | null;
+  creditReserved?: boolean;
+  creditsRemaining?: number | null;
+}
+
+async function createScanSession(uid: string, options: CreateScanOptions = {}) {
   await enforceRateLimit({ uid, key: "scan_create", limit: 10, windowMs: 60 * 60 * 1000 });
   const ref = db.collection(`users/${uid}/scans`).doc();
   const now = Timestamp.now();
   const doc: ScanDocument = {
     createdAt: now,
     updatedAt: now,
-    status: "awaiting_upload",
-    legacyStatus: "awaiting_upload",
-    statusV1: "awaiting_upload",
+    status: "queued",
+    legacyStatus: "queued",
+    statusV1: "queued",
     files: [],
     usedFallback: false,
+    idempotencyKey: options.idempotencyKey ?? null,
+    creditReserved: Boolean(options.creditReserved),
+    creditsRemaining: options.creditsRemaining ?? null,
   };
-  await ref.set(doc);
+  await ref.set({ ...doc, statusLabels: FieldValue.arrayUnion("queued") } as any);
   return {
     scanId: ref.id,
     uploadPathPrefix: buildUploadPrefix(uid, ref.id),
-    status: "awaiting_upload",
+    status: "queued" as const,
+    creditsRemaining: options.creditsRemaining ?? null,
+    idempotencyKey: options.idempotencyKey ?? null,
   };
 }
 
@@ -136,10 +186,11 @@ async function queueScan(uid: string, scanId: string, files: string[]) {
     {
       files,
       fileCount: files.length,
-      status: "queued",
-      legacyStatus: "queued",
-      statusV1: "queued",
+      status: "awaiting_processing",
+      legacyStatus: "awaiting_processing",
+      statusV1: "awaiting_processing",
       updatedAt: Timestamp.now(),
+      statusLabels: FieldValue.arrayUnion("awaiting_processing"),
     },
     { merge: true }
   );
@@ -154,12 +205,62 @@ interface ProviderResult {
 
 async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
   const fallback = defaultMetrics(scanId);
+  const leanlenseKey = process.env.LEANLENSE_API_KEY;
+  const leanlenseEndpoint = process.env.LEANLENSE_API_ENDPOINT || process.env.LEANLENSE_ENDPOINT;
+  if (leanlenseKey && leanlenseEndpoint) {
+    if (!files.length) {
+      console.warn("leanlense_no_files", { uid, scanId });
+    } else {
+      try {
+        const bucket = storage.bucket();
+        const primary = files[0];
+        const [buffer] = await bucket.file(primary).download();
+        const form = new FormData();
+        form.append("image", new Blob([buffer]), "scan.jpg");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+        const response = await fetch(leanlenseEndpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${leanlenseKey}` },
+          body: form,
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!response.ok) {
+          throw new Error(`leanlense_status_${response.status}`);
+        }
+        const json = await response.json();
+        const metrics = {
+          bodyFatPct: Number(json?.bfPercent ?? json?.bodyFat ?? json?.body_fat ?? fallback.bodyFatPct),
+          bmi: Number(json?.BMI ?? json?.bmi ?? fallback.bmi),
+          weightKg: Number(json?.weightKg ?? json?.weight_kg ?? json?.weight ?? NaN),
+        };
+        if (!Number.isFinite(metrics.weightKg)) {
+          delete (metrics as any).weightKg;
+        }
+        return {
+          metrics: { ...fallback, ...metrics, source: "leanlense" },
+          usedFallback: false,
+          provider: "leanlense",
+          notes: ["leanlense_success"],
+        };
+      } catch (error) {
+        console.error("leanlense_error", { uid, scanId, message: (error as any)?.message });
+      }
+    }
+  }
   const replicateKey = process.env.REPLICATE_API_KEY;
   if (!replicateKey) {
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
+    const mockWeight = Number((70 + (scanId.charCodeAt(0) % 25) * 0.8).toFixed(1));
+    return {
+      metrics: { ...fallback, weightKg: mockWeight, source: "mock" },
+      usedFallback: true,
+      provider: "mock",
+      notes: ["leanlense_unavailable", "mock_result"],
+    };
   }
   if (!files.length) {
-    return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
+    return { metrics: fallback, usedFallback: true, provider: "fallback", notes: ["no_files"] };
   }
   try {
     const bucket = storage.bucket();
@@ -257,7 +358,13 @@ async function handleProcess(uid: string, scanId: string, overrideFiles?: string
     throw new HttpsError("invalid-argument", "expected_four_images");
   }
   await ref.set(
-    { status: "processing", updatedAt: Timestamp.now(), files, fileCount: files.length },
+    {
+      status: "processing",
+      updatedAt: Timestamp.now(),
+      files,
+      fileCount: files.length,
+      statusLabels: FieldValue.arrayUnion("processing"),
+    },
     { merge: true }
   );
   const result = await runScanProvider(uid, scanId, files);
@@ -280,20 +387,58 @@ function respond(res: any, body: any, status = 200) {
 async function handleStartRequest(req: ExpressRequest, res: ExpressResponse) {
   await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
-  const session = await createScanSession(uid);
+  const context = { auth: { uid } } as ScanCallableContext;
+  const session = await startScanHandler(req.body, context);
   respond(res, session);
 }
 
 export async function startScanHandler(
-  _data: unknown,
+  data: unknown,
   context: ScanCallableContext
 ) {
   const uid = context.auth?.uid;
   if (!uid) {
     throw new HttpsError("unauthenticated", "Login required");
   }
-  const session = await createScanSession(uid);
-  return { scanId: session.scanId, uploadPathPrefix: session.uploadPathPrefix };
+  const payload = parseStartPayload(data);
+  const idempotencyKey = payload.idempotencyKey ?? null;
+
+  if (idempotencyKey) {
+    const existing = await findScanByIdempotency(uid, idempotencyKey);
+    if (existing) {
+      return {
+        scanId: existing.id,
+        uploadPathPrefix: buildUploadPrefix(uid, existing.id),
+        status: existing.data.status ?? "queued",
+        creditsRemaining:
+          typeof existing.data.creditsRemaining === "number" ? existing.data.creditsRemaining : null,
+        idempotencyKey,
+      };
+    }
+  }
+
+  const founder = await isFounder(uid);
+  let creditsRemaining: number | null = null;
+  let creditReserved = false;
+
+  if (!founder) {
+    creditsRemaining = await reserveScanCredit(uid);
+    creditReserved = true;
+  }
+
+  const session = await createScanSession(uid, {
+    idempotencyKey,
+    creditReserved,
+    creditsRemaining,
+  });
+
+  return {
+    scanId: session.scanId,
+    uploadPathPrefix: session.uploadPathPrefix,
+    status: session.status,
+    creditsRemaining: session.creditsRemaining ?? creditsRemaining,
+    idempotencyKey,
+  };
 }
 
 export async function runBodyScanHandler(
@@ -346,18 +491,34 @@ export const submitScan = onRequest(
         throw new HttpsError("invalid-argument", "scanId required");
       }
 
+      const ref = db.doc(`users/${uid}/scans/${body.scanId}`);
       const files = sanitizeFileList(uid, body.scanId, body.files);
       const founder = await isFounder(uid);
       let creditRemaining: number | null = null;
       let creditConsumed = false;
 
-      if (!founder) {
+      const existing = await ref.get();
+      const existingData = existing.exists ? (existing.data() as Partial<ScanDocument>) : null;
+      if (existingData?.creditReserved) {
+        creditRemaining =
+          typeof existingData.creditsRemaining === "number" ? existingData.creditsRemaining : null;
+      }
+
+      if (!founder && !existingData?.creditReserved) {
         const creditResult = await consumeCredit(uid);
         if (!creditResult.consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
         }
         creditConsumed = true;
         creditRemaining = creditResult.remaining;
+        await ref.set(
+          {
+            creditReserved: true,
+            creditsRemaining: creditRemaining,
+            statusLabels: FieldValue.arrayUnion("credit_reserved"),
+          },
+          { merge: true }
+        );
       }
 
       await queueScan(uid, body.scanId, files);

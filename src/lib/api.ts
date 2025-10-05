@@ -5,7 +5,10 @@ import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
 
 export function nutritionFnUrl(params?: Record<string, string>) {
-  const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
+  const base = fnUrl("/nutritionSearch");
+  if (!base) {
+    return "";
+  }
   const url = new URL(base);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -212,6 +215,9 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         throw error;
       }
       const fallbackUrl = nutritionFnUrl({ q: query });
+      if (!fallbackUrl) {
+        throw new Error("functions_base_unconfigured");
+      }
       const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
         auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
         getAppCheckToken(),
@@ -270,13 +276,26 @@ export async function startScan(params?: Record<string, unknown>) {
   if (!token) {
     throw new Error("Authentication required");
   }
-  const response = await fetch("/api/scan/start", {
+  const url = fnUrl("/scan/start");
+  if (!url) {
+    throw new Error("functions_base_unconfigured");
+  }
+  const appCheckToken = await getAppCheckToken();
+  const idempotencyKey =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  if (appCheckToken) {
+    headers["X-Firebase-AppCheck"] = appCheckToken;
+  }
+  const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(params ?? {}),
+    headers,
+    body: JSON.stringify({ ...(params ?? {}), idempotencyKey }),
   });
   if (!response.ok) {
     const text = await response.text();

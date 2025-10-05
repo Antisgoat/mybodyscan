@@ -2,6 +2,12 @@ import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
 
+declare module "express-serve-static-core" {
+  interface Request {
+    authUid?: string;
+  }
+}
+
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;
 }
@@ -19,6 +25,7 @@ export async function requireAuth(req: Request): Promise<string> {
   }
   try {
     const decoded = await getAuth().verifyIdToken(match[1]);
+    req.authUid = decoded.uid;
     return decoded.uid;
   } catch (err) {
     console.warn("auth_invalid_token", { path: req.path || req.url, message: (err as any)?.message });

@@ -1,7 +1,6 @@
 import { auth } from "./firebase";
 import { kcalFromMacros } from "./nutritionMath";
-
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+import { fnUrl } from "./env";
 
 export interface MealServingSelection {
   qty?: number;
@@ -74,7 +73,11 @@ async function callFn(path: string, body?: any, method = "POST") {
   const t = await auth.currentUser?.getIdToken();
   if (!t) throw new Error("auth");
   const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;
-  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
+  const url = fnUrl(path.startsWith("/") ? path : `/${path}`);
+  if (!url) {
+    throw new Error("functions_base_unconfigured");
+  }
+  const r = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}`, "x-tz-offset-mins": String(tzOffsetMins) },
     body: method === "POST" ? JSON.stringify(body || {}) : undefined,
