@@ -5,25 +5,25 @@
 @layer base {
   :root {
     /* Soft blue theme tokens (light) */
-    --background: 210 40% 98%;
+    --background: 218 100% 98%;
     --foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 216 100% 95%;
+    --muted-foreground: 215 15% 47%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 47.4% 11.2%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --primary: 213 94% 35%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --border: 214 100% 91%;
+    --input: 214 100% 91%;
+    --primary: 214 100% 61%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 100% 95%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --accent: 210 80% 92%;
+    --accent: 214 100% 91%;
     --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 215 20% 65%;
+    --destructive: 358 75% 59%;
+    --destructive-foreground: 0 0% 100%;
+    --ring: 214 100% 61%;
     --radius: 0.5rem;
   }
   .dark {

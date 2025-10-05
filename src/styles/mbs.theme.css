@@ -1,16 +1,16 @@
 :root {
-  --mbs-bg: #ffffff;
-  --mbs-text: #0F172A;     /* slate-900 */
-  --mbs-muted: #64748B;    /* slate-500/600 */
-  --mbs-brand: #3B82F6;    /* blue-500 */
-  --mbs-brand-600: #2563EB;/* blue-600 */
+  --mbs-bg: #F7FAFF;
+  --mbs-text: #0F172A;
+  --mbs-muted: #66758A;
+  --mbs-brand: #3A8DFF;
+  --mbs-brand-600: #3A8DFF;
   --mbs-radius: 16px;
   --mbs-gap: 24px;
 }
 
 .mbs-card { 
-  background: var(--mbs-bg); 
-  border: 1px solid #E2E8F0; 
+  background: #ffffff; 
+  border: 1px solid #CFE4FF; 
   border-radius: var(--mbs-radius); 
 }
 
@@ -31,19 +31,19 @@
 
 .mbs-btn-primary { 
   color: #fff; 
-  background: var(--mbs-brand-600); 
+  background: var(--mbs-brand); 
 }
 
 .mbs-btn-primary:hover { 
-  background: #1D4ED8; 
+  background: #2B7DE8; 
 }
 
 .mbs-btn-ghost { 
   color: var(--mbs-text); 
   background: #fff; 
-  border: 1px solid #E2E8F0; 
+  border: 1px solid #CFE4FF; 
 }
 
 .mbs-btn-ghost:hover {
-  background: #F8FAFC;
+  background: #E6F0FF;
 }
