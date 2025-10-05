@@ -118,7 +118,8 @@ async function createScanSession(uid: string) {
     files: [],
     usedFallback: false,
   };
-  await ref.set(doc);
+  // Avoid arrayUnion sentinel on first write; set base doc only
+  await ref.set({ ...doc, statusLabels: ["queued"] }, { merge: false });
   return {
     scanId: ref.id,
     uploadPathPrefix: buildUploadPrefix(uid, ref.id),
@@ -140,6 +141,7 @@ async function queueScan(uid: string, scanId: string, files: string[]) {
       legacyStatus: "queued",
       statusV1: "queued",
       updatedAt: Timestamp.now(),
+      statusLabels: FieldValue.arrayUnion("queued"),
     },
     { merge: true }
   );
@@ -154,54 +156,101 @@ interface ProviderResult {
 
 async function runScanProvider(uid: string, scanId: string, files: string[]): Promise<ProviderResult> {
   const fallback = defaultMetrics(scanId);
-  const replicateKey = process.env.REPLICATE_API_KEY;
-  if (!replicateKey) {
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_key_missing"] };
-  }
   if (!files.length) {
     return { metrics: fallback, usedFallback: true, notes: ["no_files"] };
   }
+  // Generate signed URLs for each file and call OpenAI Vision via fetch.
   try {
     const bucket = storage.bucket();
-    const imagePath = `gs://${bucket.name}/${files[0]}`;
-    const version = process.env.REPLICATE_MODEL || "cjwbw/ultralytics-pose:9d045f";
-    const createResp = await fetch("https://api.replicate.com/v1/predictions", {
+    const expires = new Date(Date.now() + 5 * 60 * 1000);
+    const signedUrls: string[] = [];
+    for (const path of files.slice(0, 4)) {
+      const [url] = await bucket.file(path).getSignedUrl({ version: "v4", action: "read", expires });
+      signedUrls.push(url);
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return { metrics: fallback, usedFallback: true, provider: "openai-vision", notes: ["openai_key_missing"] };
+    }
+
+    const model = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+    const prompt = [
+      "Extract body composition metrics from photos.",
+      'Return compact JSON: {"bfPercent": number, "weightKg": number|null, "BMI": number|null}',
+      "Do not include markdown or commentary."
+    ].join("\n");
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${replicateKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        version,
-        input: { image: imagePath },
+        model,
+        temperature: 0.2,
+        max_tokens: 200,
+        messages: [
+          { role: "system", content: "You are a vision assistant for body composition." },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              ...signedUrls.map((url) => ({ type: "image_url", image_url: { url, detail: "high" } })),
+            ],
+          },
+        ],
       }),
     });
-    if (!createResp.ok) {
-      throw new Error(`replicate create failed: ${createResp.status}`);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("openai_vision_error", { status: response.status, body: text.slice(0, 400) });
+      return { metrics: fallback, usedFallback: true, provider: "openai-vision", notes: ["openai_error"] };
     }
-    let prediction: any = await createResp.json();
-    let status = prediction?.status;
-    let attempts = 0;
-    while (status && ["starting", "processing"].includes(status) && attempts < 10) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (!prediction?.urls?.get) break;
-      const poll = await fetch(prediction.urls.get, {
-        headers: { Authorization: `Bearer ${replicateKey}` },
-      });
-      if (!poll.ok) break;
-      prediction = await poll.json();
-      status = prediction?.status;
-      attempts += 1;
+    const data = await response.json();
+    const content: string | undefined = data?.choices?.[0]?.message?.content;
+    let usedFallback = false;
+    let bodyFatPct = Number(fallback.bodyFatPct);
+    let weightKg: number | null = null;
+    let bmi: number | null = null;
+    if (content) {
+      try {
+        const jsonText = content.trim().replace(/^```json\n?|```$/g, "");
+        const parsed = JSON.parse(jsonText);
+        const bf = Number(parsed?.bfPercent);
+        const weight = parsed?.weightKg != null ? Number(parsed.weightKg) : null;
+        const bmiRaw = parsed?.BMI != null ? Number(parsed.BMI) : null;
+        if (Number.isFinite(bf)) {
+          bodyFatPct = Math.max(3, Math.min(70, Number(bf.toFixed(1))));
+        } else {
+          usedFallback = true;
+        }
+        if (weight != null && Number.isFinite(weight)) {
+          weightKg = Number(weight.toFixed(1));
+        }
+        if (bmiRaw != null && Number.isFinite(bmiRaw)) {
+          bmi = Number(bmiRaw.toFixed(1));
+        }
+      } catch (e) {
+        console.warn("openai_parse_error", { message: (e as any)?.message });
+        usedFallback = true;
+      }
+    } else {
+      usedFallback = true;
     }
-    if (status !== "succeeded") {
-      throw new Error(`replicate status ${status || "unknown"}`);
-    }
-    const raw = prediction?.output || prediction?.results || prediction;
-    const metrics = normalizeProviderMetrics(raw) || fallback;
-    return { metrics, usedFallback: false, provider: "replicate", notes: ["replicate_success"] };
+
+    const metrics = {
+      bodyFatPct,
+      ...(weightKg != null ? { weightKg } : {}),
+      ...(bmi != null ? { bmi } : {}),
+      method: "photo",
+    };
+    return { metrics, usedFallback, provider: "openai-vision", notes: ["openai_success"] };
   } catch (err) {
-    console.error("runScanProvider", err);
-    return { metrics: fallback, usedFallback: true, notes: ["replicate_error"] };
+    console.error("runScanProvider_error", err);
+    return { metrics: fallback, usedFallback: true, provider: "openai-vision", notes: ["provider_error"] };
   }
 }
 
@@ -237,7 +286,7 @@ async function completeScan(uid: string, scanId: string, result: ProviderResult,
       updatedAt: now,
       metrics: result.metrics,
       usedFallback: result.usedFallback,
-      provider: result.provider || (result.usedFallback ? "fallback" : "replicate"),
+      provider: result.provider || (result.usedFallback ? "fallback" : "openai-vision"),
       notes: result.notes || [],
       result: summary,
     },
