@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { getAppCheck } from "../firebase.js";
+import { getAppCheck } from "../firebase";
 
 function getHeader(req: Request, key: string): string | undefined {
   return req.get(key) ?? req.get(key.toLowerCase()) ?? undefined;

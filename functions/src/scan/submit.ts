@@ -1,9 +1,9 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { getFirestore, getStorage, Timestamp } from "../firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
-import { consumeCreditBuckets } from "./creditUtils.js";
-import { isStaff } from "../claims.js";
+import { getFirestore, getStorage, Timestamp } from "../firebase";
+import { requireAuth, verifyAppCheckStrict } from "../http";
+import { consumeCreditBuckets } from "./creditUtils";
+import { isStaff } from "../claims";
 
 const db = getFirestore();
 const storage = getStorage();

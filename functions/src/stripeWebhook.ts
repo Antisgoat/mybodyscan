@@ -3,8 +3,8 @@ import type { Response } from "express";
 import Stripe from "stripe";
 import { defineSecret } from "firebase-functions/params";
 
-import { addCredits, setSubscriptionStatus } from "./credits.js";
-import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
+import { addCredits, setSubscriptionStatus } from "./credits";
+import { FieldValue, Timestamp, getFirestore } from "./firebase";
 
 const STRIPE_WEBHOOK = defineSecret("STRIPE_WEBHOOK");
 const STRIPE_SECRET = defineSecret("STRIPE_SECRET");

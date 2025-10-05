@@ -1,6 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { softAppCheck } from "./middleware/appCheck.js";
-import { withCors } from "./middleware/cors.js";
+import { softAppCheck } from "./middleware/appCheck";
+import { withCors } from "./middleware/cors";
 
 export const health = onRequest(
   { invoker: "public" },

@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { Timestamp, getFirestore } from "./firebase.js";
-import { addCredits } from "./credits.js";
+import { Timestamp, getFirestore } from "./firebase";
+import { addCredits } from "./credits";
 
 const db = getFirestore();
 const CONFIG_PATH = "config/app";

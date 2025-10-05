@@ -1,5 +1,5 @@
 import type { Transaction, DocumentReference } from "firebase-admin/firestore";
-import { Timestamp } from "../firebase.js";
+import { Timestamp } from "../firebase";
 
 interface CreditBucket {
   amount: number;

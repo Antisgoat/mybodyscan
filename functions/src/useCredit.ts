@@ -1,8 +1,8 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request } from "express";
-import { verifyAppCheckStrict } from "./http.js";
-import { consumeCredit } from "./credits.js";
+import { verifyAppCheckStrict } from "./http";
+import { consumeCredit } from "./credits";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 

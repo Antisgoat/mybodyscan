@@ -1,10 +1,10 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
-import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { requireAuth } from "./http.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
+import { withCors } from "./middleware/cors";
+import { requireAppCheckStrict } from "./middleware/appCheck";
+import { requireAuth } from "./http";
+import { enforceRateLimit } from "./middleware/rateLimit";
+import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 

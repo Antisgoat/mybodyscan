@@ -1,13 +1,13 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
-import { withCors } from "../middleware/cors.js";
-import { requireAppCheckStrict } from "../middleware/appCheck.js";
-import { requireAuth } from "../http.js";
-import { consumeCreditBuckets } from "./creditUtils.js";
-import { enforceRateLimit } from "../middleware/rateLimit.js";
-import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
-import { isStaff } from "../claims.js";
+import { FieldValue, Timestamp, getFirestore } from "../firebase";
+import { withCors } from "../middleware/cors";
+import { requireAppCheckStrict } from "../middleware/appCheck";
+import { requireAuth } from "../http";
+import { consumeCreditBuckets } from "./creditUtils";
+import { enforceRateLimit } from "../middleware/rateLimit";
+import { validateBeginPaidScanPayload } from "../validation/beginPaidScan";
+import { isStaff } from "../claims";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;

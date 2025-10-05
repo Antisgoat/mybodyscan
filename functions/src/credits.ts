@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
+import { FieldValue, Timestamp, getFirestore } from "./firebase";
 
 const db = getFirestore();
 const MAX_TRANSACTION_ATTEMPTS = 5;

@@ -3,10 +3,10 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
-import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { ensureEnvVars, reportMissingEnv } from "./env.js";
+import { withCors } from "./middleware/cors";
+import { requireAppCheckStrict } from "./middleware/appCheck";
+import { requireAuth, verifyAppCheckStrict } from "./http";
+import { ensureEnvVars, reportMissingEnv } from "./env";
 
 ensureEnvVars(["STRIPE_SECRET", "STRIPE_SECRET_KEY"], "payments");
 reportMissingEnv("HOST_BASE_URL", "payments");

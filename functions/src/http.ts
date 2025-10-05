@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
-import { getAppCheck, getAuth } from "./firebase.js";
+import { getAppCheck, getAuth } from "./firebase";
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;

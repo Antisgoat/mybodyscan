@@ -1,11 +1,11 @@
 import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
-import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { withCors } from "./middleware/cors.js";
-import { requireAuth } from "./http.js";
-import type { WorkoutDay, WorkoutPlan } from "./types.js";
+import { Timestamp, getFirestore } from "./firebase";
+import { requireAppCheckStrict } from "./middleware/appCheck";
+import { withCors } from "./middleware/cors";
+import { requireAuth } from "./http";
+import type { WorkoutDay, WorkoutPlan } from "./types";
 
 const db = getFirestore();
 

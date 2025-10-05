@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
-import { getAuth } from "./firebase.js";
-import { withCors } from "./middleware/cors.js";
-import { verifyAppCheckFromHeader } from "./appCheck.js";
-import { verifyRateLimit } from "./rateLimit.js";
+import { getAuth } from "./firebase";
+import { withCors } from "./middleware/cors";
+import { verifyAppCheckFromHeader } from "./appCheck";
+import { verifyRateLimit } from "./rateLimit";
 
 export type MacroBreakdown = {
   kcal: number;

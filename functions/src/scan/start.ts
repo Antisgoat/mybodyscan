@@ -1,9 +1,9 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
-import { getFirestore, getStorage } from "../firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
-import { isStaff } from "../claims.js";
+import { getFirestore, getStorage } from "../firebase";
+import { requireAuth, verifyAppCheckStrict } from "../http";
+import { isStaff } from "../claims";
 
 const db = getFirestore();
 const storage = getStorage();

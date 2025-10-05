@@ -1,8 +1,8 @@
 import { auth } from "firebase-functions/v1";
 import { config } from "firebase-functions";
 
-import { getFirestore } from "./firebase.js";
-import { addCredits } from "./credits.js";
+import { getFirestore } from "./firebase";
+import { addCredits } from "./credits";
 
 const db = getFirestore();
 

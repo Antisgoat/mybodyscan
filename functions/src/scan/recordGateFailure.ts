@@ -1,9 +1,9 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
-import { Timestamp, getFirestore } from "../firebase.js";
-import { withCors } from "../middleware/cors.js";
-import { requireAppCheckStrict } from "../middleware/appCheck.js";
-import { requireAuth } from "../http.js";
+import { Timestamp, getFirestore } from "../firebase";
+import { withCors } from "../middleware/cors";
+import { requireAppCheckStrict } from "../middleware/appCheck";
+import { requireAuth } from "../http";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;

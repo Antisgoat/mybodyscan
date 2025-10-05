@@ -1,12 +1,12 @@
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAuth } from "./http.js";
-import { withCors } from "./middleware/cors.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { verifyAppCheckFromHeader } from "./appCheck.js";
-import { verifyRateLimit } from "./rateLimit.js";
-import { formatCoachReply } from "./coachUtils.js";
+import { Timestamp, getFirestore } from "./firebase";
+import { requireAuth } from "./http";
+import { withCors } from "./middleware/cors";
+import { enforceRateLimit } from "./middleware/rateLimit";
+import { verifyAppCheckFromHeader } from "./appCheck";
+import { verifyRateLimit } from "./rateLimit";
+import { formatCoachReply } from "./coachUtils";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;

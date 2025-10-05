@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { Timestamp, getFirestore } from "./firebase.js";
+import { Timestamp, getFirestore } from "./firebase";
 
 interface CoachProfile {
   goal?: string;

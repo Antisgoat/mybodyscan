@@ -1,13 +1,13 @@
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
-import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck.js";
-import { requireAuth } from "./http.js";
-import type { ScanDocument } from "./types.js";
-import { consumeOne, consumeCredit, addCredits } from "./credits.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase";
+import { withCors } from "./middleware/cors";
+import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck";
+import { requireAuth } from "./http";
+import type { ScanDocument } from "./types";
+import { consumeOne, consumeCredit, addCredits } from "./credits";
+import { enforceRateLimit } from "./middleware/rateLimit";
 
 const db = getFirestore();
 const storage = getStorage();
