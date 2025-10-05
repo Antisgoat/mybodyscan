@@ -11,8 +11,8 @@
     "set:staff": "ts-node scripts/setStaffClaim.ts"
   },
   "dependencies": {
-    "firebase-admin": "^12.5.0",
-    "firebase-functions": "^4.6.0",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.0",
     "stripe": "^16.0.0"
   },
   "devDependencies": {

@@ -97,6 +97,16 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 
 Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
 
+### Functions environment and secrets
+
+Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
+
+- `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
+- `STRIPE_SECRET` **and** `STRIPE_SECRET_KEY` *(either key enables live payments; both missing triggers safe mock payments)*
+- `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
+- `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
+- `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
+
 ## Firebase Web config (Lovable without env vars)
 We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
 
@@ -138,11 +148,16 @@ firebase deploy --only functions:processQueuedScan
 
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
 
+> **Functions deploy note:** the Functions pipeline installs and builds from the `functions/` workspace only. A root `npm install` or web build is **not** required to deploy backend changes. Run `npm --prefix functions ci && npm --prefix functions run build` locally before `firebase deploy --only functions` to mirror production. Generate a `functions/package-lock.json` once with `npm --prefix functions install --package-lock-only` if it is missing (required for `npm ci`).
+
 ```sh
 firebase functions:secrets:set STRIPE_SECRET
 firebase functions:secrets:set STRIPE_WEBHOOK
 firebase deploy --only functions,hosting
 ```
+
+If the web build ever encounters local integrity cache issues, use `npm run ci:clean` (clears the cache, reinstalls in the root
+app). This script is intended for web builds only and is decoupled from the Cloud Functions deploy flow.
 
 Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
 
