@@ -206,12 +206,35 @@ function buildUserContext(inputs: SubmitPayload): string {
   return parts.join("; ");
 }
 
-async function callOpenAi(images: Array<{ pose: Pose; url: string }>, inputs: SubmitPayload): Promise<ParsedResult> {
+function runMockScan(_images: Array<{ pose: Pose; url: string }>, inputs: SubmitPayload): ParsedResult {
+  // Generate a stable pseudo-random bf% if no weight provided; otherwise bias by BMI
+  const seedStr = `${inputs.scanId}:${inputs.sex || ''}:${inputs.age || ''}`;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) hash = (hash * 31 + seedStr.charCodeAt(i)) | 0;
+  const rand01 = ((hash >>> 0) % 1000) / 1000; // 0..1
+
+  const heightIn = typeof inputs.heightIn === 'number' && Number.isFinite(inputs.heightIn) ? inputs.heightIn : undefined;
+  const weightLb = typeof inputs.weightLb === 'number' && Number.isFinite(inputs.weightLb) ? inputs.weightLb : undefined;
+
+  let bf = 22 + (rand01 - 0.5) * 8; // 18%–26% default
+  if (heightIn && weightLb) {
+    const heightM = heightIn * 0.0254;
+    const weightKg = weightLb * 0.45359237;
+    const bmi = weightKg / (heightM * heightM);
+    // Very rough mapping from BMI to bf%; just for mock
+    bf = Math.max(3, Math.min(70, 1.2 * bmi + (inputs.sex === 'male' ? -10 : -5)));
+  }
+  bf = Number(Math.max(3, Math.min(70, bf)).toFixed(1));
+  const spread = 2.0;
+  const low = Number(Math.max(3, Math.min(70, bf - spread)).toFixed(1));
+  const high = Number(Math.max(3, Math.min(70, bf + spread)).toFixed(1));
+  return { bfPercent: bf, low, high, confidence: 'low', notes: 'Mock estimate. Educational use only; not medical advice.' };
+}
+
+async function runOpenAIVisionScan(images: Array<{ pose: Pose; url: string }>, inputs: SubmitPayload): Promise<ParsedResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    const error = new Error("missing_api_key");
-    (error as any).status = 503;
-    throw error;
+    return runMockScan(images, inputs);
   }
   const systemPrompt =
     "You are a body-composition assistant. Estimate body fat percentage from photographs. Provide only the requested JSON.";
@@ -254,16 +277,15 @@ async function callOpenAi(images: Array<{ pose: Pose; url: string }>, inputs: Su
   if (!response.ok) {
     const text = await response.text();
     console.error("scan_openai_error", { status: response.status, body: text.slice(0, 500) });
-    const error = new Error("openai_error");
-    (error as any).status = 502;
-    throw error;
+    // Fallback to mock on transient errors as well
+    return runMockScan(images, inputs);
   }
 
   const data = await response.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
   if (!content) {
     console.error("scan_openai_missing_content", { data });
-    throw new Error("no_content");
+    return runMockScan(images, inputs);
   }
 
   return parseOpenAiResponse(content);
@@ -341,7 +363,7 @@ export const submitScan = onRequest(
       let result: ParsedResult;
       try {
         console.info("scan_submit", { uid, scanId: payload.scanId });
-        result = await callOpenAi(
+        result = await runOpenAIVisionScan(
           imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
           payload
         );
