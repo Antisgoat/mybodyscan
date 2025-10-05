@@ -6,13 +6,9 @@ import { getAuth } from "firebase-admin/auth";
 import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { ensureEnvVars, reportMissingEnv } from "./env.js";
+import { getEnvOrDefault } from "./env.js";
 
-ensureEnvVars(["STRIPE_SECRET", "STRIPE_SECRET_KEY"], "payments");
-reportMissingEnv("HOST_BASE_URL", "payments");
-
-const STRIPE_SECRET = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || "";
-const ORIGIN = process.env.HOST_BASE_URL || "https://mybodyscanapp.com";
+const DEFAULT_ORIGIN = "https://mybodyscanapp.com";
 
 type CheckoutMode = "payment" | "subscription";
 
@@ -39,12 +35,24 @@ class CheckoutError extends Error {
   }
 }
 
-function buildStripe(plan?: PlanKey): Stripe {
-  if (!STRIPE_SECRET) {
-    console.error("checkout_config_error", { plan: plan ?? null, reason: "missing_secret" });
-    throw new CheckoutError("config");
+let mockWarningLogged = false;
+
+function resolveStripeRuntime(context: string): { origin: string; secret: string | null } {
+  const origin = getEnvOrDefault("HOST_BASE_URL", DEFAULT_ORIGIN);
+  const secret = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || null;
+  if (!secret && !mockWarningLogged) {
+    console.warn("payments_mock_mode_enabled", { context, origin });
+    mockWarningLogged = true;
   }
-  return new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" });
+  return { origin, secret };
+}
+
+function buildStripe(context: string, plan?: PlanKey): { client: Stripe | null; origin: string } {
+  const { origin, secret } = resolveStripeRuntime(context);
+  if (!secret) {
+    return { client: null, origin };
+  }
+  return { client: new Stripe(secret, { apiVersion: "2024-06-20" }), origin };
 }
 
 function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {
@@ -74,13 +82,16 @@ async function createCheckoutSessionForUid(
 ): Promise<CheckoutSessionResult> {
   const { plan } = payload;
   const { priceId, mode } = getPlanConfig(plan);
-  const stripe = buildStripe(plan);
+  const { client: stripe, origin } = buildStripe("checkout_session", plan);
+  if (!stripe) {
+    return { url: `${origin}/plans` };
+  }
   try {
     const session = await stripe.checkout.sessions.create({
       mode,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${ORIGIN}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${ORIGIN}/plans?canceled=1`,
+      success_url: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/plans?canceled=1`,
       client_reference_id: uid,
       metadata: { uid, priceId, plan },
     });
@@ -115,15 +126,10 @@ async function handleCheckoutSession(req: ExpressRequest, res: ExpressResponse) 
 async function handleCustomerPortal(req: ExpressRequest, res: ExpressResponse) {
   await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
-  let stripe: Stripe;
-  try {
-    stripe = buildStripe();
-  } catch (err) {
-    if (err instanceof CheckoutError && err.kind === "config") {
-      res.json({ url: `${ORIGIN}/plans` });
-      return;
-    }
-    throw err;
+  const { client: stripe, origin } = buildStripe("customer_portal");
+  if (!stripe) {
+    res.json({ url: `${origin}/plans` });
+    return;
   }
   const user = await getAuth().getUser(uid);
   if (!user.email) {
@@ -135,7 +141,7 @@ async function handleCustomerPortal(req: ExpressRequest, res: ExpressResponse) {
   }
   const session = await stripe.billingPortal.sessions.create({
     customer: customers.data[0].id,
-    return_url: `${ORIGIN}/plans`,
+    return_url: `${origin}/plans`,
   });
   res.json({ url: session.url });
 }

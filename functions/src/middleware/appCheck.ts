@@ -1,4 +1,7 @@
 import type { Request, Response } from "express";
+import { HttpsError } from "firebase-functions/v2/https";
+
+import { readAppCheckOrigin, shouldStrictlyEnforceAppCheck } from "../appCheck.js";
 import { getAppCheck } from "../firebase.js";
 
 function getHeader(req: Request, key: string): string | undefined {
@@ -7,16 +10,26 @@ function getHeader(req: Request, key: string): string | undefined {
 
 export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
   const token = getHeader(req, "X-Firebase-AppCheck");
+  const origin = readAppCheckOrigin(req) ?? null;
+  const strict = shouldStrictlyEnforceAppCheck(origin);
   if (!token) {
-    // Soft enforce for now: allow request but log. Tighten later.
-    console.warn("appcheck_soft_missing", { path: req.path });
+    const payload = { path: req.path, origin };
+    if (strict) {
+      console.warn("appcheck_strict_missing", payload);
+      throw new HttpsError("unauthenticated", "Missing App Check token");
+    }
+    console.warn("appcheck_soft_missing", payload);
     return;
   }
   try {
     await getAppCheck().verifyToken(token);
   } catch (error) {
-    // Soft mode: log and continue
-    console.warn("appcheck_soft_invalid", { path: req.path, message: (error as Error)?.message });
+    const payload = { path: req.path, origin, message: (error as Error)?.message };
+    if (strict) {
+      console.warn("appcheck_strict_invalid", payload);
+      throw new HttpsError("unauthenticated", "Invalid App Check token");
+    }
+    console.warn("appcheck_soft_invalid", payload);
     return;
   }
 }
