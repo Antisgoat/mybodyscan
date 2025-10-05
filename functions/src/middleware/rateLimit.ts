@@ -23,7 +23,7 @@ export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
       const events: Timestamp[] = Array.isArray(data.events)
         ? data.events.filter((item: unknown): item is Timestamp => item instanceof Timestamp)
         : [];
-      const recent = events.filter((event) => event.toMillis() >= windowStart);
+      const recent = events.filter((event) => (event?.toMillis?.() ?? 0) >= windowStart);
       if (recent.length >= limit) {
         console.warn("rate_limit_triggered", { uid, key, limit, windowMs });
         throw new HttpsError("resource-exhausted", "rate_limited");

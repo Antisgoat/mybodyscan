@@ -1,11 +1,30 @@
 import type { Request } from "firebase-functions/v2/https";
 import type { Response } from "express";
 
-const ALLOWED = new Set([
+function parseAllowedOrigins(): Set<string> {
+  const raw = process.env.APP_CHECK_ALLOWED_ORIGINS;
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  );
+}
+
+const DEFAULT_ALLOWED = new Set([
   "https://mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
 ]);
+
+const ALLOWED = ((): Set<string> => {
+  const extra = parseAllowedOrigins();
+  if (extra.size === 0) return DEFAULT_ALLOWED;
+  const union = new Set<string>(DEFAULT_ALLOWED);
+  for (const origin of extra) union.add(origin);
+  return union;
+})();
 
 export function withCors(handler: (req: Request, res: Response) => Promise<void> | void) {
   return async (req: Request, res: Response): Promise<void> => {

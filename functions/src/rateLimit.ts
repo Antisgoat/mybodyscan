@@ -1,6 +1,4 @@
-import * as admin from "firebase-admin";
-if (!admin.apps.length) admin.initializeApp();
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "./firebase.js";
 
 type Opts = { key: string; max: number; windowSeconds: number };
 
@@ -14,8 +12,9 @@ export async function verifyRateLimit(req: any, opts: Opts) {
   const key = `${opts.key}:${id}`;
   const now = Date.now();
 
-  const ref = admin.firestore().collection("ratelimits").doc(key);
-  await admin.firestore().runTransaction(async (tx) => {
+  const db = getFirestore();
+  const ref = db.collection("ratelimits").doc(key);
+  await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const data = snap.exists ? (snap.data() as any) : { count: 0, windowStart: now };
     const elapsed = now - (data.windowStart || now);

@@ -26,7 +26,8 @@
     "typecheck": "tsc -b --noEmit",
     "qa": "bash scripts/qa.sh",
     "deploy:functions": "firebase deploy --only functions",
-    "deploy:hosting": "firebase deploy --only hosting"
+    "deploy:hosting": "firebase deploy --only hosting",
+    "ci:clean": "rm -rf node_modules package-lock.json && npm cache verify && npm ci"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",

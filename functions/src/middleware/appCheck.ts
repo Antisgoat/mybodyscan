@@ -1,23 +1,36 @@
 import type { Request, Response } from "express";
 import { getAppCheck } from "../firebase.js";
 
+function isSoftEnforce(): boolean {
+  const raw = process.env.APP_CHECK_ENFORCE_SOFT;
+  if (raw == null || raw === "") return true; // default soft
+  return !/^false|0|no$/i.test(raw.trim());
+}
+
 function getHeader(req: Request, key: string): string | undefined {
   return req.get(key) ?? req.get(key.toLowerCase()) ?? undefined;
 }
 
 export async function requireAppCheckStrict(req: Request, res: Response): Promise<void> {
   const token = getHeader(req, "X-Firebase-AppCheck");
+  const soft = isSoftEnforce();
   if (!token) {
-    // Soft enforce for now: allow request but log. Tighten later.
-    console.warn("appcheck_soft_missing", { path: req.path });
-    return;
+    if (soft) {
+      console.warn("appcheck_soft_missing", { path: req.path });
+      return;
+    }
+    res.status(401).end();
+    throw Object.assign(new Error("app_check_required"), { status: 401 });
   }
   try {
     await getAppCheck().verifyToken(token);
   } catch (error) {
-    // Soft mode: log and continue
-    console.warn("appcheck_soft_invalid", { path: req.path, message: (error as Error)?.message });
-    return;
+    if (soft) {
+      console.warn("appcheck_soft_invalid", { path: req.path, message: (error as Error)?.message });
+      return;
+    }
+    res.status(401).end();
+    throw Object.assign(new Error("invalid_app_check"), { status: 401 });
   }
 }
 

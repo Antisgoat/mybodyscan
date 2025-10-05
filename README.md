@@ -143,6 +143,16 @@ firebase functions:secrets:set STRIPE_SECRET
 firebase functions:secrets:set STRIPE_WEBHOOK
 firebase deploy --only functions,hosting
 ```
+### NPM integrity troubleshooting (local dev only)
+
+If you see unexpected npm resolution errors locally, you can reset your workspace with:
+
+```sh
+npm run ci:clean
+```
+
+This script is intended for developer machines only. It is not used in CI or during `firebase deploy`, which installs dependencies strictly inside `functions/` via the `firebase.json` predeploy steps.
+
 
 Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
 
