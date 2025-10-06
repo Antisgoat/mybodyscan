@@ -208,7 +208,7 @@ export default function CoachChatPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button onClick={regeneratePlan} disabled={regenerating || demo} className="w-full">
-                  {regenerating ? "Regenerating..." : "Regenerate weekly plan"}
+                  {regenerating ? (plan ? "Regenerating..." : "Creating...") : (plan ? "Regenerate weekly plan" : "Create plan")}
                 </Button>
                 {plan ? (
                   <div className="space-y-3 text-sm text-muted-foreground">

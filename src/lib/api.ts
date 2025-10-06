@@ -5,7 +5,8 @@ import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
 
 export function nutritionFnUrl(params?: Record<string, string>) {
-  const base = "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/nutritionSearch";
+  const base = fnUrl("/nutritionSearch");
+  if (!base) return "";
   const url = new URL(base);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -211,31 +212,35 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw error;
       }
-      const fallbackUrl = nutritionFnUrl({ q: query });
-      const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
-        auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
-        getAppCheckToken(),
-      ]);
-      const fallbackHeaders = new Headers({
-        Accept: "application/json",
-      });
-      if (fallbackAppCheckToken) {
-        fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
+      const fallbackBase = nutritionFnUrl({ q: query });
+      if (!fallbackBase) {
+        payload = { items: [] } as any;
+      } else {
+        const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
+          auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
+          getAppCheckToken(),
+        ]);
+        const fallbackHeaders = new Headers({
+          Accept: "application/json",
+        });
+        if (fallbackAppCheckToken) {
+          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
+        }
+        if (fallbackIdToken) {
+          fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
+        }
+        const response = await fetch(fallbackBase, {
+          method: "GET",
+          signal: controller.signal,
+          headers: fallbackHeaders,
+        });
+        if (!response.ok) {
+          const fallbackError: any = new Error(`fn_status_${response.status}`);
+          fallbackError.status = response.status;
+          throw fallbackError;
+        }
+        payload = await response.json().catch(() => ({ items: [] as any[] }));
       }
-      if (fallbackIdToken) {
-        fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
-      }
-      const response = await fetch(fallbackUrl, {
-        method: "GET",
-        signal: controller.signal,
-        headers: fallbackHeaders,
-      });
-      if (!response.ok) {
-        const fallbackError: any = new Error(`fn_status_${response.status}`);
-        fallbackError.status = response.status;
-        throw fallbackError;
-      }
-      payload = await response.json().catch(() => ({ items: [] as any[] }));
     }
 
     if (!Array.isArray(payload?.items)) {

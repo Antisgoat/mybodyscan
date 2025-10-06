@@ -192,7 +192,8 @@ export const generatePlan = onCall({ region: "us-central1" }, async (request) =>
   const profile = await fetchProfile(uid);
   const plan = buildPlan(profile);
 
-  await db.doc(`users/${uid}/coach/plan/current`).set(plan);
+  // Write to single document at users/{uid}/coach/plan
+  await db.doc(`users/${uid}/coach/plan`).set(plan);
 
   return { plan: { ...plan, updatedAt: plan.updatedAt.toMillis() } };
 });

@@ -27,7 +27,7 @@ describe('Firestore security rules', () => {
     const authed = testEnv.authenticatedContext(uid).firestore();
     await assertSucceeds(authed.doc(`users/${uid}`).get());
     await assertFails(authed.doc(`users/${uid}`).update({ credits: 2 }));
-    await assertFails(authed.doc(`users/${uid}/coach/plan/current`).set({ tdee: 2000 }));
+    await assertFails(authed.doc(`users/${uid}/coach/plan`).set({ tdee: 2000 }));
   });
 
   it('blocks user creation with sensitive fields', async () => {

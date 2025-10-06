@@ -98,6 +98,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Coach plan: allow user to read/write their own plan doc at users/{uid}/coach/plan
+      match /coach/plan {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid);
+        allow delete: if false;
+      }
+
       match /{document=**} {
         allow read: if isOwner(uid);
         allow create, update: if isOwner(uid) && clientPreservesServerFields() && !isScanDocument() && !isNutritionLogDocument();

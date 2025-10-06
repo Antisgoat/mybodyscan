@@ -3,3 +3,8 @@ export { createCheckout, createCustomerPortal } from "./payments.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { nutritionSearch } from "./nutritionSearch.js";
 export { coachChat } from "./coachChat.js";
+export { ensureTestCredits } from "./testWhitelist.js";
+export { submitScan } from "./scan/submit.js";
+export { startScanSession } from "./scan/start.js";
+export { refundIfNoResult } from "./scan/refundIfNoResult.js";
+export { beginPaidScan } from "./scan/beginPaidScan.js";

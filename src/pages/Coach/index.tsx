@@ -107,7 +107,7 @@ export default function CoachOverview() {
         if (!cancelled) {
           setPlanExists(snapshot.exists());
         }
-      } catch (error) {
+      } catch (error: any) {
         if (!cancelled) {
           setPlanExists(false);
         }
@@ -230,7 +230,9 @@ export default function CoachOverview() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Choose your training plan</p>
                   <p className="text-xs text-muted-foreground">
-                    Take the quick quiz or browse all programs to set your next block.
+                    {planExists === false
+                      ? "No coach plan yet. Create one to get a weekly split."
+                      : "Take the quick quiz or browse all programs to set your next block."}
                   </p>
                 </div>
               </div>

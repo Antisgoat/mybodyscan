@@ -17,7 +17,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       return (
         <div className="p-6 text-sm">
           <div className="font-medium mb-2">We hit a snag starting the app.</div>
-          <pre className="overflow-auto rounded border p-3 text-xs">{this.state.msg}</pre>
+          <pre className="overflow-auto rounded border p-3 text-xs">{String(this.state.msg || "Unknown error")}</pre>
         </div>
       );
     }
