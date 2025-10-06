@@ -53,19 +53,32 @@ export function useUserProfile() {
   useEffect(() => {
     if (!uid) return;
     const profileRef = doc(db, "users", uid, "coach", "profile");
-    const unsub1 = onSnapshot(profileRef, (snap) => {
-      setProfile((snap.data() as CoachProfile) || null);
-    });
-    const planRef = coachPlanDoc(uid);
-    const unsub2 = onSnapshot(planRef, (snap) => {
-      if (!snap.exists) {
-        setPlan(null);
-        return;
+    const unsub1 = onSnapshot(
+      profileRef,
+      (snap) => {
+        setProfile((snap.data() as CoachProfile) || null);
+      },
+      () => {
+        // Swallow profile read errors to avoid crashing UI
+        setProfile(null);
       }
-      const data = snap.data() as CoachPlan & { updatedAt?: { toDate?: () => Date } };
-      const updatedAt = data.updatedAt?.toDate?.() ?? data.updatedAt;
-      setPlan({ ...data, updatedAt: updatedAt instanceof Date ? updatedAt : undefined });
-    });
+    );
+    const planRef = coachPlanDoc(uid);
+    const unsub2 = onSnapshot(
+      planRef,
+      (snap) => {
+        if (!snap.exists) {
+          setPlan(null);
+          return;
+        }
+        const data = snap.data() as CoachPlan & { updatedAt?: { toDate?: () => Date } };
+        const updatedAt = data.updatedAt?.toDate?.() ?? data.updatedAt;
+        setPlan({ ...data, updatedAt: updatedAt instanceof Date ? updatedAt : undefined });
+      },
+      () => {
+        setPlan(null);
+      }
+    );
     return () => {
       unsub1();
       unsub2();
