@@ -97,7 +97,13 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_RECAPTCHA_V3_SITE_KEY` *(App Check; soft in dev/demo if missing)*
 - `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
-- `VITE_APPLE_ENABLED` *(optional; gate Apple sign-in button)*
+
+### Enable Sign in with Apple (Web)
+
+1. Firebase Console → **Auth** → **Apple** → Enable. Provide your Team ID, Key ID, Services ID, and upload the `.p8` key.
+2. Add authorized domains: `mybodyscan.app`, `mybodyscan-f3daf.web.app`, `mybodyscan-f3daf.firebaseapp.com`.
+3. Copy the redirect handler URL(s) from Firebase (e.g., `https://<auth-domain>/__/auth/handler`) and add them to Apple Developer → **Identifiers** → your Services ID → **Return URLs**.
+4. Optional: place Apple's association file at `/.well-known/apple-developer-domain-association.txt` on Firebase Hosting (replace the placeholder committed in `public/.well-known/`).
 
 Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
 

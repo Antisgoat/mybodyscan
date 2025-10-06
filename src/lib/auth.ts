@@ -3,10 +3,12 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import {
   Auth,
   OAuthProvider,
+  UserCredential,
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAdditionalUserInfo,
+  getRedirectResult,
   GoogleAuthProvider,
   linkWithCredential,
   onAuthStateChanged,
@@ -38,6 +40,35 @@ export function useAuthUser() {
   return { user, loading } as { user: typeof firebaseAuth.currentUser; loading: boolean };
 }
 
+const RETURN_PATH_STORAGE_KEY = "mybodyscan:auth:return";
+
+export function rememberAuthRedirect(path: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(RETURN_PATH_STORAGE_KEY, path);
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] Unable to persist redirect target:", err);
+    }
+  }
+}
+
+export function consumeAuthRedirect(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = sessionStorage.getItem(RETURN_PATH_STORAGE_KEY);
+    if (stored) {
+      sessionStorage.removeItem(RETURN_PATH_STORAGE_KEY);
+      return stored;
+    }
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] Unable to read redirect target:", err);
+    }
+  }
+  return null;
+}
+
 export async function signOutToAuth(): Promise<void> {
   await signOut(firebaseAuth);
   window.location.href = "/auth";
@@ -62,37 +93,58 @@ export async function signInWithGoogle() {
   }
 }
 
+const APPLE_PROVIDER_ID = "apple.com";
+
 type AppleAdditionalProfile = {
   name?: { firstName?: string; lastName?: string };
   firstName?: string;
   lastName?: string;
 };
 
-export async function signInWithApple(auth: Auth): Promise<void> {
-  const provider = new OAuthProvider("apple.com");
+export function isIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const platform = navigator.platform || "";
+  const isIOSDevice = /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
+  return isIOSDevice && isSafari;
+}
+
+async function applyAppleProfile(result: UserCredential | null) {
+  if (!result) return;
+  const info = getAdditionalUserInfo(result);
+  if (info?.providerId !== APPLE_PROVIDER_ID) return;
+  if (!info.isNewUser || !result.user || result.user.displayName) return;
+  const profile = info.profile as AppleAdditionalProfile | undefined;
+  const firstName = profile?.name?.firstName ?? profile?.firstName ?? "";
+  const lastName = profile?.name?.lastName ?? profile?.lastName ?? "";
+  const displayName = `${firstName} ${lastName}`.trim();
+  if (displayName) {
+    await updateProfile(result.user, { displayName });
+  }
+}
+
+function logAppleFlow(flow: "popup" | "redirect", context?: string) {
+  if (!import.meta.env.DEV) return;
+  const extra = context ? ` ${context}` : "";
+  console.info(`[auth] Apple sign-in via ${flow}${extra}`);
+}
+
+export async function signInWithApple(auth: Auth): Promise<UserCredential | void> {
+  const provider = new OAuthProvider(APPLE_PROVIDER_ID);
   provider.addScope("email");
   provider.addScope("name");
-  const isIOS =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
   try {
-    if (isIOS) {
-      await signInWithRedirect(auth, provider);
-      return;
+    if (isIOSSafari()) {
+      logAppleFlow("redirect", "(iOS Safari)");
+      return await signInWithRedirect(auth, provider);
     }
 
+    logAppleFlow("popup");
     const result = await signInWithPopup(auth, provider);
-    const info = getAdditionalUserInfo(result);
-    if (info?.isNewUser && result.user && !result.user.displayName) {
-      const profile = info.profile as AppleAdditionalProfile | undefined;
-      const firstName = profile?.name?.firstName ?? profile?.firstName ?? "";
-      const lastName = profile?.name?.lastName ?? profile?.lastName ?? "";
-      const displayName = `${firstName} ${lastName}`.trim();
-      if (displayName) {
-        await updateProfile(result.user, { displayName });
-      }
-    }
+    await applyAppleProfile(result);
+    return result;
   } catch (err: any) {
     const msg = String(err?.code || "");
     if (
@@ -100,11 +152,17 @@ export async function signInWithApple(auth: Auth): Promise<void> {
       msg.includes("popup-closed-by-user") ||
       msg.includes("operation-not-supported-in-this-environment")
     ) {
-      await signInWithRedirect(auth, provider);
-      return;
+      logAppleFlow("redirect", "(fallback)");
+      return await signInWithRedirect(auth, provider);
     }
     throw err;
   }
+}
+
+export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
+  const result = await getRedirectResult(auth);
+  await applyAppleProfile(result);
+  return result;
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {

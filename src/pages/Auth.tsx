@@ -11,13 +11,15 @@ import {
   signInEmail,
   signInWithGoogle,
   signInWithApple,
+  rememberAuthRedirect,
+  consumeAuthRedirect,
+  resolveAuthRedirect,
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { enableDemo } from "@/lib/demoFlag";
-
-const APPLE_ENABLED = import.meta.env.VITE_APPLE_ENABLED === "true";
+import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -28,16 +30,58 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from || "/home";
+  const from = (location.state as any)?.from || "/today";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState<boolean>(import.meta.env.VITE_APPLE_ENABLED !== "false");
   const { user } = useAuthUser();
 
   useEffect(() => {
-    if (user) navigate("/today", { replace: true });
-  }, [user, navigate]);
+    if (!user) return;
+    const defaultTarget = (location.state as any)?.from || "/today";
+    if (location.pathname !== defaultTarget) {
+      navigate(defaultTarget, { replace: true });
+    }
+  }, [user, navigate, location.pathname, location.state]);
+
+  useEffect(() => {
+    let active = true;
+    loadFirebaseAuthClientConfig()
+      .then((config) => {
+        if (!active) return;
+        setAppleAvailable(isProviderEnabled("apple.com", config));
+      })
+      .catch((err) => {
+        if (import.meta.env.DEV) {
+          console.warn("[auth] Falling back to env Apple availability:", err);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    resolveAuthRedirect(auth)
+      .then((result) => {
+        if (!active || !result) return;
+        const target = consumeAuthRedirect();
+        if (target) {
+          navigate(target, { replace: true });
+        }
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        consumeAuthRedirect();
+        toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+      });
+    return () => {
+      active = false;
+    };
+  }, [navigate, toast]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,9 +103,14 @@ const Auth = () => {
   const onGoogle = async () => {
     setLoading(true);
     try {
-      await signInWithGoogle();
-      navigate(from, { replace: true });
+      rememberAuthRedirect(from);
+      const result = await signInWithGoogle();
+      if (result) {
+        consumeAuthRedirect();
+        navigate(from, { replace: true });
+      }
     } catch (err: any) {
+      consumeAuthRedirect();
       toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
@@ -71,9 +120,14 @@ const Auth = () => {
   const onApple = async () => {
     setLoading(true);
     try {
-      await signInWithApple(auth);
-      navigate(from, { replace: true });
+      rememberAuthRedirect(from);
+      const result = await signInWithApple(auth);
+      if (result) {
+        consumeAuthRedirect();
+        navigate(from, { replace: true });
+      }
     } catch (err: any) {
+      consumeAuthRedirect();
       toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
     } finally {
       setLoading(false);
@@ -146,7 +200,7 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {APPLE_ENABLED && (
+            {appleAvailable && (
               <Button
                 variant="secondary"
                 onClick={onApple}

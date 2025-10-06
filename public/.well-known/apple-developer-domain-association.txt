@@ -1,0 +1,2 @@
+# Upload Apple's domain association token in this file when enabling Sign in with Apple (Web).
+# Keep this placeholder committed so Firebase Hosting serves /.well-known/apple-developer-domain-association.txt.
