@@ -1,0 +1,67 @@
+name: Firebase Hosting Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: mybodyscan-f3daf
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret missing" >&2
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" | base64 --decode > "${RUNNER_TEMP}/gcp-key.json"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=${RUNNER_TEMP}/gcp-key.json"
+            echo "FIREBASE_CLI_LOGIN=ci"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Install dependencies
+        run: npm install --prefer-online
+
+      - name: Build web
+        run: npm run build
+
+      - name: Deploy Hosting preview
+        id: deploy
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          CHANNEL="pr-${{ github.event.number }}"
+          OUTPUT=$(firebase hosting:channel:deploy "$CHANNEL" --project "$PROJECT_ID" --json)
+          echo "$OUTPUT"
+          URL=$(echo "$OUTPUT" | jq -r '.result.previewUrl // .result.hostingUrl // .result[0].url // empty')
+          if [ -z "$URL" ]; then
+            echo "Failed to parse preview URL" >&2
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Firebase Hosting Preview"
+            echo
+            echo "Channel: $CHANNEL"
+            echo
+            echo "[View Preview]($URL)"
+          } >> "$GITHUB_STEP_SUMMARY"

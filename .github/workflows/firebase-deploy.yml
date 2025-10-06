@@ -1,0 +1,68 @@
+name: Firebase Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: mybodyscan-f3daf
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Prepare Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret missing" >&2
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" | base64 --decode > "${RUNNER_TEMP}/gcp-key.json"
+          {
+            echo "GOOGLE_APPLICATION_CREDENTIALS=${RUNNER_TEMP}/gcp-key.json"
+            echo "FIREBASE_CLI_LOGIN=ci"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Install web dependencies
+        run: npm install --prefer-online
+
+      - name: Build web
+        run: npm run build
+
+      - name: Install Functions dependencies
+        working-directory: functions
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            npm ci || npm install --prefer-online
+          else
+            npm install --prefer-online
+          fi
+
+      - name: Build Functions
+        working-directory: functions
+        run: npm run build
+
+      - name: Deploy Functions
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: firebase deploy --only functions --project "$PROJECT_ID"
+
+      - name: Deploy Hosting
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: firebase deploy --only hosting --project "$PROJECT_ID"
