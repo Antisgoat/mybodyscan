@@ -1,0 +1,100 @@
+name: Firebase Hosting Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT: mybodyscan-f3daf
+      PREVIEW_CHANNEL: pr-${{ github.event.number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Prepare Firebase credentials
+        id: creds
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE=""
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            KEY_PATH="$RUNNER_TEMP/firebase.json"
+            if [[ "${FIREBASE_SERVICE_ACCOUNT}" == \{* ]]; then
+              printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$KEY_PATH"
+            else
+              printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | base64 --decode > "$KEY_PATH"
+            fi
+            printf 'GOOGLE_APPLICATION_CREDENTIALS=%s\n' "$KEY_PATH" >> "$GITHUB_ENV"
+            MODE="sa"
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            printf 'FIREBASE_TOKEN=%s\n' "$FIREBASE_TOKEN" >> "$GITHUB_ENV"
+            MODE="token"
+          else
+            echo "Firebase credentials missing. Add FIREBASE_SERVICE_ACCOUNT (base64 or raw JSON) or FIREBASE_TOKEN to the repo secrets." >&2
+            exit 1
+          fi
+          printf 'FB_AUTH_MODE=%s\n' "$MODE" >> "$GITHUB_ENV"
+          {
+            echo "### Firebase Auth"
+            echo
+            echo "Mode: $MODE"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Firebase CLI
+        run: npm install --global firebase-tools
+
+      - name: Install dependencies and build web
+        shell: bash
+        run: |
+          set -euo pipefail
+          (npm ci || npm install --prefer-online)
+          npm run build
+
+      - name: Skip deploy for forked PRs
+        if: github.event.pull_request.head.repo.fork == true
+        shell: bash
+        run: |
+          {
+            echo "### Firebase Hosting Preview"
+            echo
+            echo "Skipped deploy for forked PR (secrets unavailable)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipping deploy for forked PR (no secrets available)."
+
+      - name: Deploy Hosting preview
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          FIREBASE_PROJECT: ${{ env.FIREBASE_PROJECT }}
+          PREVIEW_CHANNEL: ${{ env.PREVIEW_CHANNEL }}
+          FB_AUTH_MODE: ${{ env.FB_AUTH_MODE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Deploying Firebase Hosting preview (auth mode: $FB_AUTH_MODE)"
+          firebase hosting:channel:deploy "$PREVIEW_CHANNEL" --project "$FIREBASE_PROJECT" --json > preview.json
+          URL=$(jq -r '.result.previewUrl // .result.hostingUrl // .result[0].url // empty' preview.json)
+          if [ -z "$URL" ]; then
+            echo "Failed to parse preview URL" >&2
+            cat preview.json >&2
+            exit 1
+          fi
+          echo "Preview URL: $URL"
+          {
+            echo "### Firebase Hosting Preview"
+            echo
+            echo "Channel: $PREVIEW_CHANNEL"
+            echo
+            echo "[View Preview]($URL)"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -27,7 +27,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           const profileRef = doc(db, "users", user.uid, "profile");
           const snap = await getDoc(profileRef);
           const current = (snap.exists() ? (snap.data() as any)?.credits : undefined) as number | undefined;
-          if (typeof current !== "number") {
+          if (typeof current !== "number" || current < 2) {
             await setDoc(profileRef, { credits: 2 }, { merge: true });
           }
         } catch (_) {

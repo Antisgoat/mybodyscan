@@ -171,6 +171,28 @@ app). This script is intended for web builds only and is decoupled from the Clou
 
 Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
 
+## CI Credentials Setup
+
+GitHub Actions supports two authentication modes for Firebase deploys. Configure one of the following repository secrets:
+
+**Option A (recommended):** `FIREBASE_SERVICE_ACCOUNT` containing a base64-encoded (or raw JSON) key for a dedicated service account created in [Google Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts) with these roles:
+
+- Firebase Hosting Admin
+- Cloud Functions Admin
+- Cloud Build Editor
+- Service Account User
+- Artifact Registry Writer
+
+Encode the downloaded JSON key (macOS/Linux example: `base64 -i key.json | pbcopy`) before pasting it into the GitHub secret, or paste the raw JSON directly.
+
+**Option B:** `FIREBASE_TOKEN` generated via `firebase login:ci` on a trusted machine.
+
+Pull requests from forks skip Firebase deploy steps because secrets are not exposed to forked workflows.
+
+## System health checks
+
+The `/health` HTTPS Cloud Function returns deployment metadata (status, timestamps, feature flags) without any personally identifiable information. The in-app `/system/check` route surfaces the same data alongside live checks for nutrition search, coach plan access, and demo credits so you can verify configuration safely.
+
 ## Auth env setup (fix for `auth/api-key-not-valid`)
 1) Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
 2) In **Lovable → Project Settings → Environment**, add the same `VITE_FIREBASE_*` variables.
