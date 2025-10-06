@@ -36,6 +36,10 @@ npm i
 npm run dev
 ```
 
+### If npm EINTEGRITY occurs
+
+Run `npm cache clean --force && rm -rf node_modules && npm install --prefer-online` to refresh the cache and reinstall.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
