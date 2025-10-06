@@ -1,11 +1,55 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { softAppCheck } from "./middleware/appCheck.js";
+
 import { withCors } from "./middleware/cors.js";
+
+type ScanProvider = "openai-vision" | "mock";
+
+type HealthPayload = {
+  status: "ok";
+  time: string;
+  hasOpenAIKey: boolean;
+  appCheckSoft: boolean;
+  scanProvider: ScanProvider;
+  nutritionConfigured: boolean;
+  coachDocPath: "users/{uid}/coach/plan";
+  demoCreditsPolicy: ">=2 on demo";
+};
+
+function hasValue(value: string | undefined | null): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
 
 export const health = onRequest(
   { invoker: "public" },
-  withCors(async (req, res) => {
-    await softAppCheck(req as any);
-    res.json({ ok: true, ts: Date.now() });
-  })
+  withCors(async (_req, res) => {
+    const now = new Date().toISOString();
+
+    const hasOpenAIKey = hasValue(process.env.OPENAI_API_KEY);
+    const nutritionConfigured = hasValue(process.env.USDA_FDC_API_KEY);
+    const scanProvider: ScanProvider = hasOpenAIKey ? "openai-vision" : "mock";
+
+    let appCheckSoft = true;
+    try {
+      const env = await import("./env.js");
+      appCheckSoft = env.getBool("APP_CHECK_ENFORCE_SOFT", true);
+    } catch (error) {
+      console.warn("health_env_inspect_failed", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      appCheckSoft = true;
+    }
+
+    const payload: HealthPayload = {
+      status: "ok",
+      time: now,
+      hasOpenAIKey,
+      appCheckSoft,
+      scanProvider,
+      nutritionConfigured,
+      coachDocPath: "users/{uid}/coach/plan",
+      demoCreditsPolicy: ">=2 on demo",
+    };
+
+    res.json(payload);
+  }),
 );

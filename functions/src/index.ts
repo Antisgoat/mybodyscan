@@ -8,3 +8,4 @@ export { submitScan } from "./scan/submit.js";
 export { startScanSession } from "./scan/start.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { beginPaidScan } from "./scan/beginPaidScan.js";
+export { health } from "./health.js";
