@@ -1,0 +1,54 @@
+name: Firebase Deploy
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+env:
+  FIREBASE_PROJECT: mybodyscan-f3daf
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Detect credentials
+        id: creds
+        shell: bash
+        run: |
+          set -euo pipefail
+          HAS="false"; MODE=""
+          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then HAS="true"; MODE="sa"; fi
+          if [ "$HAS" = "false" ] && [ -n "${{ secrets.FIREBASE_TOKEN }}" ]; then HAS="true"; MODE="token"; fi
+          echo "has=$HAS" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+      - name: Prepare credentials
+        if: ${{ steps.creds.outputs.has == 'true' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            KEY_PATH="$RUNNER_TEMP/firebase.json"
+            if [[ "$FIREBASE_SERVICE_ACCOUNT" == \{* ]]; then printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$KEY_PATH";
+            else printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | base64 --decode > "$KEY_PATH"; fi
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$KEY_PATH" >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo "FIREBASE_TOKEN=$FIREBASE_TOKEN" >> "$GITHUB_ENV"
+          fi
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+      - name: Build functions only
+        run: |
+          (npm --prefix functions ci || npm --prefix functions install --prefer-online)
+          npm --prefix functions run build
+      - name: Deploy Functions + Hosting
+        run: firebase deploy --only functions,hosting --project "$FIREBASE_PROJECT" --force
+      - name: Summary
+        run: |
+          echo "### Deployed to project: $FIREBASE_PROJECT" >> "$GITHUB_STEP_SUMMARY"
