@@ -82,6 +82,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - VITE_DEMO_MODE: set to `true` to always enable demo. Demo also auto-enables on localhost/127.0.0.1/lovable hosts or with `?demo=1`.
 - SPA rewrites: `firebase.json` places API rewrites (e.g., `/api/nutrition/*`) before the final catch-all to `/index.html` to avoid 404s on deep links.
 - Nutrition endpoints: frontend uses only `/api/nutrition/search` and `/api/nutrition/barcode`.
+- System smoke check: call the `health` HTTPS function (`GET https://us-central1-<project-id>.cloudfunctions.net/health`) to confirm env wiring, then sign in and visit `/system/check` to view the JSON payload and run the nutrition/coach/credits buttons.
 
 ## Environment variables
 

@@ -53,6 +53,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import SystemCheck from "./pages/SystemCheck";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Scan from "./pages/Scan";
@@ -557,6 +558,7 @@ const App = () => {
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/system/check" element={<SystemCheck />} />
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />
