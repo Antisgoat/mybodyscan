@@ -5,10 +5,13 @@ import Stripe from "stripe";
 import { getAuth } from "firebase-admin/auth";
 import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { getEnvOrDefault } from "./env.js";
+import { publicBaseUrl, requireAuth, verifyAppCheckStrict } from "./http.js";
+import { assertStripeConfigured, env, hasStripe } from "./env.js";
 
 const DEFAULT_ORIGIN = "https://mybodyscanapp.com";
+const stripeSecrets: string[] = hasStripe()
+  ? ["STRIPE_SECRET", "STRIPE_SECRET_KEY"]
+  : [];
 
 type CheckoutMode = "payment" | "subscription";
 
@@ -35,24 +38,54 @@ class CheckoutError extends Error {
   }
 }
 
-let mockWarningLogged = false;
-
-function resolveStripeRuntime(context: string): { origin: string; secret: string | null } {
-  const origin = getEnvOrDefault("HOST_BASE_URL", DEFAULT_ORIGIN);
-  const secret = process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY || null;
-  if (!secret && !mockWarningLogged) {
-    console.warn("payments_mock_mode_enabled", { context, origin });
-    mockWarningLogged = true;
+function getStripeRuntimeFromRequest(
+  context: string,
+  req?: ExpressRequest
+): { stripe: Stripe; origin: string } | null {
+  try {
+    assertStripeConfigured();
+  } catch (error) {
+    console.warn("payments_disabled", {
+      context,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
-  return { origin, secret };
+
+  const secret = env.STRIPE_SECRET_KEY || env.STRIPE_SECRET;
+  if (!secret) {
+    console.warn("payments_disabled_missing_secret", { context });
+    return null;
+  }
+
+  const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
+  const origin = req ? publicBaseUrl(req) : env.HOST_BASE_URL || DEFAULT_ORIGIN;
+
+  return { stripe, origin };
 }
 
-function buildStripe(context: string, plan?: PlanKey): { client: Stripe | null; origin: string } {
-  const { origin, secret } = resolveStripeRuntime(context);
-  if (!secret) {
-    return { client: null, origin };
+function ensureStripeForRequest(
+  context: string,
+  req: ExpressRequest,
+  res: ExpressResponse
+): { stripe: Stripe; origin: string } | null {
+  const runtime = getStripeRuntimeFromRequest(context, req);
+  if (!runtime) {
+    res.status(501).json({ error: "payments_disabled" });
+    return null;
   }
-  return { client: new Stripe(secret, { apiVersion: "2024-06-20" }), origin };
+  return runtime;
+}
+
+function ensureStripeForCallable(
+  context: string,
+  req?: ExpressRequest
+): { stripe: Stripe; origin: string } {
+  const runtime = getStripeRuntimeFromRequest(context, req);
+  if (!runtime) {
+    throw new HttpsError("failed-precondition", "payments_disabled");
+  }
+  return runtime;
 }
 
 function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {
@@ -78,14 +111,12 @@ function getPlanConfig(plan: PlanKey) {
 
 async function createCheckoutSessionForUid(
   uid: string,
-  payload: CheckoutSessionPayload
+  payload: CheckoutSessionPayload,
+  stripe: Stripe,
+  origin: string
 ): Promise<CheckoutSessionResult> {
   const { plan } = payload;
   const { priceId, mode } = getPlanConfig(plan);
-  const { client: stripe, origin } = buildStripe("checkout_session", plan);
-  if (!stripe) {
-    return { url: `${origin}/plans` };
-  }
   try {
     const session = await stripe.checkout.sessions.create({
       mode,
@@ -106,12 +137,22 @@ async function createCheckoutSessionForUid(
 }
 
 async function handleCheckoutSession(req: ExpressRequest, res: ExpressResponse) {
+  const runtime = ensureStripeForRequest("checkout_session_http", req, res);
+  if (!runtime) {
+    return;
+  }
+
   await requireAppCheckStrict(req, res);
   const uid = await requireAuth(req);
   const source = req.body && Object.keys(req.body || {}).length ? req.body : req.query;
   const payload = parseCheckoutSessionPayload(source);
   try {
-    const result = await createCheckoutSessionForUid(uid, payload);
+    const result = await createCheckoutSessionForUid(
+      uid,
+      payload,
+      runtime.stripe,
+      runtime.origin
+    );
     res.json(result);
   } catch (err) {
     if (err instanceof CheckoutError) {
@@ -124,13 +165,14 @@ async function handleCheckoutSession(req: ExpressRequest, res: ExpressResponse) 
 }
 
 async function handleCustomerPortal(req: ExpressRequest, res: ExpressResponse) {
-  await requireAppCheckStrict(req, res);
-  const uid = await requireAuth(req);
-  const { client: stripe, origin } = buildStripe("customer_portal");
-  if (!stripe) {
-    res.json({ url: `${origin}/plans` });
+  const runtime = ensureStripeForRequest("customer_portal", req, res);
+  if (!runtime) {
     return;
   }
+
+  await requireAppCheckStrict(req, res);
+  const uid = await requireAuth(req);
+  const { stripe, origin } = runtime;
   const user = await getAuth().getUser(uid);
   if (!user.email) {
     throw new HttpsError("failed-precondition", "User email required");
@@ -150,7 +192,7 @@ function withHandler(handler: (req: ExpressRequest, res: ExpressResponse) => Pro
   return onRequest(
     {
       region: "us-central1",
-      secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY"],
+      secrets: stripeSecrets,
       invoker: "public",
       concurrency: 10,
     },
@@ -192,12 +234,18 @@ export async function createCheckoutSessionHandler(
     throw new HttpsError("unauthenticated", "Authentication required");
   }
   const rawRequest = context.rawRequest as ExpressRequest | undefined;
+  const runtime = ensureStripeForCallable("checkout_session_callable", rawRequest);
   if (rawRequest) {
     await verifyAppCheckStrict(rawRequest);
   }
   const payload = parseCheckoutSessionPayload(data);
   try {
-    return await createCheckoutSessionForUid(uid, payload);
+    return await createCheckoutSessionForUid(
+      uid,
+      payload,
+      runtime.stripe,
+      runtime.origin
+    );
   } catch (err) {
     if (err instanceof CheckoutError) {
       const code = err.kind === "config" ? "failed-precondition" : "internal";
@@ -208,7 +256,7 @@ export async function createCheckoutSessionHandler(
 }
 
 export const createCheckoutSession = onCall<Partial<CheckoutSessionPayload>>(
-  { region: "us-central1", secrets: ["STRIPE_SECRET", "STRIPE_SECRET_KEY"] },
+  { region: "us-central1", secrets: stripeSecrets },
   async (request: CallableRequest<Partial<CheckoutSessionPayload>>) =>
     createCheckoutSessionHandler(request.data, request)
 );

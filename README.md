@@ -113,10 +113,30 @@ Cloud Functions read Stripe credentials from Firebase Secrets Manager entries na
 Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
 
 - `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
-- `STRIPE_SECRET` **and** `STRIPE_SECRET_KEY` *(either key enables live payments; both missing triggers safe mock payments)*
+- `STRIPE_SECRET` **and** `STRIPE_SECRET_KEY` *(both required for live payments; missing either causes Stripe HTTPS endpoints to respond with 501)*
 - `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
 - `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
 - `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
+
+## Secrets & Deploy
+
+### Inspect and manage Firebase secrets
+
+- List all secrets: `firebase functions:secrets:list --project <projectId>`
+- Describe a secret: `firebase functions:secrets:describe HOST_BASE_URL --project <projectId>`
+- Set or update a secret: `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
+
+### Runtime behavior without optional secrets
+
+- `HOST_BASE_URL` is optional; HTTPS handlers fall back to each request's origin when it is not configured.
+- `APP_CHECK_ALLOWED_ORIGINS` may be empty. Keeping `APP_CHECK_ENFORCE_SOFT=true` allows soft enforcement so missing tokens log warnings instead of failing the request.
+- If `STRIPE_SECRET` and `STRIPE_SECRET_KEY` are absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
+
+### Example production secret values
+
+- `HOST_BASE_URL = https://mybodyscanapp.com`
+- `APP_CHECK_ALLOWED_ORIGINS = https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app,https://mybodyscan-f3daf.firebaseapp.com`
+- `APP_CHECK_ENFORCE_SOFT = true`
 
 ## Firebase Web config (Lovable without env vars)
 We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
@@ -163,6 +183,7 @@ Deploy Functions and Hosting after setting Stripe keys and webhook secret via `f
 
 ```sh
 firebase functions:secrets:set STRIPE_SECRET
+firebase functions:secrets:set STRIPE_SECRET_KEY
 firebase functions:secrets:set STRIPE_WEBHOOK
 firebase deploy --only functions,hosting
 ```
