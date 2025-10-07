@@ -1,16 +1,26 @@
 import { logger } from "firebase-functions";
 
+const trim = (value: string): string => value.trim();
+
 export const env = {
-  HOST_BASE_URL: process.env.HOST_BASE_URL ?? "",
-  STRIPE_SECRET: process.env.STRIPE_SECRET ?? "",
-  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "",
+  HOST_BASE_URL: trim(process.env.HOST_BASE_URL ?? ""),
+  STRIPE_SECRET: trim(process.env.STRIPE_SECRET ?? ""),
+  STRIPE_SECRET_KEY: trim(process.env.STRIPE_SECRET_KEY ?? ""),
   APP_CHECK_ALLOWED_ORIGINS: process.env.APP_CHECK_ALLOWED_ORIGINS ?? "",
   APP_CHECK_ENFORCE_SOFT:
     String(process.env.APP_CHECK_ENFORCE_SOFT ?? "true").toLowerCase() === "true",
 };
 
-export const hasStripe = (): boolean =>
-  Boolean(env.STRIPE_SECRET && env.STRIPE_SECRET_KEY);
+const stripeSecretNamesInternal = [
+  env.STRIPE_SECRET ? "STRIPE_SECRET" : null,
+  env.STRIPE_SECRET_KEY ? "STRIPE_SECRET_KEY" : null,
+].filter((value): value is string => Boolean(value));
+
+const stripeSecretValue = env.STRIPE_SECRET_KEY || env.STRIPE_SECRET;
+
+export const stripeSecretNames = stripeSecretNamesInternal;
+
+export const hasStripe = (): boolean => Boolean(stripeSecretValue);
 
 export const hasHostBase = (): boolean => env.HOST_BASE_URL.length > 0;
 
@@ -20,6 +30,10 @@ export function assertStripeConfigured(): void {
     err.code = "failed-precondition";
     throw err;
   }
+}
+
+export function getStripeSecret(): string {
+  return stripeSecretValue;
 }
 
 export function getEnvOrDefault(name: string, fallback: string): string {

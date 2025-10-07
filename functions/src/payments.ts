@@ -6,12 +6,16 @@ import { getAuth } from "firebase-admin/auth";
 import { withCors } from "./middleware/cors.js";
 import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { publicBaseUrl, requireAuth, verifyAppCheckStrict } from "./http.js";
-import { assertStripeConfigured, env, hasStripe } from "./env.js";
+import {
+  assertStripeConfigured,
+  env,
+  getStripeSecret,
+  hasStripe,
+  stripeSecretNames,
+} from "./env.js";
 
 const DEFAULT_ORIGIN = "https://mybodyscanapp.com";
-const stripeSecrets: string[] = hasStripe()
-  ? ["STRIPE_SECRET", "STRIPE_SECRET_KEY"]
-  : [];
+const stripeSecrets: string[] = hasStripe() ? [...stripeSecretNames] : [];
 
 type CheckoutMode = "payment" | "subscription";
 
@@ -52,7 +56,7 @@ function getStripeRuntimeFromRequest(
     return null;
   }
 
-  const secret = env.STRIPE_SECRET_KEY || env.STRIPE_SECRET;
+  const secret = getStripeSecret();
   if (!secret) {
     console.warn("payments_disabled_missing_secret", { context });
     return null;
