@@ -1,20 +1,20 @@
 import * as admin from "firebase-admin";
 import { HttpsError } from "firebase-functions/v2/https";
 
-import { getBool, getEnvOrDefault } from "./env.js";
+import { env } from "./env.js";
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
 const allowedOrigins = new Set(
-  getEnvOrDefault("APP_CHECK_ALLOWED_ORIGINS", "")
+  (env.APP_CHECK_ALLOWED_ORIGINS || "")
     .split(",")
     .map((value) => value.trim())
-    .filter((value) => value.length > 0)
+    .filter((value) => value)
 );
 
-const softEnforcement = getBool("APP_CHECK_ENFORCE_SOFT", true);
+const softEnforcement = env.APP_CHECK_ENFORCE_SOFT;
 
 function shouldEnforceStrict(origin?: string | null): boolean {
   if (softEnforcement) {
@@ -51,7 +51,7 @@ export async function verifyAppCheckFromHeader(req: any) {
     const payload = { origin, path };
     if (strict) {
       console.warn("AppCheck: strict reject (missing)", payload);
-      throw new HttpsError("unauthenticated", "Missing App Check token");
+      throw new HttpsError("permission-denied", "Missing App Check token");
     }
     console.warn("AppCheck: soft mode (missing)", payload);
     return;
@@ -63,7 +63,7 @@ export async function verifyAppCheckFromHeader(req: any) {
     const payload = { origin, path, message: (error as Error)?.message };
     if (strict) {
       console.warn("AppCheck: strict reject (invalid)", payload);
-      throw new HttpsError("unauthenticated", "Invalid App Check token");
+      throw new HttpsError("permission-denied", "Invalid App Check token");
     }
     console.warn("AppCheck: soft mode (invalid)", payload);
   }

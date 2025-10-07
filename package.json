@@ -11,6 +11,7 @@
     "build": "vite build",
     "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/print-build-tag.js",
     "build:dev": "vite build --mode development",
+    "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

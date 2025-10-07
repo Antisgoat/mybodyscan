@@ -1,51 +1,24 @@
 import { logger } from "firebase-functions";
 
-function isEmulator(): boolean {
-  return process.env.FUNCTIONS_EMULATOR === "true" || process.env.NODE_ENV !== "production";
-}
+export const env = {
+  HOST_BASE_URL: process.env.HOST_BASE_URL ?? "",
+  STRIPE_SECRET: process.env.STRIPE_SECRET ?? "",
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "",
+  APP_CHECK_ALLOWED_ORIGINS: process.env.APP_CHECK_ALLOWED_ORIGINS ?? "",
+  APP_CHECK_ENFORCE_SOFT:
+    String(process.env.APP_CHECK_ENFORCE_SOFT ?? "true").toLowerCase() === "true",
+};
 
-const validatedKeys = new Set<string>();
-const warnedKeys = new Set<string>();
+export const hasStripe = (): boolean =>
+  Boolean(env.STRIPE_SECRET && env.STRIPE_SECRET_KEY);
 
-function markValidated(name: string, value: string | undefined): void {
-  if (value) {
-    validatedKeys.add(name);
-  }
-}
+export const hasHostBase = (): boolean => env.HOST_BASE_URL.length > 0;
 
-export function requireEnv(name: string, context: string): string {
-  const value = process.env[name];
-  if (!value) {
-    const message = `${context}: missing required env var ${name}`;
-    logger.error(message);
-    if (!isEmulator()) {
-      throw new Error(message);
-    }
-  }
-  if (value) {
-    markValidated(name, value);
-    return value;
-  }
-  return "";
-}
-
-export function ensureEnvVars(names: string[], context: string): void {
-  for (const name of names) {
-    if (validatedKeys.has(name) && process.env[name]) {
-      continue;
-    }
-    requireEnv(name, context);
-  }
-}
-
-export function reportMissingEnv(name: string, context: string): void {
-  if (process.env[name]) {
-    return;
-  }
-  const message = `${context}: critical secret ${name} is not configured`;
-  logger.error(message);
-  if (!isEmulator()) {
-    throw new Error(message);
+export function assertStripeConfigured(): void {
+  if (!hasStripe()) {
+    const err: any = new Error("Stripe not configured");
+    err.code = "failed-precondition";
+    throw err;
   }
 }
 
@@ -54,27 +27,31 @@ export function getEnvOrDefault(name: string, fallback: string): string {
   if (raw === undefined || raw === "") {
     return fallback;
   }
-  markValidated(name, raw);
   return raw;
 }
+
+const warnedKeys = new Set<string>();
 
 export function getBool(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined || raw === "") {
     return fallback;
   }
+
   const normalized = raw.trim().toLowerCase();
   if (["1", "true", "t", "yes", "y", "on"].includes(normalized)) {
-    markValidated(name, raw);
     return true;
   }
   if (["0", "false", "f", "no", "n", "off"].includes(normalized)) {
-    markValidated(name, raw);
     return false;
   }
+
   if (!warnedKeys.has(name)) {
-    logger.warn(`${name}: unable to parse boolean value (${raw}); falling back to ${fallback}`);
+    logger.warn(
+      `${name}: unable to parse boolean value (${raw}); falling back to ${fallback}`
+    );
     warnedKeys.add(name);
   }
+
   return fallback;
 }

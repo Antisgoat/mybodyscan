@@ -16,7 +16,7 @@ export async function requireAppCheckStrict(req: Request, res: Response): Promis
     const payload = { path: req.path, origin };
     if (strict) {
       console.warn("appcheck_strict_missing", payload);
-      throw new HttpsError("unauthenticated", "Missing App Check token");
+      throw new HttpsError("permission-denied", "Missing App Check token");
     }
     console.warn("appcheck_soft_missing", payload);
     return;
@@ -27,7 +27,7 @@ export async function requireAppCheckStrict(req: Request, res: Response): Promis
     const payload = { path: req.path, origin, message: (error as Error)?.message };
     if (strict) {
       console.warn("appcheck_strict_invalid", payload);
-      throw new HttpsError("unauthenticated", "Invalid App Check token");
+      throw new HttpsError("permission-denied", "Invalid App Check token");
     }
     console.warn("appcheck_soft_invalid", payload);
     return;
