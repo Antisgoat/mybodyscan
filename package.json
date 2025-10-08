@@ -19,6 +19,8 @@
     "test:rules": "npm run test --prefix tests/rules",
     "emulators": "firebase emulators:start --only firestore,auth,storage,functions --import ./emulator-data --export-on-exit",
     "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report",
     "pretest:e2e": "playwright install --with-deps",
     "lighthouse": "lhci autorun",
     "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL",
