@@ -220,12 +220,11 @@ function buildUserContext(inputs: SubmitPayload): string {
   return parts.join("; ");
 }
 
-async function callOpenAi(images: Array<{ pose: Pose; url: string }>, inputs: SubmitPayload): Promise<ParsedResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    // Return deterministic mock result when API key is missing
-    return buildMockResult(inputs.scanId);
-  }
+async function callOpenAi(
+  apiKey: string,
+  images: Array<{ pose: Pose; url: string }>,
+  inputs: SubmitPayload
+): Promise<ParsedResult> {
   const systemPrompt =
     "You are a body-composition assistant. Estimate body fat percentage from photographs. Provide only the requested JSON.";
   const context = buildUserContext(inputs);
@@ -352,16 +351,27 @@ export const submitScan = onRequest(
       });
 
       let result: ParsedResult;
-      try {
-        console.info("scan_submit", { uid, scanId: payload.scanId });
-        result = await callOpenAi(
-          imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
-          payload
-        );
-      } catch (err: any) {
-        // As an additional guard, fall back to mock result on error
-        console.warn("scan_submit_engine_error", { uid, scanId: payload.scanId, message: err?.message });
+      const OPENAI_KEY = process.env.OPENAI_API_KEY ?? "";
+      if (!OPENAI_KEY) {
+        console.warn("scan_submit_mock_response", {
+          uid,
+          scanId: payload.scanId,
+          reason: "missing_openai_key",
+        });
         result = buildMockResult(payload.scanId);
+      } else {
+        try {
+          console.info("scan_submit", { uid, scanId: payload.scanId });
+          result = await callOpenAi(
+            OPENAI_KEY,
+            imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
+            payload
+          );
+        } catch (err: any) {
+          // As an additional guard, fall back to mock result on error
+          console.warn("scan_submit_engine_error", { uid, scanId: payload.scanId, message: err?.message });
+          result = buildMockResult(payload.scanId);
+        }
       }
 
       const now = Timestamp.now();
@@ -381,7 +391,7 @@ export const submitScan = onRequest(
               {
                 createdAt: now,
                 updatedAt: now,
-                engine: "openai-vision",
+                engine: OPENAI_KEY ? "openai-vision" : "mock",
                 status: "failed",
                 failureReason: "no_credits",
                 metadata: {
@@ -412,7 +422,7 @@ export const submitScan = onRequest(
         const doc: StoredScan = {
           createdAt: now,
           completedAt: now,
-          engine: "openai-vision",
+          engine: OPENAI_KEY ? "openai-vision" : "mock",
           status: "complete",
           inputs: sanitizedInputs,
           result,
@@ -452,17 +462,26 @@ export const submitScan = onRequest(
         durationMs: Date.now() - start,
       });
 
-      const responsePayload = {
+      const responsePayload: any = {
         id: docRef.id,
         createdAt: savedScan.createdAt.toMillis(),
         completedAt: savedScan.completedAt.toMillis(),
-        engine: process.env.OPENAI_API_KEY ? savedScan.engine : "mock",
+        engine: OPENAI_KEY ? savedScan.engine : "mock",
         status: savedScan.status,
         inputs: savedScan.inputs,
         result: savedScan.result,
         metadata: savedScan.metadata,
         creditsRemaining: remainingCredits,
+        provider: OPENAI_KEY ? "openai" : "mock",
       };
+
+      if (!OPENAI_KEY) {
+        responsePayload.mock = {
+          bodyFat: Number(savedScan.result.bfPercent ?? 22),
+          weight: payload.weightLb ?? 180,
+          provider: "mock",
+        };
+      }
 
       res.json(responsePayload);
     } catch (err: any) {

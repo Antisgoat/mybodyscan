@@ -3,7 +3,7 @@ name: Firebase Deploy
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    branches: [work]
 
 env:
   FIREBASE_PROJECT: mybodyscan-f3daf

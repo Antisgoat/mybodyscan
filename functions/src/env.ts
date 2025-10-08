@@ -1,28 +1,51 @@
 import { logger } from "firebase-functions";
 
-const trim = (value: string): string => value.trim();
+type EnvCache = Map<string, string>;
 
-export const env = {
-  HOST_BASE_URL: trim(process.env.HOST_BASE_URL ?? ""),
-  STRIPE_SECRET: trim(process.env.STRIPE_SECRET ?? ""),
-  STRIPE_SECRET_KEY: trim(process.env.STRIPE_SECRET_KEY ?? ""),
-  APP_CHECK_ALLOWED_ORIGINS: process.env.APP_CHECK_ALLOWED_ORIGINS ?? "",
-  APP_CHECK_ENFORCE_SOFT:
-    String(process.env.APP_CHECK_ENFORCE_SOFT ?? "true").toLowerCase() === "true",
-};
+const cache: EnvCache = new Map();
 
-const stripeSecretNamesInternal = [
-  env.STRIPE_SECRET ? "STRIPE_SECRET" : null,
-  env.STRIPE_SECRET_KEY ? "STRIPE_SECRET_KEY" : null,
-].filter((value): value is string => Boolean(value));
+function readEnv(name: string): string {
+  if (cache.has(name)) {
+    return cache.get(name)!;
+  }
+  const raw = process.env[name];
+  const value = typeof raw === "string" ? raw.trim() : "";
+  cache.set(name, value);
+  return value;
+}
 
-const stripeSecretValue = env.STRIPE_SECRET_KEY || env.STRIPE_SECRET;
+export function getHostBaseUrl(): string {
+  return readEnv("HOST_BASE_URL");
+}
 
-export const stripeSecretNames = stripeSecretNamesInternal;
+interface StripeCandidate {
+  name: string;
+  value: string;
+}
 
-export const hasStripe = (): boolean => Boolean(stripeSecretValue);
+function getStripeCandidates(): StripeCandidate[] {
+  return [
+    { name: "STRIPE_SECRET_KEY", value: readEnv("STRIPE_SECRET_KEY") },
+    { name: "STRIPE_SECRET", value: readEnv("STRIPE_SECRET") },
+  ].filter((entry) => entry.value.length > 0);
+}
 
-export const hasHostBase = (): boolean => env.HOST_BASE_URL.length > 0;
+export function getStripeSecretNames(): string[] {
+  return getStripeCandidates().map((entry) => entry.name);
+}
+
+export function getStripeSecret(): string {
+  const [primary] = getStripeCandidates();
+  return primary ? primary.value : "";
+}
+
+export function hasStripe(): boolean {
+  return getStripeSecret().length > 0;
+}
+
+export function hasHostBase(): boolean {
+  return getHostBaseUrl().length > 0;
+}
 
 export function assertStripeConfigured(): void {
   if (!hasStripe()) {
@@ -32,40 +55,43 @@ export function assertStripeConfigured(): void {
   }
 }
 
-export function getStripeSecret(): string {
-  return stripeSecretValue;
-}
-
 export function getEnvOrDefault(name: string, fallback: string): string {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") {
-    return fallback;
-  }
-  return raw;
+  const raw = readEnv(name);
+  return raw === "" ? fallback : raw;
 }
 
 const warnedKeys = new Set<string>();
 
 export function getBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") {
+  const raw = readEnv(name);
+  if (raw === "") {
     return fallback;
   }
-
-  const normalized = raw.trim().toLowerCase();
+  const normalized = raw.toLowerCase();
   if (["1", "true", "t", "yes", "y", "on"].includes(normalized)) {
     return true;
   }
   if (["0", "false", "f", "no", "n", "off"].includes(normalized)) {
     return false;
   }
-
   if (!warnedKeys.has(name)) {
-    logger.warn(
-      `${name}: unable to parse boolean value (${raw}); falling back to ${fallback}`
-    );
+    logger.warn(`${name}: unable to parse boolean value (${raw}); falling back to ${fallback}`);
     warnedKeys.add(name);
   }
-
   return fallback;
+}
+
+export function getAppCheckAllowedOrigins(): string[] {
+  const raw = readEnv("APP_CHECK_ALLOWED_ORIGINS");
+  if (raw === "") {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+export function isAppCheckSoftEnforced(): boolean {
+  return getBool("APP_CHECK_ENFORCE_SOFT", true);
 }

@@ -8,14 +8,14 @@ import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { publicBaseUrl, requireAuth, verifyAppCheckStrict } from "./http.js";
 import {
   assertStripeConfigured,
-  env,
   getStripeSecret,
+  getStripeSecretNames,
+  getHostBaseUrl,
   hasStripe,
-  stripeSecretNames,
 } from "./env.js";
 
 const DEFAULT_ORIGIN = "https://mybodyscanapp.com";
-const stripeSecrets: string[] = hasStripe() ? [...stripeSecretNames] : [];
+const stripeSecrets: string[] = hasStripe() ? getStripeSecretNames() : [];
 
 type CheckoutMode = "payment" | "subscription";
 
@@ -63,7 +63,7 @@ function getStripeRuntimeFromRequest(
   }
 
   const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
-  const origin = req ? publicBaseUrl(req) : env.HOST_BASE_URL || DEFAULT_ORIGIN;
+  const origin = req ? publicBaseUrl(req) : getHostBaseUrl() || DEFAULT_ORIGIN;
 
   return { stripe, origin };
 }
