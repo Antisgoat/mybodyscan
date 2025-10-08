@@ -205,3 +205,16 @@ Stripe webhook requests now require a valid signature. Invalid signatures return
    - your Lovable preview domain
 4) Rebuild locally: `npm ci && npm run build && npm run preview`
 5) Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
+
+## Secrets & Deploy Quick Reference
+
+- List secrets: `firebase functions:secrets:list --project <projectId>`
+- Set secrets (one at a time):
+  - `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
+  - `firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project <projectId>`
+  - `firebase functions:secrets:set APP_CHECK_ENFORCE_SOFT --project <projectId>`
+  - `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`
+  - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
+  - Optional: `firebase functions:secrets:set STRIPE_SECRET_KEY --project <projectId>`
+- Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
+- Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)
