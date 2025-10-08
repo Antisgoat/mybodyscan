@@ -12,6 +12,7 @@ import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/li
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
+import { roundGrams, roundKcal } from "@/lib/nutritionMath";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -69,7 +70,7 @@ export default function Nutrition() {
   const initializing = !appCheckReady;
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
+    <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-nutrition">
       <Seo title="Nutrition - MyBodyScan" description="Track your meal history and targets." />
       <AppHeader />
       <ErrorBoundary title="Nutrition is unavailable" description="Reload to try again or check back shortly.">
@@ -85,7 +86,7 @@ export default function Nutrition() {
             <CardHeader>
               <CardTitle>Today's totals</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent data-testid="nutrition-totals">
             {initializing ? (
                 <p className="text-sm text-muted-foreground">Initializing secure nutrition services…</p>
               ) : loading ? (
@@ -97,19 +98,19 @@ export default function Nutrition() {
               <div className="space-y-1 text-sm text-foreground">
                 <div className="flex items-center justify-between">
                   <span>Calories</span>
-                  <span>{Math.round(totals.calories || 0)} kcal</span>
+                  <span>{roundKcal(totals.calories ?? 0)} kcal</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Protein</span>
-                  <span>{Math.round(totals.protein || 0)} g</span>
+                  <span>{roundGrams(totals.protein ?? 0)} g</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Carbs</span>
-                  <span>{Math.round(totals.carbs || 0)} g</span>
+                  <span>{roundGrams(totals.carbs ?? 0)} g</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Fat</span>
-                  <span>{Math.round(totals.fat || 0)} g</span>
+                  <span>{roundGrams(totals.fat ?? 0)} g</span>
                 </div>
               </div>
             )}
@@ -134,7 +135,7 @@ export default function Nutrition() {
                 {history.map((day) => (
                   <li key={day.date} className="flex items-center justify-between">
                     <span>{day.date}</span>
-                    <span className="text-muted-foreground">{Math.round(day.totals.calories || 0)} kcal</span>
+                    <span className="text-muted-foreground">{roundKcal(day.totals.calories ?? 0)} kcal</span>
                   </li>
                 ))}
               </ul>
@@ -160,7 +161,7 @@ export default function Nutrition() {
             </Button>
             {mostRecent && (
               <p className="text-xs text-muted-foreground">
-                Latest entry: {mostRecent.date} · {Math.round(mostRecent.totals.calories || 0)} kcal
+                Latest entry: {mostRecent.date} · {roundKcal(mostRecent.totals.calories ?? 0)} kcal
               </p>
             )}
           </CardContent>

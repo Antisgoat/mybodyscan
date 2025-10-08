@@ -171,7 +171,7 @@ export default function CoachChatPage() {
   const formattedMessages = useMemo(() => sortMessages(messages), [messages]);
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
+    <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-coach">
       <Seo title="Coach Chat – MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
       <AppHeader />
       <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
@@ -218,12 +218,21 @@ export default function CoachChatPage() {
                 )}
               </div>
               <div className="space-y-3">
+                {coachError && (
+                  <p className="text-sm text-destructive">{coachError}</p>
+                )}
                 <Textarea
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    if (coachError) {
+                      setCoachError(null);
+                    }
+                  }}
                   placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
                   rows={4}
                   disabled={pending || demo || initializing}
+                  data-testid="coach-input"
                 />
                 <div className="flex justify-end">
                   <Button

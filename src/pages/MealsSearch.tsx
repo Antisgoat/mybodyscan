@@ -24,6 +24,7 @@ import { addDoc } from "@/lib/dbWrite";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -49,28 +50,29 @@ function storeRecents(items: FoodItem[]) {
   window.localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, MAX_RECENTS)));
 }
 
-function round(value: number, decimals = 1) {
+function roundTo(value: number, decimals = 1) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }
 
 function calculateMacros(base: FoodItem["basePer100g"], grams: number) {
-  if (!grams || grams <= 0) {
+  const safeGrams = Number.isFinite(grams) ? Math.max(0, grams) : 0;
+  if (!safeGrams) {
     return { grams: 0, kcal: 0, protein: 0, carbs: 0, fat: 0 };
   }
-  const factor = grams / 100;
+  const factor = safeGrams / 100;
   return {
-    grams: round(grams, 2),
-    kcal: Math.round(base.kcal * factor),
-    protein: round(base.protein * factor),
-    carbs: round(base.carbs * factor),
-    fat: round(base.fat * factor),
+    grams: safeGrams,
+    kcal: sumNumbers([base?.kcal]) * factor,
+    protein: sumNumbers([base?.protein]) * factor,
+    carbs: sumNumbers([base?.carbs]) * factor,
+    fat: sumNumbers([base?.fat]) * factor,
   };
 }
 
 function ouncesDisplay(grams: number) {
   if (!grams || grams <= 0) return null;
-  return round(grams * OUNCES_IN_GRAM, 2);
+  return roundTo(grams * OUNCES_IN_GRAM, 2);
 }
 
 function findCupServing(servings: ServingOption[]): ServingOption | undefined {
@@ -176,14 +178,14 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
           <div className="rounded-md bg-muted/60 p-4 text-sm">
             <div className="font-medium text-foreground">Total</div>
             <div className="mt-1 text-muted-foreground">
-              {macros.grams ? `${macros.grams} g` : "0 g"}
+              {macros.grams ? `${roundGrams(macros.grams)} g` : "0 g"}
               {ounces ? ` · ${ounces} oz` : ""}
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span>{macros.kcal} kcal</span>
-              <span>{macros.protein}g P</span>
-              <span>{macros.carbs}g C</span>
-              <span>{macros.fat}g F</span>
+              <span>{roundKcal(macros.kcal)} kcal</span>
+              <span>{roundGrams(macros.protein)}g P</span>
+              <span>{roundGrams(macros.carbs)}g C</span>
+              <span>{roundGrams(macros.fat)}g F</span>
             </div>
           </div>
 
@@ -218,6 +220,7 @@ export default function MealsSearch() {
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
   const [logging, setLogging] = useState(false);
+  const [searchWarning, setSearchWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authReady || !appCheckReady || !uid) {
@@ -242,6 +245,7 @@ export default function MealsSearch() {
         setResults([]);
         setPrimarySource(null);
       }
+      setSearchWarning(null);
       return;
     }
 
@@ -249,10 +253,12 @@ export default function MealsSearch() {
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
+      setSearchWarning(null);
       return;
     }
 
     setLoading(true);
+    setSearchWarning(null);
     let cancelled = false;
     const handle = window.setTimeout(() => {
       fetchFoods(trimmed)
@@ -260,10 +266,14 @@ export default function MealsSearch() {
           if (cancelled) return;
           setResults(items);
           setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
+          setSearchWarning(items.length ? null : "Food database temporarily busy; try again.");
         })
         .catch((error) => {
           if (cancelled) return;
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
+          const status = typeof error?.status === "number" ? error.status : null;
+          if (status === 429) {
+            setSearchWarning("Food database temporarily busy; try again.");
+          } else if (!(error instanceof DOMException && error.name === "AbortError")) {
             console.error("nutrition_search_error", error);
             toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
           }
@@ -328,11 +338,11 @@ export default function MealsSearch() {
         foodId: item.id,
         name: item.name,
         brand: item.brand ?? null,
-        grams: Math.round(totalGrams * 100) / 100,
-        kcal: macros.kcal,
-        protein: macros.protein,
-        carbs: macros.carbs,
-        fat: macros.fat,
+        grams: roundGrams(totalGrams),
+        kcal: roundKcal(macros.kcal),
+        protein: roundGrams(macros.protein),
+        carbs: roundGrams(macros.carbs),
+        fat: roundGrams(macros.fat),
         source: item.source,
         createdAt: serverTimestamp(),
       });
@@ -355,7 +365,7 @@ export default function MealsSearch() {
   const searchNotice = null;
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-meals">
       <Seo title="Food Search" description="Find foods from USDA and OpenFoodFacts" />
       <AppHeader />
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
@@ -433,13 +443,16 @@ export default function MealsSearch() {
               </p>
             )}
 
-            {loading && !searchNotice && appCheckReady && results.length === 0 && query.trim().length > 0 && (
+            {loading && !searchNotice && appCheckReady && results?.length === 0 && query.trim().length > 0 && (
               <p className="text-sm text-muted-foreground">
                 No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
               </p>
             )}
             {!loading && appCheckReady && !query.trim() && (
               <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
+            )}
+            {!loading && appCheckReady && searchWarning && (
+              <p className="text-sm text-muted-foreground">{searchWarning}</p>
             )}
               {appCheckReady &&
                 results.map((item) => {
@@ -453,7 +466,7 @@ export default function MealsSearch() {
                       <p className="font-medium text-foreground">{item.name}</p>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
                       <p className="text-xs text-muted-foreground">
-                        {Math.round(base.kcal)} kcal · {round(base.protein)}g P · {round(base.carbs)}g C · {round(base.fat)}g F
+                        {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}g P · {roundGrams(base.carbs)}g C · {roundGrams(base.fat)}g F
                         &nbsp;<span className="text-[10px] text-muted-foreground">per 100 g</span>
                       </p>
                     </div>
