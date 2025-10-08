@@ -100,6 +100,20 @@
         }
       },
       {
+        "source": "/api/system/health",
+        "function": {
+          "functionId": "systemHealth",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/system/health",
+        "function": {
+          "functionId": "systemHealth",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

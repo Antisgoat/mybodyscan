@@ -64,6 +64,11 @@ function loadHealthModule() {
   return (healthModulePromise ??= import("./health.js"));
 }
 
+let systemHealthModulePromise: Promise<typeof import("./system/health.js")> | null = null;
+function loadSystemHealthModule() {
+  return (systemHealthModulePromise ??= import("./system/health.js"));
+}
+
 let paymentsModulePromise: Promise<typeof import("./payments.js")> | null = null;
 function loadPaymentsModule() {
   return (paymentsModulePromise ??= import("./payments.js"));
@@ -101,6 +106,9 @@ export const beginPaidScan = createLazyExport(() =>
 );
 
 export const health = createLazyExport(() => loadHealthModule().then((mod) => mod.health));
+export const systemHealth = createLazyExport(() =>
+  loadSystemHealthModule().then((mod) => mod.systemHealthFunction)
+);
 
 function withAppCheckSoftMiddleware(handler: (req: Request, res: Response) => Promise<void> | void) {
   return async (req: Request, res: Response) => {
