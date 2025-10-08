@@ -55,7 +55,6 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
-import SystemCheck from "./pages/SystemCheck";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Scan from "./pages/Scan";
@@ -83,6 +82,7 @@ import { FeatureGate } from "./components/FeatureGate";
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
+const SystemCheckPage = lazy(() => import("./pages/SystemCheck"));
 
 const queryClient = new QueryClient();
 
@@ -586,7 +586,14 @@ const App = () => {
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/system/check" element={<SystemCheck />} />
+            <Route
+              path="/system/check"
+              element={
+                <Suspense fallback={<PageSkeleton />}>
+                  <SystemCheckPage />
+                </Suspense>
+              }
+            />
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />

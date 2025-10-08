@@ -1,0 +1,74 @@
+name: System health check
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL to query for /system/health"
+        required: false
+        default: "https://mybodyscanapp.com"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch system health
+        id: fetch
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          base_url="${BASE_URL%/}"
+          if [ -z "$base_url" ]; then
+            echo "Base URL input is required" >&2
+            exit 1
+          fi
+          url="$base_url/system/health"
+          echo "Requesting $url"
+          response=$(curl -sSfL "$url")
+          printf '%s' "$response" > system_health.json
+          pretty=$(printf '%s' "$response" | jq -M '.')
+          echo "$pretty"
+          {
+            echo "json<<EOF"
+            echo "$pretty"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "url=$url"
+          } >> "$GITHUB_OUTPUT"
+      - name: Post result comment
+        uses: actions/github-script@v7
+        env:
+          SYSTEM_HEALTH_JSON: ${{ steps.fetch.outputs.json }}
+          SYSTEM_HEALTH_URL: ${{ steps.fetch.outputs.url }}
+        with:
+          script: |
+            const bodyLines = [
+              `### System health (${process.env.SYSTEM_HEALTH_URL})`,
+              '',
+              '```json',
+              process.env.SYSTEM_HEALTH_JSON || '{}',
+              '```',
+            ];
+            const body = bodyLines.join('\n');
+            if (context.payload.pull_request) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            } else {
+              await github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body,
+              });
+            }
