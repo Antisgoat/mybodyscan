@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
+import { ensureAppCheck } from "./middleware/appCheckGuard.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
@@ -134,7 +134,7 @@ async function fetchCurrentPlan(uid: string) {
 }
 
 async function handleGenerate(req: Request, res: Response) {
-  await requireAppCheckStrict(req as any, res as any);
+  await ensureAppCheck(req as any, res as any);
   const uid = await requireAuth(req);
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
@@ -142,14 +142,14 @@ async function handleGenerate(req: Request, res: Response) {
 }
 
 async function handleGetPlan(req: Request, res: Response) {
-  await requireAppCheckStrict(req as any, res as any);
+  await ensureAppCheck(req as any, res as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
 async function handleMarkDone(req: Request, res: Response) {
-  await requireAppCheckStrict(req as any, res as any);
+  await ensureAppCheck(req as any, res as any);
   const uid = await requireAuth(req);
   const body = req.body as {
     planId?: string;
@@ -196,7 +196,7 @@ async function handleMarkDone(req: Request, res: Response) {
 }
 
 async function handleGetWorkouts(req: Request, res: Response) {
-  await requireAppCheckStrict(req as any, res as any);
+  await ensureAppCheck(req as any, res as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
@@ -221,7 +221,7 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
     { invoker: "public" },
     withCors(async (req, res) => {
       try {
-        await requireAppCheckStrict(req as any, res as any);
+        await ensureAppCheck(req as any, res as any);
         await handler(req as unknown as Request, res as unknown as Response);
       } catch (err: any) {
         const code = err instanceof HttpsError ? err.code : "internal";

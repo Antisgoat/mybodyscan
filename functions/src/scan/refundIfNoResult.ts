@@ -2,14 +2,14 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAppCheckStrict } from "../middleware/appCheck.js";
+import { ensureAppCheck } from "../middleware/appCheckGuard.js";
 import { requireAuth } from "../http.js";
 import { refundCredit } from "./creditUtils.js";
 
 const db = getFirestore();
 
 async function handler(req: Request, res: Response) {
-  await requireAppCheckStrict(req as any, res as any);
+  await ensureAppCheck(req as any, res as any);
   const uid = await requireAuth(req);
   const body = req.body as { scanId?: string };
   const scanId = body?.scanId || (req.query?.scanId as string | undefined);
