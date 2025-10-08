@@ -100,6 +100,13 @@
         }
       },
       {
+        "source": "/system/health",
+        "function": {
+          "functionId": "system",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

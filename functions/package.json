@@ -8,7 +8,7 @@
     "clean": "rimraf lib",
     "build": "tsc --project ./tsconfig.json",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
-    "ci-or-install": "npm ci || npm install --prefer-online",
+    "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund",
     "deploy:functions": "npm run build && firebase deploy --only functions --project mybodyscan-f3daf",
     "set:staff": "ts-node scripts/setStaffClaim.ts"
   },

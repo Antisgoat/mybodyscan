@@ -1,9 +1,11 @@
 import { onRequest } from "firebase-functions/v2/https";
+import express from "express";
 
 import type { Request, Response } from "express";
 import { hasStripe } from "./lib/env.js";
 import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheck.js";
+import { systemHealth } from "./system/health.js";
 
 type AnyFunction = (...args: any[]) => any;
 
@@ -172,4 +174,9 @@ export const stripeWebhook = createLazyExport(async () => {
   const mod = await loadPaymentsModule();
   return mod.stripeWebhook;
 });
+
+const systemApp = express();
+systemApp.get("/system/health", systemHealth);
+
+export const system = onRequest({ region: "us-central1", invoker: "public" }, systemApp);
 

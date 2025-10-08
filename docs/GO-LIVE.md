@@ -15,6 +15,12 @@ STRIPE_SECRET=*****
 STRIPE_SECRET_KEY=*****
 ```
 
+## No-Mock Policy
+
+- `OPENAI_API_KEY` must be set as a **Functions variable** via the Firebase Console or CLI before running any scans.
+- If `OPENAI_API_KEY` is missing, `POST /api/scan/submit` returns HTTP `503` with `openai_not_configured` and no mock data is generated.
+- Visit `/system/check` in production to verify OpenAI, Stripe, and App Check status before go-live.
+
 ## 2. Deploy
 Preferred: trigger **Firebase Deploy** workflow in GitHub Actions (`.github/workflows/firebase-deploy.yml`).
 
@@ -30,7 +36,8 @@ Perform these immediately after the deployment finishes:
 - Load `https://mybodyscanapp.com/` — login or home screen should render.
 - Confirm Google and Apple authentication buttons are visible.
 - Navigate to **Scan**, **Nutrition**, **Coach**, and **Settings** pages and watch the console for errors (should be clean).
-- Trigger a scan; without an `OPENAI_API_KEY` the app should return the mock response rather than failing.
+- Visit `/system/check` to confirm OpenAI shows **Configured** and App Check mode is expected.
+- Trigger a scan; if `OPENAI_API_KEY` is misconfigured the endpoint should return HTTP `503 openai_not_configured` by design.
 - Call payments endpoints; when Stripe secrets are absent the API should respond with HTTP `501 Not Implemented`.
 
 ## 4. Smoke tests
