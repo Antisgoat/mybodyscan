@@ -57,6 +57,7 @@ export default function CoachChatPage() {
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
+  const [coachError, setCoachError] = useState<string | null>(null);
   const uid = auth.currentUser?.uid ?? null;
 
   useEffect(() => {
@@ -98,18 +99,30 @@ export default function CoachChatPage() {
       if (demo) demoToast();
       return;
     }
-    const trimmed = input.trim();
-    if (!trimmed) return;
+    const sanitized = input
+      .replace(/[\u0000-\u001F\u007F]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!sanitized) {
+      setInput("");
+      return;
+    }
     setPending(true);
+    setCoachError(null);
     try {
-      await sendCoachChat({ message: trimmed });
+      await sendCoachChat({ message: sanitized });
       setInput("");
     } catch (error: any) {
-      const description =
-        error?.code === "app_check_unavailable"
-          ? "We couldn’t verify your App Check token. Refresh and try again."
-          : error?.message ?? "Check your connection.";
-      toast({ title: "Message not sent", description, variant: "destructive" });
+      const status = typeof error?.status === "number" ? error.status : null;
+      if ((status != null && status >= 400 && status < 500) || status === 501) {
+        setCoachError("Coach temporarily unavailable; please try again.");
+      } else {
+        const description =
+          error?.code === "app_check_unavailable"
+            ? "We couldn’t verify your App Check token. Refresh and try again."
+            : error?.message ?? "Check your connection.";
+        toast({ title: "Message not sent", description, variant: "destructive" });
+      }
     } finally {
       setPending(false);
     }
@@ -179,17 +192,32 @@ export default function CoachChatPage() {
               </div>
               <div className="space-y-3">
                 <Textarea
+                  data-testid="coach-input"
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    if (coachError) {
+                      setCoachError(null);
+                    }
+                  }}
                   placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
                   rows={4}
                   disabled={pending || demo}
                 />
                 <div className="flex justify-end">
-                  <Button onClick={handleSend} disabled={pending || demo || !input.trim()}>
+                  <Button
+                    data-testid="coach-send"
+                    onClick={handleSend}
+                    disabled={pending || demo || !input.trim()}
+                  >
                     {pending ? "Sending..." : "Send"}
                   </Button>
                 </div>
+                {coachError && (
+                  <p className="text-sm text-amber-600" role="status" aria-live="polite">
+                    {coachError}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

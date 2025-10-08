@@ -166,6 +166,11 @@ export default function ScanResult() {
           </Link>
         </CardHeader>
         <CardContent className="space-y-4">
+          {scan.provider === "mock" && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              Vision unavailable; using mock
+            </div>
+          )}
           {scan.status !== "completed" && (
             <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
               <RefreshCcw className="h-4 w-4" />

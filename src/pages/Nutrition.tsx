@@ -10,6 +10,38 @@ import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
 
+function toNumeric(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const parsed = typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundGrams(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function formatCalories(value: unknown): string {
+  if (value == null || value === "") {
+    return "0 kcal";
+  }
+  return `${Math.round(toNumeric(value))} kcal`;
+}
+
+function formatGrams(value: unknown): string {
+  return `${roundGrams(toNumeric(value)).toFixed(1)} g`;
+}
+
+function sanitizeTotals(input: any) {
+  return {
+    calories: toNumeric(input?.calories),
+    protein: toNumeric(input?.protein),
+    carbs: toNumeric(input?.carbs),
+    fat: toNumeric(input?.fat),
+  };
+}
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function Nutrition() {
@@ -17,7 +49,9 @@ export default function Nutrition() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totals, setTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>({ calories: 0 });
+  const [totals, setTotals] = useState<{ calories: number; protein: number; carbs: number; fat: number }>(
+    sanitizeTotals(null)
+  );
   const [history, setHistory] = useState<NutritionHistoryDay[]>([]);
 
   useEffect(() => {
@@ -32,8 +66,14 @@ export default function Nutrition() {
           getNutritionHistory(7),
         ]);
         if (cancelled) return;
-        setTotals(log?.totals ?? { calories: 0 });
-        setHistory(Array.isArray(hist) ? hist : []);
+        setTotals(sanitizeTotals(log?.totals));
+        const normalizedHistory = Array.isArray(hist)
+          ? hist.map((day) => ({
+              ...day,
+              totals: sanitizeTotals(day?.totals),
+            }))
+          : [];
+        setHistory(normalizedHistory);
       } catch (err: any) {
         console.warn("nutrition.load", err);
         if (!cancelled) {
@@ -79,22 +119,22 @@ export default function Nutrition() {
                 <Skeleton className="h-4 w-3/4" />
               </div>
             ) : (
-              <div className="space-y-1 text-sm text-foreground">
+              <div className="space-y-1 text-sm text-foreground" data-testid="nutrition-totals">
                 <div className="flex items-center justify-between">
                   <span>Calories</span>
-                  <span>{Math.round(totals.calories || 0)} kcal</span>
+                  <span>{formatCalories(totals.calories)}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Protein</span>
-                  <span>{Math.round(totals.protein || 0)} g</span>
+                  <span>{formatGrams(totals.protein)}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Carbs</span>
-                  <span>{Math.round(totals.carbs || 0)} g</span>
+                  <span>{formatGrams(totals.carbs)}</span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Fat</span>
-                  <span>{Math.round(totals.fat || 0)} g</span>
+                  <span>{formatGrams(totals.fat)}</span>
                 </div>
               </div>
             )}
@@ -117,7 +157,7 @@ export default function Nutrition() {
                 {history.map((day) => (
                   <li key={day.date} className="flex items-center justify-between">
                     <span>{day.date}</span>
-                    <span className="text-muted-foreground">{Math.round(day.totals.calories || 0)} kcal</span>
+                    <span className="text-muted-foreground">{formatCalories(day.totals.calories)}</span>
                   </li>
                 ))}
               </ul>
@@ -143,7 +183,7 @@ export default function Nutrition() {
             </Button>
             {mostRecent && (
               <p className="text-xs text-muted-foreground">
-                Latest entry: {mostRecent.date} · {Math.round(mostRecent.totals.calories || 0)} kcal
+                Latest entry: {mostRecent.date} · {formatCalories(mostRecent.totals.calories)}
               </p>
             )}
           </CardContent>

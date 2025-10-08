@@ -5,11 +5,13 @@ export interface BeginPaidScanPayload {
   hashes: string[];
   gateScore: number;
   mode: "2" | "4";
+  idempotencyKey?: string;
 }
 
 const MAX_SCAN_ID = 128;
 const MAX_HASH_LENGTH = 256;
 const MAX_HASHES = 10;
+const MAX_IDEMPOTENCY_KEY = 128;
 
 function sanitizeToken(value: string, maxLength: number): string {
   return value
@@ -42,6 +44,9 @@ export function validateBeginPaidScanPayload(input: unknown): ValidationResult<B
     errors.push("scanId");
   }
 
+  const idKeyRaw = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
+  const idempotencyKey = idKeyRaw ? sanitizeToken(idKeyRaw, MAX_IDEMPOTENCY_KEY) : undefined;
+
   const hashesInput = Array.isArray(body.hashes) ? body.hashes : [];
   const sanitizedHashes = hashesInput
     .map((hash) => sanitizeHash(hash))
@@ -72,6 +77,7 @@ export function validateBeginPaidScanPayload(input: unknown): ValidationResult<B
       hashes: Array.from(new Set(sanitizedHashes)),
       gateScore: Math.round(gateScore),
       mode,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     },
   };
 }

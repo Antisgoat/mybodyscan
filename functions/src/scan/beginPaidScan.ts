@@ -74,12 +74,29 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const creditRef = db.doc(`users/${uid}/private/credits`);
   const now = Timestamp.now();
   let remainingCredits: number | undefined;
+  let alreadyAuthorized = false;
 
   try {
     await db.runTransaction(async (tx) => {
       const scanSnap = await tx.get(scanRef);
       if (!scanSnap.exists) {
         throw new HttpsError("not-found", "scan_not_found");
+      }
+      const existing = scanSnap.data() as any;
+      if (payload.idempotencyKey && existing?.idempotencyKey === payload.idempotencyKey) {
+        alreadyAuthorized = true;
+        if (typeof existing?.remainingCreditsSnapshot === "number") {
+          remainingCredits = existing.remainingCreditsSnapshot;
+        }
+        const reuseUpdate: Record<string, unknown> = {
+          updatedAt: now,
+          gateScore: payload.gateScore,
+          mode: payload.mode,
+          imageHashes: payload.hashes,
+          gate: { clientScore: payload.gateScore, authorizedAt: now },
+        };
+        tx.set(scanRef, reuseUpdate, { merge: true });
+        return;
       }
 
       if (!staffBypass) {
@@ -99,20 +116,28 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         );
       }
 
-      tx.set(
-        scanRef,
-        {
-          status: "authorized",
-          charged: !staffBypass,
-          authorizedAt: now,
-          updatedAt: now,
-          gateScore: payload.gateScore,
-          mode: payload.mode,
-          imageHashes: payload.hashes,
-          gate: { clientScore: payload.gateScore, authorizedAt: now },
-        },
-        { merge: true }
-      );
+      const update: Record<string, unknown> = {
+        status: "authorized",
+        charged: !staffBypass,
+        authorizedAt: now,
+        updatedAt: now,
+        gateScore: payload.gateScore,
+        mode: payload.mode,
+        imageHashes: payload.hashes,
+        gate: { clientScore: payload.gateScore, authorizedAt: now },
+      };
+      if (payload.idempotencyKey) {
+        update.idempotencyKey = payload.idempotencyKey;
+        update.idempotencyKeyAt = now;
+        if (typeof remainingCredits === "number") {
+          update.remainingCreditsSnapshot = remainingCredits;
+        }
+      } else {
+        update.idempotencyKey = FieldValue.delete();
+        update.idempotencyKeyAt = FieldValue.delete();
+        update.remainingCreditsSnapshot = FieldValue.delete();
+      }
+      tx.set(scanRef, update, { merge: true });
     });
   } catch (error: any) {
     if (error instanceof HttpsError) {
@@ -129,14 +154,16 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
     return;
   }
 
-  await gateRef.set(
-    {
-      failed: failedCount,
-      passed: FieldValue.increment(1),
-      updatedAt: now,
-    },
-    { merge: true }
-  );
+  if (!alreadyAuthorized) {
+    await gateRef.set(
+      {
+        failed: failedCount,
+        passed: FieldValue.increment(1),
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  }
 
   const response: { ok: true; remainingCredits?: number } = { ok: true };
   if (typeof remainingCredits === "number") {

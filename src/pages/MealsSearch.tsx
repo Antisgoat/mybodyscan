@@ -213,6 +213,7 @@ export default function MealsSearch() {
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
   const [logging, setLogging] = useState(false);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -231,21 +232,32 @@ export default function MealsSearch() {
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
+      setSearchNotice(null);
       return;
     }
 
     setLoading(true);
+    setSearchNotice(null);
     let cancelled = false;
     const handle = window.setTimeout(() => {
       fetchFoods(trimmed)
         .then((items) => {
           if (cancelled) return;
           setResults(items);
-          setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
+          const hasItems = items.length > 0;
+          setPrimarySource(hasItems ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
+          if (!hasItems) {
+            setSearchNotice("Food database temporarily busy");
+          }
         })
         .catch((error) => {
           if (cancelled) return;
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+          if (error?.status === 429 || error?.status === 503) {
+            setSearchNotice("Food database temporarily busy");
+          } else {
             console.error("nutrition_search_error", error);
             toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
           }
@@ -345,6 +357,7 @@ export default function MealsSearch() {
 
         <form className="flex gap-2" onSubmit={(event) => event.preventDefault()}>
           <Input
+            data-testid="nutrition-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search chicken breast, oatmeal, whey…"
@@ -401,7 +414,12 @@ export default function MealsSearch() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
               </div>
             )}
-            {!loading && results.length === 0 && query.trim().length > 0 && (
+            {!loading && searchNotice && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {searchNotice}
+              </p>
+            )}
+            {!loading && !searchNotice && results.length === 0 && query.trim().length > 0 && (
               <p className="text-sm text-muted-foreground">
                 No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
               </p>

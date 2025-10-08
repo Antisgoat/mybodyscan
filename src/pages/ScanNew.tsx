@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@/
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { cn } from "@/lib/utils";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { useCredits } from "@/hooks/useCredits";
 
 const MODE_OPTIONS: { value: "2" | "4"; label: string; description: string }[] = [
   { value: "2", label: "Quick (2 photos)", description: "Front + Side" },
@@ -73,6 +74,7 @@ export default function ScanNew() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useUserProfile();
+  const { credits, loading: creditsLoading } = useCredits();
   const [mode, setMode] = useState<"2" | "4">("2");
   const [photos, setPhotos] = useState<Record<PhotoKey, File | null>>({
     front: null,
@@ -86,6 +88,10 @@ export default function ScanNew() {
   const [gateFailures, setGateFailures] = useState(0);
   const [stage, setStage] = useState<Stage>("idle");
   const [qcMessages, setQcMessages] = useState<string[]>([]);
+  const [pendingScanId, setPendingScanId] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
+  const [hasPersistentAuthorization, setHasPersistentAuthorization] = useState(false);
+  const authorizedRef = useRef(false);
 
   const required = useMemo(() => requiredPhotos(mode), [mode]);
   const selectedFiles = useMemo(() => {
@@ -104,12 +110,39 @@ export default function ScanNew() {
   const bmiDisplay = weightKg && heightCm ? formatBmi(bmiFromKgCm(weightKg, heightCm)) : "—";
 
   const handleFileChange = (key: PhotoKey, file: File | null) => {
+    if (file) {
+      const isImage =
+        file.type && file.type.length > 0
+          ? file.type.startsWith("image/")
+          : /\.(jpe?g|png|heic|heif|webp)$/i.test(file.name);
+      if (!isImage) {
+        toast({ title: "Photos only", description: "Please upload an image file.", variant: "destructive" });
+        return;
+      }
+    }
     setPhotos((prev) => ({ ...prev, [key]: file }));
   };
 
   const resetAnalysisState = () => {
     setGateResult(null);
     setQcMessages([]);
+  };
+
+  const ensureIdempotencyKey = () => {
+    if (idempotencyKey) return idempotencyKey;
+    const generated =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `scan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    setIdempotencyKey(generated);
+    return generated;
+  };
+
+  const clearAuthorizationState = () => {
+    authorizedRef.current = false;
+    setPendingScanId(null);
+    setIdempotencyKey(null);
+    setHasPersistentAuthorization(false);
   };
 
   const handleAnalyze = async () => {
@@ -146,6 +179,7 @@ export default function ScanNew() {
       : [photos.front!, photos.back!, photos.left!, photos.right!];
 
     resetAnalysisState();
+    authorizedRef.current = false;
     setStage("gating");
     try {
       const gate = await clientQualityGate(imageList);
@@ -180,15 +214,26 @@ export default function ScanNew() {
       }
 
       setStage("authorizing");
-      const { scanId } = await startScan({
-        filename: primaryFile.name,
-        size: primaryFile.size,
-        contentType: primaryFile.type || "image/jpeg",
-      });
+      let scanId = pendingScanId;
+      if (!scanId) {
+        const startResponse = await startScan({
+          filename: primaryFile.name,
+          size: primaryFile.size,
+          contentType: primaryFile.type || "image/jpeg",
+        });
+        scanId = startResponse.scanId;
+        setPendingScanId(scanId);
+      }
+      if (!scanId) {
+        throw new Error("scan_initialization_failed");
+      }
 
       const hashes = await Promise.all(imageList.map((file) => computeImageHash(file)));
       try {
-        await beginPaidScan({ scanId, hashes, gateScore: gate.score, mode });
+        const key = ensureIdempotencyKey();
+        await beginPaidScan({ scanId, hashes, gateScore: gate.score, mode, idempotencyKey: key });
+        authorizedRef.current = true;
+        setHasPersistentAuthorization(true);
       } catch (error: any) {
         setStage("idle");
         const reason = error?.message ?? "authorization_failed";
@@ -198,6 +243,7 @@ export default function ScanNew() {
             description: "Those photos match a recent scan. Retake fresh photos to continue.",
             variant: "destructive",
           });
+          clearAuthorizationState();
           return;
         }
         if (reason === "cap") {
@@ -206,6 +252,7 @@ export default function ScanNew() {
             description: "Too many failed attempts today. Try again tomorrow with new photos.",
             variant: "destructive",
           });
+          clearAuthorizationState();
           return;
         }
         if (reason === "no_credits") {
@@ -214,6 +261,7 @@ export default function ScanNew() {
             description: "Add credits before running another scan.",
             variant: "destructive",
           });
+          clearAuthorizationState();
           return;
         }
         throw error;
@@ -281,6 +329,7 @@ export default function ScanNew() {
           qcAccumulator.push("bmi_fallback_used");
         } else {
           await refundIfNoResult(scanId);
+          clearAuthorizationState();
           toast({
             title: "Retake required",
             description: "We couldn't get a confident reading. Try improving lighting and distance.",
@@ -293,6 +342,7 @@ export default function ScanNew() {
 
       if (bfPercent == null) {
         await refundIfNoResult(scanId);
+        clearAuthorizationState();
         toast({
           title: "Unable to calculate",
           description: "We couldn't produce a valid body-fat estimate.",
@@ -333,12 +383,16 @@ export default function ScanNew() {
       );
 
       toast({ title: "Scan complete", description: "Results saved" });
+      clearAuthorizationState();
       navigate(`/results/${scanId}`);
     } catch (error: any) {
       console.error("scan_analyze_error", error);
       const message = error?.message ?? "Analysis failed";
       toast({ title: "Unable to complete scan", description: message, variant: "destructive" });
       setStage("idle");
+      if (!authorizedRef.current && !hasPersistentAuthorization) {
+        clearAuthorizationState();
+      }
     }
   };
 
@@ -512,6 +566,9 @@ export default function ScanNew() {
         </Card>
 
         <div className="space-y-3">
+          <p className="text-center text-sm font-medium text-muted-foreground">
+            Credits: {creditsLoading ? "…" : credits}
+          </p>
           <DemoWriteButton onClick={handleAnalyze} disabled={busy || !canSubmit} className="w-full">
             {stage === "idle" && "Analyze & Spend 1 Credit"}
             {stage === "gating" && "Checking quality..."}

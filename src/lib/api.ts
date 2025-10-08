@@ -323,6 +323,7 @@ export async function beginPaidScan(payload: {
   hashes: string[];
   gateScore: number;
   mode: "2" | "4";
+  idempotencyKey?: string;
 }) {
   const response = await authedFetch(`/beginPaidScan`, {
     method: "POST",

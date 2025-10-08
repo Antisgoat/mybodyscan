@@ -66,9 +66,51 @@ function formatServingQuantity(value: number): string {
   return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toString();
 }
 
+function toNumeric(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const parsed = typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundGrams(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function formatGrams(value: unknown): string {
+  const numeric = toNumeric(value);
+  return roundGrams(numeric).toFixed(1);
+}
+
+function formatCalories(value: unknown): string {
+  if (value == null || value === "") {
+    return "— kcal";
+  }
+  const numeric = toNumeric(value);
+  return `${Math.round(numeric)} kcal`;
+}
+
+function computeTotalsFromMeals(meals: MealEntry[]) {
+  return meals.reduce(
+    (acc, meal) => ({
+      calories: acc.calories + toNumeric(meal.calories),
+      protein: acc.protein + toNumeric(meal.protein),
+      carbs: acc.carbs + toNumeric(meal.carbs),
+      fat: acc.fat + toNumeric(meal.fat),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+}
+
 export default function Meals() {
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>({ totals: { calories: 0 }, meals: [] });
+  const [log, setLog] = useState<{ totals: { calories: number; protein: number; carbs: number; fat: number }; meals: MealEntry[] }>(
+    {
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      meals: [],
+    }
+  );
   const [history7, setHistory7] = useState<NutritionHistoryDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -110,7 +152,9 @@ export default function Meals() {
     setLoading(true);
     getDailyLog(todayISO)
       .then((data) => {
-        setLog(data);
+        const meals = Array.isArray(data?.meals) ? (data.meals as MealEntry[]) : [];
+        const totals = computeTotalsFromMeals(meals);
+        setLog({ totals, meals });
       })
       .finally(() => setLoading(false));
   }, [todayISO]);
@@ -264,6 +308,19 @@ export default function Meals() {
   const ringProgress = Math.min(1, totalCalories / DAILY_TARGET);
   const ringCircumference = 2 * Math.PI * 54;
 
+  const displayTotals = useMemo(() => {
+    const calories = log.totals.calories || 0;
+    const protein = log.totals.protein || 0;
+    const carbs = log.totals.carbs || 0;
+    const fat = log.totals.fat || 0;
+    return {
+      calories: Math.round(calories),
+      protein: roundGrams(protein),
+      carbs: roundGrams(carbs),
+      fat: roundGrams(fat),
+    };
+  }, [log.totals.calories, log.totals.protein, log.totals.carbs, log.totals.fat]);
+
   const chartData = history7.map((day) => ({
     date: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
     calories: day.totals.calories || 0,
@@ -302,20 +359,20 @@ export default function Meals() {
                   strokeLinecap="round"
                 />
                 <text x="60" y="60" textAnchor="middle" dominantBaseline="central" className="text-2xl font-semibold fill-foreground">
-                  {Math.round(totalCalories)}
+                  {displayTotals.calories}
                 </text>
               </svg>
               <p className="text-xs text-muted-foreground">Target {DAILY_TARGET} kcal</p>
             </div>
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-sm" data-testid="nutrition-totals">
               <p>
-                Protein: <span className="font-medium">{log.totals.protein ?? 0} g</span>
+                Protein: <span className="font-medium">{displayTotals.protein.toFixed(1)} g</span>
               </p>
               <p>
-                Carbs: <span className="font-medium">{log.totals.carbs ?? 0} g</span>
+                Carbs: <span className="font-medium">{displayTotals.carbs.toFixed(1)} g</span>
               </p>
               <p>
-                Fat: <span className="font-medium">{log.totals.fat ?? 0} g</span>
+                Fat: <span className="font-medium">{displayTotals.fat.toFixed(1)} g</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" asChild>
@@ -476,12 +533,12 @@ export default function Meals() {
                     <div>
                       <p className="font-medium text-foreground">{meal.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P • {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
+                        {formatCalories(meal.calories)} • {formatGrams(meal.protein)} g P • {formatGrams(meal.carbs)} g C • {formatGrams(meal.fat)} g F
                       </p>
                       {(qtyDisplay || unitLabel || meal.serving?.grams) && (
                         <p className="text-xs text-muted-foreground">
                           {qtyDisplay && unitLabel ? `${qtyDisplay} × ${unitLabel}` : qtyDisplay || unitLabel || ""}
-                          {meal.serving?.grams ? ` · approx ${Math.round(meal.serving.grams)} g` : ""}
+                          {meal.serving?.grams ? ` · approx ${roundGrams(meal.serving.grams).toFixed(1)} g` : ""}
                         </p>
                       )}
                     </div>
