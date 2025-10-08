@@ -9,18 +9,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
+import { useAuthUser } from "@/lib/auth";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function Nutrition() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const { authReady } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totals, setTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>({ calories: 0 });
   const [history, setHistory] = useState<NutritionHistoryDay[]>([]);
 
   useEffect(() => {
+    if (!authReady || !appCheckReady) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -52,28 +62,33 @@ export default function Nutrition() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReady, appCheckReady]);
 
   const mostRecent = useMemo(() => history[history.length - 1], [history]);
+
+  const initializing = !appCheckReady;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Nutrition - MyBodyScan" description="Track your meal history and targets." />
       <AppHeader />
-      <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">Nutrition</h1>
-          <p className="text-sm text-muted-foreground">
-            Review your recent intake and manage logs from the Meals tab.
-          </p>
-        </div>
+      <ErrorBoundary title="Nutrition is unavailable" description="Reload to try again or check back shortly.">
+        <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold text-foreground">Nutrition</h1>
+            <p className="text-sm text-muted-foreground">
+              Review your recent intake and manage logs from the Meals tab.
+            </p>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Today's totals</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Today's totals</CardTitle>
+            </CardHeader>
+            <CardContent>
+            {initializing ? (
+                <p className="text-sm text-muted-foreground">Initializing secure nutrition services…</p>
+              ) : loading ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-3/4" />
@@ -106,7 +121,9 @@ export default function Nutrition() {
             <CardTitle>Last 7 days</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {loading ? (
+            {initializing ? (
+              <p className="text-sm text-muted-foreground">Initializing secure nutrition services…</p>
+            ) : loading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, idx) => (
                   <Skeleton key={idx} className="h-4 w-full" />
@@ -148,8 +165,9 @@ export default function Nutrition() {
             )}
           </CardContent>
         </Card>
-      </main>
-      <BottomNav />
+        </main>
+        <BottomNav />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -26,18 +26,18 @@ export async function initAuthPersistence() {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<typeof firebaseAuth.currentUser>(firebaseAuth.currentUser);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(firebaseAuth, (u) => {
-      setUser(u);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
+      setUser(nextUser);
+      setAuthReady(true);
     });
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
-  return { user, loading } as { user: typeof firebaseAuth.currentUser; loading: boolean };
+  return { user: authReady ? user : null, loading: !authReady, authReady } as const;
 }
 
 const RETURN_PATH_STORAGE_KEY = "mybodyscan:auth:return";

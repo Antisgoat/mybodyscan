@@ -12,11 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { auth, db, functions } from "@/lib/firebase";
+import { db, functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
 import { coachChat as sendCoachChat } from "@/lib/api";
+import { useAuthUser } from "@/lib/auth";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 interface ChatMessage {
   id: string;
@@ -57,10 +60,12 @@ export default function CoachChatPage() {
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
-  const uid = auth.currentUser?.uid ?? null;
+  const { user, authReady } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
+  const uid = authReady ? user?.uid ?? null : null;
 
   useEffect(() => {
-    if (!uid) {
+    if (!authReady || !appCheckReady || !uid) {
       setMessages([]);
       return;
     }
@@ -89,7 +94,7 @@ export default function CoachChatPage() {
       setMessages(sortMessages(next));
     });
     return () => unsubscribe();
-  }, [uid]);
+  }, [authReady, appCheckReady, uid]);
 
   const hasMessages = messages.length > 0;
 
@@ -100,6 +105,10 @@ export default function CoachChatPage() {
     }
     const trimmed = input.trim();
     if (!trimmed) return;
+    if (!authReady || !appCheckReady) {
+      toast({ title: "Still connecting", description: "Secure chat is initializing. Try again shortly." });
+      return;
+    }
     setPending(true);
     try {
       await sendCoachChat({ message: trimmed });
@@ -120,6 +129,10 @@ export default function CoachChatPage() {
       demoToast();
       return;
     }
+    if (!authReady || !appCheckReady) {
+      toast({ title: "Initializing", description: "Secure services are almost ready. Try again in a moment." });
+      return;
+    }
     setRegenerating(true);
     try {
       const callable = httpsCallable(functions, "generatePlan");
@@ -137,14 +150,23 @@ export default function CoachChatPage() {
   };
 
   const formattedMessages = useMemo(() => sortMessages(messages), [messages]);
+  const initializing = !appCheckReady;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Coach Chat – MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-        <NotMedicalAdviceBanner />
-        <div className="grid gap-6 lg:grid-cols-[1.75fr,1fr]">
+      <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
+        <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+          <NotMedicalAdviceBanner />
+          {initializing && (
+            <Card className="border border-dashed border-primary/40 bg-primary/5">
+              <CardContent className="text-sm text-primary">
+                Preparing secure chat… replies will appear once verification completes.
+              </CardContent>
+            </Card>
+          )}
+          <div className="grid gap-6 lg:grid-cols-[1.75fr,1fr]">
           <Card className="border bg-card/60">
             <CardHeader>
               <CardTitle className="text-xl">Coach chat</CardTitle>
@@ -183,10 +205,14 @@ export default function CoachChatPage() {
                   onChange={(event) => setInput(event.target.value)}
                   placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
                   rows={4}
-                  disabled={pending || demo}
+                  disabled={pending || demo || initializing}
                 />
                 <div className="flex justify-end">
-                  <Button onClick={handleSend} disabled={pending || demo || !input.trim()}>
+                  <Button
+                    onClick={handleSend}
+                    disabled={pending || demo || !input.trim() || initializing}
+                    data-testid="coach-send"
+                  >
                     {pending ? "Sending..." : "Send"}
                   </Button>
                 </div>
@@ -207,7 +233,7 @@ export default function CoachChatPage() {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button onClick={regeneratePlan} disabled={regenerating || demo} className="w-full">
+                <Button onClick={regeneratePlan} disabled={regenerating || demo || initializing} className="w-full">
                   {regenerating ? (plan ? "Regenerating..." : "Creating...") : (plan ? "Regenerate weekly plan" : "Create plan")}
                 </Button>
                 {plan ? (
@@ -230,8 +256,9 @@ export default function CoachChatPage() {
             </Card>
           </div>
         </div>
-      </main>
-      <BottomNav />
+        </main>
+        <BottomNav />
+      </ErrorBoundary>
     </div>
   );
 }

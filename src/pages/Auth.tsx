@@ -207,6 +207,7 @@ const Auth = () => {
                 disabled={loading}
                 className="w-full h-11 inline-flex items-center justify-center gap-2"
                 aria-label="Continue with Apple"
+                data-testid="auth-apple"
               >
                 <AppleIcon />
                 Continue with Apple
@@ -217,6 +218,7 @@ const Auth = () => {
               onClick={onGoogle}
               disabled={loading}
               className="w-full h-11 inline-flex items-center justify-center gap-2"
+              data-testid="auth-google"
             >
               Continue with Google
             </Button>

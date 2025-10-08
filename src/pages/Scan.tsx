@@ -19,6 +19,8 @@ import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -58,6 +60,7 @@ export default function Scan() {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const demo = useDemoMode();
+  const appCheckReady = useAppCheckReady();
 
   useEffect(() => {
     const next: PreviewMap = emptyPreviewMap();
@@ -129,6 +132,10 @@ export default function Scan() {
     }
     if (!allPhotosSelected) {
       toast({ title: "Add all photos", description: "Front, back, left, and right photos are required." });
+      return;
+    }
+    if (!appCheckReady) {
+      toast({ title: "Almost ready", description: "Secure scanning is initializing. Try again in a moment." });
       return;
     }
 
@@ -209,132 +216,141 @@ export default function Scan() {
   const disableAnalyze = !allPhotosSelected || submitting || demo;
   const selectSexValue = sex === "" ? undefined : sex;
 
+  const initializing = !appCheckReady;
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Seo title="Live Scan – MyBodyScan" description="Capture four angles to estimate your body-fat percentage." />
       <AppHeader />
       <NotMedicalAdviceBanner />
-      <main className="max-w-md mx-auto p-6 space-y-6">
-        <DemoBanner />
-        <div className="text-center space-y-2">
-          <Camera className="w-12 h-12 text-primary mx-auto" />
-          <h1 className="text-2xl font-semibold text-foreground">Live Body Scan</h1>
-          <p className="text-sm text-muted-foreground">Upload four clear photos for a visual estimate of body-fat percentage.</p>
-        </div>
+      <ErrorBoundary title="Scan failed to load" description="Retry to resume your scanning session.">
+        <main className="max-w-md mx-auto p-6 space-y-6">
+          <DemoBanner />
+          <div className="text-center space-y-2">
+            <Camera className="w-12 h-12 text-primary mx-auto" />
+            <h1 className="text-2xl font-semibold text-foreground">Live Body Scan</h1>
+            <p className="text-sm text-muted-foreground">Upload four clear photos for a visual estimate of body-fat percentage.</p>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5 text-primary" />
-              Upload Required Angles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-xs text-muted-foreground flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" /> Photos are processed for this estimate and then deleted. We store only your result.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {POSES.map(({ key, label, helper }) => {
-                const file = files[key];
-                const preview = previews[key];
-                const inputId = `pose-${key}`;
-                return (
-                  <div key={key} className="space-y-2">
-                    <Label className="text-sm font-medium text-foreground">{label}</Label>
-                    <label
-                      htmlFor={inputId}
-                      className={cn(
-                        "relative flex h-32 w-full items-center justify-center rounded-lg border border-dashed transition",
-                        file ? "border-primary/60" : "border-muted-foreground/40 hover:border-primary/60",
-                        "overflow-hidden"
-                      )}
-                    >
-                      {preview ? (
-                        <img src={preview} alt={`${label} preview`} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground">
-                          <ImageIcon className="h-6 w-6" />
-                          <span className="text-xs font-medium">Tap to add {label}</span>
-                          <span className="text-[10px] leading-tight">{helper}</span>
-                        </div>
-                      )}
-                    </label>
-                    <input
-                      id={inputId}
-                      type="file"
-                      accept="image/jpeg,.jpg,.jpeg"
-                      className="hidden"
-                      onChange={(event) => handleFileChange(key, event.target.files)}
-                    />
-                    {file ? (
-                      <Button variant="ghost" size="sm" className="w-full" onClick={() => clearPhoto(key)}>
-                        <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
-                      </Button>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">JPG only · Under 10 MB</p>
-                    )}
-                  </div>
-                );
-              })}
+          {initializing && (
+            <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-4 text-sm text-primary">
+              Secure scanning is initializing. You can stage your photos now and analyze once ready.
             </div>
-          </CardContent>
-        </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Optional details</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="weight">Weight (lb)</Label>
-              <Input
-                id="weight"
-                type="number"
-                inputMode="decimal"
-                placeholder="e.g. 170"
-                value={weight}
-                onChange={(event) => setWeight(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="height">Height (in)</Label>
-              <Input
-                id="height"
-                type="number"
-                inputMode="decimal"
-                placeholder="e.g. 70"
-                value={height}
-                onChange={(event) => setHeight(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="age">Age</Label>
-              <Input
-                id="age"
-                type="number"
-                inputMode="numeric"
-                placeholder="e.g. 32"
-                value={age}
-                onChange={(event) => setAge(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Sex</Label>
-              <Select value={selectSexValue} onValueChange={(value) => setSex(value as "male" | "female")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-primary" />
+                  Upload Required Angles
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" /> Photos are processed for this estimate and then deleted. We store only your result.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {POSES.map(({ key, label, helper }) => {
+                    const file = files[key];
+                    const preview = previews[key];
+                    const inputId = `pose-${key}`;
+                    return (
+                      <div key={key} className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">{label}</Label>
+                        <label
+                          htmlFor={inputId}
+                          className={cn(
+                            "relative flex h-32 w-full items-center justify-center rounded-lg border border-dashed transition",
+                            file ? "border-primary/60" : "border-muted-foreground/40 hover:border-primary/60",
+                            "overflow-hidden"
+                          )}
+                        >
+                          {preview ? (
+                            <img src={preview} alt={`${label} preview`} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground">
+                              <ImageIcon className="h-6 w-6" />
+                              <span className="text-xs font-medium">Tap to add {label}</span>
+                              <span className="text-[10px] leading-tight">{helper}</span>
+                            </div>
+                          )}
+                        </label>
+                        <input
+                          id={inputId}
+                          type="file"
+                          accept="image/jpeg,.jpg,.jpeg"
+                          className="hidden"
+                          onChange={(event) => handleFileChange(key, event.target.files)}
+                        />
+                        {file ? (
+                          <Button variant="ghost" size="sm" className="w-full" onClick={() => clearPhoto(key)}>
+                            <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
+                          </Button>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">JPG only · Under 10 MB</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
 
-        {submitting && (
-          <Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Optional details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="weight">Weight (lb)</Label>
+                  <Input
+                    id="weight"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="e.g. 170"
+                    value={weight}
+                    onChange={(event) => setWeight(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="height">Height (in)</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="e.g. 70"
+                    value={height}
+                    onChange={(event) => setHeight(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="age">Age</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="e.g. 32"
+                    value={age}
+                    onChange={(event) => setAge(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Sex</Label>
+                  <Select value={selectSexValue} onValueChange={(value) => setSex(value as "male" | "female")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+          {submitting && (
+            <Card>
             <CardContent className="flex items-start gap-3 py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
               <div>
@@ -345,50 +361,55 @@ export default function Scan() {
               </div>
             </CardContent>
           </Card>
-        )}
+          )}
 
-        {result && (
-          <Card className="border-primary/40">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                <span>Estimate • OpenAI Vision</span>
-                <Badge variant="outline" className="uppercase text-[10px] tracking-wide">{result.result.confidence} confidence</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-4xl font-semibold text-foreground">{result.result.bfPercent.toFixed(1)}%</p>
-                <p className="text-sm text-muted-foreground">Range {result.result.low.toFixed(1)}% – {result.result.high.toFixed(1)}%</p>
-              </div>
-              <p className="text-sm text-muted-foreground">{result.result.notes}</p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>This estimate is saved to your History automatically.</p>
-                {typeof result.creditsRemaining === "number" && (
-                  <p>Credits remaining: {result.creditsRemaining}</p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate("/history")}>View history</Button>
-                <Button variant="ghost" onClick={() => navigate("/plans")}>Add credits</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {result && (
+            <Card className="border-primary/40">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-base">
+                  <span>Estimate • OpenAI Vision</span>
+                  <Badge variant="outline" className="uppercase text-[10px] tracking-wide">{result.result.confidence} confidence</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-4xl font-semibold text-foreground">{result.result.bfPercent.toFixed(1)}%</p>
+                  <p className="text-sm text-muted-foreground">Range {result.result.low.toFixed(1)}% – {result.result.high.toFixed(1)}%</p>
+                </div>
+                <p className="text-sm text-muted-foreground">{result.result.notes}</p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>This estimate is saved to your History automatically.</p>
+                  {typeof result.creditsRemaining === "number" && (
+                    <p>Credits remaining: {result.creditsRemaining}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => navigate("/history")}>View history</Button>
+                  <Button variant="ghost" onClick={() => navigate("/plans")}>Add credits</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-        <div className="space-y-3">
-          <Button
-            className="w-full h-12 text-base"
-            disabled={disableAnalyze}
-            onClick={handleAnalyze}
-            title={demo ? "Demo mode: sign in to save" : undefined}
-          >
-            {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-            {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
-          </Button>
-          <p className="text-xs text-center text-muted-foreground">1 credit will be used once analysis completes. Results are estimates only.</p>
-        </div>
-      </main>
-      <BottomNav />
+          <div className="space-y-3">
+            <Button
+              className="w-full h-12 text-base"
+              disabled={disableAnalyze}
+              onClick={handleAnalyze}
+              title={demo ? "Demo mode: sign in to save" : undefined}
+              data-testid="scan-submit"
+            >
+              {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+              {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
+            </Button>
+            {initializing && (
+              <p className="text-xs text-center text-muted-foreground">Secure services are starting up—tap Analyze once this message disappears.</p>
+            )}
+            <p className="text-xs text-center text-muted-foreground">1 credit will be used once analysis completes. Results are estimates only.</p>
+          </div>
+        </main>
+        <BottomNav />
+      </ErrorBoundary>
     </div>
   );
 }

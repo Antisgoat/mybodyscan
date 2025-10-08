@@ -5,15 +5,15 @@ import { isDemoMode } from "@/lib/demoFlag";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { PageSkeleton } from "@/components/system/PageSkeleton";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuthUser();
+  const { user, authReady } = useAuthUser();
   const appCheckReady = useAppCheckReady();
 
   useEffect(() => {
-    if (!user) return;
+    if (!authReady || !user) return;
     const demo = isDemoMode(user, window.location);
     if (demo) {
       // Ensure demo users have at least 2 credits in profile for gating UX
@@ -33,10 +33,14 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     }
     const ensureCredits = httpsCallable(functions, "ensureTestCredits");
     ensureCredits({ demo }).catch(() => {});
-  }, [user]);
+  }, [authReady, user]);
 
-  if (loading || !appCheckReady) {
-    return <LoadingOverlay label="Preparing your account…" className="min-h-screen" />;
+  if (!authReady) {
+    return <PageSkeleton label="Signing you in…" />;
+  }
+
+  if (!appCheckReady) {
+    return <PageSkeleton label="Securing your session…" />;
   }
 
   return <>{children}</>;

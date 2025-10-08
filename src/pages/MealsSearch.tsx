@@ -19,9 +19,11 @@ import {
   type FavoriteDocWithId,
 } from "@/lib/nutritionCollections";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { addDoc } from "@/lib/dbWrite";
 import { collection, serverTimestamp } from "firebase/firestore";
+import { useAuthUser } from "@/lib/auth";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -205,6 +207,9 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
 
 export default function MealsSearch() {
   const demo = useDemoMode();
+  const { user, authReady } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
+  const uid = authReady ? user?.uid ?? null : null;
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
@@ -215,6 +220,10 @@ export default function MealsSearch() {
   const [logging, setLogging] = useState(false);
 
   useEffect(() => {
+    if (!authReady || !appCheckReady || !uid) {
+      setFavorites([]);
+      return;
+    }
     try {
       const unsub = subscribeFavorites(setFavorites);
       return () => unsub?.();
@@ -223,10 +232,19 @@ export default function MealsSearch() {
       setFavorites([]);
       return undefined;
     }
-  }, []);
+  }, [authReady, appCheckReady, uid]);
 
   useEffect(() => {
     const trimmed = query.trim();
+    if (!authReady || !appCheckReady) {
+      setLoading(false);
+      if (!appCheckReady) {
+        setResults([]);
+        setPrimarySource(null);
+      }
+      return;
+    }
+
     if (!trimmed) {
       setResults([]);
       setPrimarySource(null);
@@ -261,7 +279,7 @@ export default function MealsSearch() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query]);
+  }, [query, authReady, appCheckReady]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -270,6 +288,10 @@ export default function MealsSearch() {
   };
 
   const toggleFavorite = async (item: FoodItem) => {
+    if (!authReady || !appCheckReady || !uid) {
+      toast({ title: "Initializing", description: "Secure favorites are almost ready. Try again in a moment." });
+      return;
+    }
     try {
       const existing = favorites.find((fav) => fav.id === item.id);
       if (existing) {
@@ -290,8 +312,7 @@ export default function MealsSearch() {
       return;
     }
 
-    const user = auth.currentUser;
-    if (!user) {
+    if (!authReady || !appCheckReady || !user) {
       toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
       return;
     }
@@ -349,6 +370,7 @@ export default function MealsSearch() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search chicken breast, oatmeal, whey…"
             className="flex-1"
+            data-testid="nutrition-search"
           />
           <Button type="button" variant="outline" asChild>
             <a href="/barcode">
@@ -396,26 +418,30 @@ export default function MealsSearch() {
             <div className="text-xs text-muted-foreground">{primaryCaption}</div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {loading && (
+            {!appCheckReady && (
+              <p className="text-sm text-muted-foreground">Initializing secure nutrition search…</p>
+            )}
+            {loading && appCheckReady && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
               </div>
             )}
-            {!loading && results.length === 0 && query.trim().length > 0 && (
+            {!loading && appCheckReady && results.length === 0 && query.trim().length > 0 && (
               <p className="text-sm text-muted-foreground">
                 No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
               </p>
             )}
-            {!loading && !query.trim() && (
+            {!loading && appCheckReady && !query.trim() && (
               <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
             )}
-            {results.map((item) => {
-              const favorite = favoritesMap.get(item.id);
-              const subtitle = item.brand || item.source;
-              const base = item.basePer100g;
-              return (
-                <Card key={item.id} className="border">
-                  <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
+              {appCheckReady &&
+                results.map((item) => {
+                  const favorite = favoritesMap.get(item.id);
+                  const subtitle = item.brand || item.source;
+                  const base = item.basePer100g;
+                  return (
+                    <Card key={item.id} className="border">
+                      <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{item.name}</p>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
@@ -436,10 +462,10 @@ export default function MealsSearch() {
                         <Plus className="mr-1 h-4 w-4" /> Add
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
           </CardContent>
         </Card>
       </main>
