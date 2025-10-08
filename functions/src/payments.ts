@@ -1,271 +1,351 @@
-import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import type { CallableRequest } from "firebase-functions/v2/https";
-import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import Stripe from "stripe";
+import { onRequest } from "firebase-functions/v2/https";
+import type { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
+
+import { addCredits, setSubscriptionStatus } from "./credits.js";
+import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { publicBaseUrl, requireAuth, verifyAppCheckStrict } from "./http.js";
+import { appCheckSoft } from "./middleware/appCheck.js";
+import { requireAuth, publicBaseUrl } from "./http.js";
 import {
   assertStripeConfigured,
   getStripeSecret,
-  getStripeSecretNames,
-  getHostBaseUrl,
+  getStripeSigningSecret,
   hasStripe,
-} from "./env.js";
+} from "./lib/env.js";
 
+const db = getFirestore();
 const DEFAULT_ORIGIN = "https://mybodyscanapp.com";
-const stripeSecrets: string[] = hasStripe() ? getStripeSecretNames() : [];
+const CHECKOUT_OPTIONS = { region: "us-central1", invoker: "public", concurrency: 10 } as const;
+const PORTAL_OPTIONS = { region: "us-central1", invoker: "public" } as const;
+const WEBHOOK_OPTIONS = { region: "us-central1", rawBody: true } as const;
 
-type CheckoutMode = "payment" | "subscription";
-
-type PlanKey = "single" | "monthly" | "yearly" | "extra";
-
-const PLAN_CONFIG: Record<PlanKey, { priceId: string; mode: CheckoutMode }> = {
+const PLAN_CONFIG: Record<string, { priceId: string; mode: "payment" | "subscription" }> = {
   single: { priceId: "price_single_scan", mode: "payment" },
   monthly: { priceId: "price_monthly_intro", mode: "subscription" },
   yearly: { priceId: "price_annual", mode: "subscription" },
   extra: { priceId: "price_extra_scan", mode: "payment" },
 };
 
-interface CheckoutSessionPayload {
-  plan: PlanKey;
-}
+type StripeClient = {
+  stripe: import("stripe").Stripe;
+  signingSecret: string;
+  origin: string;
+};
 
-interface CheckoutSessionResult {
-  url: string | null;
-}
+type Handler = (req: Request, res: Response) => Promise<void>;
 
-class CheckoutError extends Error {
-  constructor(readonly kind: "config" | "internal") {
-    super(kind);
-  }
-}
-
-function getStripeRuntimeFromRequest(
-  context: string,
-  req?: ExpressRequest
-): { stripe: Stripe; origin: string } | null {
-  try {
-    assertStripeConfigured();
-  } catch (error) {
-    console.warn("payments_disabled", {
-      context,
-      message: error instanceof Error ? error.message : String(error),
+async function runAppCheckSoft(req: Request, res: Response): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let allowed = false;
+    let settled = false;
+    const emitter: any = res;
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      emitter.off?.("finish", cleanup as any);
+      emitter.off?.("close", cleanup as any);
+      resolve(allowed && !res.headersSent);
+    };
+    emitter.once?.("finish", cleanup as any);
+    emitter.once?.("close", cleanup as any);
+    appCheckSoft(req, res, () => {
+      allowed = true;
+      cleanup();
     });
-    return null;
-  }
-
-  const secret = getStripeSecret();
-  if (!secret) {
-    console.warn("payments_disabled_missing_secret", { context });
-    return null;
-  }
-
-  const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
-  const origin = req ? publicBaseUrl(req) : getHostBaseUrl() || DEFAULT_ORIGIN;
-
-  return { stripe, origin };
+    if (res.headersSent) {
+      cleanup();
+    }
+  });
 }
 
-function ensureStripeForRequest(
-  context: string,
-  req: ExpressRequest,
-  res: ExpressResponse
-): { stripe: Stripe; origin: string } | null {
-  const runtime = getStripeRuntimeFromRequest(context, req);
-  if (!runtime) {
+async function withSoftAppCheck(req: Request, res: Response, handler: Handler): Promise<void> {
+  const allowed = await runAppCheckSoft(req, res);
+  if (!allowed) {
+    return;
+  }
+  await handler(req, res);
+}
+
+async function loadStripeClient(req: Request, res: Response): Promise<StripeClient | null> {
+  const secret = getStripeSecret();
+  const signingSecret = getStripeSigningSecret();
+  if (!secret || !signingSecret) {
+    console.warn("payments_missing_secrets", { path: req.path });
     res.status(501).json({ error: "payments_disabled" });
     return null;
   }
-  return runtime;
+
+  try {
+    const { default: Stripe } = await import("stripe");
+    const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
+    const origin = publicBaseUrl(req) || DEFAULT_ORIGIN;
+    return { stripe, signingSecret, origin };
+  } catch (error) {
+    console.error("stripe_init_failed", { message: (error as Error)?.message });
+    res.status(500).json({ error: "stripe_init_failed" });
+    return null;
+  }
 }
 
-function ensureStripeForCallable(
-  context: string,
-  req?: ExpressRequest
-): { stripe: Stripe; origin: string } {
-  const runtime = getStripeRuntimeFromRequest(context, req);
+function parsePlan(value: unknown): { plan: string } | null {
+  const raw = typeof value === "string" ? value.trim() : Array.isArray(value) ? value[0] : null;
+  if (!raw || typeof raw !== "string") {
+    return null;
+  }
+  if (!PLAN_CONFIG[raw]) {
+    return null;
+  }
+  return { plan: raw };
+}
+
+async function handleCreateCheckout(req: Request, res: Response): Promise<void> {
+  try {
+    assertStripeConfigured();
+  } catch (error) {
+    res.status(501).json({ error: "payments_disabled" });
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  let uid: string;
+  try {
+    uid = await requireAuth(req);
+  } catch (error: any) {
+    const code = error?.code as string | undefined;
+    const status = code === "unauthenticated" ? 401 : code === "permission-denied" ? 403 : 401;
+    res.status(status).json({ error: error?.message || "unauthenticated", code });
+    return;
+  }
+
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const planPayload = parsePlan((body as any).plan ?? req.query?.plan);
+  if (!planPayload) {
+    res.status(400).json({ error: "invalid_plan" });
+    return;
+  }
+
+  const runtime = await loadStripeClient(req, res);
   if (!runtime) {
-    throw new HttpsError("failed-precondition", "payments_disabled");
+    return;
   }
-  return runtime;
-}
 
-function parseCheckoutSessionPayload(data: unknown): CheckoutSessionPayload {
-  const body = (data || {}) as Record<string, unknown>;
-  const rawPlan = body?.plan;
-  const plan = Array.isArray(rawPlan)
-    ? (rawPlan[0] as string | undefined)
-    : (rawPlan as string | undefined);
-  if (plan !== "single" && plan !== "monthly" && plan !== "yearly" && plan !== "extra") {
-    throw new HttpsError("invalid-argument", "Invalid checkout plan");
-  }
-  return { plan };
-}
+  const { stripe, origin } = runtime;
+  const config = PLAN_CONFIG[planPayload.plan];
 
-function getPlanConfig(plan: PlanKey) {
-  const config = PLAN_CONFIG[plan];
-  if (!config?.priceId) {
-    console.error("checkout_config_error", { plan, reason: "missing_price" });
-    throw new CheckoutError("config");
-  }
-  return config;
-}
-
-async function createCheckoutSessionForUid(
-  uid: string,
-  payload: CheckoutSessionPayload,
-  stripe: Stripe,
-  origin: string
-): Promise<CheckoutSessionResult> {
-  const { plan } = payload;
-  const { priceId, mode } = getPlanConfig(plan);
   try {
     const session = await stripe.checkout.sessions.create({
-      mode,
-      line_items: [{ price: priceId, quantity: 1 }],
+      mode: config.mode,
+      line_items: [{ price: config.priceId, quantity: 1 }],
       success_url: `${origin}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/plans?canceled=1`,
       client_reference_id: uid,
-      metadata: { uid, priceId, plan },
+      metadata: { uid, priceId: config.priceId, plan: planPayload.plan },
     });
-    return { url: session.url ?? null };
-  } catch (err: any) {
-    console.error("checkout_internal_error", {
-      plan,
-      message: err?.message,
-    });
-    throw new CheckoutError("internal");
+    res.json({ url: session.url ?? null });
+  } catch (error: any) {
+    console.error("stripe_checkout_error", { message: error?.message, plan: planPayload.plan });
+    res.status(502).json({ error: "checkout_failed" });
   }
 }
 
-async function handleCheckoutSession(req: ExpressRequest, res: ExpressResponse) {
-  const runtime = ensureStripeForRequest("checkout_session_http", req, res);
+async function handleCustomerPortal(req: Request, res: Response): Promise<void> {
+  try {
+    assertStripeConfigured();
+  } catch (error) {
+    res.status(501).json({ error: "payments_disabled" });
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  let uid: string;
+  try {
+    uid = await requireAuth(req);
+  } catch (error: any) {
+    const code = error?.code as string | undefined;
+    const status = code === "unauthenticated" ? 401 : code === "permission-denied" ? 403 : 401;
+    res.status(status).json({ error: error?.message || "unauthenticated", code });
+    return;
+  }
+
+  const runtime = await loadStripeClient(req, res);
   if (!runtime) {
     return;
   }
 
-  await requireAppCheckStrict(req, res);
-  const uid = await requireAuth(req);
-  const source = req.body && Object.keys(req.body || {}).length ? req.body : req.query;
-  const payload = parseCheckoutSessionPayload(source);
+  const { stripe, origin } = runtime;
+
   try {
-    const result = await createCheckoutSessionForUid(
-      uid,
-      payload,
-      runtime.stripe,
-      runtime.origin
-    );
-    res.json(result);
-  } catch (err) {
-    if (err instanceof CheckoutError) {
-      const status = err.kind === "config" ? 400 : 500;
-      res.status(status).json({ error: err.kind });
+    const user = await getAuth().getUser(uid);
+    if (!user.email) {
+      res.status(400).json({ error: "email_required" });
       return;
     }
-    throw err;
+    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    if (!customers.data.length) {
+      res.status(404).json({ error: "customer_not_found" });
+      return;
+    }
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customers.data[0].id,
+      return_url: `${origin}/plans`,
+    });
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error("stripe_portal_error", { message: error?.message });
+    res.status(502).json({ error: "portal_failed" });
   }
 }
 
-async function handleCustomerPortal(req: ExpressRequest, res: ExpressResponse) {
-  const runtime = ensureStripeForRequest("customer_portal", req, res);
+async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
+  try {
+    assertStripeConfigured();
+  } catch (error) {
+    res.status(501).json({ error: "payments_disabled" });
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const runtime = await loadStripeClient(req, res);
   if (!runtime) {
     return;
   }
 
-  await requireAppCheckStrict(req, res);
-  const uid = await requireAuth(req);
-  const { stripe, origin } = runtime;
-  const user = await getAuth().getUser(uid);
-  if (!user.email) {
-    throw new HttpsError("failed-precondition", "User email required");
+  const signature = req.header("Stripe-Signature");
+  if (!signature) {
+    res.status(400).send("Missing signature");
+    return;
   }
-  const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-  if (!customers.data.length) {
-    throw new HttpsError("failed-precondition", "Customer not found");
-  }
-  const session = await stripe.billingPortal.sessions.create({
-    customer: customers.data[0].id,
-    return_url: `${origin}/plans`,
-  });
-  res.json({ url: session.url });
-}
 
-function withHandler(handler: (req: ExpressRequest, res: ExpressResponse) => Promise<void>) {
-  return onRequest(
-    {
-      region: "us-central1",
-      secrets: stripeSecrets,
-      invoker: "public",
-      concurrency: 10,
-    },
-    withCors(async (req, res) => {
-      try {
-        await handler(req as ExpressRequest, res as ExpressResponse);
-      } catch (err: any) {
-        if (res.headersSent) {
-          return;
-        }
-        if (err instanceof CheckoutError) {
-          const status = err.kind === "config" ? 400 : 500;
-          res.status(status).json({ error: err.kind });
-          return;
-        }
-        const code = err instanceof HttpsError ? err.code : "internal";
-        const status =
-          code === "unauthenticated"
-            ? 401
-            : code === "invalid-argument"
-            ? 400
-            : code === "failed-precondition"
-            ? 412
-            : 500;
-        res.status(status).json({ error: err.message || "error" });
-      }
-    })
-  );
-}
-
-type CheckoutCallableContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
-
-export async function createCheckoutSessionHandler(
-  data: Partial<CheckoutSessionPayload>,
-  context: CheckoutCallableContext
-) {
-  const uid = context.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "Authentication required");
+  const rawBody = (req as any).rawBody as Buffer | undefined;
+  if (!rawBody) {
+    res.status(400).send("Missing raw body");
+    return;
   }
-  const rawRequest = context.rawRequest as ExpressRequest | undefined;
-  const runtime = ensureStripeForCallable("checkout_session_callable", rawRequest);
-  if (rawRequest) {
-    await verifyAppCheckStrict(rawRequest);
-  }
-  const payload = parseCheckoutSessionPayload(data);
+
+  const { stripe, signingSecret } = runtime;
+  let event: import("stripe").Stripe.Event;
   try {
-    return await createCheckoutSessionForUid(
-      uid,
-      payload,
-      runtime.stripe,
-      runtime.origin
-    );
-  } catch (err) {
-    if (err instanceof CheckoutError) {
-      const code = err.kind === "config" ? "failed-precondition" : "internal";
-      throw new HttpsError(code as any, err.kind);
+    event = stripe.webhooks.constructEvent(rawBody, signature, signingSecret);
+  } catch (error: any) {
+    console.error("stripe_webhook_signature_error", { message: error?.message });
+    res.status(400).send(`Webhook Error: ${error.message}`);
+    return;
+  }
+
+  const eventRef = db.collection("stripe_events").doc(event.id);
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30));
+
+  const shouldProcess = await db.runTransaction(async (tx) => {
+    const existing = await tx.get(eventRef);
+    if (existing.exists) {
+      return false;
     }
-    throw err;
+    tx.set(eventRef, {
+      type: event.type,
+      receivedAt: FieldValue.serverTimestamp(),
+      expiresAt,
+    });
+    return true;
+  });
+
+  if (!shouldProcess) {
+    res.status(200).send("ok");
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as import("stripe").Stripe.Checkout.Session;
+        const uid = (session.metadata?.uid as string) || null;
+        const priceId = (session.metadata?.priceId as string) || null;
+        if (uid && priceId) {
+          await addCredits(uid, 1, `Checkout ${priceId}`, 12);
+        }
+        break;
+      }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as import("stripe").Stripe.Invoice;
+        const uid = (invoice.metadata?.uid as string) || null;
+        if (uid) {
+          const lines = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
+          const isMonthly = lines.some((line) => line.price?.recurring?.interval === "month");
+          const isAnnual = lines.some((line) => line.price?.recurring?.interval === "year");
+          if (isMonthly) {
+            await addCredits(uid, 3, "Monthly subscription", 12);
+          }
+          if (isAnnual) {
+            await addCredits(uid, 36, "Annual subscription (3/mo x 12)", 12);
+          }
+          await setSubscriptionStatus(
+            uid,
+            "active",
+            (invoice.lines.data[0]?.price?.id as string) || null,
+            invoice.lines.data[0]?.period?.end || null
+          );
+        }
+        break;
+      }
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as import("stripe").Stripe.Subscription;
+        const uid = (subscription.metadata?.uid as string) || null;
+        if (uid) {
+          await setSubscriptionStatus(uid, "canceled", null, null);
+        }
+        break;
+      }
+      default: {
+        console.warn("stripe_webhook_ignored_event", { type: event.type, id: event.id });
+        break;
+      }
+    }
+
+    await eventRef.set({ processedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.status(200).send("ok");
+  } catch (error: any) {
+    console.error("stripe_webhook_handler_error", { message: error?.message });
+    await eventRef.set(
+      { error: error?.message || String(error), processedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    res.status(500).send("Handler error");
   }
 }
 
-export const createCheckoutSession = onCall<Partial<CheckoutSessionPayload>>(
-  { region: "us-central1", secrets: stripeSecrets },
-  async (request: CallableRequest<Partial<CheckoutSessionPayload>>) =>
-    createCheckoutSessionHandler(request.data, request)
-);
+function createDisabledHandler(options: Parameters<typeof onRequest>[0]) {
+  return onRequest(options, async (req: Request, res: Response) => {
+    await withSoftAppCheck(req, res, async () => {
+      res.status(501).json({ error: "payments_disabled" });
+    });
+  });
+}
 
-export const createCustomerPortal = withHandler(handleCustomerPortal);
+let createCheckoutExport: ReturnType<typeof onRequest>;
+let createCustomerPortalExport: ReturnType<typeof onRequest>;
+let stripeWebhookExport: ReturnType<typeof onRequest>;
 
-export const createCheckout = withHandler(handleCheckoutSession);
+if (!hasStripe()) {
+  createCheckoutExport = createDisabledHandler(CHECKOUT_OPTIONS);
+  createCustomerPortalExport = createDisabledHandler(PORTAL_OPTIONS);
+  stripeWebhookExport = onRequest(WEBHOOK_OPTIONS, async (_req: Request, res: Response) => {
+    res.status(501).json({ error: "payments_disabled" });
+  });
+} else {
+  createCheckoutExport = onRequest(CHECKOUT_OPTIONS, withCors((req, res) => withSoftAppCheck(req, res, handleCreateCheckout)));
+  createCustomerPortalExport = onRequest(PORTAL_OPTIONS, withCors((req, res) => withSoftAppCheck(req, res, handleCustomerPortal)));
+  stripeWebhookExport = onRequest(WEBHOOK_OPTIONS, (req, res) => handleStripeWebhook(req, res));
+}
 
+export const createCheckout = createCheckoutExport;
+export const createCustomerPortal = createCustomerPortalExport;
+export const stripeWebhook = stripeWebhookExport;

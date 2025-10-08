@@ -378,8 +378,7 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
   };
 }
 
-async function searchUsda(query: string): Promise<FoodItem[]> {
-  const apiKey = process.env.USDA_FDC_API_KEY;
+async function searchUsda(query: string, apiKey: string | undefined): Promise<FoodItem[]> {
   if (!apiKey) return [];
   const url = new URL(USDA_SEARCH_URL);
   url.searchParams.set("api_key", apiKey);
@@ -463,7 +462,8 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   let primarySource: NutritionSource = "USDA";
 
   try {
-    items = await searchUsda(query);
+    const apiKey = typeof process.env.USDA_FDC_API_KEY === "string" ? process.env.USDA_FDC_API_KEY.trim() : "";
+    items = await searchUsda(query, apiKey || undefined);
   } catch (error) {
     console.error("nutrition_search_usda_error", { query, message: describeError(error) });
   }
