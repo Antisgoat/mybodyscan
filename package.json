@@ -31,7 +31,7 @@
     "deploy:functions": "firebase deploy --only functions",
     "deploy:hosting": "firebase deploy --only hosting",
     "ci:clean": "npm config set fetch-retry-maxtimeout 600000 && npm cache clean --force && rimraf node_modules && npm ci --prefer-online",
-    "ci-or-install": "npm ci || npm install --prefer-online"
+    "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",

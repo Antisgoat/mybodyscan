@@ -4,28 +4,14 @@ import { getFirestore, getStorage, Timestamp } from "../firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { isStaff } from "../claims.js";
-import { getOpenAIKey } from "../lib/env.js";
+import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 
 const db = getFirestore();
 const storage = getStorage();
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const READ_URL_EXPIRATION_MS = 5 * 60 * 1000;
 const POSES = ["front", "back", "left", "right"] as const;
-const MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
-
-function buildMockResult(scanId: string): ParsedResult {
-  const seed = scanId.charCodeAt(0) || 42;
-  const bf = Number((18.5 + (seed % 10) * 0.7).toFixed(1));
-  const low = Number(Math.max(3, bf - 2.5).toFixed(1));
-  const high = Number(Math.min(60, bf + 2.5).toFixed(1));
-  return {
-    bfPercent: bf,
-    low,
-    high,
-    confidence: "low",
-    notes: "Fallback estimate generated because the primary model was unavailable. Estimate only. Not medical advice.",
-  };
-}
+const OPENAI_MODEL = "gpt-4o-mini";
 
 type Pose = (typeof POSES)[number];
 
@@ -245,7 +231,7 @@ async function callOpenAi(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: OPENAI_MODEL,
       temperature: 0.2,
       max_tokens: 400,
       messages: [
@@ -351,28 +337,40 @@ export const submitScan = onRequest(
         totalBytes: imageDetails.reduce((sum, item) => sum + item.meta.sizeBytes, 0),
       });
 
-      let result: ParsedResult;
+      if (!hasOpenAI()) {
+        console.warn("scan_submit_missing_openai", { uid, scanId: payload.scanId });
+        res.status(503).json({ error: "openai_not_configured" });
+        await deleteUploads(storagePaths);
+        return;
+      }
+
       const openAiKey = getOpenAIKey();
       if (!openAiKey) {
-        console.warn("scan_submit_mock_response", {
+        console.error("scan_submit_missing_key_after_check", { uid, scanId: payload.scanId });
+        res.status(503).json({ error: "openai_not_configured" });
+        await deleteUploads(storagePaths);
+        return;
+      }
+
+      let result: ParsedResult;
+      try {
+        console.info("scan_submit", { uid, scanId: payload.scanId });
+        result = await callOpenAi(
+          openAiKey,
+          imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
+          payload
+        );
+      } catch (err: any) {
+        console.error("scan_submit_engine_error", {
           uid,
           scanId: payload.scanId,
-          reason: "missing_openai_key",
+          message: err?.message,
+          status: err?.status,
         });
-        result = buildMockResult(payload.scanId);
-      } else {
-        try {
-          console.info("scan_submit", { uid, scanId: payload.scanId });
-          result = await callOpenAi(
-            openAiKey,
-            imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
-            payload
-          );
-        } catch (err: any) {
-          // As an additional guard, fall back to mock result on error
-          console.warn("scan_submit_engine_error", { uid, scanId: payload.scanId, message: err?.message });
-          result = buildMockResult(payload.scanId);
-        }
+        const status = typeof err?.status === "number" && Number.isFinite(err.status) ? err.status : 502;
+        await deleteUploads(storagePaths);
+        res.status(status).json({ error: "openai_error" });
+        return;
       }
 
       const now = Timestamp.now();
@@ -392,7 +390,7 @@ export const submitScan = onRequest(
               {
                 createdAt: now,
                 updatedAt: now,
-                engine: openAiKey ? "openai-vision" : "mock",
+                engine: OPENAI_MODEL,
                 status: "failed",
                 failureReason: "no_credits",
                 metadata: {
@@ -423,7 +421,7 @@ export const submitScan = onRequest(
         const doc: StoredScan = {
           createdAt: now,
           completedAt: now,
-          engine: openAiKey ? "openai-vision" : "mock",
+          engine: OPENAI_MODEL,
           status: "complete",
           inputs: sanitizedInputs,
           result,
@@ -467,7 +465,7 @@ export const submitScan = onRequest(
         id: docRef.id,
         createdAt: savedScan.createdAt.toMillis(),
         completedAt: savedScan.completedAt.toMillis(),
-        engine: openAiKey ? savedScan.engine : "mock",
+        engine: savedScan.engine,
         status: savedScan.status,
         inputs: savedScan.inputs,
         result: savedScan.result,
@@ -479,21 +477,17 @@ export const submitScan = onRequest(
         payload.weightLb && payload.heightIn
           ? Number(((payload.weightLb / (payload.heightIn * payload.heightIn)) * 703).toFixed(1))
           : null;
-      const fallbackWeight = payload.weightLb ?? 180;
-      const bmi = computedBmi ?? (openAiKey ? null : 25.1);
-      const bodyFatValue = openAiKey
-        ? Number(savedScan.result.bfPercent ?? 0)
-        : 24.2;
-
+      const bodyFatValue = Number(savedScan.result.bfPercent ?? 0);
 
       const finalPayload = {
-        provider: openAiKey ? "openai" : "mock",
-        bodyFat: bodyFatValue,
-        weight: openAiKey ? payload.weightLb ?? null : fallbackWeight,
-        bmi,
-        note: openAiKey ? undefined : "Vision unavailable; returned mock result",
-        raw: legacyPayload,
         ...legacyPayload,
+        provider: "openai",
+        engine: OPENAI_MODEL,
+        bodyFat: bodyFatValue,
+        weight: payload.weightLb ?? null,
+        bmi: computedBmi ?? null,
+        raw: legacyPayload,
+        meta: { provider: "openai", engine: OPENAI_MODEL },
       };
 
       res.json(finalPayload);

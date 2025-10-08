@@ -55,7 +55,6 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
-import SystemCheck from "./pages/SystemCheck";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Scan from "./pages/Scan";
@@ -83,6 +82,7 @@ import { FeatureGate } from "./components/FeatureGate";
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
+const SystemCheck = lazy(() => import("./pages/SystemCheck"));
 
 const queryClient = new QueryClient();
 
