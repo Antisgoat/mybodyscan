@@ -60,9 +60,15 @@ export default function CoachChatPage() {
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
+  const [coachError, setCoachError] = useState<string | null>(null);
+
+  // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
   const appCheckReady = useAppCheckReady();
-  const uid = authReady ? user?.uid ?? null : null;
+
+  // derive uid only after auth is ready
+  const uid = authReady ? (user?.uid ?? null) : null;
+  const initializing = !authReady || !appCheckReady;
 
   useEffect(() => {
     if (!authReady || !appCheckReady || !uid) {
@@ -103,22 +109,35 @@ export default function CoachChatPage() {
       if (demo) demoToast();
       return;
     }
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    if (!authReady || !appCheckReady) {
-      toast({ title: "Still connecting", description: "Secure chat is initializing. Try again shortly." });
+
+    const sanitized = input
+      .replace(/[\u0000-\u001F\u007F]/g, " ") // strip control chars
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!sanitized) {
+      setInput("");
       return;
     }
+
+    if (initializing) {
+      toast({
+        title: "Still connecting",
+        description: "Secure chat is initializing. Try again shortly.",
+      });
+      return;
+    }
+
     setPending(true);
+    setCoachError(null);
     try {
-      await sendCoachChat({ message: trimmed });
+      await sendCoachChat({ message: sanitized });
       setInput("");
     } catch (error: any) {
-      const description =
-        error?.code === "app_check_unavailable"
-          ? "We couldn’t verify your App Check token. Refresh and try again."
-          : error?.message ?? "Check your connection.";
-      toast({ title: "Message not sent", description, variant: "destructive" });
+      const status = typeof error?.status === "number" ? error.status : null;
+      if ((status !== null && status >= 400 && status < 500) || status === 501) {
+        setCoachError("Coach temporarily unavailable; please try again.");
+      }
     } finally {
       setPending(false);
     }
@@ -150,7 +169,6 @@ export default function CoachChatPage() {
   };
 
   const formattedMessages = useMemo(() => sortMessages(messages), [messages]);
-  const initializing = !appCheckReady;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

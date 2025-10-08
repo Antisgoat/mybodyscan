@@ -352,6 +352,7 @@ export default function MealsSearch() {
       : "USDA primary · OFF fallback";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
+  const searchNotice = null;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -426,7 +427,13 @@ export default function MealsSearch() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
               </div>
             )}
-            {!loading && appCheckReady && results.length === 0 && query.trim().length > 0 && (
+            {loading && searchNotice && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {searchNotice}
+              </p>
+            )}
+
+            {loading && !searchNotice && appCheckReady && results.length === 0 && query.trim().length > 0 && (
               <p className="text-sm text-muted-foreground">
                 No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
               </p>
