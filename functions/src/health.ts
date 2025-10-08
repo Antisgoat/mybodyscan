@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 
 import { withCors } from "./middleware/cors.js";
-import { isAppCheckSoftEnforced } from "./env.js";
+import { getAppCheckEnforceSoft } from "./lib/env.js";
 
 type ScanProvider = "openai-vision" | "mock";
 
@@ -29,7 +29,7 @@ export const health = onRequest(
     const nutritionConfigured = hasValue(process.env.USDA_FDC_API_KEY);
     const scanProvider: ScanProvider = hasOpenAIKey ? "openai-vision" : "mock";
 
-    const appCheckSoft = isAppCheckSoftEnforced();
+    const appCheckSoft = getAppCheckEnforceSoft();
 
     const payload: HealthPayload = {
       status: "ok",

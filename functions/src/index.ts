@@ -1,7 +1,9 @@
 import { onRequest } from "firebase-functions/v2/https";
 
-import { hasStripe } from "./env.js";
+import type { Request, Response } from "express";
+import { hasStripe } from "./lib/env.js";
 import { withCors } from "./middleware/cors.js";
+import { appCheckSoft } from "./middleware/appCheck.js";
 
 type AnyFunction = (...args: any[]) => any;
 
@@ -67,11 +69,6 @@ function loadPaymentsModule() {
   return (paymentsModulePromise ??= import("./payments.js"));
 }
 
-let stripeWebhookModulePromise: Promise<typeof import("./stripeWebhook.js")> | null = null;
-function loadStripeWebhookModule() {
-  return (stripeWebhookModulePromise ??= import("./stripeWebhook.js"));
-}
-
 export const startScan = createLazyExport(() => loadScanModule().then((mod) => mod.startScan));
 export const processQueuedScanHttp = createLazyExport(() =>
   loadScanModule().then((mod) => mod.processQueuedScanHttp)
@@ -105,26 +102,74 @@ export const beginPaidScan = createLazyExport(() =>
 
 export const health = createLazyExport(() => loadHealthModule().then((mod) => mod.health));
 
-const paymentsDisabled = onRequest(
-  { region: "us-central1", invoker: "public" },
-  withCors(async (_req, res) => {
-    res.status(501).json({ error: "payments_disabled" });
-  })
-);
+function withAppCheckSoftMiddleware(handler: (req: Request, res: Response) => Promise<void> | void) {
+  return async (req: Request, res: Response) => {
+    let proceeded = false;
+    await new Promise<void>((resolve) => {
+      let resolved = false;
+      const emitter: any = res;
+      const cleanup = () => {
+        if (!resolved) {
+          resolved = true;
+          emitter.off?.("finish", cleanup as any);
+          emitter.off?.("close", cleanup as any);
+          resolve();
+        }
+      };
+      emitter.once?.("finish", cleanup as any);
+      emitter.once?.("close", cleanup as any);
+      appCheckSoft(req, res, () => {
+        proceeded = true;
+        cleanup();
+      });
+      // In case the middleware responds synchronously without next().
+      if (res.headersSent) {
+        cleanup();
+      }
+    });
+    if (!proceeded || res.headersSent) {
+      return;
+    }
+    await handler(req, res);
+  };
+}
 
-const stripeWebhookDisabled = onRequest({ region: "us-central1" }, async (_req, res) => {
+const respondPaymentsDisabled = withAppCheckSoftMiddleware(async (_req, res) => {
   res.status(501).json({ error: "payments_disabled" });
 });
 
-export const createCheckout = hasStripe()
-  ? createLazyExport(() => loadPaymentsModule().then((mod) => mod.createCheckout))
-  : paymentsDisabled;
+const paymentsDisabled = onRequest(
+  { region: "us-central1", invoker: "public" },
+  withCors(async (req, res) => {
+    await respondPaymentsDisabled(req as Request, res as Response);
+  })
+);
 
-export const createCustomerPortal = hasStripe()
-  ? createLazyExport(() => loadPaymentsModule().then((mod) => mod.createCustomerPortal))
-  : paymentsDisabled;
+const stripeWebhookDisabled = onRequest({ region: "us-central1" }, async (req, res) => {
+  await respondPaymentsDisabled(req as Request, res as Response);
+});
 
-export const stripeWebhook = hasStripe()
-  ? createLazyExport(() => loadStripeWebhookModule().then((mod) => mod.stripeWebhook))
-  : stripeWebhookDisabled;
+export const createCheckout = createLazyExport(async () => {
+  if (!hasStripe()) {
+    return paymentsDisabled;
+  }
+  const mod = await loadPaymentsModule();
+  return mod.createCheckout;
+});
+
+export const createCustomerPortal = createLazyExport(async () => {
+  if (!hasStripe()) {
+    return paymentsDisabled;
+  }
+  const mod = await loadPaymentsModule();
+  return mod.createCustomerPortal;
+});
+
+export const stripeWebhook = createLazyExport(async () => {
+  if (!hasStripe()) {
+    return stripeWebhookDisabled;
+  }
+  const mod = await loadPaymentsModule();
+  return mod.stripeWebhook;
+});
 

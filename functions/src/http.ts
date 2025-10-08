@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
-import { getHostBaseUrl } from "./env.js";
+import { getHostBaseUrl } from "./lib/env.js";
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;

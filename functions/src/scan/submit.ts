@@ -4,6 +4,7 @@ import { getFirestore, getStorage, Timestamp } from "../firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { isStaff } from "../claims.js";
+import { getOpenAIKey } from "../lib/env.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -351,8 +352,8 @@ export const submitScan = onRequest(
       });
 
       let result: ParsedResult;
-      const OPENAI_KEY = process.env.OPENAI_API_KEY ?? "";
-      if (!OPENAI_KEY) {
+      const openAiKey = getOpenAIKey();
+      if (!openAiKey) {
         console.warn("scan_submit_mock_response", {
           uid,
           scanId: payload.scanId,
@@ -363,7 +364,7 @@ export const submitScan = onRequest(
         try {
           console.info("scan_submit", { uid, scanId: payload.scanId });
           result = await callOpenAi(
-            OPENAI_KEY,
+            openAiKey,
             imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
             payload
           );
@@ -391,7 +392,7 @@ export const submitScan = onRequest(
               {
                 createdAt: now,
                 updatedAt: now,
-                engine: OPENAI_KEY ? "openai-vision" : "mock",
+                engine: openAiKey ? "openai-vision" : "mock",
                 status: "failed",
                 failureReason: "no_credits",
                 metadata: {
@@ -422,7 +423,7 @@ export const submitScan = onRequest(
         const doc: StoredScan = {
           createdAt: now,
           completedAt: now,
-          engine: OPENAI_KEY ? "openai-vision" : "mock",
+          engine: openAiKey ? "openai-vision" : "mock",
           status: "complete",
           inputs: sanitizedInputs,
           result,
@@ -462,28 +463,40 @@ export const submitScan = onRequest(
         durationMs: Date.now() - start,
       });
 
-      const responsePayload: any = {
+      const legacyPayload = {
         id: docRef.id,
         createdAt: savedScan.createdAt.toMillis(),
         completedAt: savedScan.completedAt.toMillis(),
-        engine: OPENAI_KEY ? savedScan.engine : "mock",
+        engine: openAiKey ? savedScan.engine : "mock",
         status: savedScan.status,
         inputs: savedScan.inputs,
         result: savedScan.result,
         metadata: savedScan.metadata,
         creditsRemaining: remainingCredits,
-        provider: OPENAI_KEY ? "openai" : "mock",
       };
 
-      if (!OPENAI_KEY) {
-        responsePayload.mock = {
-          bodyFat: Number(savedScan.result.bfPercent ?? 22),
-          weight: payload.weightLb ?? 180,
-          provider: "mock",
-        };
-      }
+      const computedBmi =
+        payload.weightLb && payload.heightIn
+          ? Number(((payload.weightLb / (payload.heightIn * payload.heightIn)) * 703).toFixed(1))
+          : null;
+      const fallbackWeight = payload.weightLb ?? 180;
+      const bmi = computedBmi ?? (openAiKey ? null : 25.1);
+      const bodyFatValue = openAiKey
+        ? Number(savedScan.result.bfPercent ?? 0)
+        : 24.2;
 
-      res.json(responsePayload);
+
+      const finalPayload = {
+        provider: openAiKey ? "openai" : "mock",
+        bodyFat: bodyFatValue,
+        weight: openAiKey ? payload.weightLb ?? null : fallbackWeight,
+        bmi,
+        note: openAiKey ? undefined : "Vision unavailable; returned mock result",
+        raw: legacyPayload,
+        ...legacyPayload,
+      };
+
+      res.json(finalPayload);
     } catch (err: any) {
       console.error("scan_submit_unhandled", { message: err?.message });
       res.status(500).json({ error: "server_error" });

@@ -7,6 +7,7 @@ import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyAppCheckFromHeader } from "./appCheck.js";
 import { verifyRateLimit } from "./rateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
+import { getOpenAIKey } from "./lib/env.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -78,11 +79,7 @@ function buildFallbackResponse(text: string): string {
   return ["Here's a focused " + splitPlan + " split for the next week:", ...sessions, nutrition, closer].join(" ");
 }
 
-async function callOpenAi(model: OpenAiModel, text: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new HttpsError("failed-precondition", "openai_disabled");
-  }
+async function callOpenAi(apiKey: string, model: OpenAiModel, text: string): Promise<string> {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -128,87 +125,92 @@ async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
   await Promise.allSettled(deletions.map((doc) => doc.ref.delete().catch(() => undefined)));
 }
 
-async function handleChat(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "method_not_allowed" });
-    return;
-  }
-
-  const uid = await requireAuth(req as any);
-  (req as any).auth = { uid };
-
-  const text = sanitizeInput((req.body as any)?.text ?? (req.body as any)?.message);
-  try {
-    await verifyRateLimit(req, {
-      key: "coach",
-      max: Number(process.env.COACH_RPM || 6),
-      windowSeconds: 60,
-    });
-  } catch (error: any) {
-    if (error?.status === 429) {
-      res.status(429).json({ error: "Too Many Requests" });
-      return;
-    }
-    throw error;
-  }
-  await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
-
-  let responseText = "";
-  let usedLLM = false;
-
-  if (process.env.OPENAI_API_KEY) {
-    for (const model of OPENAI_MODELS) {
-      try {
-        responseText = await callOpenAi(model, text);
-        usedLLM = true;
-        break;
-      } catch (err) {
-        if ((err as HttpsError)?.code === "failed-precondition") {
-          break;
-        }
-        console.warn("coach_chat_model_error", { model, message: (err as any)?.message });
-      }
-    }
-  }
-
-  if (!responseText) {
-    responseText = buildFallbackResponse(text);
-    usedLLM = false;
-  }
-
-  const reply = formatCoachReply(responseText);
-
-  const record: ChatRecord = {
-    text,
-    response: reply,
-    createdAt: Timestamp.now(),
-    usedLLM,
-  };
-
-  await storeMessage(uid, record);
-
-  res.status(200).json({ reply, usedLLM });
-}
-
 export const coachChat = onRequest(
   { invoker: "public", region: "us-central1" },
   withCors(async (req, res) => {
+    const request = req as ExpressRequest;
+    const response = res as ExpressResponse;
+
     try {
-      await verifyAppCheckFromHeader(req);
+      await verifyAppCheckFromHeader(request);
     } catch (error: any) {
-      if (!res.headersSent) {
-        console.warn("coach_chat_appcheck_rejected", { message: error?.message });
+      if (!response.headersSent) {
         const status = typeof error?.status === "number" ? error.status : 401;
-        res.status(status).json({ error: error?.message ?? "app_check_required" });
+        response.status(status).json({ error: error?.message ?? "app_check_required" });
       }
       return;
     }
 
+    if (request.method !== "POST") {
+      response.status(405).json({ error: "method_not_allowed" });
+      return;
+    }
+
     try {
-      await handleChat(req as ExpressRequest, res as ExpressResponse);
-    } catch (err: any) {
-      if (res.headersSent) return;
-      if (err instanceof HttpsError) {
+      const uid = await requireAuth(request as any);
+      (request as any).auth = { uid };
+
+      let text: string;
+      try {
+        text = sanitizeInput((request.body as any)?.text ?? (request.body as any)?.message);
+      } catch (error: any) {
+        response.status(400).json({ error: error?.message ?? "invalid_text" });
+        return;
+      }
+
+      try {
+        await verifyRateLimit(request, {
+          key: "coach",
+          max: Number(process.env.COACH_RPM || 6),
+          windowSeconds: 60,
+        });
+      } catch (error: any) {
+        if (error?.status === 429) {
+          response.status(429).json({ error: "too_many_requests" });
+          return;
+        }
+        console.warn("coach_chat_rate_limit_error", { message: error?.message });
+      }
+
+      await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+
+      const openAiKey = getOpenAIKey();
+      let responseText = "";
+      let usedLLM = false;
+
+      if (openAiKey) {
+        for (const model of OPENAI_MODELS) {
+          try {
+            responseText = await callOpenAi(openAiKey, model, text);
+            usedLLM = true;
+            break;
+          } catch (error: any) {
+            console.warn("coach_chat_model_error", { model, message: error?.message });
+          }
+        }
+      }
+
+      if (!responseText) {
+        responseText = buildFallbackResponse(text);
+        usedLLM = false;
+      }
+
+      const reply = formatCoachReply(responseText);
+      const record: ChatRecord = {
+        text,
+        response: reply,
+        createdAt: Timestamp.now(),
+        usedLLM,
+      };
+
+      await storeMessage(uid, record);
+
+      response.status(200).json({ reply, usedLLM });
+    } catch (error: any) {
+      if (response.headersSent) {
+        return;
+      }
+      if (error instanceof HttpsError) {
         const statusMap: Record<string, number> = {
           "invalid-argument": 400,
           "unauthenticated": 401,
@@ -217,16 +219,12 @@ export const coachChat = onRequest(
           "resource-exhausted": 429,
           unavailable: 503,
         };
-        const status = statusMap[err.code] ?? 500;
-        res.status(status).json({ error: err.message, code: err.code });
+        const status = statusMap[error.code] ?? 500;
+        response.status(status).json({ error: error.message, code: error.code });
         return;
       }
-      if (typeof err?.status === "number") {
-        res.status(err.status).json({ error: err.message ?? "request_failed" });
-        return;
-      }
-      console.error("coach_chat_unhandled", { message: err?.message });
-      res.status(500).json({ error: "server_error" });
+      console.error("coach_chat_unhandled", { message: error?.message });
+      response.status(500).json({ error: "server_error" });
     }
   })
 );
