@@ -3,11 +3,34 @@ name: E2E
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      BASE_URL:
+        description: "Override base URL for E2E"
+        required: false
+        default: ""
 
 jobs:
-  playwright:
+  preview:
+    name: Firebase Hosting Preview
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.details_url || steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy preview
+        id: deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MYBODYSCAN_F3DAF || '' }}
+          projectId: mybodyscan-f3daf
+          channelId: pr-${{ github.event.number }}
+        continue-on-error: true
+
+  e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
+    needs: [preview]
 
     steps:
       - name: Checkout repository
@@ -25,10 +48,25 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
+      - name: Resolve BASE_URL
+        id: resolve_base
+        run: |
+          INPUT="${{ github.event.inputs.BASE_URL }}"
+          PREVIEW="${{ needs.preview.outputs.preview_url }}"
+          if [ -n "$INPUT" ]; then
+            echo "url=$INPUT" >> $GITHUB_OUTPUT
+          elif [ -n "$PREVIEW" ]; then
+            echo "url=$PREVIEW" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://mybodyscanapp.com" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Playwright tests
-        run: npm run test:e2e
         env:
-          BASE_URL: ${{ secrets.E2E_BASE_URL || 'https://mybodyscanapp.com' }}
+          BASE_URL: ${{ steps.resolve_base.outputs.url }}
+        run: |
+          echo "Testing BASE_URL=$BASE_URL"
+          npm run test:e2e
 
       - name: Upload Playwright report
         if: always()
