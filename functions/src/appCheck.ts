@@ -1,20 +1,16 @@
 import * as admin from "firebase-admin";
 import { HttpsError } from "firebase-functions/v2/https";
 
-import { env } from "./env.js";
+import { getAppCheckAllowedOrigins, isAppCheckSoftEnforced } from "./env.js";
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const allowedOrigins = new Set(
-  (env.APP_CHECK_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value)
-);
+const allowedOriginsRaw = getAppCheckAllowedOrigins();
+const allowedOrigins = new Set(allowedOriginsRaw);
 
-const softEnforcement = env.APP_CHECK_ENFORCE_SOFT;
+const softEnforcement = isAppCheckSoftEnforced();
 
 function shouldEnforceStrict(origin?: string | null): boolean {
   if (softEnforcement) {

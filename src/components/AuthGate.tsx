@@ -1,21 +1,16 @@
-import { ReactNode, useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { ReactNode, useEffect } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth, functions } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 import { isDemoMode } from "@/lib/demoFlag";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/auth";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { user, loading } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
 
   useEffect(() => {
     if (!user) return;
@@ -40,13 +35,8 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     ensureCredits({ demo }).catch(() => {});
   }, [user]);
 
-  // Show loading spinner while checking auth state
-  if (user === undefined) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-muted border-t-primary animate-spin" />
-      </div>
-    );
+  if (loading || !appCheckReady) {
+    return <LoadingOverlay label="Preparing your account…" className="min-h-screen" />;
   }
 
   return <>{children}</>;

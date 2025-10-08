@@ -1,6 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 
 import { withCors } from "./middleware/cors.js";
+import { isAppCheckSoftEnforced } from "./env.js";
 
 type ScanProvider = "openai-vision" | "mock";
 
@@ -28,16 +29,7 @@ export const health = onRequest(
     const nutritionConfigured = hasValue(process.env.USDA_FDC_API_KEY);
     const scanProvider: ScanProvider = hasOpenAIKey ? "openai-vision" : "mock";
 
-    let appCheckSoft = true;
-    try {
-      const env = await import("./env.js");
-      appCheckSoft = env.getBool("APP_CHECK_ENFORCE_SOFT", true);
-    } catch (error) {
-      console.warn("health_env_inspect_failed", {
-        message: error instanceof Error ? error.message : String(error),
-      });
-      appCheckSoft = true;
-    }
+    const appCheckSoft = isAppCheckSoftEnforced();
 
     const payload: HealthPayload = {
       status: "ok",

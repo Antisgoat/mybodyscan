@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import React, { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -25,7 +25,9 @@ import History from "./pages/History";
 import Plans from "./pages/Plans";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import PublicLayout from "./components/PublicLayout";
+import { AppCheckProvider } from "./components/AppCheckProvider";
+import { LoadingOverlay } from "./components/LoadingOverlay";
+import { DataBoundary } from "./components/DataBoundary";
 import PublicLanding from "./pages/PublicLanding";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -78,6 +80,8 @@ import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 
+const loadPublicLayout = () => import("./components/PublicLayout");
+const PublicLayout = lazy(loadPublicLayout);
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 
 const queryClient = new QueryClient();
@@ -85,20 +89,25 @@ const queryClient = new QueryClient();
 const App = () => {
   useEffect(() => {
     initAuthPersistence().catch(() => {});
+    if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
+      void loadPublicLayout();
+    }
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <CrashBanner />
-        <Toaster />
-        <Sonner />
-        <AuthGate>
-          <ConsentGate>
-            <BrowserRouter>
-              <DemoModeProvider>
-                <OnboardingRedirectMBS>
-              <Routes>
+        <AppCheckProvider>
+          <CrashBanner />
+          <Toaster />
+          <Sonner />
+          <AuthGate>
+            <ConsentGate>
+              <BrowserRouter>
+                <DemoModeProvider>
+                  <OnboardingRedirectMBS>
+                    <Suspense fallback={<PageSkeleton />}>
+                      <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -114,7 +123,9 @@ const App = () => {
               element={
                 <AuthedLayout>
                   <RouteBoundary>
-                    <Today />
+                    <Suspense fallback={<LoadingOverlay label="Loading demo experience…" />}>
+                      <Today />
+                    </Suspense>
                   </RouteBoundary>
                 </AuthedLayout>
               }
@@ -155,7 +166,18 @@ const App = () => {
                 </FeatureGate>
               }
             />
-            <Route path="/onboarding" element={<ProtectedRoute><AuthedLayout><Onboarding /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <Suspense fallback={<LoadingOverlay label="Preparing onboarding…" />}>
+                      <Onboarding />
+                    </Suspense>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              }
+            />
             {/* New main pages */}
             <Route
               path="/scan"
@@ -164,7 +186,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Scan />
+                        <DataBoundary page="scan">
+                          <Scan />
+                        </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -178,7 +202,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Coach />
+                        <DataBoundary page="coach">
+                          <Coach />
+                        </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -262,7 +288,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Nutrition />
+                        <DataBoundary page="nutrition">
+                          <Nutrition />
+                        </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -566,22 +594,24 @@ const App = () => {
             <Route
               path="/onboarding-mbs"
               element={
-                <React.Suspense fallback={<div className="p-6 text-slate-500">Loading…</div>}>
+                <Suspense fallback={<PageSkeleton />}>
                   <OnboardingMBS />
-                </React.Suspense>
+                </Suspense>
               }
             />
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-              </Routes>
-                </OnboardingRedirectMBS>
-              </DemoModeProvider>
-            </BrowserRouter>
-          </ConsentGate>
-        </AuthGate>
-    </TooltipProvider>
-  </QueryClientProvider>
+                      </Routes>
+                    </Suspense>
+                  </OnboardingRedirectMBS>
+                </DemoModeProvider>
+              </BrowserRouter>
+            </ConsentGate>
+          </AuthGate>
+        </AppCheckProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 

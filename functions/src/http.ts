@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
-import { env } from "./env.js";
+import { getHostBaseUrl } from "./env.js";
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;
@@ -55,5 +55,5 @@ export function publicBaseUrl(req: { protocol?: string; get?: (header: string) =
   const protocol = typeof req?.protocol === "string" && req.protocol.length > 0 ? req.protocol : "https";
   const host = typeof req?.get === "function" ? req.get("host") : undefined;
   const fallback = host ? `${protocol}://${host}` : "https://mybodyscanapp.com";
-  return env.HOST_BASE_URL || fallback;
+  return getHostBaseUrl() || fallback;
 }
