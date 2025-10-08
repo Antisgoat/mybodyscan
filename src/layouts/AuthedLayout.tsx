@@ -68,7 +68,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
           </button>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6 text-sm">
+          <nav className="hidden md:flex items-center gap-6 text-sm" data-testid="app-nav">
             <NavLinks />
           </nav>
 

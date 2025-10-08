@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
+import { useAuthUser } from "@/lib/auth";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
 
 export interface CoachProfile {
   sex?: "male" | "female";
@@ -48,10 +50,16 @@ export interface CoachPlan {
 export function useUserProfile() {
   const [profile, setProfile] = useState<CoachProfile | null>(null);
   const [plan, setPlan] = useState<CoachPlan | null>(null);
-  const uid = auth.currentUser?.uid || null;
+  const { user, authReady } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
+  const uid = authReady ? user?.uid ?? null : null;
 
   useEffect(() => {
-    if (!uid) return;
+    if (!authReady || !appCheckReady || !uid) {
+      setProfile(null);
+      setPlan(null);
+      return;
+    }
     const profileRef = doc(db, "users", uid, "coach", "profile");
     const unsub1 = onSnapshot(
       profileRef,
@@ -83,7 +91,7 @@ export function useUserProfile() {
       unsub1();
       unsub2();
     };
-  }, [uid]);
+  }, [authReady, appCheckReady, uid]);
 
   return { profile, plan };
 }

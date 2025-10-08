@@ -1,23 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-
-export function PageSkeleton() {
-  return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Skeleton className="h-8 w-48 mb-4" />
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-32" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </CardContent>
-      </Card>
-    </main>
-  );
-}
+export { PageSkeleton } from "./system/PageSkeleton";
 
 export function CaptureSkeleton() {
   return (

@@ -13,7 +13,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 import type { Program } from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
@@ -21,6 +21,9 @@ import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { disabledIfDemo } from "@/lib/demoGuard";
+import { useAuthUser } from "@/lib/auth";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -56,7 +59,9 @@ export default function CoachOverview() {
   const [weekIdx, setWeekIdx] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [planExists, setPlanExists] = useState<boolean | null>(null);
-  const uid = auth.currentUser?.uid ?? null;
+  const { user, authReady } = useAuthUser();
+  const appCheckReady = useAppCheckReady();
+  const uid = authReady ? user?.uid ?? null : null;
   const demo = useDemoMode();
   const { disabled: demoDisabled, title: demoTitle } = disabledIfDemo();
 
@@ -94,7 +99,7 @@ export default function CoachOverview() {
   const activeProgramId = planExists === false ? null : rawActiveProgramId;
 
   useEffect(() => {
-    if (!uid) {
+    if (!authReady || !appCheckReady || !uid) {
       setPlanExists(null);
       return;
     }
@@ -119,7 +124,7 @@ export default function CoachOverview() {
     return () => {
       cancelled = true;
     };
-  }, [uid, rawActiveProgramId]);
+  }, [authReady, appCheckReady, uid, rawActiveProgramId]);
 
   useEffect(() => {
     if (!profile || !programEntries.length || hydrated) return;
@@ -169,8 +174,7 @@ export default function CoachOverview() {
   }, [program, lastWeekForProgram, lastDayForProgram]);
 
   const persistProfile = async (partial: Record<string, unknown>) => {
-    const user = auth.currentUser;
-    if (!user) return;
+    if (!authReady || !user) return;
     try {
       setIsSaving(true);
       await setDoc(doc(db, "users", user.uid, "coach", "profile"), partial, { merge: true });
@@ -214,12 +218,22 @@ export default function CoachOverview() {
   const displayWeekIndex = totalWeeks > 0 ? Math.min(weekIdx + 1, totalWeeks) : 1;
   const showEmptyState = !isLoadingPrograms && !program;
 
+  const initializing = !appCheckReady;
+
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Coach – MyBodyScan" description="Follow your bodybuilding-style program." />
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-        <NotMedicalAdviceBanner />
+      <ErrorBoundary title="Coach is unavailable" description="Retry to load your personalized plan.">
+        <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+          <NotMedicalAdviceBanner />
+          {initializing && (
+            <Card className="border border-dashed border-primary/40 bg-primary/5">
+              <CardContent className="text-sm text-primary">
+                Initializing secure coach services… Your plans will appear shortly.
+              </CardContent>
+            </Card>
+          )}
         {(profile || planExists === false) && !activeProgramId && (
           <Card className="border border-dashed border-primary/40 bg-primary/5">
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -265,7 +279,7 @@ export default function CoachOverview() {
             <Select
               value={program?.id}
               onValueChange={handleProgramChange}
-              disabled={demoDisabled || isSaving || isLoadingPrograms || !programEntries.length}
+              disabled={demoDisabled || isSaving || isLoadingPrograms || !programEntries.length || initializing}
             >
               <SelectTrigger
                 className="w-full sm:w-64"
@@ -423,8 +437,9 @@ export default function CoachOverview() {
             </Button>
           </CardContent>
         </Card>
-      </main>
-      <BottomNav />
+        </main>
+        <BottomNav />
+      </ErrorBoundary>
     </div>
   );
 }
