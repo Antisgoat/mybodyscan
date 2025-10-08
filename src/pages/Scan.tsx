@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
@@ -23,6 +24,7 @@ import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const IDEMPOTENCY_STORAGE_KEY = "scan:idempotency";
 
 const POSES: Array<{ key: PoseKey; label: string; helper: string }> = [
   { key: "front", label: "Front", helper: "Face forward, arms relaxed" },
@@ -44,6 +46,28 @@ function emptyPreviewMap(): PreviewMap {
   return { front: "", back: "", left: "", right: "" };
 }
 
+function readStoredIdempotencyKey(): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(IDEMPOTENCY_STORAGE_KEY);
+  return stored && stored.trim().length ? stored : null;
+}
+
+function persistIdempotencyKey(key: string | null) {
+  if (typeof window === "undefined") return;
+  if (key) {
+    window.localStorage.setItem(IDEMPOTENCY_STORAGE_KEY, key);
+  } else {
+    window.localStorage.removeItem(IDEMPOTENCY_STORAGE_KEY);
+  }
+}
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export default function Scan() {
   const [files, setFiles] = useState<FileMap>(emptyFileMap);
   const [previews, setPreviews] = useState<PreviewMap>(emptyPreviewMap);
@@ -56,11 +80,13 @@ export default function Scan() {
   const [age, setAge] = useState<string>("");
   const [sex, setSex] = useState<"male" | "female" | "">("");
   const [submitting, setSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(() => readStoredIdempotencyKey());
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const demo = useDemoMode();
   const appCheckReady = useAppCheckReady();
+  const { credits, loading: creditsLoading } = useCredits();
 
   useEffect(() => {
     const next: PreviewMap = emptyPreviewMap();
@@ -95,6 +121,14 @@ export default function Scan() {
   }, [profile?.weight_kg, profile?.height_cm, profile?.age, profile?.sex, weight, height, age, sex]);
 
   const allPhotosSelected = useMemo(() => POSES.every(({ key }) => Boolean(files[key])), [files]);
+
+  useEffect(() => {
+    persistIdempotencyKey(idempotencyKey);
+  }, [idempotencyKey]);
+
+  const clearIdempotency = () => {
+    setIdempotencyKey(null);
+  };
 
   const handleFileChange = (pose: PoseKey, fileList: FileList | null) => {
     const file = fileList?.[0] || null;
@@ -139,6 +173,12 @@ export default function Scan() {
       return;
     }
 
+    let key = idempotencyKey;
+    if (!key) {
+      key = generateIdempotencyKey();
+      setIdempotencyKey(key);
+    }
+
     const fileMap: Record<PoseKey, File> = {
       front: files.front!,
       back: files.back!,
@@ -146,7 +186,7 @@ export default function Scan() {
       right: files.right!,
     };
 
-    const payload = { scanId: "" } as SubmitPayload;
+    const payload: SubmitPayload = { scanId: "", idempotencyKey: key };
 
     const weightValue = parseFloat(weight);
     if (Number.isFinite(weightValue) && weightValue > 0) {
@@ -185,6 +225,7 @@ export default function Scan() {
       setStage("complete");
       setProgressText("Estimate ready");
       setResult(response);
+      clearIdempotency();
       toast({ title: "Estimate ready", description: "Your result has been saved to History." });
     } catch (err: any) {
       console.error("scan_analyze_error", err);
@@ -194,6 +235,7 @@ export default function Scan() {
       } else if (err?.status === 402 || err?.message === "no_credits") {
         description = "Add credits to run another scan.";
         toast({ title: "No scan credits", description, variant: "destructive" });
+        clearIdempotency();
         resetState();
         setSubmitting(false);
         navigate("/plans");
@@ -204,6 +246,7 @@ export default function Scan() {
         description = "Upload failed. Ensure all four photos were added and try again.";
       } else if (err?.status === 401) {
         description = "Sign in again to continue.";
+        clearIdempotency();
         navigate("/auth");
       }
       toast({ title: "Scan failed", description, variant: "destructive" });
@@ -219,7 +262,7 @@ export default function Scan() {
   const initializing = !appCheckReady;
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-scan">
       <Seo title="Live Scan – MyBodyScan" description="Capture four angles to estimate your body-fat percentage." />
       <AppHeader />
       <NotMedicalAdviceBanner />
@@ -377,6 +420,9 @@ export default function Scan() {
                   <p className="text-sm text-muted-foreground">Range {result.result.low.toFixed(1)}% – {result.result.high.toFixed(1)}%</p>
                 </div>
                 <p className="text-sm text-muted-foreground">{result.result.notes}</p>
+                {result.provider === "mock" && (
+                  <p className="text-xs text-muted-foreground">Vision unavailable; using mock.</p>
+                )}
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p>This estimate is saved to your History automatically.</p>
                   {typeof result.creditsRemaining === "number" && (
@@ -402,6 +448,9 @@ export default function Scan() {
               {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
             </Button>
+            <div className="text-xs text-center text-muted-foreground">
+              Credits: {creditsLoading ? "…" : credits}
+            </div>
             {initializing && (
               <p className="text-xs text-center text-muted-foreground">Secure services are starting up—tap Analyze once this message disappears.</p>
             )}
@@ -420,4 +469,5 @@ type SubmitPayload = {
   heightIn?: number;
   age?: number;
   sex?: "male" | "female";
+  idempotencyKey?: string;
 };

@@ -219,3 +219,20 @@ export function buildMealEntry(
     entrySource,
   };
 }
+
+export function roundGrams(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.round(val * 10) / 10;
+}
+
+export function roundKcal(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.round(val);
+}
+
+export function sumNumbers(values: Array<number | undefined | null>): number {
+  return values.reduce((acc, v) => {
+    const numeric = Number(v);
+    return acc + (Number.isFinite(numeric) ? numeric : 0);
+  }, 0);
+}

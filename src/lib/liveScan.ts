@@ -28,6 +28,7 @@ export interface ScanResultResponse {
     images: Array<{ pose: PoseKey; sizeBytes: number; md5Hash: string | null }>;
   };
   creditsRemaining: number | null;
+  provider?: string;
 }
 
 interface SubmitPayload {
@@ -36,6 +37,7 @@ interface SubmitPayload {
   heightIn?: number;
   age?: number;
   sex?: "male" | "female";
+  idempotencyKey?: string;
 }
 
 async function authedRequest(path: string, init: RequestInit = {}): Promise<Response> {
