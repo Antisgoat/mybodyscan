@@ -2,9 +2,8 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth } from "./http.js";
+import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -308,7 +307,7 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
     { invoker: "public" },
     withCors(async (req, res) => {
       try {
-        await requireAppCheckStrict(req as any, res as any);
+        await verifyAppCheckStrict(req as any);
         await handler(req as unknown as Request, res as unknown as Response);
       } catch (err: any) {
         const code = err instanceof HttpsError ? err.code : "internal";

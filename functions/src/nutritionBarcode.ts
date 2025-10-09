@@ -1,8 +1,7 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict } from "./middleware/appCheck.js";
-import { requireAuth } from "./http.js";
+import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 
@@ -60,7 +59,7 @@ async function handler(req: Request, res: Response) {
     return;
   }
 
-  await requireAppCheckStrict(req as any, res as any);
+  await verifyAppCheckStrict(req as any);
 
   const uid = await requireAuth(req);
   await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
