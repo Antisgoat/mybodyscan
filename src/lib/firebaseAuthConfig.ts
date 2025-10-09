@@ -32,7 +32,7 @@ function coerceProviderId(candidate: any): string | null {
   );
 }
 
-function isProviderEnabled(candidate: any): boolean {
+function providerConfigIsEnabled(candidate: any): boolean {
   if (!candidate || typeof candidate !== "object") return true;
   if ("enabled" in candidate && candidate.enabled === false) return false;
   if ("enable" in candidate && candidate.enable === false) return false;
@@ -63,7 +63,7 @@ function parseProviders(payload: any): string[] {
       for (const entry of source) {
         const id = coerceProviderId(entry);
         if (!id) continue;
-        if (!isProviderEnabled(entry)) continue;
+        if (!providerConfigIsEnabled(entry)) continue;
         ids.add(id);
       }
       continue;
@@ -72,7 +72,7 @@ function parseProviders(payload: any): string[] {
       for (const [key, entry] of Object.entries(source)) {
         const id = coerceProviderId(entry) ?? key;
         if (!id) continue;
-        if (!isProviderEnabled(entry)) continue;
+        if (!providerConfigIsEnabled(entry)) continue;
         ids.add(id);
       }
     }

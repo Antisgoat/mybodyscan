@@ -14,6 +14,16 @@ const READ_URL_EXPIRATION_MS = 5 * 60 * 1000;
 const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
 
+type OpenAIChatChoice = { message?: { content?: string } };
+function extractOpenAIContent(data: any): string | undefined {
+  try {
+    const choices = (data?.choices ?? []) as OpenAIChatChoice[];
+    return choices[0]?.message?.content;
+  } catch {
+    return undefined;
+  }
+}
+
 type Pose = (typeof POSES)[number];
 
 type ConfidenceLevel = "low" | "medium" | "high";
@@ -259,8 +269,8 @@ async function callOpenAi(
     throw error;
   }
 
-  const data = await response.json();
-  const content: string | undefined = data?.choices?.[0]?.message?.content;
+  const data: any = await response.json();
+  const content = extractOpenAIContent(data);
   if (!content) {
     console.error("scan_openai_missing_content", { data });
     throw new Error("no_content");
@@ -347,11 +357,12 @@ export const submitScan = onRequest(
         res.status(502).json({ error: "openai_upstream", status: r.status, body: text.slice(0, 800) });
         return;
       }
-      const data = await r.json();
-      const content = data?.choices?.[0]?.message?.content ?? "{}";
+      const data: any = await r.json();
+      const content = extractOpenAIContent(data);
       let parsed: any = {};
       try {
-        parsed = JSON.parse((content as string).match(/{[\s\S]*}/)?.[0] ?? "{}");
+        const jsonBlock = content?.match(/{[\s\S]*}/)?.[0];
+        if (jsonBlock) parsed = JSON.parse(jsonBlock);
       } catch {}
 
       res.json({
