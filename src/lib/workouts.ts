@@ -2,6 +2,7 @@ import { auth, db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
+import { getAppCheckToken } from "@/appCheck";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -75,4 +76,36 @@ export async function getWeeklyCompletion(planId: string) {
     }
   }
   return total ? completed / total : 0;
+}
+
+export async function adjustWorkoutDay(payload: { dayId: string; bodyFeel: string; notes?: string }) {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_adjust" });
+    throw new Error("demo-blocked");
+  }
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("auth");
+  }
+  const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), getAppCheckToken()]);
+  if (!idToken) {
+    throw new Error("auth");
+  }
+  const response = await fetch("/api/workouts/adjust", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+      ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
+    },
+    credentials: "include",
+    body: JSON.stringify({ ...payload, uid: user.uid }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || "adjust_failed");
+    (error as any).status = response.status;
+    throw error;
+  }
+  return response.json();
 }

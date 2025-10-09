@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { AppHeader } from "@/components/AppHeader";
@@ -61,6 +61,9 @@ export default function CoachChatPage() {
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
+  const [micSupported, setMicSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -101,6 +104,66 @@ export default function CoachChatPage() {
     });
     return () => unsubscribe();
   }, [authReady, appCheckReady, uid]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+    setMicSupported(true);
+
+    const handleResult = (event: any) => {
+      try {
+        const transcript = Array.from(event.results || [])
+          .map((result: any) => result?.[0]?.transcript)
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (transcript) {
+          setInput((prev) => {
+            const existing = prev.trim();
+            if (!existing) return transcript;
+            return `${existing} ${transcript}`.trim();
+          });
+        }
+      } catch (error) {
+        console.warn("coach_mic_parse_error", error);
+      }
+    };
+
+    const handleEnd = () => {
+      setListening(false);
+    };
+
+    const handleError = (event: any) => {
+      console.warn("coach_mic_error", event?.error || event);
+      setListening(false);
+    };
+
+    recognition.addEventListener("result", handleResult);
+    recognition.addEventListener("end", handleEnd);
+    recognition.addEventListener("error", handleError);
+
+    return () => {
+      recognition.removeEventListener("result", handleResult);
+      recognition.removeEventListener("end", handleEnd);
+      recognition.removeEventListener("error", handleError);
+      try {
+        recognition.stop();
+      } catch (error) {
+        console.warn("coach_mic_stop_error", (error as Error)?.message);
+      }
+    };
+  }, []);
 
   const hasMessages = messages.length > 0;
 
@@ -170,6 +233,32 @@ export default function CoachChatPage() {
 
   const formattedMessages = useMemo(() => sortMessages(messages), [messages]);
 
+  const toggleMic = () => {
+    if (!micSupported) {
+      return;
+    }
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      return;
+    }
+    if (listening) {
+      try {
+        recognition.stop();
+      } catch (error) {
+        console.warn("coach_mic_stop_failed", (error as Error)?.message);
+      }
+      setListening(false);
+      return;
+    }
+    try {
+      recognition.start();
+      setListening(true);
+    } catch (error) {
+      console.warn("coach_mic_start_failed", (error as Error)?.message);
+      setListening(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-coach">
       <Seo title="Coach Chat – MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
@@ -234,7 +323,16 @@ export default function CoachChatPage() {
                   disabled={pending || demo || initializing}
                   data-testid="coach-input"
                 />
-                <div className="flex justify-end">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    type="button"
+                    variant={listening ? "destructive" : "outline"}
+                    onClick={toggleMic}
+                    disabled={!micSupported || pending || demo || initializing}
+                    data-testid="coach-mic"
+                  >
+                    {micSupported ? (listening ? "Stop recording" : "Speak") : "Mic unsupported"}
+                  </Button>
                   <Button
                     onClick={handleSend}
                     disabled={pending || demo || !input.trim() || initializing}

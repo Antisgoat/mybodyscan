@@ -46,3 +46,10 @@ For automated coverage, run the Playwright E2E suite locally when needed:
 ```bash
 BASE_URL=https://mybodyscanapp.com npm run test:e2e
 ```
+
+## Operator steps (one-click deploy)
+
+1. Open **GitHub → Actions → Ship Live Orchestrator → Run workflow**.
+2. Leave **deploy** as `yes` to push Functions + Hosting after E2E passes.
+3. Ensure repository secret **FIREBASE_TOKEN** is configured and Firebase Functions variables include `OPENAI_API_KEY`; Stripe keys are optional.
+4. After the workflow runs, review the summary comment and open the **GO-LIVE Runbook (Day-1)** issue to tick off verifications.

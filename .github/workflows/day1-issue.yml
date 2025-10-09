@@ -1,0 +1,28 @@
+name: Day-1 Checklist (Create/Update)
+on:
+  workflow_dispatch:
+    inputs:
+      prod_url:
+        description: "Production URL"
+        required: false
+        default: "https://mybodyscanapp.com"
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create/Update Issue
+        uses: actions-ecosystem/action-create-issue@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          title: "GO-LIVE Runbook (Day-1)"
+          body: |
+            ## Day-1 Checklist
+            - [ ] E2E passed (Preview)
+            - [ ] Deploy to Prod complete
+            - [ ] `${{ github.event.inputs.prod_url }}/system/check` shows **OpenAI: Configured** and model
+            - [ ] Scan works (no mock; API would 503 if misconfigured)
+            - [ ] Coach text + voice works
+            - [ ] Nutrition totals accurate (g=0.1, kcal=1)
+            - [ ] Workouts “Body Feel” adjust updates plan
+            - [ ] No red console errors across routes
+            - [ ] Functions logs: zero unhandled exceptions in last hour

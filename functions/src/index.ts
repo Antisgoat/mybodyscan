@@ -71,6 +71,11 @@ function loadPaymentsModule() {
   return (paymentsModulePromise ??= import("./payments.js"));
 }
 
+let workoutsAdjustModulePromise: Promise<typeof import("./workouts/adjust.js")> | null = null;
+function loadWorkoutsAdjustModule() {
+  return (workoutsAdjustModulePromise ??= import("./workouts/adjust.js"));
+}
+
 export const startScan = createLazyExport(() => loadScanModule().then((mod) => mod.startScan));
 export const processQueuedScanHttp = createLazyExport(() =>
   loadScanModule().then((mod) => mod.processQueuedScanHttp)
@@ -174,6 +179,10 @@ export const stripeWebhook = createLazyExport(async () => {
   const mod = await loadPaymentsModule();
   return mod.stripeWebhook;
 });
+
+export const workoutsAdjust = createLazyExport(() =>
+  loadWorkoutsAdjustModule().then((mod) => mod.workoutsAdjust)
+);
 
 const systemApp = express();
 systemApp.get("/system/health", systemHealth);

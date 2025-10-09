@@ -56,7 +56,7 @@ function logSoft(mode: "missing" | "invalid", context: Record<string, unknown>) 
   console.warn(`appcheck_soft_${mode}`, context);
 }
 
-export function appCheckSoft(req: Request, res: Response, next: NextFunction): void {
+export function appCheckSoft(req: Request, _res: Response, next: NextFunction): void {
   const allowedOrigins = getAllowedOrigins() ?? [];
   const origin = readAppCheckOrigin(req);
   const softEnforced = getAppCheckEnforceSoft();
@@ -64,12 +64,8 @@ export function appCheckSoft(req: Request, res: Response, next: NextFunction): v
   const token = getHeader(req, "X-Firebase-AppCheck");
 
   if (!token) {
-    if (softEnforced || !originAllowed) {
-      logSoft("missing", { path: req.path, origin, originAllowed, mode: "soft" });
-      next();
-      return;
-    }
-    res.status(403).json({ error: "app_check_required" });
+    logSoft("missing", { path: req.path, origin, originAllowed, mode: softEnforced ? "soft-enforced" : "soft" });
+    next();
     return;
   }
 
@@ -79,19 +75,13 @@ export function appCheckSoft(req: Request, res: Response, next: NextFunction): v
       next();
     })
     .catch((error: any) => {
-      const payload = {
+      logSoft("invalid", {
         path: req.path,
         origin,
+        originAllowed,
+        mode: softEnforced ? "soft-enforced" : "soft",
         message: error instanceof Error ? error.message : String(error),
-      };
-      if (softEnforced || !originAllowed) {
-        logSoft("invalid", { ...payload, originAllowed, mode: "soft" });
-        next();
-        return;
-      }
-      console.warn("appcheck_strict_invalid", payload);
-      if (!res.headersSent) {
-        res.status(403).json({ error: "app_check_required" });
-      }
+      });
+      next();
     });
 }

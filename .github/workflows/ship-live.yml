@@ -1,0 +1,96 @@
+name: Ship Live Orchestrator
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Run prod deploy after E2E passes (yes/no)"
+        required: true
+        default: "yes"
+      base_url:
+        description: "Prod base URL fallback"
+        required: false
+        default: "https://mybodyscanapp.com"
+jobs:
+  preview:
+    name: Firebase Hosting Preview
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.details_url || steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy preview
+        id: deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MYBODYSCAN_F3DAF || '' }}
+          projectId: mybodyscan-f3daf
+          channelId: manual-${{ github.run_id }}
+        continue-on-error: true
+
+  e2e:
+    name: Playwright E2E (Preview)
+    runs-on: ubuntu-latest
+    needs: [preview]
+    outputs:
+      url: ${{ steps.resolve.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci || npm install --prefer-online --no-audit --no-fund
+      - run: npx playwright install --with-deps
+      - name: Resolve BASE_URL
+        id: resolve
+        run: |
+          PREVIEW="${{ needs.preview.outputs.preview_url }}"
+          FALLBACK="${{ github.event.inputs.base_url }}"
+          if [ -n "$PREVIEW" ]; then echo "url=$PREVIEW" >> $GITHUB_OUTPUT; else echo "url=$FALLBACK" >> $GITHUB_OUTPUT; fi
+      - name: Run E2E
+        env: { BASE_URL: ${{ steps.resolve.outputs.url }} }
+        run: |
+          echo "Testing BASE_URL=$BASE_URL"
+          npm run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-report, path: playwright-report }
+
+  deploy:
+    name: Deploy to Prod (Hosting + Functions)
+    runs-on: ubuntu-latest
+    needs: [e2e]
+    if: ${{ github.event.inputs.deploy == 'yes' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci || npm install --prefer-online --no-audit --no-fund
+      - run: npm i -g firebase-tools
+      - name: Deploy
+        env: { FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }} }
+        run: |
+          firebase deploy --only functions,hosting --project mybodyscan-f3daf --force
+
+  smoke:
+    name: Prod Smoke (/system/health)
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    steps:
+      - name: Health
+        id: health
+        run: |
+          set -e
+          URL="${{ github.event.inputs.base_url }}/system/health"
+          echo "GET $URL"
+          curl -sSfL "$URL" -o health.json
+          cat health.json
+          echo "hasOpenAI=$(jq -r .hasOpenAI health.json)" >> $GITHUB_OUTPUT
+          echo "model=$(jq -r .model health.json)" >> $GITHUB_OUTPUT
+          echo "hasStripe=$(jq -r .hasStripe health.json)" >> $GITHUB_OUTPUT
+      - name: Summarize
+        run: |
+          echo "### Prod health" >> $GITHUB_STEP_SUMMARY
+          echo "- hasOpenAI: **${{ steps.health.outputs.hasOpenAI }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- model: **${{ steps.health.outputs.model }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- hasStripe: **${{ steps.health.outputs.hasStripe }}**" >> $GITHUB_STEP_SUMMARY
