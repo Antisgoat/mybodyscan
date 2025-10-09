@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAppCheckStrict } from "../middleware/appCheck.js";
+import { ensureAppCheck } from "../middleware/appCheckGuard.js";
 import { requireAuth } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
@@ -19,7 +19,7 @@ function todayKey() {
 }
 
 async function handler(req: ExpressRequest, res: ExpressResponse) {
-  await requireAppCheckStrict(req, res);
+  await ensureAppCheck(req, res);
   const uid = await requireAuth(req);
   const staffBypass = await isStaff(uid);
   if (staffBypass) {

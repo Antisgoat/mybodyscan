@@ -4,7 +4,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { verifyAppCheckFromHeader } from "./appCheck.js";
+import { ensureAppCheck } from "./middleware/appCheckGuard.js";
 import { verifyRateLimit } from "./rateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { getOpenAIKey } from "./lib/env.js";
@@ -132,7 +132,7 @@ export const coachChat = onRequest(
     const response = res as ExpressResponse;
 
     try {
-      await verifyAppCheckFromHeader(request);
+      await ensureAppCheck(request as ExpressRequest, response as ExpressResponse);
     } catch (error: any) {
       if (!response.headersSent) {
         const status = typeof error?.status === "number" ? error.status : 401;

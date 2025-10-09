@@ -164,7 +164,7 @@ export const createCustomerPortal = createLazyExport(async () => {
     return paymentsDisabled;
   }
   const mod = await loadPaymentsModule();
-  return mod.createCustomerPortal;
+  return (mod as { createCustomerPortal?: AnyFunction }).createCustomerPortal ?? paymentsDisabled;
 });
 
 export const stripeWebhook = createLazyExport(async () => {
