@@ -14,6 +14,7 @@ import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { authedFetch } from "@/lib/api";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -23,6 +24,9 @@ export default function Workouts() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
+  const [bodyFeel, setBodyFeel] = useState<"great" | "ok" | "tired" | "sore" | "">("");
+  const [notes, setNotes] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -133,6 +137,54 @@ export default function Workouts() {
     }
   };
 
+  const submitBodyFeel = async () => {
+    if (!plan) return;
+    if (!bodyFeel) {
+      toast({ title: "Select how your body feels" });
+      return;
+    }
+    try {
+      setAdjusting(true);
+      const res = await authedFetch(`/workouts/adjust`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayId: todayName, bodyFeel, notes }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `adjust_failed_${res.status}`);
+      }
+      const data = await res.json();
+      // Apply simple local adjustments to sets as a demo of dynamic update
+      if (today) {
+        const deltaSets = data?.mods?.volume ?? 0;
+        const next = { ...plan };
+        const idx = next.days.findIndex((d: any) => d.day === todayName);
+        if (idx >= 0) {
+          next.days = next.days.map((d: any, i: number) =>
+            i === idx
+              ? {
+                  ...d,
+                  exercises: d.exercises.map((ex: any) => ({
+                    ...ex,
+                    sets: Math.max(1, (Number(ex.sets) || 0) + deltaSets),
+                  })),
+                }
+              : d
+          );
+          setPlan(next);
+        }
+      }
+      toast({ title: "Plan adjusted", description: `Intensity ${data?.mods?.intensity >= 0 ? "+" : ""}${data?.mods?.intensity}, Volume ${data?.mods?.volume >= 0 ? "+" : ""}${data?.mods?.volume}` });
+      setBodyFeel("");
+      setNotes("");
+    } catch (error: any) {
+      toast({ title: "Unable to adjust", description: error?.message || "Try again", variant: "destructive" });
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
   if (!plan) {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -197,6 +249,30 @@ export default function Workouts() {
                 </CardContent>
               </Card>
             ))}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="font-medium text-foreground">How did your body feel today?</div>
+                <div className="flex flex-wrap gap-2">
+                  {["great","ok","tired","sore"].map((v) => (
+                    <Button key={v} type="button" variant={bodyFeel===v?"default":"outline"} size="sm" onClick={() => setBodyFeel(v as any)}>
+                      {v === "great" ? "Great" : v === "ok" ? "OK" : v === "tired" ? "Tired" : "Sore"}
+                    </Button>
+                  ))}
+                </div>
+                <textarea
+                  className="w-full rounded-md border bg-background p-2 text-sm"
+                  rows={2}
+                  placeholder="Notes (optional)"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+                <div className="flex justify-end">
+                  <Button onClick={submitBodyFeel} disabled={!bodyFeel || adjusting}>
+                    {adjusting ? "Saving…" : "Save adjustment"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
           <Card>

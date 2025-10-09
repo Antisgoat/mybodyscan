@@ -61,6 +61,27 @@ export default function CoachChatPage() {
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [recognizer, setRecognizer] = useState<any | null>(null);
+  declare global { interface Window { webkitSpeechRecognition?: any; SpeechRecognition?: any; } }
+  const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
+  const supportsSpeech = Boolean(getSpeechRecognitionCtor());
+
+  const startListening = () => {
+    if (!supportsSpeech || listening) return;
+    const Ctor: any = getSpeechRecognitionCtor();
+    const rec = new Ctor();
+    rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+    rec.onresult = (e: any) => {
+      let t = ""; for (let i = e.resultIndex; i < e.results.length; i++) { t += e.results[i][0].transcript; }
+      setInput((prev) => (prev ? prev + " " : "") + t.trim());
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    rec.start(); setRecognizer(rec); setListening(true);
+  };
+  const stopListening = () => { try { recognizer?.stop?.(); } catch {} setListening(false); };
+  useEffect(() => () => { try { recognizer?.stop?.(); } catch {} }, [recognizer]);
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -235,13 +256,23 @@ export default function CoachChatPage() {
                   data-testid="coach-input"
                 />
                 <div className="flex justify-end">
-                  <Button
-                    onClick={handleSend}
-                    disabled={pending || demo || !input.trim() || initializing}
-                    data-testid="coach-send"
-                  >
-                    {pending ? "Sending..." : "Send"}
-                  </Button>
+                  <div className="flex gap-2 items-center">
+                    <Button
+                      variant="secondary"
+                      onClick={listening ? stopListening : startListening}
+                      disabled={!supportsSpeech || pending || demo || initializing}
+                      data-testid="coach-mic"
+                    >
+                      {supportsSpeech ? (listening ? "■ Stop" : "🎤 Speak") : "🎤 N/A"}
+                    </Button>
+                    <Button
+                      onClick={handleSend}
+                      disabled={pending || demo || !input.trim() || initializing}
+                      data-testid="coach-send"
+                    >
+                      {pending ? "Sending..." : "Send"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>

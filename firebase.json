@@ -72,6 +72,13 @@
         }
       },
       {
+        "source": "/workouts/adjust",
+        "function": {
+          "functionId": "adjustWorkout",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/nutrition/barcode",
         "function": {
           "functionId": "nutritionBarcode",
@@ -96,6 +103,20 @@
         "source": "/api/coach/chat",
         "function": {
           "functionId": "coachChat",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/createCheckout",
+        "function": {
+          "functionId": "createCheckout",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/stripeWebhook",
+        "function": {
+          "functionId": "stripeWebhook",
           "region": "us-central1"
         }
       },

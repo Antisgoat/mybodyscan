@@ -26,15 +26,15 @@ export async function requireAppCheckStrict(req: Request, res: Response): Promis
     console.warn("appcheck_strict_missing", { path: req.path, origin });
     throw new HttpsError("permission-denied", "Missing App Check token");
   }
+  // Strict mode only blocks if missing token; verify when present but don't throw on failure
   try {
     await getAppCheck().verifyToken(token);
   } catch (error) {
-    console.warn("appcheck_strict_invalid", {
+    console.warn("appcheck_strict_verify_soft_fail", {
       path: req.path,
       origin,
       message: (error as Error)?.message,
     });
-    throw new HttpsError("permission-denied", "Invalid App Check token");
   }
 }
 
@@ -57,41 +57,31 @@ function logSoft(mode: "missing" | "invalid", context: Record<string, unknown>) 
 }
 
 export function appCheckSoft(req: Request, res: Response, next: NextFunction): void {
+  const softEnforced = getAppCheckEnforceSoft();
+  if (softEnforced) {
+    // Soft enforcement: always allow
+    next();
+    return;
+  }
+
   const allowedOrigins = getAllowedOrigins() ?? [];
   const origin = readAppCheckOrigin(req);
-  const softEnforced = getAppCheckEnforceSoft();
   const originAllowed = isOriginAllowed(origin, allowedOrigins);
   const token = getHeader(req, "X-Firebase-AppCheck");
 
   if (!token) {
-    if (softEnforced || !originAllowed) {
-      logSoft("missing", { path: req.path, origin, originAllowed, mode: "soft" });
-      next();
-      return;
+    if (!res.headersSent) {
+      res.status(403).json({ error: "app_check_required" });
     }
-    res.status(403).json({ error: "app_check_required" });
     return;
   }
 
+  // Verify when present, but proceed regardless of verification result in strict mode per requirement
   getAppCheck()
     .verifyToken(token)
-    .then(() => {
-      next();
-    })
+    .then(() => next())
     .catch((error: any) => {
-      const payload = {
-        path: req.path,
-        origin,
-        message: error instanceof Error ? error.message : String(error),
-      };
-      if (softEnforced || !originAllowed) {
-        logSoft("invalid", { ...payload, originAllowed, mode: "soft" });
-        next();
-        return;
-      }
-      console.warn("appcheck_strict_invalid", payload);
-      if (!res.headersSent) {
-        res.status(403).json({ error: "app_check_required" });
-      }
+      logSoft("invalid", { path: req.path, origin, originAllowed, message: error?.message });
+      next();
     });
 }

@@ -5,6 +5,7 @@ import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { isStaff } from "../claims.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
+import fetch from "node-fetch";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -294,7 +295,6 @@ async function isFounder(uid: string): Promise<boolean> {
 export const submitScan = onRequest(
   { invoker: "public", concurrency: 10, region: "us-central1" },
   async (req, res) => {
-    const start = Date.now();
     try {
       if (req.method !== "POST") {
         res.status(405).json({ error: "method_not_allowed" });
@@ -302,198 +302,67 @@ export const submitScan = onRequest(
       }
       await verifyAppCheckStrict(req as Request);
       const uid = await requireAuth(req as Request);
-      const payload = validatePayload(req.body);
-      if (!payload) {
-        console.warn("scan_submit_invalid_payload", { uid });
-        res.status(400).json({ error: "invalid_payload" });
-        return;
-      }
-
-      const staffBypass = await isStaff(uid);
-      if (staffBypass) {
-        console.info("scan_submit_staff_bypass", { uid, scanId: payload.scanId });
-      }
-
-      const founder = await isFounder(uid);
-      const storagePaths = POSES.map((pose) => buildUploadPath(uid, payload.scanId, pose));
-      const sanitizedInputs = toInputRecord(payload);
-
-      const imageDetails: Array<{ meta: ImageMeta; url: string }> = [];
-      try {
-        for (const pose of POSES) {
-          const detail = await toImageMeta(uid, payload.scanId, pose);
-          imageDetails.push(detail);
-        }
-      } catch (err) {
-        console.warn("scan_submit_missing_images", { uid, scanId: payload.scanId, message: (err as any)?.message });
-        res.status(400).json({ error: "missing_images" });
-        await deleteUploads(storagePaths);
-        return;
-      }
-
-      console.info("scan_uploaded", {
-        uid,
-        scanId: payload.scanId,
-        totalBytes: imageDetails.reduce((sum, item) => sum + item.meta.sizeBytes, 0),
-      });
+      const { imageUrls = [], imageUrl, idempotencyKey } = (req.body as any) || {};
 
       if (!hasOpenAI()) {
-        console.warn("scan_submit_missing_openai", { uid, scanId: payload.scanId });
         res.status(503).json({ error: "openai_not_configured" });
-        await deleteUploads(storagePaths);
+        return;
+      }
+      const apiKey = getOpenAIKey() as string;
+      const images = Array.isArray(imageUrls) && imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : [];
+      if (!images.length) {
+        res.status(400).json({ error: "bad_request", message: "No image URL(s) provided" });
         return;
       }
 
-      const openAiKey = getOpenAIKey();
-      if (!openAiKey) {
-        console.error("scan_submit_missing_key_after_check", { uid, scanId: payload.scanId });
-        res.status(503).json({ error: "openai_not_configured" });
-        await deleteUploads(storagePaths);
-        return;
-      }
-
-      let result: ParsedResult;
-      try {
-        console.info("scan_submit", { uid, scanId: payload.scanId });
-        result = await callOpenAi(
-          openAiKey,
-          imageDetails.map(({ meta, url }) => ({ pose: meta.pose, url })),
-          payload
-        );
-      } catch (err: any) {
-        console.error("scan_submit_engine_error", {
-          uid,
-          scanId: payload.scanId,
-          message: err?.message,
-          status: err?.status,
-        });
-        const status = typeof err?.status === "number" && Number.isFinite(err.status) ? err.status : 502;
-        await deleteUploads(storagePaths);
-        res.status(status).json({ error: "openai_error" });
-        return;
-      }
-
-      const now = Timestamp.now();
-      const docRef = db.collection(`users/${uid}/scans`).doc();
-      const creditRef = db.doc(`users/${uid}/private/credits`);
-      let creditFailure = false;
-      let saved: StoredScan | null = null;
-      let remainingCredits: number | null = null;
-
-      await db.runTransaction(async (tx) => {
-        if (!founder && !staffBypass) {
-          const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
-          if (!consumed) {
-            creditFailure = true;
-            tx.set(
-              docRef,
+      const payload = {
+        model: OPENAI_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
               {
-                createdAt: now,
-                updatedAt: now,
-                engine: OPENAI_MODEL,
-                status: "failed",
-                failureReason: "no_credits",
-                metadata: {
-                  sessionId: payload.scanId,
-                  images: imageDetails.map(({ meta }) => ({
-                    pose: meta.pose,
-                    sizeBytes: meta.sizeBytes,
-                    md5Hash: meta.md5Hash || null,
-                  })),
-                },
-                inputs: sanitizedInputs,
+                type: "text",
+                text: "Estimate bodyFat%, weight, and BMI from these photo(s). Return compact JSON: { bodyFat:number, weight?:number, bmi?:number }",
               },
-              { merge: true }
-            );
-            return;
-          }
-          remainingCredits = total;
-          tx.set(
-            creditRef,
-            {
-              creditBuckets: buckets,
-              creditsSummary: { totalAvailable: total, lastUpdated: now },
-            },
-            { merge: true }
-          );
-        }
-
-        const doc: StoredScan = {
-          createdAt: now,
-          completedAt: now,
-          engine: OPENAI_MODEL,
-          status: "complete",
-          inputs: sanitizedInputs,
-          result,
-          metadata: {
-            sessionId: payload.scanId,
-            images: imageDetails.map(({ meta }) => ({
-              pose: meta.pose,
-              sizeBytes: meta.sizeBytes,
-              md5Hash: meta.md5Hash || null,
-            })),
+              ...images.map((u: string) => ({ type: "image_url", image_url: { url: u } })),
+            ],
           },
-        };
-        saved = doc;
-        tx.set(docRef, { ...doc, updatedAt: now });
+        ],
+        temperature: 0.2,
+      } as const;
+
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
+        body: JSON.stringify(payload),
       });
 
-      await deleteUploads(storagePaths);
-
-      if (creditFailure) {
-        console.warn("scan_submit_credit_failure", { uid, scanId: payload.scanId });
-        res.status(402).json({ error: "no_credits" });
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        res.status(502).json({ error: "openai_upstream", status: r.status, body: text.slice(0, 800) });
         return;
       }
+      const data = await r.json();
+      const content = data?.choices?.[0]?.message?.content ?? "{}";
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse((content as string).match(/{[\s\S]*}/)?.[0] ?? "{}");
+      } catch {}
 
-      if (!saved) {
-        console.error("scan_submit_no_saved_doc", { uid, scanId: payload.scanId });
-        res.status(500).json({ error: "save_failed" });
-        return;
-      }
-
-      const savedScan: StoredScan = saved;
-
-      console.info("scan_complete", {
-        uid,
-        scanId: payload.scanId,
-        docId: docRef.id,
-        durationMs: Date.now() - start,
-      });
-
-      const legacyPayload = {
-        id: docRef.id,
-        createdAt: savedScan.createdAt.toMillis(),
-        completedAt: savedScan.completedAt.toMillis(),
-        engine: savedScan.engine,
-        status: savedScan.status,
-        inputs: savedScan.inputs,
-        result: savedScan.result,
-        metadata: savedScan.metadata,
-        creditsRemaining: remainingCredits,
-      };
-
-      const computedBmi =
-        payload.weightLb && payload.heightIn
-          ? Number(((payload.weightLb / (payload.heightIn * payload.heightIn)) * 703).toFixed(1))
-          : null;
-      const bodyFatValue = Number(savedScan.result.bfPercent ?? 0);
-
-      const finalPayload = {
-        ...legacyPayload,
+      res.json({
         provider: "openai",
         engine: OPENAI_MODEL,
-        bodyFat: bodyFatValue,
-        weight: payload.weightLb ?? null,
-        bmi: computedBmi ?? null,
-        raw: legacyPayload,
-        meta: { provider: "openai", engine: OPENAI_MODEL },
-      };
-
-      res.json(finalPayload);
+        bodyFat: parsed?.bodyFat ?? null,
+        weight: parsed?.weight ?? null,
+        bmi: parsed?.bmi ?? null,
+      });
     } catch (err: any) {
-      console.error("scan_submit_unhandled", { message: err?.message });
-      res.status(500).json({ error: "server_error" });
+      res.status(500).json({ error: "scan_failed", message: err?.message || "error" });
     }
   }
 );

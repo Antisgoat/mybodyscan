@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 type HealthResponse = {
   hasOpenAI: boolean;
+  model: string | null;
   hasStripe: boolean;
   appCheckSoft: boolean;
   host: string | null;
@@ -116,7 +117,7 @@ export default function SystemCheck() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 {status?.hasOpenAI
-                  ? "OPENAI_API_KEY detected. Scans will use gpt-4o-mini."
+                  ? `OPENAI_API_KEY detected. Scans will use ${status?.model || "gpt-4o-mini"}.`
                   : "Set OPENAI_API_KEY as a Firebase Functions variable before enabling scans."}
               </p>
             </CardContent>
