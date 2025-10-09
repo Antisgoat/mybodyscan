@@ -6,6 +6,7 @@ import { requireAppCheckStrict } from "./middleware/appCheck.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 
 const db = getFirestore();
 
@@ -246,3 +247,28 @@ export const getCurrentPlan = getPlan;
 export const markExerciseDone = withHandler(handleMarkDone);
 export const addWorkoutLog = markExerciseDone;
 export const getWorkouts = withHandler(handleGetWorkouts);
+
+// Body-feel adjustment endpoint
+export const adjustWorkout = onRequest(
+  { invoker: "public", region: "us-central1" },
+  withCors(async (req: ExpressRequest, res: ExpressResponse) => {
+    try {
+      await requireAppCheckStrict(req as any, res as any);
+      const uid = await requireAuth(req as any);
+      const { dayId, bodyFeel, notes } = (req.body as any) || {};
+      if (!uid || !dayId || !bodyFeel) {
+        res.status(400).json({ error: "bad_request" });
+        return;
+      }
+      const mods = {
+        intensity: bodyFeel === "great" ? +1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
+        volume: bodyFeel === "great" ? +1 : bodyFeel === "sore" ? -1 : 0,
+      };
+      res.json({ ok: true, mods, echo: { dayId, notes: notes || null } });
+    } catch (error: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: "server_error" });
+      }
+    }
+  })
+);
