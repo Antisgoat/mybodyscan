@@ -3,8 +3,7 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore, getStorage } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAppCheckStrict, softAppCheck } from "./middleware/appCheck.js";
-import { requireAuth } from "./http.js";
+import { requireAuth, verifyAppCheckSoft, verifyAppCheckStrict } from "./http.js";
 import type { ScanDocument } from "./types.js";
 import { consumeOne, consumeCredit, addCredits } from "./credits.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
@@ -278,7 +277,7 @@ function respond(res: any, body: any, status = 200) {
 }
 
 async function handleStartRequest(req: ExpressRequest, res: ExpressResponse) {
-  await requireAppCheckStrict(req, res);
+  await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
   const session = await createScanSession(uid);
   respond(res, session);
@@ -339,7 +338,7 @@ export const submitScan = onRequest(
   { invoker: "public", concurrency: 15 },
   withCors(async (req, res) => {
     try {
-      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
+      await verifyAppCheckStrict(req as ExpressRequest);
       const uid = await requireAuth(req);
       const body = req.body as { scanId?: string; files?: unknown };
       if (!body?.scanId) {
@@ -397,7 +396,7 @@ export const processQueuedScanHttp = onRequest(
   { invoker: "public", concurrency: 10 },
   withCors(async (req, res) => {
     try {
-      await requireAppCheckStrict(req as ExpressRequest, res as ExpressResponse);
+      await verifyAppCheckStrict(req as ExpressRequest);
       const uid = await requireAuth(req);
       const scanId = (req.body?.scanId as string) || (req.query?.scanId as string);
       if (!scanId) {
@@ -431,7 +430,7 @@ export const getScanStatus = onRequest(
   { invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await softAppCheck(req as ExpressRequest);
+      await verifyAppCheckSoft(req as ExpressRequest);
       const uid = await requireAuth(req);
       const scanId = (req.query?.scanId as string) || (req.body?.scanId as string);
       if (!scanId) {

@@ -2,8 +2,8 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { verifyAppCheckFromHeader } from "./appCheck.js";
 import { verifyRateLimit } from "./rateLimit.js";
+import { verifyAppCheckStrict } from "./http.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -533,7 +533,7 @@ export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
     try {
-      await verifyAppCheckFromHeader(req);
+      await verifyAppCheckStrict(req as any);
     } catch (error: any) {
       if (!res.headersSent) {
         console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
