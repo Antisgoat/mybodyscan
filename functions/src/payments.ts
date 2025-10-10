@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
+import { onRequest } from "firebase-functions/v2/https";
 import { hasStripe, assertStripeConfigured, getStripeSecret, getStripeSigningSecret } from "./lib/env.js";
 
-export async function createCheckout(req: Request, res: Response) {
+export async function createCheckoutHandler(req: Request, res: Response) {
   if (!hasStripe()) return res.status(501).json({ error: "payments_disabled" });
   try { assertStripeConfigured(); } catch { return res.status(501).json({ error: "payments_disabled" }); }
 
@@ -17,7 +18,7 @@ export async function createCheckout(req: Request, res: Response) {
   return res.json({ id: session.id, url: session.url });
 }
 
-export async function stripeWebhook(req: Request, res: Response) {
+export async function stripeWebhookHandler(req: Request, res: Response) {
   if (!hasStripe()) return res.status(501).json({ error: "payments_disabled" });
   try { assertStripeConfigured(); } catch { return res.status(501).json({ error: "payments_disabled" }); }
 
@@ -37,3 +38,13 @@ export async function stripeWebhook(req: Request, res: Response) {
     return res.status(400).json({ error: "invalid_signature", message: err?.message });
   }
 }
+
+// Cloud Functions entrypoints for Hosting rewrites
+export const createCheckout = onRequest({ region: "us-central1" }, async (req, res) => {
+  // Delegate to the handler to keep a single implementation
+  await createCheckoutHandler(req as unknown as Request, res as unknown as Response);
+});
+
+export const stripeWebhook = onRequest({ region: "us-central1", rawBody: true }, async (req, res) => {
+  await stripeWebhookHandler(req as unknown as Request, res as unknown as Response);
+});
