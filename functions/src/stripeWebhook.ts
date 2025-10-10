@@ -34,8 +34,8 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
     const stripeSecret = STRIPE_SECRET.value();
     const webhookSecret = STRIPE_WEBHOOK.value();
     if (!stripeSecret || !webhookSecret) {
-      console.error("stripeWebhook", "Missing Stripe secrets");
-      res.status(500).send("Missing Stripe secrets");
+      console.warn("stripeWebhook", "Stripe not configured");
+      res.status(501).send("payments_disabled");
       return;
     }
 
