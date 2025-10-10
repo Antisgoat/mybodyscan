@@ -12,7 +12,7 @@ type HealthPayload = {
   appCheckSoft: boolean;
   scanProvider: ScanProvider;
   nutritionConfigured: boolean;
-  coachDocPath: "users/{uid}/coach/plan";
+  coachDocPath: "users/{uid}/coachPlans/current";
   demoCreditsPolicy: ">=2 on demo";
 };
 
@@ -38,7 +38,7 @@ export const health = onRequest(
       appCheckSoft,
       scanProvider,
       nutritionConfigured,
-      coachDocPath: "users/{uid}/coach/plan",
+      coachDocPath: "users/{uid}/coachPlans/current",
       demoCreditsPolicy: ">=2 on demo",
     };
 
