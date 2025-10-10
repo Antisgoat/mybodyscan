@@ -1,9 +1,8 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { getFirestore, getStorage, Timestamp } from "../firebase.js";
+import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
-import { consumeCreditBuckets } from "./creditUtils.js";
-import { isStaff } from "../claims.js";
+import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
 
@@ -34,6 +33,8 @@ interface SubmitPayload {
   heightIn?: number;
   age?: number;
   sex?: "male" | "female";
+  idempotencyKey?: string;
+  imageUrls?: string[]; // optional direct URLs path
 }
 
 interface ParsedResult {
@@ -111,6 +112,15 @@ function validatePayload(body: any): SubmitPayload | null {
   if (height && height > 0 && height < 120) payload.heightIn = height;
   if (age && age > 0 && age < 130) payload.age = Math.round(age);
   if (sex) payload.sex = sex;
+  if (typeof body.idempotencyKey === "string" && body.idempotencyKey.trim().length) {
+    payload.idempotencyKey = body.idempotencyKey.trim().slice(0, 128);
+  }
+  if (Array.isArray(body.imageUrls)) {
+    const urls = body.imageUrls
+      .map((u: unknown) => (typeof u === "string" ? u.trim() : ""))
+      .filter(Boolean);
+    if (urls.length) payload.imageUrls = urls.slice(0, 4);
+  }
   return payload;
 }
 
@@ -312,65 +322,115 @@ export const submitScan = onRequest(
       }
       await verifyAppCheckStrict(req as Request);
       const uid = await requireAuth(req as Request);
-      const { imageUrls = [], imageUrl, idempotencyKey } = (req.body as any) || {};
+      const payload = validatePayload((req.body as any) || {});
+      if (!payload) {
+        res.status(400).json({ error: "invalid_payload" });
+        return;
+      }
+      const idempotencyKey = payload.idempotencyKey || undefined;
 
       if (!hasOpenAI()) {
         res.status(503).json({ error: "openai_not_configured" });
         return;
       }
       const apiKey = getOpenAIKey() as string;
-      const images = Array.isArray(imageUrls) && imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : [];
-      if (!images.length) {
-        res.status(400).json({ error: "bad_request", message: "No image URL(s) provided" });
-        return;
+      // Build images list: prefer direct imageUrls if provided, else infer from signed Storage read URLs
+      let imagePairs: Array<{ pose: Pose; url: string }> = [];
+      const poses: Pose[] = ["front", "back", "left", "right"];
+      if (payload.imageUrls && (payload.imageUrls.length === 2 || payload.imageUrls.length === 4)) {
+        // Map provided URLs to the first N poses
+        imagePairs = payload.imageUrls.map((url, index) => ({ pose: poses[index]!, url }));
+      } else {
+        // Read from Storage based on uploaded files
+        const metas: Array<{ meta: ImageMeta; url: string }> = [];
+        for (const pose of poses) {
+          try {
+            const item = await toImageMeta(uid, payload.scanId, pose);
+            metas.push(item);
+          } catch (err) {
+            // If strictly requiring 4, return error; allow 2-photo submissions if at least 2 found
+          }
+        }
+        if (metas.length < 2) {
+          res.status(400).json({ error: "bad_request", message: "Missing required photos (need 2 or 4)." });
+          return;
+        }
+        imagePairs = metas.map(({ meta, url }) => ({ pose: meta.pose, url }));
       }
 
-      const payload = {
-        model: OPENAI_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Estimate bodyFat%, weight, and BMI from these photo(s). Return compact JSON: { bodyFat:number, weight?:number, bmi?:number }",
-              },
-              ...images.map((u: string) => ({ type: "image_url", image_url: { url: u } })),
-            ],
-          },
-        ],
-        temperature: 0.2,
-      } as const;
+      // Idempotency: record processing state early to avoid double credit
+      const idempRef = idempotencyKey
+        ? db.doc(`users/${uid}/private/idempotency/${payload.scanId}_${idempotencyKey}`)
+        : null;
+      const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
 
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        res.status(502).json({ error: "openai_upstream", status: r.status, body: text.slice(0, 800) });
-        return;
+      if (idempRef) {
+        const existing = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(idempRef);
+          if (snap.exists) return snap.data() as any;
+          tx.create(idempRef, { status: "processing", createdAt: Timestamp.now(), scanId: payload.scanId });
+          return null;
+        });
+        if (existing && existing.status === "complete") {
+          const doneSnap = await scanRef.get();
+          if (doneSnap.exists) {
+            const data = doneSnap.data() as any;
+            res.json({ id: payload.scanId, ...data });
+            return;
+          }
+        }
       }
-      const data: any = await r.json();
-      const content = extractOpenAIContent(data);
-      let parsed: any = {};
+
+      // Call OpenAI Vision
+      let parsed: ParsedResult;
       try {
-        const jsonBlock = content?.match(/{[\s\S]*}/)?.[0];
-        if (jsonBlock) parsed = JSON.parse(jsonBlock);
-      } catch {}
+        parsed = await callOpenAi(apiKey, imagePairs, payload);
+      } catch (err: any) {
+        // Do not consume credit on model error
+        res.status(typeof err?.status === "number" ? err.status : 502).json({
+          error: "scan_engine_unavailable",
+          message: "Vision model temporarily unavailable. Try again shortly.",
+        });
+        if (idempRef) await idempRef.set({ status: "failed", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+        return;
+      }
+
+      // Attempt to consume exactly one credit AFTER successful model call
+      const credit = await consumeCredit(uid);
+      if (!credit.consumed) {
+        if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+        res.status(402).json({ error: "no_credits" });
+        return;
+      }
+
+      // Persist scan result
+      const createdAt = Timestamp.now();
+      const stored: StoredScan = {
+        createdAt,
+        completedAt: createdAt,
+        engine: OPENAI_MODEL,
+        status: "complete",
+        inputs: toInputRecord(payload),
+        result: parsed,
+        metadata: {
+          sessionId: payload.scanId,
+          images: imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null })),
+        },
+      };
+      await scanRef.set(stored, { merge: true });
+      if (idempRef) await idempRef.set({ status: "complete", completedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
 
       res.json({
-        provider: "openai",
+        id: payload.scanId,
+        createdAt: createdAt.toMillis(),
+        completedAt: createdAt.toMillis(),
         engine: OPENAI_MODEL,
-        bodyFat: parsed?.bodyFat ?? null,
-        weight: parsed?.weight ?? null,
-        bmi: parsed?.bmi ?? null,
+        status: "complete",
+        inputs: stored.inputs,
+        result: stored.result,
+        metadata: stored.metadata,
+        creditsRemaining: credit.remaining ?? null,
+        provider: "openai",
       });
     } catch (err: any) {
       res.status(500).json({ error: "scan_failed", message: err?.message || "error" });
