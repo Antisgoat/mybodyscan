@@ -1,6 +1,5 @@
-import { getHostBaseUrl, getAppCheckEnforceSoft, hasOpenAI, hasStripe } from "../lib/env.js";
 import type { Request, Response } from "express";
-import { onRequest } from "firebase-functions/v2/https";
+import { hasOpenAI, hasStripe, getAppCheckEnforceSoft, getHostBaseUrl } from "../lib/env.js";
 
 export function systemHealth(_req: Request, res: Response) {
   res.json({
@@ -11,8 +10,3 @@ export function systemHealth(_req: Request, res: Response) {
     host: getHostBaseUrl() || null,
   });
 }
-
-// Export a Cloud Function compatible with Hosting rewrite "system/health" -> functionId "system"
-export const system = onRequest({ region: "us-central1" }, async (req, res) => {
-  await systemHealth(req as unknown as Request, res as unknown as Response);
-});

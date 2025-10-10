@@ -97,7 +97,7 @@ export default function CoachChatPage() {
       return;
     }
     const chatQuery = query(
-      collection(db, "users", uid, "coach", "chat"),
+      collection(db, "users", uid, "coachChat"),
       orderBy("createdAt", "desc"),
       limit(10)
     );

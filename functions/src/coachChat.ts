@@ -112,7 +112,7 @@ async function callOpenAi(apiKey: string, model: OpenAiModel, text: string): Pro
 }
 
 async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
-  const colRef = db.collection(`users/${uid}/coach/chat`);
+  const colRef = db.collection(`users/${uid}/coachChat`);
   const docRef = await colRef.add(record);
 
   const snapshot = await colRef

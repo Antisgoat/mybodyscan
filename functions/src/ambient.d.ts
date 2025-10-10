@@ -172,5 +172,8 @@ declare module 'express' {
   }
 
   function express(): any;
+  namespace express {
+    function json(options?: any): any;
+  }
   export default express;
 }

@@ -10,13 +10,13 @@ import {
   createAccountEmail,
   signInEmail,
   signInWithGoogle,
-  signInWithApple,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
+import { OAuthProvider, signInWithPopup, signInWithRedirect } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { enableDemo } from "@/lib/demoFlag";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
@@ -121,8 +121,13 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await signInWithApple(auth);
-      if (result) {
+      const provider = new OAuthProvider("apple.com");
+      const ua = navigator.userAgent.toLowerCase();
+      const isIOS = /iphone|ipad|ipod/.test(ua);
+      if (isIOS) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
