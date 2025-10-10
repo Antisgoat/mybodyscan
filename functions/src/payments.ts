@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { onRequest } from "firebase-functions/v2/https";
 import { hasStripe, assertStripeConfigured, getStripeSecret, getStripeSigningSecret } from "./lib/env.js";
 
 export async function createCheckoutHandler(req: Request, res: Response) {
@@ -39,12 +38,4 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   }
 }
 
-// Cloud Functions entrypoints for Hosting rewrites
-export const createCheckout = onRequest({ region: "us-central1" }, async (req, res) => {
-  // Delegate to the handler to keep a single implementation
-  await createCheckoutHandler(req as unknown as Request, res as unknown as Response);
-});
-
-export const stripeWebhook = onRequest({ region: "us-central1", rawBody: true }, async (req, res) => {
-  await stripeWebhookHandler(req as unknown as Request, res as unknown as Response);
-});
+// Express-mounted handlers are exported from index.ts
