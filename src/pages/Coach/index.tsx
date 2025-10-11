@@ -443,8 +443,7 @@ export default function CoachOverview() {
               onClick={() => {
                 navigate("/coach/chat");
               }}
-              disabled={false}
-              title={undefined}
+              data-testid="coach-open-chat"
             >
               Open chat
             </Button>

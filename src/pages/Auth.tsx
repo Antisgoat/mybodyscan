@@ -36,7 +36,8 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [appleStatus, setAppleStatus] = useState<"checking" | "enabled" | "disabled">("checking");
+  const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
+  const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
 
   useEffect(() => {
@@ -52,13 +53,15 @@ const Auth = () => {
     loadFirebaseAuthClientConfig()
       .then((config) => {
         if (!active) return;
-        setAppleStatus(isProviderEnabled("apple.com", config) ? "enabled" : "disabled");
+        setAppleEnabled(isProviderEnabled("apple.com", config));
       })
       .catch((err) => {
         if (import.meta.env.DEV) {
           console.warn("[auth] Unable to determine Apple availability:", err);
         }
-        if (active) setAppleStatus("disabled");
+        if (active) {
+          setAppleEnabled(false);
+        }
       });
     return () => {
       active = false;
@@ -119,10 +122,36 @@ const Auth = () => {
     }
   };
 
+  const appleConfigured = forceAppleButton || appleEnabled === true;
+  const showAppleButton = true;
+
+  const showAppleNotConfigured = () => {
+    toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
+  };
+
+  const isAppleMisconfiguredError = (error: any) => {
+    const code = String(error?.code || "");
+    if (
+      code.includes("operation-not-allowed") ||
+      code.includes("configuration-not-found") ||
+      code.includes("invalid-oauth-provider") ||
+      code.includes("invalid-oauth-client-id") ||
+      code.includes("invalid-provider-id")
+    ) {
+      return true;
+    }
+    const message = String(error?.message || "");
+    return /CONFIGURATION_NOT_FOUND|not enabled|disabled/i.test(message);
+  };
+
   const onApple = async () => {
-    if (appleStatus !== "enabled") {
+    if (loading) return;
+
+    if (!appleConfigured && appleEnabled === false) {
+      showAppleNotConfigured();
       return;
     }
+
     setLoading(true);
     try {
       rememberAuthRedirect(from);
@@ -133,7 +162,11 @@ const Auth = () => {
       }
     } catch (err: any) {
       consumeAuthRedirect();
-      toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
+      if (isAppleMisconfiguredError(err)) {
+        showAppleNotConfigured();
+      } else {
+        toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
+      }
     } finally {
       setLoading(false);
     }
@@ -205,38 +238,35 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {appleStatus === "enabled" ? (
-              <Button
-                variant="secondary"
-                onClick={onApple}
-                disabled={loading}
-                className="w-full h-11 inline-flex items-center justify-center gap-2"
-                aria-label="Continue with Apple"
-                data-testid="auth-apple-button"
-              >
-                <AppleIcon />
-                Continue with Apple
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="w-full inline-flex">
-                    <Button
-                      variant="secondary"
-                      onClick={onApple}
-                      disabled
-                      className="w-full h-11 inline-flex items-center justify-center gap-2"
-                      aria-label="Continue with Apple"
-                      data-testid="auth-apple-button"
-                    >
-                      <AppleIcon />
-                      Continue with Apple
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Apple sign-in not configured</TooltipContent>
-              </Tooltip>
-            )}
+            {showAppleButton && (() => {
+              const appleButtonDisabled = loading;
+              const appleButton = (
+                <Button
+                  variant="secondary"
+                  onClick={onApple}
+                  disabled={appleButtonDisabled}
+                  className="w-full h-11 inline-flex items-center justify-center gap-2"
+                  aria-label="Continue with Apple"
+                  data-testid="auth-apple-button"
+                >
+                  <AppleIcon />
+                  Continue with Apple
+                </Button>
+              );
+
+              if (appleButtonDisabled) {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="w-full inline-flex">{appleButton}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>Finishing previous sign-in…</TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return appleButton;
+            })()}
             <Button
               variant="secondary"
               onClick={onGoogle}

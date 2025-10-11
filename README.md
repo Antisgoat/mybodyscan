@@ -120,6 +120,13 @@ Set these secrets or environment variables via Firebase (preferred) or your depl
 
 ## Secrets & Deploy
 
+### Build & deploy Firebase Functions (Node 20)
+
+1. `npm --prefix functions run build` – compiles TypeScript with Node 20 targets and verifies `functions/lib/index.js` exists.
+2. `firebase deploy --only functions --project <projectId>` – uses the generated `lib/index.js` entrypoint exported from `functions/src/index.ts`.
+
+The `functions/package.json` scripts keep the runtime on Node 20 and fail fast if the compiled bundle is missing, which prevents partial deploys.
+
 ### Inspect and manage Firebase secrets
 
 - List all secrets: `firebase functions:secrets:list --project <projectId>`

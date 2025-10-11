@@ -6,16 +6,17 @@ export function systemHealth(_req: Request, res: Response) {
   const openAiAvailable = hasOpenAI();
   const model = openAiAvailable ? process.env.OPENAI_MODEL || "gpt-4o-mini" : null;
   const host = getHostBaseUrl() || process.env.GCLOUD_PROJECT || null;
+  const stripeConfigured = hasStripe();
 
-  res.json({
-    status: "ok",
-    time: new Date().toISOString(),
+  const payload = {
     hasOpenAI: openAiAvailable,
     model,
-    hasStripe: hasStripe(),
+    hasStripe: stripeConfigured,
     appCheckSoft: getAppCheckEnforceSoft(),
     host,
-  });
+  } as const;
+
+  res.status(stripeConfigured ? 200 : 501).json(payload);
 }
 
 // Export a Cloud Function compatible with Hosting rewrite "system/health" -> functionId "system"
