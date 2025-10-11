@@ -3,12 +3,18 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
 export function systemHealth(_req: Request, res: Response) {
+  const openAiAvailable = hasOpenAI();
+  const model = openAiAvailable ? process.env.OPENAI_MODEL || "gpt-4o-mini" : null;
+  const host = getHostBaseUrl() || process.env.GCLOUD_PROJECT || null;
+
   res.json({
-    hasOpenAI: hasOpenAI(),
-    model: hasOpenAI() ? "gpt-4o-mini" : null,
+    status: "ok",
+    time: new Date().toISOString(),
+    hasOpenAI: openAiAvailable,
+    model,
     hasStripe: hasStripe(),
     appCheckSoft: getAppCheckEnforceSoft(),
-    host: getHostBaseUrl() || null,
+    host,
   });
 }
 

@@ -179,6 +179,10 @@ export default function CoachOverview() {
   }, [program, lastWeekForProgram, lastDayForProgram]);
 
   const persistProfile = async (partial: Record<string, unknown>) => {
+    if (demo) {
+      demoToast();
+      return;
+    }
     if (!authReady || !user) return;
     try {
       setIsSaving(true);
