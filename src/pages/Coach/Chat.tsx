@@ -232,7 +232,7 @@ export default function CoachChatPage() {
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
           {showPlanMissing ? (
-            <Alert variant="outline" data-testid="coach-plan-missing">
+            <Alert variant="default" data-testid="coach-plan-missing">
               <AlertTitle>No plan yet — create one</AlertTitle>
               <AlertDescription>
                 Start a conversation or regenerate the weekly plan below to get your first program.

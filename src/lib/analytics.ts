@@ -2,7 +2,7 @@
 export function track(name: string, params?: Record<string, any>) {
   try {
     // If Firebase Analytics is set up, call logEvent; else no-op
-// @ts-expect-error: analytics is optional in some environments
+// @ts-ignore: analytics is optional in some environments
     const { getAnalytics, logEvent } = (window as any).firebaseAnalytics || {};
     if (getAnalytics && logEvent) {
       logEvent(getAnalytics(), name, params || {});
