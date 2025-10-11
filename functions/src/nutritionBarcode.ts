@@ -4,6 +4,7 @@ import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
+import { errorCode } from "./lib/errors.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
@@ -116,12 +117,13 @@ export const nutritionBarcode = onRequest(
       await handler(req as unknown as Request, res as unknown as Response);
     } catch (error: any) {
       if (error instanceof HttpsError) {
+        const code = errorCode(error);
         const status =
-          error.code === "unauthenticated"
+          code === "unauthenticated"
             ? 401
-            : error.code === "invalid-argument"
+            : code === "invalid-argument"
             ? 400
-            : error.code === "resource-exhausted"
+            : code === "resource-exhausted"
             ? 429
             : 400;
         res.status(status).json({ error: error.message });

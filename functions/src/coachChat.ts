@@ -7,6 +7,7 @@ import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyRateLimit } from "./rateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { getOpenAIKey } from "./lib/env.js";
+import { errorCode, statusFromCode } from "./lib/errors.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -210,16 +211,10 @@ export const coachChat = onRequest(
         return;
       }
       if (error instanceof HttpsError) {
-        const statusMap: Record<string, number> = {
-          "invalid-argument": 400,
-          "unauthenticated": 401,
-          "permission-denied": 403,
-          "failed-precondition": 503,
-          "resource-exhausted": 429,
-          unavailable: 503,
-        };
-        const status = statusMap[error.code] ?? 500;
-        response.status(status).json({ error: error.message, code: error.code });
+        const code = errorCode(error);
+        // Preserve existing mapping, including special-case for failed-precondition -> 503
+        const status = code === "failed-precondition" ? 503 : statusFromCode(code);
+        response.status(status).json({ error: error.message, code });
         return;
       }
       console.error("coach_chat_unhandled", { message: error?.message });
