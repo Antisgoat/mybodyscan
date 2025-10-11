@@ -1,8 +1,8 @@
-export * from "./coachChat";
-export * from "./nutrition";
-export * from "./nutritionBarcode";
-export * from "./scan/beginPaidScan";
-export * from "./scan/recordGateFailure";
-export * from "./scan/refundIfNoResult";
-export * from "./workouts";
-export { systemHealth } from "./systemHealth";
+export * from "./coachChat.js";
+export * from "./nutrition.js";
+export * from "./nutritionBarcode.js";
+export * from "./scan/beginPaidScan.js";
+export * from "./scan/recordGateFailure.js";
+export * from "./scan/refundIfNoResult.js";
+export * from "./workouts.js";
+export { systemHealth } from "./systemHealth.js";
