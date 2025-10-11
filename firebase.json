@@ -122,10 +122,8 @@
       },
       {
         "source": "/system/health",
-        "function": {
-          "functionId": "systemHealth",
-          "region": "us-central1"
-        }
+        "function": "systemHealth",
+        "region": "us-central1"
       },
       {
         "source": "**",
