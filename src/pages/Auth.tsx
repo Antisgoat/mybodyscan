@@ -36,8 +36,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState<boolean>(false);
-  const [authConfigLoaded, setAuthConfigLoaded] = useState<boolean>(false);
+  const [appleStatus, setAppleStatus] = useState<"checking" | "enabled" | "disabled">("checking");
   const { user } = useAuthUser();
 
   useEffect(() => {
@@ -53,14 +52,13 @@ const Auth = () => {
     loadFirebaseAuthClientConfig()
       .then((config) => {
         if (!active) return;
-        setAppleAvailable(isProviderEnabled("apple.com", config));
-        setAuthConfigLoaded(true);
+        setAppleStatus(isProviderEnabled("apple.com", config) ? "enabled" : "disabled");
       })
       .catch((err) => {
         if (import.meta.env.DEV) {
           console.warn("[auth] Unable to determine Apple availability:", err);
         }
-        if (active) setAuthConfigLoaded(false);
+        if (active) setAppleStatus("disabled");
       });
     return () => {
       active = false;
@@ -122,6 +120,9 @@ const Auth = () => {
   };
 
   const onApple = async () => {
+    if (appleStatus !== "enabled") {
+      return;
+    }
     setLoading(true);
     try {
       rememberAuthRedirect(from);
@@ -140,7 +141,7 @@ const Auth = () => {
 
   const onExplore = () => {
     enableDemo();
-    navigate("/demo?demo=1");
+    navigate("/demo");
   };
 
   return (
@@ -204,26 +205,25 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {authConfigLoaded ? (
-              appleAvailable ? (
-                <Button
-                  variant="secondary"
-                  onClick={onApple}
-                  disabled={loading}
-                  className="w-full h-11 inline-flex items-center justify-center gap-2"
-                  aria-label="Continue with Apple"
-                  data-testid="auth-apple-button"
-                >
-                  <AppleIcon />
-                  Continue with Apple
-                </Button>
-              ) : null
+            {appleStatus === "enabled" ? (
+              <Button
+                variant="secondary"
+                onClick={onApple}
+                disabled={loading}
+                className="w-full h-11 inline-flex items-center justify-center gap-2"
+                aria-label="Continue with Apple"
+                data-testid="auth-apple-button"
+              >
+                <AppleIcon />
+                Continue with Apple
+              </Button>
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="w-full inline-flex">
                     <Button
                       variant="secondary"
+                      onClick={onApple}
                       disabled
                       className="w-full h-11 inline-flex items-center justify-center gap-2"
                       aria-label="Continue with Apple"

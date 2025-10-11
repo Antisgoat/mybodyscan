@@ -7,17 +7,14 @@ test.describe('Demo experience', () => {
   });
 
   test('loads demo dashboard when available', async ({ page }) => {
-    const response = await page.goto('/demo?demo=1');
+    const response = await page.goto('/today?demo=1');
 
     if (!response || response.status() >= 400) {
       test.skip(`Demo path unavailable (${response?.status() ?? 'no response'})`);
     }
 
     const todayShell = page.getByTestId('today-dashboard');
-    if (await todayShell.count()) {
-      await expect(todayShell).toBeVisible();
-    } else {
-      await expect(page.locator('[data-testid="home-dashboard"], main')).toBeVisible();
-    }
+    await expect(todayShell).toBeVisible();
+    await expect(page.getByText(/Demo lets you browse/i)).toBeVisible();
   });
 });

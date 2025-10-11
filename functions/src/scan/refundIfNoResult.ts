@@ -24,8 +24,8 @@ async function handler(req: Request, res: Response) {
 
   let refunded = false;
   try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(scanRef);
+    await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const snap = (await tx.get(scanRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       if (!snap.exists) {
         throw new HttpsError("not-found", "scan_not_found");
       }

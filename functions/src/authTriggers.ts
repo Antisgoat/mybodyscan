@@ -20,7 +20,7 @@ function parseFounderEmails(): Set<string> {
   }
 }
 
-export const handleUserCreate = auth.user().onCreate(async (user) => {
+export const handleUserCreate = auth.user().onCreate(async (user: any) => {
   const email = user.email?.toLowerCase();
   if (!email) return;
   const founders = parseFounderEmails();

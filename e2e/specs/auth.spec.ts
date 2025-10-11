@@ -13,9 +13,6 @@ test.describe('Authentication page', () => {
     const appleButton = page.getByTestId('auth-apple-button');
 
     await expect(googleButton).toBeVisible();
-
-    if (await appleButton.count()) {
-      await expect(appleButton).toBeVisible();
-    }
+    await expect(appleButton).toBeVisible();
   });
 });

@@ -4,6 +4,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
 
 export interface CoachProfile {
   sex?: "male" | "female";
@@ -53,8 +55,14 @@ export function useUserProfile() {
   const { user, authReady } = useAuthUser();
   const appCheckReady = useAppCheckReady();
   const uid = authReady ? user?.uid ?? null : null;
+  const demo = useDemoMode();
 
   useEffect(() => {
+    if (demo) {
+      setProfile(DEMO_COACH_PROFILE);
+      setPlan(DEMO_COACH_PLAN);
+      return;
+    }
     if (!authReady || !appCheckReady || !uid) {
       setProfile(null);
       setPlan(null);
@@ -91,7 +99,7 @@ export function useUserProfile() {
       unsub1();
       unsub2();
     };
-  }, [authReady, appCheckReady, uid]);
+  }, [demo, authReady, appCheckReady, uid]);
 
   return { profile, plan };
 }

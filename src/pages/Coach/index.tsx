@@ -24,6 +24,7 @@ import { disabledIfDemo } from "@/lib/demoGuard";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -99,6 +100,10 @@ export default function CoachOverview() {
   const activeProgramId = planExists === false ? null : rawActiveProgramId;
 
   useEffect(() => {
+    if (demo) {
+      setPlanExists(true);
+      return;
+    }
     if (!authReady || !appCheckReady || !uid) {
       setPlanExists(null);
       return;
@@ -124,7 +129,7 @@ export default function CoachOverview() {
     return () => {
       cancelled = true;
     };
-  }, [authReady, appCheckReady, uid, rawActiveProgramId]);
+  }, [demo, authReady, appCheckReady, uid, rawActiveProgramId]);
 
   useEffect(() => {
     if (!profile || !programEntries.length || hydrated) return;
@@ -227,6 +232,14 @@ export default function CoachOverview() {
       <ErrorBoundary title="Coach is unavailable" description="Retry to load your personalized plan.">
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
+          {planExists === false && !demo ? (
+            <Alert variant="outline" data-testid="coach-plan-missing">
+              <AlertTitle>No plan yet — create one</AlertTitle>
+              <AlertDescription>
+                Regenerate your weekly plan or open chat for quick guidance. Chat stays available while you set things up.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {initializing && (
             <Card className="border border-dashed border-primary/40 bg-primary/5">
               <CardContent className="text-sm text-primary">

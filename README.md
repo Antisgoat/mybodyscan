@@ -179,6 +179,12 @@ firebase deploy --only functions:processQueuedScan
 
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
 
+### Functions runtime
+
+- Requires **Node.js 20** for the Cloud Functions workspace (`functions/`).
+- Build locally before deploying with `npm --prefix functions run build`.
+- Deploy to Firebase with `firebase deploy --only functions,hosting`.
+
 > **Functions deploy note:** the Functions pipeline installs and builds from the `functions/` workspace only. A root `npm install` or web build is **not** required to deploy backend changes. Run `npm --prefix functions ci && npm --prefix functions run build` locally before `firebase deploy --only functions` to mirror production. Generate a `functions/package-lock.json` once with `npm --prefix functions install --package-lock-only` if it is missing (required for `npm ci`).
 
 ```sh

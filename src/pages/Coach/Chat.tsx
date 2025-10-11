@@ -20,6 +20,7 @@ import { coachChat as sendCoachChat } from "@/lib/api";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 declare global {
   interface Window {
@@ -143,6 +144,7 @@ export default function CoachChatPage() {
   }, [authReady, appCheckReady, uid]);
 
   const hasMessages = messages.length > 0;
+  const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
     if (pending || demo) {
@@ -223,6 +225,14 @@ export default function CoachChatPage() {
       <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
+          {showPlanMissing ? (
+            <Alert variant="outline" data-testid="coach-plan-missing">
+              <AlertTitle>No plan yet — create one</AlertTitle>
+              <AlertDescription>
+                Start a conversation or regenerate the weekly plan below to get your first program.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {initializing && (
             <Card className="border border-dashed border-primary/40 bg-primary/5">
               <CardContent className="text-sm text-primary">

@@ -122,8 +122,10 @@ async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
     .offset(10)
     .get();
 
-  const deletions = snapshot.docs.filter((doc) => doc.id !== docRef.id);
-  await Promise.allSettled(deletions.map((doc) => doc.ref.delete().catch(() => undefined)));
+  const deletions = snapshot.docs.filter((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.id !== docRef.id);
+  await Promise.allSettled(
+    deletions.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.ref.delete().catch(() => undefined)),
+  );
 }
 
 export const coachChat = onRequest(
@@ -222,3 +224,5 @@ export const coachChat = onRequest(
     }
   })
 );
+
+export { system } from "./system/health.js";

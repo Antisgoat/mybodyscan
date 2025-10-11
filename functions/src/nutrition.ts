@@ -120,8 +120,8 @@ function sanitizeItem(raw: any): NutritionItemSnapshot | null {
 async function upsertMeal(uid: string, day: string, meal: MealRecord) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
   let totals: DailyLogDocument["totals"] = defaultTotals();
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(docRef);
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(docRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     const data = snap.exists ? (snap.data() as DailyLogDocument) : { meals: [], totals };
     const meals = Array.isArray(data.meals) ? [...data.meals] : [];
     const existingIndex = meals.findIndex((m) => m.id === meal.id);
@@ -157,8 +157,8 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
 async function removeMeal(uid: string, day: string, mealId: string) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
   let totals: DailyLogDocument["totals"] = defaultTotals();
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(docRef);
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(docRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     if (!snap.exists) {
       totals = defaultTotals();
       return;
@@ -279,7 +279,7 @@ async function handleGetHistory(req: Request, res: Response) {
     const iso = day.toISOString().slice(0, 10);
     const docRef = db.doc(`users/${uid}/nutritionLogs/${iso}`);
     tasks.push(
-      docRef.get().then((snap) => {
+      docRef.get().then((snap: FirebaseFirestore.DocumentSnapshot<DailyLogDocument>) => {
         if (!snap.exists) {
           return { date: iso, totals: defaultTotals() };
         }
@@ -332,3 +332,5 @@ export const deleteMeal = withHandler(handleDeleteMeal);
 export const getDayLog = withHandler(handleGetLog);
 export const getDailyLog = getDayLog;
 export const getNutritionHistory = withHandler(handleGetHistory);
+
+export { nutritionSearch } from "./nutritionSearch.js";

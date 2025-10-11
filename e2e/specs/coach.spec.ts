@@ -27,6 +27,7 @@ test.describe('Coach assistant', () => {
 
     await expect(messageInput).toBeVisible();
     await expect(sendButton).toBeVisible();
+    await expect(sendButton).toBeEnabled();
 
     // Smoke-check the chat path suffix for correctness
     const pathProbe = page.getByTestId('coach-chat-path');

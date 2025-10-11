@@ -76,8 +76,8 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   let remainingCredits: number | undefined;
 
   try {
-    await db.runTransaction(async (tx) => {
-      const scanSnap = await tx.get(scanRef);
+    await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const scanSnap = (await tx.get(scanRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       if (!scanSnap.exists) {
         throw new HttpsError("not-found", "scan_not_found");
       }
@@ -165,3 +165,6 @@ export const beginPaidScan = onRequest(
     }
   })
 );
+
+export { startScanSession } from "./start.js";
+export { submitScan } from "./submit.js";

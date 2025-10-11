@@ -59,8 +59,8 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
 
     const expiresAt = Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30));
     const eventRef = db.collection("stripe_events").doc(event.id);
-    const shouldProcess = await db.runTransaction(async (tx) => {
-      const existing = await tx.get(eventRef);
+    const shouldProcess = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const existing = (await tx.get(eventRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       if (existing.exists) {
         return false;
       }
