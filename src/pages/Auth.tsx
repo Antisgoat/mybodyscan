@@ -141,7 +141,7 @@ const Auth = () => {
 
   const onExplore = () => {
     enableDemo();
-    navigate("/demo");
+    navigate("/today?demo=1");
   };
 
   return (
