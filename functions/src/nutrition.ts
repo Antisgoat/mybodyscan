@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { errorCode } from "./lib/errors.js";
+import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import type {
@@ -319,7 +319,7 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
             ? 400
             : code === "not-found"
             ? 404
-            : 500;
+            : statusFromCode(code);
         res.status(status).json({ error: err.message || "error" });
       }
     })

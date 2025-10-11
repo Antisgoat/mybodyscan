@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
-import { errorCode } from "../lib/errors.js";
+import { errorCode, statusFromCode } from "../lib/errors.js";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;
@@ -49,7 +49,7 @@ export const recordGateFailure = onRequest(
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const code = errorCode(error);
-        const status = code === "unauthenticated" ? 401 : 400;
+        const status = code === "unauthenticated" ? 401 : statusFromCode(code);
         res.status(status).json({ ok: false, reason: code });
         return;
       }

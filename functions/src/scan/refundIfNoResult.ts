@@ -4,7 +4,7 @@ import { Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "../http.js";
 import { refundCredit } from "./creditUtils.js";
-import { errorCode } from "../lib/errors.js";
+import { errorCode, statusFromCode } from "../lib/errors.js";
 
 const db = getFirestore();
 
@@ -51,7 +51,7 @@ async function handler(req: Request, res: Response) {
   } catch (error: any) {
     if (error instanceof HttpsError) {
       const code = errorCode(error);
-      const status = code === "not-found" ? 404 : code === "unauthenticated" ? 401 : 400;
+      const status = code === "not-found" ? 404 : code === "unauthenticated" ? 401 : statusFromCode(code);
       res.status(status).json({ ok: false, refunded: false, reason: code });
       return;
     }
@@ -70,7 +70,7 @@ export const refundIfNoResult = onRequest(
     } catch (error: any) {
       if (error instanceof HttpsError) {
         const code = errorCode(error);
-        const status = code === "unauthenticated" ? 401 : 400;
+        const status = code === "unauthenticated" ? 401 : statusFromCode(code);
         res.status(status).json({ ok: false, refunded: false, reason: code });
         return;
       }

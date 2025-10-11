@@ -4,7 +4,7 @@ import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
-import { errorCode } from "./lib/errors.js";
+import { errorCode, statusFromCode } from "./lib/errors.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
@@ -125,7 +125,7 @@ export const nutritionBarcode = onRequest(
             ? 400
             : code === "resource-exhausted"
             ? 429
-            : 400;
+            : statusFromCode(code);
         res.status(status).json({ error: error.message });
         return;
       }
