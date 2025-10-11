@@ -157,7 +157,7 @@ export const beginPaidScan = onRequest(
       }
       if (error instanceof HttpsError) {
         const code = errorCode(error);
-        const status = code === "unauthenticated" ? 401 : 400;
+        const status = code === "unauthenticated" ? 401 : statusFromCode(code);
         res.status(status).json({ ok: false, reason: code });
         return;
       }
