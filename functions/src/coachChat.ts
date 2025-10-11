@@ -8,6 +8,7 @@ import { verifyRateLimit } from "./rateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { getOpenAIKey } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
+import { coachChatCollectionPath } from "./lib/paths.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -114,7 +115,7 @@ async function callOpenAi(apiKey: string, model: OpenAiModel, text: string): Pro
 }
 
 async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
-  const colRef = db.collection(`users/${uid}/coach/chat`);
+  const colRef = db.collection(coachChatCollectionPath(uid));
   const docRef = await colRef.add(record);
 
   const snapshot = await colRef
@@ -225,4 +226,3 @@ export const coachChat = onRequest(
   })
 );
 
-export { system } from "./system/health.js";

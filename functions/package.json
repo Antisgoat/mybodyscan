@@ -6,7 +6,7 @@
   "main": "lib/index.js",
   "scripts": {
     "clean": "rimraf lib",
-    "build": "rimraf lib && tsc --project ./tsconfig.json && node -e \"const fs=require('fs');if(!fs.existsSync('lib/index.js')){console.error('Missing lib/index.js after build');process.exit(2)}\"",
+    "build": "rimraf lib && tsc --project ./tsconfig.json && node --input-type=module -e \"import { existsSync } from 'node:fs'; if (!existsSync('lib/index.js')) { console.error('Missing lib/index.js after build'); process.exit(2); }\"",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund",
     "typecheck": "tsc --noEmit -p ./tsconfig.json",
