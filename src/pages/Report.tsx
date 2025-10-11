@@ -95,7 +95,7 @@ export default function Report() {
           navigate("/history", { replace: true });
         };
 
-        let targetScanId = scanId ?? null;
+        const targetScanId = scanId ?? null;
 
         if (!targetScanId) {
           const latest = await findLatestCompleted();

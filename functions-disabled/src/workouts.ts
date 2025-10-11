@@ -101,7 +101,7 @@ export const markExerciseDone = onRequest(async (req, res) => {
     let ratio = 0;
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(progressRef);
-      let completed: string[] = snap.exists ? (snap.data()?.completed as string[]) || [] : [];
+      const completed: string[] = snap.exists ? (snap.data()?.completed as string[]) || [] : [];
       const idx = completed.indexOf(exerciseId);
       if (done && idx < 0) completed.push(exerciseId);
       if (!done && idx >= 0) completed.splice(idx, 1);

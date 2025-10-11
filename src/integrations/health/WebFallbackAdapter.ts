@@ -1,7 +1,7 @@
 import { DailySummary, HealthAdapter } from "./HealthAdapter";
 
 export class WebFallbackAdapter implements HealthAdapter {
-  platform: "web" = "web";
+  platform = "web" as const;
 
   async canImport(): Promise<boolean> {
     return false;

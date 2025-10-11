@@ -89,7 +89,7 @@ export const runBodyScan = onCall({ region: "us-central1", enforceAppCheck: true
       if (!createRes.ok) throw new HttpsError("internal", "Replicate API error");
       const createJson = await createRes.json();
       let status = createJson.status;
-      let pollUrl =
+      const pollUrl =
         createJson.urls?.get ||
         `https://api.replicate.com/v1/predictions/${createJson.id}`;
       let retries = 0;

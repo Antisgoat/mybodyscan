@@ -4,7 +4,7 @@ import { DailySummary, HealthAdapter } from "./HealthAdapter";
 const HealthKit: any = (window as any)?.Capacitor?.Plugins?.HealthKit;
 
 export class IOSHealthKitAdapter implements HealthAdapter {
-  platform: "ios" = "ios";
+  platform = "ios" as const;
 
   async canImport(): Promise<boolean> {
     return Capacitor.getPlatform() === "ios";

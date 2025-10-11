@@ -31,7 +31,7 @@ export function WorkoutStreakChart({ data }: WorkoutStreakChartProps) {
           <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={1} angle={-35} textAnchor="end" height={48} />
           <YAxis hide domain={[0, 1]} />
           <Tooltip
-            formatter={(value: unknown) => (Boolean(value) ? 'Completed' : 'Missed')}
+            formatter={(value: unknown) => (value ? 'Completed' : 'Missed')}
             labelFormatter={(label) => new Date(label).toLocaleDateString()}
             contentStyle={{ fontSize: '0.75rem' }}
           />
