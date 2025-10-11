@@ -17,6 +17,7 @@ const RATE_LIMIT_COUNT = 30;
 const SYSTEM_PROMPT =
   "You are a fitness coach. Provide safe, non-medical workout & nutrition suggestions in 120–160 words, using sets×reps and RPE ranges. Consider goals, time available, and experience.";
 const OPENAI_MODELS = ["gpt-4o-mini", "gpt-3.5-turbo"] as const;
+const statusMap: Record<string, number> = { "failed-precondition": 503 };
 
 type OpenAiModel = (typeof OPENAI_MODELS)[number];
 
@@ -212,9 +213,8 @@ export const coachChat = onRequest(
       }
       if (error instanceof HttpsError) {
         const code = errorCode(error);
-        // Preserve existing mapping, including special-case for failed-precondition -> 503
-        const status = code === "failed-precondition" ? 503 : statusFromCode(code);
-        response.status(status).json({ error: error.message, code });
+        const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
+        response.status(status).json({ error: (error as any)?.message ?? "unknown", code });
         return;
       }
       console.error("coach_chat_unhandled", { message: error?.message });
