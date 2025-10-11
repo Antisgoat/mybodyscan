@@ -237,7 +237,7 @@ export default function CoachOverview() {
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
           {planExists === false && !demo ? (
-            <Alert variant="outline" data-testid="coach-plan-missing">
+            <Alert variant="default" data-testid="coach-plan-missing">
               <AlertTitle>No plan yet — create one</AlertTitle>
               <AlertDescription>
                 Regenerate your weekly plan or open chat for quick guidance. Chat stays available while you set things up.

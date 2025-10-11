@@ -3,22 +3,25 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 
-const rulesPath = fileURLToPath(new URL('../../database.rules.json', import.meta.url));
+const rulesPath = fileURLToPath(new URL('../../../database.rules.json', import.meta.url));
 const rules = readFileSync(rulesPath, 'utf8');
 let testEnv: any;
 
-beforeAll(async () => {
-  testEnv = await initializeTestEnvironment({
-    projectId: 'demo-mbs',
-    firestore: { rules },
+// Only run these tests when a Firestore emulator is available.
+const haveEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+const d = haveEmulator ? describe : describe.skip;
+
+d('Firestore security rules', () => {
+  beforeAll(async () => {
+    testEnv = await initializeTestEnvironment({
+      projectId: 'demo-mbs',
+      firestore: { rules },
+    });
   });
-});
 
-afterAll(async () => {
-  await testEnv.cleanup();
-});
-
-describe('Firestore security rules', () => {
+  afterAll(async () => {
+    await testEnv.cleanup();
+  });
   it('allows owner read but blocks credit updates and plan writes', async () => {
     const uid = 'alice';
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
