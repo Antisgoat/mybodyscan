@@ -21,6 +21,15 @@ export default defineConfig(({ mode }) => ({
     },
     dedupe: ["react", "react-dom"],
   },
+  test: {
+    exclude: [
+      'e2e/**',
+      'tests/e2e/**',
+      'tests/rules/**',
+      'node_modules/**',
+      'dist/**'
+    ],
+  },
   build: {
     rollupOptions: {
       external: [

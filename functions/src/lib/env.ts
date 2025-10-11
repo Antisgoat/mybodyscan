@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
+ 
 const read = (k: string) => (process.env?.[k] ?? undefined);
 
 // NOTE: Firebase Secret Manager injects values into process.env at runtime in Functions.

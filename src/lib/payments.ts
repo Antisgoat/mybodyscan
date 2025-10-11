@@ -17,7 +17,9 @@ export async function startCheckout(plan: CheckoutPlanKey) {
         title: "Sign up to use this feature",
         description: "Create a free account to continue.",
       });
-    } catch {}
+    } catch {
+      // ignore toast failures in non-UI contexts
+    }
     window.location.assign("/auth");
     return;
   }
@@ -88,7 +90,9 @@ export async function consumeOneCredit(): Promise<number> {
         title: "Sign up to use this feature",
         description: "Create a free account to start scanning.",
       });
-    } catch {}
+    } catch {
+      // ignore toast failures in non-UI contexts
+    }
     window.location.assign("/auth");
     throw new Error("demo-blocked");
   }

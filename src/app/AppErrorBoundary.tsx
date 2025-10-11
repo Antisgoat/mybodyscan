@@ -9,7 +9,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { hasError: true, msg: err instanceof Error ? err.message : String(err) };
   }
   componentDidCatch(err: unknown, info: unknown) {
-    // eslint-disable-next-line no-console
+     
     console.error("App crashed:", err, info);
   }
   render() {

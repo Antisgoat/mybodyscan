@@ -39,7 +39,7 @@ const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
 const DAILY_TARGET = 2200;
 
-interface RecentItem extends FoodItem {}
+type RecentItem = FoodItem;
 
 function readRecents(): RecentItem[] {
   if (typeof window === "undefined") return [];

@@ -74,7 +74,7 @@ declare module 'firebase-functions/v1' {
 }
 
 declare module 'firebase-functions/v2/https' {
-  export interface Request {
+  interface Request {
     body: any;
     headers: any;
     method: string;
@@ -86,7 +86,7 @@ declare module 'firebase-functions/v2/https' {
     header(name: string): string | undefined;
   }
   
-  export interface Response {
+  interface Response {
     status(code: number): Response;
     send(body?: any): Response;
     json(body: any): Response;
@@ -96,18 +96,15 @@ declare module 'firebase-functions/v2/https' {
     headersSent?: boolean;
   }
 
-  export interface CallableRequest<T = any> {
+  interface CallableRequest<T = any> {
     data: T;
     auth?: any;
     rawRequest: Request;
   }
 
-  export interface HttpsError {
-    code: string;
-    message: string;
-  }
+  // Note: HttpsError is a concrete class exported by the SDK; no separate interface here to avoid declaration merging
 
-  export interface HttpsOptions {
+  interface HttpsOptions {
     cors?: boolean | string | string[];
     region?: string | string[];
     memory?: string;

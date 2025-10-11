@@ -4,7 +4,7 @@ import { DailySummary, HealthAdapter } from "./HealthAdapter";
 const HealthConnect: any = (window as any)?.Capacitor?.Plugins?.HealthConnect;
 
 export class AndroidHealthConnectAdapter implements HealthAdapter {
-  platform: "android" = "android";
+  platform = "android" as const;
 
   async canImport(): Promise<boolean> {
     return Capacitor.getPlatform() === "android";

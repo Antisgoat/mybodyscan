@@ -21,6 +21,13 @@ import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: any;
+    SpeechRecognition?: any;
+  }
+}
+
 interface ChatMessage {
   id: string;
   text: string;
@@ -63,7 +70,6 @@ export default function CoachChatPage() {
   const [coachError, setCoachError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
-  declare global { interface Window { webkitSpeechRecognition?: any; SpeechRecognition?: any; } }
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
 
@@ -80,8 +86,21 @@ export default function CoachChatPage() {
     rec.onerror = () => setListening(false);
     rec.start(); setRecognizer(rec); setListening(true);
   };
-  const stopListening = () => { try { recognizer?.stop?.(); } catch {} setListening(false); };
-  useEffect(() => () => { try { recognizer?.stop?.(); } catch {} }, [recognizer]);
+  const stopListening = () => {
+    try {
+      recognizer?.stop?.();
+    } catch {
+      // ignore
+    }
+    setListening(false);
+  };
+  useEffect(() => () => {
+    try {
+      recognizer?.stop?.();
+    } catch {
+      // ignore
+    }
+  }, [recognizer]);
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -132,7 +151,13 @@ export default function CoachChatPage() {
     }
 
     const sanitized = input
-      .replace(/[\u0000-\u001F\u007F]/g, " ") // strip control chars
+      .split("")
+      .map((ch) => {
+        const code = ch.codePointAt(0) ?? 0;
+        if (code < 32 || code === 127) return " ";
+        return ch;
+      })
+      .join("")
       .replace(/\s+/g, " ")
       .trim();
 

@@ -217,7 +217,7 @@ export function evaluateGateMetrics(input: GateEvaluationInput): { score: number
   if (input.imageIndex === 0) {
     const shoulderToWaist = input.waistWidth > 0 ? input.shoulderWidth / input.waistWidth : 0;
     if (!Number.isFinite(shoulderToWaist) || shoulderToWaist < 1.02) {
-      reasons.add("Raise arms slightly away from torso");
+      reasons.add("Raise arms slightly so they are visible away from the torso");
       localScore -= 0.15;
     }
     if (input.waistWidth <= 0 || input.hipWidth <= 0) {

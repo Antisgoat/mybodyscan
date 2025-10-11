@@ -268,7 +268,7 @@ export default function ScanNew() {
         method = bodyFat.method;
       }
 
-      let bmi = weightKg && heightCm ? bmiFromKgCm(weightKg, heightCm) : undefined;
+      const bmi = weightKg && heightCm ? bmiFromKgCm(weightKg, heightCm) : undefined;
 
       if (confidence < 0.7) {
         if (weightKg && window.confirm("Photo confidence is low. Use BMI-only fallback instead?")) {
