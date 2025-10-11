@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +36,8 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState<boolean>(import.meta.env.VITE_APPLE_ENABLED !== "false");
+  const [appleAvailable, setAppleAvailable] = useState<boolean>(false);
+  const [authConfigLoaded, setAuthConfigLoaded] = useState<boolean>(false);
   const { user } = useAuthUser();
 
   useEffect(() => {
@@ -52,11 +54,13 @@ const Auth = () => {
       .then((config) => {
         if (!active) return;
         setAppleAvailable(isProviderEnabled("apple.com", config));
+        setAuthConfigLoaded(true);
       })
       .catch((err) => {
         if (import.meta.env.DEV) {
-          console.warn("[auth] Falling back to env Apple availability:", err);
+          console.warn("[auth] Unable to determine Apple availability:", err);
         }
+        if (active) setAuthConfigLoaded(false);
       });
     return () => {
       active = false;
@@ -136,7 +140,7 @@ const Auth = () => {
 
   const onExplore = () => {
     enableDemo();
-    navigate("/app");
+    navigate("/demo?demo=1");
   };
 
   return (
@@ -200,25 +204,45 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {appleAvailable && (
-              <Button
-                variant="secondary"
-                onClick={onApple}
-                disabled={loading}
-                className="w-full h-11 inline-flex items-center justify-center gap-2"
-                aria-label="Continue with Apple"
-                data-testid="auth-apple"
-              >
-                <AppleIcon />
-                Continue with Apple
-              </Button>
+            {authConfigLoaded ? (
+              appleAvailable ? (
+                <Button
+                  variant="secondary"
+                  onClick={onApple}
+                  disabled={loading}
+                  className="w-full h-11 inline-flex items-center justify-center gap-2"
+                  aria-label="Continue with Apple"
+                  data-testid="auth-apple-button"
+                >
+                  <AppleIcon />
+                  Continue with Apple
+                </Button>
+              ) : null
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-full inline-flex">
+                    <Button
+                      variant="secondary"
+                      disabled
+                      className="w-full h-11 inline-flex items-center justify-center gap-2"
+                      aria-label="Continue with Apple"
+                      data-testid="auth-apple-button"
+                    >
+                      <AppleIcon />
+                      Continue with Apple
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Apple sign-in not configured</TooltipContent>
+              </Tooltip>
             )}
             <Button
               variant="secondary"
               onClick={onGoogle}
               disabled={loading}
               className="w-full h-11 inline-flex items-center justify-center gap-2"
-              data-testid="auth-google"
+              data-testid="auth-google-button"
             >
               Continue with Google
             </Button>

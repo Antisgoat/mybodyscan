@@ -424,14 +424,10 @@ export default function CoachOverview() {
               type="button"
               size="sm"
               onClick={() => {
-                if (demo) {
-                  demoToast();
-                  return;
-                }
                 navigate("/coach/chat");
               }}
-              disabled={demo}
-              title={demo ? "Demo mode: sign in to chat" : undefined}
+              disabled={false}
+              title={undefined}
             >
               Open chat
             </Button>

@@ -17,6 +17,9 @@ test.describe('Coach assistant', () => {
 
     await page.goto('/coach');
 
+    // Open chat panel
+    await page.getByRole('button', { name: /open chat/i }).click();
+
     await expect(page).toHaveURL(/\/coach/);
 
     const messageInput = page.getByTestId('coach-message-input');
@@ -24,5 +27,9 @@ test.describe('Coach assistant', () => {
 
     await expect(messageInput).toBeVisible();
     await expect(sendButton).toBeVisible();
+
+    // Smoke-check the chat path suffix for correctness
+    const pathProbe = page.getByTestId('coach-chat-path');
+    await expect(pathProbe).toBeVisible();
   });
 });

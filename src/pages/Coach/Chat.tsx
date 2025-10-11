@@ -116,7 +116,7 @@ export default function CoachChatPage() {
       return;
     }
     const chatQuery = query(
-      collection(db, "users", uid, "coachChat"),
+      collection(db, "users", uid, "coach", "chat"),
       orderBy("createdAt", "desc"),
       limit(10)
     );
@@ -236,7 +236,7 @@ export default function CoachChatPage() {
               <CardTitle className="text-xl">Coach chat</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg border bg-background/60 p-4">
+              <div className="rounded-lg border bg-background/60 p-4" data-testid="coach-chat-path" data-path={uid ? `users/${uid}/coach/chat` : ""}>
                 {hasMessages ? (
                   <div className="space-y-4">
                     {formattedMessages.map((message) => (
@@ -278,7 +278,7 @@ export default function CoachChatPage() {
                   placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
                   rows={4}
                   disabled={pending || demo || initializing}
-                  data-testid="coach-input"
+                  data-testid="coach-message-input"
                 />
                 <div className="flex justify-end">
                   <div className="flex gap-2 items-center">
@@ -293,7 +293,7 @@ export default function CoachChatPage() {
                     <Button
                       onClick={handleSend}
                       disabled={pending || demo || !input.trim() || initializing}
-                      data-testid="coach-send"
+                      data-testid="coach-send-button"
                     >
                       {pending ? "Sending..." : "Send"}
                     </Button>
