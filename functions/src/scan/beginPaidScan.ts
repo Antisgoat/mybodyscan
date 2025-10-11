@@ -7,6 +7,7 @@ import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
 import { isStaff } from "../claims.js";
+import { errorCode, statusFromCode } from "../lib/errors.js";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;
@@ -115,11 +116,12 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
     });
   } catch (error: any) {
     if (error instanceof HttpsError) {
-      if (error.code === "failed-precondition") {
+      const code = errorCode(error);
+      if (code === "failed-precondition") {
         res.status(402).json({ ok: false, reason: "no_credits" });
         return;
       }
-      if (error.code === "not-found") {
+      if (code === "not-found") {
         res.status(404).json({ ok: false, reason: "missing_scan" });
         return;
       }
@@ -154,8 +156,9 @@ export const beginPaidScan = onRequest(
         return;
       }
       if (error instanceof HttpsError) {
-        const status = error.code === "unauthenticated" ? 401 : 400;
-        res.status(status).json({ ok: false, reason: error.code });
+        const code = errorCode(error);
+        const status = code === "unauthenticated" ? 401 : 400;
+        res.status(status).json({ ok: false, reason: code });
         return;
       }
       res.status(500).json({ ok: false, reason: "server_error" });
