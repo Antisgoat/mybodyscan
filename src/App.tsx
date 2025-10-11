@@ -84,6 +84,7 @@ const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 const SystemCheck = lazy(() => import("./pages/SystemCheck"));
+const DevAudit = lazy(() => import("./pages/DevAudit"));
 
 const queryClient = new QueryClient();
 
@@ -577,6 +578,7 @@ const App = () => {
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/system/check" element={<SystemCheck />} />
+            <Route path="/dev/audit" element={<DevAudit />} />
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />
