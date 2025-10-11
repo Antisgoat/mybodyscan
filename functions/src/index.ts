@@ -5,3 +5,4 @@ export * from "./scan/beginPaidScan";
 export * from "./scan/recordGateFailure";
 export * from "./scan/refundIfNoResult";
 export * from "./workouts";
+export * from "./system/health";

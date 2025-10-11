@@ -1,5 +1,6 @@
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
+import { coachPlanDocPath } from "./lib/paths.js";
 
 interface CoachProfile {
   goal?: string;
@@ -193,7 +194,7 @@ export const generatePlan = onCall({ region: "us-central1" }, async (request) =>
   const plan = buildPlan(profile);
 
   // Write to single document at users/{uid}/coachPlans/current
-  await db.doc(`users/${uid}/coachPlans/current`).set(plan);
+  await db.doc(coachPlanDocPath(uid)).set(plan);
 
   return { plan: { ...plan, updatedAt: plan.updatedAt.toMillis() } };
 });

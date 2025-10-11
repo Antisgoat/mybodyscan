@@ -21,6 +21,7 @@ import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { coachChatCollectionPath } from "@/lib/paths";
 
 declare global {
   interface Window {
@@ -116,8 +117,13 @@ export default function CoachChatPage() {
       setMessages([]);
       return;
     }
+    const chatPath = coachChatCollectionPath(uid);
+    if (import.meta.env.DEV) {
+      const segmentCount = chatPath.split("/").length;
+      console.assert(segmentCount === 3, `[coach-chat] expected 3 segments, received ${segmentCount}`);
+    }
     const chatQuery = query(
-      collection(db, "users", uid, "coach", "chat"),
+      collection(db, chatPath),
       orderBy("createdAt", "desc"),
       limit(10)
     );
@@ -246,7 +252,11 @@ export default function CoachChatPage() {
               <CardTitle className="text-xl">Coach chat</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-lg border bg-background/60 p-4" data-testid="coach-chat-path" data-path={uid ? `users/${uid}/coach/chat` : ""}>
+              <div
+                className="rounded-lg border bg-background/60 p-4"
+                data-testid="coach-chat-path"
+                data-path={uid ? coachChatCollectionPath(uid) : ""}
+              >
                 {hasMessages ? (
                   <div className="space-y-4">
                     {formattedMessages.map((message) => (

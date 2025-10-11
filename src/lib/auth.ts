@@ -20,6 +20,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
+import { isIOSSafari } from "@/lib/isIOSWeb";
 
 export async function initAuthPersistence() {
   await setPersistence(firebaseAuth, browserLocalPersistence);
@@ -101,15 +102,6 @@ type AppleAdditionalProfile = {
   lastName?: string;
 };
 
-export function isIOSSafari(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  const platform = navigator.platform || "";
-  const isIOSDevice = /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/.test(ua);
-  return isIOSDevice && isSafari;
-}
-
 async function applyAppleProfile(result: UserCredential | null) {
   if (!result) return;
   const info = getAdditionalUserInfo(result);
@@ -189,4 +181,6 @@ export function sendReset(email: string) {
 export function signOutAll() {
   return signOut(firebaseAuth);
 }
+
+export { isIOSSafari } from "@/lib/isIOSWeb";
 
