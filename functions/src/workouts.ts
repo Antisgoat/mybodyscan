@@ -61,7 +61,7 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
     if (!response.ok) {
       throw new Error(`openai ${response.status}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as any;
     const text: string =
       data?.output_text ||
       data?.output?.[0]?.content?.[0]?.text ||
@@ -173,8 +173,8 @@ async function handleMarkDone(req: Request, res: Response) {
     `users/${uid}/workoutPlans/${body.planId}/progress/${iso}`
   );
   let ratio = 0;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(progressRef);
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(progressRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     const completed: string[] = snap.exists ? (snap.data()?.completed as string[]) || [] : [];
     const idx = completed.indexOf(body.exerciseId!);
     if (body.done && idx < 0) {
@@ -210,7 +210,7 @@ async function handleGetWorkouts(req: Request, res: Response) {
     .limit(14)
     .get();
   const progress: Record<string, string[]> = {};
-  progressSnap.docs.forEach((doc) => {
+  progressSnap.docs.forEach((doc: FirebaseFirestore.QueryDocumentSnapshot) => {
     const data = doc.data() as { completed?: string[] };
     progress[doc.id] = data.completed || [];
   });
@@ -272,3 +272,5 @@ export const adjustWorkout = onRequest(
     }
   })
 );
+
+export { createCheckout, stripeWebhook } from "./payments.js";

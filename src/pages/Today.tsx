@@ -13,6 +13,8 @@ import { getPlan } from "@/lib/workouts";
 import { DemoBanner } from "@/components/DemoBanner";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
 import { track } from "@/lib/analytics";
 import { startScan } from "@/lib/scan";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
@@ -20,11 +22,22 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 export default function Today() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const demo = useDemoMode();
   const todayISO = new Date().toISOString().slice(0, 10);
-  const [mealTotals, setMealTotals] = useState<any>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const [workout, setWorkout] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+  const [mealTotals, setMealTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>(() =>
+    demo ? DEMO_NUTRITION_LOG.totals : { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+  const [workout, setWorkout] = useState<{ done: number; total: number }>(() =>
+    demo ? DEMO_WORKOUT_PROGRESS : { done: 0, total: 0 }
+  );
 
   useEffect(() => {
+    if (demo) {
+      setMealTotals(DEMO_NUTRITION_LOG.totals);
+      setWorkout(DEMO_WORKOUT_PROGRESS);
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -88,7 +101,7 @@ export default function Today() {
     return () => {
       cancelled = true;
     };
-  }, [todayISO]);
+  }, [demo, todayISO]);
 
   const handleScan = async () => {
     try {
@@ -131,7 +144,7 @@ export default function Today() {
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Today - MyBodyScan" description="Your daily health and fitness plan" />
         <AppHeader />
-        <main className="max-w-md mx-auto p-6 space-y-6">
+        <main className="max-w-md mx-auto p-6 space-y-6" data-testid="today-dashboard">
           <DemoBanner />
           <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>
 

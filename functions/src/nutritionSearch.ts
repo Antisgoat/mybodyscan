@@ -394,7 +394,7 @@ async function searchUsda(query: string, apiKey: string | undefined): Promise<Fo
   if (!response.ok) {
     throw new Error(`usda_${response.status}`);
   }
-  const data = await response.json();
+  const data = (await response.json()) as any;
   if (!Array.isArray(data?.foods)) return [];
   return data.foods.map((item: any) => fromUsdaFood(item)).filter(Boolean) as FoodItem[];
 }
@@ -418,7 +418,7 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
   if (!response.ok) {
     throw new Error(`off_${response.status}`);
   }
-  const data = await response.json();
+  const data = (await response.json()) as any;
   if (!Array.isArray(data?.products)) return [];
   return data.products.map((item: any) => fromOpenFoodFacts(item)).filter(Boolean) as FoodItem[];
 }

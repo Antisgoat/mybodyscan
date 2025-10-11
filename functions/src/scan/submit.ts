@@ -365,8 +365,8 @@ export const submitScan = onRequest(
       const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
 
       if (idempRef) {
-        const existing = await db.runTransaction(async (tx) => {
-          const snap = await tx.get(idempRef);
+        const existing = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+          const snap = (await tx.get(idempRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
           if (snap.exists) return snap.data() as any;
           tx.create(idempRef, { status: "processing", createdAt: Timestamp.now(), scanId: payload.scanId });
           return null;

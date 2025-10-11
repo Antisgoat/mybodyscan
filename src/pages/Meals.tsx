@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { DEMO_FAVORITES, DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG, DEMO_TEMPLATES } from "@/lib/demoContent";
 import {
   addMeal,
   deleteMeal,
@@ -67,26 +68,56 @@ function formatServingQuantity(value: number): string {
 }
 
 export default function Meals() {
+  const demo = useDemoMode();
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>({ totals: { calories: 0 }, meals: [] });
-  const [history7, setHistory7] = useState<NutritionHistoryDay[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
+    demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
+  );
+  const [history7, setHistory7] = useState<NutritionHistoryDay[]>(() => (demo ? DEMO_NUTRITION_HISTORY : []));
+  const [loading, setLoading] = useState(!demo);
   const [processing, setProcessing] = useState(false);
   const [recents, setRecents] = useState<RecentItem[]>(() => readRecents());
-  const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
-  const [templates, setTemplates] = useState<TemplateDocWithId[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteDocWithId[]>(() => (demo ? DEMO_FAVORITES : []));
+  const [templates, setTemplates] = useState<TemplateDocWithId[]>(() => (demo ? DEMO_TEMPLATES : []));
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
   const [editorQty, setEditorQty] = useState<number>(1);
-  const demo = useDemoMode();
+
+  const refreshLog = useCallback(() => {
+    if (demo) {
+      setLog({ totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    getDailyLog(todayISO)
+      .then((data) => {
+        setLog(data);
+      })
+      .finally(() => setLoading(false));
+  }, [demo, todayISO]);
+
+  const refreshHistory = useCallback(() => {
+    if (demo) {
+      setHistory7(DEMO_NUTRITION_HISTORY);
+      return;
+    }
+    getNutritionHistory(7)
+      .then(setHistory7)
+      .catch(() => setHistory7([]));
+  }, [demo]);
 
   useEffect(() => {
     refreshLog();
     refreshHistory();
-  }, []);
+  }, [refreshLog, refreshHistory]);
 
   useEffect(() => {
+    if (demo) {
+      setFavorites(DEMO_FAVORITES);
+      return;
+    }
     try {
       const unsub = subscribeFavorites(setFavorites);
       return () => unsub?.();
@@ -94,9 +125,13 @@ export default function Meals() {
       console.warn("favorites_subscribe_error", error);
       return undefined;
     }
-  }, []);
+  }, [demo]);
 
   useEffect(() => {
+    if (demo) {
+      setTemplates(DEMO_TEMPLATES);
+      return;
+    }
     try {
       const unsub = subscribeTemplates(setTemplates);
       return () => unsub?.();
@@ -104,22 +139,7 @@ export default function Meals() {
       console.warn("templates_subscribe_error", error);
       return undefined;
     }
-  }, []);
-
-  const refreshLog = useCallback(() => {
-    setLoading(true);
-    getDailyLog(todayISO)
-      .then((data) => {
-        setLog(data);
-      })
-      .finally(() => setLoading(false));
-  }, [todayISO]);
-
-  const refreshHistory = useCallback(() => {
-    getNutritionHistory(7)
-      .then(setHistory7)
-      .catch(() => setHistory7([]));
-  }, []);
+  }, [demo]);
 
   const updateRecents = useCallback(
     (item: FoodItem) => {

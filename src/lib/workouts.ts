@@ -2,6 +2,7 @@ import { auth, db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
+import { DEMO_WORKOUT_PLAN } from "./demoContent";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -28,7 +29,7 @@ export async function generateWorkoutPlan(prefs?: Record<string, any>) {
 export async function getPlan() {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_plan" });
-    return null;
+    return DEMO_WORKOUT_PLAN;
   }
   try {
     return await callFn("/getPlan", {});

@@ -1,4 +1,7 @@
 import type { Request, Response } from "express";
+import { onRequest } from "firebase-functions/v2/https";
+import { withCors } from "./middleware/cors.js";
+import { verifyAppCheckSoft } from "./http.js";
 import { hasStripe, assertStripeConfigured, getStripeSecret, getStripeSigningSecret } from "./lib/env.js";
 
 export async function createCheckoutHandler(req: Request, res: Response) {
@@ -38,4 +41,42 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   }
 }
 
-// Express-mounted handlers are exported from index.ts
+function methodNotAllowed(res: Response) {
+  res.status(405).json({ error: "method_not_allowed" });
+}
+
+export const createCheckout = onRequest(
+  { invoker: "public" },
+  withCors(async (req, res) => {
+    if (req.method !== "POST") {
+      methodNotAllowed(res as Response);
+      return;
+    }
+    try {
+      await verifyAppCheckSoft(req as unknown as Request);
+      await createCheckoutHandler(req as unknown as Request, res as Response);
+    } catch (error: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: error?.message ?? "server_error" });
+      }
+    }
+  })
+);
+
+export const stripeWebhook = onRequest(
+  { invoker: "public" },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      methodNotAllowed(res as Response);
+      return;
+    }
+    try {
+      await stripeWebhookHandler(req as unknown as Request, res as Response);
+    } catch (error: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: error?.message ?? "server_error" });
+      }
+    }
+  }
+);
+

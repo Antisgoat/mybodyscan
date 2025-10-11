@@ -15,8 +15,8 @@ export async function verifyRateLimit(req: any, opts: Opts) {
   const now = Date.now();
 
   const ref = admin.firestore().collection("ratelimits").doc(key);
-  await admin.firestore().runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
+  await admin.firestore().runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     const data = snap.exists ? (snap.data() as any) : { count: 0, windowStart: now };
     const elapsed = now - (data.windowStart || now);
     if (elapsed > opts.windowSeconds * 1000) {

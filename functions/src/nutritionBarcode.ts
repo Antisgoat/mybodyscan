@@ -23,7 +23,7 @@ async function fetchOff(code: string) {
   if (!response.ok) {
     throw new Error(`off_${response.status}`);
   }
-  const data = await response.json();
+  const data = (await response.json()) as any;
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
   return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
@@ -43,7 +43,7 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   if (!response.ok) {
     throw new Error(`usda_${response.status}`);
   }
-  const data = await response.json();
+  const data = (await response.json()) as any;
   if (!Array.isArray(data?.foods) || !data.foods.length) return null;
   const normalized = data.foods
     .map((food: any) => fromUsdaFood(food))

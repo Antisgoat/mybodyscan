@@ -86,8 +86,8 @@ async function mutateBuckets(
 ): Promise<ConsumeResult> {
   return runWithRetry(async () => {
     const ref = getSummaryRef(uid);
-    return db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+    return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       const now = Timestamp.now();
       const buckets = snap.exists ? normalizeBuckets(snap.data(), now) : [];
       const beforeTotal = computeTotal(buckets);

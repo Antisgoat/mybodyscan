@@ -17,8 +17,8 @@ export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
   const windowStart = now.toMillis() - windowMs;
 
   try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+    await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       const data = snap.exists ? (snap.data() as any) : {};
       const events: Timestamp[] = Array.isArray(data.events)
         ? data.events.filter((item: unknown): item is Timestamp => item instanceof Timestamp)
