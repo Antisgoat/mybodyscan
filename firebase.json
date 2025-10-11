@@ -123,7 +123,7 @@
       {
         "source": "/system/health",
         "function": {
-          "functionId": "system",
+          "functionId": "systemHealth",
           "region": "us-central1"
         }
       },
