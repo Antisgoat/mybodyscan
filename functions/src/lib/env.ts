@@ -1,20 +1,18 @@
  
-const read = (k: string) => process.env?.[k] ?? undefined;
+// Centralized environment accessors. Only this module may read process.env.
+export const getEnv = (k: string): string | undefined => process.env?.[k];
 
-// NOTE: Firebase Secret Manager injects values into process.env at runtime in Functions.
-// TODO: remove any inline keys once verified on prod; environment wins over inline defaults.
-
-export const getEnv = (key: string): string | undefined => {
-  const raw = read(key);
-  if (raw === undefined) return undefined;
-  return String(raw);
+export const getEnvInt = (k: string, d: number): number => {
+  const v = getEnv(k);
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : d;
 };
 
-export const getEnvInt = (key: string, fallback: number): number => {
-  const raw = getEnv(key);
-  if (raw === undefined) return fallback;
-  const value = Number.parseInt(raw, 10);
-  return Number.isFinite(value) ? value : fallback;
+export const getEnvBool = (k: string, d = false): boolean => {
+  const v = (getEnv(k) || "").toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
+  return d;
 };
 
 export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");
@@ -23,12 +21,7 @@ export const getAllowedOrigins = (): string[] => {
   if (!raw) return [];
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 };
-export const getAppCheckEnforceSoft = () => {
-  const raw = getEnv("APP_CHECK_ENFORCE_SOFT");
-  if (raw === undefined) return true;
-  const v = raw.toLowerCase();
-  return !(v === "false" || v === "0" || v === "no");
-};
+export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT", true);
 
 export const getOpenAIKey = () => getEnv("OPENAI_API_KEY");
 export const getStripeSecret = () =>

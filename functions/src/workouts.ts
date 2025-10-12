@@ -7,6 +7,7 @@ import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
+import { getEnv } from "./lib/env.js";
 
 const db = getFirestore();
 
@@ -40,7 +41,7 @@ function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
 }
 
 async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getEnv("OPENAI_API_KEY");
   if (!apiKey) return null;
   try {
     const prompt = `Return a JSON array of workout days. Each item must include "day" (Mon-Sun) and an array "exercises" with {"name","sets","reps"}. Focus: ${
@@ -53,7 +54,7 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: getEnv("OPENAI_MODEL") || "gpt-4o-mini",
         input: prompt,
         temperature: 0.4,
       }),
@@ -273,4 +274,4 @@ export const adjustWorkout = onRequest(
   })
 );
 
-export { createCheckout, stripeWebhook } from "./payments.js";
+// Removed re-exports of payment handlers to prevent duplicate exports in index.
