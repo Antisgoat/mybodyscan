@@ -32,8 +32,19 @@ function shouldForceRedirectAuth(): boolean {
   return host.endsWith(".lovable.app");
 }
 
+let authInitialized = false;
+
 export async function initAuthPersistence() {
-  await setPersistence(firebaseAuth, browserLocalPersistence);
+  if (authInitialized) {
+    return;
+  }
+  try {
+    await setPersistence(firebaseAuth, browserLocalPersistence);
+    authInitialized = true;
+  } catch (error) {
+    console.warn("Failed to set auth persistence:", error);
+    // Don't throw - allow the app to continue
+  }
 }
 
 export function useAuthUser() {
