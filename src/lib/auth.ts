@@ -37,16 +37,24 @@ export async function initAuthPersistence() {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(
+    () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
+  );
+  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
 
   useEffect(() => {
+    // If a user is already available synchronously, mark ready without waiting
+    if (!authReady && firebaseAuth.currentUser) {
+      setUser(firebaseAuth.currentUser);
+      setAuthReady(true);
+    }
+
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
     });
     return () => unsubscribe();
-  }, []);
+  }, [authReady]);
 
   return { user: authReady ? user : null, loading: !authReady, authReady } as const;
 }
