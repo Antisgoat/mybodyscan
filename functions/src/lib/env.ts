@@ -10,11 +10,17 @@ export const getEnv = (key: string): string | undefined => {
   return String(raw);
 };
 
-export const getEnvInt = (key: string, fallback: number): number => {
-  const raw = getEnv(key);
-  if (raw === undefined) return fallback;
-  const value = Number.parseInt(raw, 10);
-  return Number.isFinite(value) ? value : fallback;
+export const getEnvInt = (k: string, d: number): number => {
+  const v = getEnv(k);
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : d;
+};
+
+export const getEnvBool = (k: string, d = false): boolean => {
+  const v = (getEnv(k) || "").toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
+  return d;
 };
 
 export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");

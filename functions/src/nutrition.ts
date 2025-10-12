@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
+import { getEnv } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
@@ -257,7 +258,7 @@ async function handleGetLog(req: Request, res: Response) {
   const log = await readDailyLog(uid, day);
   const response = {
     ...log,
-    source: process.env.USDA_API_KEY ? "usda" : process.env.OPENFOODFACTS_USER_AGENT ? "openfoodfacts" : "unknown",
+    source: getEnv("USDA_API_KEY") ? "usda" : getEnv("OPENFOODFACTS_USER_AGENT") ? "openfoodfacts" : "unknown",
   };
   res.json(response);
 }

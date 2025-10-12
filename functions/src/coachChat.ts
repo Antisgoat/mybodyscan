@@ -6,7 +6,7 @@ import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
-import { getOpenAIKey } from "./lib/env.js";
+import { getOpenAIKey, getEnvInt } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 
@@ -165,7 +165,7 @@ export const coachChat = onRequest(
       try {
         await verifyRateLimit(request, {
           key: "coach",
-          max: Number(process.env.COACH_RPM || 6),
+          max: getEnvInt("COACH_RPM", 6),
           windowSeconds: 60,
         });
       } catch (error: any) {
