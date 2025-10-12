@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type KeyboardEvent, type MouseEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -21,6 +21,7 @@ import {
 import { auth } from "@/lib/firebase";
 import { enableDemo } from "@/lib/demoFlag";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+import { browserLocalPersistence, getAuth, setPersistence, signInAnonymously } from "firebase/auth";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -37,6 +38,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
 
@@ -172,9 +174,24 @@ const Auth = () => {
     }
   };
 
-  const onExplore = () => {
-    enableDemo();
-    navigate("/today?demo=1");
+  const handleExploreDemo = async (
+    e?: MouseEvent<HTMLButtonElement> | KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    e?.preventDefault?.();
+    if (demoLoading) return;
+    setDemoLoading(true);
+    try {
+      enableDemo();
+      const authInstance = getAuth();
+      await setPersistence(authInstance, browserLocalPersistence);
+      await signInAnonymously(authInstance);
+      navigate("/coach", { replace: true });
+    } catch (err) {
+      console.error("Demo login failed", err);
+      alert("Could not start demo. Please try again.");
+    } finally {
+      setDemoLoading(false);
+    }
   };
 
   return (
@@ -278,7 +295,13 @@ const Auth = () => {
             </Button>
           </div>
           <div className="mt-6">
-            <Button variant="ghost" className="w-full" onClick={onExplore}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={handleExploreDemo}
+              disabled={loading || demoLoading}
+            >
               👀 Explore demo (no sign-up)
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">

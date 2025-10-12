@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { AppErrorBoundary } from "./app/AppErrorBoundary";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
