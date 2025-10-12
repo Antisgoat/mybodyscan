@@ -163,9 +163,10 @@ export const coachChat = onRequest(
       }
 
       try {
+        const { getEnvInt } = await import("./lib/env.js");
         await verifyRateLimit(request, {
           key: "coach",
-          max: Number(process.env.COACH_RPM || 6),
+          max: getEnvInt("COACH_RPM", 6),
           windowSeconds: 60,
         });
       } catch (error: any) {

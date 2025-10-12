@@ -255,9 +255,10 @@ async function handleGetLog(req: Request, res: Response) {
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const day = normalizeDate(dateISO, tz);
   const log = await readDailyLog(uid, day);
+  const { getEnv } = await import("./lib/env.js");
   const response = {
     ...log,
-    source: process.env.USDA_API_KEY ? "usda" : process.env.OPENFOODFACTS_USER_AGENT ? "openfoodfacts" : "unknown",
+    source: getEnv("USDA_API_KEY") ? "usda" : getEnv("OPENFOODFACTS_USER_AGENT") ? "openfoodfacts" : "unknown",
   };
   res.json(response);
 }
