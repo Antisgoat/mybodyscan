@@ -1,9 +1,15 @@
 // IMPORTANT: use .js suffixes so Node ESM can resolve compiled files at runtime.
-export * from "./coachChat.js";
-export * from "./nutrition.js";
-export * from "./nutritionBarcode.js";
-export * from "./scan/beginPaidScan.js";
-export * from "./scan/recordGateFailure.js";
-export * from "./scan/refundIfNoResult.js";
-export * from "./workouts.js";
-export { systemHealth } from "./systemHealth.js"; // single source of truth
+// Only export Cloud Function handlers (onRequest/onCall). No middleware/util exports, no wildcard exports.
+
+export { systemHealth } from "./systemHealth.js";
+export { coachChat } from "./coachChat.js";
+export { nutritionSearch } from "./nutritionSearch.js";
+export { nutritionBarcode } from "./nutritionBarcode.js";
+export { startScanSession } from "./scan/start.js";
+export { submitScan } from "./scan/submit.js";
+export { beginPaidScan } from "./scan/beginPaidScan.js";
+export { recordGateFailure } from "./scan/recordGateFailure.js";
+export { refundIfNoResult } from "./scan/refundIfNoResult.js";
+export { adjustWorkout } from "./workouts.js";
+export { stripeWebhook } from "./stripeWebhook.js";
+export { createCheckout } from "./payments.js";

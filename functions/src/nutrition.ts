@@ -5,6 +5,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { getEnv } from "./lib/env.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -255,9 +256,12 @@ async function handleGetLog(req: Request, res: Response) {
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const day = normalizeDate(dateISO, tz);
   const log = await readDailyLog(uid, day);
+  const usdaKey = getEnv("USDA_API_KEY");
+  const offAgent = getEnv("OPENFOODFACTS_USER_AGENT");
+  const source = usdaKey ? "usda" : offAgent ? "openfoodfacts" : "unknown";
   const response = {
     ...log,
-    source: process.env.USDA_API_KEY ? "usda" : process.env.OPENFOODFACTS_USER_AGENT ? "openfoodfacts" : "unknown",
+    source,
   };
   res.json(response);
 }
