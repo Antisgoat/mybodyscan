@@ -32,15 +32,30 @@ function shouldForceRedirectAuth(): boolean {
   return host.endsWith(".lovable.app");
 }
 
+let authPersistencePromise: Promise<void> | null = null;
+
 export async function initAuthPersistence() {
-  await setPersistence(firebaseAuth, browserLocalPersistence);
+  // Prevent multiple calls to setPersistence
+  if (authPersistencePromise) {
+    return authPersistencePromise;
+  }
+  
+  authPersistencePromise = setPersistence(firebaseAuth, browserLocalPersistence);
+  return authPersistencePromise;
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  // Start with currentUser if available to avoid initial loading state
+  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(firebaseAuth.currentUser);
+  const [authReady, setAuthReady] = useState(firebaseAuth.currentUser !== null);
 
   useEffect(() => {
+    // If we already have a user, mark as ready immediately
+    if (firebaseAuth.currentUser) {
+      setUser(firebaseAuth.currentUser);
+      setAuthReady(true);
+    }
+
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
