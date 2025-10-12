@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
-import { verifyRateLimit } from "./rateLimit.js";
+import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
 
 export type MacroBreakdown = {

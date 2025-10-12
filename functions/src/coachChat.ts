@@ -4,7 +4,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { verifyRateLimit } from "./rateLimit.js";
+import { verifyRateLimit } from "./verifyRateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { getOpenAIKey } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
