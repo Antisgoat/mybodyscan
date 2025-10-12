@@ -3,6 +3,8 @@ import { Component, type ReactNode } from "react";
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string };
 
+const SUPPORT_EMAIL = 'support@mybodyscan.com';
+
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
@@ -28,6 +30,9 @@ export class AppErrorBoundary extends Component<Props, State> {
               Details: {this.state.message}
             </p>
           ) : null}
+          <p style={{ marginBottom: 20, color: "#6b7280", fontSize: "0.9rem" }}>
+            Need a hand? <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#2563eb", textDecoration: "underline" }}>Contact support</a>.
+          </p>
           <button
             onClick={() => (window.location.href = "/")}
             style={{

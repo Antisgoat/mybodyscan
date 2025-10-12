@@ -15,6 +15,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
 import { startScan } from "@/lib/scan";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
@@ -23,6 +24,7 @@ export default function Today() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const demo = useDemoMode();
+  const { plan: coachPlan } = useUserProfile();
   const todayISO = new Date().toISOString().slice(0, 10);
   const [mealTotals, setMealTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>(() =>
     demo ? DEMO_NUTRITION_LOG.totals : { calories: 0, protein: 0, carbs: 0, fat: 0 }
@@ -140,6 +142,16 @@ export default function Today() {
     navigate("/workouts");
   };
 
+  const calorieTarget = coachPlan?.calorieTarget ?? null;
+  const formattedTarget =
+    calorieTarget && Number.isFinite(calorieTarget) ? `${calorieTarget.toLocaleString()} calories` : t("today.noCalorieTarget");
+  const calorieProgress =
+    calorieTarget && calorieTarget > 0 ? Math.min(((mealTotals.calories || 0) / calorieTarget) * 100, 100) : 0;
+  const caloriesRemaining =
+    calorieTarget && calorieTarget > 0
+      ? Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)))
+      : null;
+
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Today - MyBodyScan" description="Your daily health and fitness plan" />
@@ -165,14 +177,17 @@ export default function Today() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Target: 2,200 calories</span>
-              <span className="text-sm font-medium">{mealTotals.calories} / 2,200</span>
+              <span className="text-sm text-muted-foreground">Target: {formattedTarget}</span>
+              <span className="text-sm font-medium">
+                {mealTotals.calories}
+                {calorieTarget && calorieTarget > 0 ? ` / ${calorieTarget.toLocaleString()}` : ""}
+              </span>
             </div>
             <div className="w-full bg-secondary rounded-full h-2">
-              <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.min((mealTotals.calories || 0) / 2200 * 100, 100)}%` }} />
+              <div className="bg-primary h-2 rounded-full" style={{ width: `${calorieProgress}%` }} />
             </div>
             <div className="text-xs text-muted-foreground">
-              {Math.max(0, 2200 - (mealTotals.calories || 0))} calories remaining
+              {caloriesRemaining != null ? `${caloriesRemaining.toLocaleString()} calories remaining` : t("today.caloriesNoTarget")}
             </div>
             <div className="text-xs text-muted-foreground">
               Consumed • P {mealTotals.protein ?? 0}g · C {mealTotals.carbs ?? 0}g · F {mealTotals.fat ?? 0}g
