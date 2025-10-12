@@ -444,9 +444,10 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   }
 
   try {
+    const { getEnvInt } = await import("./lib/env.js");
     await verifyRateLimit(req, {
       key: "nutrition",
-      max: Number(process.env.NUTRITION_RPM || 20),
+      max: getEnvInt("NUTRITION_RPM", 20),
       windowSeconds: 60,
     });
   } catch (error: any) {
@@ -462,7 +463,8 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   let primarySource: NutritionSource = "USDA";
 
   try {
-    const apiKey = typeof process.env.USDA_FDC_API_KEY === "string" ? process.env.USDA_FDC_API_KEY.trim() : "";
+    const { getEnv } = await import("./lib/env.js");
+    const apiKey = getEnv("USDA_FDC_API_KEY");
     if (!apiKey) {
       console.warn("nutrition_search_usda_key_missing", { query });
     } else {
