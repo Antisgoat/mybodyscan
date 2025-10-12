@@ -92,8 +92,14 @@ export default function Meals() {
     }
     setLoading(true);
     getDailyLog(todayISO)
-      .then((data) => {
-        setLog(data);
+      .then((data: any) => {
+        if (!data || typeof data !== "object") {
+          setLog({ totals: { calories: 0 }, meals: [] });
+          return;
+        }
+        const totals = typeof data.totals === "object" && data.totals !== null ? data.totals : { calories: 0 };
+        const meals = Array.isArray(data.meals) ? data.meals : [];
+        setLog({ totals, meals });
       })
       .finally(() => setLoading(false));
   }, [demo, todayISO]);
@@ -104,7 +110,9 @@ export default function Meals() {
       return;
     }
     getNutritionHistory(7)
-      .then(setHistory7)
+      .then((items) => {
+        setHistory7(Array.isArray(items) ? items : []);
+      })
       .catch(() => setHistory7([]));
   }, [demo]);
 

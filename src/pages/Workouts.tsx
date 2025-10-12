@@ -80,6 +80,7 @@ export default function Workouts() {
   }, []);
 
   async function loadProgress(p: any, isCancelled?: () => boolean) {
+    if (!p || !Array.isArray(p.days)) return;
     const idx = p.days.findIndex((d: any) => d.day === todayName);
     if (idx < 0) return;
     const uid = auth.currentUser?.uid;
@@ -102,6 +103,7 @@ export default function Workouts() {
   }
 
   const handleToggle = async (exerciseId: string) => {
+    if (!plan || !Array.isArray(plan.days)) return;
     const idx = plan.days.findIndex((d: any) => d.day === todayName);
     const done = !completed.includes(exerciseId);
     try {

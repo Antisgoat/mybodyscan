@@ -13,12 +13,12 @@ test('auth page includes Apple and Google sign-in buttons', () => {
   expect(source).toContain('data-testid="auth-google-button"');
 });
 
-test('demo CTA navigates directly to today demo mode', () => {
+test('demo CTA links to demo gate', () => {
   const source = fs.readFileSync('src/pages/Auth.tsx', 'utf8');
-  expect(source).toContain('navigate("/today?demo=1")');
+  expect(source).toContain('to="/demo"');
 });
 
 test('coach chat stores messages under user coach collection', () => {
   const source = fs.readFileSync('src/pages/Coach/Chat.tsx', 'utf8');
-  expect(source).toContain('users/${uid}/coach/chat');
+  expect(source).toContain('users/${uid}/coach/chatMeta/chat');
 });

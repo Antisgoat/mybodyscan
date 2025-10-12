@@ -358,15 +358,25 @@ export default function CoachOverview() {
           <div className="space-y-4">
             {currentWeek && currentWeek.days.length ? (
               currentWeek.days.map((day, dayIdx) => {
-                const totalExercises = day.blocks.reduce(
-                  (count, block) => count + block.exercises.length,
-                  0
-                );
-                const totalSets = day.blocks.reduce(
-                  (count, block) =>
-                    count + block.exercises.reduce((sum, exercise) => sum + exercise.sets, 0),
-                  0
-                );
+                const blocks = Array.isArray(day.blocks) ? day.blocks : [];
+                const totalExercises = blocks.reduce((count, block) => {
+                  const exercises = Array.isArray((block as any)?.exercises)
+                    ? (block as any).exercises
+                    : [];
+                  return count + exercises.length;
+                }, 0);
+                const totalSets = blocks.reduce((count, block) => {
+                  const exercises = Array.isArray((block as any)?.exercises)
+                    ? (block as any).exercises
+                    : [];
+                  return (
+                    count +
+                    exercises.reduce((sum: number, exercise: any) => {
+                      const sets = Number(exercise?.sets ?? 0);
+                      return sum + (Number.isFinite(sets) ? sets : 0);
+                    }, 0)
+                  );
+                }, 0);
                 const completed =
                   lastWeekForProgram > weekIdx ||
                   (lastWeekForProgram === weekIdx && lastDayForProgram >= dayIdx);
@@ -390,7 +400,7 @@ export default function CoachOverview() {
                     )}
                   >
                     <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                      <CardTitle className="text-xl">{day.name}</CardTitle>
+                      <CardTitle className="text-xl">{day.name || `Day ${dayIdx + 1}`}</CardTitle>
                       {completed ? (
                         <span className="flex items-center gap-1 text-sm text-muted-foreground">
                           <CheckCircle2 className="h-4 w-4 text-primary" /> Completed
@@ -400,11 +410,16 @@ export default function CoachOverview() {
                       )}
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {day.blocks.map((block, blockIdx) => (
+                      {blocks.map((block: any, blockIdx: number) => (
                         <div key={blockIdx} className="rounded-md bg-muted/50 p-3">
                           <p className="text-sm font-medium text-foreground">{block.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {block.exercises.map((exercise) => exercise.name).join(" • ")}
+                            {Array.isArray(block.exercises)
+                              ? block.exercises
+                                  .map((exercise: any) => exercise?.name ?? "")
+                                  .filter(Boolean)
+                                  .join(" • ")
+                              : ""}
                           </p>
                         </div>
                       ))}
