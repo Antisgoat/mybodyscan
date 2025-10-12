@@ -36,6 +36,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   }, [authReady, user]);
 
   if (!authReady) {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    // Allow demo deep-link to render immediately to avoid hanging before auth is ready
+    if (path.startsWith('/demo')) {
+      return <>{children}</>;
+    }
     return <PageSkeleton label="Signing you in…" />;
   }
 

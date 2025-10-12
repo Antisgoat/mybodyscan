@@ -43,6 +43,21 @@ declare module 'firebase-admin/firestore' {
   export type QuerySnapshot = any;
 }
 
+// Provide minimal global namespace typings for FirebaseFirestore used in code
+// This mirrors common firebase-admin types at a high level to satisfy the typechecker
+declare namespace FirebaseFirestore {
+  type DocumentData = any;
+  type Transaction = any;
+  type Timestamp = any;
+  type FieldValue = any;
+  type DocumentReference<T = DocumentData> = any;
+  type DocumentSnapshot<T = DocumentData> = any;
+  type QuerySnapshot<T = DocumentData> = any;
+  type Query<T = DocumentData> = any;
+  type CollectionReference<T = DocumentData> = any;
+  type QueryDocumentSnapshot<T = DocumentData> = any;
+}
+
 declare module 'firebase-admin/app-check' {
   export function getAppCheck(app?: any): any;
 }
