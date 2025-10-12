@@ -4,6 +4,7 @@ import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
+import { getEnv, getEnvInt } from "./lib/env.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -446,7 +447,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   try {
     await verifyRateLimit(req, {
       key: "nutrition",
-      max: Number(process.env.NUTRITION_RPM || 20),
+      max: getEnvInt("NUTRITION_RPM", 20),
       windowSeconds: 60,
     });
   } catch (error: any) {
@@ -462,7 +463,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   let primarySource: NutritionSource = "USDA";
 
   try {
-    const apiKey = typeof process.env.USDA_FDC_API_KEY === "string" ? process.env.USDA_FDC_API_KEY.trim() : "";
+    const apiKey = getEnv("USDA_FDC_API_KEY") || "";
     if (!apiKey) {
       console.warn("nutrition_search_usda_key_missing", { query });
     } else {

@@ -17,6 +17,15 @@ export const getEnvInt = (key: string, fallback: number): number => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+export const getEnvBool = (key: string, fallback: boolean = false): boolean => {
+  const raw = getEnv(key);
+  if (raw === undefined) return fallback;
+  const value = raw.toLowerCase();
+  if (value === 'true' || value === '1' || value === 'yes') return true;
+  if (value === 'false' || value === '0' || value === 'no') return false;
+  return fallback;
+};
+
 export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");
 export const getAllowedOrigins = (): string[] => {
   const raw = getEnv("APP_CHECK_ALLOWED_ORIGINS");
