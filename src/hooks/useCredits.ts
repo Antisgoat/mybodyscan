@@ -8,16 +8,30 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [unlimited, setUnlimited] = useState(false);
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
+      async (u) => {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
+          setUnlimited(false);
           setLoading(false);
+        } else {
+          // Check for unlimited credits claim
+          // This enables whitelisted test accounts to bypass credit consumption
+          // while maintaining normal credit tracking for regular users
+          const token = await u.getIdTokenResult();
+          const hasUnlimitedCredits = token.claims.unlimitedCredits === true;
+          setUnlimited(hasUnlimitedCredits);
+          
+          if (hasUnlimitedCredits) {
+            setCredits(Infinity);
+            setLoading(false);
+          }
         }
       },
       (err) => {
@@ -29,7 +43,7 @@ export function useCredits() {
   }, []);
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || unlimited) return;
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -49,8 +63,16 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid]);
+  }, [uid, unlimited]);
 
-  return { credits, loading, error, uid, projectId };
+  return { 
+    credits: unlimited ? Infinity : credits, 
+    loading, 
+    error, 
+    uid, 
+    projectId,
+    unlimited,
+    remaining: unlimited ? Infinity : credits
+  };
 }
 

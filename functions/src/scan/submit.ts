@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithToken, verifyAppCheckStrict } from "../http.js";
 import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
@@ -321,7 +321,9 @@ export const submitScan = onRequest(
         return;
       }
       await verifyAppCheckStrict(req as Request);
-      const uid = await requireAuth(req as Request);
+      const { uid, token } = await requireAuthWithToken(req as Request);
+      const unlimitedBypass = (token as any)?.unlimitedCredits === true;
+      
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
         res.status(400).json({ error: "invalid_payload" });
@@ -395,12 +397,19 @@ export const submitScan = onRequest(
         return;
       }
 
-      // Attempt to consume exactly one credit AFTER successful model call
-      const credit = await consumeCredit(uid);
-      if (!credit.consumed) {
-        if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-        res.status(402).json({ error: "no_credits" });
-        return;
+      // Attempt to consume exactly one credit AFTER successful model call (only for non-unlimited users)
+      // Unlimited users bypass credit consumption entirely - this preserves existing behavior
+      // while allowing whitelisted test accounts to run scans without depleting credits
+      let creditResult = { consumed: true, remaining: Infinity };
+      if (!unlimitedBypass) {
+        creditResult = await consumeCredit(uid);
+        if (!creditResult.consumed) {
+          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+          res.status(402).json({ error: "no_credits" });
+          return;
+        }
+      } else {
+        console.info("submitScan_unlimited_bypass", { uid });
       }
 
       // Persist scan result
@@ -429,7 +438,7 @@ export const submitScan = onRequest(
         inputs: stored.inputs,
         result: stored.result,
         metadata: stored.metadata,
-        creditsRemaining: credit.remaining ?? null,
+        creditsRemaining: creditResult.remaining ?? null,
         provider: "openai",
       });
     } catch (err: any) {
