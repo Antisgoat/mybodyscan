@@ -1,5 +1,5 @@
-import { useState, useEffect, type KeyboardEvent, type MouseEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,7 @@ import {
   useAuthUser,
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
-import { enableDemo } from "@/lib/demoFlag";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { browserLocalPersistence, getAuth, setPersistence, signInAnonymously } from "firebase/auth";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -38,7 +36,6 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
-  const [demoLoading, setDemoLoading] = useState(false);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
 
@@ -174,26 +171,6 @@ const Auth = () => {
     }
   };
 
-  const handleExploreDemo = async (
-    e?: MouseEvent<HTMLButtonElement> | KeyboardEvent<HTMLButtonElement>,
-  ) => {
-    e?.preventDefault?.();
-    if (demoLoading) return;
-    setDemoLoading(true);
-    try {
-      enableDemo();
-      const authInstance = getAuth();
-      await setPersistence(authInstance, browserLocalPersistence);
-      await signInAnonymously(authInstance);
-      navigate("/coach", { replace: true });
-    } catch (err) {
-      console.error("Demo login failed", err);
-      alert("Could not start demo. Please try again.");
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
@@ -295,14 +272,8 @@ const Auth = () => {
             </Button>
           </div>
           <div className="mt-6">
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={handleExploreDemo}
-              disabled={loading || demoLoading}
-            >
-              👀 Explore demo (no sign-up)
+            <Button type="button" variant="ghost" className="w-full" asChild>
+              <Link to="/demo">👀 Explore demo (no sign-up)</Link>
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
               Browse demo data. Create a free account to unlock scanning and save your progress.

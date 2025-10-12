@@ -78,7 +78,7 @@ import WorkoutsCompleted from "./pages/WorkoutsCompleted";
 import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
-import DemoSignIn from "./pages/DemoSignIn";
+import DemoGate from "./pages/DemoGate";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -120,7 +120,7 @@ const App = () => {
               }
             />
             <Route path="/__previewframe/*" element={<PreviewFrame />} />
-            <Route path="/demo" element={<DemoSignIn />} />
+            <Route path="/demo" element={<DemoGate />} />
             {/* Marketing page */}
             <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
             {/* Public pages */}

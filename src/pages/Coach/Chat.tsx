@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { db, functions } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
@@ -22,6 +22,7 @@ import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
+import { coachChatCollection } from "@/lib/db/coachPaths";
 
 declare global {
   interface Window {
@@ -120,10 +121,10 @@ export default function CoachChatPage() {
     const chatPath = coachChatCollectionPath(uid);
     if (import.meta.env.DEV) {
       const segmentCount = chatPath.split("/").length;
-      console.assert(segmentCount === 3, `[coach-chat] expected 3 segments, received ${segmentCount}`);
+      console.assert(segmentCount === 5, `[coach-chat] expected 5 segments, received ${segmentCount}`);
     }
     const chatQuery = query(
-      collection(db, chatPath),
+      coachChatCollection(uid),
       orderBy("createdAt", "desc"),
       limit(10)
     );
@@ -255,7 +256,7 @@ export default function CoachChatPage() {
               <div
                 className="rounded-lg border bg-background/60 p-4"
                 data-testid="coach-chat-path"
-                data-path={uid ? coachChatCollectionPath(uid) : ""}
+            data-path={uid ? coachChatCollectionPath(uid) : ""}
               >
                 {hasMessages ? (
                   <div className="space-y-4">
