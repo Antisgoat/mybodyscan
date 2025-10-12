@@ -5,6 +5,7 @@ import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
+import { getEnv } from "./lib/env.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
@@ -91,7 +92,7 @@ async function handler(req: Request, res: Response) {
 
   if (!result) {
     try {
-      const key = process.env.USDA_FDC_API_KEY;
+      const key = getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }

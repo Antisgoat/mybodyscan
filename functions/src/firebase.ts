@@ -1,6 +1,6 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 
-if (!getApps().length) {
+if (!getApps || !getApps().length) {
   initializeApp();
 }
 
