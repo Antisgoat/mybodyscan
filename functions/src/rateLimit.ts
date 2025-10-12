@@ -1,6 +1,29 @@
+import rateLimit from "express-rate-limit";
+import type { Request } from "express";
 import * as admin from "firebase-admin";
 if (!admin.apps.length) admin.initializeApp();
 import { FieldValue } from "firebase-admin/firestore";
+import { getEnv, getEnvInt } from "./lib/env.js";
+
+export function createApiLimiter() {
+  const windowMs = getEnvInt("RATE_LIMIT_WINDOW_MS", 60_000);
+  const limit = getEnvInt("RATE_LIMIT_MAX", 60);
+
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req: Request) => {
+      const allowed = (getEnv("APP_CHECK_ALLOWED_ORIGINS") || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const origin = (req.headers?.origin as string | undefined) || "";
+      return Boolean(origin) && allowed.includes(origin);
+    },
+  });
+}
 
 type Opts = { key: string; max: number; windowSeconds: number };
 
