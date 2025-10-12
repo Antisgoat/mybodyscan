@@ -1,6 +1,7 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { withCors } from "./middleware/cors.js";
+import { getEnv } from "./lib/env.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
@@ -91,7 +92,7 @@ async function handler(req: Request, res: Response) {
 
   if (!result) {
     try {
-      const key = process.env.USDA_FDC_API_KEY;
+      const key = getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }

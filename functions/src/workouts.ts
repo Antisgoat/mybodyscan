@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
+import { getEnv } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
@@ -40,7 +41,7 @@ function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
 }
 
 async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getEnv("OPENAI_API_KEY");
   if (!apiKey) return null;
   try {
     const prompt = `Return a JSON array of workout days. Each item must include "day" (Mon-Sun) and an array "exercises" with {"name","sets","reps"}. Focus: ${
@@ -53,7 +54,7 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: getEnv("OPENAI_MODEL") || "gpt-4o-mini",
         input: prompt,
         temperature: 0.4,
       }),
@@ -273,4 +274,4 @@ export const adjustWorkout = onRequest(
   })
 );
 
-export { createCheckout, stripeWebhook } from "./payments.js";
+// Re-exporting handlers from here can cause duplicate exports; keep exports only in index.ts
