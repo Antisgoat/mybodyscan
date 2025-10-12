@@ -4,8 +4,7 @@ import { Loader2 } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
-
-const DEMO_FLAG_KEY = "mbs_demo";
+import { enableDemo } from "@/lib/demoFlag";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ export default function DemoGate() {
         await ensureDemoData(db, user.uid);
 
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(DEMO_FLAG_KEY, "1");
+          enableDemo();
         }
 
         if (!cancelled) {

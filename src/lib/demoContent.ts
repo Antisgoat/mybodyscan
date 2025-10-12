@@ -16,9 +16,11 @@ type DemoNutritionHistoryDay = {
   totals: { calories: number; protein: number; carbs: number; fat: number; alcohol?: number };
 };
 
+const DEMO_CALORIE_TARGET = 2200;
+
 export const DEMO_NUTRITION_LOG: { totals: { calories: number; protein: number; carbs: number; fat: number; alcohol?: number }; meals: DemoMealEntry[] } = {
   totals: {
-    calories: 1850,
+    calories: Math.round(DEMO_CALORIE_TARGET * 0.84),
     protein: 128,
     carbs: 180,
     fat: 62,
@@ -182,7 +184,7 @@ export const DEMO_COACH_PLAN: CoachPlan = {
     },
   ],
   progression: { deloadEvery: 4 },
-  calorieTarget: 2200,
+  calorieTarget: DEMO_CALORIE_TARGET,
   proteinFloor: 150,
   disclaimer: "Demo plan — educational only. Sign in to generate your own week.",
   updatedAt: new Date(),

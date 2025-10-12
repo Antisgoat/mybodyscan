@@ -22,6 +22,16 @@ import {
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 
+function shouldForceRedirectAuth(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname?.toLowerCase() ?? "";
+  if (!host) return false;
+  if (host === "mybodyscanapp.com" || host === "www.mybodyscanapp.com") {
+    return true;
+  }
+  return host.endsWith(".lovable.app");
+}
+
 export async function initAuthPersistence() {
   await setPersistence(firebaseAuth, browserLocalPersistence);
 }
@@ -79,6 +89,10 @@ export async function signOutToAuth(): Promise<void> {
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   try {
+    if (shouldForceRedirectAuth()) {
+      await signInWithRedirect(firebaseAuth, provider);
+      return;
+    }
     return await signInWithPopup(firebaseAuth, provider);
   } catch (err: any) {
     const code = String(err?.code || "");
@@ -128,8 +142,10 @@ export async function signInWithApple(auth: Auth): Promise<UserCredential | void
   provider.addScope("name");
 
   try {
-    if (isIOSSafari()) {
-      logAppleFlow("redirect", "(iOS Safari)");
+    const iosSafari = isIOSSafari();
+    const forceRedirect = shouldForceRedirectAuth();
+    if (iosSafari || forceRedirect) {
+      logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
       return await signInWithRedirect(auth, provider);
     }
 

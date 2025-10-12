@@ -463,7 +463,11 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
 
   try {
     const apiKey = typeof process.env.USDA_FDC_API_KEY === "string" ? process.env.USDA_FDC_API_KEY.trim() : "";
-    items = await searchUsda(query, apiKey || undefined);
+    if (!apiKey) {
+      console.warn("nutrition_search_usda_key_missing", { query });
+    } else {
+      items = await searchUsda(query, apiKey);
+    }
   } catch (error) {
     console.error("nutrition_search_usda_error", { query, message: describeError(error) });
   }
