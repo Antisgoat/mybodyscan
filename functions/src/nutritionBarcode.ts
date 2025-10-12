@@ -91,7 +91,8 @@ async function handler(req: Request, res: Response) {
 
   if (!result) {
     try {
-      const key = process.env.USDA_FDC_API_KEY;
+      const { getEnv } = await import("./lib/env.js");
+      const key = getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }
