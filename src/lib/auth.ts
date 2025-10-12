@@ -37,8 +37,10 @@ export async function initAuthPersistence() {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  // Do not block initial render on the first onAuthStateChanged tick.
+  const initialUser = firebaseAuth.currentUser ?? null;
+  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(initialUser);
+  const [authReady, setAuthReady] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {

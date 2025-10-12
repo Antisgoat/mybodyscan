@@ -1,4 +1,4 @@
-import { initializeApp, type FirebaseOptions } from "firebase/app";
+import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -41,7 +41,8 @@ function mergedConfig(): FirebaseOptions {
 
 export const firebaseConfig = mergedConfig();
 
-export const app = initializeApp(firebaseConfig);
+// Guard against double-initialization if another module (e.g. AppCheck) initialized first
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
