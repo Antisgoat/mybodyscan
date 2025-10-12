@@ -20,6 +20,15 @@ export async function useCreditHandler(
     await verifyAppCheckStrict(rawRequest);
   }
 
+  // Check for unlimited credits bypass
+  // For whitelisted users with unlimitedCredits claim, skip credit consumption
+  // and return success with Infinity remaining credits
+  const token = context.auth?.token as any;
+  if (token?.unlimitedCredits === true) {
+    console.info("useCredit_unlimited_bypass", { uid });
+    return { ok: true, remaining: Infinity };
+  }
+
   const { consumed, remaining } = await consumeCredit(uid);
   if (!consumed) {
     throw new HttpsError("failed-precondition", "no_credits");

@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithToken, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
@@ -20,11 +20,17 @@ function todayKey() {
 
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
-  const uid = await requireAuth(req);
+  const { uid, token } = await requireAuthWithToken(req);
   const staffBypass = await isStaff(uid);
+  const unlimitedBypass = (token as any)?.unlimitedCredits === true;
+  
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
   }
+  if (unlimitedBypass) {
+    console.info("beginPaidScan_unlimited_bypass", { uid });
+  }
+  
   const validation = validateBeginPaidScanPayload(req.body);
   if (!validation.success) {
     const errors = "errors" in validation ? validation.errors : [];
@@ -82,7 +88,8 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      if (!staffBypass) {
+      // Skip credit consumption for staff or unlimited users
+      if (!staffBypass && !unlimitedBypass) {
         const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
@@ -97,13 +104,16 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
           },
           { merge: true }
         );
+      } else {
+        // For unlimited users, set remaining to Infinity for client display
+        remainingCredits = unlimitedBypass ? Infinity : undefined;
       }
 
       tx.set(
         scanRef,
         {
           status: "authorized",
-          charged: !staffBypass,
+          charged: !staffBypass && !unlimitedBypass,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,
