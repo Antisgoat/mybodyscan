@@ -32,7 +32,14 @@ function shouldForceRedirectAuth(): boolean {
   return host.endsWith(".lovable.app");
 }
 
+let authPersistenceInitialized = false;
+
 export async function initAuthPersistence() {
+  // Guard: prevent double-init
+  if (authPersistenceInitialized) {
+    return;
+  }
+  authPersistenceInitialized = true;
   await setPersistence(firebaseAuth, browserLocalPersistence);
 }
 
