@@ -36,16 +36,41 @@ export async function initAuthPersistence() {
   await setPersistence(firebaseAuth, browserLocalPersistence);
 }
 
+// Global state to prevent double-init
+let authInitialized = false;
+let authStateUnsubscribe: (() => void) | null = null;
+
 export function useAuthUser() {
   const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
+    // Prevent double initialization
+    if (authInitialized) {
+      // If already initialized, get current state immediately
+      const currentUser = firebaseAuth.currentUser;
+      setUser(currentUser);
+      setAuthReady(true);
+      return;
+    }
+
+    authInitialized = true;
+    
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
     });
-    return () => unsubscribe();
+    
+    authStateUnsubscribe = unsubscribe;
+    
+    return () => {
+      // Only cleanup if this is the last component using auth
+      if (authStateUnsubscribe === unsubscribe) {
+        authStateUnsubscribe = null;
+        authInitialized = false;
+        unsubscribe();
+      }
+    };
   }, []);
 
   return { user: authReady ? user : null, loading: !authReady, authReady } as const;
