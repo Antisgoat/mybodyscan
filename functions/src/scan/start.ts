@@ -64,18 +64,24 @@ async function handleStart(req: Request, res: any) {
   const uid = await requireAuth(req);
   const staffBypass = await isStaff(uid);
 
-  if (staffBypass) {
+  // Check for unlimitedCredits claim - bypass all credit checks for test allowlist
+  const claims = (req as any).auth?.token as any;
+  const unlimitedCredits = claims?.unlimitedCredits === true;
+
+  if (unlimitedCredits) {
+    console.info("scan_start_unlimited_bypass", { uid });
+  } else if (staffBypass) {
     console.info("scan_start_staff_bypass", { uid });
   }
 
-  const [founder, hasCredits] = staffBypass
+  const [founder, hasCredits] = unlimitedCredits || staffBypass
     ? [false, true]
     : await Promise.all([
         hasFounderBypass(uid),
         hasAvailableCredits(uid),
       ]);
 
-  if (!staffBypass && !founder && !hasCredits) {
+  if (!unlimitedCredits && !staffBypass && !founder && !hasCredits) {
     console.warn("scan_start_no_credits", { uid });
     res.status(402).json({ error: "no_credits" });
     return;

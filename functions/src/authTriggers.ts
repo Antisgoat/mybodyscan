@@ -3,6 +3,7 @@ import { config } from "firebase-functions";
 
 import { getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
+import { setCustomClaims } from "./claims.js";
 
 const db = getFirestore();
 
@@ -23,18 +24,24 @@ function parseFounderEmails(): Set<string> {
 export const handleUserCreate = auth.user().onCreate(async (user: any) => {
   const email = user.email?.toLowerCase();
   if (!email) return;
-  const founders = parseFounderEmails();
-  if (!founders.has(email)) return;
-
+  
   const uid = user.uid;
-  console.info("founder_signup", { uid, email });
-  await Promise.all([
-    addCredits(uid, 30, "Founder", 12),
-    db.doc(`users/${uid}`).set(
-      {
-        meta: { founder: true },
-      },
-      { merge: true }
-    ),
-  ]);
+  
+  // Set custom claims for all users (staff, unlimitedCredits, etc.)
+  await setCustomClaims(uid, email);
+  
+  // Handle founder-specific logic
+  const founders = parseFounderEmails();
+  if (founders.has(email)) {
+    console.info("founder_signup", { uid, email });
+    await Promise.all([
+      addCredits(uid, 30, "Founder", 12),
+      db.doc(`users/${uid}`).set(
+        {
+          meta: { founder: true },
+        },
+        { merge: true }
+      ),
+    ]);
+  }
 });
