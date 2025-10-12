@@ -22,7 +22,14 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
   const staffBypass = await isStaff(uid);
-  if (staffBypass) {
+  
+  // Check for unlimitedCredits claim - bypass all credit checks for test allowlist
+  const claims = (req as any).auth?.token as any;
+  const unlimitedCredits = claims?.unlimitedCredits === true;
+  
+  if (unlimitedCredits) {
+    console.info("beginPaidScan_unlimited_bypass", { uid });
+  } else if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
   }
   const validation = validateBeginPaidScanPayload(req.body);
@@ -82,7 +89,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      if (!staffBypass) {
+      if (!unlimitedCredits && !staffBypass) {
         const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
@@ -97,13 +104,15 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
           },
           { merge: true }
         );
+      } else if (unlimitedCredits) {
+        remainingCredits = Infinity;
       }
 
       tx.set(
         scanRef,
         {
           status: "authorized",
-          charged: !staffBypass,
+          charged: !unlimitedCredits && !staffBypass,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,

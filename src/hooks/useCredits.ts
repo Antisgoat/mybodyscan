@@ -8,6 +8,7 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [unlimited, setUnlimited] = useState(false);
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
@@ -17,7 +18,21 @@ export function useCredits() {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
+          setUnlimited(false);
           setLoading(false);
+        } else {
+          // Check for unlimitedCredits claim
+          const claims = u.getIdTokenResult().then((tokenResult) => {
+            const unlimitedCredits = tokenResult.claims?.unlimitedCredits === true;
+            setUnlimited(unlimitedCredits);
+            if (unlimitedCredits) {
+              setCredits(Infinity);
+              setLoading(false);
+            }
+          }).catch((err) => {
+            console.warn("Error checking claims:", err);
+            setUnlimited(false);
+          });
         }
       },
       (err) => {
@@ -29,7 +44,7 @@ export function useCredits() {
   }, []);
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || unlimited) return;
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -49,8 +64,15 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid]);
+  }, [uid, unlimited]);
 
-  return { credits, loading, error, uid, projectId };
+  return { 
+    credits: unlimited ? Infinity : credits, 
+    loading, 
+    error, 
+    uid, 
+    projectId, 
+    unlimited 
+  };
 }
 

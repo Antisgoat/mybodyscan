@@ -20,6 +20,13 @@ export async function useCreditHandler(
     await verifyAppCheckStrict(rawRequest);
   }
 
+  // Check for unlimitedCredits claim - bypass credit consumption for test allowlist
+  const claims = context.auth?.token as any;
+  if (claims?.unlimitedCredits === true) {
+    console.info("useCredit_unlimited_bypass", { uid });
+    return { ok: true, remaining: Infinity };
+  }
+
   const { consumed, remaining } = await consumeCredit(uid);
   if (!consumed) {
     throw new HttpsError("failed-precondition", "no_credits");
