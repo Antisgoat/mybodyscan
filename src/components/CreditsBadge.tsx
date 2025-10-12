@@ -6,6 +6,7 @@ import { getRemainingCredits } from "@/lib/credits";
 
 export function CreditsBadge() {
   const [credits, setCredits] = useState<number>(0);
+  const [unlimited, setUnlimited] = useState<boolean>(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -14,8 +15,12 @@ export function CreditsBadge() {
       unsubDoc?.();
       if (!u) {
         setCredits(0);
+        setUnlimited(false);
         return;
       }
+      u.getIdTokenResult(true)
+        .then((res) => setUnlimited(Boolean(res?.claims?.unlimitedCredits === true)))
+        .catch(() => setUnlimited(false));
       getRemainingCredits(u.uid)
         .then(setCredits)
         .catch(() => setCredits(0));
@@ -42,7 +47,7 @@ export function CreditsBadge() {
 
   return (
     <div className="bg-muted px-3 py-1 rounded-full text-sm font-medium">
-      Credits: {credits}
+      Credits: {unlimited ? "∞" : credits}
     </div>
   );
 }

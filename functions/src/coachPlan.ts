@@ -189,6 +189,7 @@ export const generatePlan = onCall({ region: "us-central1" }, async (request) =>
   if (!uid) {
     throw new HttpsError("unauthenticated", "Sign in to generate a plan");
   }
+  // If the caller has unlimitedCredits claim, bypass any hidden quotas here (none today)
 
   const profile = await fetchProfile(uid);
   const plan = buildPlan(profile);

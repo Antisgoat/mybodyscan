@@ -322,6 +322,7 @@ export const submitScan = onRequest(
       }
       await verifyAppCheckStrict(req as Request);
       const uid = await requireAuth(req as Request);
+      const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
         res.status(400).json({ error: "invalid_payload" });
@@ -396,7 +397,7 @@ export const submitScan = onRequest(
       }
 
       // Attempt to consume exactly one credit AFTER successful model call
-      const credit = await consumeCredit(uid);
+      const credit = unlimited ? { consumed: true, remaining: Number.POSITIVE_INFINITY } : await consumeCredit(uid);
       if (!credit.consumed) {
         if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
         res.status(402).json({ error: "no_credits" });

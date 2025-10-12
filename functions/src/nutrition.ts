@@ -205,6 +205,7 @@ async function readDailyLog(uid: string, day: string) {
 
 async function handleAddMeal(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
   const body = req.body as { dateISO?: string; meal?: Partial<MealRecord> };
   if (!body?.dateISO || !body.meal?.name) {
     throw new HttpsError("invalid-argument", "dateISO and meal required");
@@ -236,6 +237,7 @@ async function handleAddMeal(req: Request, res: Response) {
 
 async function handleDeleteMeal(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
   const body = req.body as { dateISO?: string; mealId?: string };
   if (!body?.dateISO || !body.mealId) {
     throw new HttpsError("invalid-argument", "dateISO and mealId required");
@@ -248,6 +250,7 @@ async function handleDeleteMeal(req: Request, res: Response) {
 
 async function handleGetLog(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
   const dateISO = (req.body?.dateISO as string) || (req.query?.dateISO as string);
   if (!dateISO) {
     throw new HttpsError("invalid-argument", "dateISO required");
@@ -265,6 +268,7 @@ async function handleGetLog(req: Request, res: Response) {
 
 async function handleGetHistory(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
   const rangeRaw = (req.body?.range as number | string | undefined) ?? (req.query?.range as string | undefined) ?? 30;
   const range = Math.min(30, Math.max(1, Number(rangeRaw) || 30));
   const anchorIso =

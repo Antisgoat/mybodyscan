@@ -86,7 +86,7 @@ export default function Scan() {
   const { profile } = useUserProfile();
   const demo = useDemoMode();
   const appCheckReady = useAppCheckReady();
-  const { credits, loading: creditsLoading } = useCredits();
+  const { credits, unlimited, loading: creditsLoading } = useCredits();
 
   useEffect(() => {
     const next: PreviewMap = emptyPreviewMap();
@@ -449,7 +449,7 @@ export default function Scan() {
               {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
             </Button>
             <div className="text-xs text-center text-muted-foreground">
-              Credits: {creditsLoading ? "…" : credits}
+              Credits: {creditsLoading ? "…" : unlimited ? "∞" : credits}
             </div>
             {initializing && (
               <p className="text-xs text-center text-muted-foreground">Secure services are starting up—tap Analyze once this message disappears.</p>

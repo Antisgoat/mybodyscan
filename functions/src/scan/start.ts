@@ -62,7 +62,8 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
 async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
-  const staffBypass = await isStaff(uid);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
+  const staffBypass = (await isStaff(uid)) || unlimited;
 
   if (staffBypass) {
     console.info("scan_start_staff_bypass", { uid });

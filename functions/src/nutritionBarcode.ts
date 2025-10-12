@@ -63,7 +63,10 @@ async function handler(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
 
   const uid = await requireAuth(req);
-  await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
+  if (!unlimited) {
+    await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
+  }
 
   const code = String(req.query?.code || req.body?.code || "").trim();
   if (!code) {
