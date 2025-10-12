@@ -8,16 +8,23 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [unlimited, setUnlimited] = useState(false);
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
+      async (u) => {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
+          setUnlimited(false);
           setLoading(false);
+        } else {
+          // Check for unlimitedCredits claim
+          const idTokenResult = await u.getIdTokenResult();
+          const hasUnlimitedCredits = idTokenResult.claims.unlimitedCredits === true;
+          setUnlimited(hasUnlimitedCredits);
         }
       },
       (err) => {
@@ -30,6 +37,13 @@ export function useCredits() {
 
   useEffect(() => {
     if (!uid) return;
+
+    // If user has unlimited credits, don't listen to firestore
+    if (unlimited) {
+      setCredits(Infinity);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -49,8 +63,8 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid]);
+  }, [uid, unlimited]);
 
-  return { credits, loading, error, uid, projectId };
+  return { credits, loading, error, uid, projectId, unlimited };
 }
 

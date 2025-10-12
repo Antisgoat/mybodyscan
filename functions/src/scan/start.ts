@@ -62,20 +62,29 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
 async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
+  
+  // Check for unlimitedCredits claim first
+  const token = (req as any).decodedToken;
+  const hasUnlimitedCredits = token?.unlimitedCredits === true;
+  
+  if (hasUnlimitedCredits) {
+    console.info("scan_start_unlimited_bypass", { uid });
+  }
+  
   const staffBypass = await isStaff(uid);
 
   if (staffBypass) {
     console.info("scan_start_staff_bypass", { uid });
   }
 
-  const [founder, hasCredits] = staffBypass
+  const [founder, hasCredits] = staffBypass || hasUnlimitedCredits
     ? [false, true]
     : await Promise.all([
         hasFounderBypass(uid),
         hasAvailableCredits(uid),
       ]);
 
-  if (!staffBypass && !founder && !hasCredits) {
+  if (!staffBypass && !founder && !hasCredits && !hasUnlimitedCredits) {
     console.warn("scan_start_no_credits", { uid });
     res.status(402).json({ error: "no_credits" });
     return;

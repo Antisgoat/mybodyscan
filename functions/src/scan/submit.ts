@@ -395,12 +395,23 @@ export const submitScan = onRequest(
         return;
       }
 
-      // Attempt to consume exactly one credit AFTER successful model call
-      const credit = await consumeCredit(uid);
-      if (!credit.consumed) {
-        if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-        res.status(402).json({ error: "no_credits" });
-        return;
+      // Check for unlimitedCredits claim
+      const token = (req as any).decodedToken;
+      const hasUnlimitedCredits = token?.unlimitedCredits === true;
+      
+      let credit = { consumed: true, remaining: Infinity };
+      
+      // Bypass credit consumption for users with unlimitedCredits claim
+      if (!hasUnlimitedCredits) {
+        // Attempt to consume exactly one credit AFTER successful model call
+        credit = await consumeCredit(uid);
+        if (!credit.consumed) {
+          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+          res.status(402).json({ error: "no_credits" });
+          return;
+        }
+      } else {
+        console.info("scan_submit_unlimited_bypass", { uid });
       }
 
       // Persist scan result
