@@ -3,6 +3,7 @@ import { config } from "firebase-functions";
 
 import { getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
+import { updateUserClaims } from "./claims.js";
 
 const db = getFirestore();
 
@@ -22,11 +23,15 @@ function parseFounderEmails(): Set<string> {
 
 export const handleUserCreate = auth.user().onCreate(async (user: any) => {
   const email = user.email?.toLowerCase();
+  const uid = user.uid;
+  
+  // Update user claims (including unlimitedCredits for whitelisted users)
+  await updateUserClaims(uid, email);
+  
   if (!email) return;
   const founders = parseFounderEmails();
   if (!founders.has(email)) return;
 
-  const uid = user.uid;
   console.info("founder_signup", { uid, email });
   await Promise.all([
     addCredits(uid, 30, "Founder", 12),

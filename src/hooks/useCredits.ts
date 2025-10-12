@@ -8,16 +8,23 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [unlimited, setUnlimited] = useState(false);
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(
       auth,
-      (u) => {
+      async (u) => {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
+          setUnlimited(false);
           setLoading(false);
+        } else {
+          // Check for unlimited credits claim
+          const token = await u.getIdTokenResult();
+          const hasUnlimited = token.claims.unlimitedCredits === true;
+          setUnlimited(hasUnlimited);
         }
       },
       (err) => {
@@ -51,6 +58,14 @@ export function useCredits() {
     return () => unsub();
   }, [uid]);
 
-  return { credits, loading, error, uid, projectId };
+  return { 
+    credits: unlimited ? Infinity : credits, 
+    loading, 
+    error, 
+    uid, 
+    projectId,
+    unlimited,
+    remaining: unlimited ? Infinity : credits
+  };
 }
 

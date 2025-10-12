@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
@@ -20,10 +20,16 @@ function todayKey() {
 
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
-  const uid = await requireAuth(req);
+  const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
+  const unlimitedCredits = claims?.unlimitedCredits === true;
+  
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
+  }
+  
+  if (unlimitedCredits) {
+    console.info("beginPaidScan_unlimited_credits", { uid });
   }
   const validation = validateBeginPaidScanPayload(req.body);
   if (!validation.success) {
@@ -82,7 +88,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      if (!staffBypass) {
+      if (!staffBypass && !unlimitedCredits) {
         const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
@@ -97,13 +103,16 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
           },
           { merge: true }
         );
+      } else if (unlimitedCredits) {
+        // For unlimited credits users, don't consume credits
+        remainingCredits = Infinity;
       }
 
       tx.set(
         scanRef,
         {
           status: "authorized",
-          charged: !staffBypass,
+          charged: !staffBypass && !unlimitedCredits,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,

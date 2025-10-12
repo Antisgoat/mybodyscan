@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
@@ -321,7 +321,8 @@ export const submitScan = onRequest(
         return;
       }
       await verifyAppCheckStrict(req as Request);
-      const uid = await requireAuth(req as Request);
+      const { uid, claims } = await requireAuthWithClaims(req as Request);
+      const unlimitedCredits = claims?.unlimitedCredits === true;
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
         res.status(400).json({ error: "invalid_payload" });
@@ -396,11 +397,19 @@ export const submitScan = onRequest(
       }
 
       // Attempt to consume exactly one credit AFTER successful model call
-      const credit = await consumeCredit(uid);
-      if (!credit.consumed) {
-        if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-        res.status(402).json({ error: "no_credits" });
-        return;
+      let credit = { consumed: true, remaining: 0 };
+      
+      if (unlimitedCredits) {
+        // Skip credit consumption for whitelisted users
+        console.info("scan_submit_unlimited_credits", { uid });
+        credit = { consumed: true, remaining: Infinity };
+      } else {
+        credit = await consumeCredit(uid);
+        if (!credit.consumed) {
+          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+          res.status(402).json({ error: "no_credits" });
+          return;
+        }
       }
 
       // Persist scan result
