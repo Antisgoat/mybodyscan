@@ -1,7 +1,7 @@
 import { useCredits } from "@/hooks/useCredits";
 
 export default function DebugCredits() {
-  const { credits, uid, projectId } = useCredits();
+  const { credits, unlimited, remaining, uid, projectId } = useCredits();
   const docPath = uid ? `users/${uid}` : null;
 
   return (
@@ -10,7 +10,7 @@ export default function DebugCredits() {
       <div>projectId: {projectId}</div>
       <div>uid: {uid ?? "(none)"}</div>
       <div>doc path: {docPath ?? "users/{uid}"}</div>
-      <div>credits: {credits}</div>
+      <div>credits: {unlimited ? "∞" : credits} (remaining: {String(remaining)})</div>
       {!uid && <p className="text-sm text-muted-foreground">Log in to watch live credits.</p>}
     </main>
   );

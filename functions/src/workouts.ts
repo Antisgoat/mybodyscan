@@ -4,7 +4,7 @@ import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { requireAuth, requireAuthToken, verifyAppCheckStrict } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 
@@ -137,7 +137,8 @@ async function fetchCurrentPlan(uid: string) {
 
 async function handleGenerate(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
@@ -145,14 +146,16 @@ async function handleGenerate(req: Request, res: Response) {
 
 async function handleGetPlan(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
 async function handleMarkDone(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
   const body = req.body as {
     planId?: string;
     dayIndex?: number;
@@ -199,7 +202,8 @@ async function handleMarkDone(req: Request, res: Response) {
 
 async function handleGetWorkouts(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
     res.json({ planId: null, days: [] });

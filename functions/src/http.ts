@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
+import { isWhitelisted } from "./testWhitelist.js";
 import { getHostBaseUrl } from "./lib/env.js";
 
 function getAuthHeader(req: Request): string | null {
@@ -8,6 +9,12 @@ function getAuthHeader(req: Request): string | null {
 }
 
 export async function requireAuth(req: Request): Promise<string> {
+  const decoded = await requireAuthToken(req);
+  return decoded.uid;
+}
+
+// Returns the verified decoded ID token so callers can read custom claims
+export async function requireAuthToken(req: Request): Promise<any> {
   const header = getAuthHeader(req);
   if (!header) {
     console.warn("auth_missing_header", { path: req.path || req.url });
@@ -19,8 +26,24 @@ export async function requireAuth(req: Request): Promise<string> {
     throw new HttpsError("unauthenticated", "Authentication required");
   }
   try {
-    const decoded = await getAuth().verifyIdToken(match[1]);
-    return decoded.uid;
+    const decoded = await getAuth().verifyIdToken(match[1]!);
+    // Ensure durable unlimitedCredits claim for test allowlist
+    const email = (decoded as any)?.email as string | undefined;
+    const hasUnlimited = (decoded as any)?.unlimitedCredits === true;
+    if (!hasUnlimited && isWhitelisted(email)) {
+      try {
+        const auth = getAuth();
+        const user = await auth.getUser(decoded.uid);
+        const existing = (user.customClaims || {}) as Record<string, unknown>;
+        if (existing.unlimitedCredits !== true) {
+          await auth.setCustomUserClaims(decoded.uid, { ...existing, unlimitedCredits: true });
+          try { await auth.revokeRefreshTokens(decoded.uid); } catch { /* ignore */ }
+        }
+      } catch (err) {
+        console.warn("ensure_unlimited_claim_failed", { uid: decoded.uid, message: (err as any)?.message });
+      }
+    }
+    return decoded;
   } catch (err) {
     console.warn("auth_invalid_token", { path: req.path || req.url, message: (err as any)?.message });
     throw new HttpsError("unauthenticated", "Invalid token");

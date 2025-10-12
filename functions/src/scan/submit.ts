@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuthToken, verifyAppCheckStrict } from "../http.js";
 import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
@@ -321,7 +321,9 @@ export const submitScan = onRequest(
         return;
       }
       await verifyAppCheckStrict(req as Request);
-      const uid = await requireAuth(req as Request);
+      const token = await requireAuthToken(req as Request);
+      const uid = token.uid;
+      const unlimited = (token as any)?.unlimitedCredits === true;
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
         res.status(400).json({ error: "invalid_payload" });
@@ -396,11 +398,17 @@ export const submitScan = onRequest(
       }
 
       // Attempt to consume exactly one credit AFTER successful model call
-      const credit = await consumeCredit(uid);
-      if (!credit.consumed) {
-        if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-        res.status(402).json({ error: "no_credits" });
-        return;
+      let credit = { consumed: false, remaining: null as number | null };
+      if (unlimited) {
+        // Bypass credit decrement for unlimited users
+        credit = { consumed: true, remaining: Number.POSITIVE_INFINITY as unknown as number };
+      } else {
+        credit = await consumeCredit(uid);
+        if (!credit.consumed) {
+          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+          res.status(402).json({ error: "no_credits" });
+          return;
+        }
       }
 
       // Persist scan result
@@ -429,7 +437,7 @@ export const submitScan = onRequest(
         inputs: stored.inputs,
         result: stored.result,
         metadata: stored.metadata,
-        creditsRemaining: credit.remaining ?? null,
+        creditsRemaining: unlimited ? null : credit.remaining ?? null, // unlimited bypass: do not show numeric balance
         provider: "openai",
       });
     } catch (err: any) {

@@ -35,7 +35,7 @@ const Settings = () => {
     renewalReminder: true
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { uid } = useCredits();
+  const { uid, unlimited } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
@@ -318,6 +318,9 @@ const Settings = () => {
               <Download className="w-4 h-4" />
               {t('settings.export_data')}
             </Button>
+            {unlimited && (
+              <div className="text-xs text-muted-foreground text-center">Test user: unlimited credits (∞)</div>
+            )}
             
             <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
               <DialogTrigger asChild>

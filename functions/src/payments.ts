@@ -7,6 +7,20 @@ import { hasStripe, assertStripeConfigured, getStripeSecret, getStripeSigningSec
 export async function createCheckoutHandler(req: Request, res: Response) {
   if (!hasStripe()) return res.status(501).json({ error: "payments_disabled" });
   try { assertStripeConfigured(); } catch { return res.status(501).json({ error: "payments_disabled" }); }
+  // Unlimited credits users bypass paid checkout entirely
+  try {
+    const authHeader = req.headers.authorization || (req.headers.Authorization as string | undefined) || "";
+    const match = typeof authHeader === "string" ? authHeader.match(/^Bearer (.+)$/) : null;
+    if (match) {
+      const { getAuth } = await import("./firebase.js");
+      const decoded = await getAuth().verifyIdToken(match[1]!);
+      if ((decoded as any)?.unlimitedCredits === true) {
+        return res.status(200).json({ id: null, url: null, bypass: true });
+      }
+    }
+  } catch {
+    // ignore and proceed to normal checkout
+  }
 
   const { default: Stripe } = await import("stripe");
   const stripe = new Stripe(getStripeSecret() as string, { apiVersion: "2023-10-16" as any });

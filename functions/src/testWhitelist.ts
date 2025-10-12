@@ -2,6 +2,12 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
 
+// Durable test allowlist for unlimited credits in development/testing.
+// If an email is in this list, we set the custom claim `unlimitedCredits: true`.
+export const TEST_WHITELIST = ["developer@adlrlabs.com"] as const;
+export const isWhitelisted = (email?: string): boolean =>
+  !!email && TEST_WHITELIST.includes(email.toLowerCase() as (typeof TEST_WHITELIST)[number]);
+
 const db = getFirestore();
 const CONFIG_PATH = "config/app";
 const DEFAULT_WHITELIST = ["developer@adlrlabs.com"] as const;

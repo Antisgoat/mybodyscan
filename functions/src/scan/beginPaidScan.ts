@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuth, requireAuthToken, verifyAppCheckStrict } from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
@@ -20,9 +20,11 @@ function todayKey() {
 
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
+  const unlimited = (token as any)?.unlimitedCredits === true;
   const staffBypass = await isStaff(uid);
-  if (staffBypass) {
+  if (staffBypass || unlimited) {
     console.info("beginPaidScan_staff_bypass", { uid });
   }
   const validation = validateBeginPaidScanPayload(req.body);
@@ -34,19 +36,21 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   }
   const payload = validation.data;
 
-  try {
-    await enforceRateLimit({ uid, key: "beginPaidScan", limit: 10, windowMs: 60 * 60 * 1000 });
-  } catch (err) {
-    console.warn("beginPaidScan_rate_limited", { uid });
-    res.status(429).json({ ok: false, reason: "rate_limited" });
-    return;
+  if (!unlimited) {
+    try {
+      await enforceRateLimit({ uid, key: "beginPaidScan", limit: 10, windowMs: 60 * 60 * 1000 });
+    } catch (err) {
+      console.warn("beginPaidScan_rate_limited", { uid });
+      res.status(429).json({ ok: false, reason: "rate_limited" });
+      return;
+    }
   }
 
   const gateRef = db.doc(`users/${uid}/gate/${todayKey()}`);
   const gateSnap = await gateRef.get();
-  const gateData = gateSnap.exists ? gateSnap.data() as any : {};
+  const gateData = gateSnap.exists ? (gateSnap.data() as any) : {};
   const failedCount = Number(gateData.failed || 0);
-  if (failedCount >= MAX_DAILY_FAILS) {
+  if (!unlimited && failedCount >= MAX_DAILY_FAILS) {
     res.status(429).json({ ok: false, reason: "cap" });
     return;
   }
@@ -82,7 +86,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      if (!staffBypass) {
+      if (!staffBypass && !unlimited) {
         const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
@@ -103,7 +107,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         scanRef,
         {
           status: "authorized",
-          charged: !staffBypass,
+          charged: !staffBypass && !unlimited,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,
