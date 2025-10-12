@@ -21,7 +21,8 @@ function todayKey() {
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
-  const staffBypass = await isStaff(uid);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
+  const staffBypass = (await isStaff(uid)) || unlimited;
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
   }

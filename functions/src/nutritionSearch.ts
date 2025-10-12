@@ -152,6 +152,8 @@ async function extractUid(req: Request): Promise<string | null> {
   if (!match) return null;
   try {
     const decoded = await auth.verifyIdToken(match[1]!);
+    // Attach claims for downstream unlimited bypass
+    (req as any).tokenClaims = decoded;
     return decoded.uid || null;
   } catch (error) {
     console.warn("nutrition_search_token_invalid", { message: describeError(error) });
@@ -443,20 +445,23 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     delete (req as any).auth;
   }
 
-  try {
-    const { getEnvInt } = await import("./lib/env.js");
-    await verifyRateLimit(req, {
-      key: "nutrition",
-      max: getEnvInt("NUTRITION_RPM", 20),
-      windowSeconds: 60,
-    });
-  } catch (error: any) {
-    if (error?.status === 429) {
-      console.warn("nutrition_search_rate_limited", { type: uid ? "uid" : "ip" });
-      res.status(429).json({ error: "Too Many Requests" });
-      return;
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
+  if (!unlimited) {
+    try {
+      const { getEnvInt } = await import("./lib/env.js");
+      await verifyRateLimit(req, {
+        key: "nutrition",
+        max: getEnvInt("NUTRITION_RPM", 20),
+        windowSeconds: 60,
+      });
+    } catch (error: any) {
+      if (error?.status === 429) {
+        console.warn("nutrition_search_rate_limited", { type: uid ? "uid" : "ip" });
+        res.status(429).json({ error: "Too Many Requests" });
+        return;
+      }
+      throw error;
     }
-    throw error;
   }
 
   let items: FoodItem[] = [];

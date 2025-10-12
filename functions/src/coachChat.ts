@@ -152,6 +152,7 @@ export const coachChat = onRequest(
 
     try {
       const uid = await requireAuth(request as any);
+      const unlimited = Boolean((request as any)?.tokenClaims?.unlimitedCredits === true);
       (request as any).auth = { uid };
 
       let text: string;
@@ -162,22 +163,24 @@ export const coachChat = onRequest(
         return;
       }
 
-      try {
-        const { getEnvInt } = await import("./lib/env.js");
-        await verifyRateLimit(request, {
-          key: "coach",
-          max: getEnvInt("COACH_RPM", 6),
-          windowSeconds: 60,
-        });
-      } catch (error: any) {
-        if (error?.status === 429) {
-          response.status(429).json({ error: "too_many_requests" });
-          return;
+      if (!unlimited) {
+        try {
+          const { getEnvInt } = await import("./lib/env.js");
+          await verifyRateLimit(request, {
+            key: "coach",
+            max: getEnvInt("COACH_RPM", 6),
+            windowSeconds: 60,
+          });
+        } catch (error: any) {
+          if (error?.status === 429) {
+            response.status(429).json({ error: "too_many_requests" });
+            return;
+          }
+          console.warn("coach_chat_rate_limit_error", { message: error?.message });
         }
-        console.warn("coach_chat_rate_limit_error", { message: error?.message });
-      }
 
-      await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+        await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+      }
 
       const openAiKey = getOpenAIKey();
       let responseText = "";

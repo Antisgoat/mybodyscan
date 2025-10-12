@@ -11,6 +11,7 @@ const db = getFirestore();
 async function handler(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
   const uid = await requireAuth(req);
+  const unlimited = Boolean((req as any)?.tokenClaims?.unlimitedCredits === true);
   const body = req.body as { scanId?: string };
   const scanId = body?.scanId || (req.query?.scanId as string | undefined);
   if (!scanId) {
@@ -30,7 +31,7 @@ async function handler(req: Request, res: Response) {
         throw new HttpsError("not-found", "scan_not_found");
       }
       const data = snap.data() as any;
-      const charged = Boolean(data.charged);
+      const charged = unlimited ? false : Boolean(data.charged);
       const completed = data.status === "completed" && data.result?.bf_percent != null;
       if (!charged || completed) {
         return;
