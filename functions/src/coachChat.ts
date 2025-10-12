@@ -1,7 +1,7 @@
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { requireAuthToken, verifyAppCheckStrict } from "./http.js";
 import { withCors } from "./middleware/cors.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
@@ -151,7 +151,9 @@ export const coachChat = onRequest(
     }
 
     try {
-      const uid = await requireAuth(request as any);
+      const token = await requireAuthToken(request as any);
+      const uid = token.uid;
+      const unlimited = (token as any)?.unlimitedCredits === true;
       (request as any).auth = { uid };
 
       let text: string;
@@ -177,7 +179,9 @@ export const coachChat = onRequest(
         console.warn("coach_chat_rate_limit_error", { message: error?.message });
       }
 
-      await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+      if (!unlimited) {
+        await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+      }
 
       const openAiKey = getOpenAIKey();
       let responseText = "";

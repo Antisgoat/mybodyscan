@@ -8,7 +8,7 @@ interface Entitlement {
 }
 
 export function useEntitlement() {
-  const { credits, uid } = useCredits();
+  const { credits, unlimited, uid } = useCredits();
   const [entitlement, setEntitlement] = useState<Entitlement>({
     subscribed: false,
     plan: null,
@@ -28,13 +28,13 @@ export function useEntitlement() {
     const fetchEntitlement = async () => {
       try {
         // Simulated entitlement logic
-        const subscribed = credits > 0;
+        const subscribed = unlimited || credits > 0;
         const plan = subscribed ? 'pro' : null;
         
         setEntitlement({
           subscribed,
           plan,
-          credits
+          credits: unlimited ? Number.POSITIVE_INFINITY : credits
         });
       } catch (error) {
         console.error('Failed to fetch entitlement:', error);
@@ -51,7 +51,7 @@ export function useEntitlement() {
     loading,
     hasAccess: (feature: 'scan' | 'coach' | 'nutrition') => {
       if (feature === 'scan') {
-        return entitlement.credits > 0 || entitlement.subscribed;
+        return unlimited || entitlement.credits > 0 || entitlement.subscribed;
       }
       return entitlement.subscribed; // Coach and Nutrition require subscription
     }

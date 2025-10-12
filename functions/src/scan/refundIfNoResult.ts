@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "../http.js";
+import { requireAuthToken, verifyAppCheckStrict } from "../http.js";
 import { refundCredit } from "./creditUtils.js";
 import { errorCode, statusFromCode } from "../lib/errors.js";
 
@@ -10,7 +10,8 @@ const db = getFirestore();
 
 async function handler(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
-  const uid = await requireAuth(req);
+  const token = await requireAuthToken(req);
+  const uid = token.uid;
   const body = req.body as { scanId?: string };
   const scanId = body?.scanId || (req.query?.scanId as string | undefined);
   if (!scanId) {
