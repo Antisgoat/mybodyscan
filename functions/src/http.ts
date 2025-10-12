@@ -20,6 +20,8 @@ export async function requireAuth(req: Request): Promise<string> {
   }
   try {
     const decoded = await getAuth().verifyIdToken(match[1]);
+    // Attach decoded token to request for later access to claims
+    (req as any).decodedToken = decoded;
     return decoded.uid;
   } catch (err) {
     console.warn("auth_invalid_token", { path: req.path || req.url, message: (err as any)?.message });

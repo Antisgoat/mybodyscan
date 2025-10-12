@@ -21,6 +21,15 @@ function todayKey() {
 async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const uid = await requireAuth(req);
+  
+  // Check for unlimitedCredits claim
+  const token = (req as any).decodedToken;
+  const hasUnlimitedCredits = token?.unlimitedCredits === true;
+  
+  if (hasUnlimitedCredits) {
+    console.info("beginPaidScan_unlimited_bypass", { uid });
+  }
+  
   const staffBypass = await isStaff(uid);
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
@@ -82,7 +91,8 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
-      if (!staffBypass) {
+      // Bypass credit consumption for staff and unlimited users
+      if (!staffBypass && !hasUnlimitedCredits) {
         const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
@@ -97,13 +107,15 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
           },
           { merge: true }
         );
+      } else if (hasUnlimitedCredits) {
+        remainingCredits = Infinity;
       }
 
       tx.set(
         scanRef,
         {
           status: "authorized",
-          charged: !staffBypass,
+          charged: !staffBypass && !hasUnlimitedCredits,
           authorizedAt: now,
           updatedAt: now,
           gateScore: payload.gateScore,

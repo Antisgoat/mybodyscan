@@ -4,7 +4,14 @@ import { addCredits } from "./credits.js";
 
 const db = getFirestore();
 const CONFIG_PATH = "config/app";
-const DEFAULT_WHITELIST = ["developer@adlrlabs.com"] as const;
+
+// Test allowlist: users with unlimited credits
+export const TEST_WHITELIST = ["developer@adlrlabs.com"];
+
+// Check if email is whitelisted for unlimited credits
+export const isWhitelisted = (email?: string): boolean =>
+  !!email && TEST_WHITELIST.includes(email.toLowerCase());
+
 const MIN_TEST_CREDITS = 3;
 
 function normalizeEmails(list: unknown): string[] {
@@ -18,7 +25,7 @@ async function ensureConfigWhitelist(): Promise<Set<string>> {
   const ref = db.doc(CONFIG_PATH);
   const snap = await ref.get();
   const existing = normalizeEmails(snap.exists ? (snap.data() as any)?.testWhitelist : []);
-  const merged = Array.from(new Set([...existing, ...DEFAULT_WHITELIST]));
+  const merged = Array.from(new Set([...existing, ...TEST_WHITELIST]));
   await ref.set(
     {
       testWhitelist: merged,
