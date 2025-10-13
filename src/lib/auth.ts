@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { useEffect, useRef, useState } from "react";
+import { httpsCallable } from "firebase/functions";
+import { auth as firebaseAuth, functions } from "@/lib/firebase";
 import {
   Auth,
   OAuthProvider,
@@ -21,6 +22,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
+import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 
 function shouldForceRedirectAuth(): boolean {
   if (typeof window === "undefined") return false;
@@ -41,6 +43,7 @@ export function useAuthUser() {
     () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
   );
   const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
+  const processedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     // If a user is already available synchronously, mark ready without waiting
@@ -52,6 +55,57 @@ export function useAuthUser() {
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
+
+      if (!nextUser) {
+        processedUidRef.current = null;
+        return;
+      }
+
+      if (!nextUser.isAnonymous && typeof window !== "undefined") {
+        try {
+          window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      const shouldRefreshClaims = !nextUser.isAnonymous;
+      const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
+      if (processedUidRef.current === statusKey) {
+        return;
+      }
+
+      processedUidRef.current = statusKey;
+
+      if (!shouldRefreshClaims) {
+        return;
+      }
+
+      void (async () => {
+        try {
+          await nextUser.getIdToken(true);
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] pre-claims token refresh failed", err);
+          }
+        }
+
+        try {
+          await httpsCallable(functions, "refreshClaims")({});
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] refreshClaims callable failed", err);
+          }
+        }
+
+        try {
+          await nextUser.getIdToken(true);
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] post-claims token refresh failed", err);
+          }
+        }
+      })();
     });
     return () => unsubscribe();
   }, [authReady]);

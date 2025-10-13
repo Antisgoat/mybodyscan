@@ -2,7 +2,7 @@ import React from "react";
 
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
-const DEMO_KEY = "mbs_demo";
+export const DEMO_SESSION_KEY = "mbs:demo";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
   "/welcome",
@@ -45,18 +45,29 @@ export function isDemo(): boolean {
 export function isDemoActive(): boolean {
   if (isDemo()) return true;
   if (typeof window === "undefined") return false;
-  const stored = window.localStorage.getItem(DEMO_KEY) === "1";
-  return stored;
+  try {
+    return window.sessionStorage.getItem(DEMO_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export function enableDemo() {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(DEMO_KEY, "1");
+  try {
+    window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function disableDemo() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(DEMO_KEY);
+  try {
+    window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+  } catch {
+    // ignore storage errors
+  }
 }
 
 type LocationLike = { pathname: string; search: string };

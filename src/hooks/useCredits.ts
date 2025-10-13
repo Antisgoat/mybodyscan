@@ -21,7 +21,6 @@ export function useCredits() {
           setUnlimited(false);
           setLoading(false);
         } else {
-          // Check for unlimited credits claim
           const token = await u.getIdTokenResult();
           const hasUnlimited = token.claims.unlimitedCredits === true;
           setUnlimited(hasUnlimited);
@@ -58,14 +57,28 @@ export function useCredits() {
     return () => unsub();
   }, [uid]);
 
-  return { 
-    credits: unlimited ? Infinity : credits, 
-    loading, 
-    error, 
-    uid, 
+  if (unlimited) {
+    return {
+      credits: Infinity,
+      loading,
+      error,
+      uid,
+      projectId,
+      unlimited: true,
+      remaining: Infinity,
+      used: 0,
+    } as const;
+  }
+
+  return {
+    credits,
+    loading,
+    error,
+    uid,
     projectId,
-    unlimited,
-    remaining: unlimited ? Infinity : credits
-  };
+    unlimited: false,
+    remaining: credits,
+    used: 0,
+  } as const;
 }
 
