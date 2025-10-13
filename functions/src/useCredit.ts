@@ -6,6 +6,10 @@ import { consumeCredit } from "./credits.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
+function hasUnlimited(ctx: { auth?: { token?: { unlimitedCredits?: unknown } } } | undefined) {
+  return !!ctx?.auth?.token?.unlimitedCredits;
+}
+
 export async function useCreditHandler(
   _data: { reason?: string },
   context: UseCreditContext
@@ -20,8 +24,7 @@ export async function useCreditHandler(
     await verifyAppCheckStrict(rawRequest);
   }
 
-  // Check if user has unlimited credits
-  const unlimitedCredits = context.auth?.token?.unlimitedCredits === true;
+  const unlimitedCredits = hasUnlimited(context);
   if (unlimitedCredits) {
     // Bypass credit consumption for whitelisted users
     return { ok: true, remaining: Infinity };

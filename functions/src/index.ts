@@ -11,3 +11,4 @@ export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { adjustWorkout } from "./workouts.js";
 export { createCheckout, stripeWebhook } from "./payments.js";
+export { refreshClaims } from "./claims.js";
