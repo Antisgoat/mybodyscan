@@ -24,6 +24,11 @@ export function useCredits() {
           const token = await u.getIdTokenResult();
           const hasUnlimited = token.claims.unlimitedCredits === true;
           setUnlimited(hasUnlimited);
+          if (hasUnlimited) {
+            setLoading(false);
+          } else {
+            setLoading(true);
+          }
         }
       },
       (err) => {
@@ -35,7 +40,7 @@ export function useCredits() {
   }, []);
 
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || unlimited) return;
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -55,7 +60,7 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid]);
+  }, [uid, unlimited]);
 
   if (unlimited) {
     return {

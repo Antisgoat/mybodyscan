@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
-import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
+import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 
@@ -59,13 +59,13 @@ export default function DemoGate() {
         }
         if (typeof window !== "undefined") {
           try {
-            window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+            persistDemoFlags();
           } catch (err) {
-            console.warn("[demo] unable to persist session flag", err);
+            console.warn("[demo] unable to persist demo flags", err);
           }
         }
 
-        if (mountedRef.current) navigate("/coach", { replace: true });
+        if (mountedRef.current) navigate("/today", { replace: true });
       } catch (error: any) {
         console.error("demo_gate_error", error);
         if (mountedRef.current) {

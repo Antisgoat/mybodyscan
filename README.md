@@ -68,6 +68,17 @@ This project is built with:
 
 Simply open [Lovable](https://lovable.dev/projects/cf8140ba-edcc-4236-9166-fb030db04005) and click on Share -> Publish.
 
+## Deploy with GitHub Actions
+
+This repository includes automated deploy workflows (`deploy.yml` for push-to-main and `deploy-manual.yml` for manual runs). Before relying on them, work through this checklist:
+
+1. Create a GitHub repository secret named **FIREBASE_TOKEN** using `firebase login:ci`.
+2. Confirm the Firebase project ID is **mybodyscan-f3daf**.
+3. Confirm Firebase Hosting serves **mybodyscan-f3daf.web.app** and the custom domain **mybodyscanapp.com**.
+4. **TODO (Firebase Console → Authentication → Settings):** add authorized domains `mybodyscanapp.com`, `mybodyscan.lovable.app`, 
+   and `localhost`.
+5. Trigger the **Deploy (manual)** workflow once to seed Hosting + Functions, then rely on pushes to `main` for ongoing deploys.
+
 ## Can I connect a custom domain to my Lovable project?
 
 Yes, you can!

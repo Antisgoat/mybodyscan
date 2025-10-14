@@ -22,7 +22,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
-import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
+import { clearDemoFlags } from "@/lib/demoFlag";
 
 function shouldForceRedirectAuth(): boolean {
   if (typeof window === "undefined") return false;
@@ -61,11 +61,13 @@ export function useAuthUser() {
         return;
       }
 
-      if (!nextUser.isAnonymous && typeof window !== "undefined") {
+      if (!nextUser.isAnonymous) {
         try {
-          window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-        } catch {
-          // ignore storage errors
+          clearDemoFlags();
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] unable to clear demo flags", err);
+          }
         }
       }
 
@@ -83,14 +85,6 @@ export function useAuthUser() {
 
       void (async () => {
         try {
-          await nextUser.getIdToken(true);
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] pre-claims token refresh failed", err);
-          }
-        }
-
-        try {
           await httpsCallable(functions, "refreshClaims")({});
         } catch (err) {
           if (import.meta.env.DEV) {
@@ -102,7 +96,7 @@ export function useAuthUser() {
           await nextUser.getIdToken(true);
         } catch (err) {
           if (import.meta.env.DEV) {
-            console.warn("[auth] post-claims token refresh failed", err);
+            console.warn("[auth] token refresh failed", err);
           }
         }
       })();

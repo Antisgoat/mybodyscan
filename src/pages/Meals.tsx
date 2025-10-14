@@ -35,10 +35,11 @@ import {
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
-const DAILY_TARGET = 2200;
+const DEFAULT_CALORIE_TARGET = 2200;
 
 type RecentItem = FoodItem;
 
@@ -69,6 +70,7 @@ function formatServingQuantity(value: number): string {
 
 export default function Meals() {
   const demo = useDemoMode();
+  const { plan: coachPlan } = useUserProfile();
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
@@ -289,7 +291,15 @@ export default function Meals() {
   };
 
   const totalCalories = log.totals.calories || 0;
-  const ringProgress = Math.min(1, totalCalories / DAILY_TARGET);
+  const calorieTarget = useMemo(() => {
+    const raw = coachPlan?.calorieTarget;
+    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+      return Math.round(raw);
+    }
+    return DEFAULT_CALORIE_TARGET;
+  }, [coachPlan?.calorieTarget]);
+
+  const ringProgress = Math.min(1, totalCalories / calorieTarget);
   const ringCircumference = 2 * Math.PI * 54;
 
   const chartData = history7.map((day) => ({
@@ -333,7 +343,7 @@ export default function Meals() {
                   {Math.round(totalCalories)}
                 </text>
               </svg>
-              <p className="text-xs text-muted-foreground">Target {DAILY_TARGET} kcal</p>
+              <p className="text-xs text-muted-foreground">Target {calorieTarget.toLocaleString()} kcal</p>
             </div>
             <div className="space-y-3 text-sm">
               <p>

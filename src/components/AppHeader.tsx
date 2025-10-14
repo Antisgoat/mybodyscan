@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "@/components/CreditsBadge";
 import { DemoBadge } from "@/components/DemoBadge";
+import { SystemHealthIndicator } from "@/components/SystemHealthIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuthUser, signOutAll } from "@/lib/auth";
@@ -51,6 +52,7 @@ export function AppHeader() {
             <div className="flex items-center gap-4">
               <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
               <CreditsBadge />
+              <SystemHealthIndicator />
               <DemoBadge />
             </div>
           
