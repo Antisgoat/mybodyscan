@@ -79,6 +79,7 @@ import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
+import AdminDevTools from "./pages/AdminDevTools";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -471,7 +472,7 @@ const App = () => {
             <Route
               path="/settings"
               element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
@@ -480,6 +481,18 @@ const App = () => {
                     </AuthedLayout>
                   </ProtectedRoute>
                 </FeatureGate>
+              }
+            />
+            <Route
+              path="/admin/dev-tools"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <AdminDevTools />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
               }
             />
             <Route

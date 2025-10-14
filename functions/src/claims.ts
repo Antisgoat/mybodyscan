@@ -50,29 +50,26 @@ export const refreshClaims = onCall({ region: "us-central1" }, async (request) =
     throw new HttpsError("unauthenticated", "Authentication required");
   }
 
-  const tokenEmail = typeof auth.token?.email === "string" ? auth.token.email : undefined;
-  const unlimitedFromToken = auth.token?.unlimitedCredits === true;
-
-  if (!isWhitelisted(tokenEmail)) {
-    return { updated: false, unlimitedCredits: unlimitedFromToken === true };
-  }
-
-  if (unlimitedFromToken) {
-    return { updated: false, unlimitedCredits: true };
-  }
-
   initializeFirebaseIfNeeded();
-  const userRecord = await admin.auth().getUser(auth.uid);
-  const existingClaims = userRecord.customClaims || {};
 
-  if ((existingClaims as any)?.unlimitedCredits === true) {
-    return { updated: false, unlimitedCredits: true };
+  const userRecord = await admin.auth().getUser(auth.uid);
+  const existingClaims = userRecord.customClaims ?? {};
+  const email = typeof auth.token?.email === "string" ? auth.token.email : userRecord.email;
+  const isDeveloper = (email ?? "").toLowerCase() === "developer@adlrlabs.com";
+
+  let nextClaims = existingClaims;
+
+  if (isDeveloper && existingClaims.unlimitedCredits !== true) {
+    nextClaims = {
+      ...existingClaims,
+      unlimitedCredits: true,
+    };
+
+    await admin.auth().setCustomUserClaims(auth.uid, nextClaims);
   }
 
-  await admin.auth().setCustomUserClaims(auth.uid, {
-    ...existingClaims,
-    unlimitedCredits: true,
-  });
-
-  return { updated: true, unlimitedCredits: true };
+  return {
+    updated: true,
+    claims: nextClaims,
+  };
 });

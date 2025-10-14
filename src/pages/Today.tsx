@@ -142,15 +142,12 @@ export default function Today() {
     navigate("/workouts");
   };
 
-  const calorieTarget = coachPlan?.calorieTarget ?? null;
-  const formattedTarget =
-    calorieTarget && Number.isFinite(calorieTarget) ? `${calorieTarget.toLocaleString()} calories` : t("today.noCalorieTarget");
-  const calorieProgress =
-    calorieTarget && calorieTarget > 0 ? Math.min(((mealTotals.calories || 0) / calorieTarget) * 100, 100) : 0;
-  const caloriesRemaining =
-    calorieTarget && calorieTarget > 0
-      ? Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)))
-      : null;
+  const rawCalorieTarget = coachPlan?.calorieTarget;
+  const hasCustomTarget = typeof rawCalorieTarget === "number" && Number.isFinite(rawCalorieTarget) && rawCalorieTarget > 0;
+  const calorieTarget = hasCustomTarget ? Math.round(rawCalorieTarget) : 2200;
+  const formattedTarget = `${calorieTarget.toLocaleString()} calories${hasCustomTarget ? "" : " (default)"}`;
+  const calorieProgress = Math.min(((mealTotals.calories || 0) / calorieTarget) * 100, 100);
+  const caloriesRemaining = Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)));
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

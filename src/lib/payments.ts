@@ -96,9 +96,13 @@ export async function consumeOneCredit(): Promise<number> {
     window.location.assign("/auth");
     throw new Error("demo-blocked");
   }
-    const { getAuth } = await import("firebase/auth");
-    const user = getAuth().currentUser;
-    if (!user) throw new Error("Not signed in");
+  const { getAuth } = await import("firebase/auth");
+  const user = getAuth().currentUser;
+  if (!user) throw new Error("Not signed in");
+  const token = await user.getIdTokenResult();
+  if (token.claims.unlimitedCredits === true) {
+    return Number.POSITIVE_INFINITY;
+  }
   try {
     const fn = httpsCallable(functions, "useCredit");
     const result = await fn({ reason: "scan" });

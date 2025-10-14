@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
 import { DEMO_QUERY_PARAM, isDemoMode } from "@/lib/demoFlag";
@@ -13,47 +13,28 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuthUser();
   const location = useLocation();
   const navigate = useNavigate();
-  const [persistedDemo, setPersistedDemo] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return isDemoMode(user, window.location);
-  });
 
-  const baseDemo = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return isDemoMode(user, window.location);
+  const computeDemo = useCallback(() => {
+    return isDemoMode(user, { pathname: location.pathname, search: location.search });
   }, [user, location.pathname, location.search]);
 
+  const [demo, setDemo] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return computeDemo();
+  });
+
   useEffect(() => {
-    if (baseDemo) {
-      if (!persistedDemo) {
-        setPersistedDemo(true);
-      }
-      return;
-    }
+    setDemo(computeDemo());
+  }, [computeDemo]);
 
-    if (user) {
-      if (persistedDemo) {
-        setPersistedDemo(false);
-      }
-      if (typeof window !== "undefined" && location.search.includes(`${DEMO_QUERY_PARAM}=`)) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete(DEMO_QUERY_PARAM);
-        navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true });
-      }
-      return;
-    }
-
-    if (persistedDemo && typeof window !== "undefined") {
-      const hasParam = location.search.includes(`${DEMO_QUERY_PARAM}=`);
-      if (!hasParam) {
-        const url = new URL(window.location.href);
-        url.searchParams.set(DEMO_QUERY_PARAM, "1");
-        navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true });
-      }
-    }
-  }, [baseDemo, persistedDemo, user, location.search, location.pathname, location.hash, navigate]);
-
-  const demo = baseDemo || (!user && persistedDemo);
+  useEffect(() => {
+    if (demo) return;
+    if (typeof window === "undefined") return;
+    if (!location.search.includes(`${DEMO_QUERY_PARAM}=`)) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(DEMO_QUERY_PARAM);
+    navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true });
+  }, [demo, navigate, location.pathname, location.search, location.hash]);
 
   const value = useMemo(() => ({ demo }), [demo]);
 

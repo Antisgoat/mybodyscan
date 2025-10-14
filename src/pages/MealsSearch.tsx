@@ -266,13 +266,13 @@ export default function MealsSearch() {
           if (cancelled) return;
           setResults(items);
           setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
-          setSearchWarning(items.length ? null : "Food database temporarily busy; try again.");
+          setSearchWarning(items.length ? null : "Database busy; try again.");
         })
         .catch((error) => {
           if (cancelled) return;
           const status = typeof error?.status === "number" ? error.status : null;
           if (status === 429) {
-            setSearchWarning("Food database temporarily busy; try again.");
+            setSearchWarning("Database busy; try again.");
           } else if (!(error instanceof DOMException && error.name === "AbortError")) {
             console.error("nutrition_search_error", error);
             toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
