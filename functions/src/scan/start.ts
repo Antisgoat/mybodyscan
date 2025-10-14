@@ -63,7 +63,7 @@ async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
-  const unlimitedCredits = claims?.unlimitedCredits === true;
+  const unlimitedCredits = claims?.unlimitedCredits === true || claims?.tester === true;
 
   if (staffBypass) {
     console.info("scan_start_staff_bypass", { uid });

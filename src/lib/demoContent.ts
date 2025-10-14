@@ -208,7 +208,7 @@ export const DEMO_FAVORITES: FavoriteDocWithId[] = [
       id: "fav-oats",
       name: "Overnight oats",
       brand: "Home prepped",
-      source: "Open Food Facts" as any,
+      source: "OFF" as any,
       basePer100g: { kcal: 120, protein: 6, carbs: 18, fat: 3 },
       servings: [],
       serving: { qty: 1, unit: "jar" },

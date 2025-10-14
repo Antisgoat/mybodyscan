@@ -322,7 +322,7 @@ export const submitScan = onRequest(
       }
       await verifyAppCheckStrict(req as Request);
       const { uid, claims } = await requireAuthWithClaims(req as Request);
-      const unlimitedCredits = claims?.unlimitedCredits === true;
+      const unlimitedCredits = claims?.unlimitedCredits === true || claims?.tester === true;
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
         res.status(400).json({ error: "invalid_payload" });

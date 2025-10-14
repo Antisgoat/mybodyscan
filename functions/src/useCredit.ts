@@ -6,8 +6,9 @@ import { consumeCredit } from "./credits.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
-function hasUnlimited(ctx: { auth?: { token?: { unlimitedCredits?: unknown } } } | undefined) {
-  return !!ctx?.auth?.token?.unlimitedCredits;
+function hasUnlimited(ctx: { auth?: { token?: { unlimitedCredits?: unknown; tester?: unknown } } } | undefined) {
+  const token = ctx?.auth?.token;
+  return Boolean(token?.unlimitedCredits) || Boolean(token?.tester);
 }
 
 export async function useCreditHandler(

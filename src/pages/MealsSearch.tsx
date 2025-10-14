@@ -215,7 +215,8 @@ export default function MealsSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
-  const [primarySource, setPrimarySource] = useState<"USDA" | "Open Food Facts" | null>(null);
+  const [primarySource, setPrimarySource] = useState<"USDA" | "OFF" | null>(null);
+  const [fallbackUsed, setFallbackUsed] = useState(false);
   const [recents, setRecents] = useState<FoodItem[]>(() => readRecents());
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
@@ -244,6 +245,7 @@ export default function MealsSearch() {
       if (!appCheckReady) {
         setResults([]);
         setPrimarySource(null);
+        setFallbackUsed(false);
       }
       setSearchWarning(null);
       return;
@@ -253,6 +255,7 @@ export default function MealsSearch() {
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
+      setFallbackUsed(false);
       setSearchWarning(null);
       return;
     }
@@ -262,23 +265,25 @@ export default function MealsSearch() {
     let cancelled = false;
     const handle = window.setTimeout(() => {
       fetchFoods(trimmed)
-        .then((items) => {
+        .then(({ items, primarySource: source, fallbackUsed: fallback }) => {
           if (cancelled) return;
           setResults(items);
-          setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
-          setSearchWarning(items.length ? null : "Database busy; try again.");
+          setPrimarySource(source);
+          setFallbackUsed(fallback);
+          setSearchWarning(items.length ? null : "No foods found. Try another search.");
         })
         .catch((error) => {
           if (cancelled) return;
           const status = typeof error?.status === "number" ? error.status : null;
           if (status === 429) {
-            setSearchWarning("Database busy; try again.");
+            setSearchWarning("Rate limited — try again shortly.");
           } else if (!(error instanceof DOMException && error.name === "AbortError")) {
             console.error("nutrition_search_error", error);
             toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
           }
           setResults([]);
           setPrimarySource(null);
+          setFallbackUsed(false);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -356,10 +361,11 @@ export default function MealsSearch() {
     }
   };
 
-  const primaryCaption =
-    primarySource === "Open Food Facts"
-      ? "OFF primary · USDA unavailable"
-      : "USDA primary · OFF fallback";
+  const primaryCaption = fallbackUsed
+    ? "USDA primary · OFF fallback"
+    : primarySource === "OFF"
+    ? "OFF primary · USDA unavailable"
+    : "USDA";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
   const searchNotice = null;
@@ -457,7 +463,7 @@ export default function MealsSearch() {
               {appCheckReady &&
                 results.map((item) => {
                   const favorite = favoritesMap.get(item.id);
-                  const subtitle = item.brand || item.source;
+                  const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
                   const base = item.basePer100g;
                   return (
                     <Card key={item.id} className="border">

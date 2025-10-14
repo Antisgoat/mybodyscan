@@ -1,51 +1,66 @@
 import { Component, type ReactNode } from "react";
 
 type Props = { children: ReactNode };
-type State = { hasError: boolean; message?: string };
-
-const SUPPORT_EMAIL = 'support@mybodyscan.com';
+type State = { hasError: boolean; message?: string; error?: Error };
 
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
   static getDerivedStateFromError(error: unknown) {
-    return { hasError: true, message: (error as Error)?.message ?? "Unknown error" };
+    if (error instanceof Error) {
+      return { hasError: true, message: error.message } satisfies Partial<State>;
+    }
+    return { hasError: true, message: typeof error === "string" ? error : "Unknown error" } satisfies Partial<State>;
   }
 
   componentDidCatch(error: unknown, info: unknown) {
     console.error("App crashed:", error, info);
-    // TODO: add Sentry/logger here if available
+    this.setState({ error: error instanceof Error ? error : new Error(String(error)) });
   }
 
   render() {
     if (this.state.hasError) {
+      const stack = import.meta.env.DEV ? this.state.error?.stack : undefined;
       return (
-        <div style={{ padding: 24, maxWidth: 520, margin: "0 auto", textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.5rem", marginBottom: 12 }}>We hit a snag.</h2>
-          <p style={{ marginBottom: 16, color: "#475467" }}>
-            Try reload. If this persists, use “Explore demo” from the Auth page.
-          </p>
-          {this.state.message ? (
-            <p style={{ marginBottom: 20, color: "#6b7280", fontSize: "0.9rem" }}>
-              Details: {this.state.message}
-            </p>
-          ) : null}
-          <p style={{ marginBottom: 20, color: "#6b7280", fontSize: "0.9rem" }}>
-            Need a hand? <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#2563eb", textDecoration: "underline" }}>Contact support</a>.
-          </p>
-          <button
-            onClick={() => (window.location.href = "/")}
-            style={{
-              padding: "10px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            Reload
-          </button>
+        <div className="min-h-screen bg-background text-foreground">
+          <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-center">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold">Something went wrong</h1>
+              <p className="text-sm text-muted-foreground">
+                We hit an unexpected error. Reload to try again, or check system status.
+              </p>
+            </div>
+            {this.state.message && (
+              <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 text-left text-sm text-muted-foreground">
+                {this.state.message}
+              </pre>
+            )}
+            {stack && (
+              <details className="text-left">
+                <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+                  Stack trace (dev only)
+                </summary>
+                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 text-xs text-muted-foreground">
+                  {stack}
+                </pre>
+              </details>
+            )}
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
+                onClick={() => window.location.reload()}
+              >
+                Reload
+              </button>
+              <a
+                href="/system/health"
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              >
+                View system health
+              </a>
+            </div>
+          </div>
         </div>
       );
     }

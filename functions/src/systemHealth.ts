@@ -1,24 +1,18 @@
-import { onRequest } from "firebase-functions/v2/https";
-import { getEnv, getEnvBool, hasOpenAI, hasStripe } from "./lib/env.js";
+import { onRequest as onRequestV2 } from "firebase-functions/v2/https";
 
-export const systemHealth = onRequest({ region: "us-central1" }, async (req, res) => {
-  try {
-    const host = req.headers.host ?? "";
-    const openAIExists = hasOpenAI();
-    const model = openAIExists ? "openai-vision" : null;
-    const stripeExists = hasStripe();
-    const appCheckSoft = getEnvBool("APP_CHECK_ENFORCE_SOFT", true);
-    const hostBaseUrl = getEnv("HOST_BASE_URL") || "";
-    
-    res.status(200).json({
-      hasOpenAI: openAIExists,
-      model,
-      hasStripe: stripeExists,
-      appCheckSoft,
-      host,
-      hostBaseUrl
-    });
-  } catch (e: any) {
-    res.status(500).json({ ok: false, error: e?.message || "internal" });
-  }
+export const systemHealth = onRequestV2({ cors: true }, (req, res) => {
+  const host = req.get("host") ?? "";
+  res.status(200).json({
+    ok: true,
+    hasOpenAI: Boolean(process.env.OPENAI_API_KEY),
+    hasStripe: Boolean(
+      process.env.STRIPE_SECRET_KEY ||
+        process.env.STRIPE_SECRET ||
+        process.env.STRIPE_API_KEY
+    ),
+    appCheckSoft: true,
+    host,
+    hostBaseUrl: host ? `https://${host}` : "",
+    model: process.env.OPENAI_MODEL ?? null,
+  });
 });

@@ -15,6 +15,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -22,16 +23,74 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
-import { clearDemoFlags } from "@/lib/demoFlag";
+import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
 
-function shouldForceRedirectAuth(): boolean {
+const DEMO_FLAG_KEY = "mbs:demo";
+
+export function getAuthDomainWhitelist(): string[] {
+  return [
+    "mybodyscanapp.com",
+    "mybodyscan-f3daf.web.app",
+    "mybodyscan-f3daf.firebaseapp.com",
+  ];
+}
+
+function hostMatches(domain: string, host: string): boolean {
+  if (!domain) return false;
+  if (host === domain) return true;
+  return host.endsWith(`.${domain}`);
+}
+
+function isPopupFriendlyDomain(): boolean {
   if (typeof window === "undefined") return false;
   const host = window.location.hostname?.toLowerCase() ?? "";
   if (!host) return false;
-  if (host === "mybodyscanapp.com" || host === "www.mybodyscanapp.com") {
+  if (host === "localhost" || host.startsWith("127.") || host.endsWith(".localhost")) {
     return true;
   }
-  return host.endsWith(".lovable.app");
+  return getAuthDomainWhitelist().some((domain) => hostMatches(domain, host));
+}
+
+function shouldUsePopupAuth(): boolean {
+  return isPopupFriendlyDomain();
+}
+
+export async function ensureDemoUser(): Promise<void> {
+  if (firebaseAuth.currentUser?.isAnonymous) {
+    return;
+  }
+
+  await signInAnonymously(firebaseAuth);
+
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.setItem(DEMO_FLAG_KEY, "1");
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[auth] unable to persist demo flag", error);
+      }
+    }
+  }
+
+  try {
+    persistDemoFlags();
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] unable to persist demo flags", error);
+    }
+  }
+}
+
+export function isDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      window.localStorage?.getItem(DEMO_FLAG_KEY) === "1" &&
+      firebaseAuth.currentUser?.isAnonymous === true
+    );
+  } catch {
+    return firebaseAuth.currentUser?.isAnonymous === true;
+  }
 }
 
 export async function initAuthPersistence() {
@@ -145,7 +204,7 @@ export async function signOutToAuth(): Promise<void> {
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   try {
-    if (shouldForceRedirectAuth()) {
+    if (!shouldUsePopupAuth()) {
       await signInWithRedirect(firebaseAuth, provider);
       return;
     }
@@ -199,8 +258,8 @@ export async function signInWithApple(auth: Auth): Promise<UserCredential | void
 
   try {
     const iosSafari = isIOSSafari();
-    const forceRedirect = shouldForceRedirectAuth();
-    if (iosSafari || forceRedirect) {
+    const preferPopup = shouldUsePopupAuth() && !iosSafari;
+    if (!preferPopup) {
       logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
       return await signInWithRedirect(auth, provider);
     }

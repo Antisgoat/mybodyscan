@@ -15,16 +15,90 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
-import { useUserProfile } from "@/hooks/useUserProfile";
+import { useUserProfile, type CoachPlan, type CoachProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
 import { startScan } from "@/lib/scan";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+
+type CalorieTargetSource = "plan" | "calculated" | "missing";
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function computeAgeFromDob(dob: string | undefined): number | null {
+  if (!dob) return null;
+  const parsed = new Date(dob);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - parsed.getFullYear();
+  const hasNotHadBirthday =
+    now.getMonth() < parsed.getMonth() ||
+    (now.getMonth() === parsed.getMonth() && now.getDate() < parsed.getDate());
+  if (hasNotHadBirthday) age -= 1;
+  return age > 0 ? age : null;
+}
+
+function calculateDailyCalorieTarget(profile: CoachProfile | null, plan: CoachPlan | null): {
+  target: number | null;
+  source: CalorieTargetSource;
+} {
+  if (plan?.calorieTarget && Number.isFinite(plan.calorieTarget) && plan.calorieTarget > 0) {
+    return { target: Math.round(plan.calorieTarget), source: "plan" };
+  }
+
+  if (!profile) {
+    return { target: null, source: "missing" };
+  }
+
+  const weightKg = typeof profile.weight_kg === "number" && profile.weight_kg > 0 ? profile.weight_kg : null;
+  const heightCm = typeof profile.height_cm === "number" && profile.height_cm > 0 ? profile.height_cm : null;
+  const age =
+    typeof profile.age === "number" && profile.age > 0
+      ? profile.age
+      : computeAgeFromDob(profile.dob ?? undefined);
+  const sex = profile.sex === "female" || profile.sex === "male" ? profile.sex : null;
+
+  if (!weightKg || !heightCm || !age || !sex) {
+    return { target: null, source: "missing" };
+  }
+
+  const baseBmr =
+    sex === "female"
+      ? 10 * weightKg + 6.25 * heightCm - 5 * age - 161
+      : 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+
+  const activityFactorMap: Record<string, number> = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    high: 1.725,
+    very: 1.725,
+    extra: 1.9,
+  };
+  const activityKey = profile.activity_level ?? "moderate";
+  const activityMultiplier = activityFactorMap[activityKey] ?? 1.375;
+
+  const goalAdjustMap: Record<string, number> = {
+    lose_fat: -500,
+    gain_muscle: 300,
+    improve_heart: 0,
+    recomp: 0,
+  };
+  const goalAdjust = goalAdjustMap[profile.goal ?? "recomp"] ?? 0;
+
+  const estimated = baseBmr * activityMultiplier + goalAdjust;
+  const clamped = clamp(estimated, 1500, 3500);
+  const rounded = Math.round(clamped / 10) * 10;
+
+  return { target: rounded, source: "calculated" };
+}
 
 export default function Today() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const demo = useDemoMode();
-  const { plan: coachPlan } = useUserProfile();
+  const { plan: coachPlan, profile } = useUserProfile();
   const todayISO = new Date().toISOString().slice(0, 10);
   const [mealTotals, setMealTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>(() =>
     demo ? DEMO_NUTRITION_LOG.totals : { calories: 0, protein: 0, carbs: 0, fat: 0 }
@@ -142,12 +216,19 @@ export default function Today() {
     navigate("/workouts");
   };
 
-  const rawCalorieTarget = coachPlan?.calorieTarget;
-  const hasCustomTarget = typeof rawCalorieTarget === "number" && Number.isFinite(rawCalorieTarget) && rawCalorieTarget > 0;
-  const calorieTarget = hasCustomTarget ? Math.round(rawCalorieTarget) : 2200;
-  const formattedTarget = `${calorieTarget.toLocaleString()} calories${hasCustomTarget ? "" : " (default)"}`;
-  const calorieProgress = Math.min(((mealTotals.calories || 0) / calorieTarget) * 100, 100);
-  const caloriesRemaining = Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)));
+  const calorieTargetInfo = calculateDailyCalorieTarget(profile, coachPlan);
+  const calorieTarget = calorieTargetInfo.target;
+  const calorieProgress =
+    calorieTarget && calorieTarget > 0
+      ? Math.min(((mealTotals.calories || 0) / calorieTarget) * 100, 100)
+      : 0;
+  const caloriesRemaining =
+    calorieTarget && calorieTarget > 0
+      ? Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)))
+      : null;
+  const targetLabel = calorieTarget
+    ? `${calorieTarget.toLocaleString()} calories (${calorieTargetInfo.source === "plan" ? "plan" : "calculated"})`
+    : "Complete your profile to personalize";
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -174,7 +255,7 @@ export default function Today() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Target: {formattedTarget}</span>
+              <span className="text-sm text-muted-foreground">Target: {targetLabel}</span>
               <span className="text-sm font-medium">
                 {mealTotals.calories}
                 {calorieTarget && calorieTarget > 0 ? ` / ${calorieTarget.toLocaleString()}` : ""}
