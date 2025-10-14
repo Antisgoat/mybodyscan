@@ -1,9 +1,13 @@
 import { auth } from "firebase-functions/v1";
 import { config } from "firebase-functions";
+type AuthUser = {
+  uid: string;
+  email?: string | null;
+};
 
 import { getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
-import { updateUserClaims } from "./claims.js";
+import { ensureTestCredits, updateUserClaims } from "./claims.js";
 
 const db = getFirestore();
 
@@ -21,25 +25,27 @@ function parseFounderEmails(): Set<string> {
   }
 }
 
-export const handleUserCreate = auth.user().onCreate(async (user: any) => {
-  const email = user.email?.toLowerCase();
-  const uid = user.uid;
-  
-  // Update user claims (including unlimitedCredits for whitelisted users)
-  await updateUserClaims(uid, email);
-  
-  if (!email) return;
-  const founders = parseFounderEmails();
-  if (!founders.has(email)) return;
+export const onAuthCreate = auth.user().onCreate(async (user: AuthUser) => {
+  const { uid, email } = user;
+  const normalizedEmail = email?.toLowerCase() ?? null;
 
-  console.info("founder_signup", { uid, email });
+  await Promise.all([
+    updateUserClaims(uid, normalizedEmail ?? undefined),
+    ensureTestCredits(uid, normalizedEmail ?? undefined),
+  ]);
+
+  if (!normalizedEmail) return;
+  const founders = parseFounderEmails();
+  if (!founders.has(normalizedEmail)) return;
+
+  console.info("founder_signup", { uid, email: normalizedEmail });
   await Promise.all([
     addCredits(uid, 30, "Founder", 12),
     db.doc(`users/${uid}`).set(
       {
         meta: { founder: true },
       },
-      { merge: true }
+      { merge: true },
     ),
   ]);
 });

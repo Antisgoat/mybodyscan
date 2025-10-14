@@ -11,3 +11,10 @@ export function fnUrl(path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${FUNCTIONS_BASE}${p}`;
 }
+
+export function getUsdaApiKey(): string | null {
+  const raw = (import.meta as any)?.env?.VITE_USDA_API_KEY;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed.length ? trimmed : null;
+}

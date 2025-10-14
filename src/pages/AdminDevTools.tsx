@@ -38,7 +38,10 @@ export default function AdminDevTools() {
       });
   }, [user?.uid]);
 
-  const unlimitedActive = useMemo(() => claims?.unlimitedCredits === true, [claims]);
+  const unlimitedActive = useMemo(
+    () => claims?.unlimitedCredits === true || claims?.tester === true,
+    [claims],
+  );
   const isDeveloper = user?.email?.toLowerCase() === "developer@adlrlabs.com";
 
   const handleRefreshClaims = async () => {

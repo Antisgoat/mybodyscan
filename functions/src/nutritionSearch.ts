@@ -19,13 +19,19 @@ export type ServingOption = {
   isDefault?: boolean;
 };
 
-export type NutritionSource = "USDA" | "Open Food Facts";
+export type NutritionSource = "USDA" | "OFF";
 
 export interface FoodItem {
   id: string;
   name: string;
   brand: string | null;
   source: NutritionSource;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  servingGrams: number | null;
+  per: "serving" | "100g";
   basePer100g: MacroBreakdown;
   servings: ServingOption[];
   serving: {
@@ -229,6 +235,12 @@ export function fromUsdaFood(food: any): FoodItem | null {
 
   const defaultServing = ensureDefaultServing(servings);
   const perServing = macrosFromGrams(base, defaultServing?.grams ?? null);
+  const servingGrams = defaultServing?.grams ?? 100;
+  const perLabel: "serving" | "100g" = Math.abs(servingGrams - 100) < 1e-2 ? "100g" : "serving";
+  const normalizedKcal = perLabel === "100g" ? base.kcal : perServing.kcal ?? base.kcal;
+  const normalizedProtein = perLabel === "100g" ? base.protein : perServing.protein_g ?? base.protein;
+  const normalizedCarbs = perLabel === "100g" ? base.carbs : perServing.carbs_g ?? base.carbs;
+  const normalizedFat = perLabel === "100g" ? base.fat : perServing.fat_g ?? base.fat;
 
   return {
     id: String(
@@ -247,6 +259,12 @@ export function fromUsdaFood(food: any): FoodItem | null {
       normalizeBrand(food?.brandName) ??
       normalizeBrand(food?.brand),
     source: "USDA",
+    kcal: normalizedKcal,
+    protein: normalizedProtein,
+    carbs: normalizedCarbs,
+    fat: normalizedFat,
+    servingGrams,
+    per: perLabel,
     basePer100g: base,
     servings,
     serving: buildServingSnapshot(defaultServing),
@@ -349,6 +367,12 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
 
   const defaultServing = ensureDefaultServing(servings);
   const perServing = macrosFromGrams(base, defaultServing?.grams ?? null);
+  const servingGrams = defaultServing?.grams ?? 100;
+  const perLabel: "serving" | "100g" = Math.abs(servingGrams - 100) < 1e-2 ? "100g" : "serving";
+  const normalizedKcal = perLabel === "100g" ? base.kcal : perServing.kcal ?? base.kcal;
+  const normalizedProtein = perLabel === "100g" ? base.protein : perServing.protein_g ?? base.protein;
+  const normalizedCarbs = perLabel === "100g" ? base.carbs : perServing.carbs_g ?? base.carbs;
+  const normalizedFat = perLabel === "100g" ? base.fat : perServing.fat_g ?? base.fat;
 
   return {
     id: String(product?.code || product?._id || product?.id || globalThis.crypto?.randomUUID?.() || Date.now()),
@@ -362,7 +386,13 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
       normalizeBrand(product?.brands) ??
       normalizeBrand(product?.brand_owner) ??
       normalizeBrand(product?.owner),
-    source: "Open Food Facts",
+    source: "OFF",
+    kcal: normalizedKcal,
+    protein: normalizedProtein,
+    carbs: normalizedCarbs,
+    fat: normalizedFat,
+    servingGrams,
+    per: perLabel,
     basePer100g: base,
     servings,
     serving: buildServingSnapshot(defaultServing),
@@ -461,78 +491,46 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
 
   let items: FoodItem[] = [];
   let primarySource: NutritionSource = "USDA";
+  let fallbackUsed = false;
+  const sourceErrors: Partial<Record<NutritionSource, string>> = {};
 
   try {
     const { getEnv } = await import("./lib/env.js");
-    const apiKey = getEnv("USDA_FDC_API_KEY");
+    const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
     if (!apiKey) {
       console.warn("nutrition_search_usda_key_missing", { query });
+      fallbackUsed = true;
+      sourceErrors.USDA = "missing_api_key";
     } else {
-      items = await searchUsda(query, apiKey);
+      try {
+        items = await searchUsda(query, apiKey);
+      } catch (error) {
+        fallbackUsed = true;
+        sourceErrors.USDA = describeError(error);
+        console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
+      }
     }
   } catch (error) {
-    console.error("nutrition_search_usda_error", { query, message: describeError(error) });
+    fallbackUsed = true;
+    sourceErrors.USDA = describeError(error);
+    console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
   }
 
   if (!items.length) {
     try {
       items = await searchOpenFoodFacts(query);
-      primarySource = "Open Food Facts";
+      primarySource = "OFF";
+      if (fallbackUsed === false) {
+        fallbackUsed = true;
+      }
     } catch (error) {
-      console.error("nutrition_search_off_error", { query, message: describeError(error) });
+      const message = describeError(error);
+      sourceErrors.OFF = message;
+      console.error("nutrition_search_off_error", { query, message });
     }
   }
 
-  if (!items.length) {
-    // Fallback stub list when external APIs unavailable or keys missing
-    items = [
-      {
-        id: "stub-chicken-breast",
-        name: "Chicken breast, cooked",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 },
-        per_100g: { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 },
-        raw: { stub: true },
-      },
-      {
-        id: "stub-white-rice",
-        name: "White rice, cooked",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 },
-        per_100g: { kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 },
-        raw: { stub: true },
-      },
-      {
-        id: "stub-apple",
-        name: "Apple, raw",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 52, protein: 0.3, carbs: 14, fat: 0.2 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 52, protein_g: 0.3, carbs_g: 14, fat_g: 0.2 },
-        per_100g: { kcal: 52, protein_g: 0.3, carbs_g: 14, fat_g: 0.2 },
-        raw: { stub: true },
-      },
-    ];
-    primarySource = "USDA";
-  }
-
-  res.status(200).json({ items, primarySource });
+  res.status(200).json({ items, primarySource, fallbackUsed, sourceErrors });
 }
 
 export const nutritionSearch = onRequest(

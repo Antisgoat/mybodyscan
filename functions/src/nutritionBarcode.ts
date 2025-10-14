@@ -10,7 +10,7 @@ const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 interface CacheEntry {
   expires: number;
-  value: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null;
+  value: { item: FoodItem; source: "OFF" | "USDA" } | null;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -26,7 +26,7 @@ async function fetchOff(code: string) {
   const data = (await response.json()) as any;
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
-  return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
+  return normalized ? { item: normalized, source: "OFF" as const } : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
@@ -81,7 +81,7 @@ async function handler(req: Request, res: Response) {
     return;
   }
 
-  let result: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null = null;
+  let result: { item: FoodItem; source: "OFF" | "USDA" } | null = null;
 
   try {
     result = await fetchOff(code);
@@ -92,7 +92,7 @@ async function handler(req: Request, res: Response) {
   if (!result) {
     try {
       const { getEnv } = await import("./lib/env.js");
-      const key = getEnv("USDA_FDC_API_KEY");
+      const key = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }

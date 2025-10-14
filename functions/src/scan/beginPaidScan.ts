@@ -22,7 +22,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
-  const unlimitedCredits = claims?.unlimitedCredits === true;
+  const unlimitedCredits = claims?.unlimitedCredits === true || claims?.tester === true;
   
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });

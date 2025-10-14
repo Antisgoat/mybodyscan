@@ -100,7 +100,7 @@ export async function consumeOneCredit(): Promise<number> {
   const user = getAuth().currentUser;
   if (!user) throw new Error("Not signed in");
   const token = await user.getIdTokenResult();
-  if (token.claims.unlimitedCredits === true) {
+  if (token.claims.unlimitedCredits === true || token.claims.tester === true) {
     return Number.POSITIVE_INFINITY;
   }
   try {

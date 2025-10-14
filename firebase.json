@@ -107,13 +107,6 @@
         }
       },
       {
-        "source": "/createCheckout",
-        "function": {
-          "functionId": "createCheckout",
-          "region": "us-central1"
-        }
-      },
-      {
         "source": "/stripeWebhook",
         "function": {
           "functionId": "stripeWebhook",

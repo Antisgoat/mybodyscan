@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { signInAnonymously } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { ensureDemoUser } from "@/lib/auth";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -18,35 +18,12 @@ export default function DemoGate() {
   useEffect(() => {
     mountedRef.current = true;
 
-    const signInWithTimeout = async (timeoutMs: number) => {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), timeoutMs),
-      );
-      // If signInAnonymously never resolves in time, this will reject by timeout
-      return Promise.race([signInAnonymously(auth), timeout]);
-    };
-
     const run = async () => {
       try {
         setFailed(false);
         setLoading(true);
 
-        // If already signed in (anon or real), go straight to app
-        if (auth.currentUser) {
-          if (mountedRef.current) navigate("/coach", { replace: true });
-          return;
-        }
-
-        // Try anonymous sign-in with a 6s timeout, retry once
-        try {
-          await signInWithTimeout(6000);
-        } catch (e1) {
-          try {
-            await signInWithTimeout(6000);
-          } catch (e2) {
-            throw e2;
-          }
-        }
+        await ensureDemoUser();
 
         const user = auth.currentUser;
         if (!user) throw new Error("auth-missing-user");

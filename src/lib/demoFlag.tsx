@@ -3,6 +3,7 @@ import React from "react";
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
 export const DEMO_STORAGE_KEY = "mbs.demo";
+export const DEMO_AUTH_FLAG_KEY = "mbs:demo";
 // Back-compat alias for modules that previously referenced session storage.
 export const DEMO_SESSION_KEY = DEMO_STORAGE_KEY;
 export const DEMO_READONLY_KEY = "mbs.readonly";
@@ -67,11 +68,17 @@ function clearStoredFlag(key: string): void {
 export function persistDemoFlags(): void {
   setStoredFlag(DEMO_STORAGE_KEY);
   setStoredFlag(DEMO_READONLY_KEY);
+  if (typeof window !== "undefined") {
+    safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, "1");
+  }
 }
 
 export function clearDemoFlags(): void {
   clearStoredFlag(DEMO_STORAGE_KEY);
   clearStoredFlag(DEMO_READONLY_KEY);
+  if (typeof window !== "undefined") {
+    safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, null);
+  }
   if (typeof window !== "undefined") {
     safeWrite(window.sessionStorage, DEMO_STORAGE_KEY, null);
   }

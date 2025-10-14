@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { isDemo as isDemoAuth } from "@/lib/auth";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -9,6 +10,8 @@ export function useCredits() {
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [unlimited, setUnlimited] = useState(false);
+  const [tester, setTester] = useState(false);
+  const [demo, setDemo] = useState(false);
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
@@ -16,13 +19,17 @@ export function useCredits() {
       auth,
       async (u) => {
         setUid(u?.uid ?? null);
+        setDemo(Boolean(u?.isAnonymous && isDemoAuth()));
         if (!u) {
           setCredits(0);
           setUnlimited(false);
+          setTester(false);
           setLoading(false);
         } else {
           const token = await u.getIdTokenResult();
-          const hasUnlimited = token.claims.unlimitedCredits === true;
+          const hasTester = token.claims.tester === true;
+          const hasUnlimited = hasTester || token.claims.unlimitedCredits === true;
+          setTester(hasTester);
           setUnlimited(hasUnlimited);
           if (hasUnlimited) {
             setLoading(false);
@@ -62,6 +69,8 @@ export function useCredits() {
     return () => unsub();
   }, [uid, unlimited]);
 
+  const readOnlyNotice = demo ? "Demo browse only" : null;
+
   if (unlimited) {
     return {
       credits: Infinity,
@@ -70,6 +79,9 @@ export function useCredits() {
       uid,
       projectId,
       unlimited: true,
+      tester,
+      demo,
+      notice: readOnlyNotice,
       remaining: Infinity,
       used: 0,
     } as const;
@@ -82,6 +94,9 @@ export function useCredits() {
     uid,
     projectId,
     unlimited: false,
+    tester,
+    demo,
+    notice: readOnlyNotice,
     remaining: credits,
     used: 0,
   } as const;

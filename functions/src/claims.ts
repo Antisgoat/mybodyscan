@@ -1,6 +1,8 @@
 import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
+import { FieldValue, getFirestore } from "./firebase.js";
+import type { Transaction } from "firebase-admin/firestore";
 import { getEnv } from "./lib/env.js";
 import { isWhitelisted } from "./testWhitelist.js";
 
@@ -28,17 +30,56 @@ export async function isStaff(uid?: string): Promise<boolean> {
   return Boolean((user.customClaims as any)?.staff === true);
 }
 
+export async function ensureTestCredits(uid: string, email?: string | null): Promise<void> {
+  if (!uid) return;
+  const normalizedEmail = email?.toLowerCase() ?? "";
+  if (!normalizedEmail || !isWhitelisted(normalizedEmail)) return;
+
+  initializeFirebaseIfNeeded();
+
+  const auth = admin.auth();
+  const user = await auth.getUser(uid);
+  const existingClaims = user.customClaims ?? {};
+  const nextClaims = {
+    ...existingClaims,
+    tester: true,
+    unlimitedCredits: true,
+  };
+
+  if (existingClaims.tester !== true || existingClaims.unlimitedCredits !== true) {
+    await auth.setCustomUserClaims(uid, nextClaims);
+  }
+
+  const db = getFirestore();
+  const userRef = db.doc(`users/${uid}`);
+
+  await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(userRef);
+    const currentCredits = snap.exists ? (snap.data() as any)?.credits : undefined;
+    const numericCredits = typeof currentCredits === "number" ? currentCredits : NaN;
+    if (!snap.exists || !Number.isFinite(numericCredits) || numericCredits < 100) {
+      tx.set(
+        userRef,
+        { credits: 999, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+  });
+}
+
 export async function updateUserClaims(uid: string, email?: string): Promise<void> {
   if (!uid) return;
   initializeFirebaseIfNeeded();
 
   const user = await admin.auth().getUser(uid);
   const existingClaims = user.customClaims || {};
+  const normalizedEmail = (email || user.email || "").toLowerCase();
+  const tester = normalizedEmail ? isWhitelisted(normalizedEmail) : false;
 
-  // Set unlimitedCredits if user is whitelisted
   const updatedClaims = {
     ...existingClaims,
-    unlimitedCredits: isWhitelisted(email || user.email)
+    tester: existingClaims.tester === true || tester,
+    unlimitedCredits: existingClaims.unlimitedCredits === true || tester,
   };
 
   await admin.auth().setCustomUserClaims(uid, updatedClaims);
@@ -59,13 +100,11 @@ export const refreshClaims = onCall({ region: "us-central1" }, async (request) =
 
   let nextClaims = existingClaims;
 
-  if (isDeveloper && existingClaims.unlimitedCredits !== true) {
+  if (isDeveloper) {
+    await ensureTestCredits(auth.uid, email ?? null);
     nextClaims = {
-      ...existingClaims,
-      unlimitedCredits: true,
+      ...(await admin.auth().getUser(auth.uid)).customClaims,
     };
-
-    await admin.auth().setCustomUserClaims(auth.uid, nextClaims);
   }
 
   return {

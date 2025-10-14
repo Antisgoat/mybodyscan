@@ -7,6 +7,6 @@ export function assertNotDemoWrite() {
 
 export function disabledIfDemo(): { disabled: boolean; title?: string } {
   return isReadOnly()
-    ? { disabled: true, title: "Read-only demo mode" }
+    ? { disabled: true, title: "Demo browse only" }
     : { disabled: false };
 }
