@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { isDemo as isDemoAuth } from "@/lib/auth";
 
 export function useCredits() {
@@ -12,7 +12,8 @@ export function useCredits() {
   const [unlimited, setUnlimited] = useState(false);
   const [tester, setTester] = useState(false);
   const [demo, setDemo] = useState(false);
-  const projectId = firebaseConfig.projectId;
+  const projectId =
+    import.meta.env.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
 
   useEffect(() => {
     const unsub = onAuthStateChanged(

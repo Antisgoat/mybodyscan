@@ -1,11 +1,9 @@
-import {
-  ensureAppCheckInitialized,
-  ensureClientInitialized,
-  getCurrentAppCheck,
-} from "@/lib/firebase";
+import { getAppCheckInstance } from "@/lib/firebase";
+import { getToken, type AppCheck } from "firebase/app-check";
 
-let initPromise: Promise<import("firebase/app-check").AppCheck | null> | null = null;
+let initPromise: Promise<AppCheck | null> | null = null;
 let initComplete = false;
+let currentAppCheck: AppCheck | null = null;
 
 function isDevOrDemo() {
   if (import.meta.env.VITE_DEMO_MODE === "true") return true;
@@ -14,13 +12,33 @@ function isDevOrDemo() {
   return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
 }
 
+function resolveAppCheckInstance(): AppCheck | null {
+  if (currentAppCheck) {
+    return currentAppCheck;
+  }
+
+  try {
+    currentAppCheck = getAppCheckInstance();
+    if (!currentAppCheck) {
+      throw new Error("app-check/uninitialized");
+    }
+    return currentAppCheck;
+  } catch (error) {
+    if (isDevOrDemo()) {
+      console.warn("AppCheck not yet available; continuing in soft mode", error);
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function ensureAppCheck() {
   if (typeof window === "undefined") {
     initComplete = true;
     return null;
   }
 
-  const existing = getCurrentAppCheck();
+  const existing = resolveAppCheckInstance();
   if (existing) {
     initComplete = true;
     return existing;
@@ -29,8 +47,7 @@ export async function ensureAppCheck() {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        await ensureClientInitialized();
-        const instance = await ensureAppCheckInitialized();
+        const instance = resolveAppCheckInstance();
         return instance;
       } finally {
         initComplete = true;
@@ -56,9 +73,8 @@ export async function ensureAppCheck() {
 
 export async function getAppCheckToken(forceRefresh = false) {
   if (typeof window === "undefined") return null;
-  const { getToken } = await import("firebase/app-check");
   await ensureAppCheck();
-  const appCheck = getCurrentAppCheck();
+  const appCheck = resolveAppCheckInstance();
   if (!appCheck) return null;
   try {
     const res = await getToken(appCheck, forceRefresh);
@@ -76,7 +92,7 @@ export async function getAppCheckToken(forceRefresh = false) {
 export const initAppCheck = ensureAppCheck;
 
 export function isAppCheckActive(): boolean {
-  return getCurrentAppCheck() != null;
+  return resolveAppCheckInstance() != null;
 }
 
 export function isAppCheckReady(): boolean {

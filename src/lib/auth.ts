@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import {
-  auth as firebaseAuth,
-  ensureClientInitialized,
-  functions,
-  getAuthObjects,
-} from "@/lib/firebase";
+import { auth as firebaseAuth, functions } from "@/lib/firebase";
 import {
   Auth,
   UserCredential,
@@ -58,12 +53,10 @@ export function shouldUsePopupAuth(): boolean {
 }
 
 async function requireAuthInstance(): Promise<Auth> {
-  await ensureClientInitialized();
-  const { auth } = getAuthObjects();
-  if (!auth) {
+  if (typeof window === "undefined") {
     throw new Error("auth/unavailable");
   }
-  return auth;
+  return firebaseAuth;
 }
 
 function persistDemoMarker(): void {
