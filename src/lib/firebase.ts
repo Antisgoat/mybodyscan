@@ -31,7 +31,12 @@ let functionsSingleton: Functions | null = null;
 let analyticsSingleton: Analytics | null = null;
 let googleProviderSingleton: GoogleAuthProvider | null = null;
 let appleProviderSingleton: OAuthProvider | null = null;
+type AppCheck = import("firebase/app-check").AppCheck;
+
 let readyPromise: Promise<void> | null = null;
+let clientInitPromise: Promise<void> | null = null;
+let appCheckInitPromise: Promise<AppCheck | null> | null = null;
+let appCheckSingleton: AppCheck | null = null;
 
 function resolveFirebaseConfig(): FirebaseOptions {
   if (firebaseConfigCache) {
@@ -155,6 +160,79 @@ function ensureAppleProvider(): OAuthProvider | null {
   return appleProviderSingleton;
 }
 
+function isDemoEnvironment(): boolean {
+  return import.meta.env.VITE_DEMO_MODE === "true";
+}
+
+async function ensureAppCheckInstance(): Promise<AppCheck | null> {
+  if (appCheckSingleton) return appCheckSingleton;
+  if (appCheckInitPromise) return appCheckInitPromise;
+  if (typeof window === "undefined") return null;
+
+  const app = getFirebase();
+  if (!app) return null;
+
+  const initPromise = (async () => {
+    try {
+      const { initializeAppCheck, ReCaptchaV3Provider, CustomProvider } = await import("firebase/app-check");
+      const siteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined;
+      const useDebugProvider = import.meta.env.DEV || isDemoEnvironment() || !siteKey;
+
+      if (useDebugProvider) {
+        try {
+          (globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: unknown }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.warn("[Firebase] Unable to enable AppCheck debug token", error);
+          }
+        }
+      }
+
+      if (!siteKey) {
+        console.warn("[Firebase] AppCheck site key missing; using fallback provider");
+      }
+
+      const provider = useDebugProvider
+        ? new CustomProvider({
+            getToken: async () => ({
+              token: `debug-${Math.random().toString(36).slice(2)}`,
+              expireTimeMillis: Date.now() + 60 * 60 * 1000,
+            }),
+          })
+        : new ReCaptchaV3Provider(siteKey!);
+
+      appCheckSingleton = initializeAppCheck(app, {
+        provider,
+        isTokenAutoRefreshEnabled: true,
+      });
+
+      return appCheckSingleton;
+    } catch (error) {
+      if (import.meta.env.DEV || isDemoEnvironment()) {
+        console.warn("[Firebase] AppCheck init skipped:", error);
+        return null;
+      }
+      console.warn("[Firebase] AppCheck initialization failed:", error);
+      return null;
+    }
+  })();
+
+  appCheckInitPromise = initPromise;
+  const instance = await initPromise;
+  if (!instance) {
+    appCheckInitPromise = null;
+  }
+  return instance;
+}
+
+export async function ensureAppCheckInitialized(): Promise<AppCheck | null> {
+  return ensureAppCheckInstance();
+}
+
+export function getCurrentAppCheck(): AppCheck | null {
+  return appCheckSingleton;
+}
+
 export const onReady = () => {
   if (readyPromise) return readyPromise;
   readyPromise = new Promise<void>((resolve) => {
@@ -197,6 +275,31 @@ export const storage = bindInstance(() => ensureStorage() as FirebaseStorage | n
 export const functions = bindInstance(() => ensureFunctions() as Functions | null);
 export const analytics = bindInstance(() => analyticsSingleton ?? null);
 
+export function ensureClientInitialized(): Promise<void> {
+  if (clientInitPromise) return clientInitPromise;
+  if (typeof window === "undefined") {
+    clientInitPromise = Promise.resolve();
+    return clientInitPromise;
+  }
+
+  clientInitPromise = onReady().then(async () => {
+    const firebaseApp = getFirebase();
+    if (!firebaseApp) return;
+
+    try {
+      await ensureAnalytics();
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[Firebase] analytics initialization skipped:", error);
+      }
+    }
+
+    await ensureAppCheckInstance();
+  });
+
+  return clientInitPromise;
+}
+
 export function getAuthObjects() {
   const authInstance = ensureAuth();
   const googleProvider = ensureGoogleProvider();
@@ -208,7 +311,7 @@ export const googleProvider = bindInstance(() => ensureGoogleProvider() as Googl
 export const appleProvider = bindInstance(() => ensureAppleProvider() as OAuthProvider | null);
 
 if (typeof window !== "undefined") {
-  void onReady().then(() => ensureAnalytics());
+  void ensureClientInitialized();
 }
 
 const firebaseConfig = resolveFirebaseConfig();

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions, onReady, getAuthObjects } from "@/lib/firebase";
+import {
+  auth as firebaseAuth,
+  ensureClientInitialized,
+  functions,
+  getAuthObjects,
+} from "@/lib/firebase";
 import {
   Auth,
   UserCredential,
@@ -53,7 +58,7 @@ export function shouldUsePopupAuth(): boolean {
 }
 
 async function requireAuthInstance(): Promise<Auth> {
-  await onReady();
+  await ensureClientInitialized();
   const { auth } = getAuthObjects();
   if (!auth) {
     throw new Error("auth/unavailable");
@@ -83,6 +88,7 @@ function persistDemoMarker(): void {
 export async function ensureDemoUser(): Promise<void> {
   const auth = await requireAuthInstance();
   if (!auth.currentUser?.isAnonymous) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
     await signInAnonymously(auth);
   }
   persistDemoMarker();
