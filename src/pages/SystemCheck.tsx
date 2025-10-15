@@ -104,6 +104,20 @@ export default function SystemCheck() {
     };
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await fetch("https://identitytoolkit.googleapis.com/v1/?key=dummy", {
+          method: "GET",
+          mode: "no-cors" as RequestMode,
+        });
+        console.log("[AuthProbe] identitytoolkit reachable (no-cors):", (response as Response)?.type ?? "ok");
+      } catch (error) {
+        console.warn("[AuthProbe] identitytoolkit blocked by CSP or network:", error);
+      }
+    })();
+  }, []);
+
   const openAiBadge = status
     ? status.hasOpenAI
       ? "Configured"
