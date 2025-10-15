@@ -70,6 +70,7 @@ export function persistDemoFlags(): void {
   setStoredFlag(DEMO_READONLY_KEY);
   if (typeof window !== "undefined") {
     safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, "1");
+    safeWrite(window.localStorage, "mbs_demo", "1");
   }
 }
 
@@ -78,6 +79,7 @@ export function clearDemoFlags(): void {
   clearStoredFlag(DEMO_READONLY_KEY);
   if (typeof window !== "undefined") {
     safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, null);
+    safeWrite(window.localStorage, "mbs_demo", null);
   }
   if (typeof window !== "undefined") {
     safeWrite(window.sessionStorage, DEMO_STORAGE_KEY, null);
