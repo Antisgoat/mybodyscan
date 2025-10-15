@@ -19,13 +19,15 @@ import {
   formatAuthError,
   finalizeAppleProfile,
 } from "@/lib/auth";
-import { auth, getAuthObjects, onReady } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import {
   signInWithPopup,
   signInWithRedirect,
   type Auth as FirebaseAuth,
   type AuthProvider,
   type UserCredential,
+  GoogleAuthProvider,
+  OAuthProvider,
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
@@ -41,12 +43,20 @@ type ProviderSignInResult =
   | { status: "popup"; credential: UserCredential }
   | { status: "redirect"; credential: null };
 
+async function waitForDomReady(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (document.readyState === "complete") return;
+  await new Promise<void>((resolve) => {
+    window.addEventListener("load", () => resolve(), { once: true });
+  });
+}
+
 async function signInWithProvider(
   auth: FirebaseAuth,
   provider: AuthProvider,
   options?: { preferPopup?: boolean; finalize?: (credential: UserCredential | null) => Promise<void> | void },
 ): Promise<ProviderSignInResult> {
-  await onReady();
+  await waitForDomReady();
   const preferPopup = options?.preferPopup ?? shouldUsePopupAuth();
   if (!preferPopup) {
     await signInWithRedirect(auth, provider);
@@ -167,12 +177,8 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const { auth: authInstance, googleProvider } = getAuthObjects();
-      if (!authInstance || !googleProvider) {
-        const unavailable = new Error("Sign-in unavailable");
-        (unavailable as any).code = "auth/unavailable";
-        throw unavailable;
-      }
+      const authInstance = auth;
+      const googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters?.({ prompt: "select_account" });
       const result = await signInWithProvider(authInstance, googleProvider, {
         preferPopup: shouldUsePopupAuth(),
@@ -222,12 +228,8 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const { auth: authInstance, appleProvider } = getAuthObjects();
-      if (!authInstance || !appleProvider) {
-        const unavailable = new Error("Sign-in unavailable");
-        (unavailable as any).code = "auth/unavailable";
-        throw unavailable;
-      }
+      const authInstance = auth;
+      const appleProvider = new OAuthProvider("apple.com");
       appleProvider.addScope("email");
       appleProvider.addScope("name");
       const preferPopup = shouldUsePopupAuth() && !isIOSSafari();

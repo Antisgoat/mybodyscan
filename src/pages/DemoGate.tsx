@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
+import { signInAnonymously } from "firebase/auth";
 import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
@@ -14,6 +15,20 @@ export default function DemoGate() {
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // tiny yield to ensure AppCheck finishes at module-load
+      await new Promise((r) => setTimeout(r, 50));
+      if (!cancelled && !auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+    })().catch((e) => console.error("Demo anon sign-in failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;

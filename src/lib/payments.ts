@@ -4,7 +4,7 @@ import { toast } from "@/hooks/use-toast";
 import { track } from "./analytics";
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
+import { auth, functions } from "@/lib/firebase";
 import { authedFetch } from "@/lib/api";
 
 export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
@@ -23,63 +23,62 @@ export async function startCheckout(plan: CheckoutPlanKey) {
     window.location.assign("/auth");
     return;
   }
-    const { getAuth } = await import("firebase/auth");
-    const user = getAuth().currentUser;
-    if (!user) throw new Error("Not signed in");
-    const response = await authedFetch(`/createCheckout`, {
-      method: "POST",
-      body: JSON.stringify({ plan }),
-    });
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as Record<string, unknown>;
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  const response = await authedFetch(`/createCheckout`, {
+    method: "POST",
+    body: JSON.stringify({ plan }),
+  });
+  const payload = (await response
+    .json()
+    .catch(() => ({}))) as Record<string, unknown>;
 
-    const errorCode = typeof (payload as any)?.error === "string" ? ((payload as any).error as string) : undefined;
+  const errorCode = typeof (payload as any)?.error === "string" ? ((payload as any).error as string) : undefined;
 
-    if (!response.ok) {
-      if (errorCode === "config") {
-        toast({
-          title: "Checkout not configured",
-          description: "Checkout not configured. Please contact support.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (errorCode === "internal") {
-        toast({
-          title: "Checkout error",
-          description: "Checkout error. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      throw new Error(errorCode || "Checkout failed");
+  if (!response.ok) {
+    if (errorCode === "config") {
+      toast({
+        title: "Checkout not configured",
+        description: "Checkout not configured. Please contact support.",
+        variant: "destructive",
+      });
+      return;
     }
-
-    if (errorCode) {
-      if (errorCode === "config") {
-        toast({
-          title: "Checkout not configured",
-          description: "Checkout not configured. Please contact support.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (errorCode === "internal") {
-        toast({
-          title: "Checkout error",
-          description: "Checkout error. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
+    if (errorCode === "internal") {
+      toast({
+        title: "Checkout error",
+        description: "Checkout error. Please try again.",
+        variant: "destructive",
+      });
+      return;
     }
+    throw new Error(errorCode || "Checkout failed");
+  }
 
-    const url = typeof (payload as any)?.url === "string" ? ((payload as any).url as string) : null;
-    if (!url) {
-      throw new Error("Checkout failed");
+  if (errorCode) {
+    if (errorCode === "config") {
+      toast({
+        title: "Checkout not configured",
+        description: "Checkout not configured. Please contact support.",
+        variant: "destructive",
+      });
+      return;
     }
-    window.location.assign(url);
+    if (errorCode === "internal") {
+      toast({
+        title: "Checkout error",
+        description: "Checkout error. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+  }
+
+  const url = typeof (payload as any)?.url === "string" ? ((payload as any).url as string) : null;
+  if (!url) {
+    throw new Error("Checkout failed");
+  }
+  window.location.assign(url);
 }
 
 export async function consumeOneCredit(): Promise<number> {
@@ -96,8 +95,7 @@ export async function consumeOneCredit(): Promise<number> {
     window.location.assign("/auth");
     throw new Error("demo-blocked");
   }
-  const { getAuth } = await import("firebase/auth");
-  const user = getAuth().currentUser;
+  const user = auth.currentUser;
   if (!user) throw new Error("Not signed in");
   const token = await user.getIdTokenResult();
   if (token.claims.unlimitedCredits === true || token.claims.tester === true) {
