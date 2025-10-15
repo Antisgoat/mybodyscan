@@ -33,14 +33,30 @@ class NoopAppCheckProvider {
 
 if (typeof window !== "undefined") {
   try {
-    // In dev or soft mode this bypasses enforcement.
-    // Remove or set to a real token if you later hard-enforce AppCheck.
-    (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-
     const siteKey =
       import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY ||
       import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
       "";
+
+    const shouldEnableDebugToken = (() => {
+      if (!siteKey) return true;
+      if (import.meta.env.VITE_DEMO_MODE === "true") return true;
+      if (import.meta.env.DEV) return true;
+      const host = window.location?.hostname || "";
+      return (
+        host.includes("localhost") ||
+        host.includes("127.0.0.1") ||
+        host.includes("lovable")
+      );
+    })();
+
+    if (shouldEnableDebugToken) {
+      // In dev or soft mode this bypasses enforcement.
+      // Remove or set to a real token if you later hard-enforce AppCheck.
+      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    } else if ("FIREBASE_APPCHECK_DEBUG_TOKEN" in self) {
+      delete (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN;
+    }
 
     const provider = siteKey
       ? new ReCaptchaV3Provider(siteKey)
