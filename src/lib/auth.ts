@@ -1,31 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions } from "@/lib/firebase";
+import { auth as firebaseAuth, functions, onReady, getAuthObjects } from "@/lib/firebase";
 import {
   Auth,
-  OAuthProvider,
   UserCredential,
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAdditionalUserInfo,
   getRedirectResult,
-  GoogleAuthProvider,
   linkWithCredential,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
   signInAnonymously,
   signInWithEmailAndPassword,
-  signInWithPopup,
-  signInWithRedirect,
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
 import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
+import type { FirebaseError } from "firebase/app";
 
 const DEMO_FLAG_KEY = "mbs:demo";
+const DEMO_LOCAL_KEY = "mbs_demo";
 
 export function getAuthDomainWhitelist(): string[] {
   return [
@@ -51,27 +48,29 @@ function isPopupFriendlyDomain(): boolean {
   return getAuthDomainWhitelist().some((domain) => hostMatches(domain, host));
 }
 
-function shouldUsePopupAuth(): boolean {
+export function shouldUsePopupAuth(): boolean {
   return isPopupFriendlyDomain();
 }
 
-export async function ensureDemoUser(): Promise<void> {
-  if (firebaseAuth.currentUser?.isAnonymous) {
-    return;
+async function requireAuthInstance(): Promise<Auth> {
+  await onReady();
+  const { auth } = getAuthObjects();
+  if (!auth) {
+    throw new Error("auth/unavailable");
   }
+  return auth;
+}
 
-  await signInAnonymously(firebaseAuth);
-
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage?.setItem(DEMO_FLAG_KEY, "1");
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn("[auth] unable to persist demo flag", error);
-      }
+function persistDemoMarker(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage?.setItem(DEMO_FLAG_KEY, "1");
+    window.localStorage?.setItem(DEMO_LOCAL_KEY, "1");
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] unable to persist demo marker", error);
     }
   }
-
   try {
     persistDemoFlags();
   } catch (error) {
@@ -81,20 +80,60 @@ export async function ensureDemoUser(): Promise<void> {
   }
 }
 
+export async function ensureDemoUser(): Promise<void> {
+  const auth = await requireAuthInstance();
+  if (!auth.currentUser?.isAnonymous) {
+    await signInAnonymously(auth);
+  }
+  persistDemoMarker();
+}
+
+export async function startDemo(options?: {
+  navigate?: (path: string, options?: { replace?: boolean }) => void;
+  skipEnsure?: boolean;
+}): Promise<void> {
+  if (options?.skipEnsure) {
+    persistDemoMarker();
+  } else {
+    await ensureDemoUser();
+  }
+
+  const navigate = options?.navigate;
+  if (navigate) {
+    navigate("/today", { replace: true });
+  } else if (typeof window !== "undefined") {
+    window.history.replaceState({}, "", "/today");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
+}
+
 export function isDemo(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return (
-      window.localStorage?.getItem(DEMO_FLAG_KEY) === "1" &&
-      firebaseAuth.currentUser?.isAnonymous === true
-    );
+    const marker = window.localStorage?.getItem(DEMO_FLAG_KEY) === "1";
+    const localMarker = window.localStorage?.getItem(DEMO_LOCAL_KEY) === "1";
+    return (marker || localMarker) && firebaseAuth.currentUser?.isAnonymous === true;
   } catch {
     return firebaseAuth.currentUser?.isAnonymous === true;
   }
 }
 
+export function isDemoUser(
+  currentUser: { isAnonymous?: boolean } | null | undefined,
+): boolean {
+  if (!currentUser) return false;
+  if (currentUser.isAnonymous) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage?.getItem(DEMO_LOCAL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export async function initAuthPersistence() {
-  await setPersistence(firebaseAuth, browserLocalPersistence);
+  const auth = await requireAuthInstance();
+  await setPersistence(auth, browserLocalPersistence);
 }
 
 export function useAuthUser() {
@@ -201,28 +240,6 @@ export async function signOutToAuth(): Promise<void> {
 }
 
 // New helpers
-export async function signInWithGoogle() {
-  const provider = new GoogleAuthProvider();
-  try {
-    if (!shouldUsePopupAuth()) {
-      await signInWithRedirect(firebaseAuth, provider);
-      return;
-    }
-    return await signInWithPopup(firebaseAuth, provider);
-  } catch (err: any) {
-    const code = String(err?.code || "");
-    if (
-      code.includes("popup-blocked") ||
-      code.includes("popup-closed-by-user") ||
-      code.includes("operation-not-supported-in-this-environment")
-    ) {
-      await signInWithRedirect(firebaseAuth, provider);
-      return;
-    }
-    throw err;
-  }
-}
-
 const APPLE_PROVIDER_ID = "apple.com";
 
 type AppleAdditionalProfile = {
@@ -231,7 +248,7 @@ type AppleAdditionalProfile = {
   lastName?: string;
 };
 
-async function applyAppleProfile(result: UserCredential | null) {
+export async function finalizeAppleProfile(result: UserCredential | null) {
   if (!result) return;
   const info = getAdditionalUserInfo(result);
   if (info?.providerId !== APPLE_PROVIDER_ID) return;
@@ -245,72 +262,99 @@ async function applyAppleProfile(result: UserCredential | null) {
   }
 }
 
-function logAppleFlow(flow: "popup" | "redirect", context?: string) {
-  if (!import.meta.env.DEV) return;
-  const extra = context ? ` ${context}` : "";
-  console.info(`[auth] Apple sign-in via ${flow}${extra}`);
-}
-
-export async function signInWithApple(auth: Auth): Promise<UserCredential | void> {
-  const provider = new OAuthProvider(APPLE_PROVIDER_ID);
-  provider.addScope("email");
-  provider.addScope("name");
-
-  try {
-    const iosSafari = isIOSSafari();
-    const preferPopup = shouldUsePopupAuth() && !iosSafari;
-    if (!preferPopup) {
-      logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
-      return await signInWithRedirect(auth, provider);
-    }
-
-    logAppleFlow("popup");
-    const result = await signInWithPopup(auth, provider);
-    await applyAppleProfile(result);
-    return result;
-  } catch (err: any) {
-    const msg = String(err?.code || "");
-    if (
-      msg.includes("popup-blocked") ||
-      msg.includes("popup-closed-by-user") ||
-      msg.includes("operation-not-supported-in-this-environment")
-    ) {
-      logAppleFlow("redirect", "(fallback)");
-      return await signInWithRedirect(auth, provider);
-    }
-    throw err;
-  }
-}
-
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
   const result = await getRedirectResult(auth);
-  await applyAppleProfile(result);
+  await finalizeAppleProfile(result);
   return result;
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {
-  const user = firebaseAuth.currentUser;
+  const auth = await requireAuthInstance();
+  const user = auth.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
   if (user?.isAnonymous) {
     const res = await linkWithCredential(user, cred);
     if (displayName) await updateProfile(res.user, { displayName });
     return res.user;
   }
-  const res = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+  const res = await createUserWithEmailAndPassword(auth, email, password);
   if (displayName) await updateProfile(res.user, { displayName });
   return res.user;
 }
 
-export function signInEmail(email: string, password: string) {
-  return signInWithEmailAndPassword(firebaseAuth, email, password);
+export async function signInEmail(email: string, password: string) {
+  const auth = await requireAuthInstance();
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
-export function sendReset(email: string) {
-  return sendPasswordResetEmail(firebaseAuth, email);
+export async function sendReset(email: string) {
+  const auth = await requireAuthInstance();
+  return sendPasswordResetEmail(auth, email);
 }
 
-export function signOutAll() {
-  return signOut(firebaseAuth);
+export async function signOutAll() {
+  const auth = await requireAuthInstance();
+  return signOut(auth);
+}
+
+function extractFirebaseError(error: unknown): FirebaseError | null {
+  if (error && typeof error === "object" && "code" in (error as any)) {
+    const code = (error as any).code;
+    if (typeof code === "string") {
+      return error as FirebaseError;
+    }
+  }
+  return null;
+}
+
+function getErrorCode(error: unknown): string | null {
+  const firebaseError = extractFirebaseError(error);
+  if (firebaseError?.code) return firebaseError.code;
+  if (error && typeof error === "object" && typeof (error as any).code === "string") {
+    return (error as any).code;
+  }
+  return null;
+}
+
+function getErrorMessage(error: unknown): string | null {
+  const firebaseError = extractFirebaseError(error);
+  if (firebaseError?.message) return firebaseError.message;
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof (error as any).message === "string") {
+    return (error as any).message;
+  }
+  return null;
+}
+
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  "auth/network-request-failed": "We couldn’t reach the server. Check your internet connection and try again.",
+  "auth/popup-blocked": "Your browser blocked the sign-in window. Please allow popups or continue with redirect.",
+  "auth/popup-closed-by-user": "It looks like the sign-in window was closed before completing. Please try again.",
+  "auth/cancelled-popup-request": "A sign-in window is already open. Close it or finish that flow before trying again.",
+  "auth/operation-not-supported-in-this-environment": "This browser can’t open a sign-in popup. We’ll retry with a redirect.",
+  "auth/unauthorized-domain": "This domain isn’t authorized for sign-in. Contact support if you need access.",
+  "auth/internal-error": "Something went wrong while signing in. Please try again.",
+  "auth/account-exists-with-different-credential": "That email is already linked to another sign-in method. Use the original provider instead.",
+  "auth/invalid-credential": "The sign-in link is no longer valid. Please try again.",
+  "auth/user-disabled": "This account has been disabled. Contact support if this seems wrong.",
+  "auth/invalid-email": "Enter a valid email address.",
+  "auth/wrong-password": "That password doesn’t match. Try again or reset your password.",
+  "auth/too-many-requests": "Too many attempts. Wait a moment and try again.",
+  "auth/invalid-oauth-client-id": "The provider configuration needs attention. Please try again later or contact support.",
+  "auth/invalid-redirect-uri": "The redirect URL isn’t allowed for this sign-in method. Refresh and try again.",
+  "auth/invalid-provider-id": "The sign-in provider is misconfigured. Contact support if the issue persists.",
+  "auth/missing-or-invalid-nonce": "We couldn’t verify the sign-in request. Please try again.",
+  "auth/unavailable": "Sign-in is temporarily unavailable. Refresh the page and try again.",
+};
+
+export function formatAuthError(providerLabel: string, error: unknown): string {
+  const code = getErrorCode(error);
+  const baseMessage = (code && AUTH_ERROR_MESSAGES[code]) || null;
+  const fallbackMessage = getErrorMessage(error) || "Please try again.";
+  const message = baseMessage ?? fallbackMessage;
+  const prefix = providerLabel ? `${providerLabel}: ` : "";
+  return `${prefix}${message}`;
 }
 
 export { isIOSSafari } from "@/lib/isIOSWeb";

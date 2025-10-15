@@ -6,7 +6,7 @@ import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { ensureDemoUser } from "@/lib/auth";
+import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -42,11 +42,17 @@ export default function DemoGate() {
           }
         }
 
-        if (mountedRef.current) navigate("/today", { replace: true });
+        if (mountedRef.current) {
+          await startDemo({ navigate, skipEnsure: true });
+        }
       } catch (error: any) {
         console.error("demo_gate_error", error);
         if (mountedRef.current) {
-          toast({ title: "Unable to start demo", description: "Please try again.", variant: "destructive" });
+          toast({
+            title: "Unable to start demo",
+            description: formatAuthError("Demo", error),
+            variant: "destructive",
+          });
           setFailed(true);
         }
       } finally {

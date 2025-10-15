@@ -10,16 +10,72 @@ import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
   signInEmail,
-  signInWithGoogle,
-  signInWithApple,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
   sendReset,
   useAuthUser,
+  shouldUsePopupAuth,
+  formatAuthError,
+  finalizeAppleProfile,
 } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import { auth, getAuthObjects, onReady } from "@/lib/firebase";
+import {
+  signInWithPopup,
+  signInWithRedirect,
+  type Auth as FirebaseAuth,
+  type AuthProvider,
+  type UserCredential,
+} from "firebase/auth";
+import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+
+const POPUP_FALLBACK_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/popup-closed-by-user",
+  "auth/operation-not-supported-in-this-environment",
+  "auth/network-request-failed",
+]);
+
+type ProviderSignInResult =
+  | { status: "popup"; credential: UserCredential }
+  | { status: "redirect"; credential: null };
+
+async function signInWithProvider(
+  auth: FirebaseAuth,
+  provider: AuthProvider,
+  options?: { preferPopup?: boolean; finalize?: (credential: UserCredential | null) => Promise<void> | void },
+): Promise<ProviderSignInResult> {
+  await onReady();
+  const preferPopup = options?.preferPopup ?? shouldUsePopupAuth();
+  if (!preferPopup) {
+    await signInWithRedirect(auth, provider);
+    return { status: "redirect", credential: null };
+  }
+
+  let retriedNetwork = false;
+  while (true) {
+    try {
+      const credential = await signInWithPopup(auth, provider);
+      await options?.finalize?.(credential);
+      return { status: "popup", credential };
+    } catch (error: any) {
+      const code = typeof error?.code === "string" ? error.code : "";
+      if (code === "auth/network-request-failed" && !retriedNetwork) {
+        retriedNetwork = true;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        continue;
+      }
+      if (!code || !POPUP_FALLBACK_CODES.has(code)) {
+        throw error;
+      }
+      break;
+    }
+  }
+
+  await signInWithRedirect(auth, provider);
+  return { status: "redirect", credential: null };
+}
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -80,7 +136,7 @@ const Auth = () => {
       .catch((err: any) => {
         if (!active) return;
         consumeAuthRedirect();
-        toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+        toast({ title: "Sign in failed", description: formatAuthError("Sign-in", err) });
       });
     return () => {
       active = false;
@@ -98,7 +154,10 @@ const Auth = () => {
       }
       navigate(from, { replace: true });
     } catch (err: any) {
-      toast({ title: mode === "signin" ? "Sign in failed" : "Create account failed", description: err?.message || "Please try again." });
+      toast({
+        title: mode === "signin" ? "Sign in failed" : "Create account failed",
+        description: formatAuthError("Email", err),
+      });
     } finally {
       setLoading(false);
     }
@@ -108,14 +167,23 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await signInWithGoogle();
-      if (result) {
+      const { auth: authInstance, googleProvider } = getAuthObjects();
+      if (!authInstance || !googleProvider) {
+        const unavailable = new Error("Sign-in unavailable");
+        (unavailable as any).code = "auth/unavailable";
+        throw unavailable;
+      }
+      googleProvider.setCustomParameters?.({ prompt: "select_account" });
+      const result = await signInWithProvider(authInstance, googleProvider, {
+        preferPopup: shouldUsePopupAuth(),
+      });
+      if (result.status === "popup") {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
     } catch (err: any) {
       consumeAuthRedirect();
-      toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
+      toast({ title: "Google sign-in failed", description: formatAuthError("Google", err) });
     } finally {
       setLoading(false);
     }
@@ -154,8 +222,20 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await signInWithApple(auth);
-      if (result) {
+      const { auth: authInstance, appleProvider } = getAuthObjects();
+      if (!authInstance || !appleProvider) {
+        const unavailable = new Error("Sign-in unavailable");
+        (unavailable as any).code = "auth/unavailable";
+        throw unavailable;
+      }
+      appleProvider.addScope("email");
+      appleProvider.addScope("name");
+      const preferPopup = shouldUsePopupAuth() && !isIOSSafari();
+      const result = await signInWithProvider(authInstance, appleProvider, {
+        preferPopup,
+        finalize: finalizeAppleProfile,
+      });
+      if (result.status === "popup") {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
@@ -164,7 +244,7 @@ const Auth = () => {
       if (isAppleMisconfiguredError(err)) {
         showAppleNotConfigured();
       } else {
-        toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
+        toast({ title: "Apple sign-in failed", description: formatAuthError("Apple", err) });
       }
     } finally {
       setLoading(false);
