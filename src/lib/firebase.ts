@@ -50,12 +50,12 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
 
-let analyticsInstance: ReturnType<typeof getAnalytics> | undefined;
+export let analytics: ReturnType<typeof getAnalytics> | undefined;
 if (typeof window !== "undefined" && firebaseConfig.measurementId) {
   analyticsSupported()
     .then((supported) => {
       if (supported) {
-        analyticsInstance = getAnalytics(app);
+        analytics = getAnalytics(app);
       }
     })
     .catch((error) => {
@@ -64,7 +64,5 @@ if (typeof window !== "undefined" && firebaseConfig.measurementId) {
       }
     });
 }
-
-export const analytics = analyticsInstance;
 
 export { firebaseConfig };
