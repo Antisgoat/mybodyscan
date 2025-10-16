@@ -240,7 +240,7 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
       : undefined;
   const rawSource = typeof raw?.source === "string" ? raw.source : null;
   const source: NutritionSource =
-    rawSource === "Open Food Facts" || rawSource === "OFF" ? "OFF" : "USDA";
+    rawSource === "OFF" ? "OFF" : "USDA";
   const base = normalizeBasePer100g(raw);
   const servings = normalizeServings(raw);
   const defaultServing = servings.find((option) => option.isDefault) ?? servings[0] ?? null;

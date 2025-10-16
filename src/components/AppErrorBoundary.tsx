@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { reportError } from "@/lib/sentry";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; error?: Error };
@@ -16,6 +17,14 @@ export class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: unknown, info: unknown) {
     console.error("App crashed:", error, info);
     this.setState({ error: error instanceof Error ? error : new Error(String(error)) });
+    
+    // Report to Sentry if available
+    if (error instanceof Error) {
+      reportError(error, {
+        component: 'AppErrorBoundary',
+        errorInfo: info,
+      });
+    }
   }
 
   render() {
