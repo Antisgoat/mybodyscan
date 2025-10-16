@@ -5,6 +5,10 @@ const ALLOWED = new Set([
   "https://mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  "https://mybodyscan-f3daf.web.app", // Firebase Hosting
+  "https://mybodyscan-f3daf.firebaseapp.com", // Firebase Hosting
+  "http://localhost:3000", // Local development
+  "http://localhost:5173", // Vite dev server
 ]);
 
 export function withCors(handler: (req: Request, res: Response) => Promise<void> | void) {

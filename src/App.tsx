@@ -80,6 +80,7 @@ import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
 import AdminDevTools from "./pages/AdminDevTools";
+import AdminCredits from "./pages/AdminCredits";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -490,6 +491,18 @@ const App = () => {
                   <AuthedLayout>
                     <RouteBoundary>
                       <AdminDevTools />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/credits"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <AdminCredits />
                     </RouteBoundary>
                   </AuthedLayout>
                 </ProtectedRoute>

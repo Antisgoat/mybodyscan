@@ -217,6 +217,7 @@ export default function MealsSearch() {
   const [results, setResults] = useState<FoodItem[]>([]);
   const [primarySource, setPrimarySource] = useState<"USDA" | "OFF" | null>(null);
   const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [sourceErrors, setSourceErrors] = useState<Record<string, string>>({});
   const [recents, setRecents] = useState<FoodItem[]>(() => readRecents());
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
@@ -265,11 +266,12 @@ export default function MealsSearch() {
     let cancelled = false;
     const handle = window.setTimeout(() => {
       fetchFoods(trimmed)
-        .then(({ items, primarySource: source, fallbackUsed: fallback }) => {
+        .then(({ items, primarySource: source, fallbackUsed: fallback, sourceErrors: errors }) => {
           if (cancelled) return;
           setResults(items);
           setPrimarySource(source);
           setFallbackUsed(fallback);
+          setSourceErrors((errors as Record<string, string>) || {});
           setSearchWarning(items.length ? null : "No foods found. Try another search.");
         })
         .catch((error) => {
@@ -284,6 +286,7 @@ export default function MealsSearch() {
           setResults([]);
           setPrimarySource(null);
           setFallbackUsed(false);
+          setSourceErrors({});
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -362,9 +365,9 @@ export default function MealsSearch() {
   };
 
   const primaryCaption = fallbackUsed
-    ? "USDA primary · OFF fallback"
+    ? "USDA primary • OFF fallback"
     : primarySource === "OFF"
-    ? "OFF primary · USDA unavailable"
+    ? "OFF primary • USDA unavailable"
     : "USDA";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
@@ -460,38 +463,66 @@ export default function MealsSearch() {
             {!loading && appCheckReady && searchWarning && (
               <p className="text-sm text-muted-foreground">{searchWarning}</p>
             )}
-              {appCheckReady &&
-                results.map((item) => {
-                  const favorite = favoritesMap.get(item.id);
-                  const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
-                  const base = item.basePer100g;
-                  return (
-                    <Card key={item.id} className="border">
-                      <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1">
-                      <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}g P · {roundGrams(base.carbs)}g C · {roundGrams(base.fat)}g F
-                        &nbsp;<span className="text-[10px] text-muted-foreground">per 100 g</span>
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <DemoWriteButton size="sm" variant="ghost" onClick={() => toggleFavorite(item)}>
-                        {favorite ? (
-                          <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                        ) : (
-                          <StarOff className="h-4 w-4" />
-                        )}
-                      </DemoWriteButton>
-                      <Button size="sm" onClick={() => setSelectedItem(item)}>
-                        <Plus className="mr-1 h-4 w-4" /> Add
-                      </Button>
-                    </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+            
+            {!loading && appCheckReady && results.length === 0 && query.trim().length > 0 && Object.keys(sourceErrors).length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-medium">Service temporarily unavailable</p>
+                <p className="mt-1 text-xs">
+                  Both nutrition databases are experiencing issues. Please try again in a moment.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      setQuery(query);
+                      setSourceErrors({});
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {appCheckReady &&
+              results.map((item) => {
+                const favorite = favoritesMap.get(item.id);
+                const subtitle = item.brand || (item.source === "OFF" ? "Open Food Facts" : "USDA");
+                const base = item.basePer100g;
+                const sourceColor = item.source === "USDA" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800";
+                return (
+                  <Card key={item.id} className="border">
+                    <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{item.name}</p>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sourceColor}`}>
+                            {item.source}
+                          </span>
+                        </div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}g P · {roundGrams(base.carbs)}g C · {roundGrams(base.fat)}g F
+                          &nbsp;<span className="text-[10px] text-muted-foreground">per 100 g</span>
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <DemoWriteButton size="sm" variant="ghost" onClick={() => toggleFavorite(item)}>
+                          {favorite ? (
+                            <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                          ) : (
+                            <StarOff className="h-4 w-4" />
+                          )}
+                        </DemoWriteButton>
+                        <Button size="sm" onClick={() => setSelectedItem(item)}>
+                          <Plus className="mr-1 h-4 w-4" /> Add
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </CardContent>
         </Card>
       </main>

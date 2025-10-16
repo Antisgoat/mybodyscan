@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
+import { isWhitelisted } from "./testWhitelist.js";
 
 const db = getFirestore();
 const MAX_TRANSACTION_ATTEMPTS = 5;
@@ -166,12 +167,24 @@ async function decrementOne(uid: string): Promise<ConsumeResult> {
   return result;
 }
 
-export async function consumeOne(uid: string): Promise<boolean> {
+export async function consumeOne(uid: string, userEmail?: string): Promise<boolean> {
+  // Check if user is whitelisted (developer@adlrlabs.com gets unlimited credits)
+  if (userEmail && isWhitelisted(userEmail)) {
+    console.info("credits_whitelisted_skip", { uid, email: userEmail });
+    return true; // Always allow consumption for whitelisted users
+  }
+  
   const result = await decrementOne(uid);
   return result.consumed;
 }
 
-export async function consumeCredit(uid: string): Promise<ConsumeResult> {
+export async function consumeCredit(uid: string, userEmail?: string): Promise<ConsumeResult> {
+  // Check if user is whitelisted (developer@adlrlabs.com gets unlimited credits)
+  if (userEmail && isWhitelisted(userEmail)) {
+    console.info("credits_whitelisted_skip", { uid, email: userEmail });
+    return { consumed: true, remaining: 9999 }; // Always allow consumption for whitelisted users
+  }
+  
   return decrementOne(uid);
 }
 
@@ -220,4 +233,60 @@ export async function setSubscriptionStatus(
     },
     { merge: true }
   );
+}
+
+export async function grantWhitelistedCredits(uid: string, userEmail: string): Promise<void> {
+  if (!isWhitelisted(userEmail)) {
+    return;
+  }
+  
+  // Grant 9,999 credits that don't decrement for whitelisted users
+  await mutateBuckets(uid, (buckets, now) => {
+    // Remove any existing whitelisted credits
+    const filteredBuckets = buckets.filter(bucket => bucket.context !== "whitelisted_dev_credits");
+    
+    // Add new whitelisted credits (no expiration, high amount)
+    filteredBuckets.push({
+      amount: 9999,
+      grantedAt: now,
+      expiresAt: null, // Never expire
+      sourcePriceId: null,
+      context: "whitelisted_dev_credits",
+    });
+    
+    return { consumed: false, remaining: computeTotal(filteredBuckets), logEmpty: false };
+  });
+}
+
+export async function getCreditsInfo(uid: string): Promise<{
+  totalAvailable: number;
+  buckets: CreditBucket[];
+  lastUpdated: Timestamp;
+  isWhitelisted: boolean;
+}> {
+  const ref = getSummaryRef(uid);
+  const snap = await ref.get();
+  const now = Timestamp.now();
+  
+  if (!snap.exists) {
+    return {
+      totalAvailable: 0,
+      buckets: [],
+      lastUpdated: now,
+      isWhitelisted: false,
+    };
+  }
+  
+  const data = snap.data();
+  const buckets = normalizeBuckets(data, now);
+  const totalAvailable = computeTotal(buckets);
+  const lastUpdated = data?.creditsSummary?.lastUpdated || now;
+  const isWhitelisted = buckets.some(bucket => bucket.context === "whitelisted_dev_credits");
+  
+  return {
+    totalAvailable,
+    buckets,
+    lastUpdated,
+    isWhitelisted,
+  };
 }
