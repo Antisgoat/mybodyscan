@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions } from "@/lib/firebase";
+import { auth as firebaseAuth, functions, safeEmailSignIn } from "@/lib/firebase";
 import {
   Auth,
   UserCredential,
@@ -14,7 +14,6 @@ import {
   sendPasswordResetEmail,
   setPersistence,
   signInAnonymously,
-  signInWithEmailAndPassword,
   signOut,
   updateProfile,
 } from "firebase/auth";
@@ -296,8 +295,8 @@ export async function createAccountEmail(email: string, password: string, displa
 }
 
 export async function signInEmail(email: string, password: string) {
-  const auth = await requireAuthInstance();
-  return signInWithEmailAndPassword(auth, email, password);
+  await requireAuthInstance();
+  return safeEmailSignIn(email, password);
 }
 
 export async function sendReset(email: string) {
@@ -367,7 +366,8 @@ export function formatAuthError(providerLabel: string, error: unknown): string {
   const fallbackMessage = getErrorMessage(error) || "Please try again.";
   const message = baseMessage ?? fallbackMessage;
   const prefix = providerLabel ? `${providerLabel}: ` : "";
-  return `${prefix}${message}`;
+  const suffix = code ? ` (${code})` : "";
+  return `${prefix}${message}${suffix}`;
 }
 
 export { isIOSSafari } from "@/lib/isIOSWeb";
