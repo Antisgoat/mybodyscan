@@ -1,4 +1,4 @@
-import { getAppCheckInstance } from "@/lib/firebase";
+import { getAppCheckInstance, waitForAppCheck, isAppCheckAvailable } from "@/lib/firebase";
 import { getToken, type AppCheck } from "firebase/app-check";
 
 let initPromise: Promise<AppCheck | null> | null = null;
@@ -38,6 +38,9 @@ export async function ensureAppCheck() {
     return null;
   }
 
+  // Wait for AppCheck to be initialized in firebase.ts
+  await waitForAppCheck();
+  
   const existing = resolveAppCheckInstance();
   if (existing) {
     initComplete = true;

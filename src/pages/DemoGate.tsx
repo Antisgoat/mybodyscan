@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { Loader2, Wifi, WifiOff } from "lucide-react";
+import { auth, db, waitForAppCheck } from "@/lib/firebase";
 import { signInAnonymously } from "firebase/auth";
 import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
@@ -14,30 +14,9 @@ export default function DemoGate() {
   const navigate = useNavigate();
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [offline, setOffline] = useState(false);
   const mountedRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // tiny yield to ensure AppCheck finishes at module-load
-      await new Promise((r) => setTimeout(r, 50));
-      if (!cancelled && !auth.currentUser) {
-        try {
-          await signInAnonymously(auth);
-        } catch (error) {
-          if (shouldFallbackToOffline(error)) {
-            activateOfflineDemo("auth");
-          } else {
-            throw error;
-          }
-        }
-      }
-    })().catch((e) => console.error("Demo anon sign-in failed:", e));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -46,6 +25,38 @@ export default function DemoGate() {
       try {
         setFailed(false);
         setLoading(true);
+        setOffline(false);
+
+        // Wait for AppCheck to be ready before any Firebase calls
+        await waitForAppCheck();
+
+        // Check if we're offline
+        if (!navigator.onLine) {
+          setOffline(true);
+          activateOfflineDemo("network");
+          if (mountedRef.current) {
+            await startDemo({ navigate, skipEnsure: true });
+          }
+          return;
+        }
+
+        // Attempt anonymous sign-in only if we have a user
+        if (!auth.currentUser) {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            if (shouldFallbackToOffline(error)) {
+              setOffline(true);
+              activateOfflineDemo("auth");
+              if (mountedRef.current) {
+                await startDemo({ navigate, skipEnsure: true });
+              }
+              return;
+            } else {
+              throw error;
+            }
+          }
+        }
 
         await ensureDemoUser();
 
@@ -72,6 +83,7 @@ export default function DemoGate() {
       } catch (error: any) {
         console.error("demo_gate_error", error);
         if (shouldFallbackToOffline(error) || isDemoOffline()) {
+          setOffline(true);
           activateOfflineDemo("auth");
           if (mountedRef.current) {
             await startDemo({ navigate, skipEnsure: true });
@@ -79,9 +91,13 @@ export default function DemoGate() {
           return;
         }
         if (mountedRef.current) {
+          const errorMessage = error?.code === "auth/network-request-failed" 
+            ? "Network connection failed. Please check your internet connection and try again."
+            : formatAuthError("Demo", error);
+          
           toast({
             title: "Unable to start demo",
-            description: formatAuthError("Demo", error),
+            description: errorMessage,
             variant: "destructive",
           });
           setFailed(true);
@@ -108,11 +124,17 @@ export default function DemoGate() {
       )}
       {!loading && failed && (
         <>
-          <p className="text-sm text-muted-foreground">We couldn’t start demo right now.</p>
+          <p className="text-sm text-muted-foreground">We couldn't start demo right now.</p>
           <Button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>Try again</Button>
         </>
       )}
-      {!loading && !failed && (
+      {!loading && !failed && offline && (
+        <>
+          <WifiOff className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">Running in offline mode</p>
+        </>
+      )}
+      {!loading && !failed && !offline && (
         <>
           <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">Starting demo…</p>

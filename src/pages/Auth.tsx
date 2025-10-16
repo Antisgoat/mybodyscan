@@ -168,8 +168,41 @@ const Auth = () => {
       const code = err?.code ?? "unknown";
       const message = err?.message ?? "Unknown error";
       const prefix = mode === "signin" ? "Sign-in failed" : "Create account failed";
-      setFormError(`${prefix} (${code}). ${message}`);
+      
+      // Enhanced error message with human-readable text
+      let humanMessage = message;
+      if (code === "auth/network-request-failed") {
+        humanMessage = "Network connection failed. Please check your internet connection and try again.";
+      } else if (code === "auth/user-not-found") {
+        humanMessage = "No account found with this email address.";
+      } else if (code === "auth/wrong-password") {
+        humanMessage = "Incorrect password. Please try again.";
+      } else if (code === "auth/too-many-requests") {
+        humanMessage = "Too many failed attempts. Please try again later.";
+      } else if (code === "auth/invalid-email") {
+        humanMessage = "Please enter a valid email address.";
+      } else if (code === "auth/weak-password") {
+        humanMessage = "Password should be at least 6 characters.";
+      } else if (code === "auth/email-already-in-use") {
+        humanMessage = "An account with this email already exists.";
+      }
+      
+      setFormError(`Sign-in failed (${code}): ${humanMessage}`);
       console.error("Sign-in error:", err);
+      
+      // Show developer diagnostics for developer@adlrlabs.com
+      if (email === "developer@adlrlabs.com") {
+        const requestId = err?.customData?._tokenResponse?.requestId || 
+                         err?.response?.headers?.['X-Firebase-GMPID'] ||
+                         "not-available";
+        console.log(`[DEV] Auth error details:`, {
+          code,
+          message,
+          requestId,
+          fullError: err
+        });
+      }
+      
       if (mode === "signup") {
         toast({
           title: "Create account failed",
