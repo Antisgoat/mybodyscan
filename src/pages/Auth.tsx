@@ -9,7 +9,6 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
-  signInEmail,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
@@ -19,7 +18,7 @@ import {
   formatAuthError,
   finalizeAppleProfile,
 } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import { auth, safeEmailSignIn } from "@/lib/firebase";
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -101,6 +100,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
@@ -155,19 +155,27 @@ const Auth = () => {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     setLoading(true);
     try {
       if (mode === "signin") {
-        await signInEmail(email, password);
+        await safeEmailSignIn(email, password);
       } else {
         await createAccountEmail(email, password);
       }
       navigate(from, { replace: true });
     } catch (err: any) {
-      toast({
-        title: mode === "signin" ? "Sign in failed" : "Create account failed",
-        description: formatAuthError("Email", err),
-      });
+      const code = err?.code ?? "unknown";
+      const message = err?.message ?? "Unknown error";
+      const prefix = mode === "signin" ? "Sign-in failed" : "Create account failed";
+      setFormError(`${prefix} (${code}). ${message}`);
+      console.error("Sign-in error:", err);
+      if (mode === "signup") {
+        toast({
+          title: "Create account failed",
+          description: formatAuthError("Email", err),
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -189,6 +197,7 @@ const Auth = () => {
       }
     } catch (err: any) {
       consumeAuthRedirect();
+      console.error("Google sign-in failed:", err);
       toast({ title: "Google sign-in failed", description: formatAuthError("Google", err) });
     } finally {
       setLoading(false);
@@ -246,6 +255,7 @@ const Auth = () => {
       if (isAppleMisconfiguredError(err)) {
         showAppleNotConfigured();
       } else {
+        console.error("Apple sign-in failed:", err);
         toast({ title: "Apple sign-in failed", description: formatAuthError("Apple", err) });
       }
     } finally {
@@ -272,7 +282,7 @@ const Auth = () => {
               Create account
             </Button>
           </div>
-          
+
           <div className="mb-4 p-4 bg-slate-50 rounded-lg">
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
@@ -289,6 +299,15 @@ const Auth = () => {
               </div>
             </div>
           </div>
+
+          {formError ? (
+            <div
+              className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {formError}
+            </div>
+          ) : null}
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
