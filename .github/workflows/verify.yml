@@ -62,6 +62,13 @@ jobs:
           name: playwright-report
           path: playwright-report
           if-no-files-found: ignore
+      - name: Upload Playwright traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results
+          if-no-files-found: ignore
 
   functions-build:
     name: Functions build
