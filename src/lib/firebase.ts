@@ -31,7 +31,14 @@ if (getApps().length) {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
   };
+  const start = typeof performance !== "undefined" ? performance.now() : 0;
   app = initializeApp(firebaseConfig);
+  try {
+    if (start && typeof performance !== "undefined") {
+      const initMs = Math.round(performance.now() - start);
+      console.log(`[perf] firebase init: ${initMs}ms`);
+    }
+  } catch {}
 }
 
 try {

@@ -23,6 +23,45 @@ jobs:
         run: npm ci
       - name: Build web
         run: npm run build
+      - name: Typecheck
+        run: |
+          if npm run -s typecheck; then
+            echo "Typecheck passed"
+          else
+            echo "Typecheck failed" && exit 1
+          fi
+      - name: Run unit tests
+        run: |
+          if npm run -s test; then
+            echo "Unit tests passed"
+          else
+            echo "Unit tests failed" && exit 1
+          fi
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Run E2E smoke (best-effort)
+        continue-on-error: true
+        env:
+          BASE_URL: http://localhost:4173
+          CI: true
+        run: |
+          npx vite preview --host 0.0.0.0 --port 4173 &
+          PREVIEW_PID=$!
+          echo "Preview PID=$PREVIEW_PID"
+          npx wait-on http://localhost:4173
+          if command -v xvfb-run >/dev/null 2>&1; then
+            xvfb-run -a npm run e2e || true
+          else
+            npm run e2e || true
+          fi
+          kill $PREVIEW_PID || true
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
 
   functions-build:
     name: Functions build

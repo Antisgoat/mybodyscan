@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; error?: Error };
@@ -16,6 +17,22 @@ export class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: unknown, info: unknown) {
     console.error("App crashed:", error, info);
     this.setState({ error: error instanceof Error ? error : new Error(String(error)) });
+
+    try {
+      const dsn = (import.meta as any)?.env?.VITE_SENTRY_DSN as string | undefined;
+      if (dsn && typeof window !== "undefined") {
+        if (!(window as any).__sentryInit) {
+          Sentry.init({ dsn, integrations: [Sentry.browserTracingIntegration()], tracesSampleRate: 0.05 });
+          (window as any).__sentryInit = true;
+        }
+        Sentry.captureException(error instanceof Error ? error : new Error(String(error)), {
+          tags: { scope: "AppErrorBoundary" },
+          extra: { info },
+        });
+      }
+    } catch {
+      // ignore optional monitoring failures
+    }
   }
 
   render() {
