@@ -82,7 +82,11 @@ async function runWithRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 async function mutateBuckets(
   uid: string,
-  mutator: (buckets: CreditBucket[], now: Timestamp) => ConsumeResult
+  mutator: (buckets: CreditBucket[], now: Timestamp) => ConsumeResult,
+  summaryExtra?: Partial<{
+    lastDeductionAt: Timestamp;
+    lastDeductionReason: string;
+  }>,
 ): Promise<ConsumeResult> {
   return runWithRetry(async () => {
     const ref = getSummaryRef(uid);
@@ -103,6 +107,12 @@ async function mutateBuckets(
             totalAvailable: total,
             lastUpdated: now,
             version: FieldValue.increment(1),
+            ...(result.consumed
+              ? {
+                  lastDeductionAt: summaryExtra?.lastDeductionAt || now,
+                  lastDeductionReason: summaryExtra?.lastDeductionReason || "credit_used",
+                }
+              : {}),
           },
           creditVersion: FieldValue.increment(1),
         },
@@ -153,8 +163,8 @@ export async function addCredits(
   });
 }
 
-async function decrementOne(uid: string): Promise<ConsumeResult> {
-  const result = await mutateBuckets(uid, (buckets) => {
+async function decrementOne(uid: string, reason?: string): Promise<ConsumeResult> {
+  const result = await mutateBuckets(uid, (buckets, now) => {
     for (const bucket of buckets) {
       if (bucket.amount > 0) {
         bucket.amount -= 1;
@@ -162,17 +172,17 @@ async function decrementOne(uid: string): Promise<ConsumeResult> {
       }
     }
     return { consumed: false, remaining: 0, logEmpty: true };
-  });
+  }, { lastDeductionAt: Timestamp.now(), lastDeductionReason: typeof reason === 'string' ? reason.slice(0, 80) : 'credit_used' });
   return result;
 }
 
-export async function consumeOne(uid: string): Promise<boolean> {
-  const result = await decrementOne(uid);
+export async function consumeOne(uid: string, reason?: string): Promise<boolean> {
+  const result = await decrementOne(uid, reason);
   return result.consumed;
 }
 
-export async function consumeCredit(uid: string): Promise<ConsumeResult> {
-  return decrementOne(uid);
+export async function consumeCredit(uid: string, reason?: string): Promise<ConsumeResult> {
+  return decrementOne(uid, reason);
 }
 
 export async function grantCredits(

@@ -31,7 +31,8 @@ export async function useCreditHandler(
     return { ok: true, remaining: Infinity };
   }
 
-  const { consumed, remaining } = await consumeCredit(uid);
+  const reason = typeof _data?.reason === "string" && _data.reason.trim().length ? _data.reason.trim().slice(0, 80) : undefined;
+  const { consumed, remaining } = await consumeCredit(uid, reason);
   if (!consumed) {
     throw new HttpsError("failed-precondition", "no_credits");
   }

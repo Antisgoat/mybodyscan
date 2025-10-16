@@ -72,6 +72,7 @@ import { DemoModeProvider } from "./components/DemoModeProvider";
 import MealsSearch from "./pages/MealsSearch";
 import BarcodeScan from "./pages/BarcodeScan";
 import MealsHistory from "./pages/MealsHistory";
+import AdminCredits from "./pages/AdminCredits";
 import ScanTips from "./pages/ScanTips";
 import WorkoutsLibrary from "./pages/WorkoutsLibrary";
 import WorkoutsCompleted from "./pages/WorkoutsCompleted";
