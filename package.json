@@ -19,6 +19,7 @@
     "test:rules": "npm run test --prefix tests/rules",
     "emulators": "firebase emulators:start --only firestore,auth,storage,functions --import ./emulator-data --export-on-exit",
     "test:e2e": "playwright test",
+    "e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report",
     "pretest:e2e": "playwright install --with-deps",
@@ -90,7 +91,8 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^0.9.9",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@sentry/react": "^8.33.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
