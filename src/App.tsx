@@ -80,6 +80,8 @@ import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
 import AdminDevTools from "./pages/AdminDevTools";
+import CrashTest from "./pages/CrashTest";
+import { addPerformanceMark } from "./lib/sentry";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -91,10 +93,16 @@ const queryClient = new QueryClient();
 
 const App = () => {
   useEffect(() => {
+    // Mark route render start
+    addPerformanceMark('route-render-start');
+    
     initAuthPersistence().catch(() => {});
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
       void loadPublicLayout();
     }
+    
+    // Mark route render complete
+    addPerformanceMark('route-render-complete');
   }, []);
 
   return (
@@ -595,6 +603,8 @@ const App = () => {
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />
+            {/* Test route for error boundary testing */}
+            <Route path="/__crash" element={<CrashTest />} />
             {/* MBS Onboarding */}
             <Route
               path="/onboarding-mbs"
