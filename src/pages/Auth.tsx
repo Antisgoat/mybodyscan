@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -17,6 +17,7 @@ import {
   shouldUsePopupAuth,
   formatAuthError,
   finalizeAppleProfile,
+  getAuthDomainWhitelist,
 } from "@/lib/auth";
 import { auth, safeEmailSignIn } from "@/lib/firebase";
 import {
@@ -30,6 +31,8 @@ import {
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
+import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([
   "auth/popup-blocked",
@@ -92,6 +95,15 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path
+      d="M12.24 10.32v3.44h4.76c-.2 1.11-1.44 3.27-4.76 3.27-2.86 0-5.2-2.37-5.2-5.28s2.34-5.28 5.2-5.28c1.63 0 2.72.69 3.35 1.28l2.28-2.2C16.72 4.34 14.7 3.4 12.24 3.4 7.7 3.4 4 7.05 4 11.75S7.7 20.1 12.24 20.1c4.32 0 7.18-3.03 7.18-7.31 0-.49-.05-.86-.11-1.24Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -103,6 +115,15 @@ const Auth = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
+  const [providerLoading, setProviderLoading] = useState<null | "google" | "apple">(null);
+  const [lastOauthError, setLastOauthError] = useState<
+    | { provider: string; code?: string; message: string }
+    | null
+  >(null);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [hostAuthorized, setHostAuthorized] = useState(true);
+  const [currentHost, setCurrentHost] = useState<string>("");
+  const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
 
   useEffect(() => {
@@ -112,6 +133,28 @@ const Auth = () => {
       navigate(defaultTarget, { replace: true });
     }
   }, [user, navigate, location.pathname, location.state]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const host = window.location.host;
+    const hostname = window.location.hostname.toLowerCase();
+    setCurrentHost(host);
+    const envAllowlist = (OAUTH_AUTHORIZED_HOSTS ?? []).map((entry) => entry.trim().toLowerCase());
+    const fallbackAllowlist = envAllowlist.length ? envAllowlist : getAuthDomainWhitelist().map((entry) => entry.toLowerCase());
+    if (!fallbackAllowlist.length) {
+      setHostAuthorized(true);
+      return;
+    }
+    const matchesHost = (candidate: string) => {
+      if (!candidate) return false;
+      const candidateHost = candidate.split(":")[0];
+      if (!candidateHost) return false;
+      if (hostname === candidateHost) return true;
+      return hostname.endsWith(`.${candidateHost}`);
+    };
+    const isAuthorized = fallbackAllowlist.some((candidate) => matchesHost(candidate));
+    setHostAuthorized(isAuthorized);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -133,11 +176,27 @@ const Auth = () => {
     };
   }, []);
 
+  const handleOauthError = (providerLabel: string, error: any) => {
+    const code = typeof error?.code === "string" ? error.code : undefined;
+    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+    if (code === "auth/unauthorized-domain") {
+      const guidanceHost = hostname || "this domain";
+      const description = `Add ${guidanceHost} to Firebase > Auth > Settings > Authorized domains, then retry. (${code})`;
+      toast({ title: "Authorize this domain", description });
+      setLastOauthError({ provider: providerLabel, code, message: description });
+      return;
+    }
+    const formatted = formatAuthError(providerLabel, error);
+    toast({ title: `${providerLabel} sign-in failed`, description: formatted });
+    setLastOauthError({ provider: providerLabel, code, message: formatted });
+  };
+
   useEffect(() => {
     let active = true;
     resolveAuthRedirect(auth)
       .then((result) => {
         if (!active || !result) return;
+        setLastOauthError(null);
         const target = consumeAuthRedirect();
         if (target) {
           navigate(target, { replace: true });
@@ -146,12 +205,12 @@ const Auth = () => {
       .catch((err: any) => {
         if (!active) return;
         consumeAuthRedirect();
-        toast({ title: "Sign in failed", description: formatAuthError("Sign-in", err) });
+        handleOauthError("Sign-in", err);
       });
     return () => {
       active = false;
     };
-  }, [navigate, toast]);
+  }, [navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +241,10 @@ const Auth = () => {
   };
 
   const onGoogle = async () => {
+    if (loading) return;
     setLoading(true);
+    setProviderLoading("google");
+    setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
       const authInstance = auth;
@@ -193,13 +255,15 @@ const Auth = () => {
       });
       if (result.status === "popup") {
         consumeAuthRedirect();
+        setLastOauthError(null);
         navigate(from, { replace: true });
       }
     } catch (err: any) {
       consumeAuthRedirect();
       console.error("Google sign-in failed:", err);
-      toast({ title: "Google sign-in failed", description: formatAuthError("Google", err) });
+      handleOauthError("Google", err);
     } finally {
+      setProviderLoading(null);
       setLoading(false);
     }
   };
@@ -207,8 +271,16 @@ const Auth = () => {
   const appleConfigured = forceAppleButton || appleEnabled === true;
   const showAppleButton = true;
 
+  const handleAppleFeatureDisabled = () => {
+    const message = "Apple Sign-In not yet enabled for this domain. Flip APPLE_OAUTH_ENABLED to true after finishing setup.";
+    toast({ title: "Apple Sign-In not yet enabled for this domain", description: message });
+    setLastOauthError({ provider: "Apple", code: "apple/feature-disabled", message });
+  };
+
   const showAppleNotConfigured = () => {
-    toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
+    const message = "Apple Sign-In not yet enabled for this domain. Enable the Apple provider in Firebase Auth before retrying.";
+    toast({ title: "Apple Sign-In not yet enabled for this domain", description: message });
+    setLastOauthError({ provider: "Apple", code: "apple/not-configured", message });
   };
 
   const isAppleMisconfiguredError = (error: any) => {
@@ -229,12 +301,19 @@ const Auth = () => {
   const onApple = async () => {
     if (loading) return;
 
+    if (!appleFeatureEnabled) {
+      handleAppleFeatureDisabled();
+      return;
+    }
+
     if (!appleConfigured && appleEnabled === false) {
       showAppleNotConfigured();
       return;
     }
 
     setLoading(true);
+    setProviderLoading("apple");
+    setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
       const authInstance = auth;
@@ -248,6 +327,7 @@ const Auth = () => {
       });
       if (result.status === "popup") {
         consumeAuthRedirect();
+        setLastOauthError(null);
         navigate(from, { replace: true });
       }
     } catch (err: any) {
@@ -256,18 +336,31 @@ const Auth = () => {
         showAppleNotConfigured();
       } else {
         console.error("Apple sign-in failed:", err);
-        toast({ title: "Apple sign-in failed", description: formatAuthError("Apple", err) });
+        handleOauthError("Apple", err);
       }
     } finally {
+      setProviderLoading(null);
       setLoading(false);
     }
   };
 
+  const appleHelperMessage = !appleFeatureEnabled
+    ? "Apple Sign-In is disabled here until APPLE_OAUTH_ENABLED is set to true."
+    : !appleConfigured && appleEnabled === false
+    ? "Finish the Apple provider setup in Firebase Auth (service ID, redirect URL, key) before enabling users."
+    : null;
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
-      <Card className="w-full max-w-md shadow-md">
-        <CardHeader>
+      <div className="w-full max-w-md">
+        {!hostAuthorized && (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            This domain may not be authorized for OAuth. Add {currentHost || "this host"} in Firebase &gt; Auth &gt; Settings &gt; Authorized domains.
+          </div>
+        )}
+        <Card className="w-full shadow-md">
+          <CardHeader>
           <div className="text-center">
             <CardTitle className="text-2xl mb-2">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
             <CardDescription className="text-slate-600">Track body fat, weight and progress—private and secure.</CardDescription>
@@ -333,35 +426,28 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {showAppleButton && (() => {
-              const appleButtonDisabled = loading;
-              const appleButton = (
+            {showAppleButton ? (
+              <div className="space-y-2" data-testid="auth-apple-button-wrapper">
                 <Button
                   variant="secondary"
                   onClick={onApple}
-                  disabled={appleButtonDisabled}
+                  disabled={loading}
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
                 >
-                  <AppleIcon />
-                  Continue with Apple
+                  {providerLoading === "apple" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <AppleIcon className="h-4 w-4" />
+                  )}
+                  <span>Continue with Apple</span>
                 </Button>
-              );
-
-              if (appleButtonDisabled) {
-                return (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="w-full inline-flex">{appleButton}</span>
-                    </TooltipTrigger>
-                    <TooltipContent>Finishing previous sign-in…</TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return appleButton;
-            })()}
+                {appleHelperMessage ? (
+                  <p className="text-xs text-muted-foreground text-center">{appleHelperMessage}</p>
+                ) : null}
+              </div>
+            ) : null}
             <Button
               variant="secondary"
               onClick={onGoogle}
@@ -369,9 +455,39 @@ const Auth = () => {
               className="w-full h-11 inline-flex items-center justify-center gap-2"
               data-testid="auth-google-button"
             >
-              Continue with Google
+              {providerLoading === "google" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <GoogleIcon className="h-4 w-4" />
+              )}
+              <span>Continue with Google</span>
             </Button>
           </div>
+          <Collapsible open={supportOpen} onOpenChange={setSupportOpen} className="mt-2">
+            <div className="text-center">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline hover:text-primary focus:outline-none"
+                >
+                  Having trouble?
+                </button>
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent className="mt-2 text-xs text-muted-foreground space-y-2">
+              {lastOauthError ? (
+                <div className="rounded-md border border-muted bg-muted/40 p-3 text-left">
+                  <p className="font-medium text-foreground">{lastOauthError.provider} sign-in details</p>
+                  <p className="mt-1 break-words">{lastOauthError.message}</p>
+                  {lastOauthError.code ? (
+                    <p className="mt-1 font-mono text-[11px] uppercase text-muted-foreground">{lastOauthError.code}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <p>No recent OAuth errors. We’ll surface details here if a provider fails.</p>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
           <div className="mt-6">
             <Button type="button" variant="ghost" className="w-full" asChild>
               <Link to="/demo">👀 Explore demo (no sign-up)</Link>
@@ -386,7 +502,8 @@ const Auth = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </main>
   );
 };
