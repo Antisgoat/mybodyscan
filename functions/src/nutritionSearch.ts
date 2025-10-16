@@ -495,7 +495,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   const sourceErrors: Partial<Record<NutritionSource, string>> = {};
 
   const { getEnv } = await import("./lib/env.js");
-  const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+  const apiKey = getEnv("VITE_USDA_API_KEY") || getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
 
   async function tryUsda(): Promise<FoodItem[]> {
     if (!apiKey) {
