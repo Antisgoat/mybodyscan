@@ -2,6 +2,8 @@
 // Export only Cloud Function handlers - no middleware/util exports, no wildcard exports
 
 export { systemHealth } from "./systemHealth.js";
+export { getCreditsInfo, grantWhitelistedCredits } from "./credits.js";
+export { getCreditsInfoEndpoint, grantWhitelistedCreditsEndpoint } from "./adminCredits.js";
 export { nutritionSearch } from "./nutritionSearch.js";
 export { nutritionBarcode } from "./nutritionBarcode.js";
 export { coachChat } from "./coachChat.js";

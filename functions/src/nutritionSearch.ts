@@ -4,6 +4,7 @@ import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
+import { validateNutritionSearchPayload } from "./validation/nutritionSearch.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -60,7 +61,8 @@ const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
 
-const FETCH_TIMEOUT_MS = 6500;
+const USDA_TIMEOUT_MS = 4000;
+const OFF_TIMEOUT_MS = 4000;
 const auth = getAuth();
 
 function describeError(error: unknown): string {
@@ -419,7 +421,7 @@ async function searchUsda(query: string, apiKey: string | undefined): Promise<Fo
   const response = await fetch(url.toString(), {
     method: "GET",
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(USDA_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`usda_${response.status}`);
@@ -443,7 +445,7 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
       Accept: "application/json",
       "User-Agent": "mybodyscan-nutrition-search/1.0",
     },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(OFF_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`off_${response.status}`);
@@ -453,6 +455,103 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
   return data.products.map((item: any) => fromOpenFoodFacts(item)).filter(Boolean) as FoodItem[];
 }
 
+export async function searchWithRetry<T>(
+  searchFn: () => Promise<T>,
+  retryCount = 1
+): Promise<T> {
+  try {
+    return await searchFn();
+  } catch (error: any) {
+    const status = error?.message?.match(/_(4\d\d|5\d\d)$/)?.[1];
+    if (status && (status.startsWith('4') || status.startsWith('5')) && retryCount > 0) {
+      // Exponential backoff for 4xx/5xx errors
+      const delay = Math.pow(2, 1 - retryCount) * 1000; // 1s, 500ms
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return searchWithRetry(searchFn, retryCount - 1);
+    }
+    throw error;
+  }
+}
+
+async function searchNutritionWithRace(query: string, apiKey: string | undefined): Promise<{
+  items: FoodItem[];
+  primarySource: NutritionSource;
+  fallbackUsed: boolean;
+  sourceErrors: Partial<Record<NutritionSource, string>>;
+}> {
+  const sourceErrors: Partial<Record<NutritionSource, string>> = {};
+  let items: FoodItem[] = [];
+  let primarySource: NutritionSource = "USDA";
+  let fallbackUsed = false;
+
+  // Start both searches in parallel with timeout race
+  const usdaPromise = apiKey 
+    ? searchWithRetry(() => searchUsda(query, apiKey))
+    : Promise.reject(new Error("missing_api_key"));
+  
+  const offPromise = searchWithRetry(() => searchOpenFoodFacts(query));
+
+  try {
+    // Race between USDA and OFF with individual timeouts
+    const results = await Promise.allSettled([
+      usdaPromise,
+      offPromise
+    ]);
+
+    const [usdaResult, offResult] = results;
+
+    // Process USDA results
+    if (usdaResult.status === 'fulfilled' && usdaResult.value.length > 0) {
+      items = usdaResult.value;
+      primarySource = "USDA";
+    } else if (usdaResult.status === 'rejected') {
+      sourceErrors.USDA = describeError(usdaResult.reason);
+      fallbackUsed = true;
+    }
+
+    // If no USDA results, try OFF
+    if (items.length === 0) {
+      if (offResult.status === 'fulfilled' && offResult.value.length > 0) {
+        items = offResult.value;
+        primarySource = "OFF";
+      } else if (offResult.status === 'rejected') {
+        sourceErrors.OFF = describeError(offResult.reason);
+      }
+    }
+
+    return {
+      items,
+      primarySource,
+      fallbackUsed,
+      sourceErrors
+    };
+  } catch (error) {
+    // Fallback to OFF if both fail
+    try {
+      const offItems = await searchWithRetry(() => searchOpenFoodFacts(query));
+      return {
+        items: offItems,
+        primarySource: "OFF",
+        fallbackUsed: true,
+        sourceErrors: {
+          USDA: describeError(error),
+          OFF: sourceErrors.OFF
+        }
+      };
+    } catch (offError) {
+      return {
+        items: [],
+        primarySource: "USDA",
+        fallbackUsed: true,
+        sourceErrors: {
+          USDA: describeError(error),
+          OFF: describeError(offError)
+        }
+      };
+    }
+  }
+}
+
 async function handleRequest(req: Request, res: Response): Promise<void> {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET,OPTIONS");
@@ -460,7 +559,17 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const query = String(req.query?.q ?? req.query?.query ?? "").trim();
+  // Validate request payload
+  const validation = validateNutritionSearchPayload(req.query);
+  if (!validation.success) {
+    res.status(400).json({ 
+      error: "validation_failed", 
+      details: validation.errors 
+    });
+    return;
+  }
+
+  const query = validation.data.query.trim();
   if (!query) {
     res.status(200).json({ items: [] });
     return;
@@ -489,46 +598,10 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     throw error;
   }
 
-  let items: FoodItem[] = [];
-  let primarySource: NutritionSource = "USDA";
-  let fallbackUsed = false;
-  const sourceErrors: Partial<Record<NutritionSource, string>> = {};
-
-  try {
-    const { getEnv } = await import("./lib/env.js");
-    const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
-    if (!apiKey) {
-      console.warn("nutrition_search_usda_key_missing", { query });
-      fallbackUsed = true;
-      sourceErrors.USDA = "missing_api_key";
-    } else {
-      try {
-        items = await searchUsda(query, apiKey);
-      } catch (error) {
-        fallbackUsed = true;
-        sourceErrors.USDA = describeError(error);
-        console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
-      }
-    }
-  } catch (error) {
-    fallbackUsed = true;
-    sourceErrors.USDA = describeError(error);
-    console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
-  }
-
-  if (!items.length) {
-    try {
-      items = await searchOpenFoodFacts(query);
-      primarySource = "OFF";
-      if (fallbackUsed === false) {
-        fallbackUsed = true;
-      }
-    } catch (error) {
-      const message = describeError(error);
-      sourceErrors.OFF = message;
-      console.error("nutrition_search_off_error", { query, message });
-    }
-  }
+  const { getEnv } = await import("./lib/env.js");
+  const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+  
+  const { items, primarySource, fallbackUsed, sourceErrors } = await searchNutritionWithRace(query, apiKey);
 
   res.status(200).json({ items, primarySource, fallbackUsed, sourceErrors });
 }

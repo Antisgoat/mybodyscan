@@ -5,6 +5,7 @@ import { auth, db } from "@/lib/firebase";
 import { isDemo as isDemoAuth } from "@/lib/auth";
 import { useOfflineDemo } from "@/components/DemoModeProvider";
 import { OFFLINE_DEMO_CREDITS, OFFLINE_DEMO_UID } from "@/lib/demoOffline";
+import { isWhitelisted } from "@/lib/whitelist";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -14,6 +15,7 @@ export function useCredits() {
   const [unlimited, setUnlimited] = useState(false);
   const [tester, setTester] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [isDevUser, setIsDevUser] = useState(false);
   const offlineDemo = useOfflineDemo();
   const projectId =
     import.meta.env.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
@@ -44,9 +46,11 @@ export function useCredits() {
           const token = await u.getIdTokenResult();
           const hasTester = token.claims.tester === true;
           const hasUnlimited = hasTester || token.claims.unlimitedCredits === true;
+          const isWhitelistedUser = isWhitelisted(u.email || undefined);
           setTester(hasTester);
-          setUnlimited(hasUnlimited);
-          if (hasUnlimited) {
+          setUnlimited(hasUnlimited || isWhitelistedUser);
+          setIsDevUser(isWhitelistedUser);
+          if (hasUnlimited || isWhitelistedUser) {
             setLoading(false);
           } else {
             setLoading(true);
@@ -62,7 +66,7 @@ export function useCredits() {
   }, [offlineDemo]);
 
   useEffect(() => {
-    if (offlineDemo || !uid || unlimited) return;
+    if (offlineDemo || !uid || unlimited || isDevUser) return;
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -82,11 +86,11 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [offlineDemo, uid, unlimited]);
+  }, [offlineDemo, uid, unlimited, isDevUser]);
 
   const readOnlyNotice = demo ? "Demo browse only" : null;
 
-  if (unlimited) {
+  if (unlimited || isDevUser) {
     return {
       credits: Infinity,
       loading,
