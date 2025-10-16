@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
+import { DevAuthDomainBanner } from "@/components/DevAuthDomainBanner";
 import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
@@ -101,6 +102,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [devDiag, setDevDiag] = useState<{ code?: string; requestId?: string; raw?: any } | null>(null);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
@@ -168,7 +170,11 @@ const Auth = () => {
       const code = err?.code ?? "unknown";
       const message = err?.message ?? "Unknown error";
       const prefix = mode === "signin" ? "Sign-in failed" : "Create account failed";
-      setFormError(`${prefix} (${code}). ${message}`);
+      setFormError(`${prefix} (${code}): ${message}`);
+      if (email === "developer@adlrlabs.com") {
+        const requestId = (err?.response?.headers?.get?.("X-Firebase-GMPID")) || (err?.response?.headers?.get?.("X-Firebase-Request-Id")) || err?.requestId;
+        setDevDiag({ code, requestId, raw: err });
+      }
       console.error("Sign-in error:", err);
       if (mode === "signup") {
         toast({
@@ -265,6 +271,7 @@ const Auth = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
+      <DevAuthDomainBanner />
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
@@ -308,6 +315,13 @@ const Auth = () => {
               {formError}
             </div>
           ) : null}
+          {devDiag && (
+            <div className="mb-4 rounded-md border border-muted/60 bg-muted/20 p-3 text-xs text-muted-foreground" role="note">
+              <div className="font-medium mb-1">Developer diagnostics</div>
+              <div>code: <code>{devDiag.code || 'n/a'}</code></div>
+              {devDiag.requestId && (<div>request-id: <code>{String(devDiag.requestId)}</code></div>)}
+            </div>
+          )}
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">

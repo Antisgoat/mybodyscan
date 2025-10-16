@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { signInAnonymously } from "firebase/auth";
-import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
+import { useAppCheckReady } from "@/components/AppCheckProvider";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -17,11 +17,12 @@ export default function DemoGate() {
   const mountedRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
 
+  const appCheckReady = useAppCheckReady();
+
   useEffect(() => {
     let cancelled = false;
+    if (!appCheckReady) return;
     (async () => {
-      // tiny yield to ensure AppCheck finishes at module-load
-      await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
         try {
           await signInAnonymously(auth);
@@ -37,7 +38,7 @@ export default function DemoGate() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appCheckReady]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -47,17 +48,8 @@ export default function DemoGate() {
         setFailed(false);
         setLoading(true);
 
+        // Do NOT write any user data for demo. Only enable demo mode and optional anon auth.
         await ensureDemoUser();
-
-        const user = auth.currentUser;
-        if (!user) throw new Error("auth-missing-user");
-
-        // Ensure demo content and enable demo mode; non-fatal on errors
-        try {
-          await ensureDemoData(db, user.uid);
-        } catch (err) {
-          console.warn("[demo] ensureDemoData failed (non-fatal)", err);
-        }
         if (typeof window !== "undefined") {
           try {
             persistDemoFlags();
@@ -81,7 +73,7 @@ export default function DemoGate() {
         if (mountedRef.current) {
           toast({
             title: "Unable to start demo",
-            description: formatAuthError("Demo", error),
+            description: formatAuthError("Demo", error) || "Network appears offline. Try again once reconnected.",
             variant: "destructive",
           });
           setFailed(true);
