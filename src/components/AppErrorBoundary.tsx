@@ -1,70 +1,152 @@
-import { Component, type ReactNode } from "react";
+import React, { Component, ErrorInfo, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle, Copy, RefreshCw } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
-type Props = { children: ReactNode };
-type State = { hasError: boolean; message?: string; error?: Error };
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+  isDemo?: boolean;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: ErrorInfo | null;
+}
 
 export class AppErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
 
-  static getDerivedStateFromError(error: unknown) {
-    if (error instanceof Error) {
-      return { hasError: true, message: error.message } satisfies Partial<State>;
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error, errorInfo: null };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("AppErrorBoundary caught an error:", error, errorInfo);
+    this.setState({ error, errorInfo });
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleCopyError = async () => {
+    const { error, errorInfo } = this.state;
+    if (!error) return;
+
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo?.componentStack,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(errorDetails, null, 2));
+      toast({
+        title: "Error details copied",
+        description: "Error information has been copied to clipboard",
+      });
+    } catch (err) {
+      console.error("Failed to copy error details:", err);
+      toast({
+        title: "Copy failed",
+        description: "Could not copy error details to clipboard",
+        variant: "destructive",
+      });
     }
-    return { hasError: true, message: typeof error === "string" ? error : "Unknown error" } satisfies Partial<State>;
-  }
-
-  componentDidCatch(error: unknown, info: unknown) {
-    console.error("App crashed:", error, info);
-    this.setState({ error: error instanceof Error ? error : new Error(String(error)) });
-  }
+  };
 
   render() {
     if (this.state.hasError) {
-      const stack = import.meta.env.DEV ? this.state.error?.stack : undefined;
+      const { error } = this.state;
+      const { fallback, isDemo = false } = this.props;
+
+      if (fallback) {
+        return fallback;
+      }
+
       return (
-        <div className="min-h-screen bg-background text-foreground">
-          <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-center">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold">Something went wrong</h1>
-              <p className="text-sm text-muted-foreground">
-                We hit an unexpected error. Reload to try again, or check system status.
-              </p>
-            </div>
-            {this.state.message && (
-              <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 text-left text-sm text-muted-foreground">
-                {this.state.message}
-              </pre>
-            )}
-            {stack && (
-              <details className="text-left">
-                <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-                  Stack trace (dev only)
-                </summary>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 text-xs text-muted-foreground">
-                  {stack}
-                </pre>
-              </details>
-            )}
-            <div className="flex flex-wrap justify-center gap-3">
-              <button
-                type="button"
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-                onClick={() => window.location.reload()}
-              >
-                Reload
-              </button>
-              <a
-                href="/system/health"
-                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
-              >
-                View system health
-              </a>
-            </div>
-          </div>
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <CardTitle className="text-destructive">Something went wrong</CardTitle>
+              </div>
+              <CardDescription>
+                {isDemo 
+                  ? "The demo encountered an error. This might be due to network issues or temporary problems."
+                  : "An unexpected error occurred. Please try refreshing the page."
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  {error?.message || "An unknown error occurred"}
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex flex-col gap-2">
+                <Button onClick={this.handleReload} className="w-full">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reload Page
+                </Button>
+                
+                {isDemo && (
+                  <Button 
+                    variant="outline" 
+                    onClick={this.handleCopyError}
+                    className="w-full"
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Error Details
+                  </Button>
+                )}
+              </div>
+              
+              {isDemo && (
+                <p className="text-xs text-muted-foreground text-center">
+                  If the problem persists, try refreshing or check your internet connection.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       );
     }
 
     return this.props.children;
   }
+}
+
+// Hook version for functional components
+export function useErrorBoundary() {
+  const [error, setError] = React.useState<Error | null>(null);
+
+  const resetError = React.useCallback(() => {
+    setError(null);
+  }, []);
+
+  const captureError = React.useCallback((error: Error) => {
+    setError(error);
+  }, []);
+
+  React.useEffect(() => {
+    if (error) {
+      throw error;
+    }
+  }, [error]);
+
+  return { captureError, resetError };
 }

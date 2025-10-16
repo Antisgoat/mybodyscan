@@ -15,6 +15,6 @@ export default defineConfig({
       'build/**',
       '.{git,github,husky,vscode}/**',
     ],
-    environment: 'node',
+    environment: 'jsdom',
   },
 });

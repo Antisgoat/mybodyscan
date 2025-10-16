@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
@@ -80,6 +81,7 @@ import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
 import AdminDevTools from "./pages/AdminDevTools";
+import TestError from "./pages/TestError";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -98,19 +100,20 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppCheckProvider>
-          <CrashBanner />
-          <Toaster />
-          <Sonner />
-          <AuthGate>
-            <ConsentGate>
-              <BrowserRouter>
-                <DemoModeProvider>
-                  <OnboardingRedirectMBS>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <Routes>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AppCheckProvider>
+            <CrashBanner />
+            <Toaster />
+            <Sonner />
+            <AuthGate>
+              <ConsentGate>
+                <BrowserRouter>
+                  <DemoModeProvider>
+                    <OnboardingRedirectMBS>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -595,6 +598,7 @@ const App = () => {
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />
+            <Route path="/test/error" element={<TestError />} />
             {/* MBS Onboarding */}
             <Route
               path="/onboarding-mbs"
@@ -607,16 +611,17 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
-                  </OnboardingRedirectMBS>
-                </DemoModeProvider>
-              </BrowserRouter>
-            </ConsentGate>
-          </AuthGate>
-        </AppCheckProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+                        </Routes>
+                      </Suspense>
+                    </OnboardingRedirectMBS>
+                  </DemoModeProvider>
+                </BrowserRouter>
+              </ConsentGate>
+            </AuthGate>
+          </AppCheckProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 };
 
