@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { isDemoActive } from "@/lib/demoFlag";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; error?: Error };
@@ -21,6 +22,18 @@ export class AppErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       const stack = import.meta.env.DEV ? this.state.error?.stack : undefined;
+      const showCopy = typeof window !== "undefined" && isDemoActive();
+      const copy = async () => {
+        const payload = {
+          message: this.state.message,
+          stack: this.state.error?.stack,
+        };
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        } catch (err) {
+          console.warn("copy_failed", err);
+        }
+      };
       return (
         <div className="min-h-screen bg-background text-foreground">
           <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-center">
@@ -59,6 +72,15 @@ export class AppErrorBoundary extends Component<Props, State> {
               >
                 View system health
               </a>
+              {showCopy && (
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                  onClick={copy}
+                >
+                  Copy error details
+                </button>
+              )}
             </div>
           </div>
         </div>
