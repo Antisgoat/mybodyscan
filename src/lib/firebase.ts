@@ -62,6 +62,7 @@ const auth = (() => {
   return a;
 })();
 
+// Construct Firestore/Functions/Storage after AppCheck to ensure requests carry tokens from first use
 const db = getFirestore(app);
 const functions = getFunctions(app, "us-central1");
 if (FUNCTIONS_BASE) {

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
+import { DevAuthDomainBanner } from "@/components/DevAuthDomainBanner";
 import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
@@ -270,6 +271,7 @@ const Auth = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
+      <DevAuthDomainBanner />
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
