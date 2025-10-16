@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useDemoMode } from "@/components/DemoModeProvider";
+import { useDemoMode, useOfflineDemo } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -23,6 +23,7 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
+import { offlineCoachHistory, offlineCoachResponse } from "@/lib/demoOffline";
 
 declare global {
   interface Window {
@@ -41,6 +42,16 @@ interface ChatMessage {
 
 function sortMessages(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+function mapOfflineMessage(msg: ReturnType<typeof offlineCoachHistory>[number]): ChatMessage {
+  return {
+    id: msg.id,
+    text: msg.text,
+    response: msg.response,
+    createdAt: msg.createdAt,
+    usedLLM: msg.usedLLM,
+  };
 }
 
 function PlanSession({ session }: { session: CoachPlanSession }) {
@@ -65,6 +76,7 @@ function PlanSession({ session }: { session: CoachPlanSession }) {
 export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
+  const offlineDemo = useOfflineDemo();
   const { plan } = useUserProfile();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState(false);
@@ -114,6 +126,10 @@ export default function CoachChatPage() {
   const initializing = !authReady || !appCheckReady;
 
   useEffect(() => {
+    if (offlineDemo) {
+      setMessages(sortMessages(offlineCoachHistory().map(mapOfflineMessage)));
+      return;
+    }
     if (!authReady || !appCheckReady || !uid) {
       setMessages([]);
       return;
@@ -148,14 +164,13 @@ export default function CoachChatPage() {
       setMessages(sortMessages(next));
     });
     return () => unsubscribe();
-  }, [authReady, appCheckReady, uid]);
+  }, [offlineDemo, authReady, appCheckReady, uid]);
 
   const hasMessages = messages.length > 0;
   const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
-    if (pending || demo) {
-      if (demo) demoToast();
+    if (pending) {
       return;
     }
 
@@ -172,6 +187,18 @@ export default function CoachChatPage() {
 
     if (!sanitized) {
       setInput("");
+      return;
+    }
+
+    if (offlineDemo) {
+      const offline = offlineCoachResponse(sanitized);
+      setMessages((prev) => sortMessages([...prev, mapOfflineMessage(offline)]));
+      setInput("");
+      return;
+    }
+
+    if (demo) {
+      demoToast();
       return;
     }
 

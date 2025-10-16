@@ -1,9 +1,15 @@
-import { initializeApp, getApp, getApps } from "firebase/app";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
-import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  type AppCheck,
+  type AppCheckProvider,
+} from "firebase/app-check";
+import { FUNCTIONS_BASE } from "@/lib/env";
 
 // IMPORTANT: Use the real, merged config in env or fallback to hardcoded prod config.
 const firebaseConfig = {
@@ -16,13 +22,15 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-TV8M3PY1X3",
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+let firebaseApp: FirebaseApp | null = null;
 let appCheckInstance: AppCheck | null = null;
+let appCheckInitialized = false;
 
 // Always initialize AppCheck BEFORE exporting any other service.
 // Use a safe fallback provider when no site key is configured so demo works.
 type AppCheckToken = { token: string; expireTimeMillis: number };
-class NoopAppCheckProvider {
+
+class SoftAppCheckProvider implements AppCheckProvider {
   getToken(): Promise<AppCheckToken> {
     return Promise.resolve({
       token: "NOOP",
@@ -31,7 +39,21 @@ class NoopAppCheckProvider {
   }
 }
 
-if (typeof window !== "undefined") {
+function ensureFirebaseApp(): FirebaseApp {
+  if (!firebaseApp) {
+    firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  }
+  return firebaseApp;
+}
+
+function initAppCheck(): void {
+  if (appCheckInitialized || typeof window === "undefined") {
+    appCheckInitialized = true;
+    return;
+  }
+
+  const app = ensureFirebaseApp();
+
   try {
     const siteKey =
       import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY ||
@@ -51,31 +73,42 @@ if (typeof window !== "undefined") {
     })();
 
     if (shouldEnableDebugToken) {
-      // In dev or soft mode this bypasses enforcement.
-      // Remove or set to a real token if you later hard-enforce AppCheck.
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
     } else if ("FIREBASE_APPCHECK_DEBUG_TOKEN" in self) {
       delete (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN;
     }
 
-    const provider = siteKey
+    const provider: AppCheckProvider = siteKey
       ? new ReCaptchaV3Provider(siteKey)
-      : (new NoopAppCheckProvider() as unknown as ReCaptchaV3Provider);
+      : new SoftAppCheckProvider();
 
     appCheckInstance = initializeAppCheck(app, {
       provider,
       isTokenAutoRefreshEnabled: true,
     });
   } catch (err) {
-    // Never block the app if AppCheck can’t init
     console.warn("AppCheck init skipped:", err);
+  } finally {
+    appCheckInitialized = true;
   }
 }
+
+const app = ensureFirebaseApp();
+initAppCheck();
 
 // Now it is safe to create and export other services.
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app, "us-central1");
+if (FUNCTIONS_BASE) {
+  try {
+    (functions as any).customDomain = FUNCTIONS_BASE;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[firebase] unable to set functions custom domain", error);
+    }
+  }
+}
 export const storage = getStorage(app);
 export { app };
 export const getAppCheckInstance = () => appCheckInstance;
