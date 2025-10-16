@@ -9,6 +9,9 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
+import { useAppCheckContext } from "@/components/AppCheckProvider";
+import { isAppCheckActive } from "@/appCheck";
+import { HAS_USDA } from "@/lib/env";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -16,11 +19,25 @@ export default function DemoGate() {
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
+  const { isAppCheckReady, error: appCheckError } = useAppCheckContext();
+  const softModeToastShown = useRef(false);
+  const flagsLogged = useRef(false);
 
   useEffect(() => {
+    if (!isAppCheckReady || flagsLogged.current) return;
+    const appCheckMode: "soft" | "disabled" = appCheckError || isAppCheckActive() ? "soft" : "disabled";
+    console.info("demo_flags", { appCheck: appCheckMode, usda: HAS_USDA });
+    flagsLogged.current = true;
+  }, [isAppCheckReady, appCheckError]);
+
+  useEffect(() => {
+    if (!isAppCheckReady) return;
     let cancelled = false;
     (async () => {
-      // tiny yield to ensure AppCheck finishes at module-load
+      if (appCheckError && !softModeToastShown.current) {
+        toast({ title: "App Check not configured; proceeding in soft mode" });
+        softModeToastShown.current = true;
+      }
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
         try {
@@ -37,12 +54,16 @@ export default function DemoGate() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAppCheckReady, appCheckError]);
 
   useEffect(() => {
     mountedRef.current = true;
 
     const run = async () => {
+      if (!isAppCheckReady) {
+        setLoading(true);
+        return;
+      }
       try {
         setFailed(false);
         setLoading(true);
@@ -96,7 +117,7 @@ export default function DemoGate() {
     return () => {
       mountedRef.current = false;
     };
-  }, [navigate, attempt]);
+  }, [navigate, attempt, isAppCheckReady]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background text-center p-6">

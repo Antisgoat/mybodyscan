@@ -461,6 +461,8 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   }
 
   const query = String(req.query?.q ?? req.query?.query ?? "").trim();
+  const sourceParam = String(req.query?.source ?? "").trim().toLowerCase();
+  const forceOpenFoodFacts = sourceParam === "off";
   if (!query) {
     res.status(200).json({ items: [] });
     return;
@@ -490,12 +492,14 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   }
 
   let items: FoodItem[] = [];
-  let primarySource: NutritionSource = "USDA";
+  let primarySource: NutritionSource = forceOpenFoodFacts ? "OFF" : "USDA";
   let fallbackUsed = false;
   const sourceErrors: Partial<Record<NutritionSource, string>> = {};
 
   const { getEnv } = await import("./lib/env.js");
-  const apiKey = getEnv("VITE_USDA_API_KEY") || getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+  const apiKey = forceOpenFoodFacts
+    ? undefined
+    : getEnv("VITE_USDA_API_KEY") || getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
 
   async function tryUsda(): Promise<FoodItem[]> {
     if (!apiKey) {
@@ -511,11 +515,22 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
 
   // Run both providers in parallel with individual 4s timeouts; use whichever resolves first with results
   const tasks: Array<Promise<{ src: NutritionSource; items: FoodItem[] }>> = [];
-  if (apiKey) tasks.push(tryUsda().then((r) => ({ src: "USDA" as const, items: r })).catch((e) => { sourceErrors.USDA = describeError(e); return { src: "USDA" as const, items: [] }; }));
+  if (!forceOpenFoodFacts && apiKey) {
+    tasks.push(
+      tryUsda()
+        .then((r) => ({ src: "USDA" as const, items: r }))
+        .catch((e) => {
+          sourceErrors.USDA = describeError(e);
+          return { src: "USDA" as const, items: [] };
+        }),
+    );
+  } else if (forceOpenFoodFacts) {
+    sourceErrors.USDA = sourceErrors.USDA ?? "disabled";
+  }
   tasks.push(tryOff().then((r) => ({ src: "OFF" as const, items: r })).catch((e) => { sourceErrors.OFF = describeError(e); return { src: "OFF" as const, items: [] }; }));
 
   const settled = await Promise.all(tasks);
-  const usda = settled.find((s) => s.src === "USDA");
+  const usda = forceOpenFoodFacts ? undefined : settled.find((s) => s.src === "USDA");
   const off = settled.find((s) => s.src === "OFF");
 
   const usdaItems = usda?.items ?? [];
@@ -528,16 +543,25 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   } else if (offItems.length) {
     items = offItems;
     primarySource = "OFF";
-    fallbackUsed = true;
+    fallbackUsed = !forceOpenFoodFacts;
   } else {
     // If both failed with errors like 429/5xx, attempt a single backoff retry for each
     const backoff = (ms: number) => new Promise((r) => setTimeout(r, ms));
     await backoff(250);
     const retryTasks: Array<Promise<{ src: NutritionSource; items: FoodItem[] }>> = [];
-    if (apiKey) retryTasks.push(tryUsda().then((r) => ({ src: "USDA" as const, items: r })).catch((e) => { sourceErrors.USDA = describeError(e); return { src: "USDA" as const, items: [] }; }));
+    if (!forceOpenFoodFacts && apiKey) {
+      retryTasks.push(
+        tryUsda()
+          .then((r) => ({ src: "USDA" as const, items: r }))
+          .catch((e) => {
+            sourceErrors.USDA = describeError(e);
+            return { src: "USDA" as const, items: [] };
+          }),
+      );
+    }
     retryTasks.push(tryOff().then((r) => ({ src: "OFF" as const, items: r })).catch((e) => { sourceErrors.OFF = describeError(e); return { src: "OFF" as const, items: [] }; }));
     const retried = await Promise.all(retryTasks);
-    const usdaRetry = retried.find((s) => s.src === "USDA")?.items ?? [];
+    const usdaRetry = forceOpenFoodFacts ? [] : retried.find((s) => s.src === "USDA")?.items ?? [];
     const offRetry = retried.find((s) => s.src === "OFF")?.items ?? [];
     if (usdaRetry.length) {
       items = usdaRetry;
@@ -546,7 +570,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     } else if (offRetry.length) {
       items = offRetry;
       primarySource = "OFF";
-      fallbackUsed = true;
+      fallbackUsed = !forceOpenFoodFacts;
     } else {
       items = [];
     }

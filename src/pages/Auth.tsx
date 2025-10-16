@@ -31,7 +31,7 @@ import {
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
+import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS, ALLOWED_HOSTS } from "@/env";
 import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([
@@ -122,7 +122,6 @@ const Auth = () => {
   >(null);
   const [supportOpen, setSupportOpen] = useState(false);
   const [hostAuthorized, setHostAuthorized] = useState(true);
-  const [currentHost, setCurrentHost] = useState<string>("");
   const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
 
@@ -136,10 +135,15 @@ const Auth = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const host = window.location.host;
     const hostname = window.location.hostname.toLowerCase();
-    setCurrentHost(host);
-    const envAllowlist = (OAUTH_AUTHORIZED_HOSTS ?? []).map((entry) => entry.trim().toLowerCase());
+    const mergedHosts = new Set<string>();
+    for (const entry of ALLOWED_HOSTS ?? []) {
+      if (entry) mergedHosts.add(entry.trim().toLowerCase());
+    }
+    for (const entry of OAUTH_AUTHORIZED_HOSTS ?? []) {
+      if (entry) mergedHosts.add(entry.trim().toLowerCase());
+    }
+    const envAllowlist = Array.from(mergedHosts);
     const fallbackAllowlist = envAllowlist.length ? envAllowlist : getAuthDomainWhitelist().map((entry) => entry.toLowerCase());
     if (!fallbackAllowlist.length) {
       setHostAuthorized(true);
@@ -356,7 +360,7 @@ const Auth = () => {
       <div className="w-full max-w-md">
         {!hostAuthorized && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            This domain may not be authorized for OAuth. Add {currentHost || "this host"} in Firebase &gt; Auth &gt; Settings &gt; Authorized domains.
+            This domain isn’t in Firebase Authorized Domains. OAuth popups may be blocked.
           </div>
         )}
         <Card className="w-full shadow-md">

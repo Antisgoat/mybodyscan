@@ -25,6 +25,7 @@ import { collection, serverTimestamp } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
+import { HAS_USDA } from "@/lib/env";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -270,7 +271,11 @@ export default function MealsSearch() {
           setResults(items);
           setPrimarySource(source);
           setFallbackUsed(fallback);
-          setSearchWarning(items.length ? null : "No foods found. Try another search.");
+          if (!items.length) {
+            setSearchWarning("Try a different term.");
+          } else {
+            setSearchWarning(null);
+          }
         })
         .catch((error) => {
           if (cancelled) return;
@@ -278,7 +283,7 @@ export default function MealsSearch() {
           if (status === 429) {
             setSearchWarning("Rate limited — try again shortly.");
           } else if (!(error instanceof DOMException && error.name === "AbortError")) {
-            console.error("nutrition_search_error", error);
+            console.warn("nutrition_search_error", error);
             toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
           }
           setResults([]);
@@ -361,14 +366,16 @@ export default function MealsSearch() {
     }
   };
 
-  const primaryCaption = fallbackUsed
+  const primaryCaption = !HAS_USDA
+    ? "OpenFoodFacts only"
+    : fallbackUsed
     ? "USDA primary • OFF fallback"
     : primarySource === "OFF"
     ? "OFF primary • USDA unavailable"
     : "USDA primary";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
-  const searchNotice = null;
+  const searchNotice = !HAS_USDA ? "USDA key missing; using OpenFoodFacts fallback" : null;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-meals">
@@ -432,9 +439,14 @@ export default function MealsSearch() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Results</CardTitle>
-            <div className="text-xs text-muted-foreground">USDA primary • OFF fallback</div>
+            <div className="text-xs text-muted-foreground">{primaryCaption}</div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {searchNotice && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {searchNotice}
+              </p>
+            )}
             {!appCheckReady && (
               <p className="text-sm text-muted-foreground">Initializing secure nutrition search…</p>
             )}
@@ -442,11 +454,6 @@ export default function MealsSearch() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
               </div>
-            )}
-            {loading && searchNotice && (
-              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                {searchNotice}
-              </p>
             )}
 
             {loading && !searchNotice && appCheckReady && results?.length === 0 && query.trim().length > 0 && (
@@ -502,8 +509,8 @@ export default function MealsSearch() {
         {!loading && appCheckReady && query.trim().length > 0 && results.length === 0 && (
           <Card>
             <CardContent className="py-6 text-sm text-muted-foreground">
-              <p>No results from USDA or Open Food Facts.</p>
-              <p className="mt-1">Services may be busy. Try again in a few seconds.</p>
+              <p>We couldn’t find anything for that search.</p>
+              <p className="mt-1">Try a different term or scan a barcode.</p>
             </CardContent>
           </Card>
         )}
