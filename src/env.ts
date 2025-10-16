@@ -1,5 +1,7 @@
-export const DEMO_MODE: boolean =
-  String(import.meta.env.VITE_DEMO_MODE ?? "false").toLowerCase() === "true";
+import { ALLOWED_HOSTS, getViteEnv } from "@/lib/env";
+
+const DEMO_FLAG = (getViteEnv("VITE_DEMO_MODE") ?? "false").toLowerCase();
+export const DEMO_MODE: boolean = DEMO_FLAG === "true";
 
 const normalizeBooleanEnv = (value: unknown, defaultValue = false): boolean => {
   if (typeof value === "boolean") return value;
@@ -12,13 +14,15 @@ const normalizeBooleanEnv = (value: unknown, defaultValue = false): boolean => {
 };
 
 export const APPLE_OAUTH_ENABLED = normalizeBooleanEnv(
-  import.meta.env.VITE_APPLE_OAUTH_ENABLED,
+  getViteEnv("VITE_APPLE_OAUTH_ENABLED"),
   false,
 );
 
-const rawAuthorizedHosts = (import.meta.env.VITE_OAUTH_AUTHORIZED_HOSTS as string | undefined) ?? "";
+const rawAuthorizedHosts = getViteEnv("VITE_OAUTH_AUTHORIZED_HOSTS") ?? "";
 
 export const OAUTH_AUTHORIZED_HOSTS = rawAuthorizedHosts
   .split(",")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
+
+export { ALLOWED_HOSTS };

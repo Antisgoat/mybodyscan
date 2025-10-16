@@ -1,6 +1,6 @@
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
-import { fnUrl, FUNCTIONS_BASE } from "@/lib/env";
+import { fnUrl, FUNCTIONS_BASE, HAS_USDA } from "@/lib/env";
 import type { FoodItem, NutritionSource, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
 import {
@@ -55,12 +55,17 @@ type NutritionSearchPayload = {
 export async function nutritionSearch(
   query: string,
   init?: RequestInit,
+  options?: { forceOpenFoodFacts?: boolean },
 ): Promise<NutritionSearchPayload> {
   const trimmed = query.trim();
   if (!trimmed) {
     return { items: [] };
   }
-  const url = resolveApiUrl(`/api/nutrition/search?q=${encodeURIComponent(trimmed)}`);
+  const params = new URLSearchParams({ q: trimmed });
+  if (options?.forceOpenFoodFacts) {
+    params.set("source", "off");
+  }
+  const url = resolveApiUrl(`/api/nutrition/search?${params.toString()}`);
   const headers = new Headers(init?.headers ?? undefined);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
@@ -330,12 +335,17 @@ export async function fetchFoods(q: string): Promise<{
     let payload: NutritionSearchPayload | undefined;
 
     try {
-      payload = await nutritionSearch(query, { signal: controller.signal });
+      payload = await nutritionSearch(query, { signal: controller.signal }, {
+        forceOpenFoodFacts: !HAS_USDA,
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw error;
       }
-      const fallbackBase = nutritionFnUrl({ q: query });
+      const fallbackBase = nutritionFnUrl({
+        q: query,
+        ...(HAS_USDA ? {} : { source: "off" }),
+      });
       if (!fallbackBase) {
         payload = { items: [] } as NutritionSearchPayload;
       } else {
