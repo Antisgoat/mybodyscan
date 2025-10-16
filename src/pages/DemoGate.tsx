@@ -8,6 +8,7 @@ import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
+import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -22,7 +23,15 @@ export default function DemoGate() {
       // tiny yield to ensure AppCheck finishes at module-load
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
-        await signInAnonymously(auth);
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          if (shouldFallbackToOffline(error)) {
+            activateOfflineDemo("auth");
+          } else {
+            throw error;
+          }
+        }
       }
     })().catch((e) => console.error("Demo anon sign-in failed:", e));
     return () => {
@@ -62,6 +71,13 @@ export default function DemoGate() {
         }
       } catch (error: any) {
         console.error("demo_gate_error", error);
+        if (shouldFallbackToOffline(error) || isDemoOffline()) {
+          activateOfflineDemo("auth");
+          if (mountedRef.current) {
+            await startDemo({ navigate, skipEnsure: true });
+          }
+          return;
+        }
         if (mountedRef.current) {
           toast({
             title: "Unable to start demo",

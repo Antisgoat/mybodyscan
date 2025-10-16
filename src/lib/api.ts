@@ -1,8 +1,37 @@
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
-import { fnUrl } from "@/lib/env";
+import { fnUrl, FUNCTIONS_BASE } from "@/lib/env";
 import type { FoodItem, NutritionSource, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
+import {
+  activateOfflineDemo,
+  offlineCoachResponse,
+  offlineNutritionSearch,
+  shouldFallbackToOffline,
+} from "@/lib/demoOffline";
+
+const API_FUNCTION_MAP: Record<string, string> = {
+  "/api/nutrition/search": "nutritionSearch",
+  "/api/nutrition/barcode": "nutritionBarcode",
+  "/api/coach/chat": "coachChat",
+  "/api/scan/start": "startScanSession",
+  "/api/scan/submit": "submitScan",
+};
+
+export function resolveApiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (!FUNCTIONS_BASE) {
+    return normalized;
+  }
+  const [pathname, query = ""] = normalized.split("?");
+  const functionId = API_FUNCTION_MAP[pathname];
+  const targetPath = functionId ? `/${functionId}` : pathname;
+  const base = fnUrl(targetPath);
+  if (!base) {
+    return normalized;
+  }
+  return query ? `${base}?${query}` : base;
+}
 
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = fnUrl("/nutritionSearch");
@@ -31,7 +60,7 @@ export async function nutritionSearch(
   if (!trimmed) {
     return { items: [] };
   }
-  const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
+  const url = resolveApiUrl(`/api/nutrition/search?q=${encodeURIComponent(trimmed)}`);
   const headers = new Headers(init?.headers ?? undefined);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
@@ -44,13 +73,26 @@ export async function nutritionSearch(
   if (idToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: "include",
-    method: "GET",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers,
+      credentials: "include",
+      method: "GET",
+    });
+  } catch (error) {
+    if (shouldFallbackToOffline(error)) {
+      activateOfflineDemo("nutrition");
+      return offlineNutritionSearch(trimmed);
+    }
+    throw error;
+  }
   if (!response.ok) {
+    if (shouldFallbackToOffline({ status: response.status })) {
+      activateOfflineDemo("nutrition");
+      return offlineNutritionSearch(trimmed);
+    }
     const err: any = new Error(`rewrite_status_${response.status}`);
     err.status = response.status;
     throw err;
@@ -77,17 +119,31 @@ export async function coachChat(payload: { message: string }) {
     error.code = "app_check_unavailable";
     throw error;
   }
-  const response = await fetch(`/api/coach/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-      ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
-    },
-    credentials: "include",
-    body: JSON.stringify({ message, text: message }),
-  });
+  const url = resolveApiUrl(`/api/coach/chat`);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+        ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ message, text: message }),
+    });
+  } catch (error) {
+    if (shouldFallbackToOffline(error)) {
+      activateOfflineDemo("coach");
+      return offlineCoachResponse(message);
+    }
+    throw error;
+  }
   if (!response.ok) {
+    if (shouldFallbackToOffline({ status: response.status })) {
+      activateOfflineDemo("coach");
+      return offlineCoachResponse(message);
+    }
     const data = await response.json().catch(() => ({}));
     const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
     error.status = response.status;
@@ -349,7 +405,7 @@ export async function startScan(params?: Record<string, unknown>) {
   if (!token) {
     throw new Error("Authentication required");
   }
-  const response = await fetch("/api/scan/start", {
+  const response = await fetch(resolveApiUrl("/api/scan/start"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

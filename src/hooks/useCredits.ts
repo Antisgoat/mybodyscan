@@ -3,6 +3,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { isDemo as isDemoAuth } from "@/lib/auth";
+import { useOfflineDemo } from "@/components/DemoModeProvider";
+import { OFFLINE_DEMO_CREDITS, OFFLINE_DEMO_UID } from "@/lib/demoOffline";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -12,10 +14,22 @@ export function useCredits() {
   const [unlimited, setUnlimited] = useState(false);
   const [tester, setTester] = useState(false);
   const [demo, setDemo] = useState(false);
+  const offlineDemo = useOfflineDemo();
   const projectId =
     import.meta.env.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
 
   useEffect(() => {
+    if (offlineDemo) {
+      setUid(OFFLINE_DEMO_UID);
+      setDemo(true);
+      setCredits(OFFLINE_DEMO_CREDITS.credits);
+      setUnlimited(OFFLINE_DEMO_CREDITS.unlimited);
+      setTester(OFFLINE_DEMO_CREDITS.tester);
+      setLoading(false);
+      setError(null);
+      return () => {};
+    }
+
     const unsub = onAuthStateChanged(
       auth,
       async (u) => {
@@ -45,10 +59,10 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [offlineDemo]);
 
   useEffect(() => {
-    if (!uid || unlimited) return;
+    if (offlineDemo || !uid || unlimited) return;
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
@@ -68,7 +82,7 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid, unlimited]);
+  }, [offlineDemo, uid, unlimited]);
 
   const readOnlyNotice = demo ? "Demo browse only" : null;
 

@@ -19,6 +19,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
+import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import type { FirebaseError } from "firebase/app";
 
 const DEMO_FLAG_KEY = "mbs:demo";
@@ -80,9 +81,17 @@ function persistDemoMarker(): void {
 
 export async function ensureDemoUser(): Promise<void> {
   const auth = await requireAuthInstance();
-  if (!auth.currentUser?.isAnonymous) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    await signInAnonymously(auth);
+  try {
+    if (!auth.currentUser?.isAnonymous) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await signInAnonymously(auth);
+    }
+  } catch (error) {
+    if (shouldFallbackToOffline(error)) {
+      activateOfflineDemo("auth");
+    } else {
+      throw error;
+    }
   }
   persistDemoMarker();
 }
@@ -111,8 +120,13 @@ export function isDemo(): boolean {
   try {
     const marker = window.localStorage?.getItem(DEMO_FLAG_KEY) === "1";
     const localMarker = window.localStorage?.getItem(DEMO_LOCAL_KEY) === "1";
-    return (marker || localMarker) && firebaseAuth.currentUser?.isAnonymous === true;
+    if (marker || localMarker) {
+      const userAnonymous = firebaseAuth.currentUser?.isAnonymous;
+      return userAnonymous === true || userAnonymous == null || isDemoOffline();
+    }
+    return isDemoOffline() && firebaseAuth.currentUser?.isAnonymous !== false;
   } catch {
+    if (isDemoOffline()) return true;
     return firebaseAuth.currentUser?.isAnonymous === true;
   }
 }
@@ -124,9 +138,9 @@ export function isDemoUser(
   if (currentUser.isAnonymous) return true;
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage?.getItem(DEMO_LOCAL_KEY) === "1";
+    return window.localStorage?.getItem(DEMO_LOCAL_KEY) === "1" || isDemoOffline();
   } catch {
-    return false;
+    return isDemoOffline();
   }
 }
 

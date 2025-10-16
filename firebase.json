@@ -66,57 +66,43 @@
     "rewrites": [
       {
         "source": "/api/nutrition/search",
-        "function": {
-          "functionId": "nutritionSearch",
-          "region": "us-central1"
-        }
+        "function": "nutritionSearch",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/workouts/adjust",
-        "function": {
-          "functionId": "adjustWorkout",
-          "region": "us-central1"
-        }
+        "function": "adjustWorkout",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/api/nutrition/barcode",
-        "function": {
-          "functionId": "nutritionBarcode",
-          "region": "us-central1"
-        }
+        "function": "nutritionBarcode",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/api/scan/start",
-        "function": {
-          "functionId": "startScanSession",
-          "region": "us-central1"
-        }
+        "function": "startScanSession",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/api/scan/submit",
-        "function": {
-          "functionId": "submitScan",
-          "region": "us-central1"
-        }
+        "function": "submitScan",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/api/coach/chat",
-        "function": {
-          "functionId": "coachChat",
-          "region": "us-central1"
-        }
+        "function": "coachChat",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/stripeWebhook",
-        "function": {
-          "functionId": "stripeWebhook",
-          "region": "us-central1"
-        }
+        "function": "stripeWebhook",
+        "functionRegion": "us-central1"
       },
       {
         "source": "/system/health",
         "function": "systemHealth",
-        "region": "us-central1"
+        "functionRegion": "us-central1"
       },
       {
         "source": "**",

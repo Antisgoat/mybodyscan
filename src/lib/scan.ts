@@ -3,6 +3,8 @@ import { auth, db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { getAppCheckToken } from "@/appCheck";
+import { resolveApiUrl } from "@/lib/api";
+import { activateOfflineDemo, shouldFallbackToOffline } from "@/lib/demoOffline";
 
 async function authedPost(path: string, body: Record<string, unknown>) {
   const user = auth.currentUser;
@@ -16,16 +18,30 @@ async function authedPost(path: string, body: Record<string, unknown>) {
     error.code = "app_check";
     throw error;
   }
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      "X-Firebase-AppCheck": appCheckToken,
-    },
-    body: JSON.stringify(body),
-  });
+  const url = resolveApiUrl(path);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Firebase-AppCheck": appCheckToken,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    if (shouldFallbackToOffline(error)) {
+      activateOfflineDemo("scan");
+      throw new Error("offline_demo_unavailable");
+    }
+    throw error;
+  }
   if (!response.ok) {
+    if (shouldFallbackToOffline({ status: response.status })) {
+      activateOfflineDemo("scan");
+      throw new Error("offline_demo_unavailable");
+    }
     const text = await response.text();
     throw new Error(text || `request_failed_${response.status}`);
   }
