@@ -14,29 +14,32 @@ import {
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
-import { FUNCTIONS_BASE } from "@/lib/env";
+import { FUNCTIONS_BASE, getViteString } from "@/lib/env";
 
 let app: FirebaseApp;
 let appCheckInstance: AppCheck | null = null;
 
+// Initialize core Firebase app first
 if (getApps().length) {
   app = getApp();
 } else {
   const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    apiKey: getViteString("VITE_FIREBASE_API_KEY"),
+    authDomain: getViteString("VITE_FIREBASE_AUTH_DOMAIN"),
+    projectId: getViteString("VITE_FIREBASE_PROJECT_ID"),
+    storageBucket: getViteString("VITE_FIREBASE_STORAGE_BUCKET"),
+    messagingSenderId: getViteString("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+    appId: getViteString("VITE_FIREBASE_APP_ID"),
+    measurementId: getViteString("VITE_FIREBASE_MEASUREMENT_ID"),
   };
   app = initializeApp(firebaseConfig);
 }
 
+// IMPORTANT: App Check must be initialized BEFORE any Auth/Firestore/Functions instances are created.
+// This ensures App Check tokens are attached from first network requests and avoids "use-before-activation" errors.
 try {
   if (typeof window !== "undefined") {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_V3_KEY || "public-recaptcha-placeholder";
+    const siteKey = getViteString("VITE_RECAPTCHA_V3_KEY", "public-recaptcha-placeholder");
     appCheckInstance = initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(siteKey),
       isTokenAutoRefreshEnabled: true,
@@ -46,6 +49,7 @@ try {
   console.warn("AppCheck skipped:", e);
 }
 
+// Only construct Auth AFTER App Check has been initialized (above)
 const auth = (() => {
   let instance;
   try {
@@ -84,4 +88,5 @@ export async function safeEmailSignIn(email: string, password: string) {
 }
 
 export { app, auth, db, functions, storage };
+export const appCheck = appCheckInstance;
 export const getAppCheckInstance = () => appCheckInstance;
