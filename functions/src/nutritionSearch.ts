@@ -60,7 +60,7 @@ const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
 
-const FETCH_TIMEOUT_MS = 6500;
+const FETCH_TIMEOUT_MS = 4000;
 const auth = getAuth();
 
 function describeError(error: unknown): string {
@@ -494,39 +494,61 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   let fallbackUsed = false;
   const sourceErrors: Partial<Record<NutritionSource, string>> = {};
 
-  try {
-    const { getEnv } = await import("./lib/env.js");
-    const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+  const { getEnv } = await import("./lib/env.js");
+  const apiKey = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+
+  async function tryUsda(): Promise<FoodItem[]> {
     if (!apiKey) {
-      console.warn("nutrition_search_usda_key_missing", { query });
-      fallbackUsed = true;
       sourceErrors.USDA = "missing_api_key";
-    } else {
-      try {
-        items = await searchUsda(query, apiKey);
-      } catch (error) {
-        fallbackUsed = true;
-        sourceErrors.USDA = describeError(error);
-        console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
-      }
+      throw new Error("missing_api_key");
     }
-  } catch (error) {
-    fallbackUsed = true;
-    sourceErrors.USDA = describeError(error);
-    console.error("nutrition_search_usda_error", { query, message: sourceErrors.USDA });
+    return searchUsda(query, apiKey);
   }
 
-  if (!items.length) {
-    try {
-      items = await searchOpenFoodFacts(query);
+  async function tryOff(): Promise<FoodItem[]> {
+    return searchOpenFoodFacts(query);
+  }
+
+  // Run both providers in parallel with individual 4s timeouts; use whichever resolves first with results
+  const tasks: Array<Promise<{ src: NutritionSource; items: FoodItem[] }>> = [];
+  if (apiKey) tasks.push(tryUsda().then((r) => ({ src: "USDA" as const, items: r })).catch((e) => { sourceErrors.USDA = describeError(e); return { src: "USDA" as const, items: [] }; }));
+  tasks.push(tryOff().then((r) => ({ src: "OFF" as const, items: r })).catch((e) => { sourceErrors.OFF = describeError(e); return { src: "OFF" as const, items: [] }; }));
+
+  const settled = await Promise.all(tasks);
+  const usda = settled.find((s) => s.src === "USDA");
+  const off = settled.find((s) => s.src === "OFF");
+
+  const usdaItems = usda?.items ?? [];
+  const offItems = off?.items ?? [];
+
+  if (usdaItems.length) {
+    items = usdaItems;
+    primarySource = "USDA";
+    fallbackUsed = offItems.length > 0 && Boolean(sourceErrors.USDA);
+  } else if (offItems.length) {
+    items = offItems;
+    primarySource = "OFF";
+    fallbackUsed = true;
+  } else {
+    // If both failed with errors like 429/5xx, attempt a single backoff retry for each
+    const backoff = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    await backoff(250);
+    const retryTasks: Array<Promise<{ src: NutritionSource; items: FoodItem[] }>> = [];
+    if (apiKey) retryTasks.push(tryUsda().then((r) => ({ src: "USDA" as const, items: r })).catch((e) => { sourceErrors.USDA = describeError(e); return { src: "USDA" as const, items: [] }; }));
+    retryTasks.push(tryOff().then((r) => ({ src: "OFF" as const, items: r })).catch((e) => { sourceErrors.OFF = describeError(e); return { src: "OFF" as const, items: [] }; }));
+    const retried = await Promise.all(retryTasks);
+    const usdaRetry = retried.find((s) => s.src === "USDA")?.items ?? [];
+    const offRetry = retried.find((s) => s.src === "OFF")?.items ?? [];
+    if (usdaRetry.length) {
+      items = usdaRetry;
+      primarySource = "USDA";
+      fallbackUsed = Boolean(offRetry.length);
+    } else if (offRetry.length) {
+      items = offRetry;
       primarySource = "OFF";
-      if (fallbackUsed === false) {
-        fallbackUsed = true;
-      }
-    } catch (error) {
-      const message = describeError(error);
-      sourceErrors.OFF = message;
-      console.error("nutrition_search_off_error", { query, message });
+      fallbackUsed = true;
+    } else {
+      items = [];
     }
   }
 

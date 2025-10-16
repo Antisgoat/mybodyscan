@@ -362,10 +362,10 @@ export default function MealsSearch() {
   };
 
   const primaryCaption = fallbackUsed
-    ? "USDA primary · OFF fallback"
+    ? "USDA primary • OFF fallback"
     : primarySource === "OFF"
-    ? "OFF primary · USDA unavailable"
-    : "USDA";
+    ? "OFF primary • USDA unavailable"
+    : "USDA primary";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
   const searchNotice = null;
@@ -432,7 +432,7 @@ export default function MealsSearch() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Results</CardTitle>
-            <div className="text-xs text-muted-foreground">{primaryCaption}</div>
+            <div className="text-xs text-muted-foreground">USDA primary • OFF fallback</div>
           </CardHeader>
           <CardContent className="space-y-3">
             {!appCheckReady && (
@@ -470,7 +470,12 @@ export default function MealsSearch() {
                       <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                        {subtitle}
+                        <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.source === 'USDA' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                          {item.source}
+                        </span>
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}g P · {roundGrams(base.carbs)}g C · {roundGrams(base.fat)}g F
                         &nbsp;<span className="text-[10px] text-muted-foreground">per 100 g</span>
@@ -494,6 +499,14 @@ export default function MealsSearch() {
                 })}
           </CardContent>
         </Card>
+        {!loading && appCheckReady && query.trim().length > 0 && results.length === 0 && (
+          <Card>
+            <CardContent className="py-6 text-sm text-muted-foreground">
+              <p>No results from USDA or Open Food Facts.</p>
+              <p className="mt-1">Services may be busy. Try again in a few seconds.</p>
+            </CardContent>
+          </Card>
+        )}
       </main>
       <BottomNav />
 

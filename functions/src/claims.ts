@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
-import { FieldValue, getFirestore } from "./firebase.js";
+import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
 import type { Transaction } from "firebase-admin/firestore";
 import { getEnv } from "./lib/env.js";
 import { isWhitelisted } from "./testWhitelist.js";
@@ -52,15 +52,42 @@ export async function ensureTestCredits(uid: string, email?: string | null): Pro
 
   const db = getFirestore();
   const userRef = db.doc(`users/${uid}`);
+  const creditsRef = db.doc(`users/${uid}/private/credits`);
 
   await db.runTransaction(async (tx: Transaction) => {
-    const snap = await tx.get(userRef);
-    const currentCredits = snap.exists ? (snap.data() as any)?.credits : undefined;
+    // Legacy convenience top-level hint (non-authoritative)
+    const userSnap = await tx.get(userRef);
+    const currentCredits = userSnap.exists ? (userSnap.data() as any)?.credits : undefined;
     const numericCredits = typeof currentCredits === "number" ? currentCredits : NaN;
-    if (!snap.exists || !Number.isFinite(numericCredits) || numericCredits < 100) {
+    if (!userSnap.exists || !Number.isFinite(numericCredits) || numericCredits < 100) {
       tx.set(
         userRef,
-        { credits: 999, updatedAt: FieldValue.serverTimestamp() },
+        { credits: 9999, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    }
+
+    // Authoritative credit buckets summary for UI
+    const now = Timestamp.now();
+    const creditSnap = await tx.get(creditsRef);
+    const summary = creditSnap.exists ? (creditSnap.data() as any)?.creditsSummary : undefined;
+    const totalAvailable = Number(summary?.totalAvailable ?? 0);
+    if (!creditSnap.exists || !Number.isFinite(totalAvailable) || totalAvailable < 9999) {
+      tx.set(
+        creditsRef,
+        {
+          creditBuckets: [
+            { amount: 9999, grantedAt: now, expiresAt: null, sourcePriceId: null, context: "tester_grant" },
+          ],
+          creditsSummary: {
+            totalAvailable: 9999,
+            lastUpdated: now,
+            lastDeductionAt: null,
+            lastDeductionReason: null,
+            version: FieldValue.increment(1),
+          },
+          creditVersion: FieldValue.increment(1),
+        },
         { merge: true },
       );
     }
