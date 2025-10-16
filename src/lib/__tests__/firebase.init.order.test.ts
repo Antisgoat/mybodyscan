@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 describe('firebase init order', () => {
   beforeEach(() => {
     vi.resetModules();
+    // Simulate browser environment so firebase.ts runs AppCheck branch
+    (globalThis as any).window = {};
   });
 
   it('initializes AppCheck before constructing Auth', async () => {
