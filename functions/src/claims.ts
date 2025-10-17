@@ -94,6 +94,44 @@ export async function ensureTestCredits(uid: string, email?: string | null): Pro
   });
 }
 
+export async function ensureDeveloperClaims(uid: string): Promise<void> {
+  if (!uid) return;
+  initializeFirebaseIfNeeded();
+
+  const auth = admin.auth();
+  const record = await auth.getUser(uid);
+  const existingClaims = record.customClaims ?? {};
+  const nextClaims = {
+    ...existingClaims,
+    developer: true,
+    tester: true,
+    unlimitedCredits: true,
+    credits: 999_999,
+    demo: false,
+  };
+
+  await auth.setCustomUserClaims(uid, nextClaims);
+
+  const db = getFirestore();
+  await Promise.all([
+    db.doc(`users/${uid}`).set(
+      {
+        credits: 999_999,
+        demo: false,
+        meta: { developer: true },
+      },
+      { merge: true },
+    ),
+    db.doc(`users/${uid}/private/profile`).set(
+      {
+        developer: true,
+        demo: false,
+      },
+      { merge: true },
+    ),
+  ]);
+}
+
 export async function updateUserClaims(uid: string, email?: string): Promise<void> {
   if (!uid) return;
   initializeFirebaseIfNeeded();
@@ -128,7 +166,7 @@ export const refreshClaims = onCall({ region: "us-central1" }, async (request) =
   let nextClaims = existingClaims;
 
   if (isDeveloper) {
-    await ensureTestCredits(auth.uid, email ?? null);
+    await ensureDeveloperClaims(auth.uid);
     nextClaims = {
       ...(await admin.auth().getUser(auth.uid)).customClaims,
     };

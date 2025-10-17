@@ -83,6 +83,7 @@ import DemoGate from "./pages/DemoGate";
 import AdminDevTools from "./pages/AdminDevTools";
 import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -119,7 +120,8 @@ const App = () => {
                 <DemoModeProvider>
                   <OnboardingRedirectMBS>
                     <Suspense fallback={<PageSkeleton />}>
-                      <Routes>
+                      <AppErrorBoundary>
+                        <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -199,13 +201,15 @@ const App = () => {
             <Route
               path="/coach"
               element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <DataBoundary page="coach">
-                          <Coach />
-                        </DataBoundary>
+                        <AppErrorBoundary>
+                          <DataBoundary page="coach">
+                            <Coach />
+                          </DataBoundary>
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -215,11 +219,13 @@ const App = () => {
             <Route
               path="/coach/chat"
               element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <CoachChat />
+                        <AppErrorBoundary>
+                          <CoachChat />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -229,11 +235,13 @@ const App = () => {
             <Route
               path="/coach/day"
               element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
+                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <CoachDay />
+                        <AppErrorBoundary>
+                          <CoachDay />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -247,7 +255,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <ProgramsCatalog />
+                        <AppErrorBoundary>
+                          <ProgramsCatalog />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -261,7 +271,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <ProgramsQuiz />
+                        <AppErrorBoundary>
+                          <ProgramsQuiz />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -275,7 +287,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <ProgramDetail />
+                        <AppErrorBoundary>
+                          <ProgramDetail />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -289,9 +303,11 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <DataBoundary page="nutrition">
-                          <Nutrition />
-                        </DataBoundary>
+                        <AppErrorBoundary>
+                          <DataBoundary page="nutrition">
+                            <Nutrition />
+                          </DataBoundary>
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -347,7 +363,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Meals />
+                        <AppErrorBoundary>
+                          <Meals />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -361,7 +379,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <MealsSearch />
+                        <AppErrorBoundary>
+                          <MealsSearch />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -371,11 +391,13 @@ const App = () => {
             <Route
               path="/barcode"
               element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}> 
+                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <BarcodeScan />
+                        <AppErrorBoundary>
+                          <BarcodeScan />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -390,7 +412,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <MealsHistory />
+                        <AppErrorBoundary>
+                          <MealsHistory />
+                        </AppErrorBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -618,7 +642,8 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                      </Routes>
+                        </Routes>
+                      </AppErrorBoundary>
                     </Suspense>
                   </OnboardingRedirectMBS>
                 </DemoModeProvider>

@@ -17,7 +17,7 @@ import {
   shouldUsePopupAuth,
   formatAuthError,
   finalizeAppleProfile,
-  getAuthDomainWhitelist,
+  isHostAllowed,
 } from "@/lib/auth";
 import { auth, safeEmailSignIn } from "@/lib/firebase";
 import {
@@ -31,7 +31,7 @@ import {
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS, ALLOWED_HOSTS } from "@/env";
+import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
 import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([
@@ -40,6 +40,19 @@ const POPUP_FALLBACK_CODES = new Set([
   "auth/operation-not-supported-in-this-environment",
   "auth/network-request-failed",
 ]);
+
+function normalizeHostCandidate(value?: string | null): string {
+  if (!value) return "";
+  return value.replace(/^https?:\/\//i, "").split("/")[0]?.split(":")[0]?.trim().toLowerCase() ?? "";
+}
+
+function matchesAuthorizedHost(candidate: string, hostname: string): boolean {
+  const normalizedCandidate = normalizeHostCandidate(candidate);
+  const normalizedHost = normalizeHostCandidate(hostname);
+  if (!normalizedCandidate || !normalizedHost) return false;
+  if (normalizedCandidate === normalizedHost) return true;
+  return normalizedHost.endsWith(`.${normalizedCandidate}`);
+}
 
 type ProviderSignInResult =
   | { status: "popup"; credential: UserCredential }
@@ -121,9 +134,13 @@ const Auth = () => {
     | null
   >(null);
   const [supportOpen, setSupportOpen] = useState(false);
-  const [hostAuthorized, setHostAuthorized] = useState(true);
+  const [hostAuthorized, setHostAuthorized] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return isHostAllowed(window.location.hostname);
+  });
   const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
+  const authDisabled = !hostAuthorized;
 
   useEffect(() => {
     if (!user) return;
@@ -135,29 +152,15 @@ const Auth = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const hostname = window.location.hostname.toLowerCase();
-    const mergedHosts = new Set<string>();
-    for (const entry of ALLOWED_HOSTS ?? []) {
-      if (entry) mergedHosts.add(entry.trim().toLowerCase());
-    }
-    for (const entry of OAUTH_AUTHORIZED_HOSTS ?? []) {
-      if (entry) mergedHosts.add(entry.trim().toLowerCase());
-    }
-    const envAllowlist = Array.from(mergedHosts);
-    const fallbackAllowlist = envAllowlist.length ? envAllowlist : getAuthDomainWhitelist().map((entry) => entry.toLowerCase());
-    if (!fallbackAllowlist.length) {
+    const hostname = window.location.hostname;
+    if (isHostAllowed(hostname)) {
       setHostAuthorized(true);
       return;
     }
-    const matchesHost = (candidate: string) => {
-      if (!candidate) return false;
-      const candidateHost = candidate.split(":")[0];
-      if (!candidateHost) return false;
-      if (hostname === candidateHost) return true;
-      return hostname.endsWith(`.${candidateHost}`);
-    };
-    const isAuthorized = fallbackAllowlist.some((candidate) => matchesHost(candidate));
-    setHostAuthorized(isAuthorized);
+    const oauthAuthorized = (OAUTH_AUTHORIZED_HOSTS ?? []).some((candidate) =>
+      matchesAuthorizedHost(candidate, hostname),
+    );
+    setHostAuthorized(oauthAuthorized);
   }, []);
 
   useEffect(() => {
@@ -196,6 +199,11 @@ const Auth = () => {
   };
 
   useEffect(() => {
+    if (authDisabled) {
+      return () => {
+        /* noop */
+      };
+    }
     let active = true;
     resolveAuthRedirect(auth)
       .then((result) => {
@@ -214,10 +222,14 @@ const Auth = () => {
     return () => {
       active = false;
     };
-  }, [navigate]);
+  }, [navigate, authDisabled]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authDisabled) {
+      setFormError("Sign-in is disabled on this domain.");
+      return;
+    }
     setFormError(null);
     setLoading(true);
     try {
@@ -246,6 +258,13 @@ const Auth = () => {
 
   const onGoogle = async () => {
     if (loading) return;
+    if (authDisabled) {
+      toast({
+        title: "Sign-in blocked",
+        description: "This domain isn’t authorized for Google sign-in.",
+      });
+      return;
+    }
     setLoading(true);
     setProviderLoading("google");
     setLastOauthError(null);
@@ -272,8 +291,8 @@ const Auth = () => {
     }
   };
 
-  const appleConfigured = forceAppleButton || appleEnabled === true;
-  const showAppleButton = true;
+  const appleConfigured = appleEnabled === true;
+  const showAppleButton = appleFeatureEnabled && (forceAppleButton || appleEnabled !== false);
 
   const handleAppleFeatureDisabled = () => {
     const message = "Apple Sign-In not yet enabled for this domain. Flip APPLE_OAUTH_ENABLED to true after finishing setup.";
@@ -304,6 +323,14 @@ const Auth = () => {
 
   const onApple = async () => {
     if (loading) return;
+
+    if (authDisabled) {
+      toast({
+        title: "Sign-in blocked",
+        description: "This domain isn’t authorized for Apple sign-in.",
+      });
+      return;
+    }
 
     if (!appleFeatureEnabled) {
       handleAppleFeatureDisabled();
@@ -416,17 +443,37 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading}>
-                {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
+              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || authDisabled}>
+                {loading
+                  ? mode === "signin"
+                    ? "Signing in..."
+                    : "Creating..."
+                  : mode === "signin"
+                  ? "Sign in"
+                  : "Create account"}
               </Button>
-              <Button type="button" variant="link" onClick={async () => {
-                try {
-                  await sendReset(email);
-                  toast({ title: "Reset link sent", description: "Check your email for reset instructions." });
-                } catch (err: any) {
-                  toast({ title: "Couldn't send reset", description: err?.message || "Please try again." });
-                }
-              }}>Forgot password?</Button>
+              <Button
+                type="button"
+                variant="link"
+                disabled={loading || authDisabled}
+                onClick={async () => {
+                  if (authDisabled) {
+                    toast({
+                      title: "Reset unavailable",
+                      description: "This domain isn’t authorized for account actions.",
+                    });
+                    return;
+                  }
+                  try {
+                    await sendReset(email);
+                    toast({ title: "Reset link sent", description: "Check your email for reset instructions." });
+                  } catch (err: any) {
+                    toast({ title: "Couldn't send reset", description: err?.message || "Please try again." });
+                  }
+                }}
+              >
+                Forgot password?
+              </Button>
             </div>
           </form>
           <div className="space-y-3">
@@ -435,7 +482,7 @@ const Auth = () => {
                 <Button
                   variant="secondary"
                   onClick={onApple}
-                  disabled={loading}
+                  disabled={loading || authDisabled}
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
@@ -455,7 +502,7 @@ const Auth = () => {
             <Button
               variant="secondary"
               onClick={onGoogle}
-              disabled={loading}
+              disabled={loading || authDisabled}
               className="w-full h-11 inline-flex items-center justify-center gap-2"
               data-testid="auth-google-button"
             >

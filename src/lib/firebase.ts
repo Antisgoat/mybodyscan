@@ -1,108 +1,172 @@
-import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
+import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
 import {
+  browserLocalPersistence,
   getAuth,
   initializeAuth,
-  browserLocalPersistence,
   setPersistence,
   signInWithEmailAndPassword,
+  type Auth,
 } from "firebase/auth";
 import {
+  CustomProvider,
   initializeAppCheck,
   ReCaptchaV3Provider,
-  CustomProvider,
   type AppCheck,
-  type AppCheckProvider,
 } from "firebase/app-check";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-import { getStorage } from "firebase/storage";
-import { FUNCTIONS_BASE } from "@/lib/env";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFunctions, type Functions } from "firebase/functions";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { FUNCTIONS_BASE, getViteEnv } from "@/lib/env";
 
-let app: FirebaseApp;
-let appCheckInstance: AppCheck | null = null;
-
-if (getApps().length) {
-  app = getApp();
-} else {
-  const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-  };
-  app = initializeApp(firebaseConfig);
-}
-
-const initAppCheckIfNeeded = () => {
-  if (appCheckInstance || typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const rawSiteKey =
-      (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined) ||
-      (import.meta.env.VITE_RECAPTCHA_V3_KEY as string | undefined) ||
-      "";
-    const siteKey = rawSiteKey.trim();
-
-    let provider: AppCheckProvider;
-    let refresh = false;
-
-    if (siteKey) {
-      provider = new ReCaptchaV3Provider(siteKey);
-      refresh = true;
-    } else {
-      provider = new CustomProvider({
-        getToken: async () => ({
-          token: `dev-${Math.random().toString(36).slice(2)}.${Date.now()}`,
-          expireTimeMillis: Date.now() + 60 * 60 * 1000,
-        }),
-      });
-      refresh = false;
-    }
-
-    appCheckInstance = initializeAppCheck(app, {
-      provider,
-      isTokenAutoRefreshEnabled: refresh,
-    });
-  } catch (error) {
-    console.warn("AppCheck skipped:", error);
-  }
+type FirebaseBundle = {
+  app: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
+  functions: Functions;
+  storage: FirebaseStorage;
+  appCheck: AppCheck | null;
+  ensureAppCheck: () => AppCheck | null;
 };
 
-if (typeof window !== "undefined") {
-  initAppCheckIfNeeded();
+const GLOBAL_KEY = "__MBS_FIREBASE__";
+
+function getFirebaseConfig() {
+  return {
+    apiKey: getViteEnv("VITE_FIREBASE_API_KEY") ?? "",
+    authDomain: getViteEnv("VITE_FIREBASE_AUTH_DOMAIN") ?? "",
+    projectId: getViteEnv("VITE_FIREBASE_PROJECT_ID") ?? "",
+    storageBucket: getViteEnv("VITE_FIREBASE_STORAGE_BUCKET") ?? "",
+    messagingSenderId: getViteEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") ?? "",
+    appId: getViteEnv("VITE_FIREBASE_APP_ID") ?? "",
+    measurementId: getViteEnv("VITE_FIREBASE_MEASUREMENT_ID") ?? undefined,
+  };
 }
 
-const auth = (() => {
-  let instance;
-  initAppCheckIfNeeded();
+const createFirebaseBundle = (): FirebaseBundle => {
+  const config = getFirebaseConfig();
+  const app = getApps().length ? getApp() : initializeApp(config);
 
-  try {
-    instance = getAuth(app);
-  } catch (error) {
-    instance = initializeAuth(app, { persistence: browserLocalPersistence });
+  let appCheckInstance: AppCheck | null = null;
+  const ensureAppCheck = (() => {
+    let initialized = false;
+    return () => {
+      if (initialized) {
+        return appCheckInstance;
+      }
+      initialized = true;
+      if (typeof window === "undefined") {
+        appCheckInstance = null;
+        return appCheckInstance;
+      }
+
+      try {
+        const siteKey =
+          getViteEnv("VITE_RECAPTCHA_SITE_KEY") ??
+          getViteEnv("VITE_RECAPTCHA_V3_KEY") ??
+          "";
+        let provider: CustomProvider | ReCaptchaV3Provider;
+        let shouldRefresh = false;
+        if (siteKey) {
+          provider = new ReCaptchaV3Provider(siteKey);
+          shouldRefresh = true;
+        } else {
+          if (typeof window !== "undefined") {
+            (window as Window & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+          }
+          provider = new CustomProvider({
+            getToken: async () => ({
+              token: `debug-${Math.random().toString(36).slice(2)}.${Date.now()}`,
+              expireTimeMillis: Date.now() + 60 * 60 * 1000,
+            }),
+          });
+        }
+        appCheckInstance = initializeAppCheck(app, {
+          provider,
+          isTokenAutoRefreshEnabled: shouldRefresh,
+        });
+      } catch (error) {
+        console.warn("AppCheck initialization skipped", error);
+        appCheckInstance = null;
+      }
+      return appCheckInstance;
+    };
+  })();
+
+  if (typeof window !== "undefined") {
+    ensureAppCheck();
   }
-  const a = instance;
-  setPersistence(a, browserLocalPersistence).catch(() => {});
-  return a;
-})();
 
-const db = getFirestore(app);
-const functions = getFunctions(app, "us-central1");
-if (FUNCTIONS_BASE) {
-  try {
-    (functions as any).customDomain = FUNCTIONS_BASE;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[firebase] unable to set functions custom domain", error);
+  const initAuth = (): Auth => {
+    if (typeof window !== "undefined") {
+      ensureAppCheck();
     }
-  }
+
+    let instance: Auth;
+    try {
+      instance = getAuth(app);
+    } catch {
+      instance = initializeAuth(app, { persistence: browserLocalPersistence });
+    }
+
+    if (typeof window !== "undefined") {
+      setPersistence(instance, browserLocalPersistence).catch(() => {});
+    }
+    return instance;
+  };
+
+  const initFirestore = (): Firestore => {
+    if (typeof window !== "undefined") {
+      ensureAppCheck();
+    }
+    return getFirestore(app);
+  };
+
+  const initFunctions = (): Functions => {
+    if (typeof window !== "undefined") {
+      ensureAppCheck();
+    }
+    const instance = getFunctions(app, "us-central1");
+    if (FUNCTIONS_BASE) {
+      try {
+        (instance as Functions & { customDomain?: string }).customDomain = FUNCTIONS_BASE;
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn("[firebase] unable to set functions custom domain", error);
+        }
+      }
+    }
+    return instance;
+  };
+
+  const initStorage = (): FirebaseStorage => {
+    if (typeof window !== "undefined") {
+      ensureAppCheck();
+    }
+    return getStorage(app);
+  };
+
+  return {
+    app,
+    auth: initAuth(),
+    firestore: initFirestore(),
+    functions: initFunctions(),
+    storage: initStorage(),
+    appCheck: appCheckInstance,
+    ensureAppCheck,
+  };
+};
+
+const globalScope = globalThis as typeof globalThis & { [GLOBAL_KEY]?: FirebaseBundle };
+const firebaseBundle = globalScope[GLOBAL_KEY] ?? createFirebaseBundle();
+if (!globalScope[GLOBAL_KEY]) {
+  globalScope[GLOBAL_KEY] = firebaseBundle;
 }
-const storage = getStorage(app);
+
+export const app = firebaseBundle.app;
+export const auth = firebaseBundle.auth;
+export const db = firebaseBundle.firestore;
+export const functions = firebaseBundle.functions;
+export const storage = firebaseBundle.storage;
 
 export async function safeEmailSignIn(email: string, password: string) {
   try {
@@ -116,5 +180,4 @@ export async function safeEmailSignIn(email: string, password: string) {
   }
 }
 
-export { app, auth, db, functions, storage };
-export const getAppCheckInstance = () => appCheckInstance;
+export const getAppCheckInstance = () => firebaseBundle.ensureAppCheck();

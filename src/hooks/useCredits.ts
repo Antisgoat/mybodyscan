@@ -5,6 +5,7 @@ import { auth, db } from "@/lib/firebase";
 import { isDemo as isDemoAuth } from "@/lib/auth";
 import { useOfflineDemo } from "@/components/DemoModeProvider";
 import { OFFLINE_DEMO_CREDITS, OFFLINE_DEMO_UID } from "@/lib/demoOffline";
+import { isWhitelistedEmail } from "@/lib/whitelist";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -42,8 +43,10 @@ export function useCredits() {
           setLoading(false);
         } else {
           const token = await u.getIdTokenResult();
-          const hasTester = token.claims.tester === true;
-          const hasUnlimited = hasTester || token.claims.unlimitedCredits === true;
+          const whitelisted = isWhitelistedEmail(u.email ?? undefined);
+          const hasTester = whitelisted || token.claims.tester === true;
+          const hasUnlimited =
+            whitelisted || hasTester || token.claims.unlimitedCredits === true;
           setTester(hasTester);
           setUnlimited(hasUnlimited);
           if (hasUnlimited) {

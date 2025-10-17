@@ -93,7 +93,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - VITE_DEMO_MODE: set to `true` to always enable demo. Demo also auto-enables on localhost/127.0.0.1/lovable hosts or with `?demo=1`.
 - SPA rewrites: `firebase.json` places API rewrites (e.g., `/api/nutrition/*`) before the final catch-all to `/index.html` to avoid 404s on deep links.
 - Nutrition endpoints: frontend uses only `/api/nutrition/search` and `/api/nutrition/barcode`.
-- System smoke check: call the `health` HTTPS function (`GET https://us-central1-<project-id>.cloudfunctions.net/health`) to confirm env wiring, then sign in and visit `/system/check` to view the JSON payload and run the nutrition/coach/credits buttons.
+- System smoke check: run `npm run smoke` (or `SMOKE_URL=https://<host>/system/health npm run smoke`) to hit the deployed `/system/health` endpoint, then sign in and visit `/system/check` to view the JSON payload and run the nutrition/coach/credits buttons.
 
 ## Environment variables
 
@@ -109,11 +109,16 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_RECAPTCHA_V3_SITE_KEY` *(App Check; soft in dev/demo if missing)*
 - `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
+- `VITE_RECAPTCHA_SITE_KEY` *(optional alias for App Check site key; falls back to debug provider when absent)*
+- `VITE_AUTH_ALLOWED_HOSTS` *(optional comma-delimited hostnames; defaults to mybodyscanapp.com, web.app, and localhost)*
+- `VITE_USDA_API_KEY` *(optional USDA FoodData Central API key; search falls back to OpenFoodFacts when missing)*
+- `VITE_APPLE_OAUTH_ENABLED` *(set to `true` to render Sign in with Apple once Firebase provider is configured)*
+- `VITE_SENTRY_DSN` *(optional; when present the client loads Sentry error and performance monitoring)*
 
 ### Enable Sign in with Apple (Web)
 
 1. Firebase Console → **Auth** → **Apple** → Enable. Provide your Team ID, Key ID, Services ID, and upload the `.p8` key.
-2. Add authorized domains: `mybodyscan.app`, `mybodyscan-f3daf.web.app`, `mybodyscan-f3daf.firebaseapp.com`.
+2. Add authorized domains: `mybodyscan.app` and `mybodyscan-f3daf.web.app`.
 3. Copy the redirect handler URL(s) from Firebase (e.g., `https://<auth-domain>/__/auth/handler`) and add them to Apple Developer → **Identifiers** → your Services ID → **Return URLs**.
 4. Optional: place Apple's association file at `/.well-known/apple-developer-domain-association.txt` on Firebase Hosting (replace the placeholder committed in `public/.well-known/`).
 
@@ -128,6 +133,8 @@ Set these secrets or environment variables via Firebase (preferred) or your depl
 - `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
 - `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
 - `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
+- `ALLOWED_ORIGINS` *(optional; HTTPS CORS allowlist overrides, defaults include mybodyscanapp.com + localhost ports)*
+- `USDA_FDC_API_KEY` *(optional USDA key used for nutrition search/barcode; OpenFoodFacts is used when omitted)*
 
 ## Secrets & Deploy
 
@@ -153,7 +160,7 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 ### Example production secret values
 
 - `HOST_BASE_URL = https://mybodyscanapp.com`
-- `APP_CHECK_ALLOWED_ORIGINS = https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app,https://mybodyscan-f3daf.firebaseapp.com`
+- `APP_CHECK_ALLOWED_ORIGINS = https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app`
 - `APP_CHECK_ENFORCE_SOFT = true`
 
 ## Firebase Web config (Lovable without env vars)
@@ -163,7 +170,6 @@ Authorized domains (Firebase Console → Auth → Settings):
 - localhost
 - 127.0.0.1
 - mybodyscan-f3daf.web.app
-- mybodyscan-f3daf.firebaseapp.com
 - your Lovable preview domain (copy from the preview URL)
 - your custom domain(s)
 
@@ -224,7 +230,6 @@ Stripe webhook requests now require a valid signature. Invalid signatures return
    - localhost
    - 127.0.0.1
    - mybodyscan-f3daf.web.app
-   - mybodyscan-f3daf.firebaseapp.com
    - your custom domain(s) (e.g., mybodyscan.app, www.mybodyscan.app)
    - your Lovable preview domain
 4) Rebuild locally: `npm ci && npm run build && npm run preview`

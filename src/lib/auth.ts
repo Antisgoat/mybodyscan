@@ -20,22 +20,33 @@ import {
 import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import type { FirebaseError } from "firebase/app";
+import { ALLOWED_HOSTS } from "@/lib/env";
 
 const DEMO_FLAG_KEY = "mbs:demo";
 const DEMO_LOCAL_KEY = "mbs_demo";
 
+function normalizeHost(host?: string | null): string {
+  if (!host) return "";
+  return host.replace(/^https?:\/\//i, "").split("/")[0]?.split(":")[0]?.trim().toLowerCase() ?? "";
+}
+
 export function getAuthDomainWhitelist(): string[] {
-  return [
-    "mybodyscanapp.com",
-    "mybodyscan-f3daf.web.app",
-    "mybodyscan-f3daf.firebaseapp.com",
-  ];
+  const normalized = new Set(ALLOWED_HOSTS.map((host) => normalizeHost(host)).filter(Boolean));
+  return Array.from(normalized);
 }
 
 function hostMatches(domain: string, host: string): boolean {
-  if (!domain) return false;
-  if (host === domain) return true;
-  return host.endsWith(`.${domain}`);
+  const normalizedDomain = normalizeHost(domain);
+  const normalizedHost = normalizeHost(host);
+  if (!normalizedDomain || !normalizedHost) return false;
+  if (normalizedHost === normalizedDomain) return true;
+  return normalizedHost.endsWith(`.${normalizedDomain}`);
+}
+
+export function isHostAllowed(hostname: string): boolean {
+  const whitelist = getAuthDomainWhitelist();
+  if (!whitelist.length) return true;
+  return whitelist.some((candidate) => hostMatches(candidate, hostname));
 }
 
 function isPopupFriendlyDomain(): boolean {

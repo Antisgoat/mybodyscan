@@ -8,26 +8,42 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
-import { searchFoods } from "@/lib/nutritionShim";
+import { lookupBarcode, searchFoods, type NormalizedItem } from "@/lib/nutritionShim";
+import { roundGrams, roundKcal } from "@/lib/nutritionMath";
 
 export default function MealsBarcode() {
   const { t } = useI18n();
   const [code, setCode] = useState("");
-  const [manualResult, setManualResult] = useState<string | null>(null);
+  const [manualResult, setManualResult] = useState<NormalizedItem | null>(null);
+  const [fallbackCount, setFallbackCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!code) return;
+    const trimmed = code.trim();
+    if (!trimmed) return;
     setLoading(true);
+    setManualResult(null);
+    setFallbackCount(0);
     try {
-      const results = await searchFoods(code);
-      setManualResult(results[0]?.name || null);
+      const barcodeMatch = await lookupBarcode(trimmed);
+      if (barcodeMatch) {
+        setManualResult(barcodeMatch);
+        toast({
+          title: "Barcode match",
+          description: `Source: ${barcodeMatch.source}`,
+        });
+        return;
+      }
+
+      const results = await searchFoods(trimmed);
       if (!results.length) {
         toast({ title: "No match found", description: "Try another UPC or add manually.", variant: "destructive" });
         return;
       }
-      toast({ title: "Barcode match", description: "Review and confirm the item." });
+      setManualResult(results[0] ?? null);
+      setFallbackCount(results.length);
+      toast({ title: "Matched from search", description: "Review and confirm the item." });
     } catch (error: any) {
       toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
     } finally {
@@ -66,9 +82,45 @@ export default function MealsBarcode() {
               <p className="mt-1 text-xs">Point your camera at a barcode to add packaged foods instantly.</p>
             </div>
             {manualResult && (
-              <div className="rounded-md bg-muted p-3 text-sm">
-                <div className="font-medium">Preview result</div>
-                <div className="text-muted-foreground">{manualResult}</div>
+              <div className="space-y-2 rounded-md bg-muted p-3 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-foreground">{manualResult.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {manualResult.brand || (manualResult.source === "OFF" ? "Open Food Facts" : "USDA")}
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      manualResult.source === "USDA"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {manualResult.source}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div>
+                    {manualResult.per_serving.kcal != null
+                      ? `${roundKcal(manualResult.per_serving.kcal)} kcal`
+                      : `${roundKcal(manualResult.basePer100g.kcal)} kcal per 100 g`}
+                  </div>
+                  <div>{roundGrams(manualResult.per_serving.protein_g ?? manualResult.basePer100g.protein)}g protein</div>
+                  <div>{roundGrams(manualResult.per_serving.carbs_g ?? manualResult.basePer100g.carbs)}g carbs</div>
+                  <div>{roundGrams(manualResult.per_serving.fat_g ?? manualResult.basePer100g.fat)}g fat</div>
+                </div>
+                {manualResult.serving?.text && (
+                  <div className="text-xs text-muted-foreground">
+                    Serving: {manualResult.serving.text}
+                    {manualResult.serving.qty ? ` (${manualResult.serving.qty} ${manualResult.serving.unit || "g"})` : ""}
+                  </div>
+                )}
+                {fallbackCount > 1 && (
+                  <div className="text-xs text-muted-foreground">
+                    Showing the top match from {fallbackCount} nutrition search results.
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

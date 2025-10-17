@@ -12,7 +12,9 @@
     "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/print-build-tag.js",
     "build:dev": "vite build --mode development",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
+    "build:all": "npm run build && npm --prefix functions run build",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
@@ -34,7 +36,8 @@
     "ci:clean": "npm config set fetch-retry-maxtimeout 600000 && npm cache clean --force && rimraf node_modules && npm ci --prefer-online",
     "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund",
     "verify:local": "npm run build && npm --prefix functions run build",
-    "dev:check": "vite --open /system/check"
+    "dev:check": "vite --open /system/check",
+    "smoke": "node scripts/smoke-check.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",
