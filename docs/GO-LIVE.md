@@ -7,7 +7,7 @@ Create or verify the following secrets in GitHub Actions or Firebase Functions. 
 
 ```
 HOST_BASE_URL=https://mybodyscanapp.com
-APP_CHECK_ALLOWED_ORIGINS=https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app,https://mybodyscan-f3daf.firebaseapp.com
+APP_CHECK_ALLOWED_ORIGINS=https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app
 APP_CHECK_ENFORCE_SOFT=true
 OPENAI_API_KEY=*****
 # Optional

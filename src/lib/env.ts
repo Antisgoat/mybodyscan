@@ -32,7 +32,26 @@ export function getUsdaApiKey(): string | null {
 
 export const HAS_USDA = Boolean(getUsdaApiKey());
 
-export const ALLOWED_HOSTS: string[] = (getViteEnv("VITE_AUTH_ALLOWED_HOSTS") ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const DEFAULT_ALLOWED_HOSTS = [
+  "localhost",
+  "127.0.0.1",
+  "mybodyscanapp.com",
+  "www.mybodyscanapp.com",
+  "mybodyscan-f3daf.web.app",
+];
+
+const rawAuthHosts = getViteEnv("VITE_AUTH_ALLOWED_HOSTS") ?? "";
+
+export const ALLOWED_HOSTS: string[] = Array.from(
+  new Set(
+    [
+      ...DEFAULT_ALLOWED_HOSTS,
+      ...rawAuthHosts
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    ].map((host) => host.toLowerCase()),
+  ),
+);
+
+export const DEFAULT_AUTH_HOSTS = DEFAULT_ALLOWED_HOSTS;

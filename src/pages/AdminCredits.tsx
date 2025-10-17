@@ -25,8 +25,28 @@ export default function AdminCredits() {
       const data = snap.data() as any;
       const summary = data?.creditsSummary || {};
       setLastReason(typeof summary.lastDeductionReason === "string" ? summary.lastDeductionReason : null);
-      const ts = summary.lastDeductionAt?.toDate?.?.() || null;
-      setLastAt(ts ? new Date(ts).toLocaleString() : null);
+
+      const rawTimestamp = summary.lastDeductionAt;
+      const tsValue = (() => {
+        if (!rawTimestamp) return null;
+        if (typeof rawTimestamp?.toDate === "function") {
+          try {
+            return rawTimestamp.toDate();
+          } catch {
+            return null;
+          }
+        }
+        if (rawTimestamp instanceof Date) {
+          return rawTimestamp;
+        }
+        if (typeof rawTimestamp === "number" || typeof rawTimestamp === "string") {
+          const parsed = new Date(rawTimestamp);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        return null;
+      })();
+
+      setLastAt(tsValue ? tsValue.toLocaleString() : null);
     });
     return () => unsub();
   }, [user?.uid, allowed]);

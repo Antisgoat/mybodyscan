@@ -7,7 +7,7 @@ type AuthUser = {
 
 import { getAuth, getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
-import { ensureTestCredits, updateUserClaims } from "./claims.js";
+import { ensureDeveloperClaims, ensureTestCredits, updateUserClaims } from "./claims.js";
 
 const db = getFirestore();
 const adminAuth = getAuth();
@@ -36,34 +36,7 @@ export const onAuthCreate = auth.user().onCreate(async (user: AuthUser) => {
   ]);
 
   if (normalizedEmail === "developer@adlrlabs.com") {
-    const record = await adminAuth.getUser(uid);
-    const existing = record.customClaims ?? {};
-    const nextClaims = {
-      ...existing,
-      developer: true,
-      tester: true,
-      unlimitedCredits: true,
-      credits: 999_999,
-      demo: false,
-    };
-    await adminAuth.setCustomUserClaims(uid, nextClaims);
-    await Promise.all([
-      db.doc(`users/${uid}`).set(
-        {
-          credits: 999_999,
-          demo: false,
-          meta: { developer: true },
-        },
-        { merge: true },
-      ),
-      db.doc(`users/${uid}/private/profile`).set(
-        {
-          developer: true,
-          demo: false,
-        },
-        { merge: true },
-      ),
-    ]);
+    await ensureDeveloperClaims(uid);
   }
 
   if (!normalizedEmail) return;

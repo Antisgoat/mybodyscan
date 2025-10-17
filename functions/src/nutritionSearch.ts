@@ -4,6 +4,7 @@ import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
+import { errorCode, statusFromCode } from "./lib/errors.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -599,12 +600,17 @@ export const nutritionSearch = onRequest(
       if (res.headersSent) {
         return;
       }
-      if (typeof error?.status === "number") {
-        res.status(error.status).json({ error: error.message ?? "request_failed" });
-        return;
+      const code = errorCode(error);
+      const status =
+        typeof error?.status === "number" && error.status >= 100
+          ? error.status
+          : statusFromCode(code);
+      const message =
+        typeof error?.message === "string" && error.message.length ? error.message : code;
+      if (status >= 500) {
+        console.error("nutrition_search_unhandled", { message: describeError(error) });
       }
-      console.error("nutrition_search_unhandled", { message: describeError(error) });
-      res.status(500).json({ error: "server_error" });
+      res.status(status).json({ error: message });
     }
   }),
 );

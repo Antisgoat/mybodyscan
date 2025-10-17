@@ -1,20 +1,34 @@
 import { onRequest as onRequestV2 } from "firebase-functions/v2/https";
-import { getEnv, getEnvBool, getHostBaseUrl } from "./lib/env.js";
-import { getAppCheckEnforceSoft } from "./lib/env.js";
+import { getEnv, getHostBaseUrl } from "./lib/env.js";
+import { withCors } from "./middleware/cors.js";
 
-export const systemHealth = onRequestV2({ cors: true }, (req, res) => {
+export const systemHealth = onRequestV2({ region: "us-central1" }, withCors((req, res) => {
   const host = req.get("host") ?? "";
-  const appCheckSoft = getAppCheckEnforceSoft();
+  let configProject: string | null = null;
+  const firebaseConfigRaw = getEnv("FIREBASE_CONFIG");
+  if (firebaseConfigRaw) {
+    try {
+      const parsed = JSON.parse(firebaseConfigRaw);
+      if (parsed && typeof parsed.projectId === "string") {
+        configProject = parsed.projectId;
+      }
+    } catch {
+      configProject = null;
+    }
+  }
+
+  const projectId =
+    getEnv("GCLOUD_PROJECT") ||
+    getEnv("PROJECT_ID") ||
+    getEnv("GCP_PROJECT") ||
+    configProject ||
+    null;
+  const hostingUrl = getHostBaseUrl() || (host ? `https://${host}` : null);
+
   res.status(200).json({
     ok: true,
-    versions: {
-      functions: getEnv("K_REVISION") || null,
-      node: process.version,
-    },
-    hasOpenAI: Boolean(getEnv("OPENAI_API_KEY")),
-    hasStripe: Boolean(getEnv("STRIPE_SECRET_KEY") || getEnv("STRIPE_SECRET") || getEnv("STRIPE_API_KEY")),
-    appCheckSoft,
-    host,
-    hostBaseUrl: getHostBaseUrl() || (host ? `https://${host}` : ""),
+    projectId,
+    timestamp: new Date().toISOString(),
+    hostingUrl,
   });
-});
+}));

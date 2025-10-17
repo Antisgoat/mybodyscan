@@ -1,11 +1,21 @@
+type AnalyticsWindow = typeof window & {
+  firebaseAnalytics?: {
+    getAnalytics?: () => unknown;
+    logEvent?: (instance: unknown, eventName: string, params: Record<string, unknown>) => void;
+  };
+};
+
 /** Lightweight analytics tracker. */
-export function track(name: string, params?: Record<string, any>) {
+export function track(name: string, params?: Record<string, unknown>) {
   try {
     // If Firebase Analytics is set up, call logEvent; else no-op
-// @ts-ignore: analytics is optional in some environments
-    const { getAnalytics, logEvent } = (window as any).firebaseAnalytics || {};
-    if (getAnalytics && logEvent) {
-      logEvent(getAnalytics(), name, params || {});
+    const analyticsApi = (window as AnalyticsWindow).firebaseAnalytics;
+    const getAnalytics = analyticsApi?.getAnalytics;
+    const logEvent = analyticsApi?.logEvent;
+    if (typeof getAnalytics === "function" && typeof logEvent === "function") {
+      const instance = getAnalytics();
+      const payload = params ? { ...params } : {};
+      logEvent(instance, name, payload);
     }
   } catch {
     // ignore
