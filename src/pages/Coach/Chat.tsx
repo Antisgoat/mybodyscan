@@ -24,6 +24,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
 import { offlineCoachHistory, offlineCoachResponse } from "@/lib/demoOffline";
+import { ToastAction } from "@/components/ui/toast";
 
 declare global {
   interface Window {
@@ -83,6 +84,7 @@ export default function CoachChatPage() {
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
+  const [lastAttempt, setLastAttempt] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
@@ -212,14 +214,84 @@ export default function CoachChatPage() {
 
     setPending(true);
     setCoachError(null);
+    setLastAttempt(sanitized);
+
+    const placeholderId = `local-${Date.now()}`;
+    const createdAt = new Date();
+    setMessages((prev) =>
+      sortMessages([
+        ...prev.filter((message) => message.id !== placeholderId),
+        {
+          id: placeholderId,
+          text: sanitized,
+          response: "Coach is preparing your plan…",
+          createdAt,
+          usedLLM: false,
+        },
+      ]),
+    );
+
     try {
-      await sendCoachChat({ message: sanitized });
+      const result = await sendCoachChat({ message: sanitized });
+      const reply =
+        typeof (result as any)?.reply === "string"
+          ? (result as any).reply
+          : typeof (result as any)?.response === "string"
+          ? (result as any).response
+          : null;
+      const usedLLM = reply != null ? Boolean((result as any)?.usedLLM ?? true) : Boolean((result as any)?.usedLLM);
+
+      setMessages((prev) => {
+        const updated = prev.map((message) =>
+          message.id === placeholderId
+            ? {
+                ...message,
+                response: reply ?? message.response,
+                usedLLM: reply ? usedLLM : message.usedLLM,
+                createdAt: new Date(),
+              }
+            : message,
+        );
+
+        if (!updated.some((message) => message.id === placeholderId) && reply) {
+          updated.push({
+            id: placeholderId,
+            text: sanitized,
+            response: reply,
+            createdAt: new Date(),
+            usedLLM,
+          });
+        }
+
+        return sortMessages(updated);
+      });
+
       setInput("");
+      setCoachError(null);
+      setLastAttempt(null);
     } catch (error: any) {
+      setMessages((prev) => prev.filter((message) => message.id !== placeholderId));
       const status = typeof error?.status === "number" ? error.status : null;
       if ((status !== null && status >= 400 && status < 500) || status === 501) {
         setCoachError("Coach temporarily unavailable; please try again.");
       }
+      setInput(sanitized);
+      toast({
+        title: "Coach temporarily unavailable",
+        description: "Retry in a moment.",
+        variant: "destructive",
+        action: (
+          <ToastAction
+            altText="Retry"
+            onClick={() => {
+              setInput((prev) => prev || (lastAttempt ?? sanitized));
+              void handleSend();
+            }}
+          >
+            Retry
+          </ToastAction>
+        ),
+      });
     } finally {
       setPending(false);
     }

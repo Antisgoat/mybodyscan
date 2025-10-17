@@ -3,6 +3,7 @@ import type { Request as ExpressRequest, Response as ExpressResponse } from "exp
 import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { withCors } from "./middleware/cors.js";
+import { withRequestLogging } from "./middleware/logging.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
@@ -131,99 +132,102 @@ async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
 
 export const coachChat = onRequest(
   { invoker: "public", region: "us-central1" },
-  withCors(async (req, res) => {
-    const request = req as ExpressRequest;
-    const response = res as ExpressResponse;
+  withRequestLogging(
+    withCors(async (req, res) => {
+      const request = req as ExpressRequest;
+      const response = res as ExpressResponse;
 
-    try {
-      await verifyAppCheckStrict(request as any);
-    } catch (error: any) {
-      if (!response.headersSent) {
-        const status = typeof error?.status === "number" ? error.status : 401;
-        response.status(status).json({ error: error?.message ?? "app_check_required" });
-      }
-      return;
-    }
-
-    if (request.method !== "POST") {
-      response.status(405).json({ error: "method_not_allowed" });
-      return;
-    }
-
-    try {
-      const uid = await requireAuth(request as any);
-      (request as any).auth = { uid };
-
-      let text: string;
       try {
-        text = sanitizeInput((request.body as any)?.text ?? (request.body as any)?.message);
+        await verifyAppCheckStrict(request as any);
       } catch (error: any) {
-        response.status(400).json({ error: error?.message ?? "invalid_text" });
+        if (!response.headersSent) {
+          const status = typeof error?.status === "number" ? error.status : 401;
+          response.status(status).json({ error: error?.message ?? "app_check_required" });
+        }
+        return;
+      }
+
+      if (request.method !== "POST") {
+        response.status(405).json({ error: "method_not_allowed" });
         return;
       }
 
       try {
-        const { getEnvInt } = await import("./lib/env.js");
-        await verifyRateLimit(request, {
-          key: "coach",
-          max: getEnvInt("COACH_RPM", 6),
-          windowSeconds: 60,
-        });
-      } catch (error: any) {
-        if (error?.status === 429) {
-          response.status(429).json({ error: "too_many_requests" });
+        const uid = await requireAuth(request as any);
+        (request as any).auth = { uid };
+
+        let text: string;
+        try {
+          text = sanitizeInput((request.body as any)?.text ?? (request.body as any)?.message);
+        } catch (error: any) {
+          response.status(400).json({ error: error?.message ?? "invalid_text" });
           return;
         }
-        console.warn("coach_chat_rate_limit_error", { message: error?.message });
-      }
 
-      await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+        try {
+          const { getEnvInt } = await import("./lib/env.js");
+          await verifyRateLimit(request, {
+            key: "coach",
+            max: getEnvInt("COACH_RPM", 6),
+            windowSeconds: 60,
+          });
+        } catch (error: any) {
+          if (error?.status === 429) {
+            response.status(429).json({ error: "too_many_requests" });
+            return;
+          }
+          console.warn("coach_chat_rate_limit_error", { message: error?.message });
+        }
 
-      const openAiKey = getOpenAIKey();
-      let responseText = "";
-      let usedLLM = false;
+        await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
 
-      if (openAiKey) {
-        for (const model of OPENAI_MODELS) {
-          try {
-            responseText = await callOpenAi(openAiKey, model, text);
-            usedLLM = true;
-            break;
-          } catch (error: any) {
-            console.warn("coach_chat_model_error", { model, message: error?.message });
+        const openAiKey = getOpenAIKey();
+        let responseText = "";
+        let usedLLM = false;
+
+        if (openAiKey) {
+          for (const model of OPENAI_MODELS) {
+            try {
+              responseText = await callOpenAi(openAiKey, model, text);
+              usedLLM = true;
+              break;
+            } catch (error: any) {
+              console.warn("coach_chat_model_error", { model, message: error?.message });
+            }
           }
         }
-      }
 
-      if (!responseText) {
-        responseText = buildFallbackResponse(text);
-        usedLLM = false;
-      }
+        if (!responseText) {
+          responseText = buildFallbackResponse(text);
+          usedLLM = false;
+        }
 
-      const reply = formatCoachReply(responseText);
-      const record: ChatRecord = {
-        text,
-        response: reply,
-        createdAt: Timestamp.now(),
-        usedLLM,
-      };
+        const reply = formatCoachReply(responseText);
+        const record: ChatRecord = {
+          text,
+          response: reply,
+          createdAt: Timestamp.now(),
+          usedLLM,
+        };
 
-      await storeMessage(uid, record);
+        await storeMessage(uid, record);
 
-      response.status(200).json({ reply, usedLLM });
-    } catch (error: any) {
-      if (response.headersSent) {
-        return;
+        response.status(200).json({ reply, usedLLM });
+      } catch (error: any) {
+        if (response.headersSent) {
+          return;
+        }
+        if (error instanceof HttpsError) {
+          const code = errorCode(error);
+          const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
+          response.status(status).json({ error: (error as any)?.message ?? "unknown", code });
+          return;
+        }
+        console.error("coach_chat_unhandled", { message: error?.message });
+        response.status(500).json({ error: "server_error" });
       }
-      if (error instanceof HttpsError) {
-        const code = errorCode(error);
-        const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
-        response.status(status).json({ error: (error as any)?.message ?? "unknown", code });
-        return;
-      }
-      console.error("coach_chat_unhandled", { message: error?.message });
-      response.status(500).json({ error: "server_error" });
-    }
-  })
+    }),
+    { sampleRate: 0.5 },
+  ),
 );
 

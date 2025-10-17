@@ -35,6 +35,8 @@ export const getAllowedOrigins = (): string[] => {
     getEnv("ALLOWED_ORIGINS") ||
     getEnv("APP_CHECK_ALLOWED_ORIGINS") ||
     getEnv("FUNCTIONS_ALLOWED_ORIGINS") ||
+    getEnv("AUTH_ALLOWED_HOSTS") ||
+    getEnv("VITE_AUTH_ALLOWED_HOSTS") ||
     "";
   const dynamic = raw
     .split(",")

@@ -189,3 +189,5 @@ declare module 'express' {
   }
   export default express;
 }
+
+declare module '@sentry/node';

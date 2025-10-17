@@ -84,6 +84,7 @@ import AdminDevTools from "./pages/AdminDevTools";
 import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import Ops from "./pages/Ops";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -523,6 +524,18 @@ const App = () => {
                   <AuthedLayout>
                     <RouteBoundary>
                       <AdminDevTools />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ops"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <Ops />
                     </RouteBoundary>
                   </AuthedLayout>
                 </ProtectedRoute>

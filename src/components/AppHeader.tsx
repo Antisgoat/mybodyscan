@@ -3,7 +3,14 @@ import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "@/components/CreditsBadge";
 import { SystemHealthIndicator } from "@/components/SystemHealthIndicator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuthUser, signOutAll } from "@/lib/auth";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, LogOut, User } from "lucide-react";
@@ -62,7 +69,12 @@ export function AppHeader() {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open profile menu"
+                  data-testid="profile-menu-trigger"
+                >
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user?.photoURL || ""} />
                     <AvatarFallback>
@@ -72,6 +84,12 @@ export function AppHeader() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {user?.email ? (
+                  <>
+                    <DropdownMenuLabel data-testid="profile-menu-email">{user.email}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings

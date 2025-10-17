@@ -1,6 +1,7 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { withCors } from "./middleware/cors.js";
+import { withRequestLogging } from "./middleware/logging.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
@@ -113,24 +114,27 @@ async function handler(req: Request, res: Response) {
 
 export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
-  withCors(async (req, res) => {
-    try {
-      await handler(req as unknown as Request, res as unknown as Response);
-    } catch (error: any) {
-      if (error instanceof HttpsError) {
-        const code = errorCode(error);
-        const status =
-          code === "unauthenticated"
-            ? 401
-            : code === "invalid-argument"
-            ? 400
-            : code === "resource-exhausted"
-            ? 429
-            : statusFromCode(code);
-        res.status(status).json({ error: error.message });
-        return;
+  withRequestLogging(
+    withCors(async (req, res) => {
+      try {
+        await handler(req as unknown as Request, res as unknown as Response);
+      } catch (error: any) {
+        if (error instanceof HttpsError) {
+          const code = errorCode(error);
+          const status =
+            code === "unauthenticated"
+              ? 401
+              : code === "invalid-argument"
+              ? 400
+              : code === "resource-exhausted"
+              ? 429
+              : statusFromCode(code);
+          res.status(status).json({ error: error.message });
+          return;
+        }
+        res.status(500).json({ error: error?.message || "error" });
       }
-      res.status(500).json({ error: error?.message || "error" });
-    }
-  }),
+    }),
+    { sampleRate: 0.5 },
+  ),
 );
