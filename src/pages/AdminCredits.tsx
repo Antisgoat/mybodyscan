@@ -7,11 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useCredits } from "@/hooks/useCredits";
-
-function isWhitelisted(email?: string | null): boolean {
-  if (!email) return false;
-  return ["developer@adlrlabs.com"].includes(email.toLowerCase());
-}
+import { isWhitelistedEmail } from "@/lib/whitelist";
 
 export default function AdminCredits() {
   const { user } = useAuthUser();
@@ -20,7 +16,7 @@ export default function AdminCredits() {
   const [lastAt, setLastAt] = useState<string | null>(null);
 
   const email = user?.email ?? null;
-  const allowed = isWhitelisted(email);
+  const allowed = isWhitelistedEmail(email);
 
   useEffect(() => {
     if (!user?.uid || !allowed) return;

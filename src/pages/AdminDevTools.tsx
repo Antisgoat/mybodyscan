@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Seo } from "@/components/Seo";
+import { isWhitelistedEmail } from "@/lib/whitelist";
 
 function formatClaims(claims: Record<string, unknown> | null): string {
   if (!claims || Object.keys(claims).length === 0) {
@@ -42,7 +43,7 @@ export default function AdminDevTools() {
     () => claims?.unlimitedCredits === true || claims?.tester === true,
     [claims],
   );
-  const isDeveloper = user?.email?.toLowerCase() === "developer@adlrlabs.com";
+  const isDeveloper = isWhitelistedEmail(user?.email ?? null);
 
   const handleRefreshClaims = async () => {
     if (!user) return;

@@ -18,10 +18,28 @@ export const getEnvBool = (k: string, d = false): boolean => {
 
 export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");
 
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
+];
+
 export const getAllowedOrigins = (): string[] => {
-  const raw = getEnv("APP_CHECK_ALLOWED_ORIGINS");
-  if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const raw =
+    getEnv("ALLOWED_ORIGINS") ||
+    getEnv("APP_CHECK_ALLOWED_ORIGINS") ||
+    getEnv("FUNCTIONS_ALLOWED_ORIGINS") ||
+    "";
+  const dynamic = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_ALLOWED_ORIGINS, ...dynamic]));
 };
 
 export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT", true);

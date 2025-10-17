@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@sentry/react": path.resolve(__dirname, "./src/lib/sentry-fallback.ts"),
     },
     dedupe: ["react", "react-dom"],
   },

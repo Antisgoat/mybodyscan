@@ -1,4 +1,23 @@
-import * as Sentry from '@sentry/react';
+type SentryModule = typeof import("@sentry/react");
+
+let sentryModule: SentryModule | null = null;
+let loadPromise: Promise<SentryModule | null> | null = null;
+
+async function loadSentryModule(): Promise<SentryModule | null> {
+  if (sentryModule) return sentryModule;
+  if (!loadPromise) {
+    loadPromise = import("@sentry/react")
+      .then((mod) => {
+        sentryModule = mod;
+        return mod;
+      })
+      .catch((error) => {
+        console.warn("[sentry] module unavailable", error);
+        return null;
+      });
+  }
+  return loadPromise;
+}
 
 /**
  * Initialize Sentry if DSN is provided
@@ -6,36 +25,43 @@ import * as Sentry from '@sentry/react';
  */
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
-  
+
   if (!dsn) {
     console.log('Sentry disabled - no DSN provided');
     return;
   }
 
-  try {
-    Sentry.init({
-      dsn,
-      // Performance Monitoring
-      tracesSampleRate: 0.1, // 10% of transactions will be sent to Sentry
-      // Error sampling
-      sampleRate: 1.0, // 100% of errors will be sent to Sentry
-      environment: import.meta.env.MODE,
-      beforeSend(event) {
-        // Filter out development errors in production
-        if (import.meta.env.PROD && event.exception) {
-          const error = event.exception.values?.[0];
-          if (error?.value?.includes('ResizeObserver loop limit exceeded')) {
-            return null; // Ignore ResizeObserver errors
+  void loadSentryModule().then((Sentry) => {
+    if (!Sentry) {
+      console.warn('Sentry disabled - module failed to load');
+      return;
+    }
+
+    try {
+      Sentry.init({
+        dsn,
+        // Performance Monitoring
+        tracesSampleRate: 0.1, // 10% of transactions will be sent to Sentry
+        // Error sampling
+        sampleRate: 1.0, // 100% of errors will be sent to Sentry
+        environment: import.meta.env.MODE,
+        beforeSend(event) {
+          // Filter out development errors in production
+          if (import.meta.env.PROD && event.exception) {
+            const error = event.exception.values?.[0];
+            if (error?.value?.includes('ResizeObserver loop limit exceeded')) {
+              return null; // Ignore ResizeObserver errors
+            }
           }
-        }
-        return event;
-      },
-    });
-    
-    console.log('Sentry initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize Sentry:', error);
-  }
+          return event;
+        },
+      });
+
+      console.log('Sentry initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Sentry:', error);
+    }
+  });
 }
 
 /**
@@ -43,9 +69,21 @@ export function initSentry() {
  */
 export function reportError(error: Error, context?: Record<string, any>) {
   if (import.meta.env.VITE_SENTRY_DSN) {
-    Sentry.captureException(error, {
-      tags: context,
-    });
+    if (sentryModule) {
+      sentryModule.captureException(error, {
+        tags: context,
+      });
+    } else {
+      void loadSentryModule().then((Sentry) => {
+        if (!Sentry) {
+          console.error('Error (Sentry not available):', error, context);
+          return;
+        }
+        Sentry.captureException(error, {
+          tags: context,
+        });
+      });
+    }
   } else {
     console.error('Error (Sentry not available):', error, context);
   }
