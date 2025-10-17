@@ -5,11 +5,12 @@ type AuthUser = {
   email?: string | null;
 };
 
-import { getFirestore } from "./firebase.js";
+import { getAuth, getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
 import { ensureTestCredits, updateUserClaims } from "./claims.js";
 
 const db = getFirestore();
+const adminAuth = getAuth();
 
 function parseFounderEmails(): Set<string> {
   try {
@@ -33,6 +34,37 @@ export const onAuthCreate = auth.user().onCreate(async (user: AuthUser) => {
     updateUserClaims(uid, normalizedEmail ?? undefined),
     ensureTestCredits(uid, normalizedEmail ?? undefined),
   ]);
+
+  if (normalizedEmail === "developer@adlrlabs.com") {
+    const record = await adminAuth.getUser(uid);
+    const existing = record.customClaims ?? {};
+    const nextClaims = {
+      ...existing,
+      developer: true,
+      tester: true,
+      unlimitedCredits: true,
+      credits: 999_999,
+      demo: false,
+    };
+    await adminAuth.setCustomUserClaims(uid, nextClaims);
+    await Promise.all([
+      db.doc(`users/${uid}`).set(
+        {
+          credits: 999_999,
+          demo: false,
+          meta: { developer: true },
+        },
+        { merge: true },
+      ),
+      db.doc(`users/${uid}/private/profile`).set(
+        {
+          developer: true,
+          demo: false,
+        },
+        { merge: true },
+      ),
+    ]);
+  }
 
   if (!normalizedEmail) return;
   const founders = parseFounderEmails();

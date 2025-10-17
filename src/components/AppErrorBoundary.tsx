@@ -57,10 +57,19 @@ export class AppErrorBoundary extends Component<Props, State> {
             <div className="flex flex-wrap justify-center gap-3">
               <button
                 type="button"
+                className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+              >
+                Go home
+              </button>
+              <button
+                type="button"
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
                 onClick={() => window.location.reload()}
               >
-                Reload
+                Retry
               </button>
               <a
                 href="/system/health"

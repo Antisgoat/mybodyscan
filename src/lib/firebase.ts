@@ -9,7 +9,9 @@ import {
 import {
   initializeAppCheck,
   ReCaptchaV3Provider,
+  CustomProvider,
   type AppCheck,
+  type AppCheckProvider,
 } from "firebase/app-check";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
@@ -34,20 +36,51 @@ if (getApps().length) {
   app = initializeApp(firebaseConfig);
 }
 
-try {
-  if (typeof window !== "undefined") {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_V3_KEY || "public-recaptcha-placeholder";
-    appCheckInstance = initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
+const initAppCheckIfNeeded = () => {
+  if (appCheckInstance || typeof window === "undefined") {
+    return;
   }
-} catch (e) {
-  console.warn("AppCheck skipped:", e);
+
+  try {
+    const rawSiteKey =
+      (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined) ||
+      (import.meta.env.VITE_RECAPTCHA_V3_KEY as string | undefined) ||
+      "";
+    const siteKey = rawSiteKey.trim();
+
+    let provider: AppCheckProvider;
+    let refresh = false;
+
+    if (siteKey) {
+      provider = new ReCaptchaV3Provider(siteKey);
+      refresh = true;
+    } else {
+      provider = new CustomProvider({
+        getToken: async () => ({
+          token: `dev-${Math.random().toString(36).slice(2)}.${Date.now()}`,
+          expireTimeMillis: Date.now() + 60 * 60 * 1000,
+        }),
+      });
+      refresh = false;
+    }
+
+    appCheckInstance = initializeAppCheck(app, {
+      provider,
+      isTokenAutoRefreshEnabled: refresh,
+    });
+  } catch (error) {
+    console.warn("AppCheck skipped:", error);
+  }
+};
+
+if (typeof window !== "undefined") {
+  initAppCheckIfNeeded();
 }
 
 const auth = (() => {
   let instance;
+  initAppCheckIfNeeded();
+
   try {
     instance = getAuth(app);
   } catch (error) {
