@@ -7,6 +7,7 @@ import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";
 import { initApp } from "./lib/firebase";
+import { initFirebaseApp } from "./lib/appInit";
 import { ALLOWED_HOSTS } from "./lib/env";
 
 function warnIfHostNotAllowListed() {
@@ -35,13 +36,18 @@ async function bootstrap() {
   warnIfDomainUnauthorized();
   warnIfHostNotAllowListed();
 
-  try {
-    await initApp();
-  } catch (error) {
-    console.error("[firebase] initialization failed", error);
-  }
+  const firebaseReady = initApp();
 
-  addPerformanceMark("firebase-init-complete");
+  void initFirebaseApp();
+
+  void firebaseReady
+    .then(() => {
+      addPerformanceMark("firebase-init-complete");
+    })
+    .catch((error) => {
+      console.error("[firebase] initialization failed", error);
+      addPerformanceMark("firebase-init-failed");
+    });
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <StrictMode>

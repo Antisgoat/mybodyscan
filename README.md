@@ -52,7 +52,7 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 
 ### Firebase Web config
 
-The web bundle reads Firebase credentials from `.env.local`. When keys are omitted, the runtime falls back to the production project values so local development still boots.
+Runtime configuration lives in [`src/config/firebaseConfig.ts`](src/config/firebaseConfig.ts). The helper reads from `.env.local` first, then falls back to the production defaults listed below so a fresh checkout still boots without secrets. If any required key is blank, the module throws `config/missing-firebase-config` with a `details.missing` array that surfaces on the sign-in page.
 
 | Firebase console field | `.env` key |
 | --- | --- |
@@ -65,6 +65,8 @@ The web bundle reads Firebase credentials from `.env.local`. When keys are omitt
 | Measurement ID | `VITE_FIREBASE_MEASUREMENT_ID` |
 
 > **Storage bucket note:** Firebase SDKs expect the bucket name (for example `mybodyscan-f3daf.appspot.com`). If a `firebasestorage.app` hostname is supplied, the app normalizes it to `${projectId}.appspot.com` before initializing.
+>
+> Use `/__debug` (or append `?debug=1` to any route) to inspect the active Firebase config, hosts, and App Check state at runtime.
 
 ### Firebase authorized domains
 
@@ -97,6 +99,12 @@ Add every host in `VITE_AUTH_ALLOWED_HOSTS` (plus `localhost`) to **Firebase Con
 3. Generate a private key (Key ID + Team ID) and upload it to Firebase. Keep the `.p8` secret outside the repo.
 4. Deploy `public/.well-known/apple-developer-domain-association.txt` so Apple verifies the custom domains.
 5. Flip `APPLE_OAUTH_ENABLED=true` in `.env.local` (and hosting config) only after Firebase confirms the provider is fully configured—the button stays hidden otherwise.
+
+## Troubleshooting sign-in
+
+- **Firebase config errors:** The login screen shows “Firebase configuration missing or invalid for this host” when `config/missing-firebase-config` or `auth/api-key-not-valid` bubble up. Check `.env.local`, confirm the host appears in Firebase Auth → Authorized domains, and review the missing keys listed in the callout.
+- **Popup blockers:** Google and Apple popups must be allowed. If `auth/popup-blocked` fires, the UI toasts “Enable popups to continue sign-in.”
+- **Debug overlay:** Visit `/__debug` (or add `?debug=1`) to view the current Firebase project, allowed hosts, App Check status, visible providers, and signed-in user details. The overlay is restricted to development, debug mode, or dev-role accounts.
 
 ## Developer tooling & scripts
 

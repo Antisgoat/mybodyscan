@@ -1,14 +1,18 @@
 import { toast } from "@/hooks/use-toast";
+import { auth as firebaseAuth } from "@/lib/firebase";
+import { isDemoUser } from "./auth";
 import { isReadOnly } from "./demoFlag";
 
 export function assertNotDemoWrite() {
-  if (!isReadOnly()) {
+  const currentUser = firebaseAuth?.currentUser ?? null;
+  if (!isReadOnly() && !isDemoUser(currentUser)) {
     return;
   }
 
   toast({
     title: "Demo is read-only.",
     description: "Sign in with an account to save changes.",
+    variant: "destructive",
   });
 
   const error: Error & { code?: string } = new Error("Read-only demo: write disabled");
