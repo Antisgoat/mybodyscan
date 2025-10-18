@@ -9,7 +9,7 @@ export type FoodNormalized = {
   id: string;
   name: string;
   brand?: string | null;
-  source: "USDA" | "OFF";
+  source: "USDA" | "Open Food Facts" | "OFF";
   basePer100g: { kcal: number; protein: number; carbs: number; fat: number };
   servings: ServingOption[];
 };
@@ -364,7 +364,7 @@ export function fromOFF(raw: any): FoodNormalized {
         : typeof raw?.brand_owner === "string" && raw.brand_owner.trim().length
         ? raw.brand_owner.trim()
         : null,
-    source: "OFF",
+    source: "Open Food Facts",
     basePer100g,
     servings,
   };

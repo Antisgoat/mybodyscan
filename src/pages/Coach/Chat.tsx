@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useDemoMode, useOfflineDemo } from "@/components/DemoModeProvider";
+import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -23,8 +23,6 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
-import { offlineCoachHistory, offlineCoachResponse } from "@/lib/demoOffline";
-import { ToastAction } from "@/components/ui/toast";
 
 declare global {
   interface Window {
@@ -43,16 +41,6 @@ interface ChatMessage {
 
 function sortMessages(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-}
-
-function mapOfflineMessage(msg: ReturnType<typeof offlineCoachHistory>[number]): ChatMessage {
-  return {
-    id: msg.id,
-    text: msg.text,
-    response: msg.response,
-    createdAt: msg.createdAt,
-    usedLLM: msg.usedLLM,
-  };
 }
 
 function PlanSession({ session }: { session: CoachPlanSession }) {
@@ -77,14 +65,12 @@ function PlanSession({ session }: { session: CoachPlanSession }) {
 export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
-  const offlineDemo = useOfflineDemo();
   const { plan } = useUserProfile();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
-  const [lastAttempt, setLastAttempt] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
@@ -128,10 +114,6 @@ export default function CoachChatPage() {
   const initializing = !authReady || !appCheckReady;
 
   useEffect(() => {
-    if (offlineDemo) {
-      setMessages(sortMessages(offlineCoachHistory().map(mapOfflineMessage)));
-      return;
-    }
     if (!authReady || !appCheckReady || !uid) {
       setMessages([]);
       return;
@@ -166,13 +148,14 @@ export default function CoachChatPage() {
       setMessages(sortMessages(next));
     });
     return () => unsubscribe();
-  }, [offlineDemo, authReady, appCheckReady, uid]);
+  }, [authReady, appCheckReady, uid]);
 
   const hasMessages = messages.length > 0;
   const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
-    if (pending) {
+    if (pending || demo) {
+      if (demo) demoToast();
       return;
     }
 
@@ -192,18 +175,6 @@ export default function CoachChatPage() {
       return;
     }
 
-    if (offlineDemo) {
-      const offline = offlineCoachResponse(sanitized);
-      setMessages((prev) => sortMessages([...prev, mapOfflineMessage(offline)]));
-      setInput("");
-      return;
-    }
-
-    if (demo) {
-      demoToast();
-      return;
-    }
-
     if (initializing) {
       toast({
         title: "Still connecting",
@@ -214,84 +185,14 @@ export default function CoachChatPage() {
 
     setPending(true);
     setCoachError(null);
-    setLastAttempt(sanitized);
-
-    const placeholderId = `local-${Date.now()}`;
-    const createdAt = new Date();
-    setMessages((prev) =>
-      sortMessages([
-        ...prev.filter((message) => message.id !== placeholderId),
-        {
-          id: placeholderId,
-          text: sanitized,
-          response: "Coach is preparing your plan…",
-          createdAt,
-          usedLLM: false,
-        },
-      ]),
-    );
-
     try {
-      const result = await sendCoachChat({ message: sanitized });
-      const reply =
-        typeof (result as any)?.reply === "string"
-          ? (result as any).reply
-          : typeof (result as any)?.response === "string"
-          ? (result as any).response
-          : null;
-      const usedLLM = reply != null ? Boolean((result as any)?.usedLLM ?? true) : Boolean((result as any)?.usedLLM);
-
-      setMessages((prev) => {
-        const updated = prev.map((message) =>
-          message.id === placeholderId
-            ? {
-                ...message,
-                response: reply ?? message.response,
-                usedLLM: reply ? usedLLM : message.usedLLM,
-                createdAt: new Date(),
-              }
-            : message,
-        );
-
-        if (!updated.some((message) => message.id === placeholderId) && reply) {
-          updated.push({
-            id: placeholderId,
-            text: sanitized,
-            response: reply,
-            createdAt: new Date(),
-            usedLLM,
-          });
-        }
-
-        return sortMessages(updated);
-      });
-
+      await sendCoachChat({ message: sanitized });
       setInput("");
-      setCoachError(null);
-      setLastAttempt(null);
     } catch (error: any) {
-      setMessages((prev) => prev.filter((message) => message.id !== placeholderId));
       const status = typeof error?.status === "number" ? error.status : null;
       if ((status !== null && status >= 400 && status < 500) || status === 501) {
         setCoachError("Coach temporarily unavailable; please try again.");
       }
-      setInput(sanitized);
-      toast({
-        title: "Coach temporarily unavailable",
-        description: "Retry in a moment.",
-        variant: "destructive",
-        action: (
-          <ToastAction
-            altText="Retry"
-            onClick={() => {
-              setInput((prev) => prev || (lastAttempt ?? sanitized));
-              void handleSend();
-            }}
-          >
-            Retry
-          </ToastAction>
-        ),
-      });
     } finally {
       setPending(false);
     }

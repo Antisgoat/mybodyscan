@@ -1,7 +1,7 @@
-import { auth } from "@/lib/firebase";
+import { getAuth } from "firebase/auth";
 import { getBreadcrumbs } from "./logger";
 export async function buildDiagnostics(): Promise<string> {
-  const u = auth.currentUser;
+  const u = getAuth().currentUser;
   const info = {
     uid: u?.uid || "signed-out",
     email: u?.email || "",

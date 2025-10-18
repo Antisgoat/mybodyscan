@@ -1,41 +1,24 @@
-import { onRequest as onRequestV2 } from "firebase-functions/v2/https";
-import { getEnv, getHostBaseUrl } from "./lib/env.js";
-import { withCors } from "./middleware/cors.js";
-import { withRequestLogging } from "./middleware/logging.js";
+import { onRequest } from "firebase-functions/v2/https";
+import { getEnv, getEnvBool, hasOpenAI, hasStripe } from "./lib/env.js";
 
-export const systemHealth = onRequestV2(
-  { region: "us-central1" },
-  withRequestLogging(
-    withCors((req, res) => {
-      const host = req.get("host") ?? "";
-      let configProject: string | null = null;
-      const firebaseConfigRaw = getEnv("FIREBASE_CONFIG");
-      if (firebaseConfigRaw) {
-        try {
-          const parsed = JSON.parse(firebaseConfigRaw);
-          if (parsed && typeof parsed.projectId === "string") {
-            configProject = parsed.projectId;
-          }
-        } catch {
-          configProject = null;
-        }
-      }
-
-      const projectId =
-        getEnv("GCLOUD_PROJECT") ||
-        getEnv("PROJECT_ID") ||
-        getEnv("GCP_PROJECT") ||
-        configProject ||
-        null;
-      const hostingUrl = getHostBaseUrl() || (host ? `https://${host}` : null);
-
-      res.status(200).json({
-        ok: true,
-        projectId,
-        timestamp: new Date().toISOString(),
-        hostingUrl,
-      });
-    }),
-    { sampleRate: 0.5 }
-  )
-);
+export const systemHealth = onRequest({ region: "us-central1" }, async (req, res) => {
+  try {
+    const host = req.headers.host ?? "";
+    const openAIExists = hasOpenAI();
+    const model = openAIExists ? "openai-vision" : null;
+    const stripeExists = hasStripe();
+    const appCheckSoft = getEnvBool("APP_CHECK_ENFORCE_SOFT", true);
+    const hostBaseUrl = getEnv("HOST_BASE_URL") || "";
+    
+    res.status(200).json({
+      hasOpenAI: openAIExists,
+      model,
+      hasStripe: stripeExists,
+      appCheckSoft,
+      host,
+      hostBaseUrl
+    });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: e?.message || "internal" });
+  }
+});

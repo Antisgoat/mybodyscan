@@ -240,7 +240,9 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
       : undefined;
   const rawSource = typeof raw?.source === "string" ? raw.source : null;
   const source: NutritionSource =
-    rawSource === "OFF" ? "OFF" : "USDA";
+    rawSource === "Open Food Facts" || rawSource === "OFF"
+      ? "Open Food Facts"
+      : "USDA";
   const base = normalizeBasePer100g(raw);
   const servings = normalizeServings(raw);
   const defaultServing = servings.find((option) => option.isDefault) ?? servings[0] ?? null;
@@ -318,8 +320,7 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
 }
 
 export async function searchFoods(query: string): Promise<NormalizedItem[]> {
-  const { items } = await fetchFoods(query);
-  return items;
+  return fetchFoods(query);
 }
 
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
@@ -352,6 +353,6 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   return {
     ...normalized,
     brand: normalized.brand ?? null,
-    source: normalized.source,
+    source: (normalized.source as any) === "OFF" ? "Open Food Facts" : normalized.source,
   };
 }

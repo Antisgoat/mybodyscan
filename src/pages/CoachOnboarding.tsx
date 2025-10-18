@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@/lib/units";
-import { functions } from "@/lib/firebase";
-import { httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,7 @@ const CoachOnboarding = () => {
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   async function finish() {
+    const functions = getFunctions(app);
     const save = httpsCallable(functions, "saveOnboarding");
     const compute = httpsCallable(functions, "computePlan");
     const payload: any = { ...form };

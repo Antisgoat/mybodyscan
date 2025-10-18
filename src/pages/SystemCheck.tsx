@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { OAuthProvider } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
-import { ENV } from "@/env";
 
 type HealthResponse = {
   hasOpenAI: boolean;
@@ -52,8 +51,8 @@ export default function SystemCheck() {
         setStatus(payload);
         setHealthJson(JSON.stringify(payload, null, 2));
         setError(null);
-      } catch (err: unknown) {
-        if (cancelled || (err as Error)?.name === "AbortError") {
+      } catch (err: any) {
+        if (cancelled || err?.name === "AbortError") {
           return;
         }
         setError("Unable to load system health. Try again later.");
@@ -80,6 +79,7 @@ export default function SystemCheck() {
     try {
       // Presence of SDK provider is not proof of console enablement, but a useful hint.
       // It should not throw in modern SDKs.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const provider = new OAuthProvider("apple.com");
       setSdkProviderConstructible(true);
     } catch {
@@ -90,28 +90,18 @@ export default function SystemCheck() {
       .then((config) => {
         if (cancelled) return;
         const enabled = isProviderEnabled("apple.com", config);
-        setAppleLikelyEnabled(enabled || ENV.FORCE_APPLE);
+        const forced = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true";
+        setAppleLikelyEnabled(enabled || forced);
       })
       .catch(() => {
         if (cancelled) return;
-        setAppleLikelyEnabled(ENV.FORCE_APPLE || null);
+        const forced = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true";
+        setAppleLikelyEnabled(forced || null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const response = await fetch("https://identitytoolkit.googleapis.com/v1/?key=dummy", {
-          method: "GET",
-          mode: "no-cors" as RequestMode,
-        });
-      } catch (error) {
-      }
-    })();
   }, []);
 
   const openAiBadge = status
@@ -141,9 +131,9 @@ export default function SystemCheck() {
   const isIOS = useMemo(() => isIOSWeb(), []);
   const popupRecommendation = isIOS ? "iOS Safari redirect recommended" : "Popup supported";
 
-  const envForceApple = String(ENV.FORCE_APPLE);
-  const envDebugPanel = String(ENV.DEBUG_PANEL);
-  const envApiBase = ENV.API_BASE;
+  const envForceApple = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON ?? "";
+  const envDebugPanel = (import.meta as any)?.env?.VITE_DEBUG_PANEL ?? "";
+  const envApiBase = (import.meta as any)?.env?.VITE_API_BASE ?? "";
 
   async function runSpaCheck() {
     try {

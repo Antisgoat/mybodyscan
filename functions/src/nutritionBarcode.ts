@@ -1,7 +1,6 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { withCors } from "./middleware/cors.js";
-import { withRequestLogging } from "./middleware/logging.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
@@ -11,7 +10,7 @@ const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 interface CacheEntry {
   expires: number;
-  value: { item: FoodItem; source: "OFF" | "USDA" } | null;
+  value: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null;
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -27,7 +26,7 @@ async function fetchOff(code: string) {
   const data = (await response.json()) as any;
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
-  return normalized ? { item: normalized, source: "OFF" as const } : null;
+  return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
@@ -82,7 +81,7 @@ async function handler(req: Request, res: Response) {
     return;
   }
 
-  let result: { item: FoodItem; source: "OFF" | "USDA" } | null = null;
+  let result: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null = null;
 
   try {
     result = await fetchOff(code);
@@ -93,7 +92,7 @@ async function handler(req: Request, res: Response) {
   if (!result) {
     try {
       const { getEnv } = await import("./lib/env.js");
-      const key = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+      const key = getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }
@@ -114,27 +113,24 @@ async function handler(req: Request, res: Response) {
 
 export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
-  withRequestLogging(
-    withCors(async (req, res) => {
-      try {
-        await handler(req as unknown as Request, res as unknown as Response);
-      } catch (error: any) {
-        if (error instanceof HttpsError) {
-          const code = errorCode(error);
-          const status =
-            code === "unauthenticated"
-              ? 401
-              : code === "invalid-argument"
-              ? 400
-              : code === "resource-exhausted"
-              ? 429
-              : statusFromCode(code);
-          res.status(status).json({ error: error.message });
-          return;
-        }
-        res.status(500).json({ error: error?.message || "error" });
+  withCors(async (req, res) => {
+    try {
+      await handler(req as unknown as Request, res as unknown as Response);
+    } catch (error: any) {
+      if (error instanceof HttpsError) {
+        const code = errorCode(error);
+        const status =
+          code === "unauthenticated"
+            ? 401
+            : code === "invalid-argument"
+            ? 400
+            : code === "resource-exhausted"
+            ? 429
+            : statusFromCode(code);
+        res.status(status).json({ error: error.message });
+        return;
       }
-    }),
-    { sampleRate: 0.5 },
-  ),
+      res.status(500).json({ error: error?.message || "error" });
+    }
+  }),
 );

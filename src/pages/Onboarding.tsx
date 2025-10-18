@@ -10,7 +10,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { Section } from "@/components/ui/section";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { getAuth } from "firebase/auth";
+import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import HeightInputUS from "@/components/HeightInputUS";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
@@ -25,7 +26,7 @@ export default function Onboarding() {
   }
 
   async function finish() {
-    const uid = auth.currentUser?.uid;
+    const uid = getAuth().currentUser?.uid;
     if (!uid) return;
     try {
       const timestamp = serverTimestamp();

@@ -3,7 +3,6 @@ import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
 import { getFirestore, getStorage } from "../firebase.js";
 import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
-import { withRequestLogging } from "../middleware/logging.js";
 import { isStaff } from "../claims.js";
 
 const db = getFirestore();
@@ -64,7 +63,7 @@ async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
-  const unlimitedCredits = claims?.unlimitedCredits === true || claims?.tester === true;
+  const unlimitedCredits = claims?.unlimitedCredits === true;
 
   if (staffBypass) {
     console.info("scan_start_staff_bypass", { uid });
@@ -123,13 +122,13 @@ async function handleStart(req: Request, res: any) {
 
 export const startScanSession = onRequest(
   { invoker: "public", concurrency: 20, region: "us-central1" },
-  withRequestLogging(async (req, res) => {
+  async (req, res) => {
     try {
       await handleStart(req as Request, res);
     } catch (err: any) {
       console.error("scan_start_unhandled", { message: err?.message });
       res.status(500).json({ error: "server_error" });
     }
-  }, { sampleRate: 0.5 })
+  }
 );
 

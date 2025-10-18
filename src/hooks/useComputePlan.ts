@@ -4,7 +4,7 @@ import { authedFetch } from "@/lib/api";
 export function useComputePlan() {
   const [computing, setComputing] = useState(false);
 
-  const computePlan = async (profile: Record<string, unknown>) => {
+  const computePlan = async (profile: any) => {
     setComputing(true);
     try {
       const response = await authedFetch("/computePlan", {
@@ -19,6 +19,7 @@ export function useComputePlan() {
       const result = await response.json();
       return result;
     } catch (error) {
+      console.error("Error computing plan:", error);
       throw error;
     } finally {
       setComputing(false);

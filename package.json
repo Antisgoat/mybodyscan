@@ -4,35 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": "20"
+    "node": ">=18 <21"
   },
   "scripts": {
     "dev": "vite",
-    "dev:web": "vite",
-    "dev:emulators": "npm run emulators:start",
-    "dev:e2e": "npm run build && (npm run preview -- --host=0.0.0.0 --port=4173 & PREVIEW_PID=$!; wait-on http://127.0.0.1:4173; BASE_URL=http://127.0.0.1:4173 npm run test:e2e; TEST_EXIT=$?; kill $PREVIEW_PID; exit $TEST_EXIT)",
-    "seed:dev": "tsx scripts/test-seed.ts",
     "build": "vite build",
-    "postbuild": "node scripts/write-health-json.mjs",
-    "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/write-health-json.mjs && node scripts/print-build-tag.js",
+    "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/print-build-tag.js",
     "build:dev": "vite build --mode development",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
-    "build:all": "npm run build && npm --prefix functions run build",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:rules": "npm run test --prefix tests/rules",
-    "emulators:start": "firebase emulators:start --only firestore,auth,functions --import ./emulator-data --export-on-exit",
-    "emulators:test": "firebase emulators:exec --only firestore,auth,functions \"vitest run --config tests/integration/vitest.config.ts\"",
-    "emulators": "npm run emulators:start",
+    "emulators": "firebase emulators:start --only firestore,auth,storage,functions --import ./emulator-data --export-on-exit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ci": "playwright test --reporter=list",
     "e2e:report": "playwright show-report",
     "pretest:e2e": "playwright install --with-deps",
-    "e2e": "playwright test --headed || (echo 'Headless mode failed, trying with xvfb...' && xvfb-run -a playwright test || echo 'E2E tests skipped - no display available')",
     "lighthouse": "lhci autorun",
     "check:headers": "bash scripts/check-headers.sh $PREVIEW_URL",
     "seed:pricing": "node scripts/seedPricing.cjs",
@@ -44,9 +33,7 @@
     "ci:clean": "npm config set fetch-retry-maxtimeout 600000 && npm cache clean --force && rimraf node_modules && npm ci --prefer-online",
     "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund",
     "verify:local": "npm run build && npm --prefix functions run build",
-    "rules:verify": "npm run test --prefix tests/rules",
-    "dev:check": "vite --open /system/check",
-    "smoke": "node scripts/smoke-check.mjs"
+    "dev:check": "vite --open /system/check"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",
@@ -79,8 +66,6 @@
     "@radix-ui/react-toggle": "^1.1.9",
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
-    "@sentry/react": "^10.20.0",
-    "@sentry/tracing": "^7.120.4",
     "@tanstack/react-query": "^5.83.0",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
@@ -128,16 +113,15 @@
     "node-fetch": "^3.3.2",
     "postcss": "^8.5.6",
     "prettier": "^3.3.3",
-    "rimraf": "^4.4.1",
     "tailwindcss": "^3.4.13",
     "tailwindcss-animate": "^1.0.7",
+    "rimraf": "^4.4.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
     "vitest": "^2.1.1",
-    "wait-on": "^7.2.0",
-    "tsx": "^4.19.1"
+    "wait-on": "^7.2.0"
   },
   "overrides": {
     "simple-swizzle": "0.2.2"

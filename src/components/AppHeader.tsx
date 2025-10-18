@@ -1,29 +1,20 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "@/components/CreditsBadge";
-import { SystemHealthIndicator } from "@/components/SystemHealthIndicator";
+import { DemoBadge } from "@/components/DemoBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAuthUser, signOutAll, refreshClaimsNow } from "@/lib/auth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useAuthUser, signOutAll } from "@/lib/auth";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, LogOut, RefreshCw, User } from "lucide-react";
+import { Settings, LogOut, User } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { toast } from "@/hooks/use-toast";
 
 export function AppHeader() {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isFounder, setIsFounder] = useState(false);
-  const [refreshingClaims, setRefreshingClaims] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -53,23 +44,6 @@ export function AppHeader() {
     navigate("/auth");
   };
 
-  const handleRefreshClaims = async () => {
-    if (!user) return;
-    setRefreshingClaims(true);
-    try {
-      await refreshClaimsNow();
-      toast({ title: "Claims refreshed" });
-    } catch (error: any) {
-      toast({
-        title: "Unable to refresh claims",
-        description: error?.message ?? "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setRefreshingClaims(false);
-    }
-  };
-
   return (
     <header className="border-b bg-card">
       <div className="max-w-md mx-auto p-4">
@@ -77,8 +51,8 @@ export function AppHeader() {
             <div className="flex items-center gap-4">
               <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
               <CreditsBadge />
-              <SystemHealthIndicator />
-              </div>
+              <DemoBadge />
+            </div>
           
           <div className="flex items-center gap-2">
             {isFounder && (
@@ -88,12 +62,7 @@ export function AppHeader() {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Open profile menu"
-                  data-testid="profile-menu-trigger"
-                >
+                <Button variant="ghost" size="icon">
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user?.photoURL || ""} />
                     <AvatarFallback>
@@ -103,19 +72,9 @@ export function AppHeader() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {user?.email ? (
-                  <>
-                    <DropdownMenuLabel data-testid="profile-menu-email">{user.email}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                  </>
-                ) : null}
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleRefreshClaims} disabled={refreshingClaims}>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {refreshingClaims ? "Refreshing…" : "Refresh claims"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />

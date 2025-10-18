@@ -107,7 +107,6 @@ service cloud.firestore {
 
       match /{document=**} {
         allow read: if isOwner(uid);
-        // TODO: Review if this catch-all rule is too permissive for production
         allow create, update: if isOwner(uid) && clientPreservesServerFields() && !isScanDocument() && !isNutritionLogDocument();
         allow delete: if false;
       }

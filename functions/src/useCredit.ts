@@ -6,9 +6,8 @@ import { consumeCredit } from "./credits.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
-function hasUnlimited(ctx: { auth?: { token?: { unlimitedCredits?: unknown; tester?: unknown } } } | undefined) {
-  const token = ctx?.auth?.token;
-  return Boolean(token?.unlimitedCredits) || Boolean(token?.tester);
+function hasUnlimited(ctx: { auth?: { token?: { unlimitedCredits?: unknown } } } | undefined) {
+  return !!ctx?.auth?.token?.unlimitedCredits;
 }
 
 export async function useCreditHandler(
@@ -31,8 +30,7 @@ export async function useCreditHandler(
     return { ok: true, remaining: Infinity };
   }
 
-  const reason = typeof _data?.reason === "string" && _data.reason.trim().length ? _data.reason.trim().slice(0, 80) : undefined;
-  const { consumed, remaining } = await consumeCredit(uid, reason);
+  const { consumed, remaining } = await consumeCredit(uid);
   if (!consumed) {
     throw new HttpsError("failed-precondition", "no_credits");
   }

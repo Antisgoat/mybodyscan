@@ -1,37 +1,8 @@
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
-import { fnUrl, FUNCTIONS_BASE, HAS_USDA } from "@/lib/env";
-import type { FoodItem, NutritionSource, ServingOption } from "@/lib/nutrition/types";
+import { fnUrl } from "@/lib/env";
+import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
-import {
-  activateOfflineDemo,
-  offlineCoachResponse,
-  offlineNutritionSearch,
-  shouldFallbackToOffline,
-} from "@/lib/demoOffline";
-
-const API_FUNCTION_MAP: Record<string, string> = {
-  "/api/nutrition/search": "nutritionSearch",
-  "/api/nutrition/barcode": "nutritionBarcode",
-  "/api/coach/chat": "coachChat",
-  "/api/scan/start": "startScanSession",
-  "/api/scan/submit": "submitScan",
-};
-
-export function resolveApiUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (!FUNCTIONS_BASE) {
-    return normalized;
-  }
-  const [pathname, query = ""] = normalized.split("?");
-  const functionId = API_FUNCTION_MAP[pathname];
-  const targetPath = functionId ? `/${functionId}` : pathname;
-  const base = fnUrl(targetPath);
-  if (!base) {
-    return normalized;
-  }
-  return query ? `${base}?${query}` : base;
-}
 
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = fnUrl("/nutritionSearch");
@@ -45,27 +16,15 @@ export function nutritionFnUrl(params?: Record<string, string>) {
   return url.toString();
 }
 
-type NutritionSearchPayload = {
-  items?: unknown[];
-  primarySource?: "USDA" | "OFF";
-  fallbackUsed?: boolean;
-  sourceErrors?: Record<string, unknown>;
-};
-
 export async function nutritionSearch(
   query: string,
   init?: RequestInit,
-  options?: { forceOpenFoodFacts?: boolean },
-): Promise<NutritionSearchPayload> {
+): Promise<{ items?: unknown[] }> {
   const trimmed = query.trim();
   if (!trimmed) {
     return { items: [] };
   }
-  const params = new URLSearchParams({ q: trimmed });
-  if (options?.forceOpenFoodFacts) {
-    params.set("source", "off");
-  }
-  const url = resolveApiUrl(`/api/nutrition/search?${params.toString()}`);
+  const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
   const headers = new Headers(init?.headers ?? undefined);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
@@ -78,31 +37,18 @@ export async function nutritionSearch(
   if (idToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...init,
-      headers,
-      credentials: "include",
-      method: "GET",
-    });
-  } catch (error) {
-    if (shouldFallbackToOffline(error)) {
-      activateOfflineDemo("nutrition");
-      return offlineNutritionSearch(trimmed);
-    }
-    throw error;
-  }
+  const response = await fetch(url, {
+    ...init,
+    headers,
+    credentials: "include",
+    method: "GET",
+  });
   if (!response.ok) {
-    if (shouldFallbackToOffline({ status: response.status })) {
-      activateOfflineDemo("nutrition");
-      return offlineNutritionSearch(trimmed);
-    }
     const err: any = new Error(`rewrite_status_${response.status}`);
     err.status = response.status;
     throw err;
   }
-  return (await response.json()) as NutritionSearchPayload;
+  return response.json();
 }
 
 export async function coachChat(payload: { message: string }) {
@@ -124,31 +70,17 @@ export async function coachChat(payload: { message: string }) {
     error.code = "app_check_unavailable";
     throw error;
   }
-  const url = resolveApiUrl(`/api/coach/chat`);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-        ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({ message, text: message }),
-    });
-  } catch (error) {
-    if (shouldFallbackToOffline(error)) {
-      activateOfflineDemo("coach");
-      return offlineCoachResponse(message);
-    }
-    throw error;
-  }
+  const response = await fetch(`/api/coach/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+      ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
+    },
+    credentials: "include",
+    body: JSON.stringify({ message, text: message }),
+  });
   if (!response.ok) {
-    if (shouldFallbackToOffline({ status: response.status })) {
-      activateOfflineDemo("coach");
-      return offlineCoachResponse(message);
-    }
     const data = await response.json().catch(() => ({}));
     const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
     error.status = response.status;
@@ -181,13 +113,6 @@ function normalizeServingOption(raw: any, index: number): ServingOption | null {
   };
 }
 
-function normalizeSource(rawSource: unknown): NutritionSource {
-  if (rawSource === "OFF" || rawSource === "Open Food Facts") {
-    return "OFF";
-  }
-  return "USDA";
-}
-
 function sanitizeFoodItem(raw: any): FoodItem {
   const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : null;
 
@@ -217,46 +142,6 @@ function sanitizeFoodItem(raw: any): FoodItem {
   const perServingRaw = raw?.per_serving ?? {};
   const per100Raw = raw?.per_100g ?? undefined;
 
-  const defaultServing = servings.find((option) => option.isDefault) ?? servings[0];
-  const servingGrams = typeof raw?.servingGrams === "number"
-    ? raw.servingGrams
-    : defaultServing?.grams ?? null;
-  const per: "serving" | "100g" = raw?.per === "100g" ? "100g" : servingGrams === 100 ? "100g" : "serving";
-
-  const source = normalizeSource(raw?.source);
-  const resolvedPerServingKcal =
-    typeof raw?.kcal === "number"
-      ? raw.kcal
-      : typeof perServingRaw?.kcal === "number"
-      ? perServingRaw.kcal
-      : per === "100g"
-      ? basePer100g.kcal
-      : null;
-  const resolvedPerServingProtein =
-    typeof raw?.protein === "number"
-      ? raw.protein
-      : typeof perServingRaw?.protein_g === "number"
-      ? perServingRaw.protein_g
-      : per === "100g"
-      ? basePer100g.protein
-      : null;
-  const resolvedPerServingCarbs =
-    typeof raw?.carbs === "number"
-      ? raw.carbs
-      : typeof perServingRaw?.carbs_g === "number"
-      ? perServingRaw.carbs_g
-      : per === "100g"
-      ? basePer100g.carbs
-      : null;
-  const resolvedPerServingFat =
-    typeof raw?.fat === "number"
-      ? raw.fat
-      : typeof perServingRaw?.fat_g === "number"
-      ? perServingRaw.fat_g
-      : per === "100g"
-      ? basePer100g.fat
-      : null;
-
   return {
     id: String(
       raw?.id ??
@@ -269,13 +154,7 @@ function sanitizeFoodItem(raw: any): FoodItem {
     name:
       typeof raw?.name === "string" && raw.name.trim().length ? raw.name.trim() : "Food",
     brand,
-    source,
-    kcal: resolvedPerServingKcal ?? basePer100g.kcal,
-    protein: resolvedPerServingProtein ?? basePer100g.protein,
-    carbs: resolvedPerServingCarbs ?? basePer100g.carbs,
-    fat: resolvedPerServingFat ?? basePer100g.fat,
-    servingGrams,
-    per,
+    source: raw?.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
     basePer100g,
     servings,
     serving: {
@@ -317,37 +196,25 @@ function sanitizeFoodItem(raw: any): FoodItem {
   };
 }
 
-export async function fetchFoods(q: string): Promise<{
-  items: FoodItem[];
-  primarySource: "USDA" | "OFF" | null;
-  fallbackUsed: boolean;
-  sourceErrors: Record<string, unknown>;
-}> {
+export async function fetchFoods(q: string): Promise<FoodItem[]> {
   const query = q?.trim();
-  if (!query) {
-    return { items: [], primarySource: null, fallbackUsed: false, sourceErrors: {} };
-  }
+  if (!query) return [];
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
 
   try {
-    let payload: NutritionSearchPayload | undefined;
+    let payload: { items?: unknown[] } | undefined;
 
     try {
-      payload = await nutritionSearch(query, { signal: controller.signal }, {
-        forceOpenFoodFacts: !HAS_USDA,
-      });
+      payload = await nutritionSearch(query, { signal: controller.signal });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw error;
       }
-      const fallbackBase = nutritionFnUrl({
-        q: query,
-        ...(HAS_USDA ? {} : { source: "off" }),
-      });
+      const fallbackBase = nutritionFnUrl({ q: query });
       if (!fallbackBase) {
-        payload = { items: [] } as NutritionSearchPayload;
+        payload = { items: [] } as any;
       } else {
         const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
           auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
@@ -372,21 +239,14 @@ export async function fetchFoods(q: string): Promise<{
           fallbackError.status = response.status;
           throw fallbackError;
         }
-        payload = (await response.json().catch(() => ({ items: [] as any[] }))) as NutritionSearchPayload;
+        payload = await response.json().catch(() => ({ items: [] as any[] }));
       }
     }
 
-    const items = Array.isArray(payload?.items) ? payload!.items.map(sanitizeFoodItem) : [];
-    const primarySource =
-      payload?.primarySource === "USDA" || payload?.primarySource === "OFF"
-        ? payload.primarySource
-        : (items[0]?.source as NutritionSource | undefined) ?? null;
-    return {
-      items,
-      primarySource,
-      fallbackUsed: Boolean(payload?.fallbackUsed),
-      sourceErrors: payload?.sourceErrors ?? {},
-    };
+    if (!Array.isArray(payload?.items)) {
+      return [];
+    }
+    return payload.items.map(sanitizeFoodItem);
   } finally {
     clearTimeout(timer);
   }
@@ -415,7 +275,7 @@ export async function startScan(params?: Record<string, unknown>) {
   if (!token) {
     throw new Error("Authentication required");
   }
-  const response = await fetch(resolveApiUrl("/api/scan/start"), {
+  const response = await fetch("/api/scan/start", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -45,7 +45,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.googletagmanager.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://*.run.app https://www.googleapis.com https://mybodyscan-f3daf.web.app https://mybodyscanapp.com https://www.mybodyscanapp.com; img-src * data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'self';"
+            "value": "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self'; script-src 'self' https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; connect-src 'self' https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.cloudfunctions.net https://api.stripe.com https://checkout.stripe.com https://api.openai.com https://api.nal.usda.gov; frame-src https://js.stripe.com https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
           }
         ]
       },
@@ -58,7 +58,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self'; script-src 'self' https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; connect-src 'self' https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebasestorage.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://api.stripe.com https://checkout.stripe.com https://api.openai.com https://api.nal.usda.gov https://mybodyscan-f3daf.web.app https://mybodyscanapp.com; frame-src https://js.stripe.com https://checkout.stripe.com; frame-ancestors 'self' https://*.lovable.dev https://*.lovable.app; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
+            "value": "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self'; script-src 'self' https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; connect-src 'self' https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.cloudfunctions.net https://api.stripe.com https://checkout.stripe.com https://api.openai.com https://api.nal.usda.gov; frame-src https://js.stripe.com https://checkout.stripe.com; frame-ancestors 'self' https://*.lovable.dev https://*.lovable.app; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
           }
         ]
       }
@@ -66,42 +66,64 @@
     "rewrites": [
       {
         "source": "/api/nutrition/search",
-        "function": "nutritionSearch",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "nutritionSearch",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/workouts/adjust",
-        "function": "adjustWorkout",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "adjustWorkout",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/nutrition/barcode",
-        "function": "nutritionBarcode",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "nutritionBarcode",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/scan/start",
-        "function": "startScanSession",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "startScanSession",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/scan/submit",
-        "function": "submitScan",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "submitScan",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/coach/chat",
-        "function": "coachChat",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "coachChat",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/createCheckout",
+        "function": {
+          "functionId": "createCheckout",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/stripeWebhook",
-        "function": "stripeWebhook",
-        "functionRegion": "us-central1"
+        "function": {
+          "functionId": "stripeWebhook",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/system/health",
-        "destination": "/system/health.json"
+        "function": "systemHealth",
+        "region": "us-central1"
       },
       {
         "source": "**",

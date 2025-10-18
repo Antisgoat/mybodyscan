@@ -1,9 +1,6 @@
-const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
+import { firebaseConfig } from "@/lib/firebase";
 
-const FALLBACK_CONFIG = {
-  apiKey: "AIzaSyDA90cwKTCQ9tGfUx66PDmfGwUoiTbhafE",
-  projectId: "mybodyscan-f3daf",
-};
+const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
 
 export type FirebaseAuthClientConfig = {
   authorizedDomains: string[];
@@ -118,8 +115,8 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
     return cachedConfigPromise;
   }
 
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || FALLBACK_CONFIG.apiKey;
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || FALLBACK_CONFIG.projectId;
+  const apiKey = firebaseConfig.apiKey;
+  const projectId = firebaseConfig.projectId;
 
   if (!apiKey || !projectId) {
     cachedConfigPromise = Promise.resolve(

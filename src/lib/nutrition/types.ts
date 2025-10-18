@@ -1,4 +1,4 @@
-export type NutritionSource = "USDA" | "OFF";
+export type NutritionSource = "USDA" | "Open Food Facts";
 
 export interface MacroBreakdown {
   kcal: number;
@@ -32,12 +32,6 @@ export interface FoodItem {
   name: string;
   brand: string | null;
   source: NutritionSource;
-  kcal?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  servingGrams?: number | null;
-  per?: "serving" | "100g";
   basePer100g: MacroBreakdown;
   servings: ServingOption[];
   serving: ServingInfo;

@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { getAuthSafe } from "@/lib/appInit";
 import { signInAnonymously } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
-import { persistDemoFlags } from "@/lib/demoFlag";
+import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
-import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
-import { useAppCheckContext } from "@/components/AppCheckProvider";
-import { isAppCheckActive } from "@/appCheck";
-import { HAS_USDA } from "@/lib/env";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -20,57 +14,39 @@ export default function DemoGate() {
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
   const [attempt, setAttempt] = useState(0);
-  const { isAppCheckReady, error: appCheckError } = useAppCheckContext();
-  const softModeToastShown = useRef(false);
-  const flagsLogged = useRef(false);
-
-  useEffect(() => {
-    if (!isAppCheckReady || flagsLogged.current) return;
-    const appCheckMode: "soft" | "disabled" = appCheckError || isAppCheckActive() ? "soft" : "disabled";
-    console.info("demo_flags", { appCheck: appCheckMode, usda: HAS_USDA });
-    flagsLogged.current = true;
-  }, [isAppCheckReady, appCheckError]);
-
-  useEffect(() => {
-    if (!isAppCheckReady) return;
-    let cancelled = false;
-    (async () => {
-      if (appCheckError && !softModeToastShown.current) {
-        toast({ title: "App Check not configured; proceeding in soft mode" });
-        softModeToastShown.current = true;
-      }
-      await new Promise((r) => setTimeout(r, 50));
-      if (!cancelled && !auth.currentUser) {
-        try {
-          const authInstance = await getAuthSafe();
-          await signInAnonymously(authInstance);
-        } catch (error) {
-          if (shouldFallbackToOffline(error)) {
-            activateOfflineDemo("auth");
-          } else {
-            throw error;
-          }
-        }
-      }
-    })().catch((e) => console.error("Demo anon sign-in failed:", e));
-    return () => {
-      cancelled = true;
-    };
-  }, [isAppCheckReady, appCheckError]);
 
   useEffect(() => {
     mountedRef.current = true;
 
+    const signInWithTimeout = async (timeoutMs: number) => {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), timeoutMs),
+      );
+      // If signInAnonymously never resolves in time, this will reject by timeout
+      return Promise.race([signInAnonymously(auth), timeout]);
+    };
+
     const run = async () => {
-      if (!isAppCheckReady) {
-        setLoading(true);
-        return;
-      }
       try {
         setFailed(false);
         setLoading(true);
 
-        await ensureDemoUser();
+        // If already signed in (anon or real), go straight to app
+        if (auth.currentUser) {
+          if (mountedRef.current) navigate("/coach", { replace: true });
+          return;
+        }
+
+        // Try anonymous sign-in with a 6s timeout, retry once
+        try {
+          await signInWithTimeout(6000);
+        } catch (e1) {
+          try {
+            await signInWithTimeout(6000);
+          } catch (e2) {
+            throw e2;
+          }
+        }
 
         const user = auth.currentUser;
         if (!user) throw new Error("auth-missing-user");
@@ -83,30 +59,17 @@ export default function DemoGate() {
         }
         if (typeof window !== "undefined") {
           try {
-            persistDemoFlags();
+            window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
           } catch (err) {
-            console.warn("[demo] unable to persist demo flags", err);
+            console.warn("[demo] unable to persist session flag", err);
           }
         }
 
-        if (mountedRef.current) {
-          await startDemo({ navigate, skipEnsure: true });
-        }
+        if (mountedRef.current) navigate("/coach", { replace: true });
       } catch (error: any) {
         console.error("demo_gate_error", error);
-        if (shouldFallbackToOffline(error) || isDemoOffline()) {
-          activateOfflineDemo("auth");
-          if (mountedRef.current) {
-            await startDemo({ navigate, skipEnsure: true });
-          }
-          return;
-        }
         if (mountedRef.current) {
-          toast({
-            title: "Unable to start demo",
-            description: formatAuthError("Demo", error),
-            variant: "destructive",
-          });
+          toast({ title: "Unable to start demo", description: "Please try again.", variant: "destructive" });
           setFailed(true);
         }
       } finally {
@@ -119,7 +82,7 @@ export default function DemoGate() {
     return () => {
       mountedRef.current = false;
     };
-  }, [navigate, attempt, isAppCheckReady]);
+  }, [navigate, attempt]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background text-center p-6">

@@ -160,7 +160,7 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
     brand: snapshot.brand ?? null,
     source:
       snapshot.source === "Open Food Facts" || snapshot.source === "OFF"
-        ? "OFF"
+        ? "Open Food Facts"
         : "USDA",
     basePer100g: snapshot.per_100g
       ? {

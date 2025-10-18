@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
@@ -41,20 +41,12 @@ const Settings = () => {
   const { profile } = useUserProfile();
   const [weightInput, setWeightInput] = useState("");
   const [savingMetrics, setSavingMetrics] = useState(false);
-  const [appleRedirectUri, setAppleRedirectUri] = useState("https://your-domain/__/auth/handler");
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
       setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
     }
   }, [profile?.weight_kg]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const origin = window.location.origin;
-    if (!origin) return;
-    setAppleRedirectUri(`${origin}/__/auth/handler`);
-  }, []);
 
   const handleSaveMetrics = async () => {
     if (!auth.currentUser) {
@@ -265,82 +257,6 @@ const Settings = () => {
             />
           </div>
         </SectionCard>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Apple Sign-In setup</CardTitle>
-            <CardDescription>To enable Apple Sign-In, do these 5 steps.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-              <li>
-                In
-                {" "}
-                <a
-                  href="https://developer.apple.com/account/resources/identifiers/list/serviceId"
-                  className="text-primary underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Apple Developer &gt; Identifiers &gt; Services IDs
-                </a>
-                , create a dedicated Services ID for MyBodyScan.
-              </li>
-              <li>
-                Add
-                {" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  {appleRedirectUri}
-                </code>
-                {" "}
-                to the Sign in with Apple return URLs for that Service ID.
-              </li>
-              <li>
-                Confirm your
-                {" "}
-                <a
-                  href="https://developer.apple.com/account/#/membership"
-                  className="text-primary underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Apple Team ID
-                </a>
-                {" "}
-                — you'll paste it into Firebase.
-              </li>
-              <li>
-                Generate a new Sign in with Apple key in
-                {" "}
-                <a
-                  href="https://developer.apple.com/account/resources/authkeys/list"
-                  className="text-primary underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Apple Developer &gt; Keys
-                </a>
-                , note the Key ID, and download the .p8 private key.
-              </li>
-              <li>
-                In
-                {" "}
-                <a
-                  href="https://console.firebase.google.com/project/_/authentication/providers"
-                  className="text-primary underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Firebase Console &gt; Authentication &gt; Sign-in method &gt; Apple
-                </a>
-                , enter the Services ID, Team ID, Key ID, and upload the private key to finish.
-              </li>
-            </ol>
-            <p className="text-xs text-muted-foreground">
-              Keep the downloaded .p8 key outside of source control—never commit Apple secrets to the repo.
-            </p>
-          </CardContent>
-        </Card>
 
         {/* Language */}
         <Card>
