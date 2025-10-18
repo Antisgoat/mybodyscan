@@ -1,9 +1,10 @@
 import { initializeApp, type FirebaseOptions, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { FIREBASE_PUBLIC_CONFIG } from "@/config/firebase.public";
+import { getSequencedAuth } from "@/lib/firebase/init";
+import type { Auth } from "firebase/auth";
 
 /**
  * Prefer Vite env vars when present; otherwise fall back to committed public config.
@@ -43,10 +44,57 @@ export const firebaseConfig = mergedConfig();
 
 // Guard against double-initialization in dev/HMR and multiple entrypoints
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
+
+let authInstance: Auth | null = null;
+let authInitStarted = false;
+let authInitError: unknown = null;
+
+function ensureAuthInit() {
+  if (authInitStarted) return;
+  authInitStarted = true;
+  void getSequencedAuth()
+    .then((instance) => {
+      authInstance = instance;
+    })
+    .catch((err) => {
+      authInitError = err;
+    });
+}
+
+ensureAuthInit();
+
+export const auth = new Proxy({} as Auth, {
+  get(_target, prop) {
+    ensureAuthInit();
+    if (authInitError) {
+      throw authInitError instanceof Error
+        ? authInitError
+        : new Error(typeof authInitError === "string" ? authInitError : "Auth init failed");
+    }
+    if (!authInstance) {
+      if (prop === "currentUser") return null;
+      return undefined;
+    }
+    const value = (authInstance as any)[prop];
+    if (typeof value === "function") {
+      return value.bind(authInstance);
+    }
+    return value;
+  },
+  set(_target, prop, value) {
+    ensureAuthInit();
+    if (!authInstance) {
+      throw new Error("Auth not ready");
+    }
+    (authInstance as any)[prop] = value;
+    return true;
+  },
+}) as Auth;
+
+export { getSequencedAuth };
 
 // Re-export App Check status flag for convenience
 export { isAppCheckActive } from "@/appCheck";

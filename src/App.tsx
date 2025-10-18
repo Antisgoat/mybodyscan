@@ -91,6 +91,7 @@ const queryClient = new QueryClient();
 const App = () => {
   useEffect(() => {
     initAuthPersistence().catch(() => {});
+    if (typeof window !== "undefined") console.log("[init] App mounted");
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
       void loadPublicLayout();
     }

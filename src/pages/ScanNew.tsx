@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Seo } from "@/components/Seo";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { beginPaidScan, recordGateFailure, refundIfNoResult, startScan } from "@/lib/api";
@@ -21,6 +21,7 @@ import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@/
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { cn } from "@/lib/utils";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 const MODE_OPTIONS: { value: "2" | "4"; label: string; description: string }[] = [
   { value: "2", label: "Quick (2 photos)", description: "Front + Side" },
@@ -113,7 +114,9 @@ export default function ScanNew() {
   };
 
   const handleAnalyze = async () => {
-    if (!auth.currentUser) {
+    const auth = await getSequencedAuth();
+    const user = auth.currentUser;
+    if (!user) {
       toast({ title: "Sign in required", description: "Please sign in to run a scan.", variant: "destructive" });
       navigate("/auth");
       return;
@@ -304,7 +307,7 @@ export default function ScanNew() {
 
       setStage("saving");
       setQcMessages(qcAccumulator);
-      const uid = auth.currentUser.uid;
+      const uid = user.uid;
       const scanRef = doc(db, "users", uid, "scans", scanId);
       await setDoc(
         scanRef,

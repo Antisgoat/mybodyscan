@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { appCheckReady } from "./lib/firebase/init";
 
 let _appCheck: import("firebase/app-check").AppCheck | null = null;
 let initPromise: Promise<import("firebase/app-check").AppCheck | null> | null = null;
@@ -34,29 +35,16 @@ export async function ensureAppCheck() {
     return _appCheck;
   }
   if (!initPromise) {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY as string | undefined;
     initPromise = (async () => {
       try {
-        const { initializeAppCheck, ReCaptchaV3Provider } = await import("firebase/app-check");
-        if (!siteKey) {
-          if (isDevOrDemo()) {
-            console.warn("AppCheck: site key missing; soft mode enabled (dev/demo)");
-            return null;
-          }
-          console.warn("AppCheck: site key missing; initialization skipped");
-          return null;
-        }
-        _appCheck = initializeAppCheck(app(), {
-          provider: new ReCaptchaV3Provider(siteKey),
-          isTokenAutoRefreshEnabled: true,
-        });
+        await appCheckReady;
+        const { getAppCheck } = await import("firebase/app-check");
+        _appCheck = getAppCheck(app());
         return _appCheck;
       } catch (error) {
-        if (isDevOrDemo()) {
-          console.warn("AppCheck init failed; continuing in soft mode", error);
-          return null;
-        }
-        throw error;
+        console.warn("AppCheck init failed; continuing in soft mode", error);
+        _appCheck = null;
+        return null;
       } finally {
         initComplete = true;
       }
@@ -65,10 +53,8 @@ export async function ensureAppCheck() {
   try {
     return await initPromise;
   } catch (error) {
-    if (isDevOrDemo()) {
-      return null;
-    }
-    throw error;
+    console.warn("AppCheck init failed; continuing in soft mode", error);
+    return null;
   }
 }
 

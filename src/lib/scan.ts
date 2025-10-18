@@ -1,10 +1,12 @@
 import { httpsCallable } from "firebase/functions";
-import { auth, db, storage, functions } from "./firebase";
+import { db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { getAppCheckToken } from "@/appCheck";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 async function authedPost(path: string, body: Record<string, unknown>) {
+  const auth = await getSequencedAuth();
   const user = auth.currentUser;
   if (!user) throw new Error("auth");
   const [token, appCheckToken] = await Promise.all([
