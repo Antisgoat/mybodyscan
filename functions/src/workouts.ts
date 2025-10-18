@@ -257,22 +257,23 @@ export const adjustWorkout = onRequest(
       try {
         await verifyAppCheckStrict(req as any);
         const uid = await requireAuth(req as any);
-      const { dayId, bodyFeel, notes } = (req.body as any) || {};
-      if (!uid || !dayId || !bodyFeel) {
-        res.status(400).json({ error: "bad_request" });
-        return;
-      }
-      const mods = {
-        intensity: bodyFeel === "great" ? +1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
-        volume: bodyFeel === "great" ? +1 : bodyFeel === "sore" ? -1 : 0,
-      };
-      res.json({ ok: true, mods, echo: { dayId, notes: notes || null } });
-    } catch (error: any) {
-      if (!res.headersSent) {
-        res.status(500).json({ error: "server_error" });
+        const { dayId, bodyFeel, notes } = (req.body as any) || {};
+        if (!uid || !dayId || !bodyFeel) {
+          res.status(400).json({ error: "bad_request" });
+          return;
+        }
+        const mods = {
+          intensity: bodyFeel === "great" ? +1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
+          volume: bodyFeel === "great" ? +1 : bodyFeel === "sore" ? -1 : 0,
+        };
+        res.json({ ok: true, mods, echo: { dayId, notes: notes || null } });
+      } catch (error: any) {
+        if (!res.headersSent) {
+          res.status(500).json({ error: "server_error" });
+        }
       }
     }),
     { sampleRate: 0.5 }
-  ),
+  )
 );
 

@@ -9,6 +9,7 @@ import { isStaff } from "../claims.js";
 const db = getFirestore();
 const storage = getStorage();
 const UPLOAD_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
+const SESSION_REUSE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes - reuse session within this window
 const POSES = ["front", "back", "left", "right"] as const;
 
 type Pose = (typeof POSES)[number];
@@ -60,6 +61,46 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
   return `uploads/${uid}/${scanId}/${pose}.jpg`;
 }
 
+async function getOrCreateSession(uid: string): Promise<{ scanId: string; isReused: boolean }> {
+  const now = Date.now();
+  const cutoff = now - SESSION_REUSE_WINDOW_MS;
+  
+  // Check for existing active session within the reuse window
+  const sessionsRef = db.collection(`users/${uid}/private/sessions`);
+  const recentSessions = await sessionsRef
+    .where("createdAt", ">=", new Date(cutoff))
+    .where("status", "==", "active")
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .get();
+
+  if (!recentSessions.empty) {
+    const sessionDoc = recentSessions.docs[0];
+    const sessionData = sessionDoc.data();
+    const scanId = sessionDoc.id;
+    
+    // Verify the session is still valid (not expired)
+    if (sessionData.expiresAt && sessionData.expiresAt.toMillis() > now) {
+      console.info("scan_start_reusing_session", { uid, scanId, isReused: true });
+      return { scanId, isReused: true };
+    }
+  }
+
+  // Create new session
+  const scanId = randomUUID();
+  const expiresAt = new Date(now + UPLOAD_EXPIRATION_MS);
+  
+  await sessionsRef.doc(scanId).set({
+    status: "active",
+    createdAt: new Date(now),
+    expiresAt: new Date(expiresAt),
+    uid,
+  });
+
+  console.info("scan_start_new_session", { uid, scanId, isReused: false });
+  return { scanId, isReused: false };
+}
+
 async function handleStart(req: Request, res: any) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
@@ -87,7 +128,7 @@ async function handleStart(req: Request, res: any) {
     return;
   }
 
-  const scanId = randomUUID();
+  const { scanId, isReused } = await getOrCreateSession(uid);
   const expiresAt = new Date(Date.now() + UPLOAD_EXPIRATION_MS);
   const uploadUrls: Record<Pose, string> = {
     front: "",
@@ -110,7 +151,7 @@ async function handleStart(req: Request, res: any) {
     return;
   }
 
-  console.info("scan_start", { uid, scanId, expiresAt: expiresAt.toISOString() });
+  console.info("scan_start", { uid, scanId, isReused, expiresAt: expiresAt.toISOString() });
 
   const payload: StartResponse = {
     scanId,

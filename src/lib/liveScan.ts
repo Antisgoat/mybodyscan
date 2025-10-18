@@ -31,6 +31,15 @@ export interface ScanResultResponse {
   provider?: string;
 }
 
+export interface ScanStatusResponse {
+  scanId: string;
+  status: "processing" | "complete" | "failed";
+  result?: any;
+  error?: string;
+  createdAt?: number;
+  completedAt?: number;
+}
+
 interface SubmitPayload {
   scanId: string;
   weightLb?: number;
@@ -138,4 +147,73 @@ export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResult
     throw buildError(response.status, data);
   }
   return data as ScanResultResponse;
+}
+
+export async function getScanStatus(scanId: string): Promise<ScanStatusResponse> {
+  const response = await authedRequest(`/api/scan/status?scanId=${encodeURIComponent(scanId)}`, {
+    method: "GET",
+  });
+  const data = await parseJsonResponse(response);
+  if (!response.ok) {
+    throw buildError(response.status, data);
+  }
+  return data as ScanStatusResponse;
+}
+
+export async function pollScanStatus(
+  scanId: string,
+  onStatusUpdate?: (status: ScanStatusResponse) => void,
+  maxAttempts = 30
+): Promise<ScanResultResponse> {
+  let attempts = 0;
+  let delay = 1000; // Start with 1 second
+  
+  while (attempts < maxAttempts) {
+    try {
+      const status = await getScanStatus(scanId);
+      onStatusUpdate?.(status);
+      
+      if (status.status === "complete" && status.result) {
+        return {
+          id: scanId,
+          createdAt: status.createdAt || Date.now(),
+          completedAt: status.completedAt || Date.now(),
+          engine: "gpt-4o-mini",
+          status: "complete",
+          inputs: {},
+          result: status.result,
+          metadata: {
+            sessionId: scanId,
+            images: [],
+          },
+          creditsRemaining: null,
+          provider: "openai",
+        };
+      }
+      
+      if (status.status === "failed") {
+        const error = new Error(status.error || "Scan processing failed");
+        (error as any).status = 500;
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, 30000);
+      attempts++;
+    } catch (err: any) {
+      if (err.status === 404) {
+        // Scan not found, might still be processing
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, 30000);
+        attempts++;
+        continue;
+      }
+      throw err;
+    }
+  }
+  
+  const timeoutError = new Error("Scan processing timeout");
+  (timeoutError as any).status = 408;
+  throw timeoutError;
 }

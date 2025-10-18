@@ -364,6 +364,7 @@ export const submitScan = onRequest(
         ? db.doc(`users/${uid}/private/idempotency/${payload.scanId}_${idempotencyKey}`)
         : null;
       const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
+      const creditRef = db.doc(`users/${uid}/private/credits`);
 
       if (idempRef) {
         const existing = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
@@ -382,12 +383,29 @@ export const submitScan = onRequest(
         }
       }
 
+      // Set initial processing status
+      await scanRef.set({ 
+        status: "processing", 
+        createdAt: Timestamp.now(),
+        inputs: toInputRecord(payload),
+        metadata: {
+          sessionId: payload.scanId,
+          images: imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null })),
+        }
+      }, { merge: true });
+
       // Call OpenAI Vision
       let parsed: ParsedResult;
       try {
         parsed = await callOpenAi(apiKey, imagePairs, payload);
       } catch (err: any) {
-        // Do not consume credit on model error
+        // Mark as failed and do not consume credit on model error
+        await scanRef.set({ 
+          status: "failed", 
+          error: "Vision model temporarily unavailable. Try again shortly.",
+          failedAt: Timestamp.now()
+        }, { merge: true });
+        
         res.status(typeof err?.status === "number" ? err.status : 502).json({
           error: "scan_engine_unavailable",
           message: "Vision model temporarily unavailable. Try again shortly.",
@@ -396,7 +414,7 @@ export const submitScan = onRequest(
         return;
       }
 
-      // Attempt to consume exactly one credit AFTER successful model call
+      // Atomic credit consumption with scan result write
       let credit = { consumed: true, remaining: 0 };
       
       if (unlimitedCredits) {
@@ -404,40 +422,75 @@ export const submitScan = onRequest(
         console.info("scan_submit_unlimited_credits", { uid });
         credit = { consumed: true, remaining: Infinity };
       } else {
-        credit = await consumeCredit(uid);
-        if (!credit.consumed) {
-          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-          res.status(402).json({ error: "no_credits" });
-          return;
+        // Use atomic transaction to consume credit and write scan result together
+        try {
+          await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+            // Check if scan already exists (double-spend protection)
+            const existingScan = await tx.get(scanRef);
+            if (existingScan.exists) {
+              const existingData = existingScan.data() as any;
+              if (existingData.status === "complete") {
+                // Return existing result
+                res.json({ id: payload.scanId, ...existingData });
+                return;
+              }
+            }
+
+            // Consume credit atomically
+            const { consumeCreditBuckets } = await import("./creditUtils.js");
+            const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
+            
+            if (!consumed) {
+              throw new Error("no_credits");
+            }
+
+            // Update credit summary
+            tx.set(
+              creditRef,
+              {
+                creditBuckets: buckets,
+                creditsSummary: { totalAvailable: total, lastUpdated: Timestamp.now() },
+              },
+              { merge: true }
+            );
+
+            // Update scan to complete status atomically
+            const completedAt = Timestamp.now();
+            tx.update(scanRef, {
+              status: "complete",
+              completedAt,
+              engine: OPENAI_MODEL,
+              result: parsed,
+            });
+
+            credit = { consumed: true, remaining: total };
+          });
+        } catch (err: any) {
+          if (err.message === "no_credits") {
+            if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+            res.status(402).json({ error: "no_credits" });
+            return;
+          }
+          throw err;
         }
       }
 
-      // Persist scan result
-      const createdAt = Timestamp.now();
-      const stored: StoredScan = {
-        createdAt,
-        completedAt: createdAt,
-        engine: OPENAI_MODEL,
-        status: "complete",
-        inputs: toInputRecord(payload),
-        result: parsed,
-        metadata: {
-          sessionId: payload.scanId,
-          images: imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null })),
-        },
-      };
-      await scanRef.set(stored, { merge: true });
+      // Update idempotency record
       if (idempRef) await idempRef.set({ status: "complete", completedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
 
+      // Get the final scan data
+      const finalScan = await scanRef.get();
+      const finalData = finalScan.data() as any;
+      
       res.json({
         id: payload.scanId,
-        createdAt: createdAt.toMillis(),
-        completedAt: createdAt.toMillis(),
+        createdAt: finalData.createdAt?.toMillis() || Date.now(),
+        completedAt: finalData.completedAt?.toMillis() || Date.now(),
         engine: OPENAI_MODEL,
         status: "complete",
-        inputs: stored.inputs,
-        result: stored.result,
-        metadata: stored.metadata,
+        inputs: finalData.inputs || {},
+        result: finalData.result,
+        metadata: finalData.metadata || {},
         creditsRemaining: credit.remaining ?? null,
         provider: "openai",
       });
