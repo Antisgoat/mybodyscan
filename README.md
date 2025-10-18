@@ -40,7 +40,7 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
 | `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
 | `VITE_APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
-| `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
+| `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry (not in development) |
 
 ### Functions (Firebase environment / secrets)
 
@@ -111,7 +111,15 @@ Key flows include:
 ## Observability & guardrails
 
 - **Request logging:** every HTTPS function is wrapped in JSON logging middleware emitting `{fn, uid, path, method, status, durationMs, code}` (sampled at 50%). Tokens/PII are redacted.
-- **Sentry:** the web app lazy-loads Sentry only when `VITE_SENTRY_DSN` is present, capturing React errors and unhandled rejections with release tags. Functions load `@sentry/node` when `SENTRY_DSN` is set.
+- **Sentry:** the web app lazy-loads Sentry only when `VITE_SENTRY_DSN` is present and the build mode is not `development`. It tags errors with the authenticated user id (when available), environment (`production` or `preview`), and build tag (git SHA). Functions load `@sentry/node` when `SENTRY_DSN` is set.
+
+### Sentry DSN setup
+
+To enable client-side Sentry in production or preview builds:
+
+1. Add `VITE_SENTRY_DSN` to your `.env` or hosting environment. Leave it unset locally to keep development noise out of Sentry.
+2. Optionally add `VITE_SENTRY_RELEASE` (or let `scripts/print-build-tag.js` write `public/build.txt` with the commit SHA during `npm run build:prod`).
+3. Deploy a preview or production build. The app will initialize Sentry automatically and tag events with `environment` and `build`.
 - **App Check:** `AppCheckProvider` initializes App Check before using Auth, Firestore, Functions, or Storage. Missing keys fall back to debug tokens so demo flows never break.
 - **Nutrition model:** USDA and OpenFoodFacts responses normalize into a single schema—UI never branches on the source.
 - **Credits:** `CreditsBadge` shows `∞` for developer accounts seeded via `scripts/test-seed.ts`; server functions still enforce claims.

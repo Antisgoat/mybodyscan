@@ -1,7 +1,19 @@
 type SentryModule = typeof import("@sentry/react");
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 let sentryModule: SentryModule | null = null;
 let loadPromise: Promise<SentryModule | null> | null = null;
+let authUnsubscribe: (() => void) | null = null;
+
+function getRuntimeEnvironment(): "development" | "preview" | "production" {
+  if (import.meta.env.DEV || import.meta.env.MODE === "development") return "development";
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname || "";
+    if (host.includes("--")) return "preview"; // Firebase Hosting preview channels use site--channel.web.app
+  }
+  return "production";
+}
 
 async function loadSentryModule(): Promise<SentryModule | null> {
   if (sentryModule) return sentryModule;
@@ -26,6 +38,14 @@ async function loadSentryModule(): Promise<SentryModule | null> {
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
 
+  // Never initialize in development, even if DSN is set
+  if (import.meta.env.DEV || import.meta.env.MODE === "development") {
+    if (dsn) {
+      console.log("Sentry disabled in development mode");
+    }
+    return;
+  }
+
   if (!dsn) {
     console.log('Sentry disabled - no DSN provided');
     return;
@@ -44,11 +64,13 @@ export function initSentry() {
         import.meta.env.VITE_COMMIT_SHA ||
         undefined;
 
+      const envLabel = getRuntimeEnvironment();
+
       Sentry.init({
         dsn,
         tracesSampleRate: 0.1,
         sampleRate: 1.0,
-        environment: import.meta.env.MODE,
+        environment: envLabel,
         release,
         beforeSend(event) {
           if (import.meta.env.PROD && event.exception) {
@@ -61,11 +83,61 @@ export function initSentry() {
         },
       });
 
+      // Tag environment and build for easier triage
+      try {
+        Sentry.setTag('environment', envLabel);
+        if (release) {
+          Sentry.setTag('build', release);
+        }
+      } catch (_) {
+        // non-fatal
+      }
+
+      // Best-effort: fetch build tag written during production builds
+      // scripts/print-build-tag.js writes public/build.txt with { sha, builtAtISO }
+      if (typeof window !== 'undefined') {
+        fetch('/build.txt')
+          .then((r) => (r.ok ? r.json() : null))
+          .then((json) => {
+            const sha = (json && typeof json.sha === 'string' && json.sha) || '';
+            if (sha) {
+              try {
+                Sentry.setTag('build', sha);
+              } catch (_) {
+                // ignore
+              }
+            }
+          })
+          .catch(() => {});
+      }
+
       if (typeof window !== 'undefined') {
         window.addEventListener('unhandledrejection', (event) => {
           if (!event?.reason) return;
           Sentry.captureException(event.reason);
         });
+      }
+
+      // Attach Firebase Auth user if available and keep it updated
+      try {
+        const current = auth?.currentUser?.uid;
+        if (current) {
+          Sentry.setUser({ id: current });
+        }
+        if (authUnsubscribe) authUnsubscribe();
+        authUnsubscribe = onAuthStateChanged(auth, (user) => {
+          try {
+            if (user?.uid) {
+              Sentry.setUser({ id: user.uid });
+            } else {
+              Sentry.setUser(null);
+            }
+          } catch (_) {
+            // ignore
+          }
+        });
+      } catch (_) {
+        // ignore if auth not ready
       }
 
       console.log('Sentry initialized successfully');
