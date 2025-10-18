@@ -13,15 +13,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuthUser, signOutAll } from "@/lib/auth";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, LogOut, User } from "lucide-react";
+import { Settings, LogOut, User, RefreshCw } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { useCredits } from "@/hooks/useCredits";
 
 export function AppHeader() {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isFounder, setIsFounder] = useState(false);
+  const { toast } = useToast();
+  const { credits, unlimited, tester } = useCredits();
 
   useEffect(() => {
     if (!user?.uid) {
@@ -49,6 +55,37 @@ export function AppHeader() {
   const handleSignOut = async () => {
     await signOutAll();
     navigate("/auth");
+  };
+
+  const isDeveloper = user?.email === "developer@adlrlabs.com" || user?.customClaims?.developer === true;
+
+  const handleRefreshCredits = async () => {
+    if (!user) return;
+    
+    try {
+      // Call refreshClaims
+      const refreshClaims = httpsCallable(functions, "refreshClaims");
+      await refreshClaims({});
+      
+      // Force refresh the ID token
+      await user.getIdToken(true);
+      
+      // Show success toast with current credits/role
+      const creditsText = unlimited ? "∞" : credits.toString();
+      const roleText = tester ? " (Tester)" : "";
+      
+      toast({
+        title: "Credits Refreshed",
+        description: `Credits: ${creditsText}${roleText}`,
+      });
+    } catch (error) {
+      console.error("Failed to refresh credits:", error);
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh credits. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -90,6 +127,12 @@ export function AppHeader() {
                     <DropdownMenuSeparator />
                   </>
                 ) : null}
+                {isDeveloper && (
+                  <DropdownMenuItem onClick={handleRefreshCredits}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh Credits
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
