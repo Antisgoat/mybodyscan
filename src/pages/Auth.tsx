@@ -33,6 +33,7 @@ import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
 import { Loader2 } from "lucide-react";
+import { initApp } from "@/appCheck";
 
 const POPUP_FALLBACK_CODES = new Set([
   "auth/popup-blocked",
@@ -138,9 +139,10 @@ const Auth = () => {
     if (typeof window === "undefined") return true;
     return isHostAllowed(window.location.hostname);
   });
+  const [appCheckReady, setAppCheckReady] = useState(false);
   const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
-  const authDisabled = !hostAuthorized;
+  const authDisabled = !hostAuthorized || !appCheckReady;
 
   useEffect(() => {
     if (!user) return;
@@ -178,6 +180,27 @@ const Auth = () => {
           setAppleEnabled(false);
         }
       });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Initialize App Check before allowing authentication
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await initApp();
+        if (active) {
+          setAppCheckReady(true);
+        }
+      } catch (error) {
+        console.warn("App Check initialization failed, continuing in soft mode", error);
+        if (active) {
+          setAppCheckReady(true); // Allow auth to proceed in soft mode
+        }
+      }
+    })();
     return () => {
       active = false;
     };
@@ -381,6 +404,17 @@ const Auth = () => {
     ? "Finish the Apple provider setup in Firebase Auth (service ID, redirect URL, key) before enabling users."
     : null;
 
+  if (!appCheckReady) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-sm text-muted-foreground">Securing your session...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
@@ -388,6 +422,11 @@ const Auth = () => {
         {!hostAuthorized && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             This domain isn’t in Firebase Authorized Domains. OAuth popups may be blocked.
+          </div>
+        )}
+        {!appCheckReady && (
+          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            Initializing security features...
           </div>
         )}
         <Card className="w-full shadow-md">
