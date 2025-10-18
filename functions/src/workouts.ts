@@ -252,10 +252,11 @@ export const getWorkouts = withHandler(handleGetWorkouts);
 // Body-feel adjustment endpoint
 export const adjustWorkout = onRequest(
   { invoker: "public", region: "us-central1" },
-  withCors(async (req: ExpressRequest, res: ExpressResponse) => {
-    try {
-      await verifyAppCheckStrict(req as any);
-      const uid = await requireAuth(req as any);
+  withRequestLogging(
+    withCors(async (req: ExpressRequest, res: ExpressResponse) => {
+      try {
+        await verifyAppCheckStrict(req as any);
+        const uid = await requireAuth(req as any);
       const { dayId, bodyFeel, notes } = (req.body as any) || {};
       if (!uid || !dayId || !bodyFeel) {
         res.status(400).json({ error: "bad_request" });
@@ -270,7 +271,8 @@ export const adjustWorkout = onRequest(
       if (!res.headersSent) {
         res.status(500).json({ error: "server_error" });
       }
-    }
-  })
+    }),
+    { sampleRate: 0.5 }
+  ),
 );
 

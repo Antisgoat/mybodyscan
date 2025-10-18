@@ -38,24 +38,35 @@ export function initSentry() {
     }
 
     try {
+      const release =
+        import.meta.env.VITE_SENTRY_RELEASE ||
+        import.meta.env.VITE_GIT_SHA ||
+        import.meta.env.VITE_COMMIT_SHA ||
+        undefined;
+
       Sentry.init({
         dsn,
-        // Performance Monitoring
-        tracesSampleRate: 0.1, // 10% of transactions will be sent to Sentry
-        // Error sampling
-        sampleRate: 1.0, // 100% of errors will be sent to Sentry
+        tracesSampleRate: 0.1,
+        sampleRate: 1.0,
         environment: import.meta.env.MODE,
+        release,
         beforeSend(event) {
-          // Filter out development errors in production
           if (import.meta.env.PROD && event.exception) {
             const error = event.exception.values?.[0];
             if (error?.value?.includes('ResizeObserver loop limit exceeded')) {
-              return null; // Ignore ResizeObserver errors
+              return null;
             }
           }
           return event;
         },
       });
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('unhandledrejection', (event) => {
+          if (!event?.reason) return;
+          Sentry.captureException(event.reason);
+        });
+      }
 
       console.log('Sentry initialized successfully');
     } catch (error) {

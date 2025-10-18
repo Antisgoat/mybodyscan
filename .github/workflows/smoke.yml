@@ -1,0 +1,41 @@
+name: Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to probe'
+        required: false
+        default: 'https://mybodyscanapp.com'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Smoke test endpoints
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          BASE="${BASE_URL%/}"
+          HEALTH_URL="$BASE/system/health"
+          echo "Probing $HEALTH_URL"
+          HEALTH_RAW=$(curl -sS -w '\n%{http_code}' "$HEALTH_URL")
+          HEALTH_CODE=$(printf '%s' "$HEALTH_RAW" | tail -n1)
+          HEALTH_BODY=$(printf '%s' "$HEALTH_RAW" | head -n -1)
+          if [ "$HEALTH_CODE" -ne 200 ]; then
+            echo "Health endpoint returned $HEALTH_CODE" >&2
+            exit 1
+          fi
+          echo "$HEALTH_BODY" | jq -e '.ok == true and (.projectId | length > 0)' >/dev/null
+          echo "Health check passed"
+
+          echo "Fetching static landing page"
+          PAGE_CODE=$(curl -sS -o /tmp/smoke-home.html -w '%{http_code}' "$BASE")
+          if [ "$PAGE_CODE" -ne 200 ]; then
+            echo "Static page returned $PAGE_CODE" >&2
+            exit 1
+          fi
+          echo "Smoke test succeeded"

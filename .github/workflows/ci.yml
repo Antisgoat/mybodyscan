@@ -26,42 +26,38 @@ jobs:
         
     - name: Install dependencies
       run: npm ci
-      
+
+    - name: Lint
+      run: npm run lint
+
     - name: Type check
       run: npm run typecheck
-      continue-on-error: false
-      
+
     - name: Build application
       run: npm run build
-      continue-on-error: false
-      
-    - name: Build functions
+
+    - name: Build Cloud Functions
       run: npm --prefix functions run build
-      continue-on-error: false
-      
+
+    - name: Verify Firestore rules
+      run: npm run rules:verify
+
     - name: Run unit tests
       run: npm run test
-      continue-on-error: false
-      
+
+    - name: Run integration tests against emulators
+      run: npm run emulators:test
+
     - name: Install Playwright browsers
       run: npx playwright install --with-deps
-      
-    - name: Run E2E tests (best effort)
-      run: npm run e2e
-      continue-on-error: true
-      
-    - name: Upload Playwright trace on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: playwright-trace
-        path: e2e/test-results/
-        retention-days: 7
-        
-    - name: Upload Playwright report
+
+    - name: Execute E2E suite
+      run: npm run dev:e2e
+
+    - name: Upload Playwright artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: playwright-report
-        path: e2e/playwright-report/
+        path: playwright-report/
         retention-days: 7

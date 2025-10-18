@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
+import { withRequestLogging } from "./middleware/logging.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
@@ -582,35 +583,38 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
 
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
-  withCors(async (req, res) => {
-    try {
-      await verifyAppCheckStrict(req as any);
-    } catch (error: any) {
-      if (!res.headersSent) {
-        console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
-        const status = typeof error?.status === "number" ? error.status : 401;
-        res.status(status).json({ error: error?.message ?? "app_check_required" });
-      }
-      return;
-    }
-
-    try {
-      await handleRequest(req as Request, res as Response);
-    } catch (error: any) {
-      if (res.headersSent) {
+  withRequestLogging(
+    withCors(async (req, res) => {
+      try {
+        await verifyAppCheckStrict(req as any);
+      } catch (error: any) {
+        if (!res.headersSent) {
+          console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
+          const status = typeof error?.status === "number" ? error.status : 401;
+          res.status(status).json({ error: error?.message ?? "app_check_required" });
+        }
         return;
       }
-      const code = errorCode(error);
-      const status =
-        typeof error?.status === "number" && error.status >= 100
-          ? error.status
-          : statusFromCode(code);
-      const message =
-        typeof error?.message === "string" && error.message.length ? error.message : code;
-      if (status >= 500) {
-        console.error("nutrition_search_unhandled", { message: describeError(error) });
+
+      try {
+        await handleRequest(req as Request, res as Response);
+      } catch (error: any) {
+        if (res.headersSent) {
+          return;
+        }
+        const code = errorCode(error);
+        const status =
+          typeof error?.status === "number" && error.status >= 100
+            ? error.status
+            : statusFromCode(code);
+        const message =
+          typeof error?.message === "string" && error.message.length ? error.message : code;
+        if (status >= 500) {
+          console.error("nutrition_search_unhandled", { message: describeError(error) });
+        }
+        res.status(status).json({ error: message });
       }
-      res.status(status).json({ error: message });
-    }
-  }),
+    }),
+    { sampleRate: 0.5 },
+  ),
 );

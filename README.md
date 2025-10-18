@@ -1,249 +1,147 @@
-# Welcome to your Lovable project
+# MyBodyScan Production Readiness Guide
 
-## Project info
+This repository contains the production build for [mybodyscanapp.com](https://mybodyscanapp.com) and the Firebase Functions that power nutrition search, barcode lookup, workouts, credits, and coach chat. The project is wired for end-to-end verification with automated tests, observability, and operational tooling so you can safely deploy to both `mybodyscanapp.com` and `mybodyscan-f3daf.web.app`.
 
-**URL**: https://lovable.dev/projects/cf8140ba-edcc-4236-9166-fb030db04005
+## Quick start
 
-## How can I edit this code?
+```bash
+# Install dependencies (Node 20 recommended)
+npm ci
 
-There are several ways of editing your application.
+# Launch the Vite development server
+npm run dev:web
 
-**Use Lovable**
+# Start the Firebase emulators (Auth, Firestore, Functions)
+npm run dev:emulators
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/cf8140ba-edcc-4236-9166-fb030db04005) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Seed the developer account (developer@adlrlabs.com)
+npm run seed:dev
 ```
 
-### If npm EINTEGRITY occurs
+Visit `/ops` after signing in as `developer@adlrlabs.com` to view environment metadata, run health checks, refresh claims, or request demo seeding. The console is protected by custom claims on both the client and server.
 
-Run `npm cache clean --force && rm -rf node_modules && npm install --prefer-online` to refresh the cache and reinstall.
+## Environment configuration
 
-**Edit a file directly in GitHub**
+Create `.env.local` (web) and configure Firebase secrets/parameters (functions). Required keys:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Frontend (`.env.local`)
 
-**Use GitHub Codespaces**
+| Key | Purpose |
+| --- | --- |
+| `VITE_FIREBASE_API_KEY` | Firebase web API key |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID (defaults to `mybodyscan-f3daf`) |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Cloud Storage bucket |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Messaging sender ID |
+| `VITE_FIREBASE_APP_ID` | Firebase app ID |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Analytics measurement ID |
+| `VITE_FUNCTIONS_BASE_URL` | Custom domain for callable HTTPS endpoints |
+| `VITE_RECAPTCHA_SITE_KEY` | reCAPTCHA v3 site key for App Check (debug fallback when missing) |
+| `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
+| `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
+| `VITE_APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
+| `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Functions (Firebase environment / secrets)
 
-## What technologies are used for this project?
+| Key | Purpose |
+| --- | --- |
+| `HOST_BASE_URL` | Primary hosting origin used in transactional links |
+| `USDA_FDC_API_KEY` | USDA API key (barcode/search) |
+| `OPENAI_API_KEY` | Coach chat + nutrition fallback completions |
+| `STRIPE_SECRET` & `STRIPE_WEBHOOK_SECRET` | Stripe payments (optional – functions fall back to 501 when absent) |
+| `APP_CHECK_ALLOWED_ORIGINS` | Optional strict App Check allowlist |
+| `APP_CHECK_ENFORCE_SOFT` | Defaults to `true` (soft enforcement) |
+| `VITE_AUTH_ALLOWED_HOSTS` / `AUTH_ALLOWED_HOSTS` | Shared allowlist for web + CORS |
+| `SENTRY_DSN` | Optional Sentry DSN for Cloud Functions |
 
-This project is built with:
+> **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, and deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+> **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
 
-## How can I deploy this project?
+## Developer tooling & scripts
 
-Simply open [Lovable](https://lovable.dev/projects/cf8140ba-edcc-4236-9166-fb030db04005) and click on Share -> Publish.
+| Script | Description |
+| --- | --- |
+| `npm run dev:web` | Vite development server (localhost:5173) |
+| `npm run dev:emulators` | Firebase emulators (Auth, Firestore, Functions) with import/export |
+| `npm run dev:e2e` | Build, launch `vite preview`, and execute the Playwright suite locally |
+| `npm run seed:dev` | Idempotent provisioning of `developer@adlrlabs.com` with developer/tester claims |
+| `npm run build` | Production build with Rollup manual chunks (firebase/auth split preserved) |
+| `npm run build:all` | Builds web + functions bundles |
+| `npm run lint` / `npm run typecheck` | ESLint + project TS builds |
+| `npm run rules:verify` | Compiles Firestore & Storage security rules |
 
-## Deploy with GitHub Actions
+## Testing matrix
 
-This repository includes automated deploy workflows (`deploy.yml` for push-to-main and `deploy-manual.yml` for manual runs). Before relying on them, work through this checklist:
+| Command | What it covers |
+| --- | --- |
+| `npm run test` | Vitest unit suite |
+| `npm run emulators:test` | Integration tests that hit local HTTPS functions via the emulator (`tests/integration/*.int.test.ts`) |
+| `npm run test:e2e` | Playwright end-to-end regression suite (auth, demo, calories, nutrition, barcode, workouts, coach chat, system health) |
+| `npm run smoke` | CLI smoke probe for `/system/health` and a static landing page |
 
-1. Create a GitHub repository secret named **FIREBASE_TOKEN** using `firebase login:ci`.
-2. Confirm the Firebase project ID is **mybodyscan-f3daf**.
-3. Confirm Firebase Hosting serves **mybodyscan-f3daf.web.app** and the custom domain **mybodyscanapp.com**.
-4. **TODO (Firebase Console → Authentication → Settings):** add authorized domains `mybodyscanapp.com`, `mybodyscan.lovable.app`, 
-   and `localhost`.
-5. Trigger the **Deploy (manual)** workflow once to seed Hosting + Functions, then rely on pushes to `main` for ongoing deploys.
+CI (`.github/workflows/ci.yml`) runs lint → typecheck → web/functions build → rules verification → unit + integration tests → Playwright against a preview server, uploading the HTML report on failure. A manual smoke workflow (`smoke.yml`) can verify deployed hosts after releases.
 
-## Can I connect a custom domain to my Lovable project?
+### End-to-end scenarios
 
-Yes, you can!
+Playwright specs live in `e2e/specs` and default to `https://mybodyscan-f3daf.web.app`. Override with `BASE_URL` when testing previews:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
-
-## Runbook (envs, demo, App Check, rewrites)
-
-- VITE_RECAPTCHA_V3_SITE_KEY: site key for Firebase App Check (reCAPTCHA v3). If unset in dev/demo, App Check runs in soft mode and does not block.
-- VITE_DEMO_MODE: set to `true` to always enable demo. Demo also auto-enables on localhost/127.0.0.1/lovable hosts or with `?demo=1`.
-- SPA rewrites: `firebase.json` places API rewrites (e.g., `/api/nutrition/*`) before the final catch-all to `/index.html` to avoid 404s on deep links.
-- Nutrition endpoints: frontend uses only `/api/nutrition/search` and `/api/nutrition/barcode`.
-- System smoke check: run `npm run smoke` (or `SMOKE_URL=https://<host>/system/health npm run smoke`) to hit the deployed `/system/health` endpoint, then sign in and visit `/system/check` to view the JSON payload and run the nutrition/coach/credits buttons.
-
-## Environment variables
-
-Create a `.env.local` for development based on `.env.example` and a `.env.production` for production builds. Required variables:
-
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-- `VITE_FIREBASE_MEASUREMENT_ID`
-- `VITE_FUNCTIONS_BASE_URL`
-- `VITE_RECAPTCHA_V3_SITE_KEY` *(App Check; soft in dev/demo if missing)*
-- `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
-- `VITE_RECAPTCHA_SITE_KEY` *(optional alias for App Check site key; falls back to debug provider when absent)*
-- `VITE_AUTH_ALLOWED_HOSTS` *(optional comma-delimited hostnames; defaults to mybodyscanapp.com, web.app, and localhost)*
-- `VITE_USDA_API_KEY` *(optional USDA FoodData Central API key; search falls back to OpenFoodFacts when missing)*
-- `VITE_APPLE_OAUTH_ENABLED` *(set to `true` to render Sign in with Apple once Firebase provider is configured)*
-- `VITE_SENTRY_DSN` *(optional; when present the client loads Sentry error and performance monitoring)*
-
-### Enable Sign in with Apple (Web)
-
-1. Firebase Console → **Auth** → **Apple** → Enable. Provide your Team ID, Key ID, Services ID, and upload the `.p8` key.
-2. Add authorized domains: `mybodyscan.app` and `mybodyscan-f3daf.web.app`.
-3. Copy the redirect handler URL(s) from Firebase (e.g., `https://<auth-domain>/__/auth/handler`) and add them to Apple Developer → **Identifiers** → your Services ID → **Return URLs**.
-4. Optional: place Apple's association file at `/.well-known/apple-developer-domain-association.txt` on Firebase Hosting (replace the placeholder committed in `public/.well-known/`).
-
-Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
-
-### Functions environment and secrets
-
-Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
-
-- `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
-- `STRIPE_SECRET` **and** `STRIPE_SECRET_KEY` *(both required for live payments; missing either causes Stripe HTTPS endpoints to respond with 501)*
-- `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
-- `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
-- `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
-- `ALLOWED_ORIGINS` *(optional; HTTPS CORS allowlist overrides, defaults include mybodyscanapp.com + localhost ports)*
-- `USDA_FDC_API_KEY` *(optional USDA key used for nutrition search/barcode; OpenFoodFacts is used when omitted)*
-
-## Secrets & Deploy
-
-### Build & deploy Firebase Functions (Node 20)
-
-1. `npm --prefix functions run build` – compiles TypeScript with Node 20 targets and verifies `functions/lib/index.js` exists.
-2. `firebase deploy --only functions --project <projectId>` – uses the generated `lib/index.js` entrypoint exported from `functions/src/index.ts`.
-
-The `functions/package.json` scripts keep the runtime on Node 20 and fail fast if the compiled bundle is missing, which prevents partial deploys.
-
-### Inspect and manage Firebase secrets
-
-- List all secrets: `firebase functions:secrets:list --project <projectId>`
-- Describe a secret: `firebase functions:secrets:describe HOST_BASE_URL --project <projectId>`
-- Set or update a secret: `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
-
-### Runtime behavior without optional secrets
-
-- `HOST_BASE_URL` is optional; HTTPS handlers fall back to each request's origin when it is not configured.
-- `APP_CHECK_ALLOWED_ORIGINS` may be empty. Keeping `APP_CHECK_ENFORCE_SOFT=true` allows soft enforcement so missing tokens log warnings instead of failing the request.
-- If `STRIPE_SECRET` and `STRIPE_SECRET_KEY` are absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
-
-### Example production secret values
-
-- `HOST_BASE_URL = https://mybodyscanapp.com`
-- `APP_CHECK_ALLOWED_ORIGINS = https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app`
-- `APP_CHECK_ENFORCE_SOFT = true`
-
-## Firebase Web config (Lovable without env vars)
-We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
-
-Authorized domains (Firebase Console → Auth → Settings):
-- localhost
-- 127.0.0.1
-- mybodyscan-f3daf.web.app
-- your Lovable preview domain (copy from the preview URL)
-- your custom domain(s)
-
-Notes:
-- The Storage bucket must be `mybodyscan-f3daf.appspot.com` (the canonical bucket), not `...firebasestorage.app` which is a download host.
-
-## Testing rules
-
-Run Firestore security rules tests using the emulator suite:
-
-```sh
-npm run test:rules
+```bash
+BASE_URL=http://127.0.0.1:4173 npm run test:e2e
 ```
 
-## Scan Processing
+Key flows include:
 
-### Option A: HTTP fallback (no Eventarc)
+- `auth.demo.spec.ts` – demo onboarding without crashes and developer ∞ credits badge
+- `auth.google.spec.ts` / `auth.apple.spec.ts` – popup stubs ensure the Today dashboard renders and profile menu shows the signed-in email
+- `calories.spec.ts` – verifies the Today dashboard exposes a computed calorie target and persists edits across reloads
+- `nutrition.search.spec.ts` – USDA vs OFF fallback behavior with normalized fields and empty states
+- `barcode.spec.ts` – barcode lookup success, not-found, and rate-limit UX
+- `workouts.spec.ts` – workout adjustments trigger backend updates and surface errors
+- `coach.chat.spec.ts` – mocked coach reply populates the conversation and errors surface retry toasts
+- `system.health.spec.ts` – `/system/health` returns `{ ok: true, projectId, timestamp }`
 
-Deploy `processQueuedScanHttp` and the client will call this HTTPS endpoint after each upload. No additional Google Cloud services are required.
+## Firebase emulators & integration tests
 
-### Option B: Firestore trigger via Eventarc
+1. `npm run dev:emulators` to start Auth, Firestore, and Functions locally (App Check debug tokens auto-enable).
+2. In another shell: `npm run emulators:test` to run the Vitest integration suite. Tests use the emulator’s `owner` token and automatically seed developer claims.
+3. Integration specs cover nutrition search, barcode lookup, workout adjustments, scan sessions, and coach chat responses via HTTP functions.
 
-When ready to switch back to a Firestore trigger, grant the necessary Eventarc roles and redeploy:
+## Observability & guardrails
 
-```sh
-scripts/setup-eventarc.sh
-firebase deploy --only functions:processQueuedScan
-```
+- **Request logging:** every HTTPS function is wrapped in JSON logging middleware emitting `{fn, uid, path, method, status, durationMs, code}` (sampled at 50%). Tokens/PII are redacted.
+- **Sentry:** the web app lazy-loads Sentry only when `VITE_SENTRY_DSN` is present, capturing React errors and unhandled rejections with release tags. Functions load `@sentry/node` when `SENTRY_DSN` is set.
+- **App Check:** `AppCheckProvider` initializes App Check before using Auth, Firestore, Functions, or Storage. Missing keys fall back to debug tokens so demo flows never break.
+- **Nutrition model:** USDA and OpenFoodFacts responses normalize into a single schema—UI never branches on the source.
+- **Credits:** `CreditsBadge` shows `∞` for developer accounts seeded via `scripts/test-seed.ts`; server functions still enforce claims.
 
-## Deployment
+## Operational tooling
 
-Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
+- `/ops` – developer-only console listing environment metadata, feature flags, USDA status, function health, and quick actions (seed demo, refresh claims, purge storage, ping `/system/health`).
+- `/system/health` – plain JSON `{ ok: true, projectId, timestamp, hostingUrl }` used by CI smoke tests and the ops console.
+- Structured logging + Sentry + Playwright reports provide full traceability during incidents.
 
-### Functions runtime
+## Deployment checklist
 
-- Requires **Node.js 20** for the Cloud Functions workspace (`functions/`).
-- Build locally before deploying with `npm --prefix functions run build`.
-- Deploy to Firebase with `firebase deploy --only functions,hosting`.
+1. Ensure all required secrets are set in Firebase (`firebase functions:secrets:set ...`).
+2. Run the full verification pipeline locally:
+   ```bash
+   npm run build
+   npm --prefix functions run build
+   npm run test
+   npm run emulators:test
+   npm run test:e2e
+   ```
+3. Create a PR. CI must be green (lint, typecheck, builds, integration, Playwright) before merging.
+4. Use Firebase Hosting previews or `npm run dev:e2e` for preflight verification.
+5. Trigger deployment via your preferred workflow (`firebase deploy`, GitHub Actions, or Lovable tooling). Follow with `npm run smoke` or the `Smoke Test` workflow.
 
-> **Functions deploy note:** the Functions pipeline installs and builds from the `functions/` workspace only. A root `npm install` or web build is **not** required to deploy backend changes. Run `npm --prefix functions ci && npm --prefix functions run build` locally before `firebase deploy --only functions` to mirror production. Generate a `functions/package-lock.json` once with `npm --prefix functions install --package-lock-only` if it is missing (required for `npm ci`).
+## Troubleshooting
 
-```sh
-firebase functions:secrets:set STRIPE_SECRET
-firebase functions:secrets:set STRIPE_SECRET_KEY
-firebase functions:secrets:set STRIPE_WEBHOOK
-firebase deploy --only functions,hosting
-```
+- **App Check errors:** confirm `VITE_RECAPTCHA_SITE_KEY` is configured. In development the debug provider activates automatically; use `/ops` → “Call /system/health” to confirm backend acceptance.
+- **CORS/auth issues:** update `VITE_AUTH_ALLOWED_HOSTS` (web) and `AUTH_ALLOWED_HOSTS` / `APP_CHECK_ALLOWED_ORIGINS` (functions). Both layers use the same source of truth.
+- **Popup blockers:** Google/Apple sign-in relies on popups. Allow popups for the host or use a password flow for testing.
+- **Nutrition fallbacks:** without USDA keys the UI automatically uses OpenFoodFacts (`primarySource: "OFF"`)—the Playwright suite asserts both code paths.
 
-If the web build ever encounters local integrity cache issues, use `npm run ci:clean` (clears the cache, reinstalls in the root
-app). This script is intended for web builds only and is decoupled from the Cloud Functions deploy flow.
-
-Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
-
-## Auth env setup (fix for `auth/api-key-not-valid`)
-1) Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
-2) In **Lovable → Project Settings → Environment**, add the same `VITE_FIREBASE_*` variables.
-3) Firebase Console → **Authentication → Settings → Authorized domains**: add
-   - localhost
-   - 127.0.0.1
-   - mybodyscan-f3daf.web.app
-   - your custom domain(s) (e.g., mybodyscan.app, www.mybodyscan.app)
-   - your Lovable preview domain
-4) Rebuild locally: `npm ci && npm run build && npm run preview`
-5) Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
-
-## Secrets & Deploy Quick Reference
-
-- List secrets: `firebase functions:secrets:list --project <projectId>`
-- Set secrets (one at a time):
-  - `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
-  - `firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project <projectId>`
-  - `firebase functions:secrets:set APP_CHECK_ENFORCE_SOFT --project <projectId>`
-  - `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`
-  - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
-  - Optional: `firebase functions:secrets:set STRIPE_SECRET_KEY --project <projectId>`
-- Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
-- Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)
+With the guardrails above, you can verify that authentication, demo mode, nutrition search/barcode, workouts, credits, and coach chat stay healthy across releases.
