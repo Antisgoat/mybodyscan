@@ -13,10 +13,10 @@ const normalizeBooleanEnv = (value: unknown, defaultValue = false): boolean => {
   return defaultValue;
 };
 
-export const APPLE_OAUTH_ENABLED = normalizeBooleanEnv(
-  getViteEnv("VITE_APPLE_OAUTH_ENABLED"),
-  false,
-);
+const rawAppleFlag =
+  getViteEnv("APPLE_OAUTH_ENABLED") ?? getViteEnv("VITE_APPLE_OAUTH_ENABLED");
+
+export const APPLE_OAUTH_ENABLED = normalizeBooleanEnv(rawAppleFlag, false);
 
 const rawAuthorizedHosts = getViteEnv("VITE_OAUTH_AUTHORIZED_HOSTS") ?? "";
 

@@ -5,7 +5,7 @@ This repository contains the production build for [mybodyscanapp.com](https://my
 ## Quick start
 
 ```bash
-# Install dependencies (Node 20 recommended)
+# Install dependencies (Node 20)
 npm ci
 
 # Launch the Vite development server
@@ -16,7 +16,15 @@ npm run dev:emulators
 
 # Seed the developer account (developer@adlrlabs.com)
 npm run seed:dev
+
+# Build the production bundle (+ writes /system/health)
+npm run build
+
+# Compile Cloud Functions
+npm --prefix functions run build
 ```
+
+Copy `.env.example` to `.env.local` when configuring Firebase keys locally.
 
 Visit `/ops` after signing in as `developer@adlrlabs.com` to view environment metadata, run health checks, refresh claims, or request demo seeding. The console is protected by custom claims on both the client and server.
 
@@ -39,8 +47,12 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_RECAPTCHA_SITE_KEY` | reCAPTCHA v3 site key for App Check (debug fallback when missing) |
 | `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
 | `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
-| `VITE_APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
+| `APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
 | `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
+
+### Firebase authorized domains
+
+Add every host in `VITE_AUTH_ALLOWED_HOSTS` (plus `localhost`) to **Firebase Console → Auth → Settings → Authorized domains**. The web app logs a warning when the current `location.host` is missing so you can spot misconfigurations before attempting OAuth.
 
 ### Functions (Firebase environment / secrets)
 
@@ -58,6 +70,14 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 > **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, and deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`.
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
+
+## Apple Sign-in enablement
+
+1. In **Firebase Console → Auth → Sign-in method**, enable the Apple provider and paste the Service ID from Apple Developer.
+2. In the Apple Developer portal, create a Service ID with return URLs for both `https://mybodyscanapp.com/__/auth/handler` and `https://mybodyscan-f3daf.web.app/__/auth/handler`.
+3. Generate a private key (Key ID + Team ID) and upload it to Firebase. Keep the `.p8` secret outside the repo.
+4. Deploy `public/.well-known/apple-developer-domain-association.txt` so Apple verifies the custom domains.
+5. Flip `APPLE_OAUTH_ENABLED=true` in `.env.local` (and hosting config) only after Firebase confirms the provider is fully configured—the button stays hidden otherwise.
 
 ## Developer tooling & scripts
 
@@ -100,7 +120,7 @@ Key flows include:
 - `barcode.spec.ts` – barcode lookup success, not-found, and rate-limit UX
 - `workouts.spec.ts` – workout adjustments trigger backend updates and surface errors
 - `coach.chat.spec.ts` – mocked coach reply populates the conversation and errors surface retry toasts
-- `system.health.spec.ts` – `/system/health` returns `{ ok: true, projectId, timestamp }`
+- `system.health.spec.ts` – `/system/health` returns `{ ok: true, appCheckSoft: true, ts }`
 
 ## Firebase emulators & integration tests
 
@@ -119,8 +139,18 @@ Key flows include:
 ## Operational tooling
 
 - `/ops` – developer-only console listing environment metadata, feature flags, USDA status, function health, and quick actions (seed demo, refresh claims, purge storage, ping `/system/health`).
-- `/system/health` – plain JSON `{ ok: true, projectId, timestamp, hostingUrl }` used by CI smoke tests and the ops console.
+- `/system/health` – static Hosting JSON `{ ok: true, appCheckSoft: true, ts: <iso> }` generated during `npm run build`.
 - Structured logging + Sentry + Playwright reports provide full traceability during incidents.
+
+## Sanity checklist (7 steps)
+
+1. `npm run build` – verifies the Vite bundle and writes `dist/system/health.json`.
+2. `npm --prefix functions run build` – ensures Cloud Functions compile with Node 20.
+3. `npm run smoke` (or `curl https://<host>/system/health`) – expect `{ ok: true, appCheckSoft: true, ts: ... }`.
+4. `npm run dev:web`, sign in as `developer@adlrlabs.com`, confirm the Credits badge renders `∞`.
+5. Trigger Google sign-in (when configured) or confirm the browser console shows no `VITE_AUTH_ALLOWED_HOSTS` warnings.
+6. Open `/ops` and confirm App Check status reads “soft” with a recent token timestamp.
+7. `npm run test` (optionally `npm run emulators:test`) – quick regression of the unit/integration suites.
 
 ## Deployment checklist
 

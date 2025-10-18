@@ -3,34 +3,56 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";
+import { initApp } from "./lib/firebase";
+import { ALLOWED_HOSTS } from "./lib/env";
 
-// Initialize Sentry first
-initSentry();
+function warnIfHostNotAllowListed() {
+  if (typeof window === "undefined") return;
+  const host = window.location.host.toLowerCase();
+  const hostWithoutPort = host.split(":")[0];
+  const allowed = ALLOWED_HOSTS.some((candidate) => {
+    const trimmed = candidate.trim().toLowerCase();
+    if (!trimmed) return false;
+    const candidateHost = trimmed.split(":")[0];
+    if (hostWithoutPort === candidateHost) return true;
+    return hostWithoutPort.endsWith(`.${candidateHost}`);
+  });
+  if (!allowed) {
+    console.warn(
+      `[auth] ${host} is not listed in VITE_AUTH_ALLOWED_HOSTS. Google sign-in may be blocked until it is added.`,
+    );
+  }
+}
 
-// Add performance marks
-addPerformanceMark('app-start');
+async function bootstrap() {
+  initSentry();
+  addPerformanceMark("app-start");
 
-killSW();
-warnIfDomainUnauthorized();
-void initAppCheck().catch((e) => console.warn("AppCheck init skipped:", e?.message || e));
+  killSW();
+  warnIfDomainUnauthorized();
+  warnIfHostNotAllowListed();
 
-// Mark Firebase init complete
-addPerformanceMark('firebase-init-complete');
+  try {
+    await initApp();
+  } catch (error) {
+    console.error("[firebase] initialization failed", error);
+  }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <AppErrorBoundary>
-      <App />
-    </AppErrorBoundary>
-  </StrictMode>
-);
+  addPerformanceMark("firebase-init-complete");
 
-// Mark first render complete
-addPerformanceMark('first-render-complete');
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
+    </StrictMode>,
+  );
 
-// Measure total app startup time
-measurePerformance('app-startup', 'app-start', 'first-render-complete');
+  addPerformanceMark("first-render-complete");
+  measurePerformance("app-startup", "app-start", "first-render-complete");
+}
+
+void bootstrap();

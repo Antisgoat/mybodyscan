@@ -32,16 +32,23 @@ export function withRequestLogging<Req extends Request = Request, Res extends Re
     let finished = false;
     let errorCode: string | undefined;
 
+    const response = res as Response & {
+      statusCode?: number;
+      on?: (event: string, listener: () => void) => void;
+    };
+    const requestPath = typeof (req as any).path === 'string' ? (req as any).path : req.url ?? '';
+
     const finish = (err?: unknown) => {
       if (!shouldLog || finished) return;
       finished = true;
       const durationMs = Date.now() - startedAt;
+      const statusCode = typeof response.statusCode === 'number' ? response.statusCode : 200;
       const meta: LogMetadata = {
         fn: (handler.name || 'handler').replace(/bound /, ''),
         uid: (req as any).auth?.uid || (req as any).user?.uid || null,
-        path: req.path || req.url,
+        path: requestPath,
         method: req.method,
-        status: res.statusCode,
+        status: statusCode,
         durationMs,
         code: errorCode,
       };
@@ -53,7 +60,7 @@ export function withRequestLogging<Req extends Request = Request, Res extends Re
       const entry = JSON.stringify(meta, (_key, value) => redact(value));
       if (err) {
         console.error(entry);
-      } else if (res.statusCode >= 500) {
+      } else if (statusCode >= 500) {
         console.error(entry);
       } else {
         console.log(entry);
@@ -68,8 +75,8 @@ export function withRequestLogging<Req extends Request = Request, Res extends Re
       return originalJson(body);
     }) as any;
 
-    res.on('finish', () => finish());
-    res.on('close', () => finish());
+    response.on?.('finish', () => finish());
+    response.on?.('close', () => finish());
 
     try {
       await handler(req, res);
@@ -77,9 +84,9 @@ export function withRequestLogging<Req extends Request = Request, Res extends Re
       errorCode = typeof error?.code === 'string' ? error.code : errorCode;
       void captureFunctionException(error, {
         fn: handler.name || 'handler',
-        path: req.path || req.url,
+        path: requestPath,
         method: req.method,
-        status: res.statusCode,
+        status: typeof response.statusCode === 'number' ? response.statusCode : 500,
         code: errorCode,
       });
       finish(error);
