@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { isDemo as isDemoAuth } from "@/lib/auth";
@@ -62,6 +62,36 @@ export function useCredits() {
       }
     );
     return () => unsub();
+  }, [offlineDemo]);
+
+  // React to claim changes without re-login (e.g., after getIdToken(true))
+  useEffect(() => {
+    if (offlineDemo) return;
+    const unsubscribe = onIdTokenChanged(
+      auth,
+      async (u) => {
+        if (!u) return;
+        try {
+          const token = await u.getIdTokenResult();
+          const whitelisted = isWhitelistedEmail(u.email ?? undefined);
+          const hasTester = whitelisted || token.claims.tester === true;
+          const hasUnlimited =
+            whitelisted || hasTester || token.claims.unlimitedCredits === true;
+          setTester(hasTester);
+          setUnlimited(hasUnlimited);
+          setDemo(Boolean(u.isAnonymous && isDemoAuth()));
+          if (hasUnlimited) {
+            setLoading(false);
+          }
+        } catch (e: any) {
+          // Ignore; transient
+        }
+      },
+      (err) => {
+        setError(err.message);
+      }
+    );
+    return () => unsubscribe();
   }, [offlineDemo]);
 
   useEffect(() => {

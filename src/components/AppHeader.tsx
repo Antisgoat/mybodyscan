@@ -13,15 +13,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuthUser, signOutAll } from "@/lib/auth";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, LogOut, User } from "lucide-react";
+import { Settings, LogOut, User, RefreshCw } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
+import { toast } from "@/components/ui/use-toast";
 
 export function AppHeader() {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isFounder, setIsFounder] = useState(false);
+  const [isDev, setIsDev] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -49,6 +54,55 @@ export function AppHeader() {
   const handleSignOut = async () => {
     await signOutAll();
     navigate("/auth");
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function evaluateDevClaim() {
+      try {
+        if (!user) {
+          if (!cancelled) setIsDev(false);
+          return;
+        }
+        const token = await user.getIdTokenResult();
+        const emailDev = (user.email || "").toLowerCase() === "developer@adlrlabs.com";
+        const claimDev = token.claims?.developer === true;
+        if (!cancelled) setIsDev(emailDev || claimDev);
+      } catch {
+        const emailDev = (user?.email || "").toLowerCase() === "developer@adlrlabs.com";
+        if (!cancelled) setIsDev(emailDev);
+      }
+    }
+    void evaluateDevClaim();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, user?.email]);
+
+  const handleRefreshClaims = async () => {
+    if (!user) return;
+    setRefreshing(true);
+    try {
+      await httpsCallable(functions, "refreshClaims")({});
+    } catch (err) {
+      // best-effort; proceed to force token refresh
+    }
+    try {
+      await user.getIdToken(true);
+      const token = await user.getIdTokenResult();
+      const emailDev = (user.email || "").toLowerCase() === "developer@adlrlabs.com";
+      const claimDev = token.claims?.developer === true;
+      const unlimited = token.claims?.unlimitedCredits === true || token.claims?.tester === true;
+      setIsDev(emailDev || claimDev);
+      toast({
+        title: "Claims refreshed",
+        description: `Role: ${emailDev || claimDev ? "dev" : "user"} · Credits: ${unlimited ? "∞" : "limited"}`,
+      });
+    } catch (err) {
+      toast({ title: "Refresh failed", description: "Could not refresh claims. Please try again." });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
@@ -90,6 +144,12 @@ export function AppHeader() {
                     <DropdownMenuSeparator />
                   </>
                 ) : null}
+                {isDev && (
+                  <DropdownMenuItem onClick={handleRefreshClaims} disabled={refreshing}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {refreshing ? "Refreshing…" : "Refresh credits"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
