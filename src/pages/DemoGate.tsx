@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { getAuthSafe, getFirestoreSafe, initFirebaseApp } from "@/lib/firebase";
 import { signInAnonymously } from "firebase/auth";
 import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
+import { ensureDemoUser, startDemo, formatAuthError, isDemoUser } from "@/lib/auth";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import { useAppCheckContext } from "@/components/AppCheckProvider";
 import { isAppCheckActive } from "@/appCheck";
 import { HAS_USDA } from "@/lib/env";
+import { getAppCheckToken } from "@/appCheck";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -24,6 +25,10 @@ export default function DemoGate() {
   const flagsLogged = useRef(false);
 
   useEffect(() => {
+    void initFirebaseApp();
+  }, []);
+
+  useEffect(() => {
     if (!isAppCheckReady || flagsLogged.current) return;
     const appCheckMode: "soft" | "disabled" = appCheckError || isAppCheckActive() ? "soft" : "disabled";
     console.info("demo_flags", { appCheck: appCheckMode, usda: HAS_USDA });
@@ -34,9 +39,24 @@ export default function DemoGate() {
     if (!isAppCheckReady) return;
     let cancelled = false;
     (async () => {
+      await initFirebaseApp();
+      const auth = await getAuthSafe();
       if (appCheckError && !softModeToastShown.current) {
         toast({ title: "App Check not configured; proceeding in soft mode" });
         softModeToastShown.current = true;
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const token = await getAppCheckToken(false);
+          if (token || attempt === 1) {
+            break;
+          }
+        } catch (tokenError) {
+          if (import.meta.env.DEV) {
+            console.warn("[demo] App Check token fetch failed (soft mode)", tokenError);
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
@@ -70,14 +90,20 @@ export default function DemoGate() {
 
         await ensureDemoUser();
 
+        const auth = await getAuthSafe();
         const user = auth.currentUser;
         if (!user) throw new Error("auth-missing-user");
 
+        const demoUser = isDemoUser(user);
+
         // Ensure demo content and enable demo mode; non-fatal on errors
-        try {
-          await ensureDemoData(db, user.uid);
-        } catch (err) {
-          console.warn("[demo] ensureDemoData failed (non-fatal)", err);
+        if (!demoUser) {
+          const dbInstance = await getFirestoreSafe();
+          try {
+            await ensureDemoData(dbInstance, user.uid);
+          } catch (err) {
+            console.warn("[demo] ensureDemoData failed (non-fatal)", err);
+          }
         }
         if (typeof window !== "undefined") {
           try {

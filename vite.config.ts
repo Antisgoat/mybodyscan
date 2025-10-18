@@ -2,6 +2,24 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { execSync } from "node:child_process";
+
+function computeBuildTag(): string {
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    const sha = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+    if (sha) {
+      return `${sha}-${date}`;
+    }
+  } catch {
+    // ignore
+  }
+  return `dev-${date}`;
+}
+
+const BUILD_TAG = computeBuildTag();
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -21,6 +39,9 @@ export default defineConfig(({ mode }) => ({
       "@sentry/react": path.resolve(__dirname, "./src/lib/sentry-fallback.ts"),
     },
     dedupe: ["react", "react-dom"],
+  },
+  define: {
+    __BUILD_TAG__: JSON.stringify(BUILD_TAG),
   },
   test: {
     exclude: [

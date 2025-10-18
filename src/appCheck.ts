@@ -1,5 +1,5 @@
 import { getToken, type AppCheck } from "firebase/app-check";
-import { getAppCheckInstance, initApp, isFirebaseAppCheckReady } from "@/lib/firebase";
+import { getAppCheckInstance, initFirebaseApp, isFirebaseAppCheckReady } from "@/lib/firebase";
 
 function isDevOrDemo() {
   if (import.meta.env.VITE_DEMO_MODE === "true") return true;
@@ -13,7 +13,7 @@ export async function ensureAppCheck(): Promise<AppCheck | null> {
     return null;
   }
 
-  await initApp();
+  await initFirebaseApp();
   const instance = getAppCheckInstance();
 
   if (!instance) {

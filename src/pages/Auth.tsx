@@ -19,7 +19,7 @@ import {
   finalizeAppleProfile,
   isHostAllowed,
 } from "@/lib/auth";
-import { auth, safeEmailSignIn } from "@/lib/firebase";
+import { getAuthSafe, safeEmailSignIn } from "@/lib/firebase";
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -31,7 +31,7 @@ import {
 } from "firebase/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
+import { OAUTH_AUTHORIZED_HOSTS } from "@/env";
 import { getAppCheckToken, isAppCheckActive } from "@/appCheck";
 import { Loader2 } from "lucide-react";
 
@@ -58,16 +58,25 @@ async function emitEmailSignInDiagnostics(mode: "signin" | "signup", error: any)
     }
   }
 
-  const summary = `Host: ${host} · App Check: ${appCheckActive ? (tokenPresent ? "token" : "no token") : "inactive"} · Code: ${code}`;
+  const appCheckSummary = appCheckActive ? (tokenPresent ? "present" : "missing") : "inactive";
 
   try {
     toast({
-      title: mode === "signin" ? "Sign-in diagnostics" : "Account creation diagnostics",
-      description: summary,
+      title: mode === "signin" ? "Email sign-in failed" : "Email sign-up failed",
+      description: `Code: ${code} · App Check token: ${appCheckSummary} · Host: ${host}`,
     });
   } catch (toastError) {
     if (import.meta.env.DEV) {
       console.warn("[auth] Unable to surface diagnostics toast", toastError);
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    const hostAllowed = isHostAllowed(window.location.hostname);
+    if (!hostAllowed) {
+      console.warn(
+        `[auth] ${window.location.host} is not in VITE_AUTH_ALLOWED_HOSTS. Firebase may block requests until this host is added.`,
+      );
     }
   }
 
@@ -96,7 +105,7 @@ function matchesAuthorizedHost(candidate: string, hostname: string): boolean {
 
 type ProviderSignInResult =
   | { status: "popup"; credential: UserCredential }
-  | { status: "redirect"; credential: null };
+  | { status: "redirect"; credential: null; reason?: string };
 
 async function waitForDomReady(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -119,6 +128,7 @@ async function signInWithProvider(
   }
 
   let retriedNetwork = false;
+  let fallbackCode: string | null = null;
   while (true) {
     try {
       const credential = await signInWithPopup(auth, provider);
@@ -134,12 +144,13 @@ async function signInWithProvider(
       if (!code || !POPUP_FALLBACK_CODES.has(code)) {
         throw error;
       }
+      fallbackCode = code;
       break;
     }
   }
 
   await signInWithRedirect(auth, provider);
-  return { status: "redirect", credential: null };
+  return { status: "redirect", credential: null, reason: fallbackCode ?? undefined };
 }
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -178,7 +189,7 @@ const Auth = () => {
     if (typeof window === "undefined") return true;
     return isHostAllowed(window.location.hostname);
   });
-  const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
+  const appleFeatureEnabled = import.meta.env.APPLE_OAUTH_ENABLED === "true";
   const { user } = useAuthUser();
   const authDisabled = !hostAuthorized;
 
@@ -234,7 +245,8 @@ const Auth = () => {
       return;
     }
     const formatted = formatAuthError(providerLabel, error);
-    toast({ title: `${providerLabel} sign-in failed`, description: formatted });
+    const details = code ? `${formatted} (${code})` : formatted;
+    toast({ title: `${providerLabel} sign-in failed`, description: details });
     setLastOauthError({ provider: providerLabel, code, message: formatted });
   };
 
@@ -245,20 +257,23 @@ const Auth = () => {
       };
     }
     let active = true;
-    resolveAuthRedirect(auth)
-      .then((result) => {
+    void (async () => {
+      try {
+        const authInstance = await getAuthSafe();
+        if (!active) return;
+        const result = await resolveAuthRedirect(authInstance);
         if (!active || !result) return;
         setLastOauthError(null);
         const target = consumeAuthRedirect();
         if (target) {
           navigate(target, { replace: true });
         }
-      })
-      .catch((err: any) => {
+      } catch (err: any) {
         if (!active) return;
         consumeAuthRedirect();
         handleOauthError("Sign-in", err);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -291,7 +306,7 @@ const Auth = () => {
           description: formatAuthError("Email", err),
         });
       }
-      void emitEmailSignInDiagnostics(mode, err);
+      await emitEmailSignInDiagnostics(mode, err);
     } finally {
       setLoading(false);
     }
@@ -311,7 +326,7 @@ const Auth = () => {
     setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
-      const authInstance = auth;
+      const authInstance = await getAuthSafe();
       const googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters?.({ prompt: "select_account" });
       const result = await signInWithProvider(authInstance, googleProvider, {
@@ -321,6 +336,16 @@ const Auth = () => {
         consumeAuthRedirect();
         setLastOauthError(null);
         navigate(from, { replace: true });
+      } else if (result.reason === "auth/popup-blocked") {
+        toast({
+          title: "Enable popups",
+          description: "Allow popups for this site to complete Google sign-in.",
+        });
+        setLastOauthError({
+          provider: "Google",
+          code: "auth/popup-blocked",
+          message: "Allow popups for this site to complete Google sign-in.",
+        });
       }
     } catch (err: any) {
       consumeAuthRedirect();
@@ -388,7 +413,7 @@ const Auth = () => {
     setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
-      const authInstance = auth;
+      const authInstance = await getAuthSafe();
       const appleProvider = new OAuthProvider("apple.com");
       appleProvider.addScope("email");
       appleProvider.addScope("name");

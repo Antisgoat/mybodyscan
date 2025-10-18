@@ -79,6 +79,17 @@ Add every host in `VITE_AUTH_ALLOWED_HOSTS` (plus `localhost`) to **Firebase Con
 4. Deploy `public/.well-known/apple-developer-domain-association.txt` so Apple verifies the custom domains.
 5. Flip `APPLE_OAUTH_ENABLED=true` in `.env.local` (and hosting config) only after Firebase confirms the provider is fully configured—the button stays hidden otherwise.
 
+## Demo mode
+
+The `/demo` route signs in anonymously after App Check is initialized, retries the token once if needed, and then launches the read-only experience. Writes that would normally hit Firestore/functions are gated behind `isDemoUser` so the hosted demo stays safe—expect seeded data only, with offline fallbacks if Firebase rejects the anonymous sign-in.
+
+## Sign-in troubleshooting
+
+- Visit `/__debug` (development) or append `?debug=1` while signed in as the developer to surface the diagnostics overlay. It shows App Check status, provider enablement, allow-listed hosts, and the active user/claims.
+- **Host not allow-listed:** Confirm the current hostname appears in `VITE_AUTH_ALLOWED_HOSTS` **and** Firebase Auth → Settings → Authorized domains. The overlay highlights the allow-list status, and email toasts log the current host when failures occur.
+- **App Check not ready:** Ensure reCAPTCHA keys are configured or use the debug provider in development. The overlay and email diagnostics show whether an App Check token was present when the error happened.
+- **Popup blocked:** Google sign-in surfaces “Allow popups for this site to complete Google sign-in.” Enable popups or rely on the redirect fallback to continue.
+
 ## Developer tooling & scripts
 
 | Script | Description |
@@ -169,9 +180,17 @@ Key flows include:
 
 ## Troubleshooting
 
+### Sign-in
+
+- Open `/__debug` (or append `?debug=1` in development) to view the diagnostics overlay. It shows host allow-list status, App Check state, provider enablement, the active user, and custom claims with the current build tag.
+- If email flows fail, check the toast for `code`, App Check token presence, and the current `location.host`. A host missing from `VITE_AUTH_ALLOWED_HOSTS` prints a console warning and blocks Google OAuth.
+- When App Check hasn’t issued a token yet, email sign-in retries once and the overlay reports `App Check token: missing`—wait a few seconds or configure the site key.
+- Google sign-in requires popups. If the browser blocks them you’ll see “Allow popups for this site to complete Google sign-in.”
+
+### Other issues
+
 - **App Check errors:** confirm `VITE_RECAPTCHA_SITE_KEY` is configured. In development the debug provider activates automatically; use `/ops` → “Call /system/health” to confirm backend acceptance.
 - **CORS/auth issues:** update `VITE_AUTH_ALLOWED_HOSTS` (web) and `AUTH_ALLOWED_HOSTS` / `APP_CHECK_ALLOWED_ORIGINS` (functions). Both layers use the same source of truth.
-- **Popup blockers:** Google/Apple sign-in relies on popups. Allow popups for the host or use a password flow for testing.
 - **Nutrition fallbacks:** without USDA keys the UI automatically uses OpenFoodFacts (`primarySource: "OFF"`)—the Playwright suite asserts both code paths.
 
 With the guardrails above, you can verify that authentication, demo mode, nutrition search/barcode, workouts, credits, and coach chat stay healthy across releases.

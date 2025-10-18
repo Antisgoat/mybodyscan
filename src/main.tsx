@@ -6,8 +6,9 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";
-import { initApp } from "./lib/firebase";
+import { initFirebaseApp, getAuthSafe } from "./lib/firebase";
 import { ALLOWED_HOSTS } from "./lib/env";
+import { loadFirebaseAuthClientConfig, isProviderEnabled } from "./lib/firebaseAuthConfig";
 
 function warnIfHostNotAllowListed() {
   if (typeof window === "undefined") return;
@@ -27,6 +28,39 @@ function warnIfHostNotAllowListed() {
   }
 }
 
+async function logGoogleDebugInfo() {
+  if (!import.meta.env.DEV) return;
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("debug") !== "1") return;
+
+  try {
+    const [config, authInstance] = await Promise.all([
+      loadFirebaseAuthClientConfig(),
+      getAuthSafe().catch(() => null),
+    ]);
+
+    const googleEnabled = isProviderEnabled("google.com", config);
+    const host = window.location.host;
+    const allowed = ALLOWED_HOSTS.some((candidate) => {
+      const trimmed = candidate.trim().toLowerCase();
+      if (!trimmed) return false;
+      const hostLower = host.toLowerCase();
+      if (hostLower === trimmed) return true;
+      return hostLower.endsWith(`.${trimmed}`);
+    });
+
+    console.info("[debug] google_provider", {
+      enabled: googleEnabled,
+      host,
+      hostAllowListed: allowed,
+      authInitialized: Boolean(authInstance),
+    });
+  } catch (error) {
+    console.warn("[debug] Unable to load Google provider diagnostics", error);
+  }
+}
+
 async function bootstrap() {
   initSentry();
   addPerformanceMark("app-start");
@@ -36,10 +70,12 @@ async function bootstrap() {
   warnIfHostNotAllowListed();
 
   try {
-    await initApp();
+    await initFirebaseApp();
   } catch (error) {
     console.error("[firebase] initialization failed", error);
   }
+
+  void logGoogleDebugInfo();
 
   addPerformanceMark("firebase-init-complete");
 
