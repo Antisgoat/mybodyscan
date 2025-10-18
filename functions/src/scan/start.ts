@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
-import { getFirestore, getStorage } from "../firebase.js";
+import { getFirestore, getStorage, Timestamp } from "../firebase.js";
 import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { withRequestLogging } from "../middleware/logging.js";
 import { isStaff } from "../claims.js";
@@ -9,6 +9,7 @@ import { isStaff } from "../claims.js";
 const db = getFirestore();
 const storage = getStorage();
 const UPLOAD_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
+const IDEMPOTENCY_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
 const POSES = ["front", "back", "left", "right"] as const;
 
 type Pose = (typeof POSES)[number];
@@ -87,8 +88,44 @@ async function handleStart(req: Request, res: any) {
     return;
   }
 
-  const scanId = randomUUID();
-  const expiresAt = new Date(Date.now() + UPLOAD_EXPIRATION_MS);
+  // Idempotent session: reuse recent scanId for the same user within a short window
+  const sessionRef = db.doc(`users/${uid}/private/scanSession`);
+  const now = Timestamp.now();
+  const nowMs = Date.now();
+  let scanId = randomUUID();
+  let expiresAt = new Date(nowMs + UPLOAD_EXPIRATION_MS);
+
+  try {
+    await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+      const snap = (await tx.get(sessionRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      const existing = snap.exists ? (snap.data() as any) : null;
+      const createdAt: Timestamp | null = existing?.createdAt instanceof Timestamp ? existing.createdAt : null;
+      const withinWindow = createdAt ? now.toMillis() - createdAt.toMillis() <= IDEMPOTENCY_WINDOW_MS : false;
+      if (existing && typeof existing.scanId === "string" && withinWindow) {
+        scanId = existing.scanId as string;
+      } else {
+        scanId = randomUUID();
+      }
+      const nextExpires = Timestamp.fromMillis(nowMs + UPLOAD_EXPIRATION_MS);
+      tx.set(
+        sessionRef,
+        {
+          scanId,
+          createdAt: withinWindow && createdAt ? createdAt : now,
+          expiresAt: nextExpires,
+          status: "open",
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      expiresAt = new Date(nextExpires.toMillis());
+    });
+  } catch (err) {
+    console.warn("scan_start_session_tx_error", { uid, message: (err as any)?.message });
+    // Fallback to a fresh session if transaction fails
+    scanId = randomUUID();
+    expiresAt = new Date(nowMs + UPLOAD_EXPIRATION_MS);
+  }
   const uploadUrls: Record<Pose, string> = {
     front: "",
     back: "",
