@@ -45,7 +45,8 @@
     "verify:local": "npm run build && npm --prefix functions run build",
     "rules:verify": "npm run test --prefix tests/rules",
     "dev:check": "vite --open /system/check",
-    "smoke": "node scripts/smoke-check.mjs"
+    "smoke": "node scripts/smoke-check.mjs",
+    "sanity": "node tools/sanity-check.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",
