@@ -20,56 +20,32 @@ function redact(value: unknown): unknown {
   return value;
 }
 
-export function withRequestLogging<Req extends Request = Request, Res extends Response = Response>(
-  handler: (req: Req, res: Res) => Promise<void> | void,
+export function withRequestLogging(
+  handler: (req: Request, res: Response) => Promise<void> | void,
   options: { sampleRate?: number } = {},
 ) {
   const sampleRate = typeof options.sampleRate === 'number' ? options.sampleRate : 1;
 
-  return async (req: Req, res: Res) => {
+  return async (req: Request, res: Response) => {
     const shouldLog = Math.random() < sampleRate;
     const startedAt = Date.now();
-    let finished = false;
     let errorCode: string | undefined;
+    let responseStatus = 200;
 
-    const finish = (err?: unknown) => {
-      if (!shouldLog || finished) return;
-      finished = true;
-      const durationMs = Date.now() - startedAt;
-      const meta: LogMetadata = {
-        fn: (handler.name || 'handler').replace(/bound /, ''),
-        uid: (req as any).auth?.uid || (req as any).user?.uid || null,
-        path: req.path || req.url,
-        method: req.method,
-        status: res.statusCode,
-        durationMs,
-        code: errorCode,
-      };
-      if (err instanceof Error) {
-        meta.error = err.message;
-      } else if (typeof err === 'string') {
-        meta.error = err;
-      }
-      const entry = JSON.stringify(meta, (_key, value) => redact(value));
-      if (err) {
-        console.error(entry);
-      } else if (res.statusCode >= 500) {
-        console.error(entry);
-      } else {
-        console.log(entry);
-      }
-    };
+    const originalStatus = res.status.bind(res);
+    res.status = ((code: number) => {
+      responseStatus = code;
+      return originalStatus(code);
+    }) as any;
 
     const originalJson = res.json.bind(res);
     res.json = ((body: unknown) => {
-      if ((body as any)?.code && typeof (body as any).code === 'string') {
-        errorCode = (body as any).code;
+      const maybeCode = (body as any)?.code;
+      if (typeof maybeCode === 'string') {
+        errorCode = maybeCode;
       }
-      return originalJson(body);
+      return originalJson(body as any);
     }) as any;
-
-    res.on('finish', () => finish());
-    res.on('close', () => finish());
 
     try {
       await handler(req, res);
@@ -77,13 +53,32 @@ export function withRequestLogging<Req extends Request = Request, Res extends Re
       errorCode = typeof error?.code === 'string' ? error.code : errorCode;
       void captureFunctionException(error, {
         fn: handler.name || 'handler',
-        path: req.path || req.url,
+        path: (req as any).path ?? req.url ?? '',
         method: req.method,
-        status: res.statusCode,
+        status: responseStatus,
         code: errorCode,
       });
-      finish(error);
+      // Re-throw after logging in finally
       throw error;
+    } finally {
+      if (shouldLog) {
+        const durationMs = Date.now() - startedAt;
+        const meta: LogMetadata = {
+          fn: (handler.name || 'handler').replace(/bound /, ''),
+          uid: (req as any).auth?.uid || (req as any).user?.uid || null,
+          path: (req as any).path ?? req.url ?? '',
+          method: req.method,
+          status: responseStatus,
+          durationMs,
+          code: errorCode,
+        };
+        const entry = JSON.stringify(meta, (_key, value) => redact(value));
+        if (responseStatus >= 500) {
+          console.error(entry);
+        } else {
+          console.log(entry);
+        }
+      }
     }
   };
 }

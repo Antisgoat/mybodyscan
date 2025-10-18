@@ -1,5 +1,5 @@
 import { onRequest as onRequestV2 } from "firebase-functions/v2/https";
-import { getEnv, getHostBaseUrl } from "./lib/env.js";
+import { getEnv, getHostBaseUrl, getEnvBool } from "./lib/env.js";
 import { withCors } from "./middleware/cors.js";
 import { withRequestLogging } from "./middleware/logging.js";
 
@@ -33,6 +33,8 @@ export const systemHealth = onRequestV2(
         ok: true,
         projectId,
         timestamp: new Date().toISOString(),
+        ts: Date.now(),
+        appCheckSoft: getEnvBool("APP_CHECK_ENFORCE_SOFT", true),
         hostingUrl,
       });
     }),

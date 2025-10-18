@@ -5,7 +5,7 @@ This repository contains the production build for [mybodyscanapp.com](https://my
 ## Quick start
 
 ```bash
-# Install dependencies (Node 20 recommended)
+# Install dependencies (Node 20 required)
 npm ci
 
 # Launch the Vite development server
@@ -38,7 +38,7 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_FUNCTIONS_BASE_URL` | Custom domain for callable HTTPS endpoints |
 | `VITE_RECAPTCHA_SITE_KEY` | reCAPTCHA v3 site key for App Check (debug fallback when missing) |
 | `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
-| `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
+| `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key (UI gracefully falls back OFF when absent) |
 | `VITE_APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
 | `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
 
@@ -55,7 +55,7 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_AUTH_ALLOWED_HOSTS` / `AUTH_ALLOWED_HOSTS` | Shared allowlist for web + CORS |
 | `SENTRY_DSN` | Optional Sentry DSN for Cloud Functions |
 
-> **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, and deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`.
+> **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, deploy the domain association file at `public/.well-known/apple-developer-domain-association.txt`, then set `VITE_APPLE_OAUTH_ENABLED=true` to reveal the button.
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
 
@@ -101,6 +101,14 @@ Key flows include:
 - `workouts.spec.ts` – workout adjustments trigger backend updates and surface errors
 - `coach.chat.spec.ts` – mocked coach reply populates the conversation and errors surface retry toasts
 - `system.health.spec.ts` – `/system/health` returns `{ ok: true, projectId, timestamp }`
+
+## Sanity checklist before merge
+
+- Node 20 is used locally and in CI
+- `npm run build` and `npm --prefix functions run build` pass
+- `/system/health` returns OK JSON
+- Email sign-in completes without network errors; Google sign-in works on authorized hosts
+- Apple button is hidden unless `VITE_APPLE_OAUTH_ENABLED=true` and provider configured
 
 ## Firebase emulators & integration tests
 

@@ -172,6 +172,26 @@ export async function safeEmailSignIn(email: string, password: string) {
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (err: any) {
+    try {
+      // lightweight diagnostics to aid troubleshooting without blocking UX
+      const host = typeof window !== 'undefined' ? window.location.host : '';
+      const tokenMaybe = await (async () => {
+        try {
+          const ac = getAppCheckInstance();
+          if (!ac) return null;
+          const { getToken } = await import('firebase/app-check');
+          const t = await getToken(ac);
+          return t?.token ? 'present' : 'absent';
+        } catch {
+          return 'unavailable';
+        }
+      })();
+      console.warn('[auth] sign-in failed', {
+        code: String(err?.code || ''),
+        host,
+        appCheckToken: tokenMaybe,
+      });
+    } catch {}
     if (err?.code === "auth/network-request-failed") {
       await new Promise((r) => setTimeout(r, 1000));
       return await signInWithEmailAndPassword(auth, email, password);

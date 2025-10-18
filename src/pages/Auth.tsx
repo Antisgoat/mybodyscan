@@ -265,6 +265,15 @@ const Auth = () => {
       });
       return;
     }
+    // Soft diagnostics: surface allowed host mismatch as a warning to help troubleshoot
+    try {
+      const host = typeof window !== 'undefined' ? window.location.host : '';
+      const allowed = (import.meta.env.VITE_AUTH_ALLOWED_HOSTS || '').toString();
+      if (host && allowed && !allowed.split(',').some((h: string) => h.trim() && host.endsWith(h.trim()))) {
+        console.warn('[auth] Host not listed in VITE_AUTH_ALLOWED_HOSTS', { host, allowed });
+        toast({ title: 'Heads up', description: 'This host may not be in the allowed list for OAuth.' });
+      }
+    } catch {}
     setLoading(true);
     setProviderLoading("google");
     setLastOauthError(null);
