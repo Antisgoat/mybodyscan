@@ -7,6 +7,7 @@ export { nutritionBarcode } from "./nutritionBarcode.js";
 export { coachChat } from "./coachChat.js";
 export { startScanSession } from "./scan/beginPaidScan.js";
 export { submitScan } from "./scan/submit.js";
+export { getScanStatus } from "./scan/status.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { adjustWorkout } from "./workouts.js";

@@ -19,7 +19,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
-import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
+import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages, pollScanStatus, ScanStatusResponse } from "@/lib/liveScan";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
@@ -36,7 +36,7 @@ const POSES: Array<{ key: PoseKey; label: string; helper: string }> = [
 type FileMap = Record<PoseKey, File | null>;
 type PreviewMap = Record<PoseKey, string>;
 
-type Stage = "idle" | "starting" | "uploading" | "analyzing" | "complete";
+type Stage = "idle" | "starting" | "uploading" | "analyzing" | "processing" | "complete" | "failed";
 
 function emptyFileMap(): FileMap {
   return { front: null, back: null, left: null, right: null };
@@ -75,6 +75,7 @@ export default function Scan() {
   const [progressText, setProgressText] = useState<string>("");
   const [uploadIndex, setUploadIndex] = useState<number>(0);
   const [result, setResult] = useState<ScanResultResponse | null>(null);
+  const [currentScanId, setCurrentScanId] = useState<string | null>(null);
   const [weight, setWeight] = useState<string>("");
   const [height, setHeight] = useState<string>("");
   const [age, setAge] = useState<string>("");
@@ -156,6 +157,7 @@ export default function Scan() {
     setStage("idle");
     setProgressText("");
     setUploadIndex(0);
+    setCurrentScanId(null);
   };
 
   const handleAnalyze = async () => {
@@ -213,6 +215,7 @@ export default function Scan() {
     try {
       const session = await startLiveScan();
       payload.scanId = session.scanId;
+      setCurrentScanId(session.scanId);
       setStage("uploading");
       await uploadScanImages(session.uploadUrls, fileMap, ({ pose, index, total }) => {
         setUploadIndex(index + 1);
@@ -221,7 +224,24 @@ export default function Scan() {
       });
       setStage("analyzing");
       setProgressText("Analyzing photos with OpenAI Vision...");
-      const response = await submitLiveScan(payload);
+      
+      // Submit scan and start polling for status
+      await submitLiveScan(payload);
+      setStage("processing");
+      setProgressText("Processing your scan...");
+      
+      const response = await pollScanStatus(
+        session.scanId,
+        (status: ScanStatusResponse) => {
+          if (status.status === "processing") {
+            setProgressText("Processing your scan...");
+          } else if (status.status === "failed") {
+            setStage("failed");
+            setProgressText("Scan processing failed");
+          }
+        }
+      );
+      
       setStage("complete");
       setProgressText("Estimate ready");
       setResult(response);
@@ -401,9 +421,26 @@ export default function Scan() {
                 {stage === "uploading" && (
                   <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>
                 )}
+                {stage === "processing" && (
+                  <p className="text-xs text-muted-foreground">This may take up to 2 minutes...</p>
+                )}
               </div>
             </CardContent>
           </Card>
+          )}
+
+          {stage === "failed" && (
+            <Card className="border-destructive/40">
+              <CardContent className="flex items-start gap-3 py-4">
+                <div className="h-5 w-5 rounded-full bg-destructive/20 flex items-center justify-center">
+                  <span className="text-destructive text-xs">!</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-destructive">Scan processing failed</p>
+                  <p className="text-xs text-muted-foreground">Please try again or contact support if the issue persists.</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {result && (
@@ -451,6 +488,18 @@ export default function Scan() {
             <div className="text-xs text-center text-muted-foreground">
               Credits: {creditsLoading ? "…" : credits}
             </div>
+            {!creditsLoading && credits === 0 && (
+              <div className="text-center">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate("/plans")}
+                  className="text-xs"
+                >
+                  Buy more credits
+                </Button>
+              </div>
+            )}
             {initializing && (
               <p className="text-xs text-center text-muted-foreground">Secure services are starting up—tap Analyze once this message disappears.</p>
             )}
