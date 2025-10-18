@@ -145,3 +145,37 @@ Key flows include:
 - **Nutrition fallbacks:** without USDA keys the UI automatically uses OpenFoodFacts (`primarySource: "OFF"`)—the Playwright suite asserts both code paths.
 
 With the guardrails above, you can verify that authentication, demo mode, nutrition search/barcode, workouts, credits, and coach chat stay healthy across releases.
+
+### Enable Apple in Firebase Auth
+
+Follow these steps to enable Sign in with Apple for the web app without storing secrets in code. All secrets live in Firebase Console.
+
+1. Apple Developer – Create identifiers and key
+   - Create a Services ID (Identifier) for web sign-in (e.g., `com.mybodyscan.web`).
+   - Under that Services ID, add Authorized Redirect/Return URLs for Firebase:
+     - `https://mybodyscanapp.com/__/auth/handler` (custom domain)
+     - `https://mybodyscan-f3daf.web.app/__/auth/handler` (Firebase Hosting)
+     - Optionally: `https://mybodyscan-f3daf.firebaseapp.com/__/auth/handler`
+   - Note your Team ID (found in Membership details).
+   - Create a Sign in with Apple key, note its Key ID, and download the private key `.p8` file.
+
+2. Firebase Console – Configure the Apple provider
+   - Go to Authentication → Sign-in method → Apple.
+   - Enable Apple and enter:
+     - Services ID
+     - Team ID
+     - Key ID
+   - Upload the downloaded `.p8` private key file and Save.
+   - In Authentication → Settings → Authorized domains, ensure both `mybodyscanapp.com` and `mybodyscan-f3daf.web.app` are listed (plus any preview/custom domains you use).
+
+3. Domain association file
+   - This repo ships `public/.well-known/apple-developer-domain-association.txt`. Ensure it remains deployed with Hosting. No other web code changes are required for Apple.
+
+4. Web app feature flag
+   - Set `VITE_APPLE_OAUTH_ENABLED=true` in `.env.local` (or your Hosting env) to render the Apple button.
+   - When the flag is `false` (default), the Apple button stays hidden. When `true` and Firebase Apple is configured, the sign-in flow completes and creates the user.
+
+5. Security and configuration notes
+   - Do not commit Apple secrets or IDs to the codebase. Keep the Services ID, Key ID, Team ID, and private key in Firebase Console only.
+   - Ensure your origins (custom domain + `web.app`) are listed in both Apple Services ID redirect URLs and Firebase Authorized domains.
+
