@@ -20,14 +20,21 @@ async function loadSentryModule(): Promise<SentryModule | null> {
 }
 
 /**
- * Initialize Sentry if DSN is provided
- * This is a minimal setup that only activates when VITE_SENTRY_DSN is set
+ * Initialize Sentry if DSN is provided and mode is not development
+ * This is a minimal setup that only activates when VITE_SENTRY_DSN is set and mode !== 'development'
  */
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
+  const mode = import.meta.env.MODE;
 
+  // Don't initialize Sentry in development mode by default
   if (!dsn) {
     console.log('Sentry disabled - no DSN provided');
+    return;
+  }
+
+  if (mode === 'development') {
+    console.log('Sentry disabled - development mode');
     return;
   }
 
@@ -44,11 +51,16 @@ export function initSentry() {
         import.meta.env.VITE_COMMIT_SHA ||
         undefined;
 
+      // Determine environment based on mode
+      const environment = mode === 'production' ? 'production' : 
+                         mode === 'preview' ? 'preview' : 
+                         'development';
+
       Sentry.init({
         dsn,
         tracesSampleRate: 0.1,
         sampleRate: 1.0,
-        environment: import.meta.env.MODE,
+        environment,
         release,
         beforeSend(event) {
           if (import.meta.env.PROD && event.exception) {
@@ -68,9 +80,49 @@ export function initSentry() {
         });
       }
 
-      console.log('Sentry initialized successfully');
+      console.log(`Sentry initialized successfully (${environment})`);
     } catch (error) {
       console.error('Failed to initialize Sentry:', error);
+    }
+  });
+}
+
+/**
+ * Set user context for Sentry
+ */
+export function setUserContext(user: { uid: string; email?: string; displayName?: string } | null) {
+  if (!import.meta.env.VITE_SENTRY_DSN || import.meta.env.MODE === 'development') {
+    return;
+  }
+
+  void loadSentryModule().then((Sentry) => {
+    if (!Sentry) return;
+
+    if (user) {
+      Sentry.setUser({
+        id: user.uid,
+        email: user.email,
+        username: user.displayName,
+      });
+    } else {
+      Sentry.setUser(null);
+    }
+  });
+}
+
+/**
+ * Set build tag (commit SHA) for Sentry
+ */
+export function setBuildTag(commitSha?: string) {
+  if (!import.meta.env.VITE_SENTRY_DSN || import.meta.env.MODE === 'development') {
+    return;
+  }
+
+  void loadSentryModule().then((Sentry) => {
+    if (!Sentry) return;
+
+    if (commitSha) {
+      Sentry.setTag('build', commitSha);
     }
   });
 }
@@ -79,7 +131,7 @@ export function initSentry() {
  * Report error to Sentry if available
  */
 export function reportError(error: Error, context?: Record<string, any>) {
-  if (import.meta.env.VITE_SENTRY_DSN) {
+  if (import.meta.env.VITE_SENTRY_DSN && import.meta.env.MODE !== 'development') {
     if (sentryModule) {
       sentryModule.captureException(error, {
         tags: context,

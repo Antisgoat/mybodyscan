@@ -79,7 +79,7 @@ export default function SystemCheck() {
     try {
       // Presence of SDK provider is not proof of console enablement, but a useful hint.
       // It should not throw in modern SDKs.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const provider = new OAuthProvider("apple.com");
       setSdkProviderConstructible(true);
     } catch {
