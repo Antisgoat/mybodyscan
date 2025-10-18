@@ -85,6 +85,7 @@ import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import Ops from "./pages/Ops";
+import DebugOverlay from "./routes/__debug";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -148,6 +149,7 @@ const App = () => {
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
             <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
+            <Route path="/__debug" element={<DebugOverlay />} />
             {/* Auth */}
             <Route path="/auth" element={
               <Suspense fallback={<PageSkeleton />}>

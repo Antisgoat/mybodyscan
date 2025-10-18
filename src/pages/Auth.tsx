@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +19,12 @@ import {
   finalizeAppleProfile,
   isHostAllowed,
 } from "@/lib/auth";
-import { auth, safeEmailSignIn } from "@/lib/firebase";
+import { safeEmailSignIn } from "@/lib/firebase";
+import { getAuthSafe } from "@/lib/appInit";
 import {
   signInWithPopup,
   signInWithRedirect,
+  signInAnonymously,
   type Auth as FirebaseAuth,
   type AuthProvider,
   type UserCredential,
@@ -33,6 +35,8 @@ import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
 import { getAppCheckToken, isAppCheckActive } from "@/appCheck";
+import { persistDemoFlags } from "@/lib/demoFlag";
+import { getFirebaseConfigMissingEnvKeys } from "@/config/firebaseConfig";
 import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([
@@ -98,12 +102,43 @@ type ProviderSignInResult =
   | { status: "popup"; credential: UserCredential }
   | { status: "redirect"; credential: null };
 
+type ConfigErrorState = {
+  code: string;
+  host: string;
+  missingEnvKeys: string[];
+  message: string;
+};
+
 async function waitForDomReady(): Promise<void> {
   if (typeof window === "undefined") return;
   if (document.readyState === "complete") return;
   await new Promise<void>((resolve) => {
     window.addEventListener("load", () => resolve(), { once: true });
   });
+}
+
+function extractMissingEnvKeys(error: unknown): string[] {
+  const fromError = Array.isArray((error as any)?.missingEnvKeys)
+    ? (error as any).missingEnvKeys
+    : null;
+  const candidates = Array.isArray(fromError) && fromError.length > 0 ? fromError : (() => {
+    try {
+      return getFirebaseConfigMissingEnvKeys();
+    } catch (metaError) {
+      if (import.meta.env.DEV) {
+        console.warn("[auth] Unable to read Firebase config meta", metaError);
+      }
+      return [] as string[];
+    }
+  })();
+
+  return Array.from(
+    new Set(
+      (candidates as unknown[])
+        .map((value) => (typeof value === "string" ? value : ""))
+        .filter((value) => value.length > 0),
+    ),
+  );
 }
 
 async function signInWithProvider(
@@ -165,6 +200,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
@@ -174,6 +210,7 @@ const Auth = () => {
     | null
   >(null);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [configError, setConfigError] = useState<ConfigErrorState | null>(null);
   const [hostAuthorized, setHostAuthorized] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return isHostAllowed(window.location.hostname);
@@ -181,6 +218,21 @@ const Auth = () => {
   const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
   const authDisabled = !hostAuthorized;
+
+  const handleConfigFailure = useCallback((error: any) => {
+    const code = typeof error?.code === "string" ? error.code : "";
+    if (code !== "auth/api-key-not-valid" && code !== "config/missing-firebase-config") {
+      return null;
+    }
+    const host = typeof window !== "undefined" ? window.location.host : "unknown";
+    const missingEnvKeys = extractMissingEnvKeys(error);
+    const message = `Firebase configuration missing or invalid for this host (${host}).`;
+    setConfigError((prev) => {
+      const combinedMissing = Array.from(new Set([...(prev?.missingEnvKeys ?? []), ...missingEnvKeys]));
+      return { code, host, missingEnvKeys: combinedMissing, message };
+    });
+    return { code, message, missingEnvKeys };
+  }, [setConfigError]);
 
   useEffect(() => {
     if (!user) return;
@@ -223,20 +275,39 @@ const Auth = () => {
     };
   }, []);
 
-  const handleOauthError = (providerLabel: string, error: any) => {
-    const code = typeof error?.code === "string" ? error.code : undefined;
-    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
-    if (code === "auth/unauthorized-domain") {
-      const guidanceHost = hostname || "this domain";
-      const description = `Add ${guidanceHost} to Firebase > Auth > Settings > Authorized domains, then retry. (${code})`;
-      toast({ title: "Authorize this domain", description });
-      setLastOauthError({ provider: providerLabel, code, message: description });
-      return;
-    }
-    const formatted = formatAuthError(providerLabel, error);
-    toast({ title: `${providerLabel} sign-in failed`, description: formatted });
-    setLastOauthError({ provider: providerLabel, code, message: formatted });
-  };
+  const handleOauthError = useCallback(
+    (providerLabel: string, error: any) => {
+      const configIssue = handleConfigFailure(error);
+      if (configIssue) {
+        const missingList = configIssue.missingEnvKeys.length
+          ? ` Missing env keys: ${configIssue.missingEnvKeys.join(", ")}.`
+          : "";
+        const description = `${configIssue.message}${missingList} See README → Firebase Web config.`;
+        toast({ title: "Firebase config missing", description });
+        setLastOauthError({
+          provider: providerLabel,
+          code: configIssue.code,
+          message: `${configIssue.message}${missingList}`.trim(),
+        });
+        return;
+      }
+
+      const code = typeof error?.code === "string" ? error.code : undefined;
+      const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+      if (code === "auth/unauthorized-domain") {
+        const guidanceHost = hostname || "this domain";
+        const description = `Add ${guidanceHost} to Firebase > Auth > Settings > Authorized domains, then retry. (${code})`;
+        toast({ title: "Authorize this domain", description });
+        setLastOauthError({ provider: providerLabel, code, message: description });
+        return;
+      }
+
+      const formatted = formatAuthError(providerLabel, error);
+      toast({ title: `${providerLabel} sign-in failed`, description: formatted });
+      setLastOauthError({ provider: providerLabel, code, message: formatted });
+    },
+    [handleConfigFailure],
+  );
 
   useEffect(() => {
     if (authDisabled) {
@@ -245,27 +316,37 @@ const Auth = () => {
       };
     }
     let active = true;
-    resolveAuthRedirect(auth)
-      .then((result) => {
+    (async () => {
+      try {
+        const authInstance = await getAuthSafe();
+        const result = await resolveAuthRedirect(authInstance);
         if (!active || !result) return;
         setLastOauthError(null);
         const target = consumeAuthRedirect();
         if (target) {
           navigate(target, { replace: true });
         }
-      })
-      .catch((err: any) => {
+      } catch (err: any) {
         if (!active) return;
         consumeAuthRedirect();
+        const configIssue = handleConfigFailure(err);
+        if (configIssue) {
+          setLastOauthError({ provider: "Sign-in", code: configIssue.code, message: configIssue.message });
+          return;
+        }
         handleOauthError("Sign-in", err);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
-  }, [navigate, authDisabled]);
+  }, [navigate, authDisabled, handleOauthError, handleConfigFailure]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (demoLoading) {
+      return;
+    }
     if (authDisabled) {
       setFormError("Sign-in is disabled on this domain.");
       return;
@@ -280,6 +361,22 @@ const Auth = () => {
       }
       navigate(from, { replace: true });
     } catch (err: any) {
+      const configIssue = handleConfigFailure(err);
+      if (configIssue) {
+        const missingList = configIssue.missingEnvKeys.length
+          ? ` Missing env keys: ${configIssue.missingEnvKeys.join(", ")}.`
+          : "";
+        const description = `${configIssue.message}${missingList} See README → Firebase Web config.`;
+        setFormError(`${configIssue.message}${missingList}`.trim());
+        toast({ title: "Firebase config missing", description });
+        setLastOauthError({
+          provider: mode === "signin" ? "Email" : "Email signup",
+          code: configIssue.code,
+          message: `${configIssue.message}${missingList}`.trim(),
+        });
+        void emitEmailSignInDiagnostics(mode, err);
+        return;
+      }
       const code = err?.code ?? "unknown";
       const message = err?.message ?? "Unknown error";
       const prefix = mode === "signin" ? "Sign-in failed" : "Create account failed";
@@ -298,7 +395,7 @@ const Auth = () => {
   };
 
   const onGoogle = async () => {
-    if (loading) return;
+    if (loading || demoLoading) return;
     if (authDisabled) {
       toast({
         title: "Sign-in blocked",
@@ -311,7 +408,7 @@ const Auth = () => {
     setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
-      const authInstance = auth;
+      const authInstance = await getAuthSafe();
       const googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters?.({ prompt: "select_account" });
       const result = await signInWithProvider(authInstance, googleProvider, {
@@ -329,6 +426,56 @@ const Auth = () => {
     } finally {
       setProviderLoading(null);
       setLoading(false);
+    }
+  };
+
+  const onExploreDemo = async () => {
+    if (demoLoading || loading) return;
+    if (authDisabled) {
+      toast({
+        title: "Demo unavailable",
+        description: "This domain isn’t authorized for authentication.",
+      });
+      return;
+    }
+    setDemoLoading(true);
+    setLastOauthError(null);
+    try {
+      const authInstance = await getAuthSafe();
+      await signInAnonymously(authInstance);
+      try {
+        persistDemoFlags();
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn("[auth] unable to persist demo flags", error);
+        }
+      }
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage?.setItem("mbs_demo", "1");
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] unable to mark demo local storage", error);
+          }
+        }
+      }
+      navigate("/coach", { replace: true });
+    } catch (err: any) {
+      const configIssue = handleConfigFailure(err);
+      if (configIssue) {
+        const missingList = configIssue.missingEnvKeys.length
+          ? ` Missing env keys: ${configIssue.missingEnvKeys.join(", ")}.`
+          : "";
+        const description = `${configIssue.message}${missingList} See README → Firebase Web config.`;
+        toast({ title: "Firebase config missing", description });
+        setLastOauthError({ provider: "Demo", code: configIssue.code, message: `${configIssue.message}${missingList}`.trim() });
+      } else {
+        console.error("Demo explore failed:", err);
+        const description = formatAuthError("Demo", err);
+        toast({ title: "Demo unavailable", description, variant: "destructive" });
+      }
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -363,7 +510,7 @@ const Auth = () => {
   };
 
   const onApple = async () => {
-    if (loading) return;
+    if (loading || demoLoading) return;
 
     if (authDisabled) {
       toast({
@@ -388,7 +535,7 @@ const Auth = () => {
     setLastOauthError(null);
     try {
       rememberAuthRedirect(from);
-      const authInstance = auth;
+      const authInstance = await getAuthSafe();
       const appleProvider = new OAuthProvider("apple.com");
       appleProvider.addScope("email");
       appleProvider.addScope("name");
@@ -426,6 +573,34 @@ const Auth = () => {
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <div className="w-full max-w-md">
+        {configError ? (
+          <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            <p>
+              Firebase configuration missing or invalid for this host ({configError.host}).
+            </p>
+            {configError.missingEnvKeys.length ? (
+              <ul className="mt-2 list-disc list-inside space-y-1 text-xs font-mono">
+                {configError.missingEnvKeys.map((key) => (
+                  <li key={key}>{key}</li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="mt-2">
+              See
+              {" "}
+              <a
+                href="https://github.com/Antisgoat/mybodyscan/blob/main/README.md#firebase-web-config"
+                className="underline hover:no-underline"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Firebase Web config
+              </a>
+              {" "}
+              for setup details.
+            </p>
+          </div>
+        ) : null}
         {!hostAuthorized && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             This domain isn’t in Firebase Authorized Domains. OAuth popups may be blocked.
@@ -484,7 +659,11 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || authDisabled}>
+              <Button
+                type="submit"
+                className="mbs-btn mbs-btn-primary w-full"
+                disabled={loading || authDisabled || demoLoading}
+              >
                 {loading
                   ? mode === "signin"
                     ? "Signing in..."
@@ -496,7 +675,7 @@ const Auth = () => {
               <Button
                 type="button"
                 variant="link"
-                disabled={loading || authDisabled}
+                disabled={loading || authDisabled || demoLoading}
                 onClick={async () => {
                   if (authDisabled) {
                     toast({
@@ -523,7 +702,7 @@ const Auth = () => {
                 <Button
                   variant="secondary"
                   onClick={onApple}
-                  disabled={loading || authDisabled}
+                  disabled={loading || authDisabled || demoLoading}
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
@@ -543,7 +722,7 @@ const Auth = () => {
             <Button
               variant="secondary"
               onClick={onGoogle}
-              disabled={loading || authDisabled}
+              disabled={loading || authDisabled || demoLoading}
               className="w-full h-11 inline-flex items-center justify-center gap-2"
               data-testid="auth-google-button"
             >
@@ -581,11 +760,18 @@ const Auth = () => {
             </CollapsibleContent>
           </Collapsible>
           <div className="mt-6">
-            <Button type="button" variant="ghost" className="w-full" asChild>
-              <Link to="/demo">👀 Explore demo (no sign-up)</Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 inline-flex items-center justify-center gap-2"
+              onClick={onExploreDemo}
+              disabled={demoLoading || loading || providerLoading !== null || authDisabled}
+            >
+              {demoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span role="img" aria-hidden="true">👀</span>}
+              <span>Explore demo (no sign-up)</span>
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Browse demo data. Create a free account to unlock scanning and save your progress.
+              Browse demo data in read-only mode. Create a free account to unlock scanning and save your progress.
             </p>
             <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
               <a href="/privacy" className="underline hover:no-underline">Privacy</a>
