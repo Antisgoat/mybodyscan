@@ -40,7 +40,7 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
 | `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
 | `VITE_APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
-| `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
+| `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production/preview builds (disabled in development) |
 
 ### Functions (Firebase environment / secrets)
 
@@ -58,6 +58,11 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 > **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, and deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`.
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
+
+> **Sentry Configuration:** Sentry is automatically disabled in development mode. To enable in production/preview:
+> 1. Set `VITE_SENTRY_DSN` in your environment variables
+> 2. The app will automatically tag errors with user UID, build SHA, and environment (production|preview|development)
+> 3. No additional configuration needed - user context is automatically managed
 
 ## Developer tooling & scripts
 
@@ -111,7 +116,7 @@ Key flows include:
 ## Observability & guardrails
 
 - **Request logging:** every HTTPS function is wrapped in JSON logging middleware emitting `{fn, uid, path, method, status, durationMs, code}` (sampled at 50%). Tokens/PII are redacted.
-- **Sentry:** the web app lazy-loads Sentry only when `VITE_SENTRY_DSN` is present, capturing React errors and unhandled rejections with release tags. Functions load `@sentry/node` when `SENTRY_DSN` is set.
+- **Sentry:** the web app conditionally loads Sentry only when `VITE_SENTRY_DSN` is present and mode is not development, capturing React errors and unhandled rejections with user context, build tags, and environment tagging. Functions load `@sentry/node` when `SENTRY_DSN` is set.
 - **App Check:** `AppCheckProvider` initializes App Check before using Auth, Firestore, Functions, or Storage. Missing keys fall back to debug tokens so demo flows never break.
 - **Nutrition model:** USDA and OpenFoodFacts responses normalize into a single schema—UI never branches on the source.
 - **Credits:** `CreditsBadge` shows `∞` for developer accounts seeded via `scripts/test-seed.ts`; server functions still enforce claims.

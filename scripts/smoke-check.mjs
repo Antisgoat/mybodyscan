@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 
 const defaultUrl = "https://mybodyscanapp.com/system/health";
 const argUrl = process.argv[2];

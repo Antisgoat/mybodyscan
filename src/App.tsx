@@ -84,6 +84,7 @@ import AdminDevTools from "./pages/AdminDevTools";
 import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { useSentryUser } from "./hooks/useSentryUser";
 import Ops from "./pages/Ops";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
@@ -95,6 +96,9 @@ const DevAudit = lazy(() => import("./pages/DevAudit"));
 const queryClient = new QueryClient();
 
 const App = () => {
+  // Set up Sentry user context
+  useSentryUser();
+
   useEffect(() => {
     // Mark route render start
     addPerformanceMark('route-render-start');
