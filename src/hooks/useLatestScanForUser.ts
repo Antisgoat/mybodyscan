@@ -13,10 +13,10 @@ type ScanData = {
   weight_lbs?: number;
   bmi?: number;
   mediaUrl?: string;
-  createdAt?: any;
-  completedAt?: any;
+  createdAt?: string;
+  completedAt?: string;
   note?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export function useLatestScanForUser() {
@@ -62,7 +62,6 @@ export function useLatestScanForUser() {
         setLoading(false);
       },
       (err) => {
-        console.error("Error fetching latest scan:", err);
         setError(err.message);
         setLoading(false);
       }
