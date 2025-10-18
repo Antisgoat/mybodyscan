@@ -1,0 +1,171 @@
+name: Sanity Check Pipeline
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      sanity_base_url:
+        description: 'Sanity Base URL to check'
+        required: true
+        default: ''
+      deploy_preview:
+        description: 'Deploy preview channel'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  sanity-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build web application
+      run: npm run build
+      env:
+        NODE_ENV: production
+        
+    - name: Build functions
+      run: npm run build:functions
+      if: ${{ contains(github.event_name, 'pull_request') || github.event.inputs.deploy_preview == 'true' }}
+      
+    - name: Deploy preview channel
+      if: ${{ github.event_name == 'pull_request' && secrets.FIREBASE_TOKEN && secrets.FIREBASE_PROJECT }}
+      run: |
+        npm install -g firebase-tools
+        firebase use ${{ secrets.FIREBASE_PROJECT }} --token ${{ secrets.FIREBASE_TOKEN }}
+        firebase hosting:channel:deploy pr-${{ github.event.number }} --token ${{ secrets.FIREBASE_TOKEN }}
+      env:
+        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        FIREBASE_PROJECT: ${{ secrets.FIREBASE_PROJECT }}
+        
+    - name: Set Sanity Base URL
+      id: set-url
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.sanity_base_url }}" ]; then
+          echo "sanity_base_url=${{ github.event.inputs.sanity_base_url }}" >> $GITHUB_OUTPUT
+        elif [ -n "${{ secrets.SANITY_BASE_URL }}" ]; then
+          echo "sanity_base_url=${{ secrets.SANITY_BASE_URL }}" >> $GITHUB_OUTPUT
+        else
+          echo "sanity_base_url=https://pr-${{ github.event.number }}--${{ secrets.FIREBASE_PROJECT }}.web.app" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Run Sanity Check
+      id: sanity-check
+      run: |
+        echo "🔍 Running sanity check against: ${{ steps.set-url.outputs.sanity_base_url }}"
+        node tools/sanity-check.mjs "${{ steps.set-url.outputs.sanity_base_url }}"
+      env:
+        SANITY_BASE_URL: ${{ steps.set-url.outputs.sanity_base_url }}
+        SANITY_TOKEN: ${{ secrets.SANITY_TOKEN }}
+        
+    - name: Comment PR with results
+      if: ${{ github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Read sanity check results
+          let comment = '';
+          try {
+            const resultsFile = path.join(process.env.GITHUB_WORKSPACE, 'sanity-results.json');
+            if (fs.existsSync(resultsFile)) {
+              const results = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
+              
+              const { total, passed, failed, optional } = results.summary;
+              const successRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+              
+              comment = `## 🔍 Sanity Check Results\n\n`;
+              comment += `**Base URL:** \`${results.baseUrl}\`\n`;
+              comment += `**Timestamp:** ${results.timestamp}\n\n`;
+              
+              comment += `### 📊 Summary\n`;
+              comment += `- **Total checks:** ${total}\n`;
+              comment += `- **Passed:** ${passed} (${successRate}%)\n`;
+              comment += `- **Failed:** ${failed}\n`;
+              comment += `- **Optional:** ${optional}\n\n`;
+              
+              comment += `### 📋 Detailed Results\n\n`;
+              
+              for (const check of results.checks) {
+                const status = check.success ? '✅' : '❌';
+                const type = check.required ? '**REQUIRED**' : '*optional*';
+                const duration = `${check.duration}ms`;
+                
+                if (check.success) {
+                  comment += `${status} **${check.path}** (${type}) - \`${check.status} ${check.statusText}\` (${duration})\n`;
+                } else {
+                  const error = check.error || `${check.status} ${check.statusText}`;
+                  comment += `${status} **${check.path}** (${type}) - ❌ **FAILED:** \`${error}\` (${duration})\n`;
+                }
+              }
+              
+              if (failed === 0) {
+                comment += `\n🎉 **All checks passed!** Sanity instance is healthy.`;
+              } else {
+                comment += `\n⚠️ **Some checks failed.** Please review the results above.`;
+              }
+            } else {
+              comment = `## 🔍 Sanity Check Results\n\n❌ **Error:** Could not read sanity check results.`;
+            }
+          } catch (error) {
+            comment = `## 🔍 Sanity Check Results\n\n❌ **Error:** Failed to process sanity check results: ${error.message}`;
+          }
+          
+          // Add deployment info if applicable
+          if ('${{ secrets.FIREBASE_TOKEN }}' && '${{ secrets.FIREBASE_PROJECT }}') {
+            comment += `\n\n### 🚀 Deployment\n`;
+            comment += `Preview deployed to: \`https://pr-${{ github.event.number }}--${{ secrets.FIREBASE_PROJECT }}.web.app\`\n`;
+          }
+          
+          // Find existing comment or create new one
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const existingComment = comments.find(comment => 
+            comment.user.type === 'Bot' && 
+            comment.body.includes('🔍 Sanity Check Results')
+          );
+          
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
+          
+    - name: Upload sanity check results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: sanity-check-results
+        path: sanity-results.json
+        retention-days: 30
