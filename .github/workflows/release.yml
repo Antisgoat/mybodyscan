@@ -1,0 +1,72 @@
+name: Release (tag)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build web and functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Install dependencies (functions)
+        run: npm --prefix functions ci
+
+      - name: Build functions
+        run: npm --prefix functions run build
+
+  deploy:
+    name: Deploy to Firebase (production)
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      FIREBASE_PROJECT: ${{ secrets.FIREBASE_PROJECT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Install dependencies (functions)
+        run: npm --prefix functions ci
+
+      - name: Build functions
+        run: npm --prefix functions run build
+
+      - name: Deploy Cloud Functions
+        run: npx firebase-tools deploy --only functions --project "$FIREBASE_PROJECT" --force
+
+      - name: Deploy Hosting (production site)
+        run: npx firebase-tools deploy --only hosting --project "$FIREBASE_PROJECT" --force
