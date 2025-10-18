@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -18,18 +19,19 @@ export default function DemoGate() {
   useEffect(() => {
     mountedRef.current = true;
 
-    const signInWithTimeout = async (timeoutMs: number) => {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), timeoutMs),
-      );
-      // If signInAnonymously never resolves in time, this will reject by timeout
-      return Promise.race([signInAnonymously(auth), timeout]);
-    };
-
     const run = async () => {
       try {
         setFailed(false);
         setLoading(true);
+
+        const auth = await getSequencedAuth();
+
+        const signInWithTimeout = async (timeoutMs: number) => {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), timeoutMs),
+          );
+          return Promise.race([signInAnonymously(auth), timeout]);
+        };
 
         // If already signed in (anon or real), go straight to app
         if (auth.currentUser) {

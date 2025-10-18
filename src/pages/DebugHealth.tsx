@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { format } from "date-fns";
 import { useHealthDaily } from "@/hooks/useHealthDaily";
+import { useAuthUser } from "@/lib/auth";
 
 const DebugHealth = () => {
   const { platform, connect } = useHealthDaily();
   const [perm, setPerm] = useState<boolean | null>(null);
   const [last, setLast] = useState<any>(null);
-  const uid = auth.currentUser?.uid;
+  const { user } = useAuthUser();
+  const uid = user?.uid;
 
   useEffect(() => {
     connect().then((v) => setPerm(v));

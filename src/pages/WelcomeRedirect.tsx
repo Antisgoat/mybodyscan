@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { auth } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/auth";
 
 const WelcomeRedirect = () => {
   const [countdown, setCountdown] = useState(1.5);
-  const user = auth.currentUser;
+  const { user, authReady } = useAuthUser();
 
   useEffect(() => {
     if (!user) return;
-    
+
     const timer = setInterval(() => {
       setCountdown(prev => Math.max(0, prev - 0.1));
     }, 100);
 
     return () => clearInterval(timer);
   }, [user]);
+
+  if (!authReady) {
+    return null;
+  }
 
   if (!user) {
     return <Navigate to="/auth" replace />;

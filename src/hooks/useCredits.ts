@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { db, firebaseConfig } from "@/lib/firebase";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -12,26 +13,38 @@ export function useCredits() {
   const projectId = firebaseConfig.projectId;
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(
-      auth,
-      async (u) => {
-        setUid(u?.uid ?? null);
-        if (!u) {
-          setCredits(0);
-          setUnlimited(false);
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    void (async () => {
+      const auth = await getSequencedAuth();
+      if (cancelled) return;
+
+      unsubscribe = onAuthStateChanged(
+        auth,
+        async (u) => {
+          setUid(u?.uid ?? null);
+          if (!u) {
+            setCredits(0);
+            setUnlimited(false);
+            setLoading(false);
+          } else {
+            const token = await u.getIdTokenResult();
+            const hasUnlimited = token.claims.unlimitedCredits === true;
+            setUnlimited(hasUnlimited);
+          }
+        },
+        (err) => {
+          setError(err.message);
           setLoading(false);
-        } else {
-          const token = await u.getIdTokenResult();
-          const hasUnlimited = token.claims.unlimitedCredits === true;
-          setUnlimited(hasUnlimited);
         }
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
-      }
-    );
-    return () => unsub();
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

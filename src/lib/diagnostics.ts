@@ -1,7 +1,8 @@
-import { getAuth } from "firebase/auth";
+import { getSequencedAuth } from "@/lib/firebase/init";
 import { getBreadcrumbs } from "./logger";
 export async function buildDiagnostics(): Promise<string> {
-  const u = getAuth().currentUser;
+  const auth = await getSequencedAuth();
+  const u = auth.currentUser;
   const info = {
     uid: u?.uid || "signed-out",
     email: u?.email || "",

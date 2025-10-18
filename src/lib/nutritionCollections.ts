@@ -1,7 +1,8 @@
 import { deleteDoc, setDoc } from "@/lib/dbWrite";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
+import { getCachedAuth } from "@/lib/auth";
 
 export interface FavoriteDoc {
   name: string;
@@ -23,7 +24,7 @@ export interface TemplateDoc {
 }
 
 function assertUid(): string {
-  const uid = auth.currentUser?.uid;
+  const uid = getCachedAuth()?.currentUser?.uid;
   if (!uid) throw new Error("auth");
   return uid;
 }

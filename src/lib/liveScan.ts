@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
 import { getAppCheckToken } from "@/appCheck";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 export type PoseKey = "front" | "back" | "left" | "right";
 
@@ -41,6 +41,7 @@ interface SubmitPayload {
 }
 
 async function authedRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const auth = await getSequencedAuth();
   const user = auth.currentUser;
   if (!user) {
     const error = new Error("auth_required");

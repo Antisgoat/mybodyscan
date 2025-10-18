@@ -1,8 +1,24 @@
-import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
+import { getSequencedAuth } from "@/lib/firebase/init";
+import type { Auth, User } from "firebase/auth";
+
+async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
+  const auth = await getSequencedAuth();
+  return { auth, user: auth.currentUser };
+}
+
+async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
+  const { auth, user } = await getAuthContext();
+  if (!user) {
+    const error: any = new Error("auth_required");
+    error.code = "auth_required";
+    throw error;
+  }
+  return { auth, user };
+}
 
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = fnUrl("/nutritionSearch");
@@ -31,7 +47,10 @@ export async function nutritionSearch(
   }
   const idTokenPromise: Promise<string | null> = headers.has("Authorization")
     ? Promise.resolve<string | null>(null)
-    : Promise.resolve(auth.currentUser ? auth.currentUser.getIdToken() : null);
+    : (async () => {
+        const { user } = await getAuthContext();
+        return user ? user.getIdToken() : null;
+      })();
   const [idToken, appCheckToken] = await Promise.all([idTokenPromise, getAppCheckToken()]);
   if (appCheckToken) headers.set("X-Firebase-AppCheck", appCheckToken);
   if (idToken && !headers.has("Authorization")) {
@@ -58,12 +77,7 @@ export async function coachChat(payload: { message: string }) {
     error.code = "message_required";
     throw error;
   }
-  const user = auth.currentUser;
-  if (!user) {
-    const error: any = new Error("auth_required");
-    error.code = "auth_required";
-    throw error;
-  }
+  const { user } = await requireAuthContext();
   const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), getAppCheckToken()]);
   if (!appCheckToken) {
     const error: any = new Error("app_check_unavailable");
@@ -217,7 +231,10 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         payload = { items: [] } as any;
       } else {
         const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
-          auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
+          (async () => {
+            const { user } = await getAuthContext();
+            return user ? user.getIdToken() : null;
+          })(),
           getAppCheckToken(),
         ]);
         const fallbackHeaders = new Headers({
@@ -258,8 +275,8 @@ async function authedFetch(path: string, init?: RequestInit) {
     toast({ title: "Server not configured" });
     return new Response(null, { status: 503 });
   }
-  const t = await auth.currentUser?.getIdToken();
-  if (!t) throw new Error("Authentication required");
+  const { user } = await requireAuthContext();
+  const t = await user.getIdToken();
   return fetch(url, {
     ...init,
     headers: {
@@ -271,10 +288,8 @@ async function authedFetch(path: string, init?: RequestInit) {
 }
 
 export async function startScan(params?: Record<string, unknown>) {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) {
-    throw new Error("Authentication required");
-  }
+  const { user } = await requireAuthContext();
+  const token = await user.getIdToken();
   const response = await fetch("/api/scan/start", {
     method: "POST",
     headers: {

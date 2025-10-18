@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions } from "@/lib/firebase";
+import { functions, getSequencedAuth } from "@/lib/firebase";
 import {
   Auth,
   OAuthProvider,
@@ -24,6 +24,20 @@ import {
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 
+let firebaseAuth: Auth | null = null;
+const firebaseAuthPromise = getSequencedAuth().then((auth) => {
+  firebaseAuth = auth;
+  return auth;
+});
+
+async function ensureFirebaseAuth(): Promise<Auth> {
+  return firebaseAuthPromise;
+}
+
+export function getCachedAuth(): Auth | null {
+  return firebaseAuth;
+}
+
 function shouldForceRedirectAuth(): boolean {
   if (typeof window === "undefined") return false;
   const host = window.location.hostname?.toLowerCase() ?? "";
@@ -35,79 +49,92 @@ function shouldForceRedirectAuth(): boolean {
 }
 
 export async function initAuthPersistence() {
-  await setPersistence(firebaseAuth, browserLocalPersistence);
+  const auth = await ensureFirebaseAuth();
+  await setPersistence(auth, browserLocalPersistence);
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<typeof firebaseAuth.currentUser | null>(
-    () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
+  const [user, setUser] = useState<Auth["currentUser"] | null>(
+    () => (typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null),
   );
-  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
+  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth?.currentUser);
   const processedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // If a user is already available synchronously, mark ready without waiting
-    if (!authReady && firebaseAuth.currentUser) {
-      setUser(firebaseAuth.currentUser);
-      setAuthReady(true);
-    }
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
 
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
-      setUser(nextUser);
-      setAuthReady(true);
+    void (async () => {
+      const auth = await ensureFirebaseAuth();
+      if (cancelled) return;
 
-      if (!nextUser) {
-        processedUidRef.current = null;
-        return;
+      // If a user is already available synchronously, mark ready without waiting
+      if (!authReady && auth.currentUser) {
+        setUser(auth.currentUser);
+        setAuthReady(true);
       }
 
-      if (!nextUser.isAnonymous && typeof window !== "undefined") {
-        try {
-          window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-        } catch {
-          // ignore storage errors
+      unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+        setUser(nextUser);
+        setAuthReady(true);
+
+        if (!nextUser) {
+          processedUidRef.current = null;
+          return;
         }
-      }
 
-      const shouldRefreshClaims = !nextUser.isAnonymous;
-      const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
-      if (processedUidRef.current === statusKey) {
-        return;
-      }
-
-      processedUidRef.current = statusKey;
-
-      if (!shouldRefreshClaims) {
-        return;
-      }
-
-      void (async () => {
-        try {
-          await nextUser.getIdToken(true);
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] pre-claims token refresh failed", err);
+        if (!nextUser.isAnonymous && typeof window !== "undefined") {
+          try {
+            window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+          } catch {
+            // ignore storage errors
           }
         }
 
-        try {
-          await httpsCallable(functions, "refreshClaims")({});
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] refreshClaims callable failed", err);
-          }
+        const shouldRefreshClaims = !nextUser.isAnonymous;
+        const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
+        if (processedUidRef.current === statusKey) {
+          return;
         }
 
-        try {
-          await nextUser.getIdToken(true);
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] post-claims token refresh failed", err);
-          }
+        processedUidRef.current = statusKey;
+
+        if (!shouldRefreshClaims) {
+          return;
         }
-      })();
-    });
-    return () => unsubscribe();
+
+        void (async () => {
+          try {
+            await nextUser.getIdToken(true);
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn("[auth] pre-claims token refresh failed", err);
+            }
+          }
+
+          try {
+            await httpsCallable(functions, "refreshClaims")({});
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn("[auth] refreshClaims callable failed", err);
+            }
+          }
+
+          try {
+            await nextUser.getIdToken(true);
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn("[auth] post-claims token refresh failed", err);
+            }
+          }
+        })();
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [authReady]);
 
   return { user: authReady ? user : null, loading: !authReady, authReady } as const;
@@ -143,19 +170,21 @@ export function consumeAuthRedirect(): string | null {
 }
 
 export async function signOutToAuth(): Promise<void> {
-  await signOut(firebaseAuth);
+  const auth = await ensureFirebaseAuth();
+  await signOut(auth);
   window.location.href = "/auth";
 }
 
 // New helpers
 export async function signInWithGoogle() {
+  const auth = await ensureFirebaseAuth();
   const provider = new GoogleAuthProvider();
   try {
     if (shouldForceRedirectAuth()) {
-      await signInWithRedirect(firebaseAuth, provider);
+      await signInWithRedirect(auth, provider);
       return;
     }
-    return await signInWithPopup(firebaseAuth, provider);
+    return await signInWithPopup(auth, provider);
   } catch (err: any) {
     const code = String(err?.code || "");
     if (
@@ -163,7 +192,7 @@ export async function signInWithGoogle() {
       code.includes("popup-closed-by-user") ||
       code.includes("operation-not-supported-in-this-environment")
     ) {
-      await signInWithRedirect(firebaseAuth, provider);
+      await signInWithRedirect(auth, provider);
       return;
     }
     throw err;
@@ -236,28 +265,29 @@ export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | 
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {
-  const user = firebaseAuth.currentUser;
+  const auth = await ensureFirebaseAuth();
+  const user = auth.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
   if (user?.isAnonymous) {
     const res = await linkWithCredential(user, cred);
     if (displayName) await updateProfile(res.user, { displayName });
     return res.user;
   }
-  const res = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+  const res = await createUserWithEmailAndPassword(auth, email, password);
   if (displayName) await updateProfile(res.user, { displayName });
   return res.user;
 }
 
 export function signInEmail(email: string, password: string) {
-  return signInWithEmailAndPassword(firebaseAuth, email, password);
+  return ensureFirebaseAuth().then((auth) => signInWithEmailAndPassword(auth, email, password));
 }
 
 export function sendReset(email: string) {
-  return sendPasswordResetEmail(firebaseAuth, email);
+  return ensureFirebaseAuth().then((auth) => sendPasswordResetEmail(auth, email));
 }
 
 export function signOutAll() {
-  return signOut(firebaseAuth);
+  return ensureFirebaseAuth().then((auth) => signOut(auth));
 }
 
 export { isIOSSafari } from "@/lib/isIOSWeb";

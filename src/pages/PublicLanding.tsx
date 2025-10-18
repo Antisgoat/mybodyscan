@@ -1,14 +1,15 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
-import { auth } from "@/lib/firebase";
+import { getSequencedAuth } from "@/lib/firebase/init";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import { HOW_IT_WORKS } from "@/content/howItWorks";
 import { PRICING_CATALOG } from "@/content/pricing";
 
 const PublicLanding = () => {
   const navigate = useNavigate();
-  const handleLaunch = () => {
+  const handleLaunch = async () => {
+    const auth = await getSequencedAuth();
     if (auth.currentUser) navigate("/home");
     else navigate("/auth");
   };

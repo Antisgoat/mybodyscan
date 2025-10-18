@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { format, subDays, addDays } from "date-fns";
@@ -14,10 +14,12 @@ import { Progress } from "@/components/ui/progress";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { useAuthUser } from "@/lib/auth";
 
 const CoachTracker = () => {
   const { plan } = useUserProfile();
-  const uid = auth.currentUser?.uid;
+  const { user } = useAuthUser();
+  const uid = user?.uid;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const [log, setLog] = useState({

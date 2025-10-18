@@ -3,16 +3,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
+import { useAuthUser } from "@/lib/auth";
 
 const Processing = () => {
   const { scanId } = useParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>("queued");
+  const { user } = useAuthUser();
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
+    const uid = user?.uid;
     if (!uid || !scanId) return;
     const ref = doc(db, "users", uid, "scans", scanId);
     const unsub = onSnapshot(
@@ -34,7 +36,7 @@ const Processing = () => {
       }
     );
     return () => unsub();
-  }, [scanId, navigate]);
+  }, [scanId, navigate, user]);
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto flex flex-col items-center justify-center text-center">

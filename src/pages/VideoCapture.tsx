@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, storage } from "@/lib/firebase";
+import { storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
 import { consumeOneCredit } from "@/lib/payments";
 import { sanitizeFilename } from "@/lib/utils";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 const MAX_SECONDS = 10;
 
@@ -37,6 +38,7 @@ const VideoCapture = () => {
   }, [file]);
 
   const onContinue = async () => {
+    const auth = await getSequencedAuth();
     const uid = auth.currentUser?.uid;
     if (!uid || !file || duration == null) {
       if (!uid) {

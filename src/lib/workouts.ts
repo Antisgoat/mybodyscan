@@ -1,14 +1,17 @@
-import { auth, db } from "./firebase";
+import { db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
 async function callFn(path: string, body?: any) {
-  const t = await auth.currentUser?.getIdToken();
-  if (!t) throw new Error("auth");
+  const auth = await getSequencedAuth();
+  const user = auth.currentUser;
+  if (!user) throw new Error("auth");
+  const t = await user.getIdToken();
   const r = await fetch(`${FUNCTIONS_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
@@ -52,6 +55,7 @@ export async function getWeeklyCompletion(planId: string) {
     track("demo_block", { action: "workout_weekly" });
     return 0;
   }
+  const auth = await getSequencedAuth();
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("auth");
   const col = collection(db, `users/${uid}/workoutPlans/${planId}/progress`);

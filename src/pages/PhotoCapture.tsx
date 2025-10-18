@@ -5,10 +5,11 @@ import { useNavigate } from "react-router-dom";
 import silhouette from "@/assets/silhouette-front.png";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { auth, storage } from "@/lib/firebase";
+import { storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { runBodyScan } from "@/lib/scan";
 import { sanitizeFilename } from "@/lib/utils";
+import { getSequencedAuth } from "@/lib/firebase/init";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 
@@ -33,6 +34,7 @@ const PhotoCapture = () => {
   const allSet = files.front && files.left && files.right && files.back;
 
   const onContinue = async () => {
+    const auth = await getSequencedAuth();
     const uid = auth.currentUser?.uid;
     if (!uid) {
       toast({ title: "Sign in required" });
