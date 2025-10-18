@@ -29,11 +29,14 @@ export const systemHealth = onRequestV2(
         null;
       const hostingUrl = getHostBaseUrl() || (host ? `https://${host}` : null);
 
+      const ts = new Date().toISOString();
       res.status(200).json({
         ok: true,
         projectId,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
+        ts,
         hostingUrl,
+        appCheckSoft: true,
       });
     }),
     { sampleRate: 0.5 }

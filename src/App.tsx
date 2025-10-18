@@ -85,6 +85,7 @@ import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import Ops from "./pages/Ops";
+import DebugOverlay from "./pages/DebugOverlay";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -134,6 +135,7 @@ const App = () => {
             />
             <Route path="/__previewframe/*" element={<PreviewFrame />} />
             <Route path="/demo" element={<DemoGate />} />
+            <Route path="/__debug" element={<DebugOverlay />} />
             {/* Marketing page */}
             <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
             {/* Public pages */}
