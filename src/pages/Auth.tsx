@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,13 +31,13 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
 } from "firebase/auth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
 import { getAppCheckToken, isAppCheckActive } from "@/appCheck";
 import { persistDemoFlags } from "@/lib/demoFlag";
 import { getFirebaseConfigMissingEnvKeys } from "@/config/firebaseConfig";
 import { Loader2 } from "lucide-react";
+import { getFirebaseErrorCode, humanizeFirebaseError, isProviderConfigurationError } from "@/lib/firebaseErrors";
 
 const POPUP_FALLBACK_CODES = new Set([
   "auth/popup-blocked",
@@ -215,9 +215,22 @@ const Auth = () => {
     if (typeof window === "undefined") return true;
     return isHostAllowed(window.location.hostname);
   });
-  const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
+  const [reachability, setReachability] = useState<"checking" | "online" | "offline">("checking");
+  const [appleSetupNote, setAppleSetupNote] = useState<string | null>(null);
+  const appleEnvEnabled =
+    import.meta.env.APPLE_OAUTH_ENABLED === "true" || import.meta.env.VITE_APPLE_OAUTH_ENABLED === "true";
+  const appleFeatureEnabled = APPLE_OAUTH_ENABLED || appleEnvEnabled;
   const { user } = useAuthUser();
   const authDisabled = !hostAuthorized;
+  const reachabilityLabel = useMemo(() => {
+    if (reachability === "checking") return "Checking network…";
+    return reachability === "online" ? "Online" : "Offline";
+  }, [reachability]);
+  const reachabilityTone = useMemo(() => {
+    if (reachability === "online") return "text-emerald-600";
+    if (reachability === "offline") return "text-destructive";
+    return "text-muted-foreground";
+  }, [reachability]);
 
   const handleConfigFailure = useCallback((error: any) => {
     const code = typeof error?.code === "string" ? error.code : "";
@@ -256,6 +269,30 @@ const Auth = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    const applyStatus = (status: "online" | "offline" | "checking") => {
+      if (!cancelled) {
+        setReachability(status);
+      }
+    };
+    const updateFromNavigator = () => {
+      applyStatus(window.navigator.onLine ? "online" : "offline");
+    };
+    updateFromNavigator();
+    fetch("https://www.googleapis.com/robots.txt", { mode: "no-cors" })
+      .then(() => applyStatus("online"))
+      .catch(() => applyStatus("offline"));
+    window.addEventListener("online", updateFromNavigator);
+    window.addEventListener("offline", updateFromNavigator);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", updateFromNavigator);
+      window.removeEventListener("offline", updateFromNavigator);
+    };
+  }, []);
+
+  useEffect(() => {
     let active = true;
     loadFirebaseAuthClientConfig()
       .then((config) => {
@@ -274,6 +311,21 @@ const Auth = () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await getAuthSafe();
+      } catch (error) {
+        if (cancelled) return;
+        handleConfigFailure(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleConfigFailure]);
 
   const handleOauthError = useCallback(
     (providerLabel: string, error: any) => {
@@ -422,12 +474,30 @@ const Auth = () => {
     } catch (err: any) {
       consumeAuthRedirect();
       console.error("Google sign-in failed:", err);
-      handleOauthError("Google", err);
+      if (getFirebaseErrorCode(err) === "auth/popup-blocked") {
+        toast({ title: "Enable popups", description: "Enable popups to continue Google sign-in." });
+      } else {
+        handleOauthError("Google", err);
+      }
     } finally {
       setProviderLoading(null);
       setLoading(false);
     }
   };
+
+  const anonWithRetry = useCallback(async () => {
+    const authInstance = await getAuthSafe();
+    const tryOnce = () => signInAnonymously(authInstance);
+    try {
+      return await tryOnce();
+    } catch (error) {
+      if (getFirebaseErrorCode(error) === "auth/network-request-failed") {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        return await tryOnce();
+      }
+      throw error;
+    }
+  }, []);
 
   const onExploreDemo = async () => {
     if (demoLoading || loading) return;
@@ -441,8 +511,14 @@ const Auth = () => {
     setDemoLoading(true);
     setLastOauthError(null);
     try {
-      const authInstance = await getAuthSafe();
-      await signInAnonymously(authInstance);
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        toast({
+          title: "Offline",
+          description: "You’re offline — reconnect to start the demo.",
+        });
+        return;
+      }
+      await anonWithRetry();
       try {
         persistDemoFlags();
       } catch (error) {
@@ -453,6 +529,7 @@ const Auth = () => {
       if (typeof window !== "undefined") {
         try {
           window.localStorage?.setItem("mbs_demo", "1");
+          window.localStorage?.setItem("isDemoUser", "1");
         } catch (error) {
           if (import.meta.env.DEV) {
             console.warn("[auth] unable to mark demo local storage", error);
@@ -480,33 +557,12 @@ const Auth = () => {
   };
 
   const appleConfigured = appleEnabled === true;
-  const showAppleButton = appleFeatureEnabled && (forceAppleButton || appleEnabled !== false);
+  const showAppleButton = forceAppleButton || appleFeatureEnabled || appleConfigured;
 
   const handleAppleFeatureDisabled = () => {
     const message = "Apple Sign-In not yet enabled for this domain. Flip APPLE_OAUTH_ENABLED to true after finishing setup.";
     toast({ title: "Apple Sign-In not yet enabled for this domain", description: message });
     setLastOauthError({ provider: "Apple", code: "apple/feature-disabled", message });
-  };
-
-  const showAppleNotConfigured = () => {
-    const message = "Apple Sign-In not yet enabled for this domain. Enable the Apple provider in Firebase Auth before retrying.";
-    toast({ title: "Apple Sign-In not yet enabled for this domain", description: message });
-    setLastOauthError({ provider: "Apple", code: "apple/not-configured", message });
-  };
-
-  const isAppleMisconfiguredError = (error: any) => {
-    const code = String(error?.code || "");
-    if (
-      code.includes("operation-not-allowed") ||
-      code.includes("configuration-not-found") ||
-      code.includes("invalid-oauth-provider") ||
-      code.includes("invalid-oauth-client-id") ||
-      code.includes("invalid-provider-id")
-    ) {
-      return true;
-    }
-    const message = String(error?.message || "");
-    return /CONFIGURATION_NOT_FOUND|not enabled|disabled/i.test(message);
   };
 
   const onApple = async () => {
@@ -525,37 +581,40 @@ const Auth = () => {
       return;
     }
 
-    if (!appleConfigured && appleEnabled === false) {
-      showAppleNotConfigured();
-      return;
-    }
-
+    setAppleSetupNote(null);
     setLoading(true);
     setProviderLoading("apple");
     setLastOauthError(null);
+    const appleProvider = new OAuthProvider("apple.com");
+    appleProvider.addScope("email");
+    appleProvider.addScope("name");
     try {
       rememberAuthRedirect(from);
       const authInstance = await getAuthSafe();
-      const appleProvider = new OAuthProvider("apple.com");
-      appleProvider.addScope("email");
-      appleProvider.addScope("name");
-      const preferPopup = shouldUsePopupAuth() && !isIOSSafari();
-      const result = await signInWithProvider(authInstance, appleProvider, {
-        preferPopup,
-        finalize: finalizeAppleProfile,
-      });
-      if (result.status === "popup") {
-        consumeAuthRedirect();
-        setLastOauthError(null);
-        navigate(from, { replace: true });
-      }
+      const credential = await signInWithPopup(authInstance, appleProvider);
+      await finalizeAppleProfile(credential);
+      setLastOauthError(null);
+      navigate(from, { replace: true });
     } catch (err: any) {
-      consumeAuthRedirect();
-      if (isAppleMisconfiguredError(err)) {
-        showAppleNotConfigured();
+      const code = getFirebaseErrorCode(err);
+      if (code === "auth/popup-blocked") {
+        toast({ title: "Enable popups", description: "Allow popups to continue with Apple sign-in." });
+        setLastOauthError({ provider: "Apple", code, message: "Popup blocked." });
+      } else if (code === "auth/account-exists-with-different-credential") {
+        const message = humanizeFirebaseError(err);
+        toast({ title: "Use your existing provider", description: message, variant: "destructive" });
+        setLastOauthError({ provider: "Apple", code, message });
+      } else if (isProviderConfigurationError(err)) {
+        const message =
+          "Apple sign-in needs Services ID, Team ID, Key ID and .p8 uploaded in Firebase Auth. Redirects: https://mybodyscanapp.com/__/auth/handler, https://www.mybodyscanapp.com/__/auth/handler, https://mybodyscan-f3daf.web.app/__/auth/handler.";
+        toast({ title: "Configure Apple sign-in", description: message });
+        setAppleSetupNote(message);
+        setLastOauthError({ provider: "Apple", code: code || "apple/not-configured", message });
       } else {
         console.error("Apple sign-in failed:", err);
-        handleOauthError("Apple", err);
+        const message = humanizeFirebaseError(err);
+        toast({ title: "Apple sign-in failed", description: message });
+        setLastOauthError({ provider: "Apple", code: code || "apple/unknown", message });
       }
     } finally {
       setProviderLoading(null);
@@ -563,7 +622,9 @@ const Auth = () => {
     }
   };
 
-  const appleHelperMessage = !appleFeatureEnabled
+  const appleHelperMessage = appleSetupNote
+    ? appleSetupNote
+    : !appleFeatureEnabled
     ? "Apple Sign-In is disabled here until APPLE_OAUTH_ENABLED is set to true."
     : !appleConfigured && appleEnabled === false
     ? "Finish the Apple provider setup in Firebase Auth (service ID, redirect URL, key) before enabling users."
@@ -574,9 +635,12 @@ const Auth = () => {
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
       <div className="w-full max-w-md">
         {configError ? (
-          <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+          <div
+            className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            role="alert"
+          >
             <p>
-              Firebase configuration missing or invalid for this host ({configError.host}).
+              Firebase configuration invalid for this host ({configError.host}). Check .env and Authorized domains.
             </p>
             {configError.missingEnvKeys.length ? (
               <ul className="mt-2 list-disc list-inside space-y-1 text-xs font-mono">
@@ -614,6 +678,13 @@ const Auth = () => {
           </div>
         </CardHeader>
         <CardContent>
+          <div
+            className="mb-4 flex items-center justify-between text-xs text-muted-foreground"
+            data-testid="auth-network-status"
+          >
+            <span>Connectivity</span>
+            <span className={`font-medium ${reachabilityTone}`}>{reachabilityLabel}</span>
+          </div>
           <div className="flex justify-center gap-2 mb-4">
             <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
               Sign in

@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFirebaseConfig } from "@/config/firebaseConfig";
 
@@ -73,8 +73,46 @@ async function setupAppCheck(app: FirebaseApp): Promise<AppCheck | null> {
   return appCheckInstance;
 }
 
+let persistenceConfigured = false;
+let persistencePromise: Promise<void> | null = null;
+
+async function ensurePersistence(app: FirebaseApp): Promise<void> {
+  if (persistenceConfigured) {
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    persistenceConfigured = true;
+    return;
+  }
+
+  if (!persistencePromise) {
+    persistencePromise = (async () => {
+      const auth = getAuth(app);
+      await setPersistence(auth, browserLocalPersistence);
+      persistenceConfigured = true;
+    })().catch((error) => {
+      if (import.meta.env.DEV) {
+        console.warn("[firebase] Unable to enforce browser persistence", error);
+      }
+      throw error;
+    });
+  }
+
+  try {
+    await persistencePromise;
+    persistencePromise = null;
+  } catch {
+    // Allow callers to proceed even if persistence fails once; a future call will retry.
+    persistencePromise = null;
+  }
+}
+
 async function ensureAppInitialized(): Promise<FirebaseApp> {
   if (appInstance) {
+    if (!persistenceConfigured) {
+      await ensurePersistence(appInstance);
+    }
     return appInstance;
   }
 
@@ -86,6 +124,7 @@ async function ensureAppInitialized(): Promise<FirebaseApp> {
       appInstance = app;
       try {
         await setupAppCheck(app);
+        await ensurePersistence(app);
       } finally {
         finishReady();
       }

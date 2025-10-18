@@ -1,4 +1,5 @@
 import React from "react";
+import { toast } from "@/hooks/use-toast";
 
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
@@ -7,6 +8,7 @@ export const DEMO_AUTH_FLAG_KEY = "mbs:demo";
 // Back-compat alias for modules that previously referenced session storage.
 export const DEMO_SESSION_KEY = DEMO_STORAGE_KEY;
 export const DEMO_READONLY_KEY = "mbs.readonly";
+export const DEMO_USER_KEY = "isDemoUser";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
   "/welcome",
@@ -71,6 +73,7 @@ export function persistDemoFlags(): void {
   if (typeof window !== "undefined") {
     safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, "1");
     safeWrite(window.localStorage, "mbs_demo", "1");
+    safeWrite(window.localStorage, DEMO_USER_KEY, "1");
   }
 }
 
@@ -80,6 +83,7 @@ export function clearDemoFlags(): void {
   if (typeof window !== "undefined") {
     safeWrite(window.localStorage, DEMO_AUTH_FLAG_KEY, null);
     safeWrite(window.localStorage, "mbs_demo", null);
+    safeWrite(window.localStorage, DEMO_USER_KEY, null);
   }
   if (typeof window !== "undefined") {
     safeWrite(window.sessionStorage, DEMO_STORAGE_KEY, null);
@@ -152,6 +156,17 @@ export function assertReadOnly(action: string): void {
   if (isReadOnly()) {
     throw new Error(`Read-only demo: ${action} disabled`);
   }
+}
+
+export function notifyDemoReadOnly(): boolean {
+  if (!isReadOnly()) {
+    return false;
+  }
+  if (typeof window === "undefined") {
+    return true;
+  }
+  toast({ title: "Demo is read-only." });
+  return true;
 }
 
 /**

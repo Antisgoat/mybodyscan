@@ -6,12 +6,7 @@ import { useAuthUser, isDemoUser as computeIsDemoUser } from "@/lib/auth";
 import { APPLE_OAUTH_ENABLED } from "@/env";
 import { getAppCheckToken } from "@/appCheck";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const PROVIDERS = [
-  { id: "email", label: "Email", enabled: true },
-  { id: "google", label: "Google", enabled: true },
-  { id: "apple", label: "Apple", enabled: APPLE_OAUTH_ENABLED },
-] as const;
+import { DEMO_USER_KEY } from "@/lib/demoFlag";
 
 export default function DebugOverlay() {
   const location = useLocation();
@@ -19,12 +14,29 @@ export default function DebugOverlay() {
   const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
   const [appCheckState, setAppCheckState] = useState<"pending" | "present" | "missing">("pending");
   const [configSnapshot] = useState(() => describeFirebaseConfig());
+  const [online, setOnline] = useState<boolean>(() =>
+    typeof window === "undefined" ? true : window.navigator.onLine,
+  );
 
   const allowed = useMemo(() => {
     const search = new URLSearchParams(location.search);
     const debugFlag = search.get("debug") === "1";
     return import.meta.env.DEV || debugFlag;
   }, [location.search]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const update = () => {
+      setOnline(window.navigator.onLine);
+    };
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +81,27 @@ export default function DebugOverlay() {
 
   const host = typeof window !== "undefined" ? window.location.host : "ssr";
   const isDemo = computeIsDemoUser(user);
+  const appleEnvEnabled =
+    import.meta.env.APPLE_OAUTH_ENABLED === "true" || import.meta.env.VITE_APPLE_OAUTH_ENABLED === "true";
+  const providers = useMemo(
+    () => [
+      { id: "email", label: "Email/password", visible: true },
+      { id: "google", label: "Google", visible: true },
+      { id: "apple", label: "Apple", visible: APPLE_OAUTH_ENABLED || appleEnvEnabled },
+    ],
+    [appleEnvEnabled],
+  );
+  const demoFlag = useMemo(() => {
+    if (typeof window === "undefined") return "n/a";
+    try {
+      return window.localStorage?.getItem(DEMO_USER_KEY) === "1" ? "yes" : "no";
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[debug] Unable to read demo local flag", error);
+      }
+      return "error";
+    }
+  }, [user?.uid]);
 
   if (!allowed) {
     return (
@@ -98,6 +131,9 @@ export default function DebugOverlay() {
             <p>
               <span className="font-medium">Host:</span> {host}
             </p>
+            <p>
+              <span className="font-medium">Online:</span> {online ? "yes" : "no"}
+            </p>
             <div>
               <p className="font-medium">Allowed auth hosts</p>
               <ul className="ml-4 list-disc text-muted-foreground">
@@ -107,11 +143,11 @@ export default function DebugOverlay() {
               </ul>
             </div>
             <div>
-              <p className="font-medium">Providers</p>
+              <p className="font-medium">Providers visible</p>
               <ul className="ml-4 list-disc text-muted-foreground">
-                {PROVIDERS.map((provider) => (
-                  <li key={provider.id} className={provider.enabled ? "text-foreground" : "opacity-60"}>
-                    {provider.label}: {provider.enabled ? "enabled" : "hidden"}
+                {providers.map((provider) => (
+                  <li key={provider.id} className={provider.visible ? "text-foreground" : "opacity-60"}>
+                    {provider.label}: {provider.visible ? "visible" : "hidden"}
                   </li>
                 ))}
               </ul>
@@ -180,6 +216,9 @@ export default function DebugOverlay() {
             <p>
               <span className="font-medium">Demo user:</span> {isDemo ? "yes" : "no"}
             </p>
+            <p>
+              <span className="font-medium">Local demo flag ({DEMO_USER_KEY}):</span> {demoFlag}
+            </p>
             <div>
               <p className="font-medium">Custom claims</p>
               <pre className="mt-1 whitespace-pre-wrap rounded bg-muted p-3 text-xs text-muted-foreground">
@@ -195,7 +234,8 @@ export default function DebugOverlay() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
-              <span className="font-medium">Token:</span> {appCheckState === "pending" ? "loading…" : appCheckState === "present" ? "present" : "missing"}
+              <span className="font-medium">Token present?</span>{" "}
+              {appCheckState === "pending" ? "loading…" : appCheckState === "present" ? "yes" : "no"}
             </p>
           </CardContent>
         </Card>
