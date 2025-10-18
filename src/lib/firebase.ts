@@ -7,16 +7,11 @@ import {
   signInWithEmailAndPassword,
   type Auth,
 } from "firebase/auth";
-import {
-  CustomProvider,
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-  type AppCheck,
-} from "firebase/app-check";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { FUNCTIONS_BASE, getViteEnv } from "@/lib/env";
+import { ensureAppCheck, getAppCheckInstance, getAppCheckToken, type AppCheck } from "@/appCheck";
 
 type FirebaseBundle = {
   app: FirebaseApp;
@@ -46,61 +41,14 @@ const createFirebaseBundle = (): FirebaseBundle => {
   const config = getFirebaseConfig();
   const app = getApps().length ? getApp() : initializeApp(config);
 
-  let appCheckInstance: AppCheck | null = null;
-  const ensureAppCheck = (() => {
-    let initialized = false;
-    return () => {
-      if (initialized) {
-        return appCheckInstance;
-      }
-      initialized = true;
-      if (typeof window === "undefined") {
-        appCheckInstance = null;
-        return appCheckInstance;
-      }
-
-      try {
-        const siteKey =
-          getViteEnv("VITE_RECAPTCHA_SITE_KEY") ??
-          getViteEnv("VITE_RECAPTCHA_V3_KEY") ??
-          "";
-        let provider: CustomProvider | ReCaptchaV3Provider;
-        let shouldRefresh = false;
-        if (siteKey) {
-          provider = new ReCaptchaV3Provider(siteKey);
-          shouldRefresh = true;
-        } else {
-          if (typeof window !== "undefined") {
-            (window as Window & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-          }
-          provider = new CustomProvider({
-            getToken: async () => ({
-              token: `debug-${Math.random().toString(36).slice(2)}.${Date.now()}`,
-              expireTimeMillis: Date.now() + 60 * 60 * 1000,
-            }),
-          });
-        }
-        appCheckInstance = initializeAppCheck(app, {
-          provider,
-          isTokenAutoRefreshEnabled: shouldRefresh,
-        });
-      } catch (error) {
-        console.warn("AppCheck initialization skipped", error);
-        appCheckInstance = null;
-      }
-      return appCheckInstance;
-    };
-  })();
-
+  // Initialize App Check first (soft mode)
   if (typeof window !== "undefined") {
-    ensureAppCheck();
+    ensureAppCheck().catch((error) => {
+      console.warn("AppCheck initialization failed; continuing in soft mode", error);
+    });
   }
 
   const initAuth = (): Auth => {
-    if (typeof window !== "undefined") {
-      ensureAppCheck();
-    }
-
     let instance: Auth;
     try {
       instance = getAuth(app);
@@ -115,16 +63,10 @@ const createFirebaseBundle = (): FirebaseBundle => {
   };
 
   const initFirestore = (): Firestore => {
-    if (typeof window !== "undefined") {
-      ensureAppCheck();
-    }
     return getFirestore(app);
   };
 
   const initFunctions = (): Functions => {
-    if (typeof window !== "undefined") {
-      ensureAppCheck();
-    }
     const instance = getFunctions(app, "us-central1");
     if (FUNCTIONS_BASE) {
       try {
@@ -139,9 +81,6 @@ const createFirebaseBundle = (): FirebaseBundle => {
   };
 
   const initStorage = (): FirebaseStorage => {
-    if (typeof window !== "undefined") {
-      ensureAppCheck();
-    }
     return getStorage(app);
   };
 
@@ -151,8 +90,8 @@ const createFirebaseBundle = (): FirebaseBundle => {
     firestore: initFirestore(),
     functions: initFunctions(),
     storage: initStorage(),
-    appCheck: appCheckInstance,
-    ensureAppCheck,
+    appCheck: getAppCheckInstance(),
+    ensureAppCheck: () => getAppCheckInstance(),
   };
 };
 
@@ -172,6 +111,25 @@ export async function safeEmailSignIn(email: string, password: string) {
   try {
     return await signInWithEmailAndPassword(auth, email, password);
   } catch (err: any) {
+    // Add lightweight diagnostics for sign-in failure
+    const diagnostics = {
+      appCheckTokenPresent: false,
+      origin: typeof window !== "undefined" ? window.location.origin : "unknown",
+      errorCode: err?.code || "unknown",
+      timestamp: new Date().toISOString(),
+    };
+
+    // Check if App Check token is present
+    try {
+      const appCheckToken = await getAppCheckToken();
+      diagnostics.appCheckTokenPresent = !!appCheckToken;
+    } catch (appCheckError) {
+      console.warn("App Check token check failed:", appCheckError);
+    }
+
+    // Log diagnostics (non-blocking)
+    console.warn("Sign-in failure diagnostics:", diagnostics);
+
     if (err?.code === "auth/network-request-failed") {
       await new Promise((r) => setTimeout(r, 1000));
       return await signInWithEmailAndPassword(auth, email, password);

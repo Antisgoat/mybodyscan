@@ -31,8 +31,9 @@ export const systemHealth = onRequestV2(
 
       res.status(200).json({
         ok: true,
+        appCheckSoft: true,
+        ts: new Date().toISOString(),
         projectId,
-        timestamp: new Date().toISOString(),
         hostingUrl,
       });
     }),

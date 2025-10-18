@@ -44,9 +44,10 @@ export function useCredits() {
         } else {
           const token = await u.getIdTokenResult();
           const whitelisted = isWhitelistedEmail(u.email ?? undefined);
-          const hasTester = whitelisted || token.claims.tester === true;
+          const isDev = token.claims.role === "dev";
+          const hasTester = whitelisted || token.claims.tester === true || isDev;
           const hasUnlimited =
-            whitelisted || hasTester || token.claims.unlimitedCredits === true;
+            whitelisted || hasTester || token.claims.unlimitedCredits === true || isDev;
           setTester(hasTester);
           setUnlimited(hasUnlimited);
           if (hasUnlimited) {

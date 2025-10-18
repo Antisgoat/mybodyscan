@@ -103,6 +103,7 @@ export async function ensureDeveloperClaims(uid: string): Promise<void> {
   const existingClaims = record.customClaims ?? {};
   const nextClaims = {
     ...existingClaims,
+    role: "dev",
     developer: true,
     tester: true,
     unlimitedCredits: true,

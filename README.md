@@ -55,7 +55,11 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_AUTH_ALLOWED_HOSTS` / `AUTH_ALLOWED_HOSTS` | Shared allowlist for web + CORS |
 | `SENTRY_DSN` | Optional Sentry DSN for Cloud Functions |
 
-> **Apple Sign-in:** configure the Apple provider in Firebase Auth, register redirect URLs in Apple Developer, and deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`.
+> **Apple Sign-in:** 
+> 1. Configure the Apple provider in Firebase Auth
+> 2. Register redirect URLs in Apple Developer Console
+> 3. Deploy the domain association file in `public/.well-known/apple-developer-domain-association.txt`
+> 4. Set `VITE_APPLE_OAUTH_ENABLED=true` in environment variables
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
 
@@ -121,6 +125,34 @@ Key flows include:
 - `/ops` – developer-only console listing environment metadata, feature flags, USDA status, function health, and quick actions (seed demo, refresh claims, purge storage, ping `/system/health`).
 - `/system/health` – plain JSON `{ ok: true, projectId, timestamp, hostingUrl }` used by CI smoke tests and the ops console.
 - Structured logging + Sentry + Playwright reports provide full traceability during incidents.
+
+## Sanity checklist
+
+Before deploying or after major changes, verify these key areas:
+
+### Authentication & Authorization
+- [ ] Email sign-in works without "couldn't reach server" errors
+- [ ] Google sign-in works on web.app + custom domain (if OAuth client configured)
+- [ ] Apple button hidden unless `VITE_APPLE_OAUTH_ENABLED=true`
+- [ ] Dev user (`developer@adlrlabs.com`) shows ∞ badge in CreditsBadge
+- [ ] Non-dev users still have server-side credit enforcement
+- [ ] Host validation warnings appear for unauthorized domains
+
+### App Check & Security
+- [ ] App Check initializes before any auth/firestore calls
+- [ ] Sign-in failures show diagnostics (appCheck token present, origin, error code)
+- [ ] Debug tokens work in development mode
+- [ ] Production uses reCAPTCHA v3 when `VITE_RECAPTCHA_SITE_KEY` is set
+
+### Health & Monitoring
+- [ ] `/system/health` returns `{ ok: true, appCheckSoft: true, ts: <iso> }`
+- [ ] Health endpoint accessible via Hosting rewrite or web route
+- [ ] No console errors during normal app usage
+
+### Environment & Configuration
+- [ ] All required environment variables documented in `.env.example`
+- [ ] App gracefully falls back to OFF when USDA key absent
+- [ ] Apple Sign-In setup documented (Firebase Console configuration)
 
 ## Deployment checklist
 

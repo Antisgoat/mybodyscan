@@ -138,6 +138,7 @@ const Auth = () => {
     if (typeof window === "undefined") return true;
     return isHostAllowed(window.location.hostname);
   });
+  const [authHostsWarning, setAuthHostsWarning] = useState<string | null>(null);
   const appleFeatureEnabled = APPLE_OAUTH_ENABLED;
   const { user } = useAuthUser();
   const authDisabled = !hostAuthorized;
@@ -161,6 +162,19 @@ const Auth = () => {
       matchesAuthorizedHost(candidate, hostname),
     );
     setHostAuthorized(oauthAuthorized);
+    
+    // Add non-blocking warning if location.host not in VITE_AUTH_ALLOWED_HOSTS
+    const authAllowedHosts = import.meta.env.VITE_AUTH_ALLOWED_HOSTS;
+    if (authAllowedHosts && typeof authAllowedHosts === "string") {
+      const allowedHosts = authAllowedHosts.split(",").map(h => h.trim().toLowerCase());
+      const currentHost = hostname.toLowerCase();
+      const isInAuthHosts = allowedHosts.some(host => 
+        currentHost === host || currentHost.endsWith(`.${host}`)
+      );
+      if (!isInAuthHosts) {
+        setAuthHostsWarning(`Host ${hostname} not in VITE_AUTH_ALLOWED_HOSTS. Add it to ensure proper OAuth configuration.`);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -388,6 +402,11 @@ const Auth = () => {
         {!hostAuthorized && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             This domain isn’t in Firebase Authorized Domains. OAuth popups may be blocked.
+          </div>
+        )}
+        {authHostsWarning && (
+          <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            {authHostsWarning}
           </div>
         )}
         <Card className="w-full shadow-md">

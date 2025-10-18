@@ -1,9 +1,10 @@
-import { getAppCheckInstance } from "@/lib/firebase";
-import { getToken, type AppCheck } from "firebase/app-check";
+import { initializeApp, getApp, getApps } from "firebase/app";
+import { CustomProvider, initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
+import { getViteEnv } from "@/lib/env";
 
+let appCheckInstance: AppCheck | null = null;
 let initPromise: Promise<AppCheck | null> | null = null;
 let initComplete = false;
-let currentAppCheck: AppCheck | null = null;
 
 function isDevOrDemo() {
   if (import.meta.env.VITE_DEMO_MODE === "true") return true;
@@ -12,70 +13,98 @@ function isDevOrDemo() {
   return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
 }
 
-function resolveAppCheckInstance(): AppCheck | null {
-  if (currentAppCheck) {
-    return currentAppCheck;
+function getFirebaseConfig() {
+  return {
+    apiKey: getViteEnv("VITE_FIREBASE_API_KEY") ?? "",
+    authDomain: getViteEnv("VITE_FIREBASE_AUTH_DOMAIN") ?? "",
+    projectId: getViteEnv("VITE_FIREBASE_PROJECT_ID") ?? "",
+    storageBucket: getViteEnv("VITE_FIREBASE_STORAGE_BUCKET") ?? "",
+    messagingSenderId: getViteEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") ?? "",
+    appId: getViteEnv("VITE_FIREBASE_APP_ID") ?? "",
+    measurementId: getViteEnv("VITE_FIREBASE_MEASUREMENT_ID") ?? undefined,
+  };
+}
+
+async function initializeAppCheckInstance(): Promise<AppCheck | null> {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (appCheckInstance) {
+    return appCheckInstance;
   }
 
   try {
-    currentAppCheck = getAppCheckInstance();
-    if (!currentAppCheck) {
-      throw new Error("app-check/uninitialized");
+    const config = getFirebaseConfig();
+    const app = getApps().length ? getApp() : initializeApp(config);
+
+    const siteKey =
+      getViteEnv("VITE_RECAPTCHA_SITE_KEY") ??
+      getViteEnv("VITE_RECAPTCHA_V3_KEY") ??
+      "";
+    
+    let provider: CustomProvider | ReCaptchaV3Provider;
+    let shouldRefresh = false;
+    
+    if (siteKey) {
+      provider = new ReCaptchaV3Provider(siteKey);
+      shouldRefresh = true;
+    } else {
+      if (typeof window !== "undefined") {
+        (window as Window & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+      }
+      provider = new CustomProvider({
+        getToken: async () => ({
+          token: `debug-${Math.random().toString(36).slice(2)}.${Date.now()}`,
+          expireTimeMillis: Date.now() + 60 * 60 * 1000,
+        }),
+      });
     }
-    return currentAppCheck;
+
+    appCheckInstance = initializeAppCheck(app, {
+      provider,
+      isTokenAutoRefreshEnabled: shouldRefresh,
+    });
+
+    return appCheckInstance;
   } catch (error) {
     if (isDevOrDemo()) {
-      console.warn("AppCheck not yet available; continuing in soft mode", error);
+      console.warn("AppCheck initialization failed; continuing in soft mode", error);
       return null;
     }
     throw error;
   }
 }
 
-export async function ensureAppCheck() {
-  if (typeof window === "undefined") {
-    initComplete = true;
-    return null;
-  }
-
-  const existing = resolveAppCheckInstance();
-  if (existing) {
-    initComplete = true;
-    return existing;
+export async function ensureAppCheck(): Promise<AppCheck | null> {
+  if (initComplete) {
+    return appCheckInstance;
   }
 
   if (!initPromise) {
-    initPromise = (async () => {
-      try {
-        const instance = resolveAppCheckInstance();
-        return instance;
-      } finally {
-        initComplete = true;
-      }
-    })();
+    initPromise = initializeAppCheckInstance();
   }
 
   try {
     const instance = await initPromise;
-    if (!instance) {
-      initPromise = null;
-    }
+    initComplete = true;
     return instance;
   } catch (error) {
     if (isDevOrDemo()) {
       console.warn("AppCheck init failed; continuing in soft mode", error);
-      initPromise = null;
+      initComplete = true;
       return null;
     }
     throw error;
   }
 }
 
-export async function getAppCheckToken(forceRefresh = false) {
+export async function getAppCheckToken(forceRefresh = false): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  await ensureAppCheck();
-  const appCheck = resolveAppCheckInstance();
+  
+  const appCheck = await ensureAppCheck();
   if (!appCheck) return null;
+  
   try {
     const res = await getToken(appCheck, forceRefresh);
     return res.token;
@@ -92,7 +121,7 @@ export async function getAppCheckToken(forceRefresh = false) {
 export const initAppCheck = ensureAppCheck;
 
 export function isAppCheckActive(): boolean {
-  return resolveAppCheckInstance() != null;
+  return appCheckInstance != null;
 }
 
 export function isAppCheckReady(): boolean {
@@ -107,4 +136,9 @@ export async function waitForAppCheckReady(): Promise<void> {
       throw error;
     }
   }
+}
+
+// Export the singleton instance getter
+export function getAppCheckInstance(): AppCheck | null {
+  return appCheckInstance;
 }
