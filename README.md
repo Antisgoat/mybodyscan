@@ -2,6 +2,8 @@
 
 This repository contains the production build for [mybodyscanapp.com](https://mybodyscanapp.com) and the Firebase Functions that power nutrition search, barcode lookup, workouts, credits, and coach chat. The project is wired for end-to-end verification with automated tests, observability, and operational tooling so you can safely deploy to both `mybodyscanapp.com` and `mybodyscan-f3daf.web.app`.
 
+📋 **[Project Snapshot & Sanity Checklist](docs/PROJECT_SNAPSHOT.md)** - Quick overview of features, current status, known issues, environment setup, and deployment commands.
+
 ## Quick start
 
 ```bash
