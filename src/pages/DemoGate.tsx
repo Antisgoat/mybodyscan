@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
+import { getAuthSafe } from "@/lib/appInit";
 import { signInAnonymously } from "firebase/auth";
 import { ensureDemoData } from "@/lib/demo";
 import { persistDemoFlags } from "@/lib/demoFlag";
@@ -41,7 +42,8 @@ export default function DemoGate() {
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
         try {
-          await signInAnonymously(auth);
+          const authInstance = await getAuthSafe();
+          await signInAnonymously(authInstance);
         } catch (error) {
           if (shouldFallbackToOffline(error)) {
             activateOfflineDemo("auth");

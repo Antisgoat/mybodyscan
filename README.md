@@ -44,11 +44,27 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 | `VITE_FIREBASE_APP_ID` | Firebase app ID |
 | `VITE_FIREBASE_MEASUREMENT_ID` | Analytics measurement ID |
 | `VITE_FUNCTIONS_BASE_URL` | Custom domain for callable HTTPS endpoints |
-| `VITE_RECAPTCHA_SITE_KEY` | reCAPTCHA v3 site key for App Check (debug fallback when missing) |
+| `VITE_RECAPTCHA_KEY` | reCAPTCHA v3 site key for App Check (falls back to debug tokens when missing) |
 | `VITE_AUTH_ALLOWED_HOSTS` | Comma-separated auth/hosting allowlist (include localhost + deployed hosts) |
 | `VITE_USDA_API_KEY` | Optional USDA FoodData Central API key |
 | `APPLE_OAUTH_ENABLED` | `true` to show Sign in with Apple when configured |
 | `VITE_SENTRY_DSN` | Optional client DSN – enables Sentry in production builds |
+
+### Firebase Web config
+
+The web bundle reads Firebase credentials from `.env.local`. When keys are omitted, the runtime falls back to the production project values so local development still boots.
+
+| Firebase console field | `.env` key |
+| --- | --- |
+| Web API Key | `VITE_FIREBASE_API_KEY` |
+| Auth domain | `VITE_FIREBASE_AUTH_DOMAIN` |
+| Project ID | `VITE_FIREBASE_PROJECT_ID` |
+| Storage bucket (`<projectId>.appspot.com`) | `VITE_FIREBASE_STORAGE_BUCKET` |
+| Messaging sender ID | `VITE_FIREBASE_MESSAGING_SENDER_ID` |
+| App ID | `VITE_FIREBASE_APP_ID` |
+| Measurement ID | `VITE_FIREBASE_MEASUREMENT_ID` |
+
+> **Storage bucket note:** Firebase SDKs expect the bucket name (for example `mybodyscan-f3daf.appspot.com`). If a `firebasestorage.app` hostname is supplied, the app normalizes it to `${projectId}.appspot.com` before initializing.
 
 ### Firebase authorized domains
 
@@ -71,10 +87,13 @@ Add every host in `VITE_AUTH_ALLOWED_HOSTS` (plus `localhost`) to **Firebase Con
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
 
-## Apple Sign-in enablement
+## Enable Apple in Firebase Auth
 
 1. In **Firebase Console → Auth → Sign-in method**, enable the Apple provider and paste the Service ID from Apple Developer.
-2. In the Apple Developer portal, create a Service ID with return URLs for both `https://mybodyscanapp.com/__/auth/handler` and `https://mybodyscan-f3daf.web.app/__/auth/handler`.
+2. In the Apple Developer portal, create a Service ID with return URLs for:
+   - `https://mybodyscanapp.com/__/auth/handler`
+   - `https://www.mybodyscanapp.com/__/auth/handler`
+   - `https://mybodyscan-f3daf.web.app/__/auth/handler`
 3. Generate a private key (Key ID + Team ID) and upload it to Firebase. Keep the `.p8` secret outside the repo.
 4. Deploy `public/.well-known/apple-developer-domain-association.txt` so Apple verifies the custom domains.
 5. Flip `APPLE_OAUTH_ENABLED=true` in `.env.local` (and hosting config) only after Firebase confirms the provider is fully configured—the button stays hidden otherwise.
@@ -169,7 +188,7 @@ Key flows include:
 
 ## Troubleshooting
 
-- **App Check errors:** confirm `VITE_RECAPTCHA_SITE_KEY` is configured. In development the debug provider activates automatically; use `/ops` → “Call /system/health” to confirm backend acceptance.
+- **App Check errors:** confirm `VITE_RECAPTCHA_KEY` is configured. In development the debug provider activates automatically; use `/ops` → “Call /system/health” to confirm backend acceptance.
 - **CORS/auth issues:** update `VITE_AUTH_ALLOWED_HOSTS` (web) and `AUTH_ALLOWED_HOSTS` / `APP_CHECK_ALLOWED_ORIGINS` (functions). Both layers use the same source of truth.
 - **Popup blockers:** Google/Apple sign-in relies on popups. Allow popups for the host or use a password flow for testing.
 - **Nutrition fallbacks:** without USDA keys the UI automatically uses OpenFoodFacts (`primarySource: "OFF"`)—the Playwright suite asserts both code paths.

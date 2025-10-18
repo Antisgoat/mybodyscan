@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { auth as firebaseAuth, functions, safeEmailSignIn } from "@/lib/firebase";
+import { getAuthSafe } from "@/lib/appInit";
 import {
   Auth,
   UserCredential,
@@ -67,7 +68,7 @@ async function requireAuthInstance(): Promise<Auth> {
   if (typeof window === "undefined") {
     throw new Error("auth/unavailable");
   }
-  return firebaseAuth;
+  return await getAuthSafe();
 }
 
 function persistDemoMarker(): void {
