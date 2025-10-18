@@ -1,21 +1,17 @@
-import { type FirebaseApp } from "firebase/app";
-import {
-  browserLocalPersistence,
-  getAuth,
-  initializeAuth,
-  setPersistence,
-  signInWithEmailAndPassword,
-  type Auth,
-} from "firebase/auth";
+import { getApp, type FirebaseApp } from "firebase/app";
+import { signInWithEmailAndPassword, type Auth } from "firebase/auth";
 import { type AppCheck } from "firebase/app-check";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { FUNCTIONS_BASE } from "@/lib/env";
 import {
-  ensureFirebaseReady,
   getAppCheckInstance as getInitAppCheckInstance,
-  isAppCheckReady as isAppCheckReadyFromInit,
+  getAuthSafe,
+  getDbSafe,
+  getFirebaseAppInstance,
+  initFirebaseApp,
+  isAppCheckInitialized,
 } from "@/lib/appInit";
 
 type FirebaseBundle = {
@@ -39,24 +35,11 @@ export let functions: Functions;
 export let storage: FirebaseStorage;
 
 async function createFirebaseBundle(): Promise<FirebaseBundle> {
-  const firebaseApp = await ensureFirebaseReady();
+  await initFirebaseApp();
+  const firebaseApp = getFirebaseAppInstance() ?? getApp();
 
-  let authInstance: Auth;
-  try {
-    authInstance = getAuth(firebaseApp);
-  } catch {
-    authInstance = initializeAuth(firebaseApp, { persistence: browserLocalPersistence });
-  }
-
-  if (typeof window !== "undefined") {
-    try {
-      await setPersistence(authInstance, browserLocalPersistence);
-    } catch (error) {
-      console.warn("[firebase] Unable to set auth persistence", error);
-    }
-  }
-
-  const firestore = getFirestore(firebaseApp);
+  const authInstance = await getAuthSafe();
+  const firestore = await getDbSafe();
   const functionsInstance = getFunctions(firebaseApp, "us-central1");
   if (FUNCTIONS_BASE) {
     try {
@@ -117,7 +100,7 @@ export function getAppCheckInstance() {
 }
 
 export function isFirebaseAppCheckReady(): boolean {
-  return isAppCheckReadyFromInit();
+  return isAppCheckInitialized();
 }
 
 export async function safeEmailSignIn(email: string, password: string) {

@@ -118,6 +118,9 @@ async function waitForDomReady(): Promise<void> {
 }
 
 function extractMissingEnvKeys(error: unknown): string[] {
+  const detailsMissing = Array.isArray((error as any)?.details?.missing)
+    ? (error as any).details.missing
+    : null;
   const fromError = Array.isArray((error as any)?.missingEnvKeys)
     ? (error as any).missingEnvKeys
     : null;
@@ -134,7 +137,7 @@ function extractMissingEnvKeys(error: unknown): string[] {
 
   return Array.from(
     new Set(
-      (candidates as unknown[])
+      ([...(detailsMissing ?? []), ...candidates] as unknown[])
         .map((value) => (typeof value === "string" ? value : ""))
         .filter((value) => value.length > 0),
     ),
@@ -475,7 +478,7 @@ const Auth = () => {
       consumeAuthRedirect();
       console.error("Google sign-in failed:", err);
       if (getFirebaseErrorCode(err) === "auth/popup-blocked") {
-        toast({ title: "Enable popups", description: "Enable popups to continue Google sign-in." });
+        toast({ title: "Enable popups to continue sign-in.", variant: "destructive" });
       } else {
         handleOauthError("Google", err);
       }
@@ -598,7 +601,7 @@ const Auth = () => {
     } catch (err: any) {
       const code = getFirebaseErrorCode(err);
       if (code === "auth/popup-blocked") {
-        toast({ title: "Enable popups", description: "Allow popups to continue with Apple sign-in." });
+        toast({ title: "Enable popups to continue sign-in.", variant: "destructive" });
         setLastOauthError({ provider: "Apple", code, message: "Popup blocked." });
       } else if (code === "auth/account-exists-with-different-credential") {
         const message = humanizeFirebaseError(err);
@@ -640,7 +643,7 @@ const Auth = () => {
             role="alert"
           >
             <p>
-              Firebase configuration invalid for this host ({configError.host}). Check .env and Authorized domains.
+              Firebase configuration missing or invalid for this host ({configError.host}). Check .env and Authorized domains.
             </p>
             {configError.missingEnvKeys.length ? (
               <ul className="mt-2 list-disc list-inside space-y-1 text-xs font-mono">

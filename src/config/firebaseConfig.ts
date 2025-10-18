@@ -1,5 +1,3 @@
-import type { FirebaseOptions } from "firebase/app";
-
 export type FirebaseWebEnv = {
   apiKey: string;
   authDomain: string;
@@ -15,10 +13,10 @@ type FirebaseConfigMeta = {
   usedFallbackKeys: string[];
   storageBucketInput: string;
   storageBucketNormalized: string;
-  internalBucket?: string | null;
+  normalizedFrom?: string | null;
 };
 
-const FALLBACK_CONFIG: FirebaseWebEnv = {
+const DEFAULTS: FirebaseWebEnv = {
   apiKey: "AIzaSyDA90cwKTCQ9tGfUx66PDmfGwUoiTbhafE",
   authDomain: "mybodyscan-f3daf.firebaseapp.com",
   projectId: "mybodyscan-f3daf",
@@ -27,18 +25,6 @@ const FALLBACK_CONFIG: FirebaseWebEnv = {
   appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
   measurementId: "G-TV8M3PY1X3",
 };
-
-type ResolvedFirebaseConfig = {
-  config: FirebaseWebEnv;
-  meta: FirebaseConfigMeta;
-};
-
-function readEnv(key: string): string | undefined {
-  const raw = (import.meta.env as Record<string, unknown> | undefined)?.[key];
-  if (typeof raw !== "string") return undefined;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
 
 const REQUIRED_KEYS: (keyof FirebaseWebEnv)[] = [
   "apiKey",
@@ -49,118 +35,105 @@ const REQUIRED_KEYS: (keyof FirebaseWebEnv)[] = [
   "appId",
 ];
 
-let cached: ResolvedFirebaseConfig | null = null;
+function readEnv(key: string): string | undefined {
+  const raw = (import.meta.env as Record<string, unknown> | undefined)?.[key];
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
-function resolveConfig(): ResolvedFirebaseConfig {
-  if (cached) {
-    return cached;
-  }
+const FALLBACK: FirebaseWebEnv = {
+  apiKey: readEnv("VITE_FIREBASE_API_KEY") || DEFAULTS.apiKey,
+  authDomain: readEnv("VITE_FIREBASE_AUTH_DOMAIN") || DEFAULTS.authDomain,
+  projectId: readEnv("VITE_FIREBASE_PROJECT_ID") || DEFAULTS.projectId,
+  storageBucket: readEnv("VITE_FIREBASE_STORAGE_BUCKET") || DEFAULTS.storageBucket,
+  messagingSenderId: readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") || DEFAULTS.messagingSenderId,
+  appId: readEnv("VITE_FIREBASE_APP_ID") || DEFAULTS.appId,
+  measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID") || DEFAULTS.measurementId,
+};
 
+function requiredMissing(cfg: FirebaseWebEnv) {
+  return (REQUIRED_KEYS as readonly (keyof FirebaseWebEnv)[]).filter((key) => {
+    const value = cfg[key];
+    return !value || String(value).trim() === "";
+  });
+}
+
+let cached: { config: FirebaseWebEnv; meta: FirebaseConfigMeta } | null = null;
+
+function resolveFirebaseConfig(): { config: FirebaseWebEnv; meta: FirebaseConfigMeta } {
+  if (cached) return cached;
+
+  const rawEntries: FirebaseWebEnv = { ...FALLBACK };
   const missingEnvKeys: string[] = [];
   const usedFallbackKeys: string[] = [];
 
-  const entries: FirebaseWebEnv = {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: "",
-    measurementId: undefined,
-  };
-
-  (Object.keys(entries) as (keyof FirebaseWebEnv)[]).forEach((key) => {
-    const envKey =
-      key === "measurementId" ? "VITE_FIREBASE_MEASUREMENT_ID" : `VITE_FIREBASE_${key.toString().toUpperCase()}`;
-    const fromEnv = readEnv(envKey);
-    if (!fromEnv) {
+  (REQUIRED_KEYS as readonly (keyof FirebaseWebEnv)[]).forEach((key) => {
+    const envKey = `VITE_FIREBASE_${key.toString().toUpperCase()}`;
+    const envValue = readEnv(envKey);
+    if (!envValue) {
       missingEnvKeys.push(envKey);
-      usedFallbackKeys.push(key as string);
+      usedFallbackKeys.push(String(key));
     }
-    const fallbackValue = FALLBACK_CONFIG[key as keyof FirebaseWebEnv];
-    const value = fromEnv ?? fallbackValue ?? "";
-    (entries as FirebaseOptions)[key] = value as any;
   });
-
-  let storageBucketInput = String(entries.storageBucket || "");
-  let storageBucketNormalized = storageBucketInput;
-  let internalBucket: string | null = null;
-
-  if (storageBucketNormalized.endsWith("firebasestorage.app")) {
-    const projectId = entries.projectId || FALLBACK_CONFIG.projectId;
-    if (projectId) {
-      internalBucket = `${projectId}.appspot.com`;
-      storageBucketNormalized = internalBucket;
-    }
+  const measurementEnv = readEnv("VITE_FIREBASE_MEASUREMENT_ID");
+  if (!measurementEnv && FALLBACK.measurementId) {
+    usedFallbackKeys.push("measurementId");
+    missingEnvKeys.push("VITE_FIREBASE_MEASUREMENT_ID");
   }
 
-  entries.storageBucket = storageBucketNormalized;
-
-  const missingRequired = REQUIRED_KEYS.filter((key) => {
-    const value = entries[key];
-    return typeof value !== "string" || value.trim().length === 0;
-  });
-
-  if (missingRequired.length > 0) {
-    const error: Error & {
-      code?: string;
-      missingKeys?: string[];
-      missingEnvKeys?: string[];
-    } = new Error(`Missing Firebase config keys: ${missingRequired.join(", ")}`);
-    error.code = "config/missing-firebase-config";
-    error.missingKeys = missingRequired;
-    error.missingEnvKeys = missingEnvKeys;
-    throw error;
-  }
-
-  cached = {
-    config: {
-      apiKey: entries.apiKey,
-      authDomain: entries.authDomain,
-      projectId: entries.projectId,
-      storageBucket: entries.storageBucket,
-      messagingSenderId: entries.messagingSenderId,
-      appId: entries.appId,
-      ...(entries.measurementId ? { measurementId: entries.measurementId } : {}),
-    },
-    meta: {
-      missingEnvKeys,
-      usedFallbackKeys,
-      storageBucketInput,
-      storageBucketNormalized,
-      internalBucket,
-    },
+  const config: FirebaseWebEnv = { ...rawEntries };
+  const meta: FirebaseConfigMeta = {
+    missingEnvKeys,
+    usedFallbackKeys,
+    storageBucketInput: rawEntries.storageBucket,
+    storageBucketNormalized: rawEntries.storageBucket,
+    normalizedFrom: null,
   };
 
+  if (config.storageBucket.endsWith("firebasestorage.app")) {
+    meta.normalizedFrom = config.storageBucket;
+    config.storageBucket = `${config.projectId}.appspot.com`;
+    meta.storageBucketNormalized = config.storageBucket;
+  }
+
+  const miss = requiredMissing(config);
+  if (miss.length) {
+    const missingKeys = miss.map((key) => String(key));
+    const err: Error & { code?: string; details?: { missing: string[] } } = new Error(
+      "config/missing-firebase-config",
+    );
+    err.code = "config/missing-firebase-config";
+    err.details = { missing: missingKeys };
+    throw err;
+  }
+
+  cached = { config, meta };
   return cached;
 }
 
 export function getFirebaseConfig(): FirebaseWebEnv {
-  return resolveConfig().config;
-}
-
-export function getFirebaseConfigMeta(): FirebaseConfigMeta {
-  return resolveConfig().meta;
+  return { ...resolveFirebaseConfig().config };
 }
 
 export function getFirebaseConfigMissingEnvKeys(): string[] {
-  return [...resolveConfig().meta.missingEnvKeys];
+  return Array.from(new Set(resolveFirebaseConfig().meta.missingEnvKeys));
 }
 
 export function describeFirebaseConfig() {
-  const { config, meta } = resolveConfig();
+  const snapshot = resolveFirebaseConfig();
   const host = typeof window !== "undefined" ? window.location.host : "ssr";
   return {
     host,
-    projectId: config.projectId,
-    appId: config.appId,
-    authDomain: config.authDomain,
-    storageBucket: config.storageBucket,
-    storageBucketInput: meta.storageBucketInput,
-    bucketNormalizedFrom: meta.internalBucket ? meta.storageBucketInput : null,
-    missingEnvKeys: meta.missingEnvKeys,
-    usingFallbackKeys: meta.usedFallbackKeys,
+    projectId: snapshot.config.projectId,
+    appId: snapshot.config.appId,
+    authDomain: snapshot.config.authDomain,
+    storageBucket: snapshot.config.storageBucket,
+    storageBucketInput: snapshot.meta.storageBucketInput,
+    normalizedFrom: snapshot.meta.normalizedFrom,
+    missingEnvKeys: snapshot.meta.missingEnvKeys,
+    usingFallbackKeys: snapshot.meta.usedFallbackKeys,
   } as const;
 }
 
-export const FIREBASE_FALLBACK_CONFIG = FALLBACK_CONFIG;
+export const FIREBASE_FALLBACK_CONFIG = { ...FALLBACK };

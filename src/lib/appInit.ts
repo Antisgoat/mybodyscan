@@ -1,169 +1,90 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
-import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFirebaseConfig } from "@/config/firebaseConfig";
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T | PromiseLike<T>) => void;
-  reject: (reason?: unknown) => void;
-};
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-const readyDeferred = createDeferred<void>();
+import { getAuth, setPersistence, browserLocalPersistence, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirebaseConfig } from "../config/firebaseConfig";
 
 let appInstance: FirebaseApp | null = null;
 let appCheckInstance: AppCheck | null = null;
-let appCheckReady = false;
-let initPromise: Promise<FirebaseApp> | null = null;
+let appCheckInitialized = false;
+let ready: Promise<void> | null = null;
 
-function finishReady() {
-  if (!appCheckReady) {
-    appCheckReady = true;
-    readyDeferred.resolve();
-  }
-}
-
-async function setupAppCheck(app: FirebaseApp): Promise<AppCheck | null> {
-  if (typeof window === "undefined") {
-    appCheckInstance = null;
-    return null;
-  }
-
-  if (appCheckInstance) {
-    return appCheckInstance;
-  }
-
-  try {
-    if (import.meta.env.DEV) {
-      try {
-        const debugToken = window.localStorage?.getItem("firebaseAppCheckDebugToken");
-        if (debugToken) {
-          (window as typeof window & { FIREBASE_APPCHECK_DEBUG_TOKEN?: string | boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN =
-            debugToken === "1" || debugToken === "true" ? true : debugToken;
-        }
-      } catch (error) {
-        console.warn("[firebase] Unable to read App Check debug token", error);
-      }
-    }
-
-    const siteKey = import.meta.env.VITE_RECAPTCHA_KEY || "dummy-recaptcha-key";
-    const provider = new ReCaptchaV3Provider(siteKey);
-    appCheckInstance = initializeAppCheck(app, {
-      provider,
-      isTokenAutoRefreshEnabled: true,
-    });
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[firebase] App Check initialization failed (soft mode)", error);
-    }
-    appCheckInstance = null;
-  }
-
-  return appCheckInstance;
-}
-
-let persistenceConfigured = false;
-let persistencePromise: Promise<void> | null = null;
-
-async function ensurePersistence(app: FirebaseApp): Promise<void> {
-  if (persistenceConfigured) {
-    return;
-  }
-
-  if (typeof window === "undefined") {
-    persistenceConfigured = true;
-    return;
-  }
-
-  if (!persistencePromise) {
-    persistencePromise = (async () => {
-      const auth = getAuth(app);
-      await setPersistence(auth, browserLocalPersistence);
-      persistenceConfigured = true;
-    })().catch((error) => {
-      if (import.meta.env.DEV) {
-        console.warn("[firebase] Unable to enforce browser persistence", error);
-      }
-      throw error;
-    });
-  }
-
-  try {
-    await persistencePromise;
-    persistencePromise = null;
-  } catch {
-    // Allow callers to proceed even if persistence fails once; a future call will retry.
-    persistencePromise = null;
-  }
-}
-
-async function ensureAppInitialized(): Promise<FirebaseApp> {
+function resolveApp(): FirebaseApp {
   if (appInstance) {
-    if (!persistenceConfigured) {
-      await ensurePersistence(appInstance);
-    }
     return appInstance;
   }
+  const existing = getApps();
+  appInstance = existing.length ? getApp() : initializeApp(getFirebaseConfig());
+  return appInstance;
+}
 
-  if (!initPromise) {
-    initPromise = (async () => {
-      const config = getFirebaseConfig();
-      const existing = getApps();
-      const app = existing.length ? getApp() : initializeApp(config);
-      appInstance = app;
-      try {
-        await setupAppCheck(app);
-        await ensurePersistence(app);
-      } finally {
-        finishReady();
-      }
-      return app;
-    })().catch((error) => {
-      finishReady();
-      throw error;
-    });
+async function setupAppCheck(app: FirebaseApp) {
+  if (typeof window === "undefined") {
+    appCheckInstance = null;
+    appCheckInitialized = false;
+    return;
   }
-
-  return initPromise;
+  try {
+    const key = (import.meta.env.VITE_RECAPTCHA_KEY || "").trim();
+    appCheckInstance = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(key || "dummy-key"),
+      isTokenAutoRefreshEnabled: true,
+    });
+    appCheckInitialized = true;
+  } catch (error) {
+    appCheckInstance = null;
+    appCheckInitialized = false;
+    if (import.meta.env.DEV) {
+      console.warn("[appInit] App Check init skipped (soft mode)", error);
+    }
+  }
 }
 
-export const readyPromise = readyDeferred.promise;
-
-export async function ensureFirebaseReady(): Promise<FirebaseApp> {
-  const app = await ensureAppInitialized();
-  await readyPromise;
-  return app;
+async function setupPersistence(app: FirebaseApp) {
+  try {
+    const auth = getAuth(app);
+    await setPersistence(auth, browserLocalPersistence);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[appInit] Unable to enforce local persistence", error);
+    }
+  }
 }
 
-export async function getFirebaseApp(): Promise<FirebaseApp> {
-  return ensureFirebaseReady();
+export function initFirebaseApp(): Promise<void> {
+  if (ready) {
+    return ready;
+  }
+  ready = (async () => {
+    const app = resolveApp();
+    await Promise.all([setupAppCheck(app), setupPersistence(app)]);
+  })();
+  return ready;
 }
 
-export async function getAuthSafe() {
-  const app = await ensureFirebaseReady();
-  return getAuth(app);
+export async function getAuthSafe(): Promise<Auth> {
+  await initFirebaseApp();
+  return getAuth(resolveApp());
 }
 
-export async function getDbSafe() {
-  const app = await ensureFirebaseReady();
-  return getFirestore(app);
+export async function getDbSafe(): Promise<Firestore> {
+  await initFirebaseApp();
+  return getFirestore(resolveApp());
+}
+
+export function getFirebaseAppInstance(): FirebaseApp | null {
+  return appInstance;
 }
 
 export function getAppCheckInstance(): AppCheck | null {
   return appCheckInstance;
 }
 
-export function isAppCheckReady(): boolean {
-  return appCheckReady;
+export function isAppCheckInitialized(): boolean {
+  return appCheckInitialized;
+}
+
+export async function waitForFirebaseReady(): Promise<void> {
+  await initFirebaseApp();
+  await ready;
 }

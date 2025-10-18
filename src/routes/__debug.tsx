@@ -7,12 +7,14 @@ import { APPLE_OAUTH_ENABLED } from "@/env";
 import { getAppCheckToken } from "@/appCheck";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEMO_USER_KEY } from "@/lib/demoFlag";
+import { isAppCheckInitialized } from "@/lib/appInit";
 
 export default function DebugOverlay() {
   const location = useLocation();
   const { user } = useAuthUser();
   const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
   const [appCheckState, setAppCheckState] = useState<"pending" | "present" | "missing">("pending");
+  const [appCheckInitialized, setAppCheckInitialized] = useState<boolean>(() => isAppCheckInitialized());
   const [configSnapshot] = useState(() => describeFirebaseConfig());
   const [online, setOnline] = useState<boolean>(() =>
     typeof window === "undefined" ? true : window.navigator.onLine,
@@ -21,8 +23,10 @@ export default function DebugOverlay() {
   const allowed = useMemo(() => {
     const search = new URLSearchParams(location.search);
     const debugFlag = search.get("debug") === "1";
-    return import.meta.env.DEV || debugFlag;
-  }, [location.search]);
+    const devRole = typeof (claims as any)?.role === "string" && (claims as any).role === "dev";
+    const developerEmail = user?.email === "developer@adlrlabs.com";
+    return import.meta.env.DEV || debugFlag || devRole || developerEmail;
+  }, [location.search, claims, user?.email]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -67,11 +71,13 @@ export default function DebugOverlay() {
       .then((token) => {
         if (!cancelled) {
           setAppCheckState(token ? "present" : "missing");
+          setAppCheckInitialized(isAppCheckInitialized());
         }
       })
       .catch(() => {
         if (!cancelled) {
           setAppCheckState("missing");
+          setAppCheckInitialized(isAppCheckInitialized());
         }
       });
     return () => {
@@ -172,9 +178,9 @@ export default function DebugOverlay() {
             <p>
               <span className="font-medium">Bucket:</span> {configSnapshot.storageBucket}
             </p>
-            {configSnapshot.bucketNormalizedFrom ? (
+            {configSnapshot.normalizedFrom ? (
               <p className="text-xs text-muted-foreground">
-                Normalized from {configSnapshot.bucketNormalizedFrom} → {configSnapshot.storageBucket}
+                Normalized from {configSnapshot.normalizedFrom} → {configSnapshot.storageBucket}
               </p>
             ) : null}
             {configSnapshot.missingEnvKeys.length ? (
@@ -233,6 +239,9 @@ export default function DebugOverlay() {
             <CardTitle>App Check</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            <p>
+              <span className="font-medium">Initialized?</span> {appCheckInitialized ? "yes" : "no"}
+            </p>
             <p>
               <span className="font-medium">Token present?</span>{" "}
               {appCheckState === "pending" ? "loading…" : appCheckState === "present" ? "yes" : "no"}
