@@ -1,5 +1,5 @@
-import type { PhotoFeatures } from "@/lib/vision/features";
-import { bai, deurenberg, navyFemale, navyMale, wthr } from "./formulas";
+import type { PhotoFeatures } from "@app/lib/vision/features.ts";
+import { bai, deurenberg, navyFemale, navyMale, wthr } from "./formulas.ts";
 
 export interface EstimateInput {
   sex: "male" | "female";

@@ -1,4 +1,4 @@
-import RootRedirect from "./RootRedirect";
+import RootRedirect from "./RootRedirect.tsx";
 
 const Index = () => {
   return <RootRedirect />;

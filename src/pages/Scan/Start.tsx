@@ -1,13 +1,13 @@
 import { FormEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Seo } from "@/components/Seo";
-import { getLastWeight, setLastWeight } from "@/lib/userState";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { demoToast } from "@/lib/demoToast";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { getLastWeight, setLastWeight } from "@app/lib/userState.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { demoToast } from "@app/lib/demoToast.ts";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);

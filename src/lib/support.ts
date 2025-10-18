@@ -1,4 +1,4 @@
-import { auth } from "@/lib/firebase";
+import { auth } from "@app/lib/firebase.ts";
 
 export function supportMailto(extra?: Record<string, string>) {
   const lines: string[] = [];

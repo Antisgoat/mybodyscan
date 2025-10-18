@@ -1,20 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
-import { updateDoc } from "@/lib/dbWrite";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Textarea } from "@app/components/ui/textarea.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Skeleton } from "@app/components/ui/skeleton.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { useLatestScanForUser } from "@app/hooks/useLatestScanForUser.ts";
+import { updateDoc } from "@app/lib/dbWrite.ts";
 import { doc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics } from "@/lib/scanDisplay";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { DemoBanner } from "@/components/DemoBanner";
+import { db } from "@app/lib/firebase.ts";
+import { extractScanMetrics } from "@app/lib/scans.ts";
+import { summarizeScanMetrics } from "@app/lib/scanDisplay.ts";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";

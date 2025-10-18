@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { Button } from "@app/components/ui/button.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { auth, db } from "@app/lib/firebase.ts";
 import { doc, onSnapshot } from "firebase/firestore";
 
 const Processing = () => {

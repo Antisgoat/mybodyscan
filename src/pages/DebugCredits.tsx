@@ -1,4 +1,4 @@
-import { useCredits } from "@/hooks/useCredits";
+import { useCredits } from "@app/hooks/useCredits.ts";
 
 export default function DebugCredits() {
   const { credits, uid, projectId } = useCredits();

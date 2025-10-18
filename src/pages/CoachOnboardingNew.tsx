@@ -1,21 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { RadioGroup, RadioGroupItem } from "@app/components/ui/radio-group.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc } from "firebase/firestore";
-import { useComputePlan } from "@/hooks/useComputePlan";
-import { useToast } from "@/hooks/use-toast";
-import { Seo } from "@/components/Seo";
-import HeightInputUS from "@/components/HeightInputUS";
-import { kgToLb, lbToKg } from "@/lib/units";
-import { useUnits } from "@/hooks/useUnits";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { useComputePlan } from "@app/hooks/useComputePlan.ts";
+import { useToast } from "@app/hooks/use-toast.ts";
+import { Seo } from "@app/components/Seo.tsx";
+import HeightInputUS from "@app/components/HeightInputUS.tsx";
+import { kgToLb, lbToKg } from "@app/lib/units.ts";
+import { useUnits } from "@app/hooks/useUnits.ts";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 interface OnboardingData {
   sex?: "male" | "female";
@@ -208,7 +208,9 @@ export default function CoachOnboardingNew() {
       <CardContent className="space-y-4">
         <RadioGroup
           value={data.activity_level}
-          onValueChange={(value: typeof data.activity_level) => updateData({ activity_level: value })}
+          onValueChange={(value) =>
+            updateData({ activity_level: value as OnboardingData["activity_level"] })
+          }
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="sedentary" id="sedentary" />
@@ -255,7 +257,7 @@ export default function CoachOnboardingNew() {
           <Label>Primary Goal</Label>
           <RadioGroup
             value={data.goal}
-            onValueChange={(value: typeof data.goal) => updateData({ goal: value })}
+            onValueChange={(value) => updateData({ goal: value as OnboardingData["goal"] })}
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="lose_fat" id="lose_fat" />
@@ -287,7 +289,9 @@ export default function CoachOnboardingNew() {
           <Label>Approach</Label>
           <RadioGroup
             value={data.style}
-            onValueChange={(value: typeof data.style) => updateData({ style: value })}
+            onValueChange={(value) =>
+              updateData({ style: value as OnboardingData["style"] })
+            }
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="ease_in" id="ease_in" />

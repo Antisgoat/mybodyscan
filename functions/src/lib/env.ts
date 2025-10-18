@@ -1,7 +1,9 @@
 // Hardened environment helpers - all env reads go through these functions
 // to prevent import-time crashes from undefined values
 
-export const getEnv = (k: string): string | undefined => process.env?.[k];
+const readEnv = (key: string): string => process.env[key] ?? "";
+
+export const getEnv = (k: string): string => readEnv(k);
 
 export const getEnvInt = (k: string, d: number): number => {
   const v = getEnv(k);
@@ -10,7 +12,7 @@ export const getEnvInt = (k: string, d: number): number => {
 };
 
 export const getEnvBool = (k: string, d = false): boolean => {
-  const v = (getEnv(k) || '').toLowerCase();
+  const v = getEnv(k).toLowerCase();
   if (v === 'true' || v === '1' || v === 'yes') return true;
   if (v === 'false' || v === '0' || v === 'no') return false;
   return d;

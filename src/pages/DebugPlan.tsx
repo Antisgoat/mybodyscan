@@ -1,4 +1,4 @@
-import { useUserProfile } from "@/hooks/useUserProfile";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
 
 const DebugPlan = () => {
   const { profile, plan } = useUserProfile();

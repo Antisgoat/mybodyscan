@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@app/components/ui/collapsible.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
 import {
   createAccountEmail,
   rememberAuthRedirect,
@@ -18,8 +18,8 @@ import {
   formatAuthError,
   finalizeAppleProfile,
   isHostAllowed,
-} from "@/lib/auth";
-import { auth, safeEmailSignIn } from "@/lib/firebase";
+} from "@app/lib/auth.ts";
+import { auth, safeEmailSignIn } from "@app/lib/firebase.ts";
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -29,9 +29,9 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
 } from "firebase/auth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
-import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
+import { isIOSSafari } from "@app/lib/isIOSWeb.ts";
+import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@app/lib/firebaseAuthConfig.ts";
+import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@app/env.ts";
 import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([

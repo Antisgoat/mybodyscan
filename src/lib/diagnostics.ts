@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
-import { getBreadcrumbs } from "./logger";
+import { auth } from "@app/lib/firebase.ts";
+import { getBreadcrumbs } from "./logger.ts";
 export async function buildDiagnostics(): Promise<string> {
   const u = auth.currentUser;
   const info = {

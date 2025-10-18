@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { isIOSWeb } from "@/lib/isIOSWeb";
-import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
-import { coachPlanDocPath, coachChatCollectionPath } from "@/lib/paths";
-import { appVersion } from "@/lib/appInfo";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { isIOSWeb } from "@app/lib/isIOSWeb.ts";
+import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@app/lib/firebaseAuthConfig.ts";
+import { coachPlanDocPath, coachChatCollectionPath } from "@app/lib/paths.ts";
+import { appVersion } from "@app/lib/appInfo.ts";
 
 function formatDateYYYYMMDD(date: Date): string {
   const y = date.getFullYear();

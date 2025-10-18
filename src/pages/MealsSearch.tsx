@@ -1,31 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
-import { fetchFoods } from "@/lib/api";
-import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@app/components/ui/dialog.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { fetchFoods } from "@app/lib/api.ts";
+import type { FoodItem, ServingOption } from "@app/lib/nutrition/types.ts";
 import {
   saveFavorite,
   removeFavorite,
   subscribeFavorites,
   type FavoriteDocWithId,
-} from "@/lib/nutritionCollections";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { db } from "@/lib/firebase";
-import { addDoc } from "@/lib/dbWrite";
+} from "@app/lib/nutritionCollections.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { db } from "@app/lib/firebase.ts";
+import { addDoc } from "@app/lib/dbWrite.ts";
 import { collection, serverTimestamp } from "firebase/firestore";
-import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
-import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
-import { HAS_USDA } from "@/lib/env";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { useAppCheckReady } from "@app/components/AppCheckProvider.tsx";
+import { roundGrams, roundKcal, sumNumbers } from "@app/lib/nutritionMath.ts";
+import { HAS_USDA } from "@app/lib/env.ts";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;

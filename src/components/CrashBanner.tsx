@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@app/components/ui/alert.tsx";
+import { Button } from "@app/components/ui/button.tsx";
 import { AlertTriangle, X } from "lucide-react";
 
 export function CrashBanner() {

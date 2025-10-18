@@ -1,26 +1,26 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Seo } from "@/components/Seo";
-import { useToast } from "@/hooks/use-toast";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Separator } from "@app/components/ui/separator.tsx";
+import { Alert, AlertDescription, AlertTitle } from "@app/components/ui/alert.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { useToast } from "@app/hooks/use-toast.ts";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc, serverTimestamp } from "firebase/firestore";
-import { beginPaidScan, recordGateFailure, refundIfNoResult, startScan } from "@/lib/api";
-import { clientQualityGate, computeImageHash, type GateResult } from "@/lib/scan/gates";
-import { estimateCircumferences } from "@/lib/scan/photoAssist";
-import { computeBodyFat, bmiFromKgCm } from "@/lib/scan/anthro";
-import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@/lib/units";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { cn } from "@/lib/utils";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { beginPaidScan, recordGateFailure, refundIfNoResult, startScan } from "@app/lib/api.ts";
+import { clientQualityGate, computeImageHash, type GateResult } from "@app/lib/scan/gates.ts";
+import { estimateCircumferences } from "@app/lib/scan/photoAssist.ts";
+import { computeBodyFat, bmiFromKgCm } from "@app/lib/scan/anthro.ts";
+import { formatBmi, formatWeightFromKg, formatHeightFromCm, CM_PER_IN } from "@app/lib/units.ts";
+import { NotMedicalAdviceBanner } from "@app/components/NotMedicalAdviceBanner.tsx";
+import { cn } from "@app/lib/utils.ts";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 const MODE_OPTIONS: { value: "2" | "4"; label: string; description: string }[] = [
   { value: "2", label: "Quick (2 photos)", description: "Front + Side" },

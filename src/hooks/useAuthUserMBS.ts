@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '../lib/firebase'; // safe fallback — if project has its own, user can rewire
+import { auth } from '../lib/firebase.ts'; // safe fallback — if project has its own, user can rewire
 
 export function useAuthUserMBS() {
   const [user, setUser] = useState<User | null>(null);

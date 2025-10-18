@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Flashlight, FlashlightOff, Square, Play, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
-import { lookupBarcode } from "@/lib/nutritionShim";
-import type { FoodItem } from "@/lib/nutrition/types";
-import { addMeal } from "@/lib/nutrition";
-import { Seo } from "@/components/Seo";
-import { defaultCountryFromLocale } from "@/lib/locale";
-import { ServingEditor } from "@/components/nutrition/ServingEditor";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { lookupBarcode } from "@app/lib/nutritionShim.ts";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
+import { addMeal } from "@app/lib/nutrition.ts";
+import { Seo } from "@app/components/Seo.tsx";
+import { defaultCountryFromLocale } from "@app/lib/locale.ts";
+import { ServingEditor } from "@app/components/nutrition/ServingEditor.tsx";
 
 const SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.11/dist/quagga.min.js";
 

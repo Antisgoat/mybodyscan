@@ -1,8 +1,8 @@
-import { auth, db } from "./firebase";
+import { auth, db } from "./firebase.ts";
 import { collection, getDocs } from "firebase/firestore";
-import { isDemoActive } from "./demoFlag";
-import { track } from "./analytics";
-import { DEMO_WORKOUT_PLAN } from "./demoContent";
+import { isDemoActive } from "./demoFlag.tsx";
+import { track } from "./analytics.ts";
+import { DEMO_WORKOUT_PLAN } from "./demoContent.ts";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 

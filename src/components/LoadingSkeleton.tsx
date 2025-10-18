@@ -1,6 +1,6 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-export { PageSkeleton } from "./system/PageSkeleton";
+import { Skeleton } from "@app/components/ui/skeleton.tsx";
+import { Card, CardContent, CardHeader } from "@app/components/ui/card.tsx";
+export { PageSkeleton } from "./system/PageSkeleton.tsx";
 
 export function CaptureSkeleton() {
   return (

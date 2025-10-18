@@ -1,10 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Seo } from "@/components/Seo";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip.tsx";
+import { Seo } from "@app/components/Seo.tsx";
 import { useNavigate } from "react-router-dom";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { demoToast } from "@/lib/demoToast";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { demoToast } from "@app/lib/demoToast.ts";
 
 const CapturePicker = () => {
   const navigate = useNavigate();

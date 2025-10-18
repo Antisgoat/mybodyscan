@@ -1,6 +1,6 @@
 import React from "react";
-import { disabledIfDemo } from "@/lib/demoGuard";
-import { Button, type ButtonProps } from "@/components/ui/button";
+import { disabledIfDemo } from "@app/lib/demoGuard.ts";
+import { Button, type ButtonProps } from "@app/components/ui/button.tsx";
 
 type Props = ButtonProps;
 

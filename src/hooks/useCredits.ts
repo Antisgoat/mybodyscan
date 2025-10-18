@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { isDemo as isDemoAuth } from "@/lib/auth";
-import { useOfflineDemo } from "@/components/DemoModeProvider";
-import { OFFLINE_DEMO_CREDITS, OFFLINE_DEMO_UID } from "@/lib/demoOffline";
-import { isWhitelistedEmail } from "@/lib/whitelist";
+import { auth, db } from "@app/lib/firebase.ts";
+import { isDemo as isDemoAuth } from "@app/lib/auth.ts";
+import { useOfflineDemo } from "@app/components/DemoModeProvider.tsx";
+import { OFFLINE_DEMO_CREDITS, OFFLINE_DEMO_UID } from "@app/lib/demoOffline.ts";
+import { isWhitelistedEmail } from "@app/lib/whitelist.ts";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);

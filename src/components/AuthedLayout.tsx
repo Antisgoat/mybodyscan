@@ -1,9 +1,9 @@
 import { ReactNode } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { signOutToAuth } from "@/lib/auth";
-import Footer from "./Footer";
-import { CreditsBadge } from "./CreditsBadge";
+import { Button } from "@app/components/ui/button.tsx";
+import { signOutToAuth } from "@app/lib/auth.ts";
+import Footer from "./Footer.tsx";
+import { CreditsBadge } from "./CreditsBadge.tsx";
 
 export default function AuthedLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();

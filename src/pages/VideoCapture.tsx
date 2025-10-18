@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
 import { useNavigate } from "react-router-dom";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { auth, storage } from "@/lib/firebase";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { auth, storage } from "@app/lib/firebase.ts";
 import { ref, uploadBytes } from "firebase/storage";
-import { startScan } from "@/lib/api";
-import { consumeOneCredit } from "@/lib/payments";
-import { sanitizeFilename } from "@/lib/utils";
+import { startScan } from "@app/lib/api.ts";
+import { consumeOneCredit } from "@app/lib/payments.ts";
+import { sanitizeFilename } from "@app/lib/utils.ts";
 
 const MAX_SECONDS = 10;
 

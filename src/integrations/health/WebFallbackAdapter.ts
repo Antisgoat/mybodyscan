@@ -1,4 +1,4 @@
-import { DailySummary, HealthAdapter } from "./HealthAdapter";
+import { DailySummary, HealthAdapter } from "./HealthAdapter.ts";
 
 export class WebFallbackAdapter implements HealthAdapter {
   platform = "web" as const;

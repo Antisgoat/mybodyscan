@@ -1,5 +1,5 @@
-import { useAuthUser } from "@/lib/auth";
-import { useDemoMode } from "@/components/DemoModeProvider";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
 
 export function DemoBadge() {
   const { user } = useAuthUser();

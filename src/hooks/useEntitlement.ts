@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useCredits } from './useCredits';
+import { useCredits } from './useCredits.ts';
 
 interface Entitlement {
   subscribed: boolean;

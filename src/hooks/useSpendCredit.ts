@@ -1,4 +1,4 @@
-import { functions } from "@/lib/firebase";
+import { functions } from "@app/lib/firebase.ts";
 import { httpsCallable } from "firebase/functions";
 
 export function useSpendCredit() {

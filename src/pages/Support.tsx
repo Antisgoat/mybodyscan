@@ -1,7 +1,7 @@
-import { Seo } from "@/components/Seo";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
-import { copyDiagnostics } from "@/lib/diagnostics";
+import { Seo } from "@app/components/Seo.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { copyDiagnostics } from "@app/lib/diagnostics.ts";
 
 const Support = () => {
   return (

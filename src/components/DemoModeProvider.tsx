@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuthUser } from "@/lib/auth";
-import { DEMO_QUERY_PARAM, isDemoMode } from "@/lib/demoFlag";
-import { isDemoOffline, subscribeDemoOffline } from "@/lib/demoOffline";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { DEMO_QUERY_PARAM, isDemoMode } from "@app/lib/demoFlag.tsx";
+import { isDemoOffline, subscribeDemoOffline } from "@app/lib/demoOffline.ts";
 
 interface DemoModeContextValue {
   demo: boolean;

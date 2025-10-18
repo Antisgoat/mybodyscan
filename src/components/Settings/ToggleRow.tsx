@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@app/components/ui/switch.tsx';
 
 interface ToggleRowProps {
   label: ReactNode;

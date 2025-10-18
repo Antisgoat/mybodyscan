@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  define: {
+    "process.env": {},
+  },
   plugins: [
     react(),
     mode === 'development' &&
@@ -17,7 +20,7 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@app": path.resolve(__dirname, "./src"),
       "@sentry/react": path.resolve(__dirname, "./src/lib/sentry-fallback.ts"),
     },
     dedupe: ["react", "react-dom"],

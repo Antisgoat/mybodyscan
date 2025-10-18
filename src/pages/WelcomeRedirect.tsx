@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { auth } from "@/lib/firebase";
+import { auth } from "@app/lib/firebase.ts";
 
 const WelcomeRedirect = () => {
   const [countdown, setCountdown] = useState(1.5);

@@ -75,9 +75,27 @@ This repository includes automated deploy workflows (`deploy.yml` for push-to-ma
 1. Create a GitHub repository secret named **FIREBASE_TOKEN** using `firebase login:ci`.
 2. Confirm the Firebase project ID is **mybodyscan-f3daf**.
 3. Confirm Firebase Hosting serves **mybodyscan-f3daf.web.app** and the custom domain **mybodyscanapp.com**.
-4. **TODO (Firebase Console → Authentication → Settings):** add authorized domains `mybodyscanapp.com`, `mybodyscan.lovable.app`, 
+4. **TODO (Firebase Console → Authentication → Settings):** add authorized domains `mybodyscanapp.com`, `mybodyscan.lovable.app`,
    and `localhost`.
 5. Trigger the **Deploy (manual)** workflow once to seed Hosting + Functions, then rely on pushes to `main` for ongoing deploys.
+
+## CI / Build Notes
+
+- Use **Node.js 20**. Locally run `nvm use 20.19.4` (or another 20.x release) before installing dependencies.
+- Install dependencies with `npm ci` (CI) or `npm install --prefer-offline --no-progress` (local) to populate `node_modules/`.
+- Web builds: `npm run build` (production) and `npm run typecheck:web` (strict TypeScript, NodeNext module resolution).
+- Functions build: `npm --prefix functions run build` compiles to `functions/lib` and validates `lib/index.js` exists.
+- Minimal `.env.local` example for local builds:
+
+  ```ini
+  VITE_FIREBASE_API_KEY=your-api-key
+  VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+  VITE_FIREBASE_PROJECT_ID=your-project
+  VITE_FIREBASE_APP_ID=1:123:web:abc
+  VITE_FUNCTIONS_BASE_URL=http://localhost:5001/your-project/us-central1
+  ```
+
+- Run `npm run test` to execute the Vitest suite; CI also runs `npm run test:e2e:ci` which is a stubbed no-op until browsers are provisioned.
 
 ## Can I connect a custom domain to my Lovable project?
 

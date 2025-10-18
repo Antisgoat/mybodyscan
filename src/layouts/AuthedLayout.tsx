@@ -1,13 +1,13 @@
 import { ReactNode, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@app/components/ui/button.tsx";
+import { Sheet, SheetContent, SheetTrigger } from "@app/components/ui/sheet.tsx";
+import { Avatar, AvatarFallback } from "@app/components/ui/avatar.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@app/components/ui/dropdown-menu.tsx";
 import { Menu, User } from "lucide-react";
-import { signOutToAuth } from "@/lib/auth";
-import { CreditsBadge } from "@/components/CreditsBadge";
-import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
+import { signOutToAuth } from "@app/lib/auth.ts";
+import { CreditsBadge } from "@app/components/CreditsBadge.tsx";
+import { FeatureName, isFeatureEnabled } from "@app/lib/featureFlags.ts";
 
 interface AuthedLayoutProps {
   children: ReactNode;

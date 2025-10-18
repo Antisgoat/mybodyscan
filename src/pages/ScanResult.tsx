@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
 import { RefreshCcw } from "lucide-react";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { auth, db } from "@/lib/firebase";
+import { Seo } from "@app/components/Seo.tsx";
+import { NotMedicalAdviceBanner } from "@app/components/NotMedicalAdviceBanner.tsx";
+import { auth, db } from "@app/lib/firebase.ts";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics, formatCentimetersAsInches } from "@/lib/scanDisplay";
+import { extractScanMetrics } from "@app/lib/scans.ts";
+import { summarizeScanMetrics, formatCentimetersAsInches } from "@app/lib/scanDisplay.ts";
 
 interface ScanDocument {
   id: string;
@@ -81,7 +81,8 @@ export default function ScanResult() {
     const scanRef = doc(db, "users", user.uid, "scans", scanId);
     const unsub = onSnapshot(scanRef, (snapshot) => {
       if (snapshot.exists()) {
-        setScan({ id: snapshot.id, ...(snapshot.data() as ScanDocument) });
+        const data = snapshot.data() as ScanDocument;
+        setScan({ ...data, id: snapshot.id });
       }
       setLoading(false);
     });
@@ -99,7 +100,7 @@ export default function ScanResult() {
         const data = docSnap.data() as ScanDocument;
         const normalized = extractScanMetrics(data);
         if (data.charged && normalized.bodyFatPercent != null) {
-          list.push({ id: docSnap.id, ...data });
+          list.push({ ...data, id: docSnap.id });
         }
       });
       setHistory(list);

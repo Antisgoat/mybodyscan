@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { I18N_DICTIONARY, type TranslationKey } from '@/i18n/seed';
-import { isFeatureEnabled } from './featureFlags';
+import { I18N_DICTIONARY, type TranslationKey } from '@app/i18n/seed.ts';
+import { isFeatureEnabled } from './featureFlags.ts';
 
 const translations = isFeatureEnabled('i18n')
   ? I18N_DICTIONARY

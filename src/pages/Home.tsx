@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@app/components/ui/tooltip.tsx";
 import { useNavigate } from "react-router-dom";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics } from "@/lib/scanDisplay";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { demoToast } from "@/lib/demoToast";
+import { db } from "@app/lib/firebase.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { extractScanMetrics } from "@app/lib/scans.ts";
+import { summarizeScanMetrics } from "@app/lib/scanDisplay.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { demoToast } from "@app/lib/demoToast.ts";
 
 type LastScan = {
   id: string;

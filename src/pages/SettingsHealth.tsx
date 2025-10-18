@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { format, subDays } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useHealthDaily } from "@/hooks/useHealthDaily";
-import { useToast } from "@/hooks/use-toast";
-import type { DailySummary } from "@/integrations/health/HealthAdapter";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { useHealthDaily } from "@app/hooks/useHealthDaily.ts";
+import { useToast } from "@app/hooks/use-toast.ts";
+import type { DailySummary } from "@app/integrations/health/HealthAdapter.ts";
 import { Smartphone, Activity, Heart, Footprints, Shield } from "lucide-react";
 
 const SettingsHealth = () => {

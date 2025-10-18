@@ -1,23 +1,23 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import { loadAllPrograms, matchScore, type CatalogEntry } from "@/lib/coach/catalog";
-import type { ProgramEquipment, ProgramGoal, ProgramLevel } from "@/lib/coach/types";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { RadioGroup, RadioGroupItem } from "@app/components/ui/radio-group.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Slider } from "@app/components/ui/slider.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
+import { loadAllPrograms, matchScore, type CatalogEntry } from "@app/lib/coach/catalog.ts";
+import type { ProgramEquipment, ProgramGoal, ProgramLevel } from "@app/lib/coach/types.ts";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc } from "firebase/firestore";
-import { toast } from "@/hooks/use-toast";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { toast } from "@app/hooks/use-toast.ts";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 const goalOptions: Array<{ value: ProgramGoal; label: string; description: string }> = [
   { value: "hypertrophy", label: "Build muscle", description: "Hypertrophy-focused growth" },

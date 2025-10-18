@@ -1,20 +1,26 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" },
-    { "path": "./functions/tsconfig.json" }
-  ],
   "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "resolvePackageJsonExports": true,
+    "resolvePackageJsonImports": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "moduleSuffixes": [".ts", ".tsx", ".d.ts", ".js", ".jsx", ""],
+    "strict": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@app/*": ["./src/*"]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
-  }
+    "types": ["vite/client"]
+  },
+  "include": ["src", "vite-env.d.ts"]
 }

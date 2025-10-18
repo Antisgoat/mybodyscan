@@ -1,9 +1,9 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Seo } from "@/components/Seo";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { ToggleGroup, ToggleGroupItem } from "@app/components/ui/toggle-group.tsx";
+import { Seo } from "@app/components/Seo.tsx";
 import {
   CAPTURE_VIEW_SETS,
   type CaptureView,
@@ -11,7 +11,7 @@ import {
   setCaptureFile,
   setCaptureMode,
   useScanCaptureStore,
-} from "./scanCaptureStore";
+} from "./scanCaptureStore.ts";
 
 export default function ScanCapture() {
   const navigate = useNavigate();

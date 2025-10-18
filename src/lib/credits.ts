@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "./firebase.ts";
 
 export async function getRemainingCredits(uid: string): Promise<number> {
   const now = new Date();

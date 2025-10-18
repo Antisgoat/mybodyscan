@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db } from "@app/lib/firebase.ts";
 import { doc, onSnapshot } from "firebase/firestore";
-import { coachPlanDoc } from "@/lib/db/coachPaths";
-import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
+import { coachPlanDoc } from "@app/lib/db/coachPaths.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { useAppCheckReady } from "@app/components/AppCheckProvider.tsx";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@app/lib/demoContent.ts";
 
 export interface CoachProfile {
   sex?: "male" | "female";

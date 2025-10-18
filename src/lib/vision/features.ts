@@ -1,4 +1,4 @@
-import type { Landmarks } from "./landmarks";
+import type { Landmarks } from "./landmarks.ts";
 
 export type ViewName = "front" | "side" | "left" | "right" | "back" | (string & {});
 

@@ -1,5 +1,5 @@
-import type { FoodItem } from "@/lib/nutrition/types";
-import type { MealEntry, MealItemSnapshot } from "@/lib/nutrition";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
+import type { MealEntry, MealItemSnapshot } from "@app/lib/nutrition.ts";
 
 export const SERVING_UNITS = ["serving", "g", "oz", "cups", "slices", "pieces"] as const;
 export type ServingUnit = (typeof SERVING_UNITS)[number];
@@ -231,8 +231,12 @@ export function roundKcal(val: number): number {
 }
 
 export function sumNumbers(values: Array<number | undefined | null>): number {
-  return values.reduce((acc, v) => {
-    const numeric = Number(v);
-    return acc + (Number.isFinite(numeric) ? numeric : 0);
-  }, 0);
+  let total = 0;
+  for (const value of values) {
+    const numeric = typeof value === "number" ? value : Number(value ?? 0);
+    if (Number.isFinite(numeric)) {
+      total += numeric;
+    }
+  }
+  return total;
 }

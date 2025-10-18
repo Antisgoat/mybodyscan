@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
-import { getAppCheckToken } from "@/appCheck";
+import { auth } from "@app/lib/firebase.ts";
+import { getAppCheckToken } from "@app/appCheck.ts";
 
 export type PoseKey = "front" | "back" | "left" | "right";
 

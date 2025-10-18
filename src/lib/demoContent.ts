@@ -1,5 +1,5 @@
-import type { CoachPlan, CoachProfile } from "@/hooks/useUserProfile";
-import type { FavoriteDocWithId, TemplateDocWithId } from "@/lib/nutritionCollections";
+import type { CoachPlan, CoachProfile } from "@app/hooks/useUserProfile.ts";
+import type { FavoriteDocWithId, TemplateDocWithId } from "@app/lib/nutritionCollections.ts";
 
 type DemoMealEntry = {
   id: string;

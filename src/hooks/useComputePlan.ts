@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { authedFetch } from "@/lib/api";
+import { authedFetch } from "@app/lib/api.ts";
 
 export function useComputePlan() {
   const [computing, setComputing] = useState(false);

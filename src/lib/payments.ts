@@ -1,11 +1,11 @@
-import { log } from "./logger";
-import { isDemoActive } from "./demoFlag";
-import { toast } from "@/hooks/use-toast";
-import { track } from "./analytics";
+import { log } from "./logger.ts";
+import { isDemoActive } from "./demoFlag.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { track } from "./analytics.ts";
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
-import { auth, functions } from "@/lib/firebase";
-import { authedFetch } from "@/lib/api";
+import { auth, functions } from "@app/lib/firebase.ts";
+import { authedFetch } from "@app/lib/api.ts";
 
 export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
 

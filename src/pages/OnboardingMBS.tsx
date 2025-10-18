@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { setDoc } from '../lib/dbWrite';
-import { DemoWriteButton } from '../components/DemoWriteGuard';
+import { setDoc } from '../lib/dbWrite.ts';
+import { DemoWriteButton } from '../components/DemoWriteGuard.tsx';
 import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
-import ToastMBS from '../components/ToastMBS';
-import { toFriendlyMBS } from '../lib/errors.mbs';
-import ScanTipsMBS from '../components/ScanTipsMBS';
-import HeightInputUS from '../components/HeightInputUS';
-import { kgToLb, lbToKg } from '../lib/units';
+import { db } from '../lib/firebase.ts';
+import { useAuthUserMBS } from '../hooks/useAuthUserMBS.ts';
+import ToastMBS from '../components/ToastMBS.tsx';
+import { toFriendlyMBS } from '../lib/errors.mbs.ts';
+import ScanTipsMBS from '../components/ScanTipsMBS.tsx';
+import HeightInputUS from '../components/HeightInputUS.tsx';
+import { kgToLb, lbToKg } from '../lib/units.ts';
 
 type Step = 1|2|3|4;
 

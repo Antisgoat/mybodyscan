@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Filter, SlidersHorizontal } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { AspectRatio } from "@app/components/ui/aspect-ratio.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@app/components/ui/select.tsx";
+import { Slider } from "@app/components/ui/slider.tsx";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { loadAllPrograms, matchScore, type CatalogEntry, type ProgramMeta } from "@/lib/coach/catalog";
-import type { Program, ProgramEquipment, ProgramGoal, ProgramLevel } from "@/lib/coach/types";
+} from "@app/components/ui/dropdown-menu.tsx";
+import { loadAllPrograms, matchScore, type CatalogEntry, type ProgramMeta } from "@app/lib/coach/catalog.ts";
+import type { Program, ProgramEquipment, ProgramGoal, ProgramLevel } from "@app/lib/coach/types.ts";
 
 const goalLabels: Record<ProgramGoal, string> = {
   hypertrophy: "Hypertrophy",

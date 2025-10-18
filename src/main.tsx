@@ -2,11 +2,11 @@ import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { initAppCheck } from "./appCheck";
-import { killSW } from "./lib/killSW";
-import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
-import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";
+import { AppErrorBoundary } from "./components/AppErrorBoundary.tsx";
+import { initAppCheck } from "./appCheck.ts";
+import { killSW } from "./lib/killSW.ts";
+import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig.ts";
+import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry.ts";
 
 // Initialize Sentry first
 initSentry();

@@ -1,4 +1,4 @@
-import { getAppCheckInstance } from "@/lib/firebase";
+import { getAppCheckInstance } from "@app/lib/firebase.ts";
 import { getToken, type AppCheck } from "firebase/app-check";
 
 let initPromise: Promise<AppCheck | null> | null = null;

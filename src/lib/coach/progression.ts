@@ -1,4 +1,4 @@
-import type { Day, Exercise } from "./types";
+import type { Day, Exercise } from "./types.ts";
 
 interface FlattenedSet {
   exIdx: number;

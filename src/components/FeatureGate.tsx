@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { isFeatureEnabled, type FeatureName } from '@/lib/featureFlags';
+import { isFeatureEnabled, type FeatureName } from '@app/lib/featureFlags.ts';
 
 type FeatureGateProps = {
   name: FeatureName;

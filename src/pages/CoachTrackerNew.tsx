@@ -1,21 +1,21 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@app/components/ui/dialog.tsx";
 import { CalendarIcon, Plus } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@app/components/ui/calendar.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "@app/components/ui/popover.tsx";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc, onSnapshot } from "firebase/firestore";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
+import { useToast } from "@app/hooks/use-toast.ts";
 import { format } from "date-fns";
-import { Seo } from "@/components/Seo";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { Seo } from "@app/components/Seo.tsx";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 interface NutritionLog {
   calories: number;

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Utensils, Plus, History, Copy, Barcode, ListPlus, Star, Trash } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { demoToast } from "@/lib/demoToast";
-import { DEMO_FAVORITES, DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG, DEMO_TEMPLATES } from "@/lib/demoContent";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { demoToast } from "@app/lib/demoToast.ts";
+import { DEMO_FAVORITES, DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG, DEMO_TEMPLATES } from "@app/lib/demoContent.ts";
 import {
   addMeal,
   deleteMeal,
@@ -16,8 +16,8 @@ import {
   getNutritionHistory,
   type MealEntry,
   type NutritionHistoryDay,
-} from "@/lib/nutrition";
-import type { FoodItem } from "@/lib/nutrition/types";
+} from "@app/lib/nutrition.ts";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
 import {
   subscribeFavorites,
   subscribeTemplates,
@@ -25,17 +25,17 @@ import {
   deleteTemplate,
   type FavoriteDocWithId,
   type TemplateDocWithId,
-} from "@/lib/nutritionCollections";
+} from "@app/lib/nutritionCollections.ts";
 import {
   calculateSelection,
   type ServingUnit,
   buildMealEntry,
   normalizedFromSnapshot,
-} from "@/lib/nutritionMath";
-import { ServingEditor } from "@/components/nutrition/ServingEditor";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
-import { useUserProfile } from "@/hooks/useUserProfile";
+} from "@app/lib/nutritionMath.ts";
+import { ServingEditor } from "@app/components/nutrition/ServingEditor.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@app/components/ui/dialog.tsx";
+import { NutritionMacrosChart } from "@app/components/charts/NutritionMacrosChart.tsx";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;

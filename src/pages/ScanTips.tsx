@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
 import { ListChecks, SunMedium, Scan, Users } from "lucide-react";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
+import { Seo } from "@app/components/Seo.tsx";
+import { NotMedicalAdviceBanner } from "@app/components/NotMedicalAdviceBanner.tsx";
 
 const tips = [
   "Stand on a marker about 8 feet from the camera",

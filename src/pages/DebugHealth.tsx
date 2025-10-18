@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@app/lib/firebase.ts";
 import { doc, getDoc } from "firebase/firestore";
 import { format } from "date-fns";
-import { useHealthDaily } from "@/hooks/useHealthDaily";
+import { useHealthDaily } from "@app/hooks/useHealthDaily.ts";
 
 const DebugHealth = () => {
   const { platform, connect } = useHealthDaily();

@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { AppHeader } from "@/components/AppHeader";
-import { Section } from "@/components/ui/section";
-import { setDoc } from "@/lib/dbWrite";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@app/components/ui/select.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { Section } from "@app/components/ui/section.tsx";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { toast } from "@/hooks/use-toast";
-import HeightInputUS from "@/components/HeightInputUS";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { auth, db } from "@app/lib/firebase.ts";
+import { toast } from "@app/hooks/use-toast.ts";
+import HeightInputUS from "@app/components/HeightInputUS.tsx";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);

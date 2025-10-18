@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { auth, db } from "@/lib/firebase";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { NotMedicalAdviceBanner } from "@app/components/NotMedicalAdviceBanner.tsx";
+import { auth, db } from "@app/lib/firebase.ts";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics } from "@/lib/scanDisplay";
+import { extractScanMetrics } from "@app/lib/scans.ts";
+import { summarizeScanMetrics } from "@app/lib/scanDisplay.ts";
 
 interface ScanHistoryEntry {
   id: string;
@@ -74,7 +74,7 @@ export default function History() {
         const data = doc.data() as ScanHistoryEntry;
         const metrics = extractScanMetrics(data);
         if (!data.charged || metrics.bodyFatPercent == null) return;
-        list.push({ id: doc.id, ...data });
+        list.push({ ...data, id: doc.id });
       });
       setEntries(list);
     });

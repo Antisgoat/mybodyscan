@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { LibraryBig } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { getTodayPlanMock, type MockWorkoutPlan } from "@/lib/workoutsShim";
-import { WorkoutStreakChart } from "@/components/charts/WorkoutStreakChart";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { getTodayPlanMock, type MockWorkoutPlan } from "@app/lib/workoutsShim.ts";
+import { WorkoutStreakChart } from "@app/components/charts/WorkoutStreakChart.tsx";
 
 export default function WorkoutsLibrary() {
   const [plan, setPlan] = useState<MockWorkoutPlan | null>(null);

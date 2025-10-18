@@ -1,12 +1,12 @@
 import { ReactNode, useEffect } from "react";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
-import { isDemoMode } from "@/lib/demoFlag";
+import { functions } from "@app/lib/firebase.ts";
+import { isDemoMode } from "@app/lib/demoFlag.tsx";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
-import { PageSkeleton } from "@/components/system/PageSkeleton";
+import { db } from "@app/lib/firebase.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { useAppCheckReady } from "@app/components/AppCheckProvider.tsx";
+import { PageSkeleton } from "@app/components/system/PageSkeleton.tsx";
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuthUser();

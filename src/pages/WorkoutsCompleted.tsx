@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent } from "@/components/ui/card";
-import { getTodayPlanMock, type MockWorkoutPlan } from "@/lib/workoutsShim";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent } from "@app/components/ui/card.tsx";
+import { getTodayPlanMock, type MockWorkoutPlan } from "@app/lib/workoutsShim.ts";
 
 export default function WorkoutsCompleted() {
   const [plan, setPlan] = useState<MockWorkoutPlan | null>(null);

@@ -1,12 +1,12 @@
 import { Capacitor } from "@capacitor/core";
 import { useMemo } from "react";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc, serverTimestamp } from "firebase/firestore";
-import type { DailySummary, HealthAdapter } from "@/integrations/health/HealthAdapter";
-import { WebFallbackAdapter } from "@/integrations/health/WebFallbackAdapter";
-import { IOSHealthKitAdapter } from "@/integrations/health/IOSHealthKitAdapter";
-import { AndroidHealthConnectAdapter } from "@/integrations/health/AndroidHealthConnectAdapter";
+import type { DailySummary, HealthAdapter } from "@app/integrations/health/HealthAdapter.ts";
+import { WebFallbackAdapter } from "@app/integrations/health/WebFallbackAdapter.ts";
+import { IOSHealthKitAdapter } from "@app/integrations/health/IOSHealthKitAdapter.ts";
+import { AndroidHealthConnectAdapter } from "@app/integrations/health/AndroidHealthConnectAdapter.ts";
 
 export function useHealthDaily() {
   const platform = Capacitor.getPlatform();

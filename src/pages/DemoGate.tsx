@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@app/lib/firebase.ts";
 import { signInAnonymously } from "firebase/auth";
-import { ensureDemoData } from "@/lib/demo";
-import { persistDemoFlags } from "@/lib/demoFlag";
-import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
-import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
-import { useAppCheckContext } from "@/components/AppCheckProvider";
-import { isAppCheckActive } from "@/appCheck";
-import { HAS_USDA } from "@/lib/env";
+import { ensureDemoData } from "@app/lib/demo.ts";
+import { persistDemoFlags } from "@app/lib/demoFlag.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { Button } from "@app/components/ui/button.tsx";
+import { ensureDemoUser, startDemo, formatAuthError } from "@app/lib/auth.ts";
+import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@app/lib/demoOffline.ts";
+import { useAppCheckContext } from "@app/components/AppCheckProvider.tsx";
+import { isAppCheckActive } from "@app/appCheck.ts";
+import { HAS_USDA } from "@app/lib/env.ts";
 
 export default function DemoGate() {
   const navigate = useNavigate();

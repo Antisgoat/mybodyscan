@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bmiFromKgCm, computeBodyFat, reconcileBodyFat, bfUsNavyFemale, bfUsNavyMale } from "../anthro";
+import { bmiFromKgCm, computeBodyFat, reconcileBodyFat, bfUsNavyFemale, bfUsNavyMale } from "../anthro.ts";
 
 describe("anthropometric estimators", () => {
   it("computes US Navy male estimate within expected bounds", () => {

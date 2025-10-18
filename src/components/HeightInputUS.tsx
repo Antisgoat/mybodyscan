@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { cmToIn, ftInToCm, formatHeightFromCm, inToFtIn } from "@/lib/units";
-import { Input } from "@/components/ui/input";
+import { cmToIn, ftInToCm, formatHeightFromCm, inToFtIn } from "@app/lib/units.ts";
+import { Input } from "@app/components/ui/input.tsx";
 
 type Props = {
   valueCm?: number;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions, safeEmailSignIn } from "@/lib/firebase";
+import { auth as firebaseAuth, functions, safeEmailSignIn } from "@app/lib/firebase.ts";
 import {
   Auth,
   UserCredential,
@@ -17,10 +17,10 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
-import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
+import { clearDemoFlags, persistDemoFlags } from "@app/lib/demoFlag.tsx";
+import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@app/lib/demoOffline.ts";
 import type { FirebaseError } from "firebase/app";
-import { ALLOWED_HOSTS } from "@/lib/env";
+import { ALLOWED_HOSTS } from "@app/lib/env.ts";
 
 const DEMO_FLAG_KEY = "mbs:demo";
 const DEMO_LOCAL_KEY = "mbs_demo";
@@ -381,5 +381,5 @@ export function formatAuthError(providerLabel: string, error: unknown): string {
   return `${prefix}${message}${suffix}`;
 }
 
-export { isIOSSafari } from "@/lib/isIOSWeb";
+export { isIOSSafari } from "@app/lib/isIOSWeb.ts";
 

@@ -1,4 +1,4 @@
-import { kgToLb } from "@/lib/units";
+import { kgToLb } from "@app/lib/units.ts";
 
 export interface NormalizedScanMetrics {
   bodyFatPercent: number | null;

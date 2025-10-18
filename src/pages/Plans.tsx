@@ -1,15 +1,15 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { startCheckout, type CheckoutPlanKey } from "@/lib/payments";
-import { toast } from "@/hooks/use-toast";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { startCheckout, type CheckoutPlanKey } from "@app/lib/payments.ts";
+import { toast } from "@app/hooks/use-toast.ts";
 import { Check } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
-import { track } from "@/lib/analytics";
-import { isDemoActive } from "@/lib/demoFlag";
+import { useI18n } from "@app/lib/i18n.ts";
+import { track } from "@app/lib/analytics.ts";
+import { isDemoActive } from "@app/lib/demoFlag.tsx";
 
 export default function Plans() {
   const { t } = useI18n();

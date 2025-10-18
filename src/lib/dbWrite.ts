@@ -1,4 +1,4 @@
-import { assertNotDemoWrite } from "./demoGuard";
+import { assertNotDemoWrite } from "./demoGuard.ts";
 import {
   addDoc as _addDoc,
   setDoc as _setDoc,

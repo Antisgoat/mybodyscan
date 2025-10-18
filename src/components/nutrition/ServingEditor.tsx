@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import type { FoodItem } from "@/lib/nutrition/types";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@app/components/ui/select.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Textarea } from "@app/components/ui/textarea.tsx";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
 import {
   SERVING_UNITS,
   type ServingUnit,
@@ -12,8 +12,8 @@ import {
   gramsToOunces,
   buildMealEntry,
   estimateServingWeight,
-} from "@/lib/nutritionMath";
-import type { MealEntry } from "@/lib/nutrition";
+} from "@app/lib/nutritionMath.ts";
+import type { MealEntry } from "@app/lib/nutrition.ts";
 
 interface ServingEditorProps {
   item: FoodItem;

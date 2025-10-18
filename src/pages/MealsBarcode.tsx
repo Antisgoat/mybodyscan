@@ -1,15 +1,15 @@
 import { FormEvent, useState } from "react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
-import { useI18n } from "@/lib/i18n";
-import { lookupBarcode, searchFoods, type NormalizedItem } from "@/lib/nutritionShim";
-import { roundGrams, roundKcal } from "@/lib/nutritionMath";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent } from "@app/components/ui/card.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { useI18n } from "@app/lib/i18n.ts";
+import { lookupBarcode, searchFoods, type NormalizedItem } from "@app/lib/nutritionShim.ts";
+import { roundGrams, roundKcal } from "@app/lib/nutritionMath.ts";
 
 export default function MealsBarcode() {
   const { t } = useI18n();

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { findRangeForValue, getSexAgeBands, type LabeledRange, type Sex } from "@/content/referenceRanges";
-import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { findRangeForValue, getSexAgeBands, type LabeledRange, type Sex } from "@app/content/referenceRanges.ts";
+import { cn } from "@app/lib/utils.ts";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@app/components/ui/table.tsx";
 
 interface ReferenceChartProps {
   sex?: Sex | string | null;

@@ -1,5 +1,5 @@
-import type { FoodItem } from "@/lib/nutrition/types";
-import { persistDemoFlags } from "@/lib/demoFlag";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
+import { persistDemoFlags } from "@app/lib/demoFlag.tsx";
 
 type DemoOfflineListener = (state: DemoOfflineState) => void;
 

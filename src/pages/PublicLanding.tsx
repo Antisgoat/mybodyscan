@@ -1,10 +1,10 @@
 import { useNavigate, Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Seo } from "@/components/Seo";
-import { auth } from "@/lib/firebase";
-import silhouetteFront from "@/assets/silhouette-front.png";
-import { HOW_IT_WORKS } from "@/content/howItWorks";
-import { PRICING_CATALOG } from "@/content/pricing";
+import { Button } from "@app/components/ui/button.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { auth } from "@app/lib/firebase.ts";
+import silhouetteFront from "@app/assets/silhouette-front.png";
+import { HOW_IT_WORKS } from "@app/content/howItWorks.ts";
+import { PRICING_CATALOG } from "@app/content/pricing.ts";
 
 const PublicLanding = () => {
   const navigate = useNavigate();

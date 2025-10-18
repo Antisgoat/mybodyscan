@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { reportError } from "@/lib/sentry";
+import { reportError } from "@app/lib/sentry.ts";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; error?: Error };

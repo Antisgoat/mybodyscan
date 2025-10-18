@@ -1,13 +1,13 @@
-import { fetchFoods } from "@/lib/api";
-import { fnUrl } from "@/lib/env";
-import { auth } from "@/lib/firebase";
-import { getAppCheckToken } from "@/appCheck";
+import { fetchFoods } from "@app/lib/api.ts";
+import { fnUrl } from "@app/lib/env.ts";
+import { auth } from "@app/lib/firebase.ts";
+import { getAppCheckToken } from "@app/appCheck.ts";
 import type {
   FoodItem,
   MacroBreakdown,
   ServingOption,
   NutritionSource,
-} from "@/lib/nutrition/types";
+} from "@app/lib/nutrition/types.ts";
 
 const TIMEOUT_MS = 3000;
 
@@ -235,9 +235,7 @@ function normalizeApiItem(raw: FoodSearchApiItem): NormalizedItem {
   const brand =
     typeof raw?.brand === "string" && raw.brand.trim().length
       ? raw.brand.trim()
-      : raw?.brand === null
-      ? null
-      : undefined;
+      : null;
   const rawSource = typeof raw?.source === "string" ? raw.source : null;
   const source: NutritionSource =
     rawSource === "OFF" ? "OFF" : "USDA";

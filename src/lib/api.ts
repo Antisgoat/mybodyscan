@@ -1,14 +1,14 @@
-import { auth } from "@/lib/firebase";
-import { toast } from "@/hooks/use-toast";
-import { fnUrl, FUNCTIONS_BASE, HAS_USDA } from "@/lib/env";
-import type { FoodItem, NutritionSource, ServingOption } from "@/lib/nutrition/types";
-import { getAppCheckToken } from "@/appCheck";
+import { auth } from "@app/lib/firebase.ts";
+import { toast } from "@app/hooks/use-toast.ts";
+import { fnUrl, FUNCTIONS_BASE, HAS_USDA } from "@app/lib/env.ts";
+import type { FoodItem, NutritionSource, ServingOption } from "@app/lib/nutrition/types.ts";
+import { getAppCheckToken } from "@app/appCheck.ts";
 import {
   activateOfflineDemo,
   offlineCoachResponse,
   offlineNutritionSearch,
   shouldFallbackToOffline,
-} from "@/lib/demoOffline";
+} from "@app/lib/demoOffline.ts";
 
 const API_FUNCTION_MAP: Record<string, string> = {
   "/api/nutrition/search": "nutritionSearch",

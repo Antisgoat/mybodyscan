@@ -1,4 +1,4 @@
-import { getViteEnv } from "@/lib/env";
+import { getViteEnv } from "@app/lib/env.ts";
 
 const DEFAULT_WHITELIST = ["developer@adlrlabs.com"];
 

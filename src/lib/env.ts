@@ -1,5 +1,10 @@
+const USDA_KEY = import.meta.env.VITE_USDA_API_KEY ?? "";
+const ALLOWED_HOSTS_RAW = import.meta.env.VITE_AUTH_ALLOWED_HOSTS ?? "";
+
 function readRawEnv(name: string): unknown {
-  const env = (import.meta.env as Record<string, unknown>) || {};
+  if (name === "VITE_USDA_API_KEY") return USDA_KEY;
+  if (name === "VITE_AUTH_ALLOWED_HOSTS") return ALLOWED_HOSTS_RAW;
+  const env = import.meta.env as Record<string, unknown>;
   return env?.[name];
 }
 

@@ -1,37 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Timer } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { NotMedicalAdviceBanner } from "@app/components/NotMedicalAdviceBanner.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+} from "@app/components/ui/dialog.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { auth, db } from "@app/lib/firebase.ts";
 import {
   applyDeloadToDay,
   computeNextTargets,
   flattenDay,
   isDeloadWeek,
   nextProgressionHint,
-} from "@/lib/coach/progression";
-import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
-import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import { workoutLogsCol } from "@/lib/db/coachPaths";
-import { addDoc, setDoc } from "@/lib/dbWrite";
+} from "@app/lib/coach/progression.ts";
+import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@app/lib/coach/types.ts";
+import { loadAllPrograms, type CatalogEntry } from "@app/lib/coach/catalog.ts";
+import { workoutLogsCol } from "@app/lib/db/coachPaths.ts";
+import { addDoc, setDoc } from "@app/lib/dbWrite.ts";
 import { doc, getDocs, limit, orderBy, query, serverTimestamp } from "firebase/firestore";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 

@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
 import { useNavigate } from "react-router-dom";
-import silhouette from "@/assets/silhouette-front.png";
-import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { auth, storage } from "@/lib/firebase";
+import silhouette from "@app/assets/silhouette-front.png";
+import { Seo } from "@app/components/Seo.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
+import { auth, storage } from "@app/lib/firebase.ts";
 import { ref, uploadBytes } from "firebase/storage";
-import { runBodyScan } from "@/lib/scan";
-import { sanitizeFilename } from "@/lib/utils";
+import { runBodyScan } from "@app/lib/scan.ts";
+import { sanitizeFilename } from "@app/lib/utils.ts";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
 

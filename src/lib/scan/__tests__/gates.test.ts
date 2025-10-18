@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateGateMetrics, type GateEvaluationInput } from "../gates";
+import { evaluateGateMetrics, type GateEvaluationInput } from "../gates.ts";
 
 const baseMetrics: GateEvaluationInput = {
   brightness: 120,

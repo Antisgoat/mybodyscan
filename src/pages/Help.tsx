@@ -1,6 +1,6 @@
-import { Seo } from "@/components/Seo";
-import { Button } from "@/components/ui/button";
-import { supportMailto } from "@/lib/support";
+import { Seo } from "@app/components/Seo.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { supportMailto } from "@app/lib/support.ts";
 
 const Help = () => {
   return (

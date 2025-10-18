@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
-import { clearDemoFlags } from "@/lib/demoFlag";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Seo } from "@/components/Seo";
-import { isWhitelistedEmail } from "@/lib/whitelist";
+import { functions } from "@app/lib/firebase.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { clearDemoFlags } from "@app/lib/demoFlag.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Separator } from "@app/components/ui/separator.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { isWhitelistedEmail } from "@app/lib/whitelist.ts";
 
 function formatClaims(claims: Record<string, unknown> | null): string {
   if (!claims || Object.keys(claims).length === 0) {

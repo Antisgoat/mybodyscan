@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Seo } from "@/components/Seo";
-import { auth, db } from "@/lib/firebase";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { auth, db } from "@app/lib/firebase.ts";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { extractScanMetrics } from "@/lib/scans";
+import { extractScanMetrics } from "@app/lib/scans.ts";
 
 interface StoredScan {
   id: string;

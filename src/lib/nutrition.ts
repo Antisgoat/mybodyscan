@@ -1,7 +1,7 @@
-import { auth } from "./firebase";
-import { kcalFromMacros } from "./nutritionMath";
-import { isDemo } from "./demoFlag";
-import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
+import { auth } from "./firebase.ts";
+import { kcalFromMacros } from "./nutritionMath.ts";
+import { isDemo } from "./demoFlag.tsx";
+import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent.ts";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 

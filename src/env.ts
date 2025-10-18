@@ -1,4 +1,4 @@
-import { ALLOWED_HOSTS, getViteEnv } from "@/lib/env";
+import { ALLOWED_HOSTS, getViteEnv } from "@app/lib/env.ts";
 
 const DEMO_FLAG = (getViteEnv("VITE_DEMO_MODE") ?? "false").toLowerCase();
 export const DEMO_MODE: boolean = DEMO_FLAG === "true";

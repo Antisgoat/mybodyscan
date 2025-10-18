@@ -1,5 +1,5 @@
 import { Component, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@app/components/ui/button.tsx";
 
 interface DataBoundaryProps {
   children: ReactNode;

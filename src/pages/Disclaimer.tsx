@@ -1,4 +1,4 @@
-import { Seo } from "@/components/Seo";
+import { Seo } from "@app/components/Seo.tsx";
 
 const Disclaimer = () => {
   return (

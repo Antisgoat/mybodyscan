@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { setDoc } from "@/lib/dbWrite";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "@/hooks/use-toast";
+import { db } from "@app/lib/firebase.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@app/components/ui/tabs.tsx";
+import { Skeleton } from "@app/components/ui/skeleton.tsx";
+import { toast } from "@app/hooks/use-toast.ts";
 import {
   calculateEnergyMetrics,
   bodyComposition,
@@ -18,9 +18,9 @@ import {
   type UserProfile,
   type MacroBreakdown,
   type EnergyMetrics
-} from "@/lib/metrics";
-import { extractScanMetrics } from "@/lib/scans";
-import { DEMO_MODE } from "@/env";
+} from "@app/lib/metrics.ts";
+import { extractScanMetrics } from "@app/lib/scans.ts";
+import { DEMO_MODE } from "@app/env.ts";
 
 interface ReportData {
   scanId: string;

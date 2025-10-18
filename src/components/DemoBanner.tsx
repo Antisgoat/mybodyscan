@@ -1,5 +1,5 @@
-import { DEMO_MODE } from "@/env";
-import { useDemoMode, useOfflineDemo } from "@/components/DemoModeProvider";
+import { DEMO_MODE } from "@app/env.ts";
+import { useDemoMode, useOfflineDemo } from "@app/components/DemoModeProvider.tsx";
 
 export function DemoBanner() {
   const demo = useDemoMode();

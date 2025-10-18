@@ -1,4 +1,4 @@
-import { useCredits } from "@/hooks/useCredits";
+import { useCredits } from "@app/hooks/useCredits.ts";
 
 export function CreditsBadge() {
   const { credits, unlimited, loading, demo, tester } = useCredits();

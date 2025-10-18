@@ -3,7 +3,7 @@ import type {
   ProgramEquipment,
   ProgramGoal,
   ProgramLevel,
-} from "@/lib/coach/types";
+} from "@app/lib/coach/types.ts";
 
 export type ProgramMeta = {
   id: string;
@@ -29,7 +29,7 @@ const DEFAULT_LEVEL: ProgramLevel = "beginner";
 const DEFAULT_DURATION = 45;
 const DEFAULT_EQUIPMENT: ProgramEquipment[] = ["none"];
 
-const modules = import.meta.glob<ProgramModule>("@/content/programs/*.json", {
+const modules = import.meta.glob<ProgramModule>("@app/content/programs/*.json", {
   eager: true,
   import: "default",
 });

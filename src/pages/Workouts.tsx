@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
 import { Dumbbell, Plus } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { useI18n } from "@/lib/i18n";
-import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
-import { isDemoActive } from "@/lib/demoFlag";
-import { track } from "@/lib/analytics";
-import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { useI18n } from "@app/lib/i18n.ts";
+import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@app/lib/workouts.ts";
+import { isDemoActive } from "@app/lib/demoFlag.tsx";
+import { track } from "@app/lib/analytics.ts";
+import { toast } from "@app/hooks/use-toast.ts";
+import { auth, db } from "@app/lib/firebase.ts";
 import { doc, getDoc } from "firebase/firestore";
-import { authedFetch } from "@/lib/api";
+import { authedFetch } from "@app/lib/api.ts";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 

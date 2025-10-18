@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { HeartPulse, Smartphone, MonitorSmartphone } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { connectMock, syncDayMock, type MockHealthConnection, type MockSyncResult } from "@/lib/healthShim";
-import { toast } from "@/hooks/use-toast";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { DemoBanner } from "@app/components/DemoBanner.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { connectMock, syncDayMock, type MockHealthConnection, type MockSyncResult } from "@app/lib/healthShim.ts";
+import { toast } from "@app/hooks/use-toast.ts";
 
 export default function HealthSync() {
   const [connection, setConnection] = useState<MockHealthConnection | null>(null);

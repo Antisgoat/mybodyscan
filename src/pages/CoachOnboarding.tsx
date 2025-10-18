@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@/lib/units";
-import { functions } from "@/lib/firebase";
+import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@app/lib/units.ts";
+import { functions } from "@app/lib/firebase.ts";
 import { httpsCallable } from "firebase/functions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Progress } from "@app/components/ui/progress.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
 import { useNavigate, Link } from "react-router-dom";
 import { ChevronRight, Target, Clock, User } from "lucide-react";
-import HeightInputUS from "@/components/HeightInputUS";
+import HeightInputUS from "@app/components/HeightInputUS.tsx";
 
 type Step = 1 | 2 | 3 | 4;
 

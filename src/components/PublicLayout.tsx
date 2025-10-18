@@ -1,8 +1,8 @@
 import { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/firebase";
-import Footer from "./Footer";
+import { Button } from "@app/components/ui/button.tsx";
+import { auth } from "@app/lib/firebase.ts";
+import Footer from "./Footer.tsx";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();

@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
+import { cn } from "@app/lib/utils.ts";
+import { FeatureName, isFeatureEnabled } from "@app/lib/featureFlags.ts";
 
 const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?: FeatureName }> = [
   { path: "/home", icon: HomeIcon, label: "Home" },

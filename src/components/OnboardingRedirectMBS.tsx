@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
-import { useNeedsOnboardingMBS } from '../hooks/useNeedsOnboardingMBS';
+import { useNeedsOnboardingMBS } from '../hooks/useNeedsOnboardingMBS.ts';
 
 export default function OnboardingRedirectMBS({ children }: { children: JSX.Element }) {
   const { loading, needs } = useNeedsOnboardingMBS();

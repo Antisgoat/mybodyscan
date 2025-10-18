@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { CreditsBadge } from "@/components/CreditsBadge";
-import { SystemHealthIndicator } from "@/components/SystemHealthIndicator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAuthUser, signOutAll } from "@/lib/auth";
+import { Button } from "@app/components/ui/button.tsx";
+import { CreditsBadge } from "@app/components/CreditsBadge.tsx";
+import { SystemHealthIndicator } from "@app/components/SystemHealthIndicator.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@app/components/ui/avatar.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@app/components/ui/dropdown-menu.tsx";
+import { useAuthUser, signOutAll } from "@app/lib/auth.ts";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Settings, LogOut, User } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@app/lib/firebase.ts";
 
 export function AppHeader() {
   const { user } = useAuthUser();

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { initAppCheck, isAppCheckReady, waitForAppCheckReady } from "@/appCheck";
+import { initAppCheck, isAppCheckReady, waitForAppCheckReady } from "@app/appCheck.ts";
 
 interface AppCheckContextValue {
   isAppCheckReady: boolean;

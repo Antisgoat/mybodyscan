@@ -1,6 +1,6 @@
 import { Component, ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
+import { Button } from '@app/components/ui/button.tsx';
+import { toast } from '@app/hooks/use-toast.ts';
 
 interface RouteBoundaryProps {
   children: ReactNode;

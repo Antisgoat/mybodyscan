@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { format, subDays, addDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { useUserProfile } from "@/hooks/useUserProfile";
+import { Input } from "@app/components/ui/input.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Switch } from "@app/components/ui/switch.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@app/components/ui/dialog.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Progress } from "@app/components/ui/progress.tsx";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 const CoachTracker = () => {
   const { plan } = useUserProfile();

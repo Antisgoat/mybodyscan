@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { useAuthUser } from "@/lib/auth";
-import { db } from "@/lib/firebase";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { db } from "@app/lib/firebase.ts";
 import { doc, onSnapshot } from "firebase/firestore";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { useCredits } from "@/hooks/useCredits";
-import { isWhitelistedEmail } from "@/lib/whitelist";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { useCredits } from "@app/hooks/useCredits.ts";
+import { isWhitelistedEmail } from "@app/lib/whitelist.ts";
 
 export default function AdminCredits() {
   const { user } = useAuthUser();

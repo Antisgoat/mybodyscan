@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Info } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Separator } from "@/components/ui/separator";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { AspectRatio } from "@app/components/ui/aspect-ratio.tsx";
+import { Separator } from "@app/components/ui/separator.tsx";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "@app/components/ui/accordion.tsx";
 import {
   Table,
   TableBody,
@@ -22,17 +22,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import type { Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
-import { isDeloadWeek } from "@/lib/coach/progression";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+} from "@app/components/ui/table.tsx";
+import { loadAllPrograms, type CatalogEntry } from "@app/lib/coach/catalog.ts";
+import type { Program, ProgramEquipment, ProgramFaq } from "@app/lib/coach/types.ts";
+import { isDeloadWeek } from "@app/lib/coach/progression.ts";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { doc } from "firebase/firestore";
-import { toast } from "@/hooks/use-toast";
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { demoToast } from "@/lib/demoToast";
-import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { toast } from "@app/hooks/use-toast.ts";
+import { useDemoMode } from "@app/components/DemoModeProvider.tsx";
+import { demoToast } from "@app/lib/demoToast.ts";
+import { DemoWriteButton } from "@app/components/DemoWriteGuard.tsx";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -183,7 +183,8 @@ export default function ProgramDetail() {
     );
   }
 
-  const equipment = meta.equipment.length ? meta.equipment : ["none"];
+  const equipment: ProgramEquipment[] =
+    meta.equipment.length > 0 ? meta.equipment : (["none"] as ProgramEquipment[]);
   const equipmentDisplay = equipment.map((item) => equipmentLabels[item] ?? item);
   const deloadWeeks = program.deloadWeeks ?? [];
   const hasDeloadWeeks = deloadWeeks.length > 0;

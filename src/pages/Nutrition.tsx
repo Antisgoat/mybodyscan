@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useI18n } from "@/lib/i18n";
-import { toast } from "@/hooks/use-toast";
-import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
-import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
-import { ErrorBoundary } from "@/components/system/ErrorBoundary";
-import { roundGrams, roundKcal } from "@/lib/nutritionMath";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Skeleton } from "@app/components/ui/skeleton.tsx";
+import { useI18n } from "@app/lib/i18n.ts";
+import { toast } from "@app/hooks/use-toast.ts";
+import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@app/lib/nutrition.ts";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { useAppCheckReady } from "@app/components/AppCheckProvider.tsx";
+import { ErrorBoundary } from "@app/components/system/ErrorBoundary.tsx";
+import { roundGrams, roundKcal } from "@app/lib/nutritionMath.ts";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 

@@ -8,28 +8,28 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReferenceChart } from "@/components/ReferenceChart";
-import { Seo } from "@/components/Seo";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { estimateBodyComp } from "@/lib/estimator";
-import type { ViewName, PhotoFeatures } from "@/lib/vision/features";
-import { combineLandmarks } from "@/lib/vision/features";
-import type { Landmarks } from "@/lib/vision/landmarks";
-import { analyzePhoto } from "@/lib/vision/landmarks";
-import { cmToIn, kgToLb } from "@/lib/units";
-import { getLastWeight } from "@/lib/userState";
-import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { consumeOneCredit } from "@/lib/payments";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
+} from "@app/components/ui/dialog.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { ReferenceChart } from "@app/components/ReferenceChart.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { useUserProfile } from "@app/hooks/useUserProfile.ts";
+import { estimateBodyComp } from "@app/lib/estimator/index.ts";
+import type { ViewName, PhotoFeatures } from "@app/lib/vision/features.ts";
+import { combineLandmarks } from "@app/lib/vision/features.ts";
+import type { Landmarks } from "@app/lib/vision/landmarks.ts";
+import { analyzePhoto } from "@app/lib/vision/landmarks.ts";
+import { cmToIn, kgToLb } from "@app/lib/units.ts";
+import { getLastWeight } from "@app/lib/userState.ts";
+import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@app/content/referenceRanges.ts";
+import { consumeOneCredit } from "@app/lib/payments.ts";
+import { auth, db } from "@app/lib/firebase.ts";
+import { setDoc } from "@app/lib/dbWrite.ts";
 import { collection, doc, serverTimestamp } from "firebase/firestore";
-import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scanCaptureStore";
-import { RefineMeasurementsForm } from "./Refine";
-import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
-import type { ManualCircumferences } from "./scanRefineStore";
+import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scanCaptureStore.ts";
+import { RefineMeasurementsForm } from "./Refine.tsx";
+import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore.ts";
+import type { ManualCircumferences } from "./scanRefineStore.ts";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",

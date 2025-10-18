@@ -1,11 +1,11 @@
 import type { FormEvent, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Seo } from "@/components/Seo";
-import type { ManualInputKey } from "./scanRefineStore";
-import { commitManualInput, setManualInput, useScanRefineStore } from "./scanRefineStore";
+import { Button } from "@app/components/ui/button.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import type { ManualInputKey } from "./scanRefineStore.ts";
+import { commitManualInput, setManualInput, useScanRefineStore } from "./scanRefineStore.ts";
 
 interface RefineMeasurementsFormProps {
   onSubmit?: () => void;

@@ -16,7 +16,7 @@ import {
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
-import { FUNCTIONS_BASE, getViteEnv } from "@/lib/env";
+import { FUNCTIONS_BASE, getViteEnv } from "@app/lib/env.ts";
 
 type FirebaseBundle = {
   app: FirebaseApp;

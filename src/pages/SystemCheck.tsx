@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@app/components/ui/badge.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Button } from "@app/components/ui/button.tsx";
 import { OAuthProvider } from "firebase/auth";
-import { isIOSWeb } from "@/lib/isIOSWeb";
-import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
+import { isIOSWeb } from "@app/lib/isIOSWeb.ts";
+import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@app/lib/firebaseAuthConfig.ts";
 
 type HealthResponse = {
   hasOpenAI: boolean;
@@ -79,7 +79,7 @@ export default function SystemCheck() {
     try {
       // Presence of SDK provider is not proof of console enablement, but a useful hint.
       // It should not throw in modern SDKs.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const provider = new OAuthProvider("apple.com");
       setSdkProviderConstructible(true);
     } catch {

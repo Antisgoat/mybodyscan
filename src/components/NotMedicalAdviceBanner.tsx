@@ -1,6 +1,6 @@
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@app/components/ui/alert.tsx";
 import { AlertTriangle } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@app/lib/i18n.ts";
 
 export function NotMedicalAdviceBanner() {
   const { t } = useI18n();

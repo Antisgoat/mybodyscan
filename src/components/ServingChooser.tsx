@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { FoodNormalized, ServingOption } from "@/lib/nutrition/measureMap";
-import { calcMacrosFromGrams } from "@/lib/nutrition/measureMap";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@app/components/ui/dialog.tsx";
+import { Label } from "@app/components/ui/label.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@app/components/ui/select.tsx";
+import type { FoodNormalized, ServingOption } from "@app/lib/nutrition/measureMap.ts";
+import { calcMacrosFromGrams } from "@app/lib/nutrition/measureMap.ts";
 
 interface ServingChooserProps {
   food: FoodNormalized;

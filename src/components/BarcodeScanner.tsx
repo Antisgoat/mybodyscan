@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@app/components/ui/button.tsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@app/components/ui/dialog.tsx";
+import { Input } from "@app/components/ui/input.tsx";
+import { Label } from "@app/components/ui/label.tsx";
 import { Camera } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n } from "@app/lib/i18n.ts";
 
 interface BarcodeScannerProps {
   onBarcodeScanned: (barcode: string) => void;

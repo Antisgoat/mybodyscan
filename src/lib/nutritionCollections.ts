@@ -1,7 +1,7 @@
-import { deleteDoc, setDoc } from "@/lib/dbWrite";
+import { deleteDoc, setDoc } from "@app/lib/dbWrite.ts";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
-import type { FoodItem } from "@/lib/nutrition/types";
+import { db, auth } from "@app/lib/firebase.ts";
+import type { FoodItem } from "@app/lib/nutrition/types.ts";
 
 export interface FavoriteDoc {
   name: string;
@@ -67,7 +67,7 @@ export async function saveFavorite(item: FoodItem) {
   const ref = doc(db, `users/${uid}/nutrition/favorites/${item.id}`);
   const payload: FavoriteDoc = {
     name: item.name,
-    brand: item.brand,
+    brand: item.brand ?? undefined,
     item,
     updatedAt: serverTimestamp(),
   };

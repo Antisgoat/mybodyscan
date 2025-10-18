@@ -1,10 +1,10 @@
 import { httpsCallable } from "firebase/functions";
-import { auth, db, storage, functions } from "./firebase";
+import { auth, db, storage, functions } from "./firebase.ts";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
-import { getAppCheckToken } from "@/appCheck";
-import { resolveApiUrl } from "@/lib/api";
-import { activateOfflineDemo, shouldFallbackToOffline } from "@/lib/demoOffline";
+import { getAppCheckToken } from "@app/appCheck.ts";
+import { resolveApiUrl } from "@app/lib/api.ts";
+import { activateOfflineDemo, shouldFallbackToOffline } from "@app/lib/demoOffline.ts";
 
 async function authedPost(path: string, body: Record<string, unknown>) {
   const user = auth.currentUser;

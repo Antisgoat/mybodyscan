@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { DailySummary, HealthAdapter } from "./HealthAdapter";
+import { DailySummary, HealthAdapter } from "./HealthAdapter.ts";
 
 const HealthKit: any = (window as any)?.Capacitor?.Plugins?.HealthKit;
 

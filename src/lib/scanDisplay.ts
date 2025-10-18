@@ -1,5 +1,5 @@
-import { cmToIn, kgToLb, formatBmi } from "@/lib/units";
-import type { NormalizedScanMetrics } from "@/lib/scans";
+import { cmToIn, kgToLb, formatBmi } from "@app/lib/units.ts";
+import type { NormalizedScanMetrics } from "@app/lib/scans.ts";
 
 export interface ScanMetricSummary {
   bodyFatPercent: number | null;

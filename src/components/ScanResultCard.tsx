@@ -1,8 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { useI18n } from "@/lib/i18n";
-import { formatWeightFromKg } from "@/lib/units";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.tsx";
+import { Badge } from "./ui/badge.tsx";
+import { Button } from "./ui/button.tsx";
+import { useI18n } from "@app/lib/i18n.ts";
+import { formatWeightFromKg } from "@app/lib/units.ts";
 
 interface ScanResult {
   id: string;

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { CalendarRange } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
-import { Seo } from "@/components/Seo";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
-import { getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
+import { AppHeader } from "@app/components/AppHeader.tsx";
+import { BottomNav } from "@app/components/BottomNav.tsx";
+import { Seo } from "@app/components/Seo.tsx";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { NutritionMacrosChart } from "@app/components/charts/NutritionMacrosChart.tsx";
+import { getNutritionHistory, type NutritionHistoryDay } from "@app/lib/nutrition.ts";
 
 export default function MealsHistory() {
   const [range, setRange] = useState<7 | 30>(30);

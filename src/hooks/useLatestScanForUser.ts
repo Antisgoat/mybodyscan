@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { onSnapshot, query, orderBy, limit, collection } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db } from '@app/lib/firebase.ts';
 
 type ScanData = {
   id: string;

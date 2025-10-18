@@ -1,4 +1,4 @@
-import { isReadOnly, assertReadOnly } from "./demoFlag";
+import { isReadOnly, assertReadOnly } from "./demoFlag.tsx";
 
 export function assertNotDemoWrite() {
   // Keep old behavior for callers, delegate to normalized guard

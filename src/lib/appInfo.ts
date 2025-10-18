@@ -1,11 +1,11 @@
-import packageJson from "../../package.json";
+import packageJson from "../../package.json" with { type: "json" };
 
 export type AppInfo = {
   version: string;
 };
 
 export const appInfo: AppInfo = {
-  version: (packageJson as any)?.version ?? "0.0.0",
+  version: (packageJson as { version?: string })?.version ?? "0.0.0",
 };
 
 export const appVersion: string = appInfo.version;

@@ -1,8 +1,8 @@
 import { ReactNode } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button.tsx';
+import { Card, CardContent } from './ui/card.tsx';
 import { useNavigate } from 'react-router-dom';
-import { useI18n } from '@/lib/i18n';
+import { useI18n } from '@app/lib/i18n.ts';
 import { Lock } from 'lucide-react';
 
 interface PaywallOverlayProps {

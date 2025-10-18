@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useI18n } from "@/lib/i18n";
+import { Button } from "@app/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@app/components/ui/card.tsx";
+import { Checkbox } from "@app/components/ui/checkbox.tsx";
+import { useI18n } from "@app/lib/i18n.ts";
 
 interface ConsentGateProps {
   children: React.ReactNode;

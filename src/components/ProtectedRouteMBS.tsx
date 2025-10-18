@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
+import { useAuthUserMBS } from '../hooks/useAuthUserMBS.ts';
 
 export default function ProtectedRouteMBS({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuthUserMBS();

@@ -1,10 +1,10 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuthUser } from "@/lib/auth";
-import { isPathAllowedInDemo } from "@/lib/demoFlag";
-import { useDemoMode } from "./DemoModeProvider";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
-import { PageSkeleton } from "@/components/system/PageSkeleton";
+import { useAuthUser } from "@app/lib/auth.ts";
+import { isPathAllowedInDemo } from "@app/lib/demoFlag.tsx";
+import { useDemoMode } from "./DemoModeProvider.tsx";
+import { useAppCheckReady } from "@app/components/AppCheckProvider.tsx";
+import { PageSkeleton } from "@app/components/system/PageSkeleton.tsx";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuthUser();
