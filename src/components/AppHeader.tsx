@@ -11,17 +11,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuthUser, signOutAll } from "@/lib/auth";
+import { useAuthUser, signOutAll, refreshClaimsNow } from "@/lib/auth";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, LogOut, User } from "lucide-react";
+import { Settings, LogOut, RefreshCw, User } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toast } from "@/hooks/use-toast";
 
 export function AppHeader() {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [isFounder, setIsFounder] = useState(false);
+  const [refreshingClaims, setRefreshingClaims] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -49,6 +51,23 @@ export function AppHeader() {
   const handleSignOut = async () => {
     await signOutAll();
     navigate("/auth");
+  };
+
+  const handleRefreshClaims = async () => {
+    if (!user) return;
+    setRefreshingClaims(true);
+    try {
+      await refreshClaimsNow();
+      toast({ title: "Claims refreshed" });
+    } catch (error: any) {
+      toast({
+        title: "Unable to refresh claims",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshingClaims(false);
+    }
   };
 
   return (
@@ -93,6 +112,10 @@ export function AppHeader() {
                 <DropdownMenuItem onClick={() => navigate("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleRefreshClaims} disabled={refreshingClaims}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {refreshingClaims ? "Refreshing…" : "Refresh claims"}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />

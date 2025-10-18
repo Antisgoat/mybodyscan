@@ -5,7 +5,6 @@ import { getAuthSafe } from "@/lib/appInit";
 import {
   Auth,
   UserCredential,
-  browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAdditionalUserInfo,
@@ -13,7 +12,6 @@ import {
   linkWithCredential,
   onAuthStateChanged,
   sendPasswordResetEmail,
-  setPersistence,
   signInAnonymously,
   signOut,
   updateProfile,
@@ -156,8 +154,25 @@ export function isDemoUser(
 }
 
 export async function initAuthPersistence() {
+  await getAuthSafe();
+}
+
+export async function refreshClaimsNow() {
   const auth = await requireAuthInstance();
-  await setPersistence(auth, browserLocalPersistence);
+  const current = auth.currentUser;
+  if (!current) {
+    throw new Error("auth/no-current-user");
+  }
+  try {
+    await httpsCallable(functions, "refreshClaims")({});
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] refreshClaims callable failed", error);
+    }
+    throw error;
+  }
+  await current.getIdToken(true);
+  await current.getIdTokenResult(true);
 }
 
 export function useAuthUser() {

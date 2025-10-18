@@ -1,6 +1,6 @@
 import { auth } from "./firebase";
 import { kcalFromMacros } from "./nutritionMath";
-import { isDemo } from "./demoFlag";
+import { isDemo, notifyDemoReadOnly } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
@@ -87,6 +87,7 @@ async function callFn(path: string, body?: any, method = "POST") {
 
 export async function addMeal(dateISO: string, meal: MealEntry) {
   if (isDemo()) {
+    notifyDemoReadOnly();
     throw new Error("demo-blocked");
   }
   const entry = { ...meal, ...computeCalories(meal) };
@@ -96,6 +97,7 @@ export async function addMeal(dateISO: string, meal: MealEntry) {
 
 export async function deleteMeal(dateISO: string, mealId: string) {
   if (isDemo()) {
+    notifyDemoReadOnly();
     throw new Error("demo-blocked");
   }
   return callFn("/deleteMeal", { dateISO, mealId });

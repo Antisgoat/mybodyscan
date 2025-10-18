@@ -1,5 +1,5 @@
 import { log } from "./logger";
-import { isDemoActive } from "./demoFlag";
+import { isDemoActive, notifyDemoReadOnly } from "./demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { track } from "./analytics";
 import { FirebaseError } from "firebase/app";
@@ -12,14 +12,7 @@ export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
 export async function startCheckout(plan: CheckoutPlanKey) {
   if (isDemoActive()) {
     track("demo_block", { action: "checkout" });
-    try {
-      toast({
-        title: "Sign up to use this feature",
-        description: "Create a free account to continue.",
-      });
-    } catch {
-      // ignore toast failures in non-UI contexts
-    }
+    notifyDemoReadOnly();
     window.location.assign("/auth");
     return;
   }
@@ -84,14 +77,7 @@ export async function startCheckout(plan: CheckoutPlanKey) {
 export async function consumeOneCredit(): Promise<number> {
   if (isDemoActive()) {
     track("demo_block", { action: "scan" });
-    try {
-      toast({
-        title: "Sign up to use this feature",
-        description: "Create a free account to start scanning.",
-      });
-    } catch {
-      // ignore toast failures in non-UI contexts
-    }
+    notifyDemoReadOnly();
     window.location.assign("/auth");
     throw new Error("demo-blocked");
   }

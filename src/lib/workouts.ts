@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase";
 import { collection, getDocs } from "firebase/firestore";
-import { isDemoActive } from "./demoFlag";
+import { isDemoActive, notifyDemoReadOnly } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
 
@@ -21,6 +21,7 @@ async function callFn(path: string, body?: any) {
 export async function generateWorkoutPlan(prefs?: Record<string, any>) {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_generate" });
+    notifyDemoReadOnly();
     throw new Error("demo-blocked");
   }
   return callFn("/generateWorkoutPlan", { prefs });
@@ -42,6 +43,7 @@ export async function getPlan() {
 export async function markExerciseDone(planId: string, dayIndex: number, exerciseId: string, done: boolean) {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_done" });
+    notifyDemoReadOnly();
     throw new Error("demo-blocked");
   }
   return callFn("/markExerciseDone", { planId, dayIndex, exerciseId, done });
