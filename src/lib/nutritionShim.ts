@@ -1,5 +1,5 @@
 import { fetchFoods } from "@/lib/api";
-import { fnUrl } from "@/lib/env";
+import { fnUrl, getUsdaApiKey } from "@/lib/env";
 import { auth } from "@/lib/firebase";
 import { getAppCheckToken } from "@/appCheck";
 import type {
@@ -332,6 +332,8 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   const headers: Record<string, string> = { Accept: "application/json" };
   if (idToken) headers.Authorization = `Bearer ${idToken}`;
   if (appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
+  const usdaKey = getUsdaApiKey();
+  if (usdaKey) headers["X-USDA-API-Key"] = usdaKey;
   let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
     method: "GET",
     headers,

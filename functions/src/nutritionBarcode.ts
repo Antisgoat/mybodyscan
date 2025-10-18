@@ -91,20 +91,8 @@ async function handler(req: Request, res: Response) {
   }
 
   if (!result) {
-    try {
-      const { getEnv } = await import("./lib/env.js");
-      const key = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
-      if (key) {
-        result = await fetchUsdaByBarcode(key, code);
-      }
-    } catch (error) {
-      console.error("nutrition_barcode_usda_error", { code, message: (error as Error)?.message });
-    }
-  }
-
-  if (!result) {
     cache.set(code, { value: null, expires: now + CACHE_TTL });
-    res.status(404).json({ error: "not_found" });
+    res.status(404).json({ error: "not_found", message: "No match; try manual search" });
     return;
   }
 

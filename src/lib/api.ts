@@ -1,6 +1,6 @@
 import { auth } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
-import { fnUrl, FUNCTIONS_BASE, HAS_USDA } from "@/lib/env";
+import { fnUrl, FUNCTIONS_BASE, HAS_USDA, getUsdaApiKey } from "@/lib/env";
 import type { FoodItem, NutritionSource, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
 import {
@@ -69,6 +69,11 @@ export async function nutritionSearch(
   const headers = new Headers(init?.headers ?? undefined);
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
+  }
+  // Pass USDA key from web when available so backend can prefer USDA
+  const usdaKey = getUsdaApiKey();
+  if (usdaKey && !headers.has("X-USDA-API-Key")) {
+    headers.set("X-USDA-API-Key", usdaKey);
   }
   const idTokenPromise: Promise<string | null> = headers.has("Authorization")
     ? Promise.resolve<string | null>(null)

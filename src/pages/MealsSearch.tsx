@@ -457,9 +457,10 @@ export default function MealsSearch() {
             )}
 
             {loading && !searchNotice && appCheckReady && results?.length === 0 && query.trim().length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
-              </p>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <p>No foods found yet.</p>
+                <a href="/barcode" className="text-primary underline underline-offset-2">Try barcode scan</a>
+              </div>
             )}
             {!loading && appCheckReady && !query.trim() && (
               <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
@@ -508,9 +509,12 @@ export default function MealsSearch() {
         </Card>
         {!loading && appCheckReady && query.trim().length > 0 && results.length === 0 && (
           <Card>
-            <CardContent className="py-6 text-sm text-muted-foreground">
-              <p>We couldn’t find anything for that search.</p>
-              <p className="mt-1">Try a different term or scan a barcode.</p>
+            <CardContent className="py-6 text-sm text-muted-foreground flex items-center justify-between">
+              <div>
+                <p>We couldn’t find anything for that search.</p>
+                <p className="mt-1">Try a different term.</p>
+              </div>
+              <a href="/barcode" className="text-primary underline underline-offset-2">Try barcode scan</a>
             </CardContent>
           </Card>
         )}
