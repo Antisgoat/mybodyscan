@@ -85,6 +85,8 @@ import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import Ops from "./pages/Ops";
+import { isHostAllowed } from "./lib/auth";
+import { AuthDebugPanel } from "./components/AuthDebugPanel";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -98,6 +100,17 @@ const App = () => {
   useEffect(() => {
     // Mark route render start
     addPerformanceMark('route-render-start');
+    
+    // Check host authorization on app load
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (!isHostAllowed(hostname)) {
+        console.warn(
+          `[AUTH] Current host '${hostname}' is not in VITE_AUTH_ALLOWED_HOSTS. ` +
+          `OAuth popups may be blocked. Add this host to your environment variables.`
+        );
+      }
+    }
     
     initAuthPersistence().catch(() => {});
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
@@ -664,6 +677,7 @@ const App = () => {
             </ConsentGate>
           </AuthGate>
         </AppCheckProvider>
+        <AuthDebugPanel />
       </TooltipProvider>
     </QueryClientProvider>
   );
