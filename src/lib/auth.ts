@@ -352,7 +352,7 @@ function getErrorMessage(error: unknown): string | null {
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   "auth/network-request-failed": "We couldn’t reach the server. Check your internet connection and try again.",
-  "auth/popup-blocked": "Your browser blocked the sign-in window. Please allow popups or continue with redirect.",
+  "auth/popup-blocked": "Your browser blocked the sign-in window. Please allow popups for this site or try the redirect method.",
   "auth/popup-closed-by-user": "It looks like the sign-in window was closed before completing. Please try again.",
   "auth/cancelled-popup-request": "A sign-in window is already open. Close it or finish that flow before trying again.",
   "auth/operation-not-supported-in-this-environment": "This browser can’t open a sign-in popup. We’ll retry with a redirect.",
