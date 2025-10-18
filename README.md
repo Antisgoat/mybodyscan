@@ -59,6 +59,81 @@ Create `.env.local` (web) and configure Firebase secrets/parameters (functions).
 
 > **Google Sign-in:** ensure the Firebase Auth domain and custom hosts from `VITE_AUTH_ALLOWED_HOSTS` appear in the authorized domain list.
 
+## Enable Apple Sign-in in Firebase Auth
+
+To enable Apple Sign-in, follow these steps in the Firebase Console:
+
+### 1. Apple Developer Console Setup
+
+1. **Create a Services ID:**
+   - Go to [Apple Developer Console](https://developer.apple.com/account/resources/identifiers/list/serviceId)
+   - Click the "+" button and select "Services IDs"
+   - Enter a description (e.g., "MyBodyScan Authentication")
+   - Enter an identifier (e.g., `com.mybodyscan.auth`)
+   - Check "Sign In with Apple" and click "Configure"
+   - Add your domain and subdomain to "Primary App ID"
+   - Add redirect URLs:
+     - `https://yourdomain.com/__/auth/callback` (your custom domain)
+     - `https://mybodyscan-f3daf.web.app/__/auth/callback` (Firebase hosting)
+   - Click "Save" and then "Continue"
+
+2. **Create a Private Key:**
+   - Go to [Apple Developer Console > Keys](https://developer.apple.com/account/resources/authkeys/list)
+   - Click the "+" button to create a new key
+   - Enter a key name (e.g., "MyBodyScan Apple Sign-in")
+   - Check "Sign In with Apple"
+   - Click "Configure" and select your Services ID
+   - Click "Save" and download the `.p8` private key file
+   - Note the **Key ID** (10-character string)
+
+3. **Get your Team ID:**
+   - Go to [Apple Developer Console > Membership](https://developer.apple.com/account/#!/membership/)
+   - Copy your **Team ID** (10-character string)
+
+### 2. Firebase Console Configuration
+
+1. **Enable Apple Provider:**
+   - Go to [Firebase Console > Authentication > Sign-in method](https://console.firebase.google.com/project/mybodyscan-f3daf/authentication/providers)
+   - Click on "Apple" in the providers list
+   - Toggle "Enable" to ON
+
+2. **Configure Apple Provider:**
+   - **Services ID:** Enter the identifier you created (e.g., `com.mybodyscan.auth`)
+   - **Apple Team ID:** Enter your 10-character Team ID
+   - **Key ID:** Enter the 10-character Key ID from your private key
+   - **Private Key:** Upload the `.p8` file you downloaded
+   - Click "Save"
+
+3. **Add Authorized Domains:**
+   - Go to [Firebase Console > Authentication > Settings > Authorized domains](https://console.firebase.google.com/project/mybodyscan-f3daf/authentication/settings)
+   - Add your custom domain (e.g., `mybodyscanapp.com`)
+   - Ensure `mybodyscan-f3daf.web.app` is already listed
+
+### 3. Environment Configuration
+
+1. **Set the feature flag:**
+   ```bash
+   # In .env.local
+   VITE_APPLE_OAUTH_ENABLED=true
+   ```
+
+2. **Deploy domain association file:**
+   - Create `public/.well-known/apple-developer-domain-association.txt`
+   - Add your domain to the file (this file should be accessible at `https://yourdomain.com/.well-known/apple-developer-domain-association.txt`)
+
+### 4. Testing
+
+- With `VITE_APPLE_OAUTH_ENABLED=false`: Apple button is hidden
+- With `VITE_APPLE_OAUTH_ENABLED=true` and proper Firebase configuration: Apple sign-in flow completes and creates users
+- Ensure both your custom domain and `mybodyscan-f3daf.web.app` are in Apple Services ID redirect URLs and Firebase Authorized domains
+
+### Troubleshooting
+
+- **"Apple Sign-In not yet enabled"**: Check that `VITE_APPLE_OAUTH_ENABLED=true` and Apple provider is enabled in Firebase
+- **"Configuration not found"**: Verify Services ID, Team ID, Key ID, and private key are correctly entered in Firebase
+- **"Unauthorized domain"**: Add your domain to Firebase Authorized domains and Apple Services ID redirect URLs
+- **Popup blocked**: Allow popups for your domain or test with redirect flow
+
 ## Developer tooling & scripts
 
 | Script | Description |
