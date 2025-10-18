@@ -21,6 +21,7 @@ import { clearDemoFlags, persistDemoFlags } from "@/lib/demoFlag";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import type { FirebaseError } from "firebase/app";
 import { ALLOWED_HOSTS } from "@/lib/env";
+import { initApp, prefetchAppCheckTokenWithRetry } from "@/appCheck";
 
 const DEMO_FLAG_KEY = "mbs:demo";
 const DEMO_LOCAL_KEY = "mbs_demo";
@@ -90,6 +91,9 @@ function persistDemoMarker(): void {
 }
 
 export async function ensureDemoUser(): Promise<void> {
+  await initApp();
+  // Prefetch App Check token; if missing, retry a couple times to avoid races
+  await prefetchAppCheckTokenWithRetry(2, 300);
   const auth = await requireAuthInstance();
   try {
     if (!auth.currentUser?.isAnonymous) {

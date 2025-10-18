@@ -20,6 +20,7 @@ import {
   isHostAllowed,
 } from "@/lib/auth";
 import { auth, safeEmailSignIn } from "@/lib/firebase";
+import { initApp, prefetchAppCheckTokenWithRetry } from "@/appCheck";
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -71,6 +72,8 @@ async function signInWithProvider(
   provider: AuthProvider,
   options?: { preferPopup?: boolean; finalize?: (credential: UserCredential | null) => Promise<void> | void },
 ): Promise<ProviderSignInResult> {
+  await initApp();
+  await prefetchAppCheckTokenWithRetry(2, 300);
   await waitForDomReady();
   const preferPopup = options?.preferPopup ?? shouldUsePopupAuth();
   if (!preferPopup) {
@@ -233,6 +236,8 @@ const Auth = () => {
     setFormError(null);
     setLoading(true);
     try {
+      await initApp();
+      await prefetchAppCheckTokenWithRetry(2, 300);
       if (mode === "signin") {
         await safeEmailSignIn(email, password);
       } else {

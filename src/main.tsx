@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { initAppCheck } from "./appCheck";
+import { initApp as initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";

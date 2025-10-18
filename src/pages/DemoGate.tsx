@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import { useAppCheckContext } from "@/components/AppCheckProvider";
-import { isAppCheckActive } from "@/appCheck";
+import { initApp, isAppCheckActive, prefetchAppCheckTokenWithRetry } from "@/appCheck";
 import { HAS_USDA } from "@/lib/env";
 
 export default function DemoGate() {
@@ -38,6 +38,8 @@ export default function DemoGate() {
         toast({ title: "App Check not configured; proceeding in soft mode" });
         softModeToastShown.current = true;
       }
+      await initApp();
+      await prefetchAppCheckTokenWithRetry(2, 300);
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
         try {
@@ -67,6 +69,9 @@ export default function DemoGate() {
       try {
         setFailed(false);
         setLoading(true);
+
+        await initApp();
+        await prefetchAppCheckTokenWithRetry(2, 300);
 
         await ensureDemoUser();
 

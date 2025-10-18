@@ -88,8 +88,33 @@ export async function getAppCheckToken(forceRefresh = false) {
   }
 }
 
-// Alias for clarity in startup
-export const initAppCheck = ensureAppCheck;
+// Awaitable app init that resolves after App Check is activated (or safely skipped in soft mode)
+export async function initApp(): Promise<void> {
+  try {
+    await ensureAppCheck();
+  } catch (error) {
+    if (!isDevOrDemo()) {
+      throw error;
+    }
+  }
+}
+
+// Back-compat alias
+export const initAppCheck = initApp;
+
+export async function prefetchAppCheckTokenWithRetry(maxRetries = 2, delayMs = 300): Promise<string | null> {
+  let attempt = 0;
+  // initial attempt + retries
+  while (attempt <= maxRetries) {
+    const force = attempt > 0;
+    const token = await getAppCheckToken(force);
+    if (token) return token;
+    if (attempt === maxRetries) break;
+    await new Promise((r) => setTimeout(r, delayMs));
+    attempt += 1;
+  }
+  return null;
+}
 
 export function isAppCheckActive(): boolean {
   return resolveAppCheckInstance() != null;
