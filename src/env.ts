@@ -1,5 +1,22 @@
 import { ALLOWED_HOSTS, getViteEnv } from "@/lib/env";
 
+// Centralized environment variable parser with safe defaults
+export const ENV = {
+  USDA: getViteEnv("VITE_USDA_API_KEY") || "",
+  HOSTS: (getViteEnv("VITE_AUTH_ALLOWED_HOSTS") || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean),
+  SENTRY_DSN: getViteEnv("VITE_SENTRY_DSN") || "",
+  APPLE: String(getViteEnv("APPLE_OAUTH_ENABLED") || getViteEnv("VITE_APPLE_OAUTH_ENABLED") || "false") === "true",
+  DEMO: String(getViteEnv("VITE_DEMO_MODE") || "false") === "true",
+  FORCE_APPLE: String(getViteEnv("VITE_FORCE_APPLE_BUTTON") || "false") === "true",
+  DEBUG_PANEL: String(getViteEnv("VITE_DEBUG_PANEL") || "false") === "true",
+  API_BASE: getViteEnv("VITE_API_BASE") || "",
+  FUNCTIONS_BASE: getViteEnv("VITE_FUNCTIONS_BASE_URL") || "",
+} as const;
+
+// Legacy exports for backward compatibility
 const DEMO_FLAG = (getViteEnv("VITE_DEMO_MODE") ?? "false").toLowerCase();
 export const DEMO_MODE: boolean = DEMO_FLAG === "true";
 

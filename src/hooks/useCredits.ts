@@ -83,7 +83,6 @@ export function useCredits() {
         setLoading(false);
       },
       (err) => {
-        console.error("Error fetching credits:", err);
         setError(err.message);
         setLoading(false);
       }
