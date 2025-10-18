@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ensureDemoUser, startDemo, formatAuthError } from "@/lib/auth";
 import { activateOfflineDemo, isDemoOffline, shouldFallbackToOffline } from "@/lib/demoOffline";
 import { useAppCheckContext } from "@/components/AppCheckProvider";
-import { isAppCheckActive } from "@/appCheck";
+import { isAppCheckActive, initApp, getAppCheckToken } from "@/appCheck";
 import { HAS_USDA } from "@/lib/env";
 
 export default function DemoGate() {
@@ -38,15 +38,51 @@ export default function DemoGate() {
         toast({ title: "App Check not configured; proceeding in soft mode" });
         softModeToastShown.current = true;
       }
+      
+      // Wait for App Check to be fully initialized
+      try {
+        await initApp();
+      } catch (error) {
+        console.warn("App Check init failed, continuing in soft mode", error);
+      }
+      
       await new Promise((r) => setTimeout(r, 50));
       if (!cancelled && !auth.currentUser) {
-        try {
-          await signInAnonymously(auth);
-        } catch (error) {
-          if (shouldFallbackToOffline(error)) {
-            activateOfflineDemo("auth");
-          } else {
-            throw error;
+        // Retry logic for anonymous sign-in with App Check token validation
+        let retryCount = 0;
+        const maxRetries = 2;
+        const retryDelay = 300;
+        
+        while (retryCount <= maxRetries && !cancelled) {
+          try {
+            await signInAnonymously(auth);
+            
+            // Verify App Check token is available (if not in soft mode)
+            if (isAppCheckActive()) {
+              const token = await getAppCheckToken();
+              if (!token && retryCount < maxRetries) {
+                console.warn(`App Check token missing, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                retryCount++;
+                continue;
+              }
+            }
+            
+            // Success - break out of retry loop
+            break;
+          } catch (error) {
+            if (shouldFallbackToOffline(error)) {
+              activateOfflineDemo("auth");
+              break;
+            }
+            
+            if (retryCount < maxRetries) {
+              console.warn(`Anonymous sign-in failed, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`, error);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+              retryCount++;
+            } else {
+              throw error;
+            }
           }
         }
       }
@@ -68,6 +104,8 @@ export default function DemoGate() {
         setFailed(false);
         setLoading(true);
 
+        // Ensure App Check is fully initialized before proceeding
+        await initApp();
         await ensureDemoUser();
 
         const user = auth.currentUser;

@@ -91,6 +91,25 @@ export async function getAppCheckToken(forceRefresh = false) {
 // Alias for clarity in startup
 export const initAppCheck = ensureAppCheck;
 
+// Main initApp function that resolves only after App Check is activated
+export async function initApp(): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    await ensureAppCheck();
+    // Wait for App Check to be fully activated
+    await waitForAppCheckReady();
+  } catch (error) {
+    if (isDevOrDemo()) {
+      console.warn("App Check initialization failed; continuing in soft mode", error);
+      return;
+    }
+    throw error;
+  }
+}
+
 export function isAppCheckActive(): boolean {
   return resolveAppCheckInstance() != null;
 }
