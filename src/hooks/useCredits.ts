@@ -15,6 +15,7 @@ export function useCredits() {
   const [unlimited, setUnlimited] = useState(false);
   const [tester, setTester] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const offlineDemo = useOfflineDemo();
   const projectId =
     import.meta.env.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
@@ -41,6 +42,7 @@ export function useCredits() {
           setUnlimited(false);
           setTester(false);
           setLoading(false);
+          setRole(null);
         } else {
           const token = await u.getIdTokenResult();
           const whitelisted = isWhitelistedEmail(u.email ?? undefined);
@@ -49,6 +51,8 @@ export function useCredits() {
             whitelisted || hasTester || token.claims.unlimitedCredits === true;
           setTester(hasTester);
           setUnlimited(hasUnlimited);
+          const roleClaim = typeof token.claims.role === "string" ? token.claims.role : null;
+          setRole(roleClaim);
           if (hasUnlimited) {
             setLoading(false);
           } else {
@@ -99,6 +103,7 @@ export function useCredits() {
       unlimited: true,
       tester,
       demo,
+      role,
       notice: readOnlyNotice,
       remaining: Infinity,
       used: 0,
@@ -114,6 +119,7 @@ export function useCredits() {
     unlimited: false,
     tester,
     demo,
+    role,
     notice: readOnlyNotice,
     remaining: credits,
     used: 0,

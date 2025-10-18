@@ -1,7 +1,10 @@
 import { useCredits } from "@/hooks/useCredits";
 
 export function CreditsBadge() {
-  const { credits, unlimited, loading, demo, tester } = useCredits();
+  const { credits, unlimited, loading, demo, tester, role } = useCredits();
+  const isDev = role === "dev";
+  const showInfinity = unlimited || isDev;
+  const displayCredits = loading ? "…" : showInfinity ? "∞" : credits;
 
   return (
     <div className="flex items-center gap-2">
@@ -11,10 +14,10 @@ export function CreditsBadge() {
         </span>
       )}
       <div className="bg-muted px-3 py-1 rounded-full text-sm font-medium">
-        Credits: {loading ? "…" : unlimited ? "∞" : credits}
-        {unlimited && tester && (
+        Credits: {displayCredits}
+        {(isDev || (unlimited && tester)) && (
           <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary uppercase tracking-wide">
-            ∞ (dev)
+            {isDev ? "∞ (dev)" : "∞"}
           </span>
         )}
       </div>

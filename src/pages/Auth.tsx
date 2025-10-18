@@ -32,6 +32,7 @@ import {
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { APPLE_OAUTH_ENABLED, OAUTH_AUTHORIZED_HOSTS } from "@/env";
+import { getAppCheckToken, isAppCheckActive } from "@/appCheck";
 import { Loader2 } from "lucide-react";
 
 const POPUP_FALLBACK_CODES = new Set([
@@ -40,6 +41,45 @@ const POPUP_FALLBACK_CODES = new Set([
   "auth/operation-not-supported-in-this-environment",
   "auth/network-request-failed",
 ]);
+
+async function emitEmailSignInDiagnostics(mode: "signin" | "signup", error: any) {
+  const host = typeof window !== "undefined" ? window.location.host : "n/a";
+  const code = typeof error?.code === "string" ? error.code : "unknown";
+  const message = typeof error?.message === "string" ? error.message : String(error ?? "Unknown error");
+
+  const appCheckActive = isAppCheckActive();
+  let tokenPresent = false;
+  try {
+    const token = await getAppCheckToken(false);
+    tokenPresent = typeof token === "string" && token.length > 0;
+  } catch (tokenError) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] Unable to verify App Check token during diagnostics", tokenError);
+    }
+  }
+
+  const summary = `Host: ${host} · App Check: ${appCheckActive ? (tokenPresent ? "token" : "no token") : "inactive"} · Code: ${code}`;
+
+  try {
+    toast({
+      title: mode === "signin" ? "Sign-in diagnostics" : "Account creation diagnostics",
+      description: summary,
+    });
+  } catch (toastError) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] Unable to surface diagnostics toast", toastError);
+    }
+  }
+
+  console.info("[auth] email auth diagnostics", {
+    flow: mode,
+    host,
+    appCheckActive,
+    appCheckTokenPresent: tokenPresent,
+    code,
+    message,
+  });
+}
 
 function normalizeHostCandidate(value?: string | null): string {
   if (!value) return "";
@@ -251,6 +291,7 @@ const Auth = () => {
           description: formatAuthError("Email", err),
         });
       }
+      void emitEmailSignInDiagnostics(mode, err);
     } finally {
       setLoading(false);
     }

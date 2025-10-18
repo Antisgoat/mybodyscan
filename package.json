@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=18 <21"
+    "node": ">=20 <21"
   },
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,8 @@
     "dev:e2e": "npm run build && (npm run preview -- --host=0.0.0.0 --port=4173 & PREVIEW_PID=$!; wait-on http://127.0.0.1:4173; BASE_URL=http://127.0.0.1:4173 npm run test:e2e; TEST_EXIT=$?; kill $PREVIEW_PID; exit $TEST_EXIT)",
     "seed:dev": "tsx scripts/test-seed.ts",
     "build": "vite build",
-    "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/print-build-tag.js",
+    "postbuild": "node scripts/write-health-json.mjs",
+    "build:prod": "node scripts/validate-programs.mjs && vite build && node scripts/write-health-json.mjs && node scripts/print-build-tag.js",
     "build:dev": "vite build --mode development",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "build:all": "npm run build && npm --prefix functions run build",

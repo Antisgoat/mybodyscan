@@ -101,8 +101,7 @@
       },
       {
         "source": "/system/health",
-        "function": "systemHealth",
-        "functionRegion": "us-central1"
+        "destination": "/system/health.json"
       },
       {
         "source": "**",

@@ -106,6 +106,7 @@ export async function ensureDeveloperClaims(uid: string): Promise<void> {
     developer: true,
     tester: true,
     unlimitedCredits: true,
+    role: "dev",
     credits: 999_999,
     demo: false,
   };
