@@ -7,6 +7,7 @@ import { initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { initSentry, addPerformanceMark, measurePerformance } from "./lib/sentry";
+import { warnIfHostNotAllowedByEnv } from "./lib/env";
 
 // Initialize Sentry first
 initSentry();
@@ -16,6 +17,7 @@ addPerformanceMark('app-start');
 
 killSW();
 warnIfDomainUnauthorized();
+warnIfHostNotAllowedByEnv();
 void initAppCheck().catch((e) => console.warn("AppCheck init skipped:", e?.message || e));
 
 // Mark Firebase init complete

@@ -37,6 +37,7 @@ import { Loader2 } from "lucide-react";
 const POPUP_FALLBACK_CODES = new Set([
   "auth/popup-blocked",
   "auth/popup-closed-by-user",
+  "auth/cancelled-popup-request",
   "auth/operation-not-supported-in-this-environment",
   "auth/network-request-failed",
 ]);
@@ -93,6 +94,11 @@ async function signInWithProvider(
       }
       if (!code || !POPUP_FALLBACK_CODES.has(code)) {
         throw error;
+      }
+      // Provide actionable guidance when popup is blocked
+      if (code === "auth/popup-blocked") {
+        const allowMsg = "Enable popups for this site or continue with redirect.";
+        console.warn("[auth] Popup blocked. Falling back to redirect.", allowMsg);
       }
       break;
     }
@@ -284,6 +290,13 @@ const Auth = () => {
     } catch (err: any) {
       consumeAuthRedirect();
       console.error("Google sign-in failed:", err);
+      const code = String(err?.code || "");
+      if (code === "auth/popup-blocked") {
+        toast({
+          title: "Popup blocked",
+          description: "Your browser blocked the sign-in window. We'll retry with a redirect.",
+        });
+      }
       handleOauthError("Google", err);
     } finally {
       setProviderLoading(null);

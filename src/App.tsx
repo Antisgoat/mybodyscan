@@ -85,6 +85,7 @@ import CrashTest from "./pages/CrashTest";
 import { addPerformanceMark } from "./lib/sentry";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import Ops from "./pages/Ops";
+import DevDebugPanel from "./components/DevDebugPanel";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -122,6 +123,7 @@ const App = () => {
                   <OnboardingRedirectMBS>
                     <Suspense fallback={<PageSkeleton />}>
                       <AppErrorBoundary>
+                        <DevDebugPanel />
                         <Routes>
             {/* Root route - flag-controlled */}
             <Route

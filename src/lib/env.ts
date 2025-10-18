@@ -37,6 +37,9 @@ const DEFAULT_ALLOWED_HOSTS = [
   "127.0.0.1",
   "mybodyscanapp.com",
   "www.mybodyscanapp.com",
+  // Allow all Firebase Hosting subdomains by default
+  "web.app",
+  // Project default remains explicitly included
   "mybodyscan-f3daf.web.app",
 ];
 
@@ -55,3 +58,32 @@ export const ALLOWED_HOSTS: string[] = Array.from(
 );
 
 export const DEFAULT_AUTH_HOSTS = DEFAULT_ALLOWED_HOSTS;
+
+function hostMatchesDomain(host: string, domain: string): boolean {
+  const h = host.trim().toLowerCase();
+  const d = domain.trim().toLowerCase();
+  if (!h || !d) return false;
+  if (h === d) return true;
+  return h.endsWith(`.${d}`);
+}
+
+/**
+ * Log a non-blocking warning when the current host is not included in
+ * VITE_AUTH_ALLOWED_HOSTS (merged with sensible defaults).
+ */
+export function warnIfHostNotAllowedByEnv(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const host = window.location.hostname || "";
+    if (!host) return;
+    const isAllowed = ALLOWED_HOSTS.some((domain) => hostMatchesDomain(host, domain));
+    if (!isAllowed) {
+      console.warn(
+        `[auth] Host '${host}' is not in VITE_AUTH_ALLOWED_HOSTS. ` +
+          `Add it to your Vite env or include a matching parent domain.`,
+      );
+    }
+  } catch {
+    // no-op; debug-only signal
+  }
+}
