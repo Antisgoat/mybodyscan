@@ -38,7 +38,7 @@ export default function MealsBarcode() {
 
       const results = await searchFoods(trimmed);
       if (!results.length) {
-        toast({ title: "No match found", description: "Try another UPC or add manually.", variant: "destructive" });
+        toast({ title: "No match found", description: "No match; try manual search", variant: "destructive" });
         return;
       }
       setManualResult(results[0] ?? null);

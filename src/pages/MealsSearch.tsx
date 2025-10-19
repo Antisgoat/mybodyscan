@@ -282,9 +282,11 @@ export default function MealsSearch() {
           const status = typeof error?.status === "number" ? error.status : null;
           if (status === 429) {
             setSearchWarning("Rate limited — try again shortly.");
-          } else if (!(error instanceof DOMException && error.name === "AbortError")) {
+          } else if (error instanceof DOMException && error.name === "AbortError") {
+            setSearchWarning("Search timed out — try again or scan a barcode.");
+          } else {
             console.warn("nutrition_search_error", error);
-            toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
+            setSearchWarning("Search failed — try a different term or scan a barcode.");
           }
           setResults([]);
           setPrimarySource(null);

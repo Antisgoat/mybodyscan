@@ -84,16 +84,18 @@ async function handler(req: Request, res: Response) {
 
   let result: { item: FoodItem; source: "OFF" | "USDA" } | null = null;
 
+  // Try OFF first as specified in requirements
   try {
     result = await fetchOff(code);
   } catch (error) {
     console.error("nutrition_barcode_off_error", { code, message: (error as Error)?.message });
   }
 
+  // Fallback to USDA if OFF didn't find anything
   if (!result) {
     try {
       const { getEnv } = await import("./lib/env.js");
-      const key = getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+      const key = getEnv("USDA_API_KEY") || getEnv("VITE_USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
       if (key) {
         result = await fetchUsdaByBarcode(key, code);
       }
@@ -104,7 +106,7 @@ async function handler(req: Request, res: Response) {
 
   if (!result) {
     cache.set(code, { value: null, expires: now + CACHE_TTL });
-    res.status(404).json({ error: "not_found" });
+    res.status(404).json({ error: "No match; try manual search" });
     return;
   }
 

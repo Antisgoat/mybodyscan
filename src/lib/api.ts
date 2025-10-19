@@ -157,7 +157,7 @@ export async function coachChat(payload: { message: string }) {
   return response.json();
 }
 
-const NUTRITION_SEARCH_TIMEOUT_MS = 6000;
+const NUTRITION_SEARCH_TIMEOUT_MS = 5000;
 
 function normalizeServingOption(raw: any, index: number): ServingOption | null {
   const grams = Number(raw?.grams);

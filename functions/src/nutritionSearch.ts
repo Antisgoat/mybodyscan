@@ -62,11 +62,26 @@ const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
 
-const FETCH_TIMEOUT_MS = 4000;
+const FETCH_TIMEOUT_MS = 5000;
 const auth = getAuth();
 
 function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
+  if (error instanceof Error && error.message) {
+    // Map common error types to friendly messages
+    if (error.message.includes('timeout') || error.message.includes('AbortError')) {
+      return "Request timed out";
+    }
+    if (error.message.includes('usda_')) {
+      return "USDA service temporarily unavailable";
+    }
+    if (error.message.includes('off_')) {
+      return "OpenFoodFacts service temporarily unavailable";
+    }
+    if (error.message.includes('missing_api_key')) {
+      return "USDA API key not configured";
+    }
+    return error.message;
+  }
   if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);
@@ -501,7 +516,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   const { getEnv } = await import("./lib/env.js");
   const apiKey = forceOpenFoodFacts
     ? undefined
-    : getEnv("VITE_USDA_API_KEY") || getEnv("USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
+    : getEnv("USDA_API_KEY") || getEnv("VITE_USDA_API_KEY") || getEnv("USDA_FDC_API_KEY");
 
   async function tryUsda(): Promise<FoodItem[]> {
     if (!apiKey) {
