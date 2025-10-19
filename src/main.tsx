@@ -22,6 +22,7 @@ if (typeof window !== "undefined") {
       console.error("[boot] first unhandledrejection:", e?.reason);
     }
   });
+  console.log("[init] App mounted");
 }
 
 killSW();
