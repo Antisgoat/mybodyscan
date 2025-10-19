@@ -7,6 +7,8 @@ import { initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
+import { getSequencedAuth } from "@/lib/firebase/init";
+import { getRedirectResult } from "firebase/auth";
 
 // Boot error trap to capture first thrown error before any UI swallows it
 if (typeof window !== "undefined") {
@@ -25,10 +27,24 @@ if (typeof window !== "undefined") {
   console.log("[init] App mounted");
 }
 
+// Initialize auth and handle redirect results
+async function initAuthAndRedirects() {
+  try {
+    const auth = await getSequencedAuth();
+    const result = await getRedirectResult(auth);
+    if (result) {
+      console.log("[init] Redirect result processed:", result.user?.uid);
+    }
+  } catch (error) {
+    console.warn("[init] Auth/redirect init failed:", error);
+  }
+}
+
 killSW();
 warnIfDomainUnauthorized();
 void initAppCheck().catch((e) => console.warn("AppCheck init skipped:", e?.message || e));
 void probeFirebaseRuntime();
+void initAuthAndRedirects();
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
   ReactDOM.createRoot(document.getElementById("root")!).render(

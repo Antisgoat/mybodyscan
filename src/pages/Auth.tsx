@@ -86,12 +86,13 @@ const Auth = () => {
       .catch((err: any) => {
         if (!active) return;
         consumeAuthRedirect();
+        console.error("[auth] Redirect result failed:", err);
         toast({ title: "Sign in failed", description: err?.message || "Please try again." });
       });
     return () => {
       active = false;
     };
-  }, [navigate, toast]);
+  }, [navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +150,7 @@ const Auth = () => {
         toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
       } else {
         console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
-        toast({ title: "Sign-in failed", description: mapAuthErrorToMessage(code) });
+        toast({ title: "Sign-in failed", description: "Please try again." });
       }
     } finally {
       setLoading(false);

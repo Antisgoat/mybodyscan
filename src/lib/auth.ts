@@ -243,9 +243,16 @@ export async function loginWithApple(): Promise<UserCredential | void> {
 export const signInWithApple = loginWithApple;
 
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
-  const result = await getRedirectResult(auth);
-  await applyAppleProfile(result);
-  return result;
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      await applyAppleProfile(result);
+    }
+    return result;
+  } catch (error) {
+    console.warn("[auth] Failed to resolve redirect result:", error);
+    return null;
+  }
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {

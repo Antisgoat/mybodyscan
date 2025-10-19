@@ -90,7 +90,7 @@ const queryClient = new QueryClient();
 
 const App = () => {
   useEffect(() => {
-    initAuthPersistence().catch(() => {});
+    // Auth persistence is now handled in main.tsx
     if (typeof window !== "undefined") console.log("[init] App mounted");
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
       void loadPublicLayout();
