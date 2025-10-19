@@ -23,27 +23,49 @@ export const appCheckReady = new Promise<void>((res) => (appCheckReadyResolve = 
 function initAppCheckSoft(): AppCheck | null {
   if (typeof window === "undefined") return null;
 
-  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
-  const provider = siteKey ? new ReCaptchaV3Provider(siteKey) : undefined;
+  try {
+    const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
 
-  const ac = initializeAppCheck(app, {
-    provider,
-    isTokenAutoRefreshEnabled: true,
-  });
+    // If no key provided, SKIP App Check in production rather than crash.
+    // (We keep soft enforcement; revisit when we add a site key.)
+    if (!siteKey) {
+      console.warn("[appcheck] No VITE_APPCHECK_SITE_KEY; skipping App Check (soft).");
+      // Ensure downstream Auth init isn’t blocked:
+      queueMicrotask(() => {
+        if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
+      });
+      return null;
+    }
 
-  // Resolve once we see any token event (initial/refresh)
-  let unsubscribe: (() => void) | undefined;
-  unsubscribe = onTokenChanged(ac as any, () => {
-    if (appCheckReadyResolve) appCheckReadyResolve();
-    if (unsubscribe) unsubscribe();
-  });
+    const ac = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
 
-  // Soft safety: resolve on next microtask so Auth is never blocked
-  queueMicrotask(() => {
-    if (appCheckReadyResolve) appCheckReadyResolve();
-  });
+    (onTokenChanged as unknown as (
+      appCheck: AppCheck,
+      nextOrObserver: Parameters<typeof onTokenChanged>[1],
+      onlyOnce?: boolean
+    ) => void)(
+      ac as any,
+      () => {
+        if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
+      },
+      true
+    );
 
-  return ac;
+    // Safety: resolve even if token event lags
+    queueMicrotask(() => {
+      if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
+    });
+
+    return ac;
+  } catch (e) {
+    console.error("[appcheck] init failed; continuing without App Check (soft).", e);
+    // Do not block app boot:
+    if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
+    return null;
+  }
 }
 
 const _ac = initAppCheckSoft();

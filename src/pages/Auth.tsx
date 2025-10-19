@@ -20,7 +20,6 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { mapAuthErrorToMessage } from "@/lib/auth/errors";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -142,7 +141,6 @@ const Auth = () => {
       }
     } catch (err: unknown) {
       consumeAuthRedirect();
-      console.error("[auth] Apple login failed", err);
       const code =
         typeof err === "object" && err && "code" in err
           ? String((err as { code?: unknown }).code ?? "")
@@ -150,7 +148,8 @@ const Auth = () => {
       if (code === "auth/operation-not-allowed") {
         toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
       } else {
-        toast({ title: "Apple sign in failed", description: mapAuthErrorToMessage(code) });
+        console.error("[auth] Apple login failed", err);
+        toast({ title: "Sign-in failed", description: "Please try again." });
       }
     } finally {
       setLoading(false);
