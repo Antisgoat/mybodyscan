@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions, getSequencedAuth } from "@/lib/firebase";
+import { popupThenRedirect } from "@/lib/auth/popupLogin";
 import {
   Auth,
   OAuthProvider,
@@ -16,7 +17,6 @@ import {
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   signOut,
   updateProfile,
@@ -179,24 +179,11 @@ export async function signOutToAuth(): Promise<void> {
 export async function signInWithGoogle() {
   const auth = await ensureFirebaseAuth();
   const provider = new GoogleAuthProvider();
-  try {
-    if (shouldForceRedirectAuth()) {
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-    return await signInWithPopup(auth, provider);
-  } catch (err: any) {
-    const code = String(err?.code || "");
-    if (
-      code.includes("popup-blocked") ||
-      code.includes("popup-closed-by-user") ||
-      code.includes("operation-not-supported-in-this-environment")
-    ) {
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-    throw err;
+  if (shouldForceRedirectAuth()) {
+    await signInWithRedirect(auth, provider);
+    return;
   }
+  return await popupThenRedirect(auth, provider);
 }
 
 const APPLE_PROVIDER_ID = "apple.com";
@@ -232,30 +219,22 @@ export async function signInWithApple(auth: Auth): Promise<UserCredential | void
   provider.addScope("email");
   provider.addScope("name");
 
-  try {
-    const iosSafari = isIOSSafari();
-    const forceRedirect = shouldForceRedirectAuth();
-    if (iosSafari || forceRedirect) {
-      logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
-      return await signInWithRedirect(auth, provider);
-    }
-
-    logAppleFlow("popup");
-    const result = await signInWithPopup(auth, provider);
-    await applyAppleProfile(result);
-    return result;
-  } catch (err: any) {
-    const msg = String(err?.code || "");
-    if (
-      msg.includes("popup-blocked") ||
-      msg.includes("popup-closed-by-user") ||
-      msg.includes("operation-not-supported-in-this-environment")
-    ) {
-      logAppleFlow("redirect", "(fallback)");
-      return await signInWithRedirect(auth, provider);
-    }
-    throw err;
+  const iosSafari = isIOSSafari();
+  const forceRedirect = shouldForceRedirectAuth();
+  if (iosSafari || forceRedirect) {
+    logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
+    await signInWithRedirect(auth, provider);
+    return;
   }
+
+  logAppleFlow("popup");
+  const result = await popupThenRedirect(auth, provider);
+  if (!result) {
+    logAppleFlow("redirect", "(fallback)");
+    return;
+  }
+  await applyAppleProfile(result);
+  return result;
 }
 
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
