@@ -1,23 +1,19 @@
-import { signInWithPopup, signInWithRedirect, type Auth, type AuthProvider, type UserCredential } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, type Auth, type AuthProvider } from "firebase/auth";
 
-export async function popupThenRedirect(auth: Auth, provider: AuthProvider): Promise<UserCredential | void> {
+export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
   try {
     return await signInWithPopup(auth, provider);
-  } catch (error: unknown) {
-    const code =
-      typeof error === "object" && error && "code" in error
-        ? String((error as { code?: unknown }).code ?? "")
-        : "";
+  } catch (e: any) {
+    const code = e?.code || "";
     const popupIssue =
       code === "auth/popup-blocked" ||
       code === "auth/popup-closed-by-user" ||
-      code === "auth/cancelled-popup-request" ||
-      code === "auth/operation-not-supported-in-this-environment";
+      code === "auth/cancelled-popup-request";
     if (popupIssue) {
-      console.warn("[auth] Popup blocked/closed; falling back to redirect.", error);
+      console.warn("[auth] Popup blocked/closed; falling back to redirect.", e);
       await signInWithRedirect(auth, provider);
       return;
     }
-    throw error;
+    throw e;
   }
 }
