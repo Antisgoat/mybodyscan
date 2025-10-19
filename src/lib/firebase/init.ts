@@ -42,17 +42,14 @@ function initAppCheckSoft(): AppCheck | null {
       isTokenAutoRefreshEnabled: true,
     });
 
-    (onTokenChanged as unknown as (
-      appCheck: AppCheck,
-      nextOrObserver: Parameters<typeof onTokenChanged>[1],
-      onlyOnce?: boolean
-    ) => void)(
-      ac as any,
-      () => {
-        if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
-      },
-      true
-    );
+    let unsubscribe: (() => void) | null = null;
+    unsubscribe = onTokenChanged(ac as any, () => {
+      if (typeof appCheckReadyResolve === "function") appCheckReadyResolve();
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    });
 
     // Safety: resolve even if token event lags
     queueMicrotask(() => {
