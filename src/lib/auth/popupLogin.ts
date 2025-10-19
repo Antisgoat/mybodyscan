@@ -12,8 +12,8 @@ export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
     if (popupIssue) {
       console.warn("[auth] Popup blocked/closed → redirect fallback.", e);
       await signInWithRedirect(auth, provider);
-      return;
+      return; // Return undefined to indicate redirect was initiated
     }
-    throw e;
+    throw e; // Re-throw other errors so UI can show appropriate messages
   }
 }

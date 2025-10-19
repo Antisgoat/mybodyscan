@@ -11,17 +11,26 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
+// App Check is disabled for now - always resolves immediately
 export const appCheckReady = Promise.resolve();
 
 let _auth: Auth | null = null;
+let _authInitPromise: Promise<Auth> | null = null;
+
 export const getSequencedAuth = async (): Promise<Auth> => {
-  await appCheckReady;
-  if (!_auth) {
+  if (_auth) return _auth;
+  
+  if (_authInitPromise) return _authInitPromise;
+  
+  _authInitPromise = (async () => {
+    await appCheckReady;
     _auth = getAuth(app);
     await setPersistence(_auth, browserLocalPersistence);
     if (typeof window !== "undefined") console.log("[init] Auth ready (after AppCheck: disabled)");
-  }
-  return _auth!;
+    return _auth;
+  })();
+  
+  return _authInitPromise;
 };
 
 // Optional: one-time breadcrumb so QA can see build-time env
