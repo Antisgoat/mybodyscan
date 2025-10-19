@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { functions, getSequencedAuth } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
+import { getSequencedAuth } from "@/lib/firebase/init";
 import { popupThenRedirect } from "@/lib/auth/popupLogin";
 import {
   Auth,
@@ -36,16 +37,6 @@ async function ensureFirebaseAuth(): Promise<Auth> {
 
 export function getCachedAuth(): Auth | null {
   return firebaseAuth;
-}
-
-function shouldForceRedirectAuth(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname?.toLowerCase() ?? "";
-  if (!host) return false;
-  if (host === "mybodyscanapp.com" || host === "www.mybodyscanapp.com") {
-    return true;
-  }
-  return host.endsWith(".lovable.app");
 }
 
 export async function initAuthPersistence() {
@@ -179,10 +170,6 @@ export async function signOutToAuth(): Promise<void> {
 export async function loginWithGoogle() {
   const auth = await ensureFirebaseAuth();
   const provider = new GoogleAuthProvider();
-  if (shouldForceRedirectAuth()) {
-    await signInWithRedirect(auth, provider);
-    return;
-  }
   return await popupThenRedirect(auth, provider);
 }
 
@@ -223,9 +210,8 @@ export async function loginWithApple(): Promise<UserCredential | void> {
   provider.addScope("name");
 
   const iosSafari = isIOSSafari();
-  const forceRedirect = shouldForceRedirectAuth();
-  if (iosSafari || forceRedirect) {
-    logAppleFlow("redirect", iosSafari ? "(iOS Safari)" : "(forced redirect)");
+  if (iosSafari) {
+    logAppleFlow("redirect", "(iOS Safari)");
     await signInWithRedirect(auth, provider);
     return;
   }

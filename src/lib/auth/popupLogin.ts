@@ -4,16 +4,16 @@ export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
   try {
     return await signInWithPopup(auth, provider);
   } catch (e: any) {
-    const code = e?.code || "";
-    const popupIssue =
-      code === "auth/popup-blocked" ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/cancelled-popup-request";
-    if (popupIssue) {
-      console.warn("[auth] Popup blocked/closed → redirect fallback.", e);
+    const c = e?.code || "";
+    if (
+      c === "auth/popup-blocked" ||
+      c === "auth/popup-closed-by-user" ||
+      c === "auth/cancelled-popup-request"
+    ) {
+      console.warn("[auth] Popup failed → redirect fallback.", c);
       await signInWithRedirect(auth, provider);
-      return; // Return undefined to indicate redirect was initiated
+      return;
     }
-    throw e; // Re-throw other errors so UI can show appropriate messages
+    throw e;
   }
 }
