@@ -10,7 +10,7 @@ export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
       code === "auth/popup-closed-by-user" ||
       code === "auth/cancelled-popup-request";
     if (popupIssue) {
-      console.warn("[auth] Popup blocked/closed; falling back to redirect.", e);
+      console.warn("[auth] Popup blocked/closed → redirect fallback.", e);
       await signInWithRedirect(auth, provider);
       return;
     }

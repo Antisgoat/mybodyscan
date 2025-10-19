@@ -176,7 +176,7 @@ export async function signOutToAuth(): Promise<void> {
 }
 
 // New helpers
-export async function signInWithGoogle() {
+export async function loginWithGoogle() {
   const auth = await ensureFirebaseAuth();
   const provider = new GoogleAuthProvider();
   if (shouldForceRedirectAuth()) {
@@ -185,6 +185,8 @@ export async function signInWithGoogle() {
   }
   return await popupThenRedirect(auth, provider);
 }
+
+export const signInWithGoogle = loginWithGoogle;
 
 const APPLE_PROVIDER_ID = "apple.com";
 
@@ -214,7 +216,8 @@ function logAppleFlow(flow: "popup" | "redirect", context?: string) {
   console.info(`[auth] Apple sign-in via ${flow}${extra}`);
 }
 
-export async function signInWithApple(auth: Auth): Promise<UserCredential | void> {
+export async function loginWithApple(): Promise<UserCredential | void> {
+  const auth = await ensureFirebaseAuth();
   const provider = new OAuthProvider(APPLE_PROVIDER_ID);
   provider.addScope("email");
   provider.addScope("name");
@@ -236,6 +239,8 @@ export async function signInWithApple(auth: Auth): Promise<UserCredential | void
   await applyAppleProfile(result);
   return result;
 }
+
+export const signInWithApple = loginWithApple;
 
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
   const result = await getRedirectResult(auth);

@@ -10,8 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
   signInEmail,
-  signInWithGoogle,
-  signInWithApple,
+  loginWithGoogle,
+  loginWithApple,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+import { mapAuthErrorToMessage } from "@/lib/auth/errors";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -113,7 +114,7 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await signInWithGoogle();
+      const result = await loginWithGoogle();
       if (result) {
         consumeAuthRedirect();
         navigate(from, { replace: true });
@@ -133,8 +134,7 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      rememberAuthRedirect(from);
-      const result = await signInWithApple(auth);
+      const result = await loginWithApple();
       if (result) {
         consumeAuthRedirect();
         navigate(from, { replace: true });
@@ -148,8 +148,8 @@ const Auth = () => {
       if (code === "auth/operation-not-allowed") {
         toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
       } else {
-        console.error("[auth] Apple login failed", err);
-        toast({ title: "Sign-in failed", description: "Please try again." });
+        console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
+        toast({ title: "Sign-in failed", description: mapAuthErrorToMessage(code) });
       }
     } finally {
       setLoading(false);

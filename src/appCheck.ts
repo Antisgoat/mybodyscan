@@ -1,97 +1,25 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
 import { appCheckReady } from "./lib/firebase/init";
 
-let _appCheck: import("firebase/app-check").AppCheck | null = null;
-let initPromise: Promise<import("firebase/app-check").AppCheck | null> | null = null;
 let initComplete = false;
 
-type AppCheckModule = typeof import("firebase/app-check") & {
-  getAppCheck?: (
-    firebaseApp?: import("firebase/app").FirebaseApp,
-  ) => import("firebase/app-check").AppCheck;
-};
-
-function app() {
-  return getApps().length
-    ? getApp()
-    : initializeApp({
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_FIREBASE_APP_ID,
-      });
-}
-
-function isDevOrDemo() {
-  if (import.meta.env.VITE_DEMO_MODE === "true") return true;
-  if (typeof window === "undefined") return false;
-  const h = window.location.hostname || "";
-  return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
-}
-
 export async function ensureAppCheck() {
-  if (typeof window === "undefined") {
+  if (!initComplete) {
     initComplete = true;
-    return null;
   }
-  if (_appCheck) {
-    initComplete = true;
-    return _appCheck;
-  }
-  if (!initPromise) {
-    initPromise = (async () => {
-      try {
-        await appCheckReady;
-        const appCheckModule = (await import("firebase/app-check")) as AppCheckModule;
-        const getAppCheckFn = appCheckModule.getAppCheck;
-        if (typeof getAppCheckFn === "function") {
-          _appCheck = getAppCheckFn(app());
-          return _appCheck;
-        }
-        console.warn("AppCheck getAppCheck() unavailable; continuing in soft mode");
-        _appCheck = null;
-        return null;
-      } catch (error) {
-        console.warn("AppCheck init failed; continuing in soft mode", error);
-        _appCheck = null;
-        return null;
-      } finally {
-        initComplete = true;
-      }
-    })();
-  }
-  try {
-    return await initPromise;
-  } catch (error) {
-    console.warn("AppCheck init failed; continuing in soft mode", error);
-    return null;
-  }
+  await appCheckReady;
+  return null;
 }
 
-export async function getAppCheckToken(forceRefresh = false) {
-  if (typeof window === "undefined") return null;
-  const { getToken } = await import("firebase/app-check");
-  await ensureAppCheck();
-  if (!_appCheck) return null;
-  try {
-    const res = await getToken(_appCheck, forceRefresh);
-    return res.token;
-  } catch (error) {
-    if (isDevOrDemo()) {
-      console.warn("AppCheck token unavailable; soft mode", error);
-      return null;
-    }
-    throw error;
-  }
+export async function getAppCheckToken(_forceRefresh = false) {
+  await appCheckReady;
+  return null;
 }
 
 // Alias for clarity in startup
 export const initAppCheck = ensureAppCheck;
 
 export function isAppCheckActive(): boolean {
-  return _appCheck != null;
+  return false;
 }
 
 export function isAppCheckReady(): boolean {
@@ -99,11 +27,5 @@ export function isAppCheckReady(): boolean {
 }
 
 export async function waitForAppCheckReady(): Promise<void> {
-  try {
-    await ensureAppCheck();
-  } catch (error) {
-    if (!isDevOrDemo()) {
-      throw error;
-    }
-  }
+  await ensureAppCheck();
 }
