@@ -25,9 +25,6 @@ if (typeof window !== "undefined") {
     }
   });
   console.log("[init] App mounted");
-  if (import.meta.env.DEV) {
-    console.log("[guard] recaptcha kill-switch active");
-  }
 }
 
 // Initialize auth and handle redirect results
