@@ -1,6 +1,10 @@
-/* src/lib/firebase/init.ts */
 import { initializeApp, getApps } from "firebase/app";
-import { initializeAppCheck, onTokenChanged, type AppCheck } from "firebase/app-check";
+import {
+  initializeAppCheck,
+  onTokenChanged,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from "firebase/app-check";
 import { getAuth, browserLocalPersistence, setPersistence, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
@@ -11,13 +15,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-if (typeof window !== "undefined") {
-  console.log("[init] Build env:", {
-    VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  });
-}
-
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 let appCheckReadyResolve!: () => void;
@@ -26,20 +23,22 @@ export const appCheckReady = new Promise<void>((res) => (appCheckReadyResolve = 
 function initAppCheckSoft(): AppCheck | null {
   if (typeof window === "undefined") return null;
 
-  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY; // optional for now
+  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
+  const provider = siteKey ? new ReCaptchaV3Provider(siteKey) : undefined;
+
   const ac = initializeAppCheck(app, {
-    provider: siteKey ? new (window as any).RecaptchaV3Provider(siteKey) : undefined,
+    provider,
     isTokenAutoRefreshEnabled: true,
   });
 
-  // Resolve when we observe an App Check token event (initial or refresh)
-  onTokenChanged(ac as any, {
-    next: () => {
-      if (appCheckReadyResolve) appCheckReadyResolve();
-    },
+  // Resolve once we see any token event (initial/refresh)
+  let unsubscribe: (() => void) | undefined;
+  unsubscribe = onTokenChanged(ac as any, () => {
+    if (appCheckReadyResolve) appCheckReadyResolve();
+    if (unsubscribe) unsubscribe();
   });
 
-  // Also resolve on next microtask to avoid hanging if token event doesn’t fire (soft)
+  // Soft safety: resolve on next microtask so Auth is never blocked
   queueMicrotask(() => {
     if (appCheckReadyResolve) appCheckReadyResolve();
   });
@@ -59,3 +58,11 @@ export const getSequencedAuth = async (): Promise<Auth> => {
   }
   return _auth!;
 };
+
+// Optional: one-time breadcrumb so QA can see build-time env
+if (typeof window !== "undefined") {
+  console.log("[init] Build env:", {
+    VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  });
+}
