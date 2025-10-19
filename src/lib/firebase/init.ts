@@ -87,4 +87,17 @@ if (typeof window !== "undefined") {
     VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   });
+  (async () => {
+    try {
+      const r = await fetch("/__/firebase/init.json", { cache: "no-store" });
+      const j = await r.json();
+      console.log("[firebase] runtime init.json:", { projectId: j?.projectId, authDomain: j?.authDomain, apiKey: j?.apiKey });
+      if (import.meta.env.VITE_FIREBASE_PROJECT_ID && j?.projectId && import.meta.env.VITE_FIREBASE_PROJECT_ID !== j?.projectId) {
+        console.warn("[firebase] MISMATCH: build projectId =", import.meta.env.VITE_FIREBASE_PROJECT_ID, "runtime projectId =", j?.projectId);
+      }
+    } catch (e) {
+      console.warn("[firebase] failed to fetch runtime init.json", e);
+    }
+  })();
+  console.log("[build] version:", (typeof (globalThis as any).__APP_VERSION__ !== "undefined" ? (globalThis as any).__APP_VERSION__ : "dev"));
 }
