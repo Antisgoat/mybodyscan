@@ -5,6 +5,12 @@ let _appCheck: import("firebase/app-check").AppCheck | null = null;
 let initPromise: Promise<import("firebase/app-check").AppCheck | null> | null = null;
 let initComplete = false;
 
+type AppCheckModule = typeof import("firebase/app-check") & {
+  getAppCheck?: (
+    firebaseApp?: import("firebase/app").FirebaseApp,
+  ) => import("firebase/app-check").AppCheck;
+};
+
 function app() {
   return getApps().length
     ? getApp()
@@ -38,9 +44,15 @@ export async function ensureAppCheck() {
     initPromise = (async () => {
       try {
         await appCheckReady;
-        const { getAppCheck } = await import("firebase/app-check");
-        _appCheck = getAppCheck(app());
-        return _appCheck;
+        const appCheckModule = (await import("firebase/app-check")) as AppCheckModule;
+        const getAppCheckFn = appCheckModule.getAppCheck;
+        if (typeof getAppCheckFn === "function") {
+          _appCheck = getAppCheckFn(app());
+          return _appCheck;
+        }
+        console.warn("AppCheck getAppCheck() unavailable; continuing in soft mode");
+        _appCheck = null;
+        return null;
       } catch (error) {
         console.warn("AppCheck init failed; continuing in soft mode", error);
         _appCheck = null;

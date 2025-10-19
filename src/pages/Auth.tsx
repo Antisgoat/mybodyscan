@@ -20,6 +20,7 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+import { mapAuthErrorToMessage } from "@/lib/auth/errors";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -52,12 +53,17 @@ const Auth = () => {
     loadFirebaseAuthClientConfig()
       .then((config) => {
         if (!active) return;
-        setAppleEnabled(isProviderEnabled("apple.com", config));
+        const enabled = isProviderEnabled("apple.com", config);
+        if (typeof window !== "undefined") {
+          console.log("[auth] Apple provider client config:", {
+            enabled,
+            forceAppleButton,
+          });
+        }
+        setAppleEnabled(enabled);
       })
       .catch((err) => {
-        if (import.meta.env.DEV) {
-          console.warn("[auth] Unable to determine Apple availability:", err);
-        }
+        console.warn("[auth] Unable to determine Apple availability:", err);
         if (active) {
           setAppleEnabled(false);
         }
@@ -121,35 +127,10 @@ const Auth = () => {
     }
   };
 
-  const appleConfigured = forceAppleButton || appleEnabled === true;
   const showAppleButton = true;
-
-  const showAppleNotConfigured = () => {
-    toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
-  };
-
-  const isAppleMisconfiguredError = (error: any) => {
-    const code = String(error?.code || "");
-    if (
-      code.includes("operation-not-allowed") ||
-      code.includes("configuration-not-found") ||
-      code.includes("invalid-oauth-provider") ||
-      code.includes("invalid-oauth-client-id") ||
-      code.includes("invalid-provider-id")
-    ) {
-      return true;
-    }
-    const message = String(error?.message || "");
-    return /CONFIGURATION_NOT_FOUND|not enabled|disabled/i.test(message);
-  };
 
   const onApple = async () => {
     if (loading) return;
-
-    if (!appleConfigured && appleEnabled === false) {
-      showAppleNotConfigured();
-      return;
-    }
 
     setLoading(true);
     try {
@@ -159,12 +140,17 @@ const Auth = () => {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       consumeAuthRedirect();
-      if (isAppleMisconfiguredError(err)) {
-        showAppleNotConfigured();
+      console.error("[auth] Apple login failed", err);
+      const code =
+        typeof err === "object" && err && "code" in err
+          ? String((err as { code?: unknown }).code ?? "")
+          : undefined;
+      if (code === "auth/operation-not-allowed") {
+        toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
       } else {
-        toast({ title: "Apple sign in failed", description: err?.message || "Please try again." });
+        toast({ title: "Apple sign in failed", description: mapAuthErrorToMessage(code) });
       }
     } finally {
       setLoading(false);
@@ -242,6 +228,10 @@ const Auth = () => {
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
+                  data-apple-config={
+                    appleEnabled === null ? "unknown" : appleEnabled ? "enabled" : "disabled"
+                  }
+                  data-apple-force={String(forceAppleButton)}
                 >
                   <AppleIcon />
                   Continue with Apple

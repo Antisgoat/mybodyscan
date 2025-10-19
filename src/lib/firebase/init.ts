@@ -11,6 +11,13 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+if (typeof window !== "undefined") {
+  console.log("[init] Build env:", {
+    VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  });
+}
+
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 let appCheckReadyResolve!: () => void;
@@ -26,9 +33,11 @@ function initAppCheckSoft(): AppCheck | null {
   });
 
   // Resolve when we observe an App Check token event (initial or refresh)
-  onTokenChanged(ac as any, () => {
-    if (appCheckReadyResolve) appCheckReadyResolve();
-  }, true);
+  onTokenChanged(ac as any, {
+    next: () => {
+      if (appCheckReadyResolve) appCheckReadyResolve();
+    },
+  });
 
   // Also resolve on next microtask to avoid hanging if token event doesn’t fire (soft)
   queueMicrotask(() => {
