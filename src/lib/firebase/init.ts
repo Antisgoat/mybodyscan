@@ -39,7 +39,10 @@ if (typeof window !== "undefined") {
     VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   });
-  (async () => {
+
+  const origin = window.location.origin;
+
+  const keyFromRuntime = (async () => {
     try {
       const r = await fetch("/__/firebase/init.json", { cache: "no-store" });
       const j = await r.json();
@@ -47,9 +50,37 @@ if (typeof window !== "undefined") {
       if (import.meta.env.VITE_FIREBASE_PROJECT_ID && j?.projectId && import.meta.env.VITE_FIREBASE_PROJECT_ID !== j?.projectId) {
         console.warn("[firebase] MISMATCH: build projectId =", import.meta.env.VITE_FIREBASE_PROJECT_ID, "runtime projectId =", j?.projectId);
       }
+      return j?.apiKey as string | undefined;
     } catch (e) {
       console.warn("[firebase] failed to fetch runtime init.json", e);
+      return undefined;
     }
   })();
-  console.log("[build] version:", (typeof (globalThis as any).__APP_VERSION__ !== "undefined" ? (globalThis as any).__APP_VERSION__ : "dev"));
+
+  void (async () => {
+    const apiKey = await keyFromRuntime;
+    console.log("[probe] origin:", origin, "apiKey present:", !!apiKey);
+    if (apiKey) {
+      const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/clientConfig?key=${apiKey}`;
+      try {
+        const r = await fetch(url, { mode: "cors" });
+        console.log("[probe] IdentityToolkit status:", r.status);
+        if (!r.ok) {
+          console.warn(
+            "[probe] IdentityToolkit not reachable. If status is 404/CORS, the Web API key restrictions are blocking this origin:",
+            origin,
+          );
+        }
+      } catch (e) {
+        console.warn("[probe] IdentityToolkit fetch error:", e);
+      }
+    } else {
+      console.warn("[probe] No runtime apiKey. Check Hosting and /__/firebase/init.json.");
+    }
+  })();
+
+  console.log(
+    "[build] version:",
+    typeof (globalThis as any).__APP_VERSION__ !== "undefined" ? (globalThis as any).__APP_VERSION__ : "dev",
+  );
 }
