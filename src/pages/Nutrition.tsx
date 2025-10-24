@@ -13,6 +13,7 @@ import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { roundGrams, roundKcal } from "@/lib/nutritionMath";
+import NutritionSearch from "@/components/NutritionSearch";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -81,6 +82,12 @@ export default function Nutrition() {
               Review your recent intake and manage logs from the Meals tab.
             </p>
           </div>
+
+          <Card>
+            <CardContent>
+              <NutritionSearch />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
