@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dumbbell, Plus } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
@@ -191,7 +190,6 @@ export default function Workouts() {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
         <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
-        <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Card>
             <CardContent className="p-8 text-center">
@@ -216,7 +214,6 @@ export default function Workouts() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
-        <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <DemoBanner />
           <div className="text-center space-y-2">

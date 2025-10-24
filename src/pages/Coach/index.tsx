@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -232,7 +231,6 @@ export default function CoachOverview() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Coach – MyBodyScan" description="Follow your bodybuilding-style program." />
-      <AppHeader />
       <ErrorBoundary title="Coach is unavailable" description="Retry to load your personalized plan.">
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />

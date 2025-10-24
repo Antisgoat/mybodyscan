@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
@@ -93,7 +92,6 @@ export default function History() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="History – MyBodyScan" description="Review your photo scan history." />
-      <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
         <NotMedicalAdviceBanner />
         <DemoBanner />

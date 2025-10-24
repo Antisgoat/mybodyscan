@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { LibraryBig } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
@@ -23,7 +22,6 @@ export default function WorkoutsLibrary() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Workout Library - MyBodyScan" description="Browse your plan and on-demand sessions" />
-      <AppHeader />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
         <div className="space-y-2 text-center">

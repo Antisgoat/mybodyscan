@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Filter, SlidersHorizontal } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,7 +130,6 @@ export default function ProgramsCatalog() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Programs – MyBodyScan" description="Browse structured training programs." />
-      <AppHeader />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold text-foreground">Training Programs</h1>

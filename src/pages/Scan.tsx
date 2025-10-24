@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -264,7 +263,6 @@ export default function Scan() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-scan">
       <Seo title="Live Scan – MyBodyScan" description="Capture four angles to estimate your body-fat percentage." />
-      <AppHeader />
       <NotMedicalAdviceBanner />
       <ErrorBoundary title="Scan failed to load" description="Retry to resume your scanning session.">
         <main className="max-w-md mx-auto p-6 space-y-6">

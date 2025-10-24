@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,7 +72,6 @@ export default function Nutrition() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-nutrition">
       <Seo title="Nutrition - MyBodyScan" description="Track your meal history and targets." />
-      <AppHeader />
       <ErrorBoundary title="Nutrition is unavailable" description="Reload to try again or check back shortly.">
         <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
           <div className="space-y-2">

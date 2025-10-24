@@ -6,7 +6,6 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
@@ -192,7 +191,6 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Seo title="Settings - MyBodyScan" description="Manage your preferences and data." />
           <DemoBanner />

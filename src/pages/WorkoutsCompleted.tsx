@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
@@ -22,7 +21,6 @@ export default function WorkoutsCompleted() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Completed Workouts - MyBodyScan" description="Celebrate your recent streak" />
-      <AppHeader />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
         <div className="space-y-2 text-center">

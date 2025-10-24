@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Seo } from "@/components/Seo";
@@ -228,7 +227,6 @@ export default function CoachChatPage() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-coach">
       <Seo title="Coach Chat – MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
-      <AppHeader />
       <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />

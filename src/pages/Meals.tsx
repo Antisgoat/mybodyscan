@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Utensils, Plus, History, Copy, Barcode, ListPlus, Star, Trash } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -303,7 +302,6 @@ export default function Meals() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Seo title="Meals - MyBodyScan" description="Track your daily nutrition" />
-      <AppHeader />
       <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
