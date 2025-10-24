@@ -1,130 +1,281 @@
-import { kcalFromMacros } from "./nutritionMath";
-import { isDemo } from "./demoFlag";
-import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { USDA_API_KEY, OFF_ENABLED } from "./flags";
 
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+/** Normalized food shape returned to UI. */
+export type FoodItem = {
+  id: string; // stable id (usda:fdcId:<id> or off:barcode:<code>)
+  name: string; // product or description
+  brand?: string;
+  calories?: number; // per 100g or per serving if available (best-effort)
+  protein?: number; // grams
+  fat?: number; // grams
+  carbs?: number; // grams
+  source: "usda" | "off";
+};
 
-export interface MealServingSelection {
-  qty?: number;
-  unit?: string;
-  grams?: number | null;
-  originalQty?: number | null;
-  originalUnit?: string | null;
+export type SearchResult = {
+  items: FoodItem[];
+  status: string; // short user-friendly status ("Searching USDA…", "Trying Open Food Facts…", "No results", etc.)
+};
+
+/* ------------------ Tiny utilities ------------------ */
+
+const CACHE_MAX = 100;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CacheEntry = { v: unknown; t: number };
+const cache = new Map<string, CacheEntry>();
+
+function cacheGet<T>(k: string): T | undefined {
+  const e = cache.get(k);
+  if (!e) return;
+  if (Date.now() - e.t > CACHE_TTL_MS) {
+    cache.delete(k);
+    return;
+  }
+  return e.v as T;
+}
+function cacheSet(k: string, v: unknown) {
+  cache.set(k, { v, t: Date.now() });
+  if (cache.size > CACHE_MAX) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey) {
+      cache.delete(firstKey);
+    }
+  }
 }
 
-export interface MealItemSnapshot {
-  id?: string;
-  name: string;
-  brand?: string | null;
-  source?: string;
-  serving?: {
-    qty?: number | null;
-    unit?: string | null;
-    text?: string | null;
-  } | null;
-  per_serving?: {
-    kcal?: number | null;
-    protein_g?: number | null;
-    carbs_g?: number | null;
-    fat_g?: number | null;
-  } | null;
-  per_100g?: MealItemSnapshot["per_serving"] | null;
-  fdcId?: number | null;
-  gtin?: string | null;
+async function fetchJson(url: string, opts: RequestInit = {}, timeoutMs = 10_000): Promise<any> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(id);
+  }
 }
 
-export interface MealEntry {
-  id?: string;
-  name: string;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  alcohol?: number;
-  calories?: number;
-  notes?: string;
-  serving?: MealServingSelection | null;
-  item?: MealItemSnapshot | null;
-  entrySource?: "search" | "barcode" | "manual" | string;
+function n(x: unknown): number | undefined {
+  const v = typeof x === "string" && x.trim() === "" ? NaN : Number(x);
+  return Number.isFinite(v) ? v : undefined;
 }
 
-export interface NutritionHistoryDay {
-  date: string;
-  totals: {
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    alcohol?: number;
+/* ------------------ USDA adapters ------------------ */
+
+const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
+
+async function usdaSearch(q: string): Promise<FoodItem[]> {
+  if (!USDA_API_KEY) return [];
+  const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(q)}&pageSize=25`;
+  const data = await fetchJson(url).catch(() => null);
+  if (!data || !Array.isArray(data.foods)) return [];
+  return data.foods
+    .map((f: any): FoodItem => {
+      const macro = extractUsdaMacros(f?.foodNutrients);
+      return {
+        id: `usda:fdcId:${f?.fdcId}`,
+        name: String(f?.description || "").trim(),
+        brand: f?.brandOwner ? String(f.brandOwner) : undefined,
+        calories: macro.calories,
+        protein: macro.protein,
+        fat: macro.fat,
+        carbs: macro.carbs,
+        source: "usda",
+      };
+    })
+    .filter((x: FoodItem) => x.name.length > 0);
+}
+
+async function usdaGtin(gtin: string): Promise<FoodItem | null> {
+  if (!USDA_API_KEY) return null;
+  const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(gtin)}&pageSize=5`;
+  const data = await fetchJson(url).catch(() => null);
+  const hit = Array.isArray(data?.foods)
+    ? data.foods.find((f: any) => {
+        const gtins: string[] = Array.isArray(f?.gtinUpc) ? f.gtinUpc : [f?.gtinUpc].filter(Boolean);
+        return gtins.some((g: any) => String(g) === gtin);
+      }) || data?.foods?.[0]
+    : null;
+  if (!hit) return null;
+  const macro = extractUsdaMacros(hit?.foodNutrients);
+  const name = String(hit?.description || "").trim();
+  if (!name) return null;
+  return {
+    id: `usda:fdcId:${hit?.fdcId}`,
+    name,
+    brand: hit?.brandOwner ? String(hit.brandOwner) : undefined,
+    calories: macro.calories,
+    protein: macro.protein,
+    fat: macro.fat,
+    carbs: macro.carbs,
+    source: "usda",
   };
 }
 
-function round(value: number, decimals = 0) {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
-}
+function extractUsdaMacros(
+  nutrients: any[],
+): { calories?: number; protein?: number; fat?: number; carbs?: number } {
+  if (!Array.isArray(nutrients)) return {};
+  // FDC uses nutrient numbers or names; best-effort mapping
+  // Energy (kcal), Protein, Total lipid (fat), Carbohydrate, by difference
+  let calories: number | undefined;
+  let protein: number | undefined;
+  let fat: number | undefined;
+  let carbs: number | undefined;
 
-export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, calories }: MealEntry) {
-  const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
-  if (typeof calories === "number" && Math.abs(calories - kcal) <= 5) {
-    return { calories, reconciled: false, caloriesFromMacros: kcal, caloriesInput: calories };
+  for (const ntr of nutrients) {
+    const name = String(ntr?.nutrientName || ntr?.name || "").toLowerCase();
+    const unit = String(ntr?.unitName || ntr?.unit || "").toLowerCase();
+    const val = n(ntr?.value ?? ntr?.amount);
+    if (name.includes("energy") || name.includes("kcal")) {
+      if (unit === "kcal" || unit === "kcal_th") calories = val ?? calories;
+    } else if (name.startsWith("protein")) {
+      protein = val ?? protein;
+    } else if (name.includes("fat") && !name.includes("saturated")) {
+      fat = val ?? fat;
+    } else if (name.includes("carbohydrate")) {
+      carbs = val ?? carbs;
+    }
   }
-  return { calories: kcal, reconciled: calories !== undefined, caloriesFromMacros: kcal, caloriesInput: calories };
+  return { calories, protein, fat, carbs };
 }
 
-async function callFn(path: string, body?: any, method = "POST") {
-  const user = firebaseAuth.currentUser;
-  if (!user) throw new Error("auth");
-  const t = await user.getIdToken();
-  const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;
-  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}`, "x-tz-offset-mins": String(tzOffsetMins) },
-    body: method === "POST" ? JSON.stringify(body || {}) : undefined,
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
+/* ------------------ Open Food Facts adapters ------------------ */
+
+const OFF_SEARCH = "https://world.openfoodfacts.org/cgi/search.pl";
+const OFF_PRODUCT = "https://world.openfoodfacts.org/api/v2/product";
+
+async function offSearch(q: string): Promise<FoodItem[]> {
+  if (!OFF_ENABLED) return [];
+  const url = `${OFF_SEARCH}?search_terms=${encodeURIComponent(q)}&search_simple=1&json=1&page_size=25`;
+  const data = await fetchJson(url).catch(() => null);
+  if (!data || !Array.isArray(data.products)) return [];
+  return data.products
+    .map((p: any): FoodItem => {
+      const macro = extractOffMacros(p);
+      return {
+        id: `off:barcode:${p?.code || p?.id || ""}`,
+        name: String(p?.product_name || p?.generic_name || "").trim(),
+        brand: Array.isArray(p?.brands_tags) ? p.brands_tags[0] : p?.brands || undefined,
+        calories: macro.calories,
+        protein: macro.protein,
+        fat: macro.fat,
+        carbs: macro.carbs,
+        source: "off",
+      };
+    })
+    .filter((x: FoodItem) => x.name.length > 0);
 }
 
-export async function addMeal(dateISO: string, meal: MealEntry) {
-  if (isDemo()) {
-    throw new Error("demo-blocked");
+async function offBarcode(code: string): Promise<FoodItem | null> {
+  if (!OFF_ENABLED) return null;
+  const url = `${OFF_PRODUCT}/${encodeURIComponent(code)}.json`;
+  const data = await fetchJson(url).catch(() => null);
+  const p = data?.product;
+  if (!p) return null;
+  const macro = extractOffMacros(p);
+  const name = String(p?.product_name || p?.generic_name || "").trim();
+  if (!name) return null;
+  return {
+    id: `off:barcode:${code}`,
+    name,
+    brand: Array.isArray(p?.brands_tags) ? p.brands_tags[0] : p?.brands || undefined,
+    calories: macro.calories,
+    protein: macro.protein,
+    fat: macro.fat,
+    carbs: macro.carbs,
+    source: "off",
+  };
+}
+
+function extractOffMacros(p: any): { calories?: number; protein?: number; fat?: number; carbs?: number } {
+  const ntr = p?.nutriments || {};
+  const calories = n(ntr["energy-kcal_100g"] ?? ntr["energy-kcal"]);
+  const protein = n(ntr["proteins_100g"] ?? ntr["protein_100g"]);
+  const fat = n(ntr["fat_100g"]);
+  const carbs = n(ntr["carbohydrates_100g"]);
+  return { calories, protein, fat, carbs };
+}
+
+/* ------------------ Public API ------------------ */
+
+/** Search foods by free text. Tries USDA first; if empty/error, tries OFF. Cached 5m. */
+export async function searchFoods(q: string): Promise<SearchResult> {
+  const key = `search:${q.toLowerCase()}`;
+  const cached = cacheGet<SearchResult>(key);
+  if (cached) return cached;
+
+  const statusParts: string[] = [];
+  let items: FoodItem[] = [];
+
+  if (!USDA_API_KEY && !OFF_ENABLED) {
+    statusParts.push("Nutrition lookups unavailable. Add an API key in settings.");
   }
-  const entry = { ...meal, ...computeCalories(meal) };
-  const result = await callFn("/addMeal", { dateISO, meal: entry });
-  return result;
-}
 
-export async function deleteMeal(dateISO: string, mealId: string) {
-  if (isDemo()) {
-    throw new Error("demo-blocked");
+  if (USDA_API_KEY) {
+    statusParts.push("Searching USDA…");
+    try {
+      items = await usdaSearch(q);
+    } catch {
+      // ignore; will fallback
+    }
   }
-  return callFn("/deleteMeal", { dateISO, mealId });
-}
 
-export async function getDailyLog(dateISO: string) {
-  if (isDemo()) {
-    return DEMO_NUTRITION_LOG;
+  if (items.length === 0 && OFF_ENABLED) {
+    statusParts.push("Trying Open Food Facts…");
+    try {
+      items = await offSearch(q);
+    } catch {
+      // ignore
+    }
   }
-  return callFn("/getDailyLog", { dateISO });
-}
 
-export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string): Promise<NutritionHistoryDay[]> {
-  if (isDemo()) {
-    return DEMO_NUTRITION_HISTORY.slice(0, range);
+  if (items.length === 0) {
+    statusParts.push('No results. Try "chicken breast" or a known barcode.');
   }
-  const anchor = anchorDateISO || new Date().toISOString().slice(0, 10);
-  const response = await callFn("/getNutritionHistory", { range, anchorDateISO: anchor });
-  const list = Array.isArray(response?.days) ? response.days : [];
-  return list.map((day: any) => ({
-    date: day.date,
-    totals: {
-      calories: Number(day?.totals?.calories) || 0,
-      protein: Number(day?.totals?.protein) || 0,
-      carbs: Number(day?.totals?.carbs) || 0,
-      fat: Number(day?.totals?.fat) || 0,
-      alcohol: Number(day?.totals?.alcohol) || 0,
-    },
-  }));
+
+  const res: SearchResult = { items, status: statusParts.join(" ") || "Done." };
+  cacheSet(key, res);
+  return res;
 }
 
+/** Lookup by barcode (GTIN/UPC/EAN). Tries USDA GTIN then OFF. Cached 5m. */
+export async function lookupBarcode(code: string): Promise<SearchResult> {
+  const key = `barcode:${code}`;
+  const cached = cacheGet<SearchResult>(key);
+  if (cached) return cached;
+
+  const statusParts: string[] = [];
+  let item: FoodItem | null = null;
+
+  if (!USDA_API_KEY && !OFF_ENABLED) {
+    statusParts.push("Nutrition lookups unavailable. Add an API key in settings.");
+  }
+
+  if (USDA_API_KEY) {
+    statusParts.push("Looking up in USDA…");
+    try {
+      item = await usdaGtin(code);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!item && OFF_ENABLED) {
+    statusParts.push("Trying Open Food Facts…");
+    try {
+      item = await offBarcode(code);
+    } catch {
+      // ignore
+    }
+  }
+
+  const statusPartsWithResult = [...statusParts, item ? "Found." : "No match found."];
+  const res: SearchResult = {
+    items: item ? [item] : [],
+    status: statusPartsWithResult.join(" ") || "Done.",
+  };
+  cacheSet(key, res);
+  return res;
+}

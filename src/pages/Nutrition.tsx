@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
-import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
+import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutritionBackend";
 import { useAuthUser } from "@/lib/auth";
 import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";

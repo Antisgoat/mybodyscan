@@ -16,7 +16,7 @@ import {
   getNutritionHistory,
   type MealEntry,
   type NutritionHistoryDay,
-} from "@/lib/nutrition";
+} from "@/lib/nutritionBackend";
 import type { FoodItem } from "@/lib/nutrition/types";
 import {
   subscribeFavorites,
