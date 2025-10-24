@@ -1,6 +1,8 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence, type Auth } from "firebase/auth";
 
+import { waitForAppCheckReady } from "@/appCheck";
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -11,8 +13,7 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
-// App Check is disabled for now - always resolves immediately
-export const appCheckReady = Promise.resolve();
+export const appCheckReady = waitForAppCheckReady();
 
 let _auth: Auth | null = null;
 let _authInitPromise: Promise<Auth> | null = null;
@@ -26,7 +27,7 @@ export const getSequencedAuth = async (): Promise<Auth> => {
     await appCheckReady;
     _auth = getAuth(app);
     await setPersistence(_auth, browserLocalPersistence);
-    if (typeof window !== "undefined") console.log("[init] Auth ready (after AppCheck: disabled)");
+    if (typeof window !== "undefined") console.log("[init] Auth ready (after AppCheck readiness)");
     return _auth;
   })();
   
@@ -39,45 +40,6 @@ if (typeof window !== "undefined") {
     VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   });
-
-  const origin = window.location.origin;
-
-  const keyFromRuntime = (async () => {
-    try {
-      const r = await fetch("/__/firebase/init.json", { cache: "no-store" });
-      const j = await r.json();
-      console.log("[firebase] runtime init.json:", { projectId: j?.projectId, authDomain: j?.authDomain, apiKey: j?.apiKey });
-      if (import.meta.env.VITE_FIREBASE_PROJECT_ID && j?.projectId && import.meta.env.VITE_FIREBASE_PROJECT_ID !== j?.projectId) {
-        console.warn("[firebase] MISMATCH: build projectId =", import.meta.env.VITE_FIREBASE_PROJECT_ID, "runtime projectId =", j?.projectId);
-      }
-      return j?.apiKey as string | undefined;
-    } catch (e) {
-      console.warn("[firebase] failed to fetch runtime init.json", e);
-      return undefined;
-    }
-  })();
-
-  void (async () => {
-    const apiKey = await keyFromRuntime;
-    console.log("[probe] origin:", origin, "apiKey present:", !!apiKey);
-    if (apiKey) {
-      const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/clientConfig?key=${apiKey}`;
-      try {
-        const r = await fetch(url, { mode: "cors" });
-        console.log("[probe] IdentityToolkit status:", r.status);
-        if (!r.ok) {
-          console.warn(
-            "[probe] IdentityToolkit not reachable. If status is 404/CORS, the Web API key restrictions are blocking this origin:",
-            origin,
-          );
-        }
-      } catch (e) {
-        console.warn("[probe] IdentityToolkit fetch error:", e);
-      }
-    } else {
-      console.warn("[probe] No runtime apiKey. Check Hosting and /__/firebase/init.json.");
-    }
-  })();
 
   console.log(
     "[build] version:",
