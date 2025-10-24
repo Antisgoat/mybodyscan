@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,7 +175,6 @@ export default function ProgramsQuiz() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Program quiz – MyBodyScan" description="Find the right training plan in under a minute." />
-      <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
         <Card className="border bg-card/60">
           <CardHeader className="space-y-2">

@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AppHeader } from "@/components/AppHeader";
 import { Section } from "@/components/ui/section";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
@@ -232,7 +231,6 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader />
       <main className="max-w-md mx-auto p-6 space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground">Setup Your Profile</h1>

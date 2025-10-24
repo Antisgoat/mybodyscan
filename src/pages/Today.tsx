@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
@@ -155,7 +154,6 @@ export default function Today() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Today - MyBodyScan" description="Your daily health and fitness plan" />
-        <AppHeader />
         <main className="max-w-md mx-auto p-6 space-y-6" data-testid="today-dashboard">
           <DemoBanner />
           <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>

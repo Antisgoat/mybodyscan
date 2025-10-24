@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Timer } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -414,7 +413,6 @@ export default function CoachDay() {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
         <Seo title="Coach Day" description="Workout details" />
-        <AppHeader />
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
           <NotMedicalAdviceBanner />
           <div className="h-48 animate-pulse rounded-lg bg-muted/40" />
@@ -430,7 +428,6 @@ export default function CoachDay() {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
         <Seo title="Coach Day" description="Workout details" />
-        <AppHeader />
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
           <NotMedicalAdviceBanner />
           <Card>
@@ -448,7 +445,6 @@ export default function CoachDay() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title={`${day.name} – ${rawProgram.title}`} description="Log your sets and reps." />
-      <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-6">
         <NotMedicalAdviceBanner />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

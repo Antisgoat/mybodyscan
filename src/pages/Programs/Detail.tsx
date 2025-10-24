@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Info } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,7 +148,6 @@ export default function ProgramDetail() {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
         <Seo title="Programs – MyBodyScan" description="Browse structured training programs." />
-        <AppHeader />
         <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
           <div className="h-64 animate-pulse rounded-lg bg-muted/50" />
           <div className="space-y-4">
@@ -166,7 +164,6 @@ export default function ProgramDetail() {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
         <Seo title="Program not found – MyBodyScan" description="Program details." />
-        <AppHeader />
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <Button variant="ghost" className="w-fit" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -199,7 +196,6 @@ export default function ProgramDetail() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title={`${program.title} – MyBodyScan`} description={program.summary ?? "Training program details"} />
-      <AppHeader />
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
         <Button variant="ghost" className="w-fit" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to programs

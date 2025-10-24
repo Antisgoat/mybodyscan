@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { startCheckout, type CheckoutPlanKey } from "@/lib/payments";
@@ -120,7 +119,6 @@ export default function Plans() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <AppHeader />
       <main className="max-w-md mx-auto p-6 space-y-6">
         <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
         <div className="text-center">

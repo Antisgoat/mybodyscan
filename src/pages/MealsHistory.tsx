@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { CalendarRange } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,6 @@ export default function MealsHistory() {
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo title="Meal History - MyBodyScan" description="Review your recent nutrition trends" />
-      <AppHeader />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <CalendarRange className="mx-auto h-10 w-10 text-primary" />

@@ -1,107 +1,152 @@
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import CreditsBadge from "@/components/CreditsBadge";
-import BillingButtons from "@/components/BillingButtons";
-import { DemoBadge } from "@/components/DemoBadge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useAuthUser, signOutAll } from "@/lib/auth";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Settings, LogOut, User } from "lucide-react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import React, { useState } from "react";
+import CreditsBadge from "./CreditsBadge";
+import BillingButtons from "./BillingButtons";
+import { useClaims } from "@/lib/claims";
+import { isDemo, startDemo } from "@/lib/demo";
 
-export function AppHeader() {
-  const { user } = useAuthUser();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isFounder, setIsFounder] = useState(false);
+export type AppHeaderProps = {
+  className?: string;
+};
 
-  useEffect(() => {
-    if (!user?.uid) {
-      setIsFounder(false);
-      return;
+const wrap: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "10px 12px",
+  borderBottom: "1px solid #eee",
+  background: "white",
+  position: "sticky",
+  top: 0,
+  zIndex: 100,
+};
+
+const left: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+const right: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const brand: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 700,
+  color: "inherit",
+  textDecoration: "none",
+};
+
+const demoPill: React.CSSProperties = {
+  fontSize: 10,
+  padding: "2px 6px",
+  borderRadius: 999,
+  border: "1px solid #ddd",
+  background: "#fffbf0",
+};
+
+const signedInAs: React.CSSProperties = {
+  fontSize: 12,
+  color: "#555",
+};
+
+const loginLink: React.CSSProperties = {
+  fontSize: 12,
+  color: "#333",
+  textDecoration: "underline",
+};
+
+const demoBtn: React.CSSProperties = {
+  padding: "8px 10px",
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  background: "white",
+  cursor: "pointer",
+  fontSize: 12,
+};
+
+function formatUserLabel(email?: string | null): string {
+  if (email && email.trim().length > 0) return email;
+  return "Signed in";
+}
+
+const exploreError = "Demo sign-in failed. Please reload and try again.";
+
+const demoSuccessMessage = "Demo mode enabled.";
+
+function AppHeaderComponent({ className }: AppHeaderProps) {
+  const { user } = useClaims();
+  const demo = isDemo();
+  const [pending, setPending] = useState(false);
+
+  async function onExploreDemo() {
+    if (pending) return;
+    setPending(true);
+    try {
+      const result = await startDemo();
+      if (!result.ok) {
+        const message = "message" in result ? result.message : undefined;
+        window.alert(message ?? exploreError);
+        return;
+      }
+      if (typeof window !== "undefined") {
+        // Optional: navigate after demo starts. Update to suit your router if desired.
+        window.dispatchEvent(
+          new CustomEvent("mbs:toast", { detail: { level: "info", message: demoSuccessMessage } })
+        );
+      }
+    } finally {
+      setPending(false);
     }
-    const ref = doc(db, "users", user.uid);
-    const unsub = onSnapshot(ref, (snap) => {
-      const data = snap.data() as { meta?: { founder?: boolean } } | undefined;
-      setIsFounder(Boolean(data?.meta?.founder));
-    });
-    return () => unsub();
-  }, [user?.uid]);
-
-  const tabs = [
-    { label: "Today", path: "/today" },
-    { label: "Plans", path: "/plans" },
-    { label: "Workouts", path: "/workouts" },
-    { label: "Meals", path: "/meals" },
-    { label: "History", path: "/history" }
-  ];
-
-  const isActive = (path: string) => location.pathname === path;
-
-  const handleSignOut = async () => {
-    await signOutAll();
-    navigate("/auth");
-  };
+  }
 
   return (
-    <header className="border-b bg-card">
-      <div className="max-w-md mx-auto p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold text-foreground">MyBodyScan</h1>
-            <CreditsBadge />
-            <DemoBadge />
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <BillingButtons className="sm:ml-auto" />
-            <div className="flex items-center gap-2">
-              {isFounder && (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
-                  Founder
-                </span>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={user?.photoURL || ""} />
-                      <AvatarFallback>
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => navigate("/settings")}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
+    <header className={className} style={wrap}>
+      <div style={left}>
+        <a href="/" style={brand} aria-label="MyBodyScan Home">
+          MyBodyScan
+        </a>
+        {demo && (
+          <span style={demoPill} aria-label="Demo mode active">
+            DEMO
+          </span>
+        )}
+      </div>
 
-        {/* Navigation tabs - hidden on mobile, shown on desktop */}
-        <div className="hidden md:flex items-center gap-2">
-          {tabs.map((tab) => (
-            <Button
-              key={tab.path}
-              variant={isActive(tab.path) ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate(tab.path)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
+      <div style={right}>
+        {user ? (
+          <span style={signedInAs} title={formatUserLabel(user.email)}>
+            {formatUserLabel(user.email)}
+          </span>
+        ) : (
+          <a href="/login" style={loginLink} aria-label="Go to login">
+            Sign in
+          </a>
+        )}
+
+        <CreditsBadge />
+        <BillingButtons />
+
+        {!user && (
+          <button
+            type="button"
+            onClick={onExploreDemo}
+            style={{ ...demoBtn, opacity: pending ? 0.7 : 1, pointerEvents: pending ? "none" : "auto" }}
+            aria-label="Explore Demo"
+            disabled={pending}
+          >
+            {pending ? "Loading…" : "Explore Demo"}
+          </button>
+        )}
       </div>
     </header>
   );
 }
+
+export default AppHeaderComponent;
+export { AppHeaderComponent as AppHeader };

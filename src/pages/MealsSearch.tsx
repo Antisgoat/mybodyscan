@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
-import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -397,7 +396,6 @@ export default function MealsSearch() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-meals">
       <Seo title="Food Search" description="Find foods from USDA and OpenFoodFacts" />
-      <AppHeader />
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Search className="mx-auto h-10 w-10 text-primary" />
