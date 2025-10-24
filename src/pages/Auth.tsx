@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
+import { startDemo } from "@/lib/demo";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -170,6 +171,22 @@ const Auth = () => {
     }
   };
 
+  const onExploreDemo = async () => {
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      const res = await startDemo();
+      if (res.ok) {
+        navigate(from, { replace: true });
+      } else {
+        console.warn("Demo sign-in failed:", res.code || res.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
@@ -275,8 +292,8 @@ const Auth = () => {
             </Button>
           </div>
           <div className="mt-6">
-            <Button type="button" variant="ghost" className="w-full" asChild>
-              <Link to="/demo">👀 Explore demo (no sign-up)</Link>
+            <Button type="button" variant="ghost" className="w-full" onClick={onExploreDemo} disabled={loading}>
+              👀 Explore demo (no sign-up)
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
               Browse demo data. Create a free account to unlock scanning and save your progress.
