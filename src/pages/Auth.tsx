@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
+import { toast as notify } from "@/hooks/use-toast";
 import {
   createAccountEmail,
   rememberAuthRedirect,
@@ -18,6 +18,7 @@ import {
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
+import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -85,7 +86,7 @@ const Auth = () => {
         if (!active) return;
         consumeAuthRedirect();
         console.error("[auth] Redirect result failed:", err);
-        toast({ title: "Sign in failed", description: err?.message || "Please try again." });
+        notify({ title: "Sign in failed", description: err?.message || "Please try again." });
       });
     return () => {
       active = false;
@@ -99,10 +100,7 @@ const Auth = () => {
       if (mode === "signin") {
         const result = await emailPasswordSignIn(email, password);
         if (result.ok === false) {
-          toast({
-            title: "Sign in failed",
-            description: result.message ?? "Please try again.",
-          });
+          toast(result.message ?? "Email sign-in failed.", "error");
           return;
         }
       } else {
@@ -110,7 +108,10 @@ const Auth = () => {
       }
       navigate(from, { replace: true });
     } catch (err: any) {
-      toast({ title: mode === "signin" ? "Sign in failed" : "Create account failed", description: err?.message || "Please try again." });
+      toast(
+        err?.message || (mode === "signin" ? "Email sign-in failed." : "Account creation failed."),
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -123,10 +124,7 @@ const Auth = () => {
       const result = await googleSignIn();
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast({
-          title: "Google sign in failed",
-          description: result.message ?? "Please try again.",
-        });
+        toast(result.message ?? "Google sign-in failed.", "error");
         return;
       }
       if (auth.currentUser) {
@@ -135,7 +133,7 @@ const Auth = () => {
       }
     } catch (err: any) {
       consumeAuthRedirect();
-      toast({ title: "Google sign in failed", description: err?.message || "Please try again." });
+      toast(err?.message || "Google sign-in failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -152,10 +150,7 @@ const Auth = () => {
       const result = await appleSignIn();
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast({
-          title: "Apple sign-in failed",
-          description: result.message ?? "Please try again.",
-        });
+        toast(result.message ?? "Apple sign-in failed.", "error");
         return;
       }
       if (auth.currentUser) {
@@ -165,7 +160,10 @@ const Auth = () => {
     } catch (err: unknown) {
       consumeAuthRedirect();
       console.error("[auth] Apple login failed:", err);
-      toast({ title: "Sign-in failed", description: (err as { message?: string } | undefined)?.message || "Please try again." });
+      toast(
+        (err as { message?: string } | undefined)?.message || "Apple sign-in failed.",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -240,9 +238,9 @@ const Auth = () => {
               <Button type="button" variant="link" onClick={async () => {
                 try {
                   await sendReset(email);
-                  toast({ title: "Reset link sent", description: "Check your email for reset instructions." });
+                  notify({ title: "Reset link sent", description: "Check your email for reset instructions." });
                 } catch (err: any) {
-                  toast({ title: "Couldn't send reset", description: err?.message || "Please try again." });
+                  notify({ title: "Couldn't send reset", description: err?.message || "Please try again." });
                 }
               }}>Forgot password?</Button>
             </div>
