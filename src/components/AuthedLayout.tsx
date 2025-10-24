@@ -3,7 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { signOutToAuth } from "@/lib/auth";
 import Footer from "./Footer";
-import { CreditsBadge } from "./CreditsBadge";
+import CreditsBadge from "./CreditsBadge";
 
 export default function AuthedLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
