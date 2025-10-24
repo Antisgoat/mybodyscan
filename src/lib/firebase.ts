@@ -4,7 +4,13 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { FIREBASE_PUBLIC_CONFIG } from "@/config/firebase.public";
 import { getSequencedAuth } from "@/lib/firebase/init";
-import type { Auth } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  type Auth,
+} from "firebase/auth";
+import { isNative } from "./platform";
 
 /**
  * Prefer Vite env vars when present; otherwise fall back to committed public config.
@@ -44,6 +50,9 @@ export const firebaseConfig = mergedConfig();
 
 // Guard against double-initialization in dev/HMR and multiple entrypoints
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+if (isNative && typeof window !== "undefined") {
+  console.log("[Native] Skipping web-only Firebase setup (service workers, App Check)");
+}
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
@@ -93,6 +102,16 @@ export const auth = new Proxy({} as Auth, {
     return true;
   },
 }) as Auth;
+
+const googleProvider = new GoogleAuthProvider();
+
+export async function signInWithGoogle() {
+  const authInstance = await getSequencedAuth();
+  if (isNative) {
+    return signInWithRedirect(authInstance, googleProvider);
+  }
+  return signInWithPopup(authInstance, googleProvider);
+}
 
 export { getSequencedAuth };
 

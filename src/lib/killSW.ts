@@ -1,5 +1,8 @@
+import { isNative } from "@/lib/platform";
+
 export function killSW() {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (isNative) return;
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   try {
     navigator.serviceWorker.getRegistrations().then((regs) => {
       for (const reg of regs) {

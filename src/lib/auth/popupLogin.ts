@@ -1,6 +1,11 @@
 import { signInWithPopup, signInWithRedirect, type Auth, type AuthProvider } from "firebase/auth";
+import { isNative } from "@/lib/platform";
 
 export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
+  if (isNative) {
+    await signInWithRedirect(auth, provider);
+    return;
+  }
   try {
     return await signInWithPopup(auth, provider);
   } catch (e: any) {
