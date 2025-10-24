@@ -1,14 +1,14 @@
 import { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import Footer from "./Footer";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
-  const handleLaunch = async () => {
-    const auth = await getSequencedAuth();
+  const handleLaunch = () => {
+    const auth = firebaseAuth;
     if (auth.currentUser) navigate("/home");
     else navigate("/auth", { state: { from: location.pathname } });
   };

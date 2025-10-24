@@ -1,64 +1,54 @@
-import { getApp } from "firebase/app";
-import {
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-  getToken,
-  type AppCheck,
-} from "firebase/app-check";
+import { getToken } from "firebase/app-check";
 
-import { APPCHECK_SITE_KEY } from "./lib/flags";
+import {
+  ensureAppCheckInit,
+  getAppCheckInstance,
+  isAppCheckActive as isAppCheckActiveInternal,
+  isAppCheckReady as isAppCheckReadyInternal,
+  waitForAppCheckReady as waitForAppCheckReadyInternal,
+} from "./lib/firebase";
 
 let initPromise: Promise<void> | null = null;
-let initComplete = false;
-let appCheckInstance: AppCheck | null = null;
 
 function ensureInitPromise(): Promise<void> {
   if (!initPromise) {
-    initPromise = (async () => {
-      try {
-        if (typeof window !== "undefined" && APPCHECK_SITE_KEY) {
-          const app = getApp();
-          appCheckInstance = initializeAppCheck(app, {
-            provider: new ReCaptchaV3Provider(APPCHECK_SITE_KEY),
-            isTokenAutoRefreshEnabled: true,
-          });
-        }
-      } catch (e) {
-        console.warn("[boot] AppCheck init failed:", e);
-      } finally {
-        initComplete = true;
-      }
-    })();
+    ensureAppCheckInit();
+    initPromise = waitForAppCheckReadyInternal().catch(() => {
+      // Swallow readiness errors; App Check remains optional.
+    });
   }
-
-  return initPromise!;
+  return initPromise;
 }
 
 export async function ensureAppCheck() {
   await ensureInitPromise();
-  return appCheckInstance;
+  return getAppCheckInstance();
 }
 
 export async function getAppCheckToken(forceRefresh = false) {
   await ensureInitPromise();
-  if (!appCheckInstance) return null;
+  const instance = getAppCheckInstance();
+  if (!instance) return null;
   try {
-    const { token } = await getToken(appCheckInstance, forceRefresh);
+    const { token } = await getToken(instance, forceRefresh);
     return token;
-  } catch (e) {
-    console.warn("[boot] AppCheck token fetch failed:", e);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("[boot] AppCheck token fetch failed:", error);
     return null;
   }
 }
 
-export const initAppCheck = ensureAppCheck;
+export function initAppCheck(): Promise<void> {
+  return ensureInitPromise();
+}
 
 export function isAppCheckActive(): boolean {
-  return appCheckInstance !== null;
+  return isAppCheckActiveInternal();
 }
 
 export function isAppCheckReady(): boolean {
-  return initComplete;
+  return isAppCheckReadyInternal();
 }
 
 export async function waitForAppCheckReady(): Promise<void> {

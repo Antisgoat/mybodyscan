@@ -1,8 +1,7 @@
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import { getBreadcrumbs } from "./logger";
-export async function buildDiagnostics(): Promise<string> {
-  const auth = await getSequencedAuth();
-  const u = auth.currentUser;
+export function buildDiagnostics(): string {
+  const u = firebaseAuth.currentUser;
   const info = {
     uid: u?.uid || "signed-out",
     email: u?.email || "",
@@ -10,11 +9,11 @@ export async function buildDiagnostics(): Promise<string> {
     ua: navigator.userAgent,
     path: window.location.pathname,
     ts: new Date().toISOString(),
-    breadcrumbs: getBreadcrumbs()
+    breadcrumbs: getBreadcrumbs(),
   };
   return JSON.stringify(info, null, 2);
 }
 export async function copyDiagnostics() {
-  const text = await buildDiagnostics();
+  const text = buildDiagnostics();
   await navigator.clipboard.writeText(text);
 }

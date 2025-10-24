@@ -1,7 +1,7 @@
 import { kcalFromMacros } from "./nutritionMath";
 import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
@@ -73,8 +73,7 @@ export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, 
 }
 
 async function callFn(path: string, body?: any, method = "POST") {
-  const auth = await getSequencedAuth();
-  const user = auth.currentUser;
+  const user = firebaseAuth.currentUser;
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
   const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;

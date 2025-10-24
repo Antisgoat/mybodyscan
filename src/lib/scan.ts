@@ -1,13 +1,10 @@
 import { httpsCallable } from "firebase/functions";
-import { db, storage, functions } from "./firebase";
+import { auth as firebaseAuth, db, storage, functions } from "./firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { getAppCheckToken } from "@/appCheck";
-import { getSequencedAuth } from "@/lib/firebase/init";
-
 async function authedPost(path: string, body: Record<string, unknown>) {
-  const auth = await getSequencedAuth();
-  const user = auth.currentUser;
+  const user = firebaseAuth.currentUser;
   if (!user) throw new Error("auth");
   const [token, appCheckToken] = await Promise.all([
     user.getIdToken(),
@@ -71,7 +68,7 @@ export function listenToScan(uid: string, scanId: string, onUpdate: (scan: any) 
   const docRef = collection(db, `users/${uid}/scans`);
   const q = query(docRef, orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap) => {
-    const scan = snap.docs.find(d => d.id === scanId);
+    const scan = snap.docs.find((d) => d.id === scanId);
     if (scan) onUpdate({ id: scan.id, ...scan.data() });
   }, onError);
 }

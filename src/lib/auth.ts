@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth, functions } from "@/lib/firebase";
 import { popupThenRedirect } from "@/lib/auth/popupLogin";
 import {
   Auth,
@@ -25,14 +24,8 @@ import {
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 
-let firebaseAuth: Auth | null = null;
-const firebaseAuthPromise = getSequencedAuth().then((auth) => {
-  firebaseAuth = auth;
-  return auth;
-});
-
 async function ensureFirebaseAuth(): Promise<Auth> {
-  return firebaseAuthPromise;
+  return firebaseAuth;
 }
 
 export function getCachedAuth(): Auth | null {
@@ -40,91 +33,82 @@ export function getCachedAuth(): Auth | null {
 }
 
 export async function initAuthPersistence() {
-  const auth = await ensureFirebaseAuth();
-  await setPersistence(auth, browserLocalPersistence);
+  await setPersistence(firebaseAuth, browserLocalPersistence);
 }
 
 export function useAuthUser() {
   const [user, setUser] = useState<Auth["currentUser"] | null>(
-    () => (typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null),
+    () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
   );
-  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth?.currentUser);
+  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
   const processedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let cancelled = false;
+    const auth = firebaseAuth;
 
-    void (async () => {
-      const auth = await ensureFirebaseAuth();
-      if (cancelled) return;
+    if (!authReady && auth.currentUser) {
+      setUser(auth.currentUser);
+      setAuthReady(true);
+    }
 
-      // If a user is already available synchronously, mark ready without waiting
-      if (!authReady && auth.currentUser) {
-        setUser(auth.currentUser);
-        setAuthReady(true);
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setAuthReady(true);
+
+      if (!nextUser) {
+        processedUidRef.current = null;
+        return;
       }
 
-      unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-        setUser(nextUser);
-        setAuthReady(true);
-
-        if (!nextUser) {
-          processedUidRef.current = null;
-          return;
+      if (!nextUser.isAnonymous && typeof window !== "undefined") {
+        try {
+          window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+        } catch {
+          // ignore storage errors
         }
+      }
 
-        if (!nextUser.isAnonymous && typeof window !== "undefined") {
-          try {
-            window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-          } catch {
-            // ignore storage errors
+      const shouldRefreshClaims = !nextUser.isAnonymous;
+      const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
+      if (processedUidRef.current === statusKey) {
+        return;
+      }
+
+      processedUidRef.current = statusKey;
+
+      if (!shouldRefreshClaims) {
+        return;
+      }
+
+      void (async () => {
+        try {
+          await nextUser.getIdToken(true);
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] pre-claims token refresh failed", err);
           }
         }
 
-        const shouldRefreshClaims = !nextUser.isAnonymous;
-        const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
-        if (processedUidRef.current === statusKey) {
-          return;
+        try {
+          await httpsCallable(functions, "refreshClaims")({});
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] refreshClaims callable failed", err);
+          }
         }
 
-        processedUidRef.current = statusKey;
-
-        if (!shouldRefreshClaims) {
-          return;
+        try {
+          await nextUser.getIdToken(true);
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] post-claims token refresh failed", err);
+          }
         }
-
-        void (async () => {
-          try {
-            await nextUser.getIdToken(true);
-          } catch (err) {
-            if (import.meta.env.DEV) {
-              console.warn("[auth] pre-claims token refresh failed", err);
-            }
-          }
-
-          try {
-            await httpsCallable(functions, "refreshClaims")({});
-          } catch (err) {
-            if (import.meta.env.DEV) {
-              console.warn("[auth] refreshClaims callable failed", err);
-            }
-          }
-
-          try {
-            await nextUser.getIdToken(true);
-          } catch (err) {
-            if (import.meta.env.DEV) {
-              console.warn("[auth] post-claims token refresh failed", err);
-            }
-          }
-        })();
-      });
-    })();
+      })();
+    });
 
     return () => {
-      cancelled = true;
-      if (unsubscribe) unsubscribe();
+      unsubscribe();
     };
   }, [authReady]);
 
