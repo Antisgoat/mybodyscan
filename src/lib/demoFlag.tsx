@@ -1,4 +1,5 @@
 import React from "react";
+import { clearDemoFlag, isDemo as isDemoAuthFlag, setDemoFlag } from "./demo";
 
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 
@@ -34,6 +35,7 @@ function hostIsLocalOrLovable(): boolean {
  * - Host includes localhost/127.0.0.1/lovable
  */
 export function isDemo(): boolean {
+  if (isDemoAuthFlag()) return true;
   if (DEMO_MODE) return true;
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
@@ -54,6 +56,7 @@ export function isDemoActive(): boolean {
 
 export function enableDemo() {
   if (typeof window === "undefined") return;
+  setDemoFlag();
   try {
     window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
   } catch {
@@ -68,6 +71,7 @@ export function disableDemo() {
   } catch {
     // ignore storage errors
   }
+  clearDemoFlag();
 }
 
 type LocationLike = { pathname: string; search: string };

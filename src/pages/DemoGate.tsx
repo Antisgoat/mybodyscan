@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { signInAnonymously } from "firebase/auth";
 import { auth as firebaseAuth, db } from "@/lib/firebase";
-import { ensureDemoData } from "@/lib/demo";
+import { ensureDemoData } from "@/lib/demoData";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
+import { startDemo } from "@/lib/demo";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 
@@ -24,29 +24,15 @@ export default function DemoGate() {
         setLoading(true);
 
         const auth = firebaseAuth;
-
-        const signInWithTimeout = async (timeoutMs: number) => {
-          const timeout = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), timeoutMs),
-          );
-          return Promise.race([signInAnonymously(auth), timeout]);
-        };
-
-        // If already signed in (anon or real), go straight to app
         if (auth.currentUser) {
           if (mountedRef.current) navigate("/coach", { replace: true });
           return;
         }
 
-        // Try anonymous sign-in with a 6s timeout, retry once
-        try {
-          await signInWithTimeout(6000);
-        } catch (e1) {
-          try {
-            await signInWithTimeout(6000);
-          } catch (e2) {
-            throw e2;
-          }
+        const result = await startDemo();
+        if (!result.ok) {
+          const code = "code" in result ? result.code : undefined;
+          throw new Error(code ?? "demo-start-failed");
         }
 
         const user = auth.currentUser;

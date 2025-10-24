@@ -1,4 +1,4 @@
-import { assertNotDemoWrite } from "./demoGuard";
+import { assertWritableOrThrow, DemoWriteError, notifyDemoBlocked } from "./demo";
 import {
   addDoc as _addDoc,
   setDoc as _setDoc,
@@ -9,7 +9,16 @@ import {
 } from "firebase/firestore";
 
 export async function addDoc<T = DocumentData>(colRef: any, data: T) {
-  assertNotDemoWrite();
+  try {
+    assertWritableOrThrow();
+  } catch (e) {
+    if (e instanceof DemoWriteError) {
+      notifyDemoBlocked();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return null as any;
+    }
+    throw e;
+  }
   return _addDoc(colRef, data);
 }
 export async function setDoc<T = DocumentData>(
@@ -17,17 +26,41 @@ export async function setDoc<T = DocumentData>(
   data: T,
   options?: any
 ) {
-  assertNotDemoWrite();
+  try {
+    assertWritableOrThrow();
+  } catch (e) {
+    if (e instanceof DemoWriteError) {
+      notifyDemoBlocked();
+      return;
+    }
+    throw e;
+  }
   return _setDoc(docRef, data as any, options);
 }
 export async function updateDoc<T = DocumentData>(
   docRef: DocumentReference<T>,
   data: Partial<T>
 ) {
-  assertNotDemoWrite();
+  try {
+    assertWritableOrThrow();
+  } catch (e) {
+    if (e instanceof DemoWriteError) {
+      notifyDemoBlocked();
+      return;
+    }
+    throw e;
+  }
   return _updateDoc(docRef, data as any);
 }
 export async function deleteDoc<T = DocumentData>(docRef: DocumentReference<T>) {
-  assertNotDemoWrite();
+  try {
+    assertWritableOrThrow();
+  } catch (e) {
+    if (e instanceof DemoWriteError) {
+      notifyDemoBlocked();
+      return;
+    }
+    throw e;
+  }
   return _deleteDoc(docRef);
 }
