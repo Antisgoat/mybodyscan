@@ -1,7 +1,12 @@
 import { getApp } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  getToken,
+  type AppCheck,
+} from "firebase/app-check";
 
-import { isWeb } from "./lib/platform";
+import { APPCHECK_SITE_KEY } from "./lib/flags";
 
 let initPromise: Promise<void> | null = null;
 let initComplete = false;
@@ -11,11 +16,10 @@ function ensureInitPromise(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
       try {
-        const siteKey = (import.meta as any)?.env?.VITE_APPCHECK_SITE_KEY as string | undefined;
-        if (isWeb && siteKey) {
+        if (typeof window !== "undefined" && APPCHECK_SITE_KEY) {
           const app = getApp();
           appCheckInstance = initializeAppCheck(app, {
-            provider: new ReCaptchaV3Provider(siteKey),
+            provider: new ReCaptchaV3Provider(APPCHECK_SITE_KEY),
             isTokenAutoRefreshEnabled: true,
           });
         }

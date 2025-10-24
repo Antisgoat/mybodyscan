@@ -1,7 +1,9 @@
-export const isWeb = typeof window !== "undefined" && typeof document !== "undefined";
+import { SW_ENABLED } from "./flags";
 
-// Hard-disable SW registration in this PR; can be flipped via flag in later PRs.
-export const ENABLE_SW = false;
+export const isWeb =
+  typeof window !== "undefined" && typeof document !== "undefined";
+
+export const ENABLE_SW = SW_ENABLED;
 
 export const isNative =
   typeof window !== "undefined" &&
