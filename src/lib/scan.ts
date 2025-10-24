@@ -1,5 +1,6 @@
 import { SCAN_POLL_MIN_MS, SCAN_POLL_MAX_MS, SCAN_POLL_TIMEOUT_MS } from "./flags";
 import { fetchClaims } from "./claims";
+import { netError } from "./net";
 
 /** Canonical scan states returned by backend. */
 export type ScanStatus = "queued" | "uploading" | "processing" | "complete" | "failed" | "timeout";
@@ -27,6 +28,7 @@ export async function startScanSession(meta?: { mime?: string; size?: number }):
     body: JSON.stringify({ mime: meta?.mime, size: meta?.size }),
   });
   if (!res.ok) {
+    netError("Scan start failed.");
     throw new Error(`scan/start failed: ${res.status}`);
   }
   const j = await res.json();
@@ -47,6 +49,7 @@ export async function pollStatus(sessionId: string): Promise<PollResponse> {
   const params = new URLSearchParams({ sessionId });
   const res = await fetch(`/api/scan/status?${params.toString()}`, { method: "GET" });
   if (!res.ok) {
+    netError("Scan status failed.");
     return { status: "failed", error: `status ${res.status}` };
   }
   const j = await res.json();

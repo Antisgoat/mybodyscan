@@ -81,6 +81,8 @@ import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
 import ToastHost from "./components/ToastHost";
+import ErrorBoundary from "./components/ErrorBoundary";
+import NetBanner from "./components/NetBanner";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -100,14 +102,16 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppCheckProvider>
-          <CrashBanner />
-          <ToastHost />
-          <Toaster />
-          <Sonner />
-          <AuthGate>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AppCheckProvider>
+            <CrashBanner />
+            <ToastHost />
+            <Toaster />
+            <Sonner />
+            <NetBanner />
+            <AuthGate>
             <ConsentGate>
               <BrowserRouter>
                 <DemoModeProvider>
@@ -619,10 +623,11 @@ const App = () => {
                 </DemoModeProvider>
               </BrowserRouter>
             </ConsentGate>
-          </AuthGate>
-        </AppCheckProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+            </AuthGate>
+          </AppCheckProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
