@@ -177,11 +177,11 @@ const Auth = () => {
     setLoading(true);
     try {
       const res = await startDemo();
-      if (res.ok) {
-        navigate(from, { replace: true });
-      } else {
+      if (res.ok === false) {
         console.warn("Demo sign-in failed:", res.code || res.message);
+        return;
       }
+      navigate(from, { replace: true });
     } finally {
       setLoading(false);
     }

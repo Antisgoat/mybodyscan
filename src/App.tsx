@@ -46,6 +46,7 @@ import ScanCapture from "./pages/Scan/Capture";
 import ScanFlowResult from "./pages/Scan/Result";
 import ScanRefine from "./pages/Scan/Refine";
 import ScanFlowHistory from "./pages/Scan/History";
+import ScanFlowPage from "./pages/ScanFlow";
 import Report from "./pages/Report";
 import DebugCredits from "./pages/DebugCredits";
 import PreviewFrame from "./pages/PreviewFrame";
@@ -556,6 +557,20 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <ScanCapture />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/scan/flow"
+              element={
+                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <ScanFlowPage />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
