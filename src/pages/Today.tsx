@@ -17,7 +17,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
-import { startScan } from "@/lib/scan";
+import { startScan } from "@/lib/scanLegacy";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 export default function Today() {

@@ -7,7 +7,7 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { auth as firebaseAuth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
-import { runBodyScan } from "@/lib/scan";
+import { runBodyScan } from "@/lib/scanLegacy";
 import { sanitizeFilename } from "@/lib/utils";
 
 const steps = ["Front", "Left", "Right", "Back"] as const;
