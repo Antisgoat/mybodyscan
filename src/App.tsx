@@ -79,6 +79,7 @@ import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
 import DemoGate from "./pages/DemoGate";
+import { toast } from "@/hooks/use-toast";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -95,6 +96,37 @@ const App = () => {
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
       void loadPublicLayout();
     }
+  }, []);
+
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail as { level?: string; message?: string } | undefined;
+      const msg = detail?.message || "Demo is read-only.";
+      try {
+        toast({ title: msg });
+      } catch {
+        if (typeof window !== "undefined") {
+          try {
+            // @ts-expect-error optional global toast if present
+            if (window?.toast) {
+              // @ts-expect-error optional global toast if present
+              window.toast(msg);
+            } else if (typeof window.alert === "function") {
+              window.alert(msg);
+            } else {
+              console.log("[demo] toast:", msg);
+            }
+          } catch {
+            console.log("[demo] toast:", msg);
+          }
+        } else {
+          console.log("[demo] toast:", msg);
+        }
+      }
+    };
+
+    window.addEventListener("mbs:toast", onToast as EventListener);
+    return () => window.removeEventListener("mbs:toast", onToast as EventListener);
   }, []);
 
   return (
