@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { onSnapshot, query, orderBy, limit, collection } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db } from '@/lib/firebase';
-import { getSequencedAuth } from '@/lib/firebase/init';
+import { auth as firebaseAuth, db } from '@/lib/firebase';
 
 type ScanData = {
   id: string;
@@ -27,26 +26,17 @@ export function useLatestScanForUser() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    let unsubAuth: (() => void) | undefined;
-    let cancelled = false;
-
-    void (async () => {
-      const auth = await getSequencedAuth();
-      if (cancelled) return;
-
-      unsubAuth = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
-        if (!currentUser) {
-          setScan(null);
-          setLoading(false);
-          setError(null);
-        }
-      });
-    })();
+    const unsubAuth = onAuthStateChanged(firebaseAuth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+        setScan(null);
+        setLoading(false);
+        setError(null);
+      }
+    });
 
     return () => {
-      cancelled = true;
-      if (unsubAuth) unsubAuth();
+      unsubAuth();
     };
   }, []);
 

@@ -4,8 +4,7 @@ import { toast } from "@/hooks/use-toast";
 import { track } from "./analytics";
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth, functions } from "@/lib/firebase";
 import { authedFetch } from "@/lib/api";
 
 export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
@@ -24,8 +23,7 @@ export async function startCheckout(plan: CheckoutPlanKey) {
     window.location.assign("/auth");
     return;
   }
-  const auth = await getSequencedAuth();
-  const user = auth.currentUser;
+  const user = firebaseAuth.currentUser;
   if (!user) throw new Error("Not signed in");
   const response = await authedFetch(`/createCheckout`, {
     method: "POST",
@@ -97,8 +95,7 @@ export async function consumeOneCredit(): Promise<number> {
     window.location.assign("/auth");
     throw new Error("demo-blocked");
   }
-  const auth = await getSequencedAuth();
-  const user = auth.currentUser;
+  const user = firebaseAuth.currentUser;
   if (!user) throw new Error("Not signed in");
   try {
     const fn = httpsCallable(functions, "useCredit");

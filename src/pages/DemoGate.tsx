@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { signInAnonymously } from "firebase/auth";
-import { db } from "@/lib/firebase";
+import { auth as firebaseAuth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demo";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { getSequencedAuth } from "@/lib/firebase/init";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -24,7 +23,7 @@ export default function DemoGate() {
         setFailed(false);
         setLoading(true);
 
-        const auth = await getSequencedAuth();
+        const auth = firebaseAuth;
 
         const signInWithTimeout = async (timeoutMs: number) => {
           const timeout = new Promise<never>((_, reject) =>

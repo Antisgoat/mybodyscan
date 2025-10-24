@@ -14,7 +14,7 @@ import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 import HeightInputUS from "@/components/HeightInputUS";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
@@ -26,8 +26,7 @@ export default function Onboarding() {
   }
 
   async function finish() {
-    const auth = await getSequencedAuth();
-    const uid = auth.currentUser?.uid;
+    const uid = firebaseAuth.currentUser?.uid;
     if (!uid) return;
     try {
       const timestamp = serverTimestamp();

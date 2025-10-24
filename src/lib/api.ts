@@ -2,12 +2,11 @@ import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { getAppCheckToken } from "@/appCheck";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import type { Auth, User } from "firebase/auth";
 
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
-  const auth = await getSequencedAuth();
-  return { auth, user: auth.currentUser };
+  return { auth: firebaseAuth, user: firebaseAuth.currentUser };
 }
 
 async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {

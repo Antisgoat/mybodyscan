@@ -1,7 +1,7 @@
 import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
 import { getAppCheckToken } from "@/appCheck";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import type {
   FoodItem,
   MacroBreakdown,
@@ -326,9 +326,8 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
   if (!code?.trim()) return null;
   // Prefer Hosting rewrite path
-  const auth = await getSequencedAuth();
   const [idToken, appCheckToken] = await Promise.all([
-    auth.currentUser ? auth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
+    firebaseAuth.currentUser ? firebaseAuth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
     getAppCheckToken(),
   ]);
   const headers: Record<string, string> = { Accept: "application/json" };

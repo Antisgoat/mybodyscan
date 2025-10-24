@@ -2,7 +2,7 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getSequencedAuth } from "@/lib/firebase/init";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 export default function CheckoutSuccess() {
   const navigate = useNavigate();
@@ -10,9 +10,8 @@ export default function CheckoutSuccess() {
     const t = setTimeout(() => navigate("/scan/new"), 4000);
     return () => clearTimeout(t);
   }, [navigate]);
-  const handleReturn = async () => {
-    const auth = await getSequencedAuth();
-    navigate(auth.currentUser ? "/scan/new" : "/auth");
+  const handleReturn = () => {
+    navigate(firebaseAuth.currentUser ? "/scan/new" : "/auth");
   };
 
   return (
