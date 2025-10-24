@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Menu, User } from "lucide-react";
 import { signOutToAuth } from "@/lib/auth";
-import { CreditsBadge } from "@/components/CreditsBadge";
+import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 
 interface AuthedLayoutProps {
