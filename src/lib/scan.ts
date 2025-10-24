@@ -1,79 +1,131 @@
-import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, db, storage, functions } from "./firebase";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
-import { getAppCheckToken } from "@/appCheck";
-async function authedPost(path: string, body: Record<string, unknown>) {
-  const user = firebaseAuth.currentUser;
-  if (!user) throw new Error("auth");
-  const [token, appCheckToken] = await Promise.all([
-    user.getIdToken(),
-    getAppCheckToken(),
-  ]);
-  if (!appCheckToken) {
-    const error: any = new Error("app_check_required");
-    error.code = "app_check";
-    throw error;
-  }
-  const response = await fetch(path, {
+import { SCAN_POLL_MIN_MS, SCAN_POLL_MAX_MS, SCAN_POLL_TIMEOUT_MS } from "./flags";
+import { fetchClaims } from "./claims";
+
+/** Canonical scan states returned by backend. */
+export type ScanStatus = "queued" | "uploading" | "processing" | "complete" | "failed" | "timeout";
+
+export type StartScanResponse = {
+  sessionId: string;
+  uploadUrl: string;
+  uploadHeaders?: Record<string, string>;
+};
+
+export type PollResponse = {
+  status: ScanStatus;
+  resultUrl?: string;
+  error?: string;
+};
+
+/**
+ * Start a new scan session.
+ * The caller must upload the file to uploadUrl (usually via PUT) before polling.
+ */
+export async function startScanSession(meta?: { mime?: string; size?: number }): Promise<StartScanResponse> {
+  const res = await fetch("/api/scan/start", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      "X-Firebase-AppCheck": appCheckToken,
-    },
-    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mime: meta?.mime, size: meta?.size }),
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `request_failed_${response.status}`);
+  if (!res.ok) {
+    throw new Error(`scan/start failed: ${res.status}`);
   }
-  return response.json();
-}
-
-export async function startScan() {
-  const data = await authedPost("/api/scan/start", {});
-  return data as { scanId: string; uploadPathPrefix: string; status?: string };
-}
-
-export async function uploadScanPhotos(scan: { uploadPathPrefix: string }, files: File[]) {
-  const paths: string[] = [];
-  for (const f of files) {
-    const ext = f.name.split(".").pop() || "jpg";
-    const path = `${scan.uploadPathPrefix}${crypto.randomUUID()}.${ext}`;
-    await uploadBytes(ref(storage, path), f);
-    paths.push(path);
+  const j = await res.json();
+  const sessionId = String(j?.sessionId ?? "");
+  const uploadUrl = String(j?.uploadUrl ?? "");
+  const uploadHeaders =
+    j?.uploadHeaders && typeof j.uploadHeaders === "object"
+      ? (j.uploadHeaders as Record<string, string>)
+      : undefined;
+  if (!sessionId || !uploadUrl) {
+    throw new Error("scan/start: invalid response");
   }
-  return paths;
+  return { sessionId, uploadUrl, uploadHeaders };
 }
 
-export async function submitScan(scanId: string, files: string[]) {
-  return authedPost("/api/scan/submit", { scanId, files }) as Promise<{ scanId: string; status?: string }>;
+/** Single poll of session status from backend. */
+export async function pollStatus(sessionId: string): Promise<PollResponse> {
+  const params = new URLSearchParams({ sessionId });
+  const res = await fetch(`/api/scan/status?${params.toString()}`, { method: "GET" });
+  if (!res.ok) {
+    return { status: "failed", error: `status ${res.status}` };
+  }
+  const j = await res.json();
+  const status = normalizeStatus(String(j?.status ?? ""));
+  const resultUrl = j?.resultUrl ? String(j.resultUrl) : undefined;
+  const error = j?.error ? String(j.error) : undefined;
+  return { status, resultUrl, error };
 }
 
-export async function runBodyScan(file: string) {
-  const runBodyScanFn = httpsCallable(functions, "runBodyScan");
-  const { data } = await runBodyScanFn({ file });
-  return data as { scanId: string; uploadPathPrefix?: string; status?: string };
+/**
+ * Poll until terminal state or timeout.
+ * Progressively backs off from SCAN_POLL_MIN_MS to SCAN_POLL_MAX_MS.
+ */
+export async function pollUntilComplete(
+  sessionId: string,
+  onTick?: (response: PollResponse) => void
+): Promise<PollResponse> {
+  const start = Date.now();
+  let delay = clamp(SCAN_POLL_MIN_MS, 1000, 15_000);
+
+  while (Date.now() - start < SCAN_POLL_TIMEOUT_MS) {
+    const response = await pollStatus(sessionId);
+    onTick?.(response);
+
+    if (response.status === "complete" || response.status === "failed") {
+      return response;
+    }
+
+    await sleep(delay);
+    delay = Math.min(SCAN_POLL_MAX_MS, Math.round(delay * 1.25));
+  }
+
+  return { status: "timeout", error: "Scan timed out." };
 }
 
-export async function uploadScanFile(uid: string, scanId: string, file: File) {
-  const ext = file.name.split(".").pop() || "jpg";
-  const path = `scans/${uid}/${scanId}/original.${ext}`;
-  await uploadBytes(ref(storage, path), file);
-  return path;
+/**
+ * Idempotent client-side credit consumption: refreshes claims once per session.
+ * Server still enforces credits; this only updates UI promptly.
+ */
+const refreshedSessions = new Set<string>();
+export async function consumeCreditUI(sessionId: string): Promise<void> {
+  if (refreshedSessions.has(sessionId)) {
+    return;
+  }
+  refreshedSessions.add(sessionId);
+  try {
+    await fetchClaims();
+  } catch {
+    // non-fatal refresh failure
+  }
 }
 
-export function listenToScan(uid: string, scanId: string, onUpdate: (scan: any) => void, onError: () => void) {
-  const docRef = collection(db, `users/${uid}/scans`);
-  const q = query(docRef, orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => {
-    const scan = snap.docs.find((d) => d.id === scanId);
-    if (scan) onUpdate({ id: scan.id, ...scan.data() });
-  }, onError);
+/* ----------------- helpers ----------------- */
+function normalizeStatus(status: string): ScanStatus {
+  switch (status.toLowerCase()) {
+    case "queued":
+    case "pending":
+      return "queued";
+    case "uploading":
+      return "uploading";
+    case "processing":
+    case "running":
+      return "processing";
+    case "complete":
+    case "done":
+    case "succeeded":
+      return "complete";
+    case "failed":
+    case "error":
+      return "failed";
+    default:
+      return "processing";
+  }
 }
 
-export function watchScans(uid: string, cb: (items: any[]) => void) {
-  const q = query(collection(db, `users/${uid}/scans`), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
