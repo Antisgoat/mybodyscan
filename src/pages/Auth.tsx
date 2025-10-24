@@ -11,7 +11,6 @@ import {
   createAccountEmail,
   signInEmail,
   loginWithGoogle,
-  loginWithApple,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
@@ -21,6 +20,24 @@ import {
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import { mapAuthErrorToMessage } from "@/lib/auth/errors";
+import { signInWithApple } from "@/lib/appleAuth";
+import { isNative } from "@/lib/platform";
+
+const appleMisconfigurationCodes = new Set([
+  "auth/operation-not-allowed",
+  "auth/invalid-provider-id",
+  "auth/invalid-oauth-client-id",
+  "auth/invalid-oauth-provider",
+  "auth/unauthorized-domain",
+  "auth/missing-client-id",
+  "auth/missing-oauth-client-secret",
+  "auth/missing-oauth-redirect-uri",
+]);
+
+const appleUnsupportedCodes = new Set([
+  "auth/operation-not-supported-in-this-environment",
+  "auth/web-storage-unsupported",
+]);
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -133,25 +150,51 @@ const Auth = () => {
   const onApple = async () => {
     if (loading) return;
 
+    if (!isNative && typeof window !== "undefined" && window.location.protocol !== "https:") {
+      toast({ title: "Apple sign-in requires HTTPS." });
+      return;
+    }
+
     setLoading(true);
+    rememberAuthRedirect(from);
+
     try {
-      const result = await loginWithApple();
-      if (result) {
+      const result = await signInWithApple();
+
+      if (!result.ok) {
         consumeAuthRedirect();
-        navigate(from, { replace: true });
+
+        const code = result.code ?? "";
+        if (appleMisconfigurationCodes.has(code)) {
+          toast({
+            title: "Apple sign in misconfiguration. Check Firebase Auth providers and Apple Services ID redirect URLs.",
+          });
+        } else if (appleUnsupportedCodes.has(code)) {
+          toast({ title: "Sign in with Apple is not available on this platform." });
+        } else if (code === "auth/popup-blocked") {
+          toast({ title: "Your browser blocked the popup. Please allow popups or try again." });
+        } else {
+          console.error("[auth] Apple login failed:", code, result.message);
+          toast({ title: "Sign-in failed", description: "Please try again." });
+        }
+
+        return;
       }
+
+      if (result.flow === "redirect") {
+        return;
+      }
+
+      consumeAuthRedirect();
+      navigate(from, { replace: true });
     } catch (err: unknown) {
       consumeAuthRedirect();
       const code =
         typeof err === "object" && err && "code" in err
           ? String((err as { code?: unknown }).code ?? "")
           : undefined;
-      if (code === "auth/operation-not-allowed") {
-        toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
-      } else {
-        console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
-        toast({ title: "Sign-in failed", description: "Please try again." });
-      }
+      console.error("[auth] Apple login unexpected failure:", code, (err as any)?.message, err);
+      toast({ title: "Sign-in failed", description: "Please try again." });
     } finally {
       setLoading(false);
     }

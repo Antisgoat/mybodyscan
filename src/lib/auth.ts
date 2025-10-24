@@ -5,12 +5,10 @@ import { getSequencedAuth } from "@/lib/firebase/init";
 import { popupThenRedirect } from "@/lib/auth/popupLogin";
 import {
   Auth,
-  OAuthProvider,
   UserCredential,
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
-  getAdditionalUserInfo,
   getRedirectResult,
   GoogleAuthProvider,
   linkWithCredential,
@@ -18,11 +16,9 @@ import {
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
-  signInWithRedirect,
   signOut,
-  updateProfile,
 } from "firebase/auth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
+import { applyAppleRedirectProfile } from "@/lib/appleAuth";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 
 let firebaseAuth: Auth | null = null;
@@ -175,64 +171,11 @@ export async function loginWithGoogle() {
 
 export const signInWithGoogle = loginWithGoogle;
 
-const APPLE_PROVIDER_ID = "apple.com";
-
-type AppleAdditionalProfile = {
-  name?: { firstName?: string; lastName?: string };
-  firstName?: string;
-  lastName?: string;
-};
-
-async function applyAppleProfile(result: UserCredential | null) {
-  if (!result) return;
-  const info = getAdditionalUserInfo(result);
-  if (info?.providerId !== APPLE_PROVIDER_ID) return;
-  if (!info.isNewUser || !result.user || result.user.displayName) return;
-  const profile = info.profile as AppleAdditionalProfile | undefined;
-  const firstName = profile?.name?.firstName ?? profile?.firstName ?? "";
-  const lastName = profile?.name?.lastName ?? profile?.lastName ?? "";
-  const displayName = `${firstName} ${lastName}`.trim();
-  if (displayName) {
-    await updateProfile(result.user, { displayName });
-  }
-}
-
-function logAppleFlow(flow: "popup" | "redirect", context?: string) {
-  if (!import.meta.env.DEV) return;
-  const extra = context ? ` ${context}` : "";
-  console.info(`[auth] Apple sign-in via ${flow}${extra}`);
-}
-
-export async function loginWithApple(): Promise<UserCredential | void> {
-  const auth = await ensureFirebaseAuth();
-  const provider = new OAuthProvider(APPLE_PROVIDER_ID);
-  provider.addScope("email");
-  provider.addScope("name");
-
-  const iosSafari = isIOSSafari();
-  if (iosSafari) {
-    logAppleFlow("redirect", "(iOS Safari)");
-    await signInWithRedirect(auth, provider);
-    return;
-  }
-
-  logAppleFlow("popup");
-  const result = await popupThenRedirect(auth, provider);
-  if (!result) {
-    logAppleFlow("redirect", "(fallback)");
-    return;
-  }
-  await applyAppleProfile(result);
-  return result;
-}
-
-export const signInWithApple = loginWithApple;
-
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
   try {
     const result = await getRedirectResult(auth);
     if (result) {
-      await applyAppleProfile(result);
+      await applyAppleRedirectProfile(result);
     }
     return result;
   } catch (error) {
