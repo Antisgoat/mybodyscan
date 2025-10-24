@@ -1,0 +1,113 @@
+import React, { useMemo, useState } from "react";
+import { lookupBarcode, searchFoods, type FoodItem, type SearchResult } from "@/lib/nutrition";
+
+type Props = {
+  className?: string;
+};
+
+export default function NutritionSearch(props: Props) {
+  const { className } = props;
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+  const [items, setItems] = useState<FoodItem[]>([]);
+
+  const isLikelyBarcode = useMemo(() => {
+    const v = q.trim();
+    return /^\d{8,}$/.test(v); // simple heuristic (UPC/EAN/GTIN)
+  }, [q]);
+
+  async function runSearch() {
+    const term = q.trim();
+    if (!term) return;
+    setLoading(true);
+    setStatus("Searching…");
+    setItems([]);
+    try {
+      let res: SearchResult;
+      if (isLikelyBarcode) {
+        res = await lookupBarcode(term);
+      } else {
+        res = await searchFoods(term);
+      }
+      setStatus(res.status || "Done.");
+      setItems(Array.isArray(res.items) ? res.items : []);
+    } catch {
+      setStatus("Search failed. Please try again.");
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className={className} style={wrap}>
+      <div style={row}>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void runSearch();
+          }}
+          placeholder="Search foods (e.g., chicken breast) or paste a barcode…"
+          style={input}
+          aria-label="Search foods"
+        />
+        <button type="button" onClick={() => void runSearch()} disabled={loading} style={btn}>
+          {loading ? "Searching…" : "Search"}
+        </button>
+      </div>
+
+      {isLikelyBarcode && (
+        <div style={hint}>Tip: looks like a barcode. Hit Search to look it up.</div>
+      )}
+
+      {!!status && <div style={statusStyle}>{status}</div>}
+
+      <div style={list}>
+        {items.map((it) => (
+          <div key={it.id} style={card}>
+            <div style={titleRow}>
+              <div style={name}>{it.name}</div>
+              <span style={{ ...chip, ...(it.source === "usda" ? chipUsda : chipOff) }}>
+                {it.source.toUpperCase()}
+              </span>
+            </div>
+            <div style={subtle}>{it.brand || "—"}</div>
+            <div style={macroRow}>
+              <span title="Calories">{fmt(it.calories)} kcal</span>
+              <span title="Protein">{fmt(it.protein)} g P</span>
+              <span title="Fat">{fmt(it.fat)} g F</span>
+              <span title="Carbs">{fmt(it.carbs)} g C</span>
+            </div>
+          </div>
+        ))}
+        {!loading && items.length === 0 && status && status.toLowerCase().includes("no") && (
+          <div style={empty}>No results. Try “chicken breast” or a known barcode.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- styles (inline, minimal) ---------- */
+const wrap: React.CSSProperties = { display: "grid", gap: 12, maxWidth: 720 };
+const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr auto", gap: 8 };
+const input: React.CSSProperties = { padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, fontSize: 14 };
+const btn: React.CSSProperties = { padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, background: "white", cursor: "pointer" };
+const hint: React.CSSProperties = { fontSize: 12, color: "#666" };
+const statusStyle: React.CSSProperties = { fontSize: 12, color: "#333" };
+const list: React.CSSProperties = { display: "grid", gap: 8 };
+const card: React.CSSProperties = { padding: 12, border: "1px solid #eee", borderRadius: 10, background: "white" };
+const titleRow: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+const name: React.CSSProperties = { fontWeight: 600, fontSize: 14 };
+const subtle: React.CSSProperties = { fontSize: 12, color: "#666" };
+const macroRow: React.CSSProperties = { display: "flex", gap: 12, marginTop: 8, fontSize: 12 };
+const chip: React.CSSProperties = { fontSize: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid #ddd" };
+const chipUsda: React.CSSProperties = { background: "#f0f7ff", borderColor: "#c9e0ff" };
+const chipOff: React.CSSProperties = { background: "#f9fff0", borderColor: "#dff0c2" };
+const empty: React.CSSProperties = { fontSize: 12, color: "#666" };
+
+function fmt(v?: number): string {
+  return Number.isFinite(v as number) ? String(Math.round(v as number)) : "—";
+}
