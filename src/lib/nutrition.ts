@@ -1,4 +1,5 @@
 import { USDA_API_KEY, OFF_ENABLED } from "./flags";
+import { netError } from "./net";
 
 /** Normalized food shape returned to UI. */
 export type FoodItem = {
@@ -68,7 +69,10 @@ const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
 async function usdaSearch(q: string): Promise<FoodItem[]> {
   if (!USDA_API_KEY) return [];
   const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(q)}&pageSize=25`;
-  const data = await fetchJson(url).catch(() => null);
+  const data = await fetchJson(url).catch(() => {
+    netError("Nutrition request failed.");
+    return null;
+  });
   if (!data || !Array.isArray(data.foods)) return [];
   return data.foods
     .map((f: any): FoodItem => {
@@ -90,7 +94,10 @@ async function usdaSearch(q: string): Promise<FoodItem[]> {
 async function usdaGtin(gtin: string): Promise<FoodItem | null> {
   if (!USDA_API_KEY) return null;
   const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(gtin)}&pageSize=5`;
-  const data = await fetchJson(url).catch(() => null);
+  const data = await fetchJson(url).catch(() => {
+    netError("Nutrition request failed.");
+    return null;
+  });
   const hit = Array.isArray(data?.foods)
     ? data.foods.find((f: any) => {
         const gtins: string[] = Array.isArray(f?.gtinUpc) ? f.gtinUpc : [f?.gtinUpc].filter(Boolean);
@@ -149,7 +156,10 @@ const OFF_PRODUCT = "https://world.openfoodfacts.org/api/v2/product";
 async function offSearch(q: string): Promise<FoodItem[]> {
   if (!OFF_ENABLED) return [];
   const url = `${OFF_SEARCH}?search_terms=${encodeURIComponent(q)}&search_simple=1&json=1&page_size=25`;
-  const data = await fetchJson(url).catch(() => null);
+  const data = await fetchJson(url).catch(() => {
+    netError("Nutrition request failed.");
+    return null;
+  });
   if (!data || !Array.isArray(data.products)) return [];
   return data.products
     .map((p: any): FoodItem => {
@@ -171,7 +181,10 @@ async function offSearch(q: string): Promise<FoodItem[]> {
 async function offBarcode(code: string): Promise<FoodItem | null> {
   if (!OFF_ENABLED) return null;
   const url = `${OFF_PRODUCT}/${encodeURIComponent(code)}.json`;
-  const data = await fetchJson(url).catch(() => null);
+  const data = await fetchJson(url).catch(() => {
+    netError("Nutrition request failed.");
+    return null;
+  });
   const p = data?.product;
   if (!p) return null;
   const macro = extractOffMacros(p);
@@ -218,7 +231,7 @@ export async function searchFoods(q: string): Promise<SearchResult> {
     try {
       items = await usdaSearch(q);
     } catch {
-      // ignore; will fallback
+      netError("Nutrition request failed.");
     }
   }
 
@@ -227,7 +240,7 @@ export async function searchFoods(q: string): Promise<SearchResult> {
     try {
       items = await offSearch(q);
     } catch {
-      // ignore
+      netError("Nutrition request failed.");
     }
   }
 
@@ -258,7 +271,7 @@ export async function lookupBarcode(code: string): Promise<SearchResult> {
     try {
       item = await usdaGtin(code);
     } catch {
-      // ignore
+      netError("Nutrition request failed.");
     }
   }
 
@@ -267,7 +280,7 @@ export async function lookupBarcode(code: string): Promise<SearchResult> {
     try {
       item = await offBarcode(code);
     } catch {
-      // ignore
+      netError("Nutrition request failed.");
     }
   }
 

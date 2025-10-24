@@ -1,32 +1,47 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
 
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
+type Props = { children: ReactNode };
+type State = { hasError: boolean; message?: string };
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, message: "" };
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
-
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown): State {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message)
+        : "Something went wrong.";
+    return { hasError: true, message };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("App crashed", error, info);
+  componentDidCatch(error: unknown, info: ErrorInfo): void {
+    // eslint-disable-next-line no-console
+    console.error("[ui] error boundary:", error, info);
   }
 
-  render(): ReactNode {
+  private handleReload = () => {
+    try {
+      if (typeof window !== "undefined" && typeof window.location?.reload === "function") {
+        window.location.reload();
+      } else if (typeof location !== "undefined" && typeof location.reload === "function") {
+        location.reload();
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  override render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-center text-foreground">
-          <h1 className="text-2xl font-semibold">Something went wrong</h1>
-          <p className="mt-2 max-w-md text-sm text-muted-foreground">
-            Please refresh the page or try again later. If the problem continues, contact support@mybodyscanapp.com.
-          </p>
+        <div style={wrap}>
+          <div style={card}>
+            <div style={title}>Something went wrong</div>
+            <div style={msg}>{this.state.message || "Unknown error"}</div>
+            <button type="button" onClick={this.handleReload} style={btn}>
+              Reload
+            </button>
+          </div>
         </div>
       );
     }
@@ -34,4 +49,32 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 }
 
-export default ErrorBoundary;
+const wrap: CSSProperties = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  background: "#fafafa",
+};
+
+const card: CSSProperties = {
+  maxWidth: 560,
+  width: "90%",
+  padding: 16,
+  border: "1px solid #eee",
+  borderRadius: 12,
+  background: "white",
+  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+};
+
+const title: CSSProperties = { fontWeight: 700, marginBottom: 8 };
+
+const msg: CSSProperties = { color: "#555", fontSize: 13, marginBottom: 12 };
+
+const btn: CSSProperties = {
+  padding: "8px 10px",
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  background: "white",
+  cursor: "pointer",
+  fontSize: 12,
+};
