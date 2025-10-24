@@ -1,5 +1,5 @@
 import type { FoodItem } from "@/lib/nutrition/types";
-import type { MealEntry, MealItemSnapshot } from "@/lib/nutrition";
+import type { MealEntry, MealItemSnapshot } from "@/lib/nutritionBackend";
 
 export const SERVING_UNITS = ["serving", "g", "oz", "cups", "slices", "pieces"] as const;
 export type ServingUnit = (typeof SERVING_UNITS)[number];

@@ -10,7 +10,7 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { fetchFoods } from "@/lib/api";
+import { searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import {
   saveFavorite,
@@ -77,6 +77,40 @@ function ouncesDisplay(grams: number) {
 
 function findCupServing(servings: ServingOption[]): ServingOption | undefined {
   return servings.find((option) => option.label.toLowerCase().includes("cup"));
+}
+
+function adaptSearchItem(raw: SearchFoodItem): FoodItem {
+  const basePer100g = {
+    kcal: raw.calories ?? 0,
+    protein: raw.protein ?? 0,
+    carbs: raw.carbs ?? 0,
+    fat: raw.fat ?? 0,
+  };
+  const perServing = {
+    kcal: raw.calories ?? null,
+    protein_g: raw.protein ?? null,
+    carbs_g: raw.carbs ?? null,
+    fat_g: raw.fat ?? null,
+  };
+  return {
+    id: raw.id,
+    name: raw.name,
+    brand: raw.brand ?? null,
+    source: raw.source === "usda" ? "USDA" : "Open Food Facts",
+    basePer100g,
+    servings: [
+      {
+        id: "100g",
+        label: "100 g",
+        grams: 100,
+        isDefault: true,
+      },
+    ],
+    serving: { qty: 1, unit: "serving", text: "1 serving" },
+    per_serving: perServing,
+    per_100g: perServing,
+    raw,
+  };
 }
 
 interface ServingModalProps {
@@ -221,6 +255,7 @@ export default function MealsSearch() {
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
   const [logging, setLogging] = useState(false);
   const [searchWarning, setSearchWarning] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("");
 
   useEffect(() => {
     if (!authReady || !appCheckReady || !uid) {
@@ -239,49 +274,42 @@ export default function MealsSearch() {
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (!authReady || !appCheckReady) {
-      setLoading(false);
-      if (!appCheckReady) {
-        setResults([]);
-        setPrimarySource(null);
-      }
-      setSearchWarning(null);
-      return;
-    }
-
     if (!trimmed) {
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
       setSearchWarning(null);
+      setStatus("");
       return;
     }
 
     setLoading(true);
     setSearchWarning(null);
+    setStatus("Searching…");
     let cancelled = false;
     const handle = window.setTimeout(() => {
-      fetchFoods(trimmed)
-        .then((items) => {
+      searchFoods(trimmed)
+        .then((result) => {
           if (cancelled) return;
+          setStatus(result.status);
+          const items = result.items.map(adaptSearchItem);
           setResults(items);
-          setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts") : null);
-          setSearchWarning(items.length ? null : "Food database temporarily busy; try again.");
+          setPrimarySource(items.length ? items[0]!.source : null);
+          setSearchWarning(null);
         })
         .catch((error) => {
           if (cancelled) return;
-          const status = typeof error?.status === "number" ? error.status : null;
-          if (status === 429) {
-            setSearchWarning("Food database temporarily busy; try again.");
-          } else if (!(error instanceof DOMException && error.name === "AbortError")) {
-            console.error("nutrition_search_error", error);
-            toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
-          }
+          console.error("nutrition_search_error", error);
+          toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
           setResults([]);
           setPrimarySource(null);
+          setStatus("Search failed. Try again.");
+          setSearchWarning("Food database temporarily busy; try again.");
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) {
+            setLoading(false);
+          }
         });
     }, 300);
 
@@ -289,7 +317,7 @@ export default function MealsSearch() {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query, authReady, appCheckReady]);
+  }, [query, toast]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -358,8 +386,10 @@ export default function MealsSearch() {
 
   const primaryCaption =
     primarySource === "Open Food Facts"
-      ? "OFF primary · USDA unavailable"
-      : "USDA primary · OFF fallback";
+      ? "OFF primary · USDA fallback"
+      : primarySource === "USDA"
+        ? "USDA primary · OFF fallback"
+        : "USDA + OFF search";
 
   const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
   const searchNotice = null;
@@ -429,10 +459,8 @@ export default function MealsSearch() {
             <div className="text-xs text-muted-foreground">{primaryCaption}</div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!appCheckReady && (
-              <p className="text-sm text-muted-foreground">Initializing secure nutrition search…</p>
-            )}
-            {loading && appCheckReady && (
+            {status && <p className="text-xs text-muted-foreground">{status}</p>}
+            {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
               </div>
@@ -443,25 +471,24 @@ export default function MealsSearch() {
               </p>
             )}
 
-            {loading && !searchNotice && appCheckReady && results?.length === 0 && query.trim().length > 0 && (
+            {loading && !searchNotice && results?.length === 0 && query.trim().length > 0 && (
               <p className="text-sm text-muted-foreground">
                 No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
               </p>
             )}
-            {!loading && appCheckReady && !query.trim() && (
+            {!loading && !query.trim() && (
               <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
             )}
-            {!loading && appCheckReady && searchWarning && (
+            {!loading && searchWarning && (
               <p className="text-sm text-muted-foreground">{searchWarning}</p>
             )}
-              {appCheckReady &&
-                results.map((item) => {
-                  const favorite = favoritesMap.get(item.id);
-                  const subtitle = item.brand || item.source;
-                  const base = item.basePer100g;
-                  return (
-                    <Card key={item.id} className="border">
-                      <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
+            {results.map((item) => {
+              const favorite = favoritesMap.get(item.id);
+              const subtitle = item.brand || item.source;
+              const base = item.basePer100g;
+              return (
+                <Card key={item.id} className="border">
+                  <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{item.name}</p>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
@@ -482,10 +509,10 @@ export default function MealsSearch() {
                         <Plus className="mr-1 h-4 w-4" /> Add
                       </Button>
                     </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </CardContent>
         </Card>
       </main>

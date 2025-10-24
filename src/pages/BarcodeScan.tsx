@@ -5,14 +5,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { lookupBarcode } from "@/lib/nutritionShim";
+import { lookupBarcode } from "@/lib/nutrition";
+import type { FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem } from "@/lib/nutrition/types";
-import { addMeal } from "@/lib/nutrition";
+import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 
 const SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.11/dist/quagga.min.js";
+
+function adaptFoodItem(raw: SearchFoodItem): FoodItem {
+  const basePer100g = {
+    kcal: raw.calories ?? 0,
+    protein: raw.protein ?? 0,
+    carbs: raw.carbs ?? 0,
+    fat: raw.fat ?? 0,
+  };
+  const perServing = {
+    kcal: raw.calories ?? null,
+    protein_g: raw.protein ?? null,
+    carbs_g: raw.carbs ?? null,
+    fat_g: raw.fat ?? null,
+  };
+  return {
+    id: raw.id,
+    name: raw.name,
+    brand: raw.brand ?? null,
+    source: raw.source === "usda" ? "USDA" : "Open Food Facts",
+    basePer100g,
+    servings: [
+      {
+        id: "100g",
+        label: "100 g",
+        grams: 100,
+        isDefault: true,
+      },
+    ],
+    serving: { qty: 1, unit: "serving", text: "1 serving" },
+    per_serving: perServing,
+    per_100g: perServing,
+    raw,
+  };
+}
 
 export default function BarcodeScan() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -24,6 +59,7 @@ export default function BarcodeScan() {
   const [detectedCode, setDetectedCode] = useState<string | null>(null);
   const [item, setItem] = useState<FoodItem | null>(null);
   const [loadingItem, setLoadingItem] = useState(false);
+  const [status, setStatus] = useState<string>("");
   const [processing, setProcessing] = useState(false);
 
   const defaultCountry = useMemo(
@@ -136,14 +172,18 @@ export default function BarcodeScan() {
   const fetchItem = async (code: string) => {
     setLoadingItem(true);
     setItem(null);
+    setStatus("Looking up…");
     try {
-      const found = await lookupBarcode(code);
+      const result = await lookupBarcode(code);
+      setStatus(result.status);
+      const found = result.items[0] ? adaptFoodItem(result.items[0]) : null;
       setItem(found);
       if (!found) {
         toast({ title: "No match", description: "Try manual entry or search." });
       }
     } catch (error: any) {
       toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
+      setStatus("Lookup failed. Try again.");
     } finally {
       setLoadingItem(false);
     }
@@ -222,7 +262,7 @@ export default function BarcodeScan() {
         <CardHeader>
           <CardTitle>Manual entry</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <form onSubmit={handleManual} className="flex gap-2">
             <div className="flex-1 space-y-2">
               <Label htmlFor="manual-code">Barcode</Label>
@@ -237,6 +277,7 @@ export default function BarcodeScan() {
               Lookup
             </Button>
           </form>
+          {status && <p className="text-xs text-muted-foreground">{status}</p>}
         </CardContent>
       </Card>
 

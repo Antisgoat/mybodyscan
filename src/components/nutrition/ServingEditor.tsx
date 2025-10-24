@@ -13,7 +13,7 @@ import {
   buildMealEntry,
   estimateServingWeight,
 } from "@/lib/nutritionMath";
-import type { MealEntry } from "@/lib/nutrition";
+import type { MealEntry } from "@/lib/nutritionBackend";
 
 interface ServingEditorProps {
   item: FoodItem;

@@ -6,7 +6,7 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
-import { getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutrition";
+import { getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutritionBackend";
 
 export default function MealsHistory() {
   const [range, setRange] = useState<7 | 30>(30);

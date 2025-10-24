@@ -8,12 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
-import { searchFoods } from "@/lib/nutritionShim";
+import { searchFoods } from "@/lib/nutrition";
+
+const STATUS_CLASS = "text-xs text-muted-foreground";
 
 export default function MealsBarcode() {
   const { t } = useI18n();
   const [code, setCode] = useState("");
   const [manualResult, setManualResult] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -21,9 +24,11 @@ export default function MealsBarcode() {
     if (!code) return;
     setLoading(true);
     try {
-      const results = await searchFoods(code);
-      setManualResult(results[0]?.name || null);
-      if (!results.length) {
+      setStatus("Searching…");
+      const result = await searchFoods(code);
+      setStatus(result.status);
+      setManualResult(result.items[0]?.name || null);
+      if (!result.items.length) {
         toast({ title: "No match found", description: "Try another UPC or add manually.", variant: "destructive" });
         return;
       }
@@ -65,6 +70,7 @@ export default function MealsBarcode() {
               <div className="font-medium text-foreground">Scanner preview</div>
               <p className="mt-1 text-xs">Point your camera at a barcode to add packaged foods instantly.</p>
             </div>
+            {status && <p className={STATUS_CLASS}>{status}</p>}
             {manualResult && (
               <div className="rounded-md bg-muted p-3 text-sm">
                 <div className="font-medium">Preview result</div>

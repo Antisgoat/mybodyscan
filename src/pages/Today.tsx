@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { consumeOneCredit } from "@/lib/payments";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
-import { getDailyLog } from "@/lib/nutrition";
+import { getDailyLog } from "@/lib/nutritionBackend";
 import { getPlan } from "@/lib/workouts";
 import { DemoBanner } from "@/components/DemoBanner";
 import { auth, db } from "@/lib/firebase";
