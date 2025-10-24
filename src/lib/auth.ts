@@ -1,27 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { auth as firebaseAuth, functions } from "@/lib/firebase";
-import { popupThenRedirect } from "@/lib/auth/popupLogin";
 import {
   Auth,
-  OAuthProvider,
   UserCredential,
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   getAdditionalUserInfo,
   getRedirectResult,
-  GoogleAuthProvider,
   linkWithCredential,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
-  signInWithEmailAndPassword,
-  signInWithRedirect,
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 
 async function ensureFirebaseAuth(): Promise<Auth> {
@@ -150,15 +144,6 @@ export async function signOutToAuth(): Promise<void> {
   window.location.href = "/auth";
 }
 
-// New helpers
-export async function loginWithGoogle() {
-  const auth = await ensureFirebaseAuth();
-  const provider = new GoogleAuthProvider();
-  return await popupThenRedirect(auth, provider);
-}
-
-export const signInWithGoogle = loginWithGoogle;
-
 const APPLE_PROVIDER_ID = "apple.com";
 
 type AppleAdditionalProfile = {
@@ -180,37 +165,6 @@ async function applyAppleProfile(result: UserCredential | null) {
     await updateProfile(result.user, { displayName });
   }
 }
-
-function logAppleFlow(flow: "popup" | "redirect", context?: string) {
-  if (!import.meta.env.DEV) return;
-  const extra = context ? ` ${context}` : "";
-  console.info(`[auth] Apple sign-in via ${flow}${extra}`);
-}
-
-export async function loginWithApple(): Promise<UserCredential | void> {
-  const auth = await ensureFirebaseAuth();
-  const provider = new OAuthProvider(APPLE_PROVIDER_ID);
-  provider.addScope("email");
-  provider.addScope("name");
-
-  const iosSafari = isIOSSafari();
-  if (iosSafari) {
-    logAppleFlow("redirect", "(iOS Safari)");
-    await signInWithRedirect(auth, provider);
-    return;
-  }
-
-  logAppleFlow("popup");
-  const result = await popupThenRedirect(auth, provider);
-  if (!result) {
-    logAppleFlow("redirect", "(fallback)");
-    return;
-  }
-  await applyAppleProfile(result);
-  return result;
-}
-
-export const signInWithApple = loginWithApple;
 
 export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
   try {
@@ -237,10 +191,6 @@ export async function createAccountEmail(email: string, password: string, displa
   const res = await createUserWithEmailAndPassword(auth, email, password);
   if (displayName) await updateProfile(res.user, { displayName });
   return res.user;
-}
-
-export function signInEmail(email: string, password: string) {
-  return ensureFirebaseAuth().then((auth) => signInWithEmailAndPassword(auth, email, password));
 }
 
 export function sendReset(email: string) {

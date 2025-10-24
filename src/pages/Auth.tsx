@@ -9,9 +9,6 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import {
   createAccountEmail,
-  signInEmail,
-  loginWithGoogle,
-  loginWithApple,
   rememberAuthRedirect,
   consumeAuthRedirect,
   resolveAuthRedirect,
@@ -20,7 +17,7 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { mapAuthErrorToMessage } from "@/lib/auth/errors";
+import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -99,7 +96,14 @@ const Auth = () => {
     setLoading(true);
     try {
       if (mode === "signin") {
-        await signInEmail(email, password);
+        const result = await emailPasswordSignIn(email, password);
+        if (result.ok === false) {
+          toast({
+            title: "Sign in failed",
+            description: result.message ?? "Please try again.",
+          });
+          return;
+        }
       } else {
         await createAccountEmail(email, password);
       }
@@ -115,8 +119,16 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await loginWithGoogle();
-      if (result) {
+      const result = await googleSignIn();
+      if (result.ok === false) {
+        consumeAuthRedirect();
+        toast({
+          title: "Google sign in failed",
+          description: result.message ?? "Please try again.",
+        });
+        return;
+      }
+      if (auth.currentUser) {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
@@ -128,30 +140,31 @@ const Auth = () => {
     }
   };
 
-  const showAppleButton = true;
+  const showAppleButton = forceAppleButton || (APPLE_WEB_ENABLED && appleEnabled !== false);
 
   const onApple = async () => {
     if (loading) return;
 
     setLoading(true);
     try {
-      const result = await loginWithApple();
-      if (result) {
+      rememberAuthRedirect(from);
+      const result = await appleSignIn();
+      if (result.ok === false) {
+        consumeAuthRedirect();
+        toast({
+          title: "Apple sign-in failed",
+          description: result.message ?? "Please try again.",
+        });
+        return;
+      }
+      if (auth.currentUser) {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
     } catch (err: unknown) {
       consumeAuthRedirect();
-      const code =
-        typeof err === "object" && err && "code" in err
-          ? String((err as { code?: unknown }).code ?? "")
-          : undefined;
-      if (code === "auth/operation-not-allowed") {
-        toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
-      } else {
-        console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
-        toast({ title: "Sign-in failed", description: "Please try again." });
-      }
+      console.error("[auth] Apple login failed:", err);
+      toast({ title: "Sign-in failed", description: (err as { message?: string } | undefined)?.message || "Please try again." });
     } finally {
       setLoading(false);
     }

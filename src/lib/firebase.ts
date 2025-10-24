@@ -3,9 +3,6 @@ import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
   type Auth,
 } from "firebase/auth";
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
@@ -91,15 +88,6 @@ if (isNative && typeof window !== "undefined") {
 const firestore = getFirestore(firebaseApp);
 const storageBucket = getStorage(firebaseApp);
 const cloudFunctions = getFunctions(firebaseApp, "us-central1");
-
-const googleProvider = new GoogleAuthProvider();
-
-export async function signInWithGoogle() {
-  if (isNative) {
-    return signInWithRedirect(firebaseAuth, googleProvider);
-  }
-  return signInWithPopup(firebaseAuth, googleProvider);
-}
 
 export function ensureAppCheckInit(): void {
   initAppCheckSoft(firebaseApp);
