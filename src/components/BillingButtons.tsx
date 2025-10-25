@@ -34,10 +34,24 @@ export default function BillingButtons({ className }: Props) {
   return (
     <div className={className}>
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onBuy} disabled={!enabled || busy}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onBuy}
+          disabled={!enabled || busy}
+          aria-label="Buy credits"
+        >
           {pending === "checkout" ? "Loading…" : "Buy Credits"}
         </Button>
-        <Button type="button" variant="secondary" size="sm" onClick={onManage} disabled={!enabled || busy}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onManage}
+          disabled={!enabled || busy}
+          aria-label="Manage billing"
+        >
           {pending === "portal" ? "Loading…" : "Manage Billing"}
         </Button>
       </div>

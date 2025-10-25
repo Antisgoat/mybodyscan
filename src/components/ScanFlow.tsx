@@ -171,6 +171,7 @@ export default function ScanFlow({ className }: ScanFlowProps) {
         ref={fileInputRef}
         type="file"
         accept="image/*,video/*"
+        aria-label="Select image or video for scan"
         style={{ display: "none" }}
         onChange={handleFileChange}
       />
@@ -193,8 +194,16 @@ export default function ScanFlow({ className }: ScanFlowProps) {
         </div>
       ) : null}
 
-      {status ? <div style={statusStyle}>{status}</div> : null}
-      {error ? <div style={errorStyle}>{error}</div> : null}
+      {status ? (
+        <div style={statusStyle} role="status" aria-live="polite">
+          {status}
+        </div>
+      ) : null}
+      {error ? (
+        <div style={errorStyle} role="alert" aria-live="assertive">
+          {error}
+        </div>
+      ) : null}
 
       <div style={rowStyle}>
         {canRetryUpload ? (

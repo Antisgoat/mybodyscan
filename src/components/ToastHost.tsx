@@ -32,10 +32,15 @@ export default function ToastHost() {
   }, []);
 
   return (
-    <div style={wrap}>
-      {items.map((toast) => (
-        <div key={toast.id} style={{ ...card, ...stylesByLevel(toast.level) }}>{toast.message}</div>
-      ))}
+    <div style={wrap} aria-live="polite">
+      {items.map((toast) => {
+        const role: "alert" | "status" = toast.level === "error" ? "alert" : "status";
+        return (
+          <div key={toast.id} role={role} style={{ ...card, ...stylesByLevel(toast.level) }}>
+            {toast.message}
+          </div>
+        );
+      })}
     </div>
   );
 }
