@@ -150,6 +150,8 @@ async function init(): Promise<void> {
     throw new Error("Firebase config missing. Check Hosting init.json.");
   }
 
+  console.log("[firebase] runtime init.json:", { projectId: cfg.projectId, authDomain: cfg.authDomain, apiKey: cfg.apiKey ? "***" : "missing" });
+
   configInstance = cfg;
   appInstance = initializeApp(cfg);
   authInstance = getAuth(appInstance);
