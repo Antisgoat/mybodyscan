@@ -30,7 +30,7 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from || "/today";
+  const from = (location.state as any)?.from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +41,7 @@ const Auth = () => {
 
   useEffect(() => {
     if (!user) return;
-    const defaultTarget = (location.state as any)?.from || "/today";
+    const defaultTarget = (location.state as any)?.from || "/home";
     if (location.pathname !== defaultTarget) {
       navigate(defaultTarget, { replace: true });
     }

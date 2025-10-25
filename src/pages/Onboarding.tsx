@@ -50,7 +50,7 @@ export default function Onboarding() {
         ),
       ]);
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
-      navigate("/today");
+      navigate("/home");
     } catch (err: any) {
       toast({ title: "Error saving profile", description: err?.message || "Please try again.", variant: "destructive" });
     }
