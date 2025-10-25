@@ -16,7 +16,6 @@ interface AuthedLayoutProps {
 const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
   { to: "/home", label: "Home" },
   { to: "/scan", label: "Scan", feature: "scan" },
-  { to: "/today", label: "Today", feature: "health" },
   { to: "/meals", label: "Meals", feature: "nutrition" },
   { to: "/workouts", label: "Workouts", feature: "workouts" },
   { to: "/programs", label: "Programs", feature: "coach" },

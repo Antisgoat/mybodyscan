@@ -18,7 +18,6 @@ import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?: FeatureName }> = [
   { path: "/home", icon: HomeIcon, label: "Home" },
   { path: "/scan", icon: Camera, label: "Scan", feature: "scan" },
-  { path: "/today", icon: CalendarCheck, label: "Today", feature: "health" },
   { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
   { path: "/workouts", icon: Dumbbell, label: "Workouts", feature: "workouts" },
   { path: "/programs", icon: Layers, label: "Programs", feature: "coach" },

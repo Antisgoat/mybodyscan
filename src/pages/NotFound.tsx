@@ -14,8 +14,6 @@ export default function NotFound() {
         <p className="text-sm text-muted-foreground">The page you’re looking for doesn’t exist or was moved.</p>
         <div className="flex justify-center gap-2">
           <Link className="underline" to="/home">Go home</Link>
-          <span className="text-muted-foreground">·</span>
-          <Link className="underline" to="/today">Today</Link>
         </div>
       </div>
     </main>
