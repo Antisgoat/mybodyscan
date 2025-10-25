@@ -1,4 +1,4 @@
-import { firebaseConfig } from "@/lib/firebase";
+import { firebaseReady, getFirebaseConfig } from "@/lib/firebase";
 
 const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
 
@@ -115,8 +115,11 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
     return cachedConfigPromise;
   }
 
-  const apiKey = firebaseConfig.apiKey;
-  const projectId = firebaseConfig.projectId;
+  await firebaseReady();
+  const runtimeConfig = getFirebaseConfig();
+
+  const apiKey = runtimeConfig.apiKey;
+  const projectId = runtimeConfig.projectId;
 
   if (!apiKey || !projectId) {
     cachedConfigPromise = Promise.resolve(
