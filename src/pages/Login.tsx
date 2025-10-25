@@ -21,7 +21,12 @@ export default function Login() {
     setBusy(true);
     try {
       const r = await emailPasswordSignIn(email, pass);
-      if (!r.ok) toast(r.message || "Email sign-in failed.", "error");
+      if (!r.ok) {
+        const message = "message" in r && typeof r.message === "string" && r.message
+          ? r.message
+          : "Email sign-in failed.";
+        toast(message, "error");
+      }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Email sign-in failed.";
       toast(message, "error");
@@ -34,7 +39,12 @@ export default function Login() {
     setBusy(true);
     try {
       const r = await googleSignIn();
-      if (!r.ok) toast(r.message || "Google sign-in failed.", "error");
+      if (!r.ok) {
+        const message = "message" in r && typeof r.message === "string" && r.message
+          ? r.message
+          : "Google sign-in failed.";
+        toast(message, "error");
+      }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Google sign-in failed.";
       toast(message, "error");
@@ -47,7 +57,12 @@ export default function Login() {
     setBusy(true);
     try {
       const r = await appleSignIn();
-      if (!r.ok) toast(r.message || "Apple sign-in failed.", "error");
+      if (!r.ok) {
+        const message = "message" in r && typeof r.message === "string" && r.message
+          ? r.message
+          : "Apple sign-in failed.";
+        toast(message, "error");
+      }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Apple sign-in failed.";
       toast(message, "error");
