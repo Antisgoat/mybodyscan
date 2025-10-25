@@ -70,7 +70,7 @@ import ProgramsCatalog from "./pages/Programs";
 import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
 import Nutrition from "./pages/Nutrition";
-import { ConsentGate } from "./components/ConsentGate";
+import PolicyGate from "./components/PolicyGate";
 import { DemoModeProvider } from "./components/DemoModeProvider";
 import MealsSearch from "./pages/MealsSearch";
 import BarcodeScan from "./pages/BarcodeScan";
@@ -110,6 +110,7 @@ const App = () => {
     <ErrorBoundary>
       <GlobalA11yStyles />
       <SkipLink />
+      <PolicyGate />
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AppCheckProvider>
@@ -120,8 +121,7 @@ const App = () => {
             <Sonner />
             <NetBanner />
             <AuthGate>
-              <ConsentGate>
-                <BrowserRouter>
+              <BrowserRouter>
                   <DemoModeProvider>
                     <OnboardingRedirectMBS>
                       <div id="main-content" role="main">
@@ -633,7 +633,6 @@ const App = () => {
                     </OnboardingRedirectMBS>
                   </DemoModeProvider>
                 </BrowserRouter>
-              </ConsentGate>
             </AuthGate>
           </AppCheckProvider>
         </TooltipProvider>
