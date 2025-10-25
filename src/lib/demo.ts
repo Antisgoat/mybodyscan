@@ -1,5 +1,5 @@
-import { auth } from "./firebase";
 import { signInAnonymously } from "firebase/auth";
+import { firebaseReady, getFirebaseAuth } from "./firebase";
 
 const DEMO_FLAG_KEY = "mbs_demo";
 
@@ -17,17 +17,27 @@ export function clearDemoFlag(): void {
   } catch {}
 }
 
+function currentAuthUser() {
+  try {
+    return getFirebaseAuth().currentUser;
+  } catch {
+    return null;
+  }
+}
+
 export function isDemo(): boolean {
   try {
     if (typeof window !== "undefined" && localStorage.getItem(DEMO_FLAG_KEY) === "1") return true;
   } catch {}
-  const u = auth?.currentUser;
+  const u = currentAuthUser();
   return Boolean(u?.isAnonymous);
 }
 
 /** One-tap demo start: anonymous sign-in with a single retry. */
 export async function startDemo(): Promise<DemoResult> {
   if (isDemo()) return { ok: true };
+  await firebaseReady();
+  const auth = getFirebaseAuth();
   try {
     await signInAnonymously(auth);
     setDemoFlag();

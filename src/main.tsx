@@ -6,10 +6,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { initAppCheck } from "./appCheck";
 import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
+import { firebaseReady } from "./lib/firebase";
 
 // Boot error trap to capture first thrown error before any UI swallows it
 if (typeof window !== "undefined") {
@@ -28,17 +28,20 @@ if (typeof window !== "undefined") {
   console.log("[init] App mounted");
 }
 
-killSW();
-warnIfDomainUnauthorized();
-void initAppCheck().catch((e) => console.warn("AppCheck init skipped:", e?.message || e));
-void probeFirebaseRuntime();
+void (async () => {
+  await firebaseReady();
 
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
-    <StrictMode>
-      <AppErrorBoundary>
-        <App />
-      </AppErrorBoundary>
-    </StrictMode>
-  );
-}
+  killSW();
+  warnIfDomainUnauthorized();
+  void probeFirebaseRuntime();
+
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    ReactDOM.createRoot(document.getElementById("root")!).render(
+      <StrictMode>
+        <AppErrorBoundary>
+          <App />
+        </AppErrorBoundary>
+      </StrictMode>
+    );
+  }
+})();

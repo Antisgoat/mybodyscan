@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth as firebaseAuth, db, firebaseConfig } from "@/lib/firebase";
+import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -9,7 +9,12 @@ export function useCredits() {
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [unlimited, setUnlimited] = useState(false);
-  const projectId = firebaseConfig.projectId;
+  let projectId = "";
+  try {
+    projectId = getFirebaseConfig().projectId;
+  } catch {
+    projectId = "";
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
