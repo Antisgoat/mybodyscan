@@ -3,22 +3,19 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
 import { isPathAllowedInDemo } from "@/lib/demoFlag";
 import { useDemoMode } from "./DemoModeProvider";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { PageSkeleton } from "@/components/system/PageSkeleton";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuthUser();
   const location = useLocation();
   const demo = useDemoMode();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
 
   if (!authReady) {
     return <PageSkeleton label="Checking your session…" />;
   }
 
-  if (!appCheckReady) {
-    return <PageSkeleton label="Preparing secure access…" />;
-  }
+  // App Check removed
 
   if (!user) {
     if (demo && isPathAllowedInDemo(location.pathname)) {

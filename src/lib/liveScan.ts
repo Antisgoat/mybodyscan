@@ -1,4 +1,3 @@
-import { getAppCheckToken } from "@/appCheck";
 import { auth as firebaseAuth } from "@/lib/firebase";
 
 export type PoseKey = "front" | "back" | "left" | "right";
@@ -47,22 +46,15 @@ async function authedRequest(path: string, init: RequestInit = {}): Promise<Resp
     (error as any).code = "auth_required";
     throw error;
   }
-  const [idToken, appCheckToken] = await Promise.all([
+  const [idToken] = await Promise.all([
     user.getIdToken(),
-    getAppCheckToken(),
   ]);
-  if (!appCheckToken) {
-    const error = new Error("app_check_unavailable");
-    (error as any).code = "app_check_unavailable";
-    throw error;
-  }
 
   const headers = new Headers(init.headers || {});
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Authorization", `Bearer ${idToken}`);
-  headers.set("X-Firebase-AppCheck", appCheckToken);
 
   return fetch(path, { ...init, headers });
 }

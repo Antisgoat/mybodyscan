@@ -1,5 +1,5 @@
 import { getRedirectResult } from "firebase/auth";
-import { auth } from "./firebase";
+import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { toast } from "./toast";
 
 function mapError(code: string | undefined): string {
@@ -24,6 +24,8 @@ function mapError(code: string | undefined): string {
 (async () => {
   if (typeof window === "undefined") return;
   try {
+    await firebaseReady();
+    const auth = getFirebaseAuth();
     const result = await getRedirectResult(auth);
     void result;
   } catch (err: any) {

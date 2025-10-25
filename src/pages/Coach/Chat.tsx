@@ -17,7 +17,6 @@ import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
 import { coachChat as sendCoachChat } from "@/lib/api";
 import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
@@ -106,11 +105,11 @@ export default function CoachChatPage() {
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
 
   // derive uid only after auth is ready
   const uid = authReady ? (user?.uid ?? null) : null;
-  const initializing = !authReady || !appCheckReady;
+  const initializing = !authReady;
 
   useEffect(() => {
     if (!authReady || !appCheckReady || !uid) {
@@ -147,7 +146,7 @@ export default function CoachChatPage() {
       setMessages(sortMessages(next));
     });
     return () => unsubscribe();
-  }, [authReady, appCheckReady, uid]);
+  }, [authReady, uid]);
 
   const hasMessages = messages.length > 0;
   const showPlanMissing = !demo && !plan;
@@ -202,7 +201,7 @@ export default function CoachChatPage() {
       demoToast();
       return;
     }
-    if (!authReady || !appCheckReady) {
+    if (!authReady) {
       toast({ title: "Initializing", description: "Secure services are almost ready. Try again in a moment." });
       return;
     }

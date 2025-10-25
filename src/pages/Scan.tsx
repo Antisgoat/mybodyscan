@@ -19,7 +19,7 @@ import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
+// App Check removed; treat as immediately ready
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -84,7 +84,7 @@ export default function Scan() {
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const demo = useDemoMode();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
   const { credits, loading: creditsLoading } = useCredits();
 
   useEffect(() => {
@@ -258,7 +258,7 @@ export default function Scan() {
   const disableAnalyze = !allPhotosSelected || submitting || demo;
   const selectSexValue = sex === "" ? undefined : sex;
 
-  const initializing = !appCheckReady;
+  const initializing = false;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-scan">

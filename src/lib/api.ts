@@ -1,7 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
-import { getAppCheckToken } from "@/appCheck";
+// App Check removed: always omit AppCheck header
 import { auth as firebaseAuth } from "@/lib/firebase";
 import type { Auth, User } from "firebase/auth";
 
@@ -50,8 +50,7 @@ export async function nutritionSearch(
         const { user } = await getAuthContext();
         return user ? user.getIdToken() : null;
       })();
-  const [idToken, appCheckToken] = await Promise.all([idTokenPromise, getAppCheckToken()]);
-  if (appCheckToken) headers.set("X-Firebase-AppCheck", appCheckToken);
+  const [idToken] = await Promise.all([idTokenPromise]);
   if (idToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${idToken}`);
   }
@@ -77,18 +76,12 @@ export async function coachChat(payload: { message: string }) {
     throw error;
   }
   const { user } = await requireAuthContext();
-  const [idToken, appCheckToken] = await Promise.all([user.getIdToken(), getAppCheckToken()]);
-  if (!appCheckToken) {
-    const error: any = new Error("app_check_unavailable");
-    error.code = "app_check_unavailable";
-    throw error;
-  }
+  const [idToken] = await Promise.all([user.getIdToken()]);
   const response = await fetch(`/api/coach/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
-      ...(appCheckToken ? { "X-Firebase-AppCheck": appCheckToken } : {}),
     },
     credentials: "include",
     body: JSON.stringify({ message, text: message }),
@@ -229,19 +222,15 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
       if (!fallbackBase) {
         payload = { items: [] } as any;
       } else {
-        const [fallbackIdToken, fallbackAppCheckToken] = await Promise.all([
+        const [fallbackIdToken] = await Promise.all([
           (async () => {
             const { user } = await getAuthContext();
             return user ? user.getIdToken() : null;
           })(),
-          getAppCheckToken(),
         ]);
         const fallbackHeaders = new Headers({
           Accept: "application/json",
         });
-        if (fallbackAppCheckToken) {
-          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
-        }
         if (fallbackIdToken) {
           fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
         }
