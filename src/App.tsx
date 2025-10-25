@@ -83,6 +83,8 @@ import DemoGate from "./pages/DemoGate";
 import ToastHost from "./components/ToastHost";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NetBanner from "./components/NetBanner";
+import SkipLink from "./components/SkipLink";
+import GlobalA11yStyles from "./components/GlobalA11yStyles";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -103,6 +105,8 @@ const App = () => {
 
   return (
     <ErrorBoundary>
+      <GlobalA11yStyles />
+      <SkipLink />
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AppCheckProvider>
@@ -112,12 +116,13 @@ const App = () => {
             <Sonner />
             <NetBanner />
             <AuthGate>
-            <ConsentGate>
-              <BrowserRouter>
-                <DemoModeProvider>
-                  <OnboardingRedirectMBS>
-                    <Suspense fallback={<PageSkeleton />}>
-                      <Routes>
+              <ConsentGate>
+                <BrowserRouter>
+                  <DemoModeProvider>
+                    <OnboardingRedirectMBS>
+                      <div id="main-content" role="main">
+                        <Suspense fallback={<PageSkeleton />}>
+                          <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -617,12 +622,13 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
-                  </OnboardingRedirectMBS>
-                </DemoModeProvider>
-              </BrowserRouter>
-            </ConsentGate>
+                          </Routes>
+                        </Suspense>
+                      </div>
+                    </OnboardingRedirectMBS>
+                  </DemoModeProvider>
+                </BrowserRouter>
+              </ConsentGate>
             </AuthGate>
           </AppCheckProvider>
         </TooltipProvider>

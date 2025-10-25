@@ -106,7 +106,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
   }
 
   return (
-    <header className={className} style={wrap}>
+    <header className={className} style={wrap} role="banner">
       <div style={left}>
         <a href="/" style={brand} aria-label="MyBodyScan Home">
           MyBodyScan

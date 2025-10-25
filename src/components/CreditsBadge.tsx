@@ -30,7 +30,7 @@ export default function CreditsBadge(props: Props) {
   return (
     <div style={containerStyle} className={className} title={title} aria-label={title}>
       <span style={pillStyle}>{text}</span>
-      <button type="button" style={btnStyle} onClick={() => void refresh()}>
+      <button type="button" style={btnStyle} aria-label="Refresh credits" onClick={() => void refresh()}>
         Refresh
       </button>
     </div>

@@ -11,6 +11,7 @@ export default function NutritionSearch(props: Props) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [items, setItems] = useState<FoodItem[]>([]);
+  const inputId = "nutrition-search-input";
 
   const isLikelyBarcode = useMemo(() => {
     const v = q.trim();
@@ -43,7 +44,11 @@ export default function NutritionSearch(props: Props) {
   return (
     <div className={className} style={wrap}>
       <div style={row}>
+        <label htmlFor={inputId} style={visuallyHidden}>
+          Food search
+        </label>
         <input
+          id={inputId}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -51,7 +56,6 @@ export default function NutritionSearch(props: Props) {
           }}
           placeholder="Search foods (e.g., chicken breast) or paste a barcode…"
           style={input}
-          aria-label="Search foods"
         />
         <button type="button" onClick={() => void runSearch()} disabled={loading} style={btn}>
           {loading ? "Searching…" : "Search"}
@@ -62,7 +66,11 @@ export default function NutritionSearch(props: Props) {
         <div style={hint}>Tip: looks like a barcode. Hit Search to look it up.</div>
       )}
 
-      {!!status && <div style={statusStyle}>{status}</div>}
+      {!!status && (
+        <div style={statusStyle} role="status" aria-live="polite">
+          {status}
+        </div>
+      )}
 
       <div style={list}>
         {items.map((it) => (
@@ -107,6 +115,17 @@ const chip: React.CSSProperties = { fontSize: 10, padding: "2px 6px", borderRadi
 const chipUsda: React.CSSProperties = { background: "#f0f7ff", borderColor: "#c9e0ff" };
 const chipOff: React.CSSProperties = { background: "#f9fff0", borderColor: "#dff0c2" };
 const empty: React.CSSProperties = { fontSize: 12, color: "#666" };
+const visuallyHidden: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 function fmt(v?: number): string {
   return Number.isFinite(v as number) ? String(Math.round(v as number)) : "—";
