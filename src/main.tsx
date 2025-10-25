@@ -1,3 +1,4 @@
+import "./lib/swKill";
 import "./lib/bootProbe";
 import "./lib/authRedirect";
 import { StrictMode } from "react";
