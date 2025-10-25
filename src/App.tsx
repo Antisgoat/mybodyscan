@@ -15,6 +15,7 @@ import { MBS_FLAGS } from "./lib/flags";
 import Index from "./pages/Index";
 import WelcomeRedirect from "./pages/WelcomeRedirect";
 import Auth from "./pages/Auth";
+import Login from "./pages/Login";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
@@ -154,7 +155,7 @@ const App = () => {
                 <Auth />
               </Suspense>
             } />
-            <Route path="/login" element={<Navigate to="/auth" replace />} />
+            <Route path="/login" element={<Login />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             <Route
