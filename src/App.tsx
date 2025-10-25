@@ -87,6 +87,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import NetBanner from "./components/NetBanner";
 import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
+import SetupBanner from "./components/SetupBanner";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -112,6 +113,7 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AppCheckProvider>
+            <SetupBanner />
             <CrashBanner />
             <ToastHost />
             <Toaster />

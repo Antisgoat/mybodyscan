@@ -51,6 +51,23 @@ export async function appleSignIn(): Promise<LoginResult> {
 function mapAuthError(err: unknown): { code?: string; message: string } {
   const code = getErrorCode(err);
   switch (code) {
+    case "auth/api-key-not-valid":
+      return {
+        code,
+        message:
+          "Firebase Web API key is invalid for this project. Verify the key in Hosting init.json and key restrictions in GCP.",
+      };
+    case "auth/internal-error":
+      return {
+        code,
+        message:
+          "Auth service returned an internal error. If this persists, check that 'Identity Toolkit API' is enabled for the project.",
+      };
+    case "auth/network-request-failed":
+      return {
+        code,
+        message: "Network error while contacting Auth. Check your connection and try again.",
+      };
     case "auth/operation-not-allowed":
       return { code, message: "Sign-in provider is disabled in Firebase Auth." };
     case "auth/invalid-client":

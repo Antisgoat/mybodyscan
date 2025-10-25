@@ -49,6 +49,14 @@ if (isWeb) {
           version: BUILD.version || "",
         },
       });
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent("mbs:boot", {
+            detail: { apiKey: apiKeyPresent, itk: itkStatus || 0 },
+          }),
+        );
+      } catch {}
     } catch {
       // ignore summary logging errors
     }
