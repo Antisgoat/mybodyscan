@@ -22,7 +22,6 @@ import { db } from "@/lib/firebase";
 import { addDoc } from "@/lib/dbWrite";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
@@ -243,7 +242,7 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
 export default function MealsSearch() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
   const uid = authReady ? user?.uid ?? null : null;
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -257,7 +256,7 @@ export default function MealsSearch() {
   const [status, setStatus] = useState<string>("");
 
   useEffect(() => {
-    if (!authReady || !appCheckReady || !uid) {
+    if (!authReady || !uid) {
       setFavorites([]);
       return;
     }
@@ -269,7 +268,7 @@ export default function MealsSearch() {
       setFavorites([]);
       return undefined;
     }
-  }, [authReady, appCheckReady, uid]);
+  }, [authReady, uid]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -349,7 +348,7 @@ export default function MealsSearch() {
       return;
     }
 
-    if (!authReady || !appCheckReady || !user) {
+    if (!authReady || !user) {
       toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
       return;
     }

@@ -3,7 +3,6 @@ import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
 
@@ -53,7 +52,7 @@ export function useUserProfile() {
   const [profile, setProfile] = useState<CoachProfile | null>(null);
   const [plan, setPlan] = useState<CoachPlan | null>(null);
   const { user, authReady } = useAuthUser();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
   const uid = authReady ? user?.uid ?? null : null;
   const demo = useDemoMode();
 

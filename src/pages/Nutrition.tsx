@@ -9,7 +9,6 @@ import { useI18n } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { getDailyLog, getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutritionBackend";
 import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { roundGrams, roundKcal } from "@/lib/nutritionMath";
 import NutritionSearch from "@/components/NutritionSearch";
@@ -20,7 +19,7 @@ export default function Nutrition() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { authReady } = useAuthUser();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totals, setTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>({ calories: 0 });
@@ -67,7 +66,7 @@ export default function Nutrition() {
 
   const mostRecent = useMemo(() => history[history.length - 1], [history]);
 
-  const initializing = !appCheckReady;
+  const initializing = false;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-nutrition">

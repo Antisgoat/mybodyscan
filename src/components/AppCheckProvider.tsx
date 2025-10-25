@@ -1,44 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { initAppCheck, isAppCheckReady, waitForAppCheckReady } from "@/appCheck";
+import { createContext, useContext, type ReactNode } from "react";
 
-interface AppCheckContextValue {
-  isAppCheckReady: boolean;
-  error: Error | null;
-}
+interface AppCheckContextValue { isAppCheckReady: boolean; error: Error | null }
 
-const AppCheckContext = createContext<AppCheckContextValue>({ isAppCheckReady: false, error: null });
+const AppCheckContext = createContext<AppCheckContextValue>({ isAppCheckReady: true, error: null });
 
 export function AppCheckProvider({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState<boolean>(() => isAppCheckReady());
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await initAppCheck();
-        await waitForAppCheckReady();
-      } catch (err) {
-        if (!cancelled) {
-          if (import.meta.env.DEV) {
-            console.warn("[app-check] initialization failed", err);
-          }
-          setError(err instanceof Error ? err : new Error(String(err)));
-        }
-      } finally {
-        if (!cancelled) {
-          setReady(true);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const value = useMemo<AppCheckContextValue>(() => ({ isAppCheckReady: ready, error }), [ready, error]);
-
-  return <AppCheckContext.Provider value={value}>{children}</AppCheckContext.Provider>;
+  return <AppCheckContext.Provider value={{ isAppCheckReady: true, error: null }}>{children}</AppCheckContext.Provider>;
 }
 
 export function useAppCheckContext(): AppCheckContextValue {

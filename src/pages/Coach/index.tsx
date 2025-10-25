@@ -21,7 +21,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { disabledIfDemo } from "@/lib/demoGuard";
 import { useAuthUser } from "@/lib/auth";
-import { useAppCheckReady } from "@/components/AppCheckProvider";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -60,7 +59,7 @@ export default function CoachOverview() {
   const [isSaving, setIsSaving] = useState(false);
   const [planExists, setPlanExists] = useState<boolean | null>(null);
   const { user, authReady } = useAuthUser();
-  const appCheckReady = useAppCheckReady();
+  const appCheckReady = true;
   const uid = authReady ? user?.uid ?? null : null;
   const demo = useDemoMode();
   const { disabled: demoDisabled, title: demoTitle } = disabledIfDemo();
@@ -226,7 +225,7 @@ export default function CoachOverview() {
   const displayWeekIndex = totalWeeks > 0 ? Math.min(weekIdx + 1, totalWeeks) : 1;
   const showEmptyState = !isLoadingPrograms && !program;
 
-  const initializing = !appCheckReady;
+  const initializing = false;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

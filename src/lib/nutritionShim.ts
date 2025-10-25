@@ -1,6 +1,5 @@
 import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
-import { getAppCheckToken } from "@/appCheck";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import type {
   FoodItem,
@@ -326,13 +325,11 @@ export async function searchFoods(query: string): Promise<NormalizedItem[]> {
 export async function lookupBarcode(code: string): Promise<NormalizedItem | null> {
   if (!code?.trim()) return null;
   // Prefer Hosting rewrite path
-  const [idToken, appCheckToken] = await Promise.all([
+  const [idToken] = await Promise.all([
     firebaseAuth.currentUser ? firebaseAuth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
-    getAppCheckToken(),
   ]);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (idToken) headers.Authorization = `Bearer ${idToken}`;
-  if (appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
   let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
     method: "GET",
     headers,
