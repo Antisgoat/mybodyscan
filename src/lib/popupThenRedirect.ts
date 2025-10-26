@@ -5,6 +5,7 @@ import {
   type AuthProvider,
   type UserCredential,
 } from "firebase/auth";
+import { isIOSWebKit } from "./ua";
 
 /**
  * Attempt popup sign-in; on common popup failures, fall back to redirect.
@@ -15,6 +16,11 @@ export async function popupThenRedirect(
   auth: Auth,
   provider: AuthProvider,
 ): Promise<UserCredential | undefined> {
+  // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
+  if (isIOSWebKit()) {
+    await signInWithRedirect(auth, provider);
+    return;
+  }
   try {
     const cred = await signInWithPopup(auth, provider);
     return cred;
@@ -23,7 +29,10 @@ export async function popupThenRedirect(
     if (
       code === "auth/popup-blocked" ||
       code === "auth/cancelled-popup-request" ||
-      code === "auth/popup-closed-by-user"
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/internal-error" ||
+      code === "auth/web-storage-unsupported" ||
+      code === "auth/operation-not-supported-in-this-environment"
     ) {
       // Start redirect flow; control returns after page reload.
       await signInWithRedirect(auth, provider);

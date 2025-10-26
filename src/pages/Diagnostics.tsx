@@ -14,6 +14,9 @@ import {
   USDA_API_KEY,
 } from "../lib/flags";
 import { ensureAppCheck, getAppCheckHeader } from "../lib/appCheck";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "../lib/firebase";
+import { toast } from "../lib/toast";
 
 type InitInfo = { projectId?: string; authDomain?: string; apiKey?: string };
 type ItkInfo = { status?: number; authorizedDomains?: string[] };
@@ -110,10 +113,21 @@ export default function Diagnostics() {
 
   const onRefreshClaims = useCallback(async () => {
     try {
+      const callable = httpsCallable(functions, "refreshClaims");
+      const res = await callable({ reason: "diagnostics" }).catch(() => null);
+      // force token refresh to pick up new claims
+      try {
+        await auth.currentUser?.getIdToken(true);
+      } catch {
+        // ignore
+      }
       const c = await fetchClaims();
       setClaims(c ?? null);
+      const updated = (res && typeof res === "object" && "data" in (res as any) && (res as any).data?.updated) ? Boolean((res as any).data.updated) : false;
+      const unlimited = (res && typeof res === "object" && "data" in (res as any) && (res as any).data?.unlimitedCredits) ? Boolean((res as any).data.unlimitedCredits) : false;
+      toast(updated ? `Claims refreshed. unlimitedCredits=${String(unlimited)}` : `Claims checked. unlimitedCredits=${String(unlimited)}`, updated ? "success" : "info");
     } catch {
-      // ignore
+      toast("Failed to refresh claims", "error");
     }
   }, []);
 
