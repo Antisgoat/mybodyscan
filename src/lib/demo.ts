@@ -8,13 +8,17 @@ export type DemoResult = { ok: true } | { ok: false; code?: string; message?: st
 export function setDemoFlag(): void {
   try {
     localStorage.setItem(DEMO_FLAG_KEY, "1");
-  } catch {}
+  } catch {
+    /* empty */
+  }
 }
 
 export function clearDemoFlag(): void {
   try {
     localStorage.removeItem(DEMO_FLAG_KEY);
-  } catch {}
+  } catch {
+    /* empty */
+  }
 }
 
 function currentAuthUser() {
@@ -28,7 +32,9 @@ function currentAuthUser() {
 export function isDemo(): boolean {
   try {
     if (typeof window !== "undefined" && localStorage.getItem(DEMO_FLAG_KEY) === "1") return true;
-  } catch {}
+  } catch {
+    /* empty */
+  }
   const u = currentAuthUser();
   return Boolean(u?.isAnonymous);
 }
@@ -85,7 +91,9 @@ export function notifyDemoBlocked(): void {
         }),
       );
     }
-  } catch {}
+  } catch {
+    /* empty */
+  }
 }
 
 export { DEMO_FLAG_KEY };

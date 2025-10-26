@@ -56,7 +56,9 @@ if (isWeb) {
             detail: { apiKey: apiKeyPresent, itk: itkStatus || 0 },
           }),
         );
-      } catch {}
+      } catch {
+        /* empty */
+      }
     } catch {
       // ignore summary logging errors
     }
