@@ -1,4 +1,5 @@
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 
 export type PoseKey = "front" | "back" | "left" | "right";
 
@@ -46,8 +47,10 @@ async function authedRequest(path: string, init: RequestInit = {}): Promise<Resp
     (error as any).code = "auth_required";
     throw error;
   }
-  const [idToken] = await Promise.all([
+  await ensureAppCheck();
+  const [idToken, appCheckHeaders] = await Promise.all([
     user.getIdToken(),
+    getAppCheckHeader(),
   ]);
 
   const headers = new Headers(init.headers || {});
@@ -55,6 +58,9 @@ async function authedRequest(path: string, init: RequestInit = {}): Promise<Resp
     headers.set("Content-Type", "application/json");
   }
   headers.set("Authorization", `Bearer ${idToken}`);
+  if (appCheckHeaders["X-Firebase-AppCheck"]) {
+    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
+  }
 
   return fetch(path, { ...init, headers });
 }

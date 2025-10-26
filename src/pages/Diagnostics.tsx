@@ -13,6 +13,7 @@ import {
   SW_ENABLED,
   USDA_API_KEY,
 } from "../lib/flags";
+import { ensureAppCheck, getAppCheckHeader } from "../lib/appCheck";
 
 type InitInfo = { projectId?: string; authDomain?: string; apiKey?: string };
 type ItkInfo = { status?: number; authorizedDomains?: string[] };
@@ -28,6 +29,7 @@ export default function Diagnostics() {
   const [swInfo, setSwInfo] = useState<SwInfo>({ controller: false, regs: 0, caches: [] });
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState<string>("");
+  const [appCheckProbe, setAppCheckProbe] = useState<string>("—");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -164,6 +166,16 @@ export default function Diagnostics() {
     }
   }, [probe]);
 
+  const onProbeAppCheck = useCallback(async () => {
+    try {
+      await ensureAppCheck();
+      const h = await getAppCheckHeader(true);
+      setAppCheckProbe(h["X-Firebase-AppCheck"] ? "present" : "missing");
+    } catch {
+      setAppCheckProbe("missing");
+    }
+  }, []);
+
   useEffect(() => {
     void probe();
   }, [probe]);
@@ -217,6 +229,12 @@ export default function Diagnostics() {
         <KV k="SHOW_APPLE_WEB" v={String(SHOW_APPLE_WEB)} />
         <KV k="SW_ENABLED" v={String(SW_ENABLED)} />
         <KV k="APPCHECK_SITE_KEY" v={String(Boolean(APPCHECK_SITE_KEY))} />
+        <div style={row}>
+          <button type="button" onClick={() => void onProbeAppCheck()} style={btn}>
+            Check App Check token
+          </button>
+          <div style={vStyle}>token: {appCheckProbe}</div>
+        </div>
         <KV k="STRIPE_PUBLISHABLE_KEY" v={String(Boolean(STRIPE_PUBLISHABLE_KEY))} />
         <KV k="USDA_API_KEY" v={String(Boolean(USDA_API_KEY))} />
         <KV k="OFF_ENABLED" v={String(OFF_ENABLED)} />

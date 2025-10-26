@@ -1,4 +1,5 @@
 import { STRIPE_PUBLISHABLE_KEY } from "./flags";
+import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 
 type StripeLike = {
   redirectToCheckout: (opts: { sessionId: string }) => Promise<{ error?: { message?: string } }>;
@@ -41,9 +42,11 @@ export async function startCheckout(payload?: Record<string, unknown>): Promise<
       console.warn("[stripe] publishable key missing or Stripe.js unavailable");
       return false;
     }
+    await ensureAppCheck();
+    const appCheckHeaders = await getAppCheckHeader();
     const res = await fetch("/api/billing/create-checkout-session", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(appCheckHeaders || {}) },
       body: JSON.stringify(payload || {}),
     });
     if (!res.ok) {
@@ -73,9 +76,11 @@ export async function openBillingPortal(): Promise<boolean> {
       console.warn("[stripe] publishable key missing or Stripe.js unavailable");
       return false;
     }
+    await ensureAppCheck();
+    const appCheckHeaders = await getAppCheckHeader();
     const res = await fetch("/api/billing/portal-session", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(appCheckHeaders || {}) },
       body: JSON.stringify({}),
     });
     if (!res.ok) {

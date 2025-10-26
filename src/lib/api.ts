@@ -1,8 +1,8 @@
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
-// App Check removed: always omit AppCheck header
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type { Auth, User } from "firebase/auth";
 
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
@@ -50,9 +50,13 @@ export async function nutritionSearch(
         const { user } = await getAuthContext();
         return user ? user.getIdToken() : null;
       })();
-  const [idToken] = await Promise.all([idTokenPromise]);
+  await ensureAppCheck();
+  const [idToken, appCheckHeaders] = await Promise.all([idTokenPromise, getAppCheckHeader()]);
   if (idToken && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${idToken}`);
+  }
+  if (appCheckHeaders["X-Firebase-AppCheck"]) {
+    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
   }
   const response = await fetch(url, {
     ...init,
@@ -76,12 +80,14 @@ export async function coachChat(payload: { message: string }) {
     throw error;
   }
   const { user } = await requireAuthContext();
-  const [idToken] = await Promise.all([user.getIdToken()]);
+  await ensureAppCheck();
+  const [idToken, appCheckHeaders] = await Promise.all([user.getIdToken(), getAppCheckHeader()]);
   const response = await fetch(`/api/coach/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
+      ...(appCheckHeaders || {}),
     },
     credentials: "include",
     body: JSON.stringify({ message, text: message }),
@@ -265,11 +271,14 @@ async function authedFetch(path: string, init?: RequestInit) {
   }
   const { user } = await requireAuthContext();
   const t = await user.getIdToken();
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckHeader();
   return fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${t}`,
+      ...(appCheckHeaders || {}),
       ...(init?.headers || {}),
     },
   });

@@ -1,6 +1,7 @@
 import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type {
   FoodItem,
   MacroBreakdown,
@@ -330,6 +331,9 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   ]);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckHeader();
+  if (appCheckHeaders["X-Firebase-AppCheck"]) headers["X-Firebase-AppCheck"] = appCheckHeaders["X-Firebase-AppCheck"];
   let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
     method: "GET",
     headers,

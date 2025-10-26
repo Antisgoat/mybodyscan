@@ -1,4 +1,6 @@
 import { SCAN_POLL_MIN_MS, SCAN_POLL_MAX_MS, SCAN_POLL_TIMEOUT_MS } from "./flags";
+import { firebaseReady, getFirebaseAuth } from "./firebase";
+import { ensureAppCheck, getAppCheckHeader } from "./appCheck";
 import { fetchClaims } from "./claims";
 import { netError } from "./net";
 
@@ -22,9 +24,19 @@ export type PollResponse = {
  * The caller must upload the file to uploadUrl (usually via PUT) before polling.
  */
 export async function startScanSession(meta?: { mime?: string; size?: number }): Promise<StartScanResponse> {
+  await firebaseReady();
+  await ensureAppCheck();
+  const user = getFirebaseAuth().currentUser;
+  const [idToken, appCheckHeaders] = await Promise.all([
+    user ? user.getIdToken() : Promise.resolve(null),
+    getAppCheckHeader(),
+  ]);
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  if (appCheckHeaders["X-Firebase-AppCheck"]) headers["X-Firebase-AppCheck"] = appCheckHeaders["X-Firebase-AppCheck"];
   const res = await fetch("/api/scan/start", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify({ mime: meta?.mime, size: meta?.size }),
   });
   if (!res.ok) {
@@ -46,11 +58,24 @@ export async function startScanSession(meta?: { mime?: string; size?: number }):
 
 /** Single poll of session status from backend. */
 export async function pollStatus(sessionId: string): Promise<PollResponse> {
-  const params = new URLSearchParams({ sessionId });
-  const res = await fetch(`/api/scan/status?${params.toString()}`, { method: "GET" });
+  await firebaseReady();
+  await ensureAppCheck();
+  const user = getFirebaseAuth().currentUser;
+  const [idToken, appCheckHeaders] = await Promise.all([
+    user ? user.getIdToken() : Promise.resolve(null),
+    getAppCheckHeader(),
+  ]);
+  const params = new URLSearchParams({ scanId: sessionId });
+  const headers: Record<string, string> = {};
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  if (appCheckHeaders["X-Firebase-AppCheck"]) headers["X-Firebase-AppCheck"] = appCheckHeaders["X-Firebase-AppCheck"];
+  const res = await fetch(`/api/scan/byId?${params.toString()}`, { method: "GET", headers });
   if (!res.ok) {
+    if (res.status === 404) {
+      return { status: "failed", error: `not_found` };
+    }
     netError("Scan status failed.");
-    return { status: "failed", error: `status ${res.status}` };
+    return { status: "processing", error: `status ${res.status}` };
   }
   const j = await res.json();
   const status = normalizeStatus(String(j?.status ?? ""));
