@@ -17,11 +17,15 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
   function onAccept() {
     try {
       localStorage.setItem(KEY, "1");
-    } catch {}
+    } catch {
+      /* empty */
+    }
     // IMPORTANT: do not navigate to another route; just reload in place
     try {
       location.reload();
-    } catch {}
+    } catch {
+      /* empty */
+    }
   }
 
   if (accepted) return null;
