@@ -1,7 +1,7 @@
 import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithRedirect } from "firebase/auth";
 import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { isIOSWebKit, isSafari } from "./ua";
+import { isIOSWebKit, isSafariDesktop } from "./ua";
 
 function mapAuthError(err: unknown): { code?: string; message: string } {
   const code = (err && typeof err === "object" && "code" in (err as any)) ? String((err as any).code) : undefined;
@@ -51,7 +51,7 @@ export async function googleSignIn() {
     await firebaseReady();
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
-    if (isIOSWebKit() || isSafari()) {
+    if (isIOSWebKit() || isSafariDesktop()) {
       await signInWithRedirect(auth, provider);
       return { ok: true as const, message: "Redirecting..." };
     }
