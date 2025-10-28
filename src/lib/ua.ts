@@ -8,6 +8,15 @@ export function isIOSWebKit(): boolean {
   return isIOS && isWebKit && !isAltBrowser;
 }
 
+export function isSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  // Safari on macOS or iOS: userAgent contains Safari but not Chrome/Edge/Opera variants
+  const isSafariTokenPresent = /Safari\//.test(ua);
+  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(ua);
+  return isSafariTokenPresent && !isNonSafariEngine;
+}
+
 export function isMobileWebKit(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
