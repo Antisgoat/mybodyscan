@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { isStripeEnabled, openBillingPortal, startCheckout } from "@/lib/stripeClient";
+import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
+import { openCustomerPortal, startCheckoutByPlan } from "@/lib/payments";
 
 type Props = {
   className?: string;
@@ -15,7 +16,7 @@ export default function BillingButtons({ className }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/createCustomerPortal", { method: "HEAD" });
+        const res = await fetch("/createCustomerPortal", { method: "OPTIONS" });
         if (!cancelled) setPortalAvailable(res.ok);
       } catch {
         if (!cancelled) setPortalAvailable(false);
@@ -31,7 +32,7 @@ export default function BillingButtons({ className }: Props) {
     if (!enabled) return;
     setPending("checkout");
     try {
-      await startCheckout();
+      await startCheckoutByPlan("one");
     } finally {
       setPending(null);
     }
@@ -45,7 +46,7 @@ export default function BillingButtons({ className }: Props) {
         toast({ title: "Portal not available yet." });
         return;
       }
-      await openBillingPortal();
+      await openCustomerPortal();
     } finally {
       setPending(null);
     }

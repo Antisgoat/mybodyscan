@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   emailPasswordSignIn,
-  googleSignIn,
+  googleSignInWithFirebase,
   appleSignIn,
   APPLE_WEB_ENABLED,
 } from "../lib/login";
@@ -38,7 +38,7 @@ export default function Login() {
   async function onGoogle() {
     setBusy(true);
     try {
-      const r = await googleSignIn();
+      const r = await googleSignInWithFirebase();
       if (!r.ok) {
         const message = "message" in r && typeof r.message === "string" && r.message
           ? r.message

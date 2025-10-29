@@ -22,7 +22,7 @@ import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { consumeOneCredit } from "@/lib/payments";
+import { consumeOneCredit } from "@/lib/credits";
 import { auth, db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { collection, doc, serverTimestamp } from "firebase/firestore";

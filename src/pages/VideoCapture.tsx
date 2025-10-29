@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { auth as firebaseAuth, storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
-import { consumeOneCredit } from "@/lib/payments";
+import { consumeOneCredit } from "@/lib/credits";
 import { sanitizeFilename } from "@/lib/utils";
 
 const MAX_SECONDS = 10;

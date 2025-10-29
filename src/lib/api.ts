@@ -302,20 +302,29 @@ export async function startScan(params?: Record<string, unknown>) {
   return (await response.json()) as { scanId: string };
 }
 
-export async function openStripeCheckout(priceId: string, plan: string, mode: "payment" | "subscription") {
-  const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(priceId)}&plan=${encodeURIComponent(plan)}&mode=${mode}`);
+export async function openStripeCheckout(priceId: string) {
+  const r = await authedFetch(`/createCheckout`, {
+    method: "POST",
+    body: JSON.stringify({ priceId }),
+  });
   const { url } = await r.json();
   if (url) window.location.href = url;
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
-  const r = await authedFetch(`/createCheckout?priceId=${encodeURIComponent(productId)}`);
+  const r = await authedFetch(`/createCheckout`, {
+    method: "POST",
+    body: JSON.stringify({ priceId: productId }),
+  });
   const { url } = await r.json();
   if (url) window.location.href = url;
 }
 
 export async function openStripePortal() {
-  const r = await authedFetch(`/createCustomerPortal`);
+  const r = await authedFetch(`/createCustomerPortal`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   const { url } = await r.json();
   if (url) window.open(url, "_blank", "noopener,noreferrer");
 }

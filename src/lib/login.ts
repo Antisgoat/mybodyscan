@@ -1,7 +1,7 @@
+import type { Auth } from "firebase/auth";
 import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithRedirect } from "firebase/auth";
 import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { isIOSWebKit, isSafariDesktop } from "./ua";
 
 function mapAuthError(err: unknown): { code?: string; message: string } {
   const code = (err && typeof err === "object" && "code" in (err as any)) ? String((err as any).code) : undefined;
@@ -46,21 +46,29 @@ export async function emailPasswordSignIn(email: string, password: string) {
   }
 }
 
-export async function googleSignIn() {
-  try {
-    await firebaseReady();
-    const auth = getFirebaseAuth();
-    const provider = new GoogleAuthProvider();
-    if (isIOSWebKit() || isSafariDesktop()) {
-      await signInWithRedirect(auth, provider);
-      return { ok: true as const, message: "Redirecting..." };
-    }
-    await popupThenRedirect(auth, provider);
-    return { ok: true as const };
-  } catch (e) {
-    const m = mapAuthError(e);
-    return { ok: false as const, code: m.code, message: m.message };
+export async function googleSignIn(auth: Auth) {
+  const provider = new GoogleAuthProvider();
+  const ua = navigator.userAgent || "";
+  const isIOS = /iP(hone|od|ad)/.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  if (isIOS && isSafari) {
+    // Safari/iOS blocks popups and 3P cookies → go redirect-first
+    await signInWithRedirect(auth, provider);
+    return { ok: true };
   }
+  try {
+    await popupThenRedirect(auth, provider);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, code: e?.code || "auth/unknown", message: e?.message || "Sign-in failed" };
+  }
+}
+
+export async function googleSignInWithFirebase() {
+  await firebaseReady();
+  const auth = getFirebaseAuth();
+  return googleSignIn(auth);
 }
 
 export async function appleSignIn() {

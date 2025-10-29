@@ -17,7 +17,7 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
+import { appleSignIn, emailPasswordSignIn, googleSignInWithFirebase, APPLE_WEB_ENABLED } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 
@@ -121,7 +121,7 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await googleSignIn();
+      const result = await googleSignInWithFirebase();
       if (result.ok === false) {
         consumeAuthRedirect();
         toast(result.message ?? "Google sign-in failed.", "error");

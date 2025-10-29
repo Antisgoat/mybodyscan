@@ -10,5 +10,6 @@ export { submitScan } from "./scan/submit.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { adjustWorkout } from "./workouts.js";
-export { createCheckout, stripeWebhook } from "./payments.js";
+export { stripeWebhook } from "./payments.js";
+export { createCheckout, createCustomerPortal } from "./http/checkout.js";
 export { refreshClaims } from "./claims.js";
