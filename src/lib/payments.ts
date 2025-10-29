@@ -1,118 +1,48 @@
-import { log } from "./logger";
-import { isDemoActive } from "./demoFlag";
-import { toast } from "@/hooks/use-toast";
-import { track } from "./analytics";
-import { FirebaseError } from "firebase/app";
-import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions } from "@/lib/firebase";
-import { authedFetch } from "@/lib/api";
+import { auth } from "./firebase";
 
-export type CheckoutPlanKey = "single" | "monthly" | "yearly" | "extra";
+export type PlanKey = "one" | "extra" | "pro_monthly" | "elite_annual";
 
-export async function startCheckout(plan: CheckoutPlanKey) {
-  if (isDemoActive()) {
-    track("demo_block", { action: "checkout" });
+const PRICE_IDS: Record<PlanKey, string> = {
+  one: "price_1RuOpKQQU5vuhlNjipfFBsR0",
+  extra: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
+  pro_monthly: "price_1S4XsVQQU5vuhlNjzdQzeySA",
+  elite_annual: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+};
+
+async function postJSON(path: string, body: any) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const user = auth.currentUser;
+  if (user) {
     try {
-      toast({
-        title: "Sign up to use this feature",
-        description: "Create a free account to continue.",
-      });
+      const token = await user.getIdToken();
+      headers.Authorization = `Bearer ${token}`;
     } catch {
-      // ignore toast failures in non-UI contexts
+      // ignore token errors; endpoint will reject if required
     }
-    window.location.assign("/auth");
-    return;
   }
-  const user = firebaseAuth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  const response = await authedFetch(`/createCheckout`, {
+  const r = await fetch(path, {
     method: "POST",
-    body: JSON.stringify({ plan }),
+    headers,
+    body: JSON.stringify(body),
+    credentials: "include",
   });
-  const payload = (await response
-    .json()
-    .catch(() => ({}))) as Record<string, unknown>;
-
-    const errorCode = typeof (payload as any)?.error === "string" ? ((payload as any).error as string) : undefined;
-
-    if (!response.ok) {
-      if (errorCode === "config") {
-        toast({
-          title: "Checkout not configured",
-          description: "Checkout not configured. Please contact support.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (errorCode === "internal") {
-        toast({
-          title: "Checkout error",
-          description: "Checkout error. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      throw new Error(errorCode || "Checkout failed");
-    }
-
-  if (errorCode) {
-    if (errorCode === "config") {
-      toast({
-        title: "Checkout not configured",
-        description: "Checkout not configured. Please contact support.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (errorCode === "internal") {
-      toast({
-        title: "Checkout error",
-        description: "Checkout error. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-  }
-
-  const url = typeof (payload as any)?.url === "string" ? ((payload as any).url as string) : null;
-  if (!url) {
-    throw new Error("Checkout failed");
-  }
-  window.location.assign(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-export async function consumeOneCredit(): Promise<number> {
-  if (isDemoActive()) {
-    track("demo_block", { action: "scan" });
-    try {
-      toast({
-        title: "Sign up to use this feature",
-        description: "Create a free account to start scanning.",
-      });
-    } catch {
-      // ignore toast failures in non-UI contexts
-    }
-    window.location.assign("/auth");
-    throw new Error("demo-blocked");
-  }
-  const user = firebaseAuth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  try {
-    const fn = httpsCallable(functions, "useCredit");
-    const result = await fn({ reason: "scan" });
-    const payload = result.data as { ok?: boolean; remaining?: number };
-    if (!payload?.ok) {
-      log("warn", "useCredit:no_credits");
-      throw new Error("No credits available");
-    }
-    log("info", "useCredit:success", { remaining: payload.remaining });
-    return payload.remaining ?? 0;
-  } catch (err: any) {
-    if (err instanceof FirebaseError && err.code === "functions/failed-precondition") {
-      log("warn", "useCredit:no_credits");
-      throw new Error("No credits available");
-    }
-    log("warn", "useCredit:error", { message: err?.message });
-    throw err;
-  }
+export async function startCheckoutByPrice(priceId: string) {
+  const { url } = await postJSON("/createCheckout", { priceId });
+  if (!url) throw new Error("Checkout URL missing");
+  location.assign(url);
+}
+
+export async function startCheckoutByPlan(plan: PlanKey) {
+  const priceId = PRICE_IDS[plan];
+  await startCheckoutByPrice(priceId);
+}
+
+export async function openCustomerPortal() {
+  const { url } = await postJSON("/createCustomerPortal", {});
+  if (!url) throw new Error("Portal URL missing");
+  location.assign(url);
 }

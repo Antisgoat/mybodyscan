@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
-import { consumeOneCredit } from "@/lib/payments";
+import { consumeOneCredit } from "@/lib/credits";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutritionBackend";

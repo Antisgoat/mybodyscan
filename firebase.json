@@ -114,6 +114,13 @@
         }
       },
       {
+        "source": "/createCustomerPortal",
+        "function": {
+          "functionId": "createCustomerPortal",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/stripeWebhook",
         "function": {
           "functionId": "stripeWebhook",

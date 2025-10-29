@@ -3,9 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import type { CheckoutMode } from "@/lib/checkout";
-import type { CheckoutPlanKey } from "@/lib/payments";
-import { startCheckout } from "@/lib/checkout";
+import type { PlanKey } from "@/lib/payments";
+import { startCheckoutByPlan } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -14,21 +13,10 @@ import { isDemoActive } from "@/lib/demoFlag";
 
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (plan: CheckoutPlanKey, mode: CheckoutMode) => {
+  const handleCheckout = async (plan: PlanKey) => {
     try {
       track("checkout_start", { plan });
-      const PRICE_ONE_TIME = "price_1RuOpKQQU5vuhlNjipfFBsR0";
-      const PRICE_EXTRA = "price_1S4Y9JQQU5vuhlNjB7cBfmaW";
-      const PRICE_MONTHLY = "price_1S4XsVQQU5vuhlNjzdQzeySA";
-      const PRICE_ANNUAL = "price_1S4Y6YQQU5vuhlNjeJFmshxX";
-      const map: Record<CheckoutPlanKey, string> = {
-        single: PRICE_ONE_TIME,
-        monthly: PRICE_MONTHLY,
-        yearly: PRICE_ANNUAL,
-        extra: PRICE_EXTRA,
-      };
-      const priceId = map[plan];
-      await startCheckout(priceId, mode);
+      await startCheckoutByPlan(plan);
     } catch (err: any) {
       toast({
         title: "Checkout failed",
@@ -46,7 +34,7 @@ export default function Plans() {
       price: "$9.99",
       period: "one-time",
       credits: "1 scan credit",
-      plan: "single" as const,
+      plan: "one" as const,
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -61,7 +49,7 @@ export default function Plans() {
       originalPrice: "$24.99",
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
-      plan: "monthly" as const,
+      plan: "pro_monthly" as const,
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -80,7 +68,7 @@ export default function Plans() {
       price: "$199.99",
       period: "per year",
       credits: "3 scans/month + Everything included",
-      plan: "yearly" as const,
+      plan: "elite_annual" as const,
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -177,7 +165,7 @@ export default function Plans() {
                 <Button
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleCheckout(plan.plan, plan.mode)}
+                  onClick={() => handleCheckout(plan.plan)}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>

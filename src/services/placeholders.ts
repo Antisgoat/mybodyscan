@@ -146,11 +146,7 @@ export async function addNote(uid: string, scanId: string, note: string) {
   }
 }
 
-export async function openStripeCheckout(
-  _priceId: string,
-  _plan: string,
-  _mode: "payment" | "subscription"
-) {
+export async function openStripeCheckout(_priceId: string) {
   // Placeholder – replace with Cloud Function URL
   return { url: "https://example.com/checkout" };
 }

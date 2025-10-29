@@ -1,6 +1,5 @@
 import "./lib/swKill";
 import "./lib/bootProbe";
-import "./lib/authRedirect";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
@@ -10,6 +9,9 @@ import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { firebaseReady } from "./lib/firebase";
+import { handleAuthRedirectOnce } from "./lib/authRedirect";
+
+handleAuthRedirectOnce();
 
 // Boot error trap to capture first thrown error before any UI swallows it
 if (typeof window !== "undefined") {
