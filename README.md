@@ -66,7 +66,7 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/cf8140ba-edcc-4236-9166-fb030db04005) and click on Share -> Publish.
+Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets are set for payments.
 
 ## Can I connect a custom domain to my Lovable project?
 
@@ -96,7 +96,7 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID`
 - `VITE_FUNCTIONS_BASE_URL`
-- `VITE_RECAPTCHA_V3_SITE_KEY` *(App Check; soft in dev/demo if missing)*
+- `VITE_APPCHECK_SITE_KEY` *(App Check reCAPTCHA v3 site key; soft if missing in dev)*
 - `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
 
 ### Enable Sign in with Apple (Web)
@@ -218,6 +218,37 @@ Stripe webhook requests now require a valid signature. Invalid signatures return
    - your Lovable preview domain
 4) Rebuild locally: `npm ci && npm run build && npm run preview`
 5) Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
+
+## Smoke test
+
+After deploying this PR, validate end-to-end:
+
+1) Auth
+- Desktop Chrome: sign in with Email and Google
+- iOS Safari (private tab): tap Google → redirect completes and signs in; no auth/internal-error
+- Reload the app: redirect result is consumed once, no page loop
+
+2) Scan
+- Start a scan, upload 4 photos, Submit
+- Inference completes; result appears on the results page and is saved under `users/{uid}/scans/{scanId}`
+- If no credits and not whitelisted, a toast prompts to buy credits
+
+3) Credits & Billing
+- Plans: “Buy Now/Subscribe/Yearly” open Stripe Checkout via `/createCheckout`
+- After successful payment and webhook, credits/subscription reflect on the account
+- “Manage Billing” opens Stripe Customer Portal via `/createCustomerPortal`
+
+4) Coach & Nutrition
+- Coach chat responds for authed users; errors show friendly toasts
+- Nutrition: search returns results (USDA first, OFF fallback); barcode works (OFF first)
+- Add/edit/delete meal entries updates daily totals
+
+5) Stability
+- Visit `/__diag`: shows auth user, claims, App Check token present, Stripe key presence, build info
+- “Unregister SW + Clear caches” succeeds (no SW by default)
+
+6) CI
+- GitHub Actions workflow green for Web and Functions
 
 ## Secrets & Deploy Quick Reference
 
