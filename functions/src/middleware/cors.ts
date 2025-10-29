@@ -3,6 +3,7 @@ import type { Response } from "express";
 
 const ALLOWED = new Set([
   "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
 ]);

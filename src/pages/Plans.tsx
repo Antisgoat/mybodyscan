@@ -3,7 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { startCheckout, type CheckoutPlanKey } from "@/lib/payments";
+import type { CheckoutMode } from "@/lib/checkout";
+import type { CheckoutPlanKey } from "@/lib/payments";
+import { startCheckout } from "@/lib/checkout";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -12,24 +14,27 @@ import { isDemoActive } from "@/lib/demoFlag";
 
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (plan: CheckoutPlanKey, mode: "payment" | "subscription") => {
+  const handleCheckout = async (plan: CheckoutPlanKey, mode: CheckoutMode) => {
     try {
       track("checkout_start", { plan });
-      await startCheckout(plan);
+      const PRICE_ONE_TIME = "price_1RuOpKQQU5vuhlNjipfFBsR0";
+      const PRICE_EXTRA = "price_1S4Y9JQQU5vuhlNjB7cBfmaW";
+      const PRICE_MONTHLY = "price_1S4XsVQQU5vuhlNjzdQzeySA";
+      const PRICE_ANNUAL = "price_1S4Y6YQQU5vuhlNjeJFmshxX";
+      const map: Record<CheckoutPlanKey, string> = {
+        single: PRICE_ONE_TIME,
+        monthly: PRICE_MONTHLY,
+        yearly: PRICE_ANNUAL,
+        extra: PRICE_EXTRA,
+      };
+      const priceId = map[plan];
+      await startCheckout(priceId, mode);
     } catch (err: any) {
-      if (err?.message?.includes("Backend URL not configured")) {
-        toast({
-          title: "Service unavailable",
-          description: "Payments are not available in development mode.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: err?.message || "Failed to start checkout",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Checkout failed",
+        description: "Checkout failed. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

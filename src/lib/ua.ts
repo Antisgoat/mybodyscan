@@ -17,6 +17,16 @@ export function isSafari(): boolean {
   return isSafariTokenPresent && !isNonSafariEngine;
 }
 
+// Desktop Safari only (exclude iOS)
+export function isSafariDesktop(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isSafariTokenPresent = /Safari\//.test(ua);
+  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(ua);
+  const isIOS = /(iPhone|iPad|iPod)/.test(ua);
+  return isSafariTokenPresent && !isNonSafariEngine && !isIOS;
+}
+
 export function isMobileWebKit(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";

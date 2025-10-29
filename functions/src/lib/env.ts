@@ -29,7 +29,7 @@ export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT",
 export const getOpenAIKey = () => getEnv("OPENAI_API_KEY");
 
 export const getStripeSecret = () =>
-  (getEnv("STRIPE_SECRET") || getEnv("STRIPE_API_KEY") || undefined);
+  (getEnv("STRIPE_SECRET") || getEnv("STRIPE_API_KEY") || getEnv("STRIPE_SECRET_KEY") || undefined);
 
 export const getStripeSigningSecret = () =>
   (
