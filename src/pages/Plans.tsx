@@ -12,22 +12,16 @@ import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { isDemoActive } from "@/lib/demoFlag";
 
+const PRICE_ONE_TIME = "price_1RuOpKQQU5vuhlNjipfFBsR0";
+const PRICE_EXTRA = "price_1S4Y9JQQU5vuhlNjB7cBfmaW";
+const PRICE_MONTHLY = "price_1S4XsVQQU5vuhlNjzdQzeySA";
+const PRICE_ANNUAL = "price_1S4Y6YQQU5vuhlNjeJFmshxX";
+
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (plan: CheckoutPlanKey, mode: CheckoutMode) => {
+  const handleCheckout = async (plan: CheckoutPlanKey, priceId: string, mode: CheckoutMode) => {
     try {
       track("checkout_start", { plan });
-      const PRICE_ONE_TIME = "price_1RuOpKQQU5vuhlNjipfFBsR0";
-      const PRICE_EXTRA = "price_1S4Y9JQQU5vuhlNjB7cBfmaW";
-      const PRICE_MONTHLY = "price_1S4XsVQQU5vuhlNjzdQzeySA";
-      const PRICE_ANNUAL = "price_1S4Y6YQQU5vuhlNjeJFmshxX";
-      const map: Record<CheckoutPlanKey, string> = {
-        single: PRICE_ONE_TIME,
-        monthly: PRICE_MONTHLY,
-        yearly: PRICE_ANNUAL,
-        extra: PRICE_EXTRA,
-      };
-      const priceId = map[plan];
       await startCheckout(priceId, mode);
     } catch (err: any) {
       toast({
@@ -47,6 +41,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "single" as const,
+      priceId: PRICE_ONE_TIME,
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -62,6 +57,7 @@ export default function Plans() {
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
       plan: "monthly" as const,
+      priceId: PRICE_MONTHLY,
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -81,6 +77,7 @@ export default function Plans() {
       period: "per year",
       credits: "3 scans/month + Everything included",
       plan: "yearly" as const,
+      priceId: PRICE_ANNUAL,
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -105,6 +102,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "extra" as const,
+      priceId: PRICE_EXTRA,
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
@@ -177,7 +175,7 @@ export default function Plans() {
                 <Button
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleCheckout(plan.plan, plan.mode)}
+                  onClick={() => handleCheckout(plan.plan, plan.priceId, plan.mode)}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>

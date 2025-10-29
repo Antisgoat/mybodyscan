@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
-import { auth } from "../lib/firebase";
 import { fetchClaims } from "../lib/claims";
 import { BUILD } from "../lib/buildInfo";
 import {

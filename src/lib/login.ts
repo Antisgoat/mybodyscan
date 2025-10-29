@@ -53,7 +53,7 @@ export async function googleSignIn() {
     const provider = new GoogleAuthProvider();
     if (isIOSWebKit() || isSafariDesktop()) {
       await signInWithRedirect(auth, provider);
-      return { ok: true as const, message: "Redirecting..." };
+      return { ok: true as const };
     }
     await popupThenRedirect(auth, provider);
     return { ok: true as const };
