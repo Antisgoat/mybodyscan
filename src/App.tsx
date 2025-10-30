@@ -611,8 +611,8 @@ const App = () => {
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/system/check" element={<SystemCheck />} />
             <Route path="/dev/audit" element={<DevAudit />} />
-            <Route path="/diagnostics" element={<Diagnostics />} />
-            <Route path="/__diag" element={<Diagnostics />} />
+            {import.meta.env.DEV && <Route path="/diagnostics" element={<Diagnostics />} />}
+            {import.meta.env.DEV && <Route path="/__diag" element={<Diagnostics />} />}
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />

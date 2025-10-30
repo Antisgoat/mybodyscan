@@ -18,9 +18,10 @@ export default function Plans() {
       track("checkout_start", { plan });
       await startCheckoutByPlan(plan);
     } catch (err: any) {
+      const code = typeof err?.code === "string" ? err.code : undefined;
       toast({
         title: "Checkout failed",
-        description: "Checkout failed. Please try again.",
+        description: import.meta.env.DEV && code ? `Checkout failed (${code}).` : "Checkout failed. Please try again.",
         variant: "destructive",
       });
     }

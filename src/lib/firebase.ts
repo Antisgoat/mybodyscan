@@ -1,6 +1,13 @@
 /* eslint-disable no-console */
 import { initializeApp, type FirebaseApp, getApps } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import {
+  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  type Auth,
+} from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
@@ -124,7 +131,19 @@ async function init(): Promise<void> {
   if (getApps().length > 0) {
     appInstance = getApps()[0]!;
     assignConfigFromApp(appInstance);
-    authInstance = getAuth(appInstance);
+    // Reuse existing Auth if already initialized elsewhere (e.g., HMR)
+    try {
+      authInstance = getAuth(appInstance);
+    } catch {
+      // Initialize with deterministic persistence order when not yet created
+      authInstance = initializeAuth(appInstance, {
+        persistence: [
+          indexedDBLocalPersistence,
+          browserLocalPersistence,
+          browserSessionPersistence,
+        ],
+      });
+    }
     ensureDeviceLanguage(authInstance);
     return;
   }
@@ -152,7 +171,19 @@ async function init(): Promise<void> {
 
   configInstance = cfg;
   appInstance = initializeApp(cfg);
-  authInstance = getAuth(appInstance);
+  // Deterministic persistence order; SDK falls back to first available
+  try {
+    authInstance = initializeAuth(appInstance, {
+      persistence: [
+        indexedDBLocalPersistence,
+        browserLocalPersistence,
+        browserSessionPersistence,
+      ],
+    });
+  } catch {
+    // Final fallback to default getter if initializeAuth fails in edge environments
+    authInstance = getAuth(appInstance);
+  }
   ensureDeviceLanguage(authInstance);
 }
 
