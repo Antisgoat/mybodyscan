@@ -76,3 +76,37 @@ export const refreshClaims = onCall({ region: "us-central1" }, async (request) =
 
   return { updated: true, unlimitedCredits: true };
 });
+
+/**
+ * grantUnlimitedCredits(email): Minimal admin callable to grant unlimitedCredits=true.
+ * Restricted to callers with staff:true.
+ */
+export const grantUnlimitedCredits = onCall({ region: "us-central1" }, async (request) => {
+  const { auth, data } = request as { auth?: { uid: string; token?: any }, data?: { email?: string } };
+  if (!auth?.uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+
+  initializeFirebaseIfNeeded();
+  const caller = await admin.auth().getUser(auth.uid);
+  const isCallerStaff = Boolean((caller.customClaims as any)?.staff === true);
+  if (!isCallerStaff) {
+    throw new HttpsError("permission-denied", "Staff role required");
+  }
+
+  const email = typeof data?.email === "string" ? data!.email.trim().toLowerCase() : "";
+  if (!email) {
+    throw new HttpsError("invalid-argument", "email is required");
+  }
+
+  let target;
+  try {
+    target = await admin.auth().getUserByEmail(email);
+  } catch (err) {
+    throw new HttpsError("not-found", "user_not_found");
+  }
+
+  const existing = target.customClaims || {};
+  await admin.auth().setCustomUserClaims(target.uid, { ...existing, unlimitedCredits: true });
+  return { ok: true, uid: target.uid };
+});
