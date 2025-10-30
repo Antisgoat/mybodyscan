@@ -17,7 +17,8 @@ async function readClaims(u: User | null, force: boolean): Promise<UserClaims> {
     const raw = c["credits"];
     const credits = typeof raw === "number" ? raw : undefined;
     const dev = c["dev"] === true;
-    return { ...c, dev, credits };
+    const unlimitedCredits = c["unlimitedCredits"] === true;
+    return { ...c, dev, credits, unlimitedCredits };
   } catch {
     return null;
   }

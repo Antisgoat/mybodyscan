@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import {
   emailPasswordSignIn,
-  googleSignInWithFirebase,
+  googleSignIn,
   appleSignIn,
   APPLE_WEB_ENABLED,
 } from "../lib/login";
 import { toast } from "../lib/toast";
+import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -38,16 +39,17 @@ export default function Login() {
   async function onGoogle() {
     setBusy(true);
     try {
-      const r = await googleSignInWithFirebase();
+      await firebaseReady();
+      const auth = getFirebaseAuth();
+      const r = await googleSignIn(auth);
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Google sign-in failed.";
-        toast(message, "error");
+        const show = formatError(r.message, r.code);
+        toast(show, "error");
       }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Google sign-in failed.";
-      toast(message, "error");
+      const show = formatError(message, (err as { code?: string } | undefined)?.code);
+      toast(show, "error");
     } finally {
       setBusy(false);
     }
@@ -122,6 +124,13 @@ export default function Login() {
       </div>
     </div>
   );
+}
+
+function formatError(message: string, code?: string) {
+  if (import.meta.env.DEV && code) {
+    return `${message} (${code})`;
+  }
+  return message;
 }
 
 /* minimal inline styles */

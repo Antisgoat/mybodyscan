@@ -1,7 +1,14 @@
 import type { Auth } from "firebase/auth";
-import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithRedirect } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+} from "firebase/auth";
 import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
+import { isIOSSafari } from "./isIOSWeb";
 
 function mapAuthError(err: unknown): { code?: string; message: string } {
   const code = (err && typeof err === "object" && "code" in (err as any)) ? String((err as any).code) : undefined;
@@ -48,20 +55,38 @@ export async function emailPasswordSignIn(email: string, password: string) {
 
 export async function googleSignIn(auth: Auth) {
   const provider = new GoogleAuthProvider();
-  const ua = navigator.userAgent || "";
-  const isIOS = /iP(hone|od|ad)/.test(ua);
-  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
 
-  if (isIOS && isSafari) {
-    // Safari/iOS blocks popups and 3P cookies → go redirect-first
-    await signInWithRedirect(auth, provider);
-    return { ok: true };
+  const redirect = async () => {
+    try {
+      await signInWithRedirect(auth, provider);
+      return { ok: true as const };
+    } catch (error) {
+      const mapped = mapAuthError(error);
+      return { ok: false as const, code: mapped.code, message: mapped.message };
+    }
+  };
+
+  if (isIOSSafari()) {
+    return redirect();
   }
+
   try {
-    await popupThenRedirect(auth, provider);
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, code: e?.code || "auth/unknown", message: e?.message || "Sign-in failed" };
+    await signInWithPopup(auth, provider);
+    return { ok: true as const };
+  } catch (error: unknown) {
+    const code = getErrorCode(error);
+    if (
+      code === "auth/operation-not-supported-in-this-environment" ||
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/internal-error" ||
+      !code
+    ) {
+      return redirect();
+    }
+
+    const mapped = mapAuthError(error);
+    return { ok: false as const, code: mapped.code, message: mapped.message };
   }
 }
 
@@ -69,6 +94,18 @@ export async function googleSignInWithFirebase() {
   await firebaseReady();
   const auth = getFirebaseAuth();
   return googleSignIn(auth);
+}
+
+function getErrorCode(err: unknown): string | undefined {
+  if (
+    err &&
+    typeof err === "object" &&
+    "code" in (err as Record<string, unknown>) &&
+    typeof (err as Record<string, unknown>).code === "string"
+  ) {
+    return (err as Record<string, unknown>).code as string;
+  }
+  return undefined;
 }
 
 export async function appleSignIn() {

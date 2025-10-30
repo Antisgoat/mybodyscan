@@ -11,6 +11,18 @@ const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
 
 const db = getFirestore();
 
+const PRICE_CREDIT_MAP: Record<string, number> = {
+  price_1RuOpKQQU5vuhlNjipfFBsR0: 1,
+  price_1S4Y9JQQU5vuhlNjB7cBfmaW: 1,
+  price_1S4XsVQQU5vuhlNjzdQzeySA: 3,
+  price_1S4Y6YQQU5vuhlNjeJFmshxX: 36,
+};
+
+const SUBSCRIPTION_PRICE_IDS = new Set<string>([
+  "price_1S4XsVQQU5vuhlNjzdQzeySA",
+  "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+]);
+
 const stripeWebhookOptions: HttpsOptions & { rawBody: true } = {
   region: "us-central1",
   cors: ["https://mybodyscanapp.com", "https://mybodyscan-f3daf.web.app"],
@@ -85,7 +97,15 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           const uid = (session.metadata?.uid as string) || null;
           const priceId = (session.metadata?.priceId as string) || null;
           if (uid && priceId) {
-            await addCredits(uid, 1, `Checkout ${priceId}`, 12);
+            if (session.mode === "payment") {
+              const credits = PRICE_CREDIT_MAP[priceId] ?? 0;
+              if (credits > 0) {
+                await addCredits(uid, credits, `Checkout ${priceId}`, 12);
+              }
+            }
+            if (session.mode === "subscription") {
+              await setSubscriptionStatus(uid, "active", priceId, null);
+            }
           }
           break;
         }
@@ -94,20 +114,32 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           const uid = (invoice.metadata?.uid as string) || null;
           if (uid) {
             const lines = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
-            const isMonthly = lines.some((line) => line.price?.recurring?.interval === "month");
-            const isAnnual = lines.some((line) => line.price?.recurring?.interval === "year");
-            if (isMonthly) {
-              await addCredits(uid, 3, "Monthly subscription", 12);
+            let totalCredits = 0;
+            let subscriptionPriceId: string | null = null;
+            let renewalUnix: number | null = null;
+
+            for (const line of lines) {
+              const priceId = (line.price?.id as string) || null;
+              if (!priceId) {
+                continue;
+              }
+              const credits = PRICE_CREDIT_MAP[priceId] ?? 0;
+              if (credits > 0) {
+                totalCredits += credits;
+              }
+              if (!subscriptionPriceId && SUBSCRIPTION_PRICE_IDS.has(priceId)) {
+                subscriptionPriceId = priceId;
+                renewalUnix = line.period?.end || null;
+              }
             }
-            if (isAnnual) {
-              await addCredits(uid, 36, "Annual subscription (3/mo x 12)", 12);
+
+            if (totalCredits > 0) {
+              await addCredits(uid, totalCredits, "Stripe invoice", 12);
             }
-            await setSubscriptionStatus(
-              uid,
-              "active",
-              (invoice.lines.data[0]?.price?.id as string) || null,
-              invoice.lines.data[0]?.period?.end || null
-            );
+
+            if (subscriptionPriceId) {
+              await setSubscriptionStatus(uid, "active", subscriptionPriceId, renewalUnix);
+            }
           }
           break;
         }
