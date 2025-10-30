@@ -68,6 +68,17 @@ This project is built with:
 
 Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets are set for payments.
 
+## Mobile readiness
+
+The web app now includes WebView guardrails so it can be wrapped with Capacitor. See [mobile/WRAP.md](mobile/WRAP.md) for the complete step-by-step plan covering Capacitor setup, platform provisioning, and build handoff.
+
+Highlights:
+- Google sign-in auto-detects iOS/Android WebViews and uses redirect flows (no popup requirements)
+- External payment links route through `openExternal()` so Stripe opens in the system browser
+- File capture inputs request the environment camera with size/type validation, keeping scan uploads mobile-friendly
+- `/oauth/return` handles OAuth and deep-link callbacks as a stable fallback route for native shells
+- Android back navigation prompts before leaving critical flows (scan upload/processing, Stripe return pages)
+
 ## Can I connect a custom domain to my Lovable project?
 
 Yes, you can!

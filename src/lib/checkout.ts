@@ -26,5 +26,6 @@ export async function startCheckout(priceId: string, mode: CheckoutMode = "payme
   }
   const { url } = (await response.json().catch(() => ({}))) as { url?: string };
   if (!url) throw new Error("checkout_no_url");
-  window.location.assign(url);
+  const { openExternal } = await import("./links");
+  openExternal(url);
 }

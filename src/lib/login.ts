@@ -8,7 +8,8 @@ import {
 } from "firebase/auth";
 import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { isIOSSafari } from "./isIOSWeb";
+import { isCapacitor, isIOSWebView, isInAppBrowser } from "./platform";
+import { toast } from "./toast";
 
 function mapAuthError(err: unknown): { code?: string; message: string } {
   const code = (err && typeof err === "object" && "code" in (err as any)) ? String((err as any).code) : undefined;
@@ -66,7 +67,11 @@ export async function googleSignIn(auth: Auth) {
     }
   };
 
-  if (isIOSSafari()) {
+  const constrainedWebView = isIOSWebView() || isCapacitor() || isInAppBrowser();
+  if (constrainedWebView) {
+    if (import.meta.env.DEV) {
+      toast("Using redirect for Google sign-in (WebView detected).");
+    }
     return redirect();
   }
 

@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
+import { useBackNavigationGuard } from "@/lib/back";
 
 const Processing = () => {
   const { scanId } = useParams();
@@ -14,6 +15,9 @@ const Processing = () => {
   const { user } = useAuthUser();
   const [showTip, setShowTip] = useState(false);
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
+  useBackNavigationGuard(() => status === "queued" || status === "processing", {
+    message: "Going back may cancel the current action. Continue?",
+  });
 
   useEffect(() => {
     const uid = user?.uid;

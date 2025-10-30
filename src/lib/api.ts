@@ -4,6 +4,7 @@ import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type { Auth, User } from "firebase/auth";
+import { openExternal } from "./links";
 
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
   return { auth: firebaseAuth, user: firebaseAuth.currentUser };
@@ -319,7 +320,7 @@ export async function openStripeCheckout(priceId: string) {
     body: JSON.stringify({ priceId }),
   });
   const { url } = await r.json();
-  if (url) window.location.assign(url);
+  if (url) openExternal(url);
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
@@ -328,7 +329,7 @@ export async function openStripeCheckoutByProduct(productId: string) {
     body: JSON.stringify({ priceId: productId }),
   });
   const { url } = await r.json();
-  if (url) window.location.assign(url);
+  if (url) openExternal(url);
 }
 
 export async function openStripePortal() {
@@ -337,7 +338,7 @@ export async function openStripePortal() {
     body: JSON.stringify({}),
   });
   const { url } = await r.json();
-  if (url) window.location.assign(url);
+  if (url) openExternal(url);
 }
 
 async function handleJsonResponse(response: Response) {
