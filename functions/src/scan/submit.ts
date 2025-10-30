@@ -1,7 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
-import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
@@ -318,22 +318,37 @@ export const submitScan = onRequest(
     let scanRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> | null = null;
     try {
       if (req.method !== "POST") {
-        res.status(405).json({ error: "method_not_allowed" });
+        res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
         return;
       }
-      await verifyAppCheckStrict(req as Request);
-      const { uid, claims } = await requireAuthWithClaims(req as Request);
+      try {
+        await verifyAppCheckStrict(req as Request);
+      } catch (error: any) {
+        console.warn("scan_submit_appcheck_failed", { message: error?.message });
+        res.status(401).json({ error: "app_check_unavailable", code: "app_check_unavailable" });
+        return;
+      }
+
+      let authContext: { uid: string; claims?: Record<string, unknown> };
+      try {
+        authContext = await requireAuthWithClaims(req as Request);
+      } catch (error: any) {
+        console.warn("scan_submit_auth_failed", { message: error?.message });
+        res.status(401).json({ error: "auth_required", code: "auth_required" });
+        return;
+      }
+      const { uid, claims } = authContext;
       const unlimitedCredits = claims?.unlimitedCredits === true;
       const payload = validatePayload((req.body as any) || {});
       if (!payload) {
-        res.status(400).json({ error: "invalid_payload" });
+        res.status(400).json({ error: "invalid_payload", code: "invalid_payload" });
         return;
       }
       const idempotencyKey = payload.idempotencyKey || undefined;
       const debitRef = db.doc(`users/${uid}/private/debits/${payload.scanId}`) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
 
       if (!hasOpenAI()) {
-        res.status(503).json({ error: "openai_not_configured" });
+        res.status(503).json({ error: "openai_not_configured", code: "openai_not_configured" });
         return;
       }
       const apiKey = getOpenAIKey() as string;
@@ -356,7 +371,7 @@ export const submitScan = onRequest(
           }
         }
         if (metas.length < 2) {
-          res.status(400).json({ error: "bad_request", message: "Missing required photos (need 2 or 4)." });
+          res.status(400).json({ error: "bad_request", code: "missing_photos", message: "Missing required photos (need 2 or 4)." });
           return;
         }
         imageMetaList = metas.map(({ meta }) => meta);
@@ -417,6 +432,7 @@ export const submitScan = onRequest(
         // Do not consume credit on model error
         res.status(typeof err?.status === "number" ? err.status : 502).json({
           error: "scan_engine_unavailable",
+          code: "scan_engine_unavailable",
           message: "Vision model temporarily unavailable. Try again shortly.",
         });
         await scanRef.set(
@@ -465,7 +481,7 @@ export const submitScan = onRequest(
         } catch (error: any) {
           const code = (error?.code as string) || "unknown";
           console.warn("scan_submit_debit_guard", { uid, code, message: error?.message });
-          res.status(409).json({ error: "scan_in_progress" });
+          res.status(409).json({ error: "scan_in_progress", code: "scan_in_progress" });
           return;
         }
 
@@ -487,7 +503,7 @@ export const submitScan = onRequest(
                 .set({ status: "failed", updatedAt: Timestamp.now(), error: "no_credits" }, { merge: true })
                 .catch(() => undefined);
               if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-              res.status(402).json({ error: "no_credits" });
+              res.status(402).json({ error: "no_credits", code: "no_credits" });
               return;
             }
             await debitRef.set(
@@ -556,7 +572,7 @@ export const submitScan = onRequest(
           .set({ status: "failed", updatedAt: Timestamp.now(), error: err?.message || "scan_failed" }, { merge: true })
           .catch(() => undefined);
       }
-      res.status(500).json({ error: "scan_failed", message: err?.message || "error" });
+      res.status(500).json({ error: "scan_failed", code: "scan_failed", message: err?.message || "error" });
     }
   }
 );

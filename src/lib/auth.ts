@@ -3,16 +3,11 @@ import { httpsCallable } from "firebase/functions";
 import { auth as firebaseAuth, functions } from "@/lib/firebase";
 import {
   Auth,
-  UserCredential,
-  browserLocalPersistence,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
-  getAdditionalUserInfo,
-  getRedirectResult,
   linkWithCredential,
   onAuthStateChanged,
   sendPasswordResetEmail,
-  setPersistence,
   signOut,
   updateProfile,
 } from "firebase/auth";
@@ -24,10 +19,6 @@ async function ensureFirebaseAuth(): Promise<Auth> {
 
 export function getCachedAuth(): Auth | null {
   return firebaseAuth;
-}
-
-export async function initAuthPersistence() {
-  await setPersistence(firebaseAuth, browserLocalPersistence);
 }
 
 export function useAuthUser() {
@@ -142,41 +133,6 @@ export async function signOutToAuth(): Promise<void> {
   const auth = await ensureFirebaseAuth();
   await signOut(auth);
   window.location.href = "/auth";
-}
-
-const APPLE_PROVIDER_ID = "apple.com";
-
-type AppleAdditionalProfile = {
-  name?: { firstName?: string; lastName?: string };
-  firstName?: string;
-  lastName?: string;
-};
-
-async function applyAppleProfile(result: UserCredential | null) {
-  if (!result) return;
-  const info = getAdditionalUserInfo(result);
-  if (info?.providerId !== APPLE_PROVIDER_ID) return;
-  if (!info.isNewUser || !result.user || result.user.displayName) return;
-  const profile = info.profile as AppleAdditionalProfile | undefined;
-  const firstName = profile?.name?.firstName ?? profile?.firstName ?? "";
-  const lastName = profile?.name?.lastName ?? profile?.lastName ?? "";
-  const displayName = `${firstName} ${lastName}`.trim();
-  if (displayName) {
-    await updateProfile(result.user, { displayName });
-  }
-}
-
-export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result) {
-      await applyAppleProfile(result);
-    }
-    return result;
-  } catch (error) {
-    console.warn("[auth] Failed to resolve redirect result:", error);
-    return null;
-  }
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {

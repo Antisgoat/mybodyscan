@@ -10,7 +10,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
 import AuthedLayout from "./layouts/AuthedLayout";
-import { initAuthPersistence } from "./lib/auth";
 import { MBS_FLAGS } from "./lib/flags";
 import Index from "./pages/Index";
 import WelcomeRedirect from "./pages/WelcomeRedirect";

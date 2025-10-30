@@ -4,6 +4,7 @@ import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
+import { errorCode, statusFromCode } from "./lib/errors.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 
 export type MacroBreakdown = {
@@ -427,7 +428,7 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
 async function handleRequest(req: Request, res: Response): Promise<void> {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET,OPTIONS");
-    res.status(405).json({ error: "method_not_allowed" });
+    res.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });
     return;
   }
 
@@ -451,7 +452,11 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     windowSeconds: 60,
   });
   if (!limiter.allowed) {
-    res.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+    res.status(429).json({
+      error: "Rate limited. Try again soon.",
+      code: "rate_limited",
+      retryAfter: limiter.retryAfterSeconds ?? null,
+    });
     return;
   }
 
@@ -465,7 +470,7 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     if (error?.status === 429) {
       console.warn("nutrition_search_rate_limited", { type: uid ? "uid" : "ip" });
-      res.status(429).json({ error: "Too Many Requests" });
+      res.status(429).json({ error: "Too many requests", code: "too_many_requests" });
       return;
     }
     throw error;
@@ -555,8 +560,12 @@ export const nutritionSearch = onRequest(
     } catch (error: any) {
       if (!res.headersSent) {
         console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
-        const status = typeof error?.status === "number" ? error.status : 401;
-        res.status(status).json({ error: error?.message ?? "app_check_required" });
+        const code = errorCode(error);
+        const status = code === "failed-precondition" ? 401 : statusFromCode(code);
+        res.status(status).json({
+          error: "Secure verification required. Refresh and try again.",
+          code: "app_check_unavailable",
+        });
       }
       return;
     }
@@ -568,11 +577,12 @@ export const nutritionSearch = onRequest(
         return;
       }
       if (typeof error?.status === "number") {
-        res.status(error.status).json({ error: error.message ?? "request_failed" });
+        const code = typeof error?.code === "string" && error.code ? error.code : "request_failed";
+        res.status(error.status).json({ error: error.message ?? "Request failed", code });
         return;
       }
       console.error("nutrition_search_unhandled", { message: describeError(error) });
-      res.status(500).json({ error: "server_error" });
+      res.status(500).json({ error: "Server error", code: "server_error" });
     }
   }),
 );

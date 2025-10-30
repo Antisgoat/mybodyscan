@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
 import { getFirestore, getStorage } from "../firebase.js";
-import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { isStaff } from "../claims.js";
 
 const db = getFirestore();
@@ -60,8 +60,27 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
 }
 
 async function handleStart(req: Request, res: any) {
-  await verifyAppCheckStrict(req);
-  const { uid, claims } = await requireAuthWithClaims(req);
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
+    return;
+  }
+  try {
+    await verifyAppCheckStrict(req);
+  } catch (error: any) {
+    console.warn("scan_start_appcheck_failed", { message: error?.message });
+    res.status(401).json({ error: "app_check_unavailable", code: "app_check_unavailable" });
+    return;
+  }
+
+  let authContext: { uid: string; claims?: Record<string, unknown> };
+  try {
+    authContext = await requireAuthWithClaims(req);
+  } catch (error: any) {
+    console.warn("scan_start_auth_failed", { message: error?.message });
+    res.status(401).json({ error: "auth_required", code: "auth_required" });
+    return;
+  }
+  const { uid, claims } = authContext;
   const staffBypass = await isStaff(uid);
   const unlimitedCredits = claims?.unlimitedCredits === true;
 
@@ -82,7 +101,7 @@ async function handleStart(req: Request, res: any) {
 
   if (!staffBypass && !unlimitedCredits && !founder && !hasCredits) {
     console.warn("scan_start_no_credits", { uid });
-    res.status(402).json({ error: "no_credits" });
+    res.status(402).json({ error: "no_credits", code: "no_credits" });
     return;
   }
 
@@ -105,7 +124,7 @@ async function handleStart(req: Request, res: any) {
     );
   } catch (err) {
     console.error("scan_start_signed_url_error", { uid, scanId, message: (err as any)?.message });
-    res.status(500).json({ error: "signing_failed" });
+    res.status(500).json({ error: "signing_failed", code: "signing_failed" });
     return;
   }
 
@@ -127,7 +146,7 @@ export const startScanSession = onRequest(
       await handleStart(req as Request, res);
     } catch (err: any) {
       console.error("scan_start_unhandled", { message: err?.message });
-      res.status(500).json({ error: "server_error" });
+      res.status(500).json({ error: "server_error", code: "server_error" });
     }
   }
 );

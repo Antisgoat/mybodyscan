@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { useFlags } from "@/lib/flags";
 import { toast } from "../lib/toast";
@@ -7,8 +7,16 @@ import {
   googleSignIn,
   appleSignIn,
   APPLE_WEB_ENABLED,
+  describeAuthErrorAsync,
 } from "../lib/login";
 import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
+import {
+  consumeAuthRedirect,
+} from "../lib/auth";
+import {
+  consumeAuthRedirectError,
+  consumeAuthRedirectResult,
+} from "../lib/authRedirect";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -16,6 +24,37 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const { flags, loaded } = useFlags();
   const appleAllowed = flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const result = await consumeAuthRedirectResult();
+      if (!cancelled && result) {
+        const target = consumeAuthRedirect();
+        if (target) {
+          window.location.replace(target);
+          return;
+        }
+      }
+
+      const error = await consumeAuthRedirectError();
+      if (!cancelled && error) {
+        consumeAuthRedirect();
+        try {
+          const auth = getFirebaseAuth();
+          const mapped = await describeAuthErrorAsync(auth, error);
+          toast(formatError(mapped.message, mapped.code), "error");
+        } catch (err) {
+          if (import.meta.env.DEV) {
+            console.warn("[auth] Unable to surface redirect error", err);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onEmailSignIn(e: React.FormEvent) {
     e.preventDefault();

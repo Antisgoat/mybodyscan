@@ -3,6 +3,7 @@ import { initializeApp, type FirebaseApp, getApps } from "firebase/app";
 import type { FirebaseError } from "firebase/app";
 import {
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   browserSessionPersistence,
   getAuth,
   indexedDBLocalPersistence,
@@ -233,13 +234,13 @@ function ensureAuth(app: FirebaseApp): Auth {
   };
 
   try {
-    return attempt({ persistence });
+    return attempt({ persistence, popupRedirectResolver: browserPopupRedirectResolver });
   } catch (error) {
     const fbError = error as FirebaseError | undefined;
     if (import.meta.env.DEV) {
       console.warn("[firebase] Falling back to in-memory auth persistence", fbError?.code || error);
     }
-    return attempt({ persistence: [inMemoryPersistence] });
+    return attempt({ persistence: [inMemoryPersistence], popupRedirectResolver: browserPopupRedirectResolver });
   }
 }
 

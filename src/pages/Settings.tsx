@@ -167,9 +167,10 @@ const Settings = () => {
     } catch (error: any) {
       console.error("open_portal", error);
       const code = typeof error?.code === "string" ? error.code : undefined;
+      const description = describePortalError(code);
       toast({
         title: "Unable to open billing portal",
-        description: describePortalError(code),
+        description: import.meta.env.DEV && code ? `${description} (${code})` : description,
         variant: "destructive",
       });
     } finally {

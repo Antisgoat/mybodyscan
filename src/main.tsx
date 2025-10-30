@@ -1,11 +1,9 @@
-import "./lib/swKill";
 import "./lib/bootProbe";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { killSW } from "./lib/killSW";
 import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { firebaseReady } from "./lib/firebase";
@@ -35,7 +33,6 @@ if (typeof window !== "undefined") {
 void (async () => {
   await firebaseReady();
 
-  killSW();
   warnIfDomainUnauthorized();
   void probeFirebaseRuntime();
 

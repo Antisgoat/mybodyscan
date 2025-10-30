@@ -60,12 +60,26 @@ async function handler(req: Request, res: Response) {
     return;
   }
 
-  await verifyAppCheckStrict(req as any);
+  try {
+    await verifyAppCheckStrict(req as any);
+  } catch (error: any) {
+    const code = errorCode(error);
+    const status = code === "failed-precondition" ? 401 : statusFromCode(code);
+    res.status(status).json({
+      error: "Secure verification required. Refresh and try again.",
+      code: "app_check_unavailable",
+    });
+    return;
+  }
 
   const uid = await requireAuth(req);
   const limiter = await ensureRateLimit({ key: "nutrition_barcode", identifier: uid, limit: 30, windowSeconds: 60 });
   if (!limiter.allowed) {
-    res.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+    res.status(429).json({
+      error: "Rate limited. Try again soon.",
+      code: "rate_limited",
+      retryAfter: limiter.retryAfterSeconds ?? null,
+    });
     return;
   }
 
@@ -78,7 +92,7 @@ async function handler(req: Request, res: Response) {
   const cached = cache.get(code);
   if (cached && cached.expires > now) {
     if (!cached.value) {
-      res.status(404).json({ error: "not_found", cached: true });
+      res.status(404).json({ error: "Not found", code: "not_found", cached: true });
       return;
     }
     res.json({ item: cached.value.item, code, source: cached.value.source, cached: true });
@@ -107,7 +121,7 @@ async function handler(req: Request, res: Response) {
 
   if (!result) {
     cache.set(code, { value: null, expires: now + CACHE_TTL });
-    res.status(404).json({ error: "not_found" });
+    res.status(404).json({ error: "Not found", code: "not_found" });
     return;
   }
 
@@ -131,10 +145,10 @@ export const nutritionBarcode = onRequest(
             : code === "resource-exhausted"
             ? 429
             : statusFromCode(code);
-        res.status(status).json({ error: error.message });
+        res.status(status).json({ error: error.message ?? "Request failed", code });
         return;
       }
-      res.status(500).json({ error: error?.message || "error" });
+      res.status(500).json({ error: error?.message || "Server error", code: "server_error" });
     }
   }),
 );

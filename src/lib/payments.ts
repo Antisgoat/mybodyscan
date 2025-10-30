@@ -92,9 +92,39 @@ type CheckoutOptions = {
   navigate?: boolean;
 };
 
-export async function startCheckout(priceId: string, options?: CheckoutOptions) {
-  const trimmed = typeof priceId === "string" ? priceId.trim() : "";
-  const result = await postWithAuth("/createCheckout", { priceId: trimmed });
+type CheckoutInput = string | PlanKey | { priceId?: string | null; plan?: string | null };
+
+function normalizeCheckoutPayload(input: CheckoutInput): Record<string, string> {
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    const fromPlan = LEGACY_PLAN_PRICE_MAP[trimmed as PlanKey] ?? "";
+    if (fromPlan) {
+      return { priceId: fromPlan, plan: trimmed };
+    }
+    return trimmed ? { priceId: trimmed } : {};
+  }
+
+  if (typeof input === "object" && input !== null) {
+    const priceId = typeof input.priceId === "string" ? input.priceId.trim() : "";
+    const planRaw = typeof input.plan === "string" ? input.plan.trim() : "";
+    const plan = planRaw ? planRaw.toLowerCase() : "";
+    const mappedPrice = plan ? LEGACY_PLAN_PRICE_MAP[plan as PlanKey] ?? "" : "";
+    const resolvedPrice = priceId || mappedPrice;
+    const payload: Record<string, string> = {};
+    if (resolvedPrice) payload.priceId = resolvedPrice;
+    if (plan) payload.plan = plan;
+    return payload;
+  }
+
+  return {};
+}
+
+export async function startCheckout(input: CheckoutInput, options?: CheckoutOptions) {
+  const payload = normalizeCheckoutPayload(input);
+  if (!payload.priceId) {
+    throw { error: "invalid_price", code: "invalid_price" } satisfies ErrorPayload;
+  }
+  const result = await postWithAuth("/createCheckout", payload);
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;
