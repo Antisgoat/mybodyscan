@@ -1,17 +1,21 @@
 import React, { useState } from "react";
+
+import { useFlags } from "@/lib/flags";
+import { toast } from "../lib/toast";
 import {
   emailPasswordSignIn,
   googleSignIn,
   appleSignIn,
   APPLE_WEB_ENABLED,
 } from "../lib/login";
-import { toast } from "../lib/toast";
 import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
+  const { flags, loaded } = useFlags();
+  const appleAllowed = flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
 
   async function onEmailSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -112,12 +116,24 @@ export default function Login() {
       <div style={hr} />
 
       <div style={providers}>
-        <button type="button" onClick={() => void onGoogle()} disabled={busy} style={btn}>
+        <button
+          type="button"
+          onClick={() => void onGoogle()}
+          disabled={busy}
+          style={btn}
+          aria-label="Continue with Google"
+        >
           Continue with Google
         </button>
 
-        {APPLE_WEB_ENABLED && (
-          <button type="button" onClick={() => void onApple()} disabled={busy} style={btn}>
+        {appleAllowed && (
+          <button
+            type="button"
+            onClick={() => void onApple()}
+            disabled={busy}
+            style={btn}
+            aria-label="Continue with Apple"
+          >
             Continue with Apple
           </button>
         )}

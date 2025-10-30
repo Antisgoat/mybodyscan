@@ -1,4 +1,4 @@
-import { assertWritableOrThrow, DemoWriteError, notifyDemoBlocked } from "./demo";
+import { assertWritable, DemoWriteError, notifyDemoBlocked } from "./demo";
 import {
   addDoc as _addDoc,
   setDoc as _setDoc,
@@ -10,7 +10,7 @@ import {
 
 export async function addDoc<T = DocumentData>(colRef: any, data: T) {
   try {
-    assertWritableOrThrow();
+    assertWritable();
   } catch (e) {
     if (e instanceof DemoWriteError) {
       notifyDemoBlocked();
@@ -27,7 +27,7 @@ export async function setDoc<T = DocumentData>(
   options?: any
 ) {
   try {
-    assertWritableOrThrow();
+    assertWritable();
   } catch (e) {
     if (e instanceof DemoWriteError) {
       notifyDemoBlocked();
@@ -42,7 +42,7 @@ export async function updateDoc<T = DocumentData>(
   data: Partial<T>
 ) {
   try {
-    assertWritableOrThrow();
+    assertWritable();
   } catch (e) {
     if (e instanceof DemoWriteError) {
       notifyDemoBlocked();
@@ -54,7 +54,7 @@ export async function updateDoc<T = DocumentData>(
 }
 export async function deleteDoc<T = DocumentData>(docRef: DocumentReference<T>) {
   try {
-    assertWritableOrThrow();
+    assertWritable();
   } catch (e) {
     if (e instanceof DemoWriteError) {
       notifyDemoBlocked();

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,20 +12,23 @@ import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { signOutAll } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
-import { useCredits } from "@/hooks/useCredits";
 import { supportMailto } from "@/lib/support";
+import { useFlags } from "@/lib/flags";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoActive } from "@/lib/demoFlag";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Trash2, Loader2 } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions as firebaseFunctions } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
-import { doc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
 import { DemoBanner } from "@/components/DemoBanner";
+import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
+import { httpsCallable } from "firebase/functions";
+import { useCredits } from "@/hooks/useCredits";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -34,18 +38,27 @@ const Settings = () => {
     renewalReminder: true
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { uid } = useCredits();
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
   const [weightInput, setWeightInput] = useState("");
   const [savingMetrics, setSavingMetrics] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [refreshingClaims, setRefreshingClaims] = useState(false);
+  const { environment } = useFlags();
+  const { credits, unlimited, loading: creditsLoading } = useCredits();
+
+  const creditsLabel = creditsLoading ? "…" : unlimited ? "∞" : credits;
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
       setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
     }
   }, [profile?.weight_kg]);
+
+  const stripeModeLabel = environment.stripeMode === "live" ? "LIVE" : "TEST";
+  const stripeBadgeVariant = environment.stripeMode === "live" ? "default" : "secondary";
 
   const handleSaveMetrics = async () => {
     if (!auth.currentUser) {
@@ -135,28 +148,28 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
-    
+
     try {
-      // Call backend exportData() function
-      const response = await fetch("/api/exportData", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await uid}` }
+      setExportingData(true);
+      const payload = await requestExportIndex();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mybodyscan-export-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast({
+        title: "Export ready",
+        description: `Links expire ${new Date(payload.expiresAt).toLocaleTimeString()}.`,
       });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `mybodyscan-data-${new Date().toISOString().split("T")[0]}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        toast({ title: "Data exported successfully" });
-      }
     } catch (error) {
-      toast({ title: "Export failed", variant: "destructive" });
+      console.error("export_data", error);
+      toast({ title: "Export failed", description: "Try again in a moment.", variant: "destructive" });
+    } finally {
+      setExportingData(false);
     }
   };
 
@@ -166,26 +179,47 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
-    
+
     try {
-      // Call backend deleteAccount() function
-      const response = await fetch("/api/deleteAccount", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await uid}` }
-      });
-      
-      if (response.ok) {
-        toast({ title: "Account deleted successfully" });
-        await signOutAll();
-        navigate("/");
-      } else {
-        toast({ title: "Delete failed", variant: "destructive" });
-      }
+      setDeletingAccount(true);
+      await requestAccountDeletion();
+      toast({ title: "Account deleted", description: "We signed you out." });
+      await signOutAll();
+      navigate("/auth", { replace: true });
     } catch (error) {
-      toast({ title: "Delete failed", variant: "destructive" });
+      console.error("delete_account", error);
+      toast({ title: "Delete failed", description: "Try again later.", variant: "destructive" });
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteConfirm(false);
     }
-    
-    setShowDeleteConfirm(false);
+  };
+
+  const handleRefreshClaims = async () => {
+    try {
+      setRefreshingClaims(true);
+      const callable = httpsCallable(firebaseFunctions, "refreshClaims");
+      await callable({});
+      await auth.currentUser?.getIdToken(true);
+      let description: string | undefined;
+      const token = await auth.currentUser?.getIdTokenResult(true);
+      const unlimitedActive = token?.claims?.unlimitedCredits === true;
+      if (unlimitedActive) {
+        description = "Unlimited credits active.";
+      } else if (auth.currentUser) {
+        const snapshot = await getDoc(doc(db, `users/${auth.currentUser.uid}/private/credits`));
+        const remaining = snapshot.data()?.creditsSummary?.totalAvailable as number | undefined;
+        if (typeof remaining === "number" && Number.isFinite(remaining)) {
+          description = `Credits remaining: ${remaining}`;
+        }
+      }
+      toast({ title: "Claims refreshed", description });
+    } catch (error) {
+      console.error("refresh_claims", error);
+      toast({ title: "Refresh failed", description: "Try again later.", variant: "destructive" });
+    } finally {
+      setRefreshingClaims(false);
+    }
   };
 
 
@@ -197,7 +231,12 @@ const Settings = () => {
           {isDemoActive() && (
             <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
           )}
-          <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
+            <Badge variant={stripeBadgeVariant} aria-label={`Stripe environment ${stripeModeLabel}`}>
+              {stripeModeLabel}
+            </Badge>
+          </div>
 
         <Card>
           <CardHeader>
@@ -299,24 +338,45 @@ const Settings = () => {
               <a href="/help" className="block text-sm underline hover:text-primary">
                 Help Center
               </a>
-              <Button
-                variant="outline"
-                onClick={() => { window.location.href = supportMailto(); }}
-                className="w-full"
-              >
-                Report a problem
+              <Button variant="outline" className="w-full" asChild>
+                <a href={supportMailto()} aria-label="Email support">
+                  Email support
+                </a>
               </Button>
+              <p className="text-xs text-muted-foreground text-center">support@mybodyscanapp.com</p>
             </div>
           <div className="space-y-2">
             <Button
               variant="outline"
               onClick={handleExportData}
               className="w-full flex items-center gap-2"
+              disabled={exportingData}
             >
-              <Download className="w-4 h-4" />
-              {t('settings.export_data')}
+              {exportingData ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {exportingData ? "Preparing export…" : t('settings.export_data')}
             </Button>
-            
+
+            <Button
+              variant="outline"
+              onClick={handleRefreshClaims}
+              className="w-full flex items-center gap-2"
+              disabled={refreshingClaims}
+            >
+              {refreshingClaims ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {refreshingClaims ? "Refreshing…" : "Refresh claims"}
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Billing mode: {stripeModeLabel === "LIVE" ? "Live (real charges)" : "Test (no live charges)"}
+            </p>
+            <p className="text-xs text-muted-foreground text-center">
+              Credits: {unlimited ? "∞ (unlimited)" : creditsLabel}
+            </p>
+
             <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
               <DialogTrigger asChild>
                 <Button
@@ -338,8 +398,13 @@ const Settings = () => {
                   <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
                     Cancel
                   </Button>
-                  <DemoWriteButton variant="destructive" onClick={handleDeleteAccount}>
-                    Delete Account
+                  <DemoWriteButton
+                    variant="destructive"
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount}
+                  >
+                    {deletingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {deletingAccount ? "Deleting…" : "Delete Account"}
                   </DemoWriteButton>
                 </DialogFooter>
               </DialogContent>

@@ -66,7 +66,7 @@ interface StoredScan {
 }
 
 function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
-  return `uploads/${uid}/${scanId}/${pose}.jpg`;
+  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -367,6 +367,9 @@ export const submitScan = onRequest(
         ? db.doc(`users/${uid}/private/idempotency/${payload.scanId}_${idempotencyKey}`)
         : null;
       scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
+      if (!scanRef) {
+        throw new Error("scan_reference_unavailable");
+      }
 
       const inputRecord = toInputRecord(payload);
 

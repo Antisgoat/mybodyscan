@@ -319,7 +319,7 @@ export async function openStripeCheckout(priceId: string) {
     body: JSON.stringify({ priceId }),
   });
   const { url } = await r.json();
-  if (url) window.location.href = url;
+  if (url) window.location.assign(url);
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
@@ -328,7 +328,7 @@ export async function openStripeCheckoutByProduct(productId: string) {
     body: JSON.stringify({ priceId: productId }),
   });
   const { url } = await r.json();
-  if (url) window.location.href = url;
+  if (url) window.location.assign(url);
 }
 
 export async function openStripePortal() {
@@ -337,7 +337,7 @@ export async function openStripePortal() {
     body: JSON.stringify({}),
   });
   const { url } = await r.json();
-  if (url) window.open(url, "_blank", "noopener,noreferrer");
+  if (url) window.location.assign(url);
 }
 
 async function handleJsonResponse(response: Response) {

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions";
 import Stripe from "stripe";
 
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
@@ -39,6 +40,14 @@ const LEGACY_PLAN_MAP: Record<string, string> = {
 };
 
 let stripeClient: Stripe | null = null;
+
+function getRequestId(req: Request): string | null {
+  const direct = req.get("x-request-id");
+  if (direct) return direct;
+  const trace = req.get("x-cloud-trace-context");
+  if (trace) return trace.split("/")[0] ?? trace;
+  return null;
+}
 
 function getStripe(): Stripe {
   if (stripeClient) return stripeClient;
@@ -86,7 +95,11 @@ function applyCors(req: Request, res: Response): { allowedOrigin: string | null;
   return { allowedOrigin, ended: false };
 }
 
-async function ensureStripeCustomer(stripe: Stripe, uid: string): Promise<string> {
+async function getStripeCustomer(
+  stripe: Stripe,
+  uid: string,
+  options: { createIfMissing: boolean },
+): Promise<string> {
   const docRef = db.doc(`users/${uid}/private/stripe`);
   const snap = await docRef.get();
   const data = snap.exists ? (snap.data() as Record<string, unknown>) : undefined;
@@ -102,6 +115,9 @@ async function ensureStripeCustomer(stripe: Stripe, uid: string): Promise<string
   }
 
   if (!customerId) {
+    if (!options.createIfMissing) {
+      throw Object.assign(new Error("no_customer"), { code: "no_customer" });
+    }
     const userRecord = await getAuth().getUser(uid);
     const email = userRecord.email;
     if (!email) {
@@ -141,8 +157,31 @@ function resolvePriceId(body: unknown): string | null {
   return null;
 }
 
-function createErrorResponse(res: Response, status: number, error: string, code?: string): void {
-  res.status(status).json({ error, code: code ?? error });
+type ErrorMeta = {
+  code?: string;
+  requestId?: string | null;
+  uid?: string;
+  priceId?: string | null;
+  context?: Record<string, unknown>;
+};
+
+function createErrorResponse(
+  res: Response,
+  status: number,
+  error: string,
+  meta?: ErrorMeta,
+): void {
+  const responseCode = meta?.code ?? error;
+  res.status(status).json({ error, code: responseCode });
+  logger.error("checkout_error", {
+    status,
+    error,
+    code: responseCode,
+    requestId: meta?.requestId ?? null,
+    uid: meta?.uid ?? null,
+    priceId: meta?.priceId ?? null,
+    ...(meta?.context ?? {}),
+  });
 }
 
 async function handleCreateCheckout(req: Request, res: Response) {
@@ -151,26 +190,27 @@ async function handleCreateCheckout(req: Request, res: Response) {
 
   const requestedOrigin = req.headers.origin as string | undefined;
   if (requestedOrigin && !allowedOrigin) {
-    createErrorResponse(res, 403, "origin_not_allowed");
+    createErrorResponse(res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   if (req.method !== "POST") {
-    createErrorResponse(res, 405, "method_not_allowed");
+    createErrorResponse(res, 405, "method_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
+  const requestId = getRequestId(req);
   let uid: string;
   try {
     uid = await requireAuth(req);
   } catch {
-    createErrorResponse(res, 401, "auth_required");
+    createErrorResponse(res, 401, "auth_required", { requestId });
     return;
   }
 
   const priceId = resolvePriceId(req.body);
   if (!priceId || !PRICE_ALLOWLIST.has(priceId)) {
-    createErrorResponse(res, 400, "invalid_price");
+    createErrorResponse(res, 400, "invalid_price", { requestId, uid, priceId: priceId ?? null });
     return;
   }
 
@@ -179,21 +219,36 @@ async function handleCreateCheckout(req: Request, res: Response) {
     stripe = getStripe();
   } catch (err) {
     const code = (err as { code?: string } | undefined)?.code;
-    createErrorResponse(res, 500, "stripe_config_missing", code);
+    createErrorResponse(res, 500, "stripe_config_missing", {
+      code,
+      requestId,
+      uid,
+      priceId,
+    });
     return;
   }
 
   let customerId: string;
   try {
-    customerId = await ensureStripeCustomer(stripe, uid);
+    customerId = await getStripeCustomer(stripe, uid, { createIfMissing: true });
   } catch (err) {
     const code = (err as { code?: string } | undefined)?.code;
     if (code === "no_email") {
-      createErrorResponse(res, 400, "missing_email", code);
+      createErrorResponse(res, 400, "missing_email", {
+        code,
+        requestId,
+        uid,
+        priceId,
+      });
       return;
     }
-    console.error("ensureStripeCustomer_failed", { uid, error: (err as Error)?.message });
-    createErrorResponse(res, 500, "stripe_customer_error", code);
+    createErrorResponse(res, 500, "stripe_customer_error", {
+      code,
+      requestId,
+      uid,
+      priceId,
+      context: { message: (err as Error)?.message },
+    });
     return;
   }
 
@@ -216,14 +271,18 @@ async function handleCreateCheckout(req: Request, res: Response) {
 
     const url = session.url;
     if (!url) {
-      createErrorResponse(res, 500, "stripe_session_missing");
+      createErrorResponse(res, 500, "stripe_session_missing", { requestId, uid, priceId });
       return;
     }
 
     res.json({ url });
   } catch (err) {
-    console.error("createCheckout_failed", { uid, priceId, error: (err as Error)?.message });
-    createErrorResponse(res, 500, "stripe_error");
+    createErrorResponse(res, 500, "stripe_error", {
+      requestId,
+      uid,
+      priceId,
+      context: { message: (err as Error)?.message },
+    });
   }
 }
 
@@ -233,20 +292,21 @@ async function handleCustomerPortal(req: Request, res: Response) {
 
   const requestedOrigin = req.headers.origin as string | undefined;
   if (requestedOrigin && !allowedOrigin) {
-    createErrorResponse(res, 403, "origin_not_allowed");
+    createErrorResponse(res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   if (req.method !== "POST") {
-    createErrorResponse(res, 405, "method_not_allowed");
+    createErrorResponse(res, 405, "method_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
+  const requestId = getRequestId(req);
   let uid: string;
   try {
     uid = await requireAuth(req);
   } catch {
-    createErrorResponse(res, 401, "auth_required");
+    createErrorResponse(res, 401, "auth_required", { requestId });
     return;
   }
 
@@ -255,21 +315,33 @@ async function handleCustomerPortal(req: Request, res: Response) {
     stripe = getStripe();
   } catch (err) {
     const code = (err as { code?: string } | undefined)?.code;
-    createErrorResponse(res, 500, "stripe_config_missing", code);
+    createErrorResponse(res, 500, "stripe_config_missing", {
+      code,
+      requestId,
+      uid,
+    });
     return;
   }
 
   let customerId: string;
   try {
-    customerId = await ensureStripeCustomer(stripe, uid);
+    customerId = await getStripeCustomer(stripe, uid, { createIfMissing: false });
   } catch (err) {
     const code = (err as { code?: string } | undefined)?.code;
-    if (code === "no_email") {
-      createErrorResponse(res, 404, "no_customer", code);
+    if (code === "no_email" || code === "no_customer") {
+      createErrorResponse(res, 404, "no_customer", {
+        code,
+        requestId,
+        uid,
+      });
       return;
     }
-    console.error("ensureStripeCustomer_failed", { uid, error: (err as Error)?.message });
-    createErrorResponse(res, 500, "stripe_customer_error", code);
+    createErrorResponse(res, 500, "stripe_customer_error", {
+      code,
+      requestId,
+      uid,
+      context: { message: (err as Error)?.message },
+    });
     return;
   }
 
@@ -282,14 +354,17 @@ async function handleCustomerPortal(req: Request, res: Response) {
     });
 
     if (!session.url) {
-      createErrorResponse(res, 500, "stripe_portal_missing");
+      createErrorResponse(res, 500, "stripe_portal_missing", { requestId, uid });
       return;
     }
 
     res.json({ url: session.url });
   } catch (err) {
-    console.error("createCustomerPortal_failed", { uid, error: (err as Error)?.message });
-    createErrorResponse(res, 500, "stripe_error");
+    createErrorResponse(res, 500, "stripe_error", {
+      requestId,
+      uid,
+      context: { message: (err as Error)?.message },
+    });
   }
 }
 

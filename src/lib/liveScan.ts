@@ -10,6 +10,9 @@ export interface ScanStartResponse {
   expiresAt: string;
 }
 
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_UPLOAD_ATTEMPTS = 3;
+
 export interface ScanResultResponse {
   id: string;
   createdAt: number;
@@ -113,6 +116,39 @@ export async function startLiveScan(): Promise<ScanStartResponse> {
   return data as ScanStartResponse;
 }
 
+function isValidJpeg(file: File): boolean {
+  if (!file.type && !file.name) return false;
+  const type = (file.type || "").toLowerCase();
+  const name = file.name.toLowerCase();
+  if (type === "image/jpeg" || type === "image/pjpeg") return true;
+  return name.endsWith(".jpg") || name.endsWith(".jpeg");
+}
+
+function ensureValidFile(file: File, pose: PoseKey): void {
+  if (!isValidJpeg(file)) {
+    const error = new Error(`invalid_type_${pose}`);
+    (error as any).code = "invalid_type";
+    throw error;
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    const error = new Error(`file_too_large_${pose}`);
+    (error as any).code = "file_too_large";
+    throw error;
+  }
+}
+
+function shouldRetry(status: number | undefined): boolean {
+  if (!status) return true;
+  if (status === 429) return true;
+  return status >= 500 && status < 600;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export async function uploadScanImages(
   uploadUrls: Record<PoseKey, string>,
   files: Record<PoseKey, File>,
@@ -128,18 +164,37 @@ export async function uploadScanImages(
       (error as any).code = "missing_file";
       throw error;
     }
+    ensureValidFile(file, pose);
     onProgress?.({ pose, index, total });
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type || "image/jpeg",
-      },
-      body: file,
-    });
-    if (!response.ok) {
-      const error = new Error(`upload_failed_${pose}`);
-      (error as any).status = response.status;
-      throw error;
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      attempt += 1;
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "image/jpeg",
+          },
+          body: file,
+        });
+        if (response.ok) {
+          break;
+        }
+        if (shouldRetry(response.status) && attempt < MAX_UPLOAD_ATTEMPTS) {
+          const backoff = 300 * attempt + Math.random() * 200;
+          await sleep(backoff);
+          continue;
+        }
+        const error = new Error(`upload_failed_${pose}`);
+        (error as any).status = response.status;
+        throw error;
+      } catch (error) {
+        if (attempt >= MAX_UPLOAD_ATTEMPTS) {
+          throw error;
+        }
+        await sleep(300 * attempt + Math.random() * 200);
+      }
     }
   }
 }

@@ -56,7 +56,7 @@ async function createSignedUploadUrl(path: string, expires: Date): Promise<strin
 }
 
 function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
-  return `uploads/${uid}/${scanId}/${pose}.jpg`;
+  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
 }
 
 async function handleStart(req: Request, res: any) {

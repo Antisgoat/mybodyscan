@@ -23,7 +23,7 @@ import { listenToScan, PoseKey, ScanResultResponse, type ScanStatus, startLiveSc
 // App Check removed; treat as immediately ready
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const IDEMPOTENCY_STORAGE_KEY = "scan:idempotency";
 
 const POSES: Array<{ key: PoseKey; label: string; helper: string }> = [
@@ -82,6 +82,7 @@ export default function Scan() {
   const [age, setAge] = useState<string>("");
   const [sex, setSex] = useState<"male" | "female" | "">("");
   const [submitting, setSubmitting] = useState(false);
+  const [showProcessingTip, setShowProcessingTip] = useState(false);
   const statusUnsub = useRef<Unsubscribe | null>(null);
   const stageRef = useRef<Stage>("idle");
   const completeToastShown = useRef(false);
@@ -235,7 +236,7 @@ export default function Scan() {
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "Photo too large", description: "Each photo must be under 10 MB.", variant: "destructive" });
+      toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
       return;
     }
     setFiles((prev) => ({ ...prev, [pose]: file }));
@@ -351,6 +352,17 @@ export default function Scan() {
   const initializing = false;
   const creditsDisplay = creditsLoading ? "…" : credits === Infinity ? "∞" : credits;
 
+  useEffect(() => {
+    if (stage === "analyzing") {
+      const timer = window.setTimeout(() => setShowProcessingTip(true), 60_000);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+    setShowProcessingTip(false);
+    return () => undefined;
+  }, [stage]);
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-scan">
       <Seo title="Live Scan – MyBodyScan" description="Capture four angles to estimate your body-fat percentage." />
@@ -410,7 +422,8 @@ export default function Scan() {
                         <input
                           id={inputId}
                           type="file"
-                          accept="image/jpeg,.jpg,.jpeg"
+                          accept="image/jpeg,.jpg,.jpeg,image/*"
+                          capture="environment"
                           className="hidden"
                           onChange={(event) => handleFileChange(key, event.target.files)}
                         />
@@ -419,7 +432,7 @@ export default function Scan() {
                             <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
                           </Button>
                         ) : (
-                          <p className="text-[11px] text-muted-foreground">JPG only · Under 10 MB</p>
+                          <p className="text-[11px] text-muted-foreground">JPG only · Under 15 MB</p>
                         )}
                       </div>
                     );
@@ -489,6 +502,11 @@ export default function Scan() {
                 <p className="text-sm font-medium text-foreground">{progressText || "Processing..."}</p>
                 {stage === "uploading" && (
                   <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>
+                )}
+                {showProcessingTip && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This can take a bit. You can navigate; we’ll update automatically.
+                  </p>
                 )}
               </div>
             </CardContent>

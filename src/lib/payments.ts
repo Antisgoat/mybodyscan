@@ -20,6 +20,32 @@ export const LEGACY_PLAN_PRICE_MAP: Record<PlanKey, string> = {
 
 type ErrorPayload = { error: string; code?: string };
 
+const CHECKOUT_ERROR_COPY: Record<string, string> = {
+  stripe_config_missing: "Billing is currently offline. Please try again soon.",
+  stripe_customer_error: "We couldn't sync your billing details. Contact support if it persists.",
+  missing_email: "Add an email to your account before purchasing.",
+  invalid_price: "That plan isn't available right now. Refresh and try again.",
+  auth_required: "Sign in to purchase a plan.",
+  origin_not_allowed: "Open checkout from the MyBodyScan app or site.",
+};
+
+const PORTAL_ERROR_COPY: Record<string, string> = {
+  no_customer: "Complete a purchase first to access the billing portal.",
+  stripe_config_missing: "Billing is currently offline. Try again shortly.",
+  stripe_customer_error: "We couldn't open the portal. Contact support if the issue continues.",
+  auth_required: "Sign in to manage billing.",
+};
+
+export function describeCheckoutError(code?: string): string {
+  if (!code) return "We couldn't open checkout. Please try again.";
+  return CHECKOUT_ERROR_COPY[code] ?? "We couldn't open checkout. Please try again.";
+}
+
+export function describePortalError(code?: string): string {
+  if (!code) return "We couldn't open the billing portal. Please try again.";
+  return PORTAL_ERROR_COPY[code] ?? "We couldn't open the billing portal. Please try again.";
+}
+
 async function postWithAuth(path: string, body: unknown): Promise<any> {
   const user = auth.currentUser;
   if (!user) {

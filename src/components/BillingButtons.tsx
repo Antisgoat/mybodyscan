@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
-import { openCustomerPortal, startCheckout, PRICE_IDS } from "@/lib/payments";
+import {
+  openCustomerPortal,
+  startCheckout,
+  PRICE_IDS,
+  describeCheckoutError,
+  describePortalError,
+} from "@/lib/payments";
 
 type Props = {
   className?: string;
@@ -35,9 +41,11 @@ export default function BillingButtons({ className }: Props) {
       await startCheckout(PRICE_IDS.ONE_TIME_STARTER);
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
+      const message = describeCheckoutError(code);
+      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
         title: "Unable to start checkout",
-        description: code && import.meta.env.DEV ? `(${code})` : undefined,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -56,9 +64,11 @@ export default function BillingButtons({ className }: Props) {
       await openCustomerPortal();
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
+      const message = describePortalError(code);
+      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
         title: "Unable to open billing portal",
-        description: code && import.meta.env.DEV ? `(${code})` : undefined,
+        description,
         variant: "destructive",
       });
     } finally {
