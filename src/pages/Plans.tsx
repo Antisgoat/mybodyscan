@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import type { PlanKey } from "@/lib/payments";
-import { startCheckoutByPlan } from "@/lib/payments";
+import { startCheckout, STRIPE_PRICE_IDS } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -13,14 +12,18 @@ import { isDemoActive } from "@/lib/demoFlag";
 
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (plan: PlanKey) => {
+  const handleCheckout = async (plan: { plan: string; priceId: string }) => {
     try {
-      track("checkout_start", { plan });
-      await startCheckoutByPlan(plan);
+      track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
+      await startCheckout(plan.priceId);
     } catch (err: any) {
+      const code = typeof err?.code === "string" ? err.code : undefined;
+      const description = code && import.meta.env.DEV
+        ? `We couldn't open checkout. (${code})`
+        : "We couldn't open checkout. Please try again.";
       toast({
-        title: "Checkout failed",
-        description: "Checkout failed. Please try again.",
+        title: "Checkout unavailable",
+        description,
         variant: "destructive",
       });
     }
@@ -35,6 +38,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "one" as const,
+      priceId: STRIPE_PRICE_IDS.ONE_TIME_STARTER,
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -50,6 +54,7 @@ export default function Plans() {
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
       plan: "pro_monthly" as const,
+      priceId: STRIPE_PRICE_IDS.PRO_MONTHLY,
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -69,6 +74,7 @@ export default function Plans() {
       period: "per year",
       credits: "3 scans/month + Everything included",
       plan: "elite_annual" as const,
+      priceId: STRIPE_PRICE_IDS.ELITE_ANNUAL,
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -93,6 +99,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "extra" as const,
+      priceId: STRIPE_PRICE_IDS.EXTRA_ONE_TIME,
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
@@ -165,7 +172,7 @@ export default function Plans() {
                 <Button
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleCheckout(plan.plan)}
+                  onClick={() => handleCheckout(plan)}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>

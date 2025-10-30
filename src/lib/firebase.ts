@@ -1,6 +1,15 @@
 /* eslint-disable no-console */
 import { initializeApp, type FirebaseApp, getApps } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import type { FirebaseError } from "firebase/app";
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  getAuth,
+  indexedDBLocalPersistence,
+  inMemoryPersistence,
+  initializeAuth,
+  type Auth,
+} from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
@@ -152,7 +161,7 @@ async function init(): Promise<void> {
 
   configInstance = cfg;
   appInstance = initializeApp(cfg);
-  authInstance = getAuth(appInstance);
+  authInstance = ensureAuth(appInstance);
   ensureDeviceLanguage(authInstance);
 }
 
@@ -196,6 +205,42 @@ function ensureFunctions(): Functions {
     functionsInstance = getFunctions(requireApp(), "us-central1");
   }
   return functionsInstance;
+}
+
+function ensureAuth(app: FirebaseApp): Auth {
+  if (authInstance) {
+    return authInstance;
+  }
+
+  const persistence = [
+    indexedDBLocalPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
+  ];
+
+  const attempt = (opts: Parameters<typeof initializeAuth>[1]) => {
+    try {
+      authInstance = initializeAuth(app, opts);
+      return authInstance;
+    } catch (error) {
+      const fbError = error as FirebaseError | undefined;
+      if (fbError?.code === "auth/already-initialized") {
+        authInstance = getAuth(app);
+        return authInstance;
+      }
+      throw error;
+    }
+  };
+
+  try {
+    return attempt({ persistence });
+  } catch (error) {
+    const fbError = error as FirebaseError | undefined;
+    if (import.meta.env.DEV) {
+      console.warn("[firebase] Falling back to in-memory auth persistence", fbError?.code || error);
+    }
+    return attempt({ persistence: [inMemoryPersistence] });
+  }
 }
 
 export async function firebaseReady(): Promise<void> {

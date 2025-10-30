@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { useLocation } from "react-router-dom";
 
-import { auth } from "../lib/firebase";
+import { auth, functions } from "../lib/firebase";
 import { fetchClaims } from "../lib/claims";
 import { BUILD } from "../lib/buildInfo";
 import {
@@ -15,7 +16,6 @@ import {
 } from "../lib/flags";
 import { ensureAppCheck, getAppCheckHeader } from "../lib/appCheck";
 import { httpsCallable } from "firebase/functions";
-import { auth, functions } from "../lib/firebase";
 import { toast } from "../lib/toast";
 
 type InitInfo = { projectId?: string; authDomain?: string; apiKey?: string };
@@ -25,6 +25,7 @@ type SwInfo = { controller: boolean; regs: number; caches: string[] };
 type Claims = Record<string, unknown> | null;
 
 export default function Diagnostics() {
+  const location = useLocation();
   const [initInfo, setInitInfo] = useState<InitInfo>({});
   const [itk, setItk] = useState<ItkInfo>({});
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -32,7 +33,8 @@ export default function Diagnostics() {
   const [swInfo, setSwInfo] = useState<SwInfo>({ controller: false, regs: 0, caches: [] });
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState<string>("");
-  const [appCheckProbe, setAppCheckProbe] = useState<string>("—");
+  const [appCheckPresent, setAppCheckPresent] = useState<boolean | null>(null);
+  const [claimsReady, setClaimsReady] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -47,6 +49,32 @@ export default function Diagnostics() {
     if (k.length <= 8) return "********";
     return `${k.slice(0, 4)}••••${k.slice(-4)}`;
   }, [initInfo.apiKey]);
+
+  const stripeKeySuffix = useMemo(() => {
+    const key = STRIPE_PUBLISHABLE_KEY ?? "";
+    const trimmed = key.trim();
+    if (!trimmed) return "—";
+    if (trimmed.length <= 6) return trimmed;
+    return `••••••${trimmed.slice(-6)}`;
+  }, []);
+
+  const devOverride = useMemo(() => {
+    const search = location?.search ?? (typeof window !== "undefined" ? window.location.search : "");
+    if (!search) return false;
+    const params = new URLSearchParams(search);
+    return params.get("dev") === "1";
+  }, [location?.search]);
+
+  const emailLower = (user?.email || "").toLowerCase();
+  const allowByEmail = emailLower === "developer@adlrlabs.com";
+  const allowByClaims = useMemo(() => {
+    if (!claims) return false;
+    const bag = claims as Record<string, unknown>;
+    return Boolean(bag.dev === true || bag.unlimitedCredits === true || bag.staff === true);
+  }, [claims]);
+
+  const allowed = devOverride || allowByEmail || allowByClaims;
+  const gatingReady = claimsReady || devOverride || allowByEmail;
 
   const probe = useCallback(async () => {
     setBusy(true);
@@ -99,8 +127,10 @@ export default function Diagnostics() {
       try {
         const c = await fetchClaims();
         setClaims(c ?? null);
+        setClaimsReady(true);
       } catch {
         setClaims(null);
+        setClaimsReady(true);
       }
     } finally {
       setBusy(false);
@@ -123,6 +153,7 @@ export default function Diagnostics() {
       }
       const c = await fetchClaims();
       setClaims(c ?? null);
+      setClaimsReady(true);
       const updated = (res && typeof res === "object" && "data" in (res as any) && (res as any).data?.updated) ? Boolean((res as any).data.updated) : false;
       const unlimited = (res && typeof res === "object" && "data" in (res as any) && (res as any).data?.unlimitedCredits) ? Boolean((res as any).data.unlimitedCredits) : false;
       toast(updated ? `Claims refreshed. unlimitedCredits=${String(unlimited)}` : `Claims checked. unlimitedCredits=${String(unlimited)}`, updated ? "success" : "info");
@@ -184,15 +215,35 @@ export default function Diagnostics() {
     try {
       await ensureAppCheck();
       const h = await getAppCheckHeader(true);
-      setAppCheckProbe(h["X-Firebase-AppCheck"] ? "present" : "missing");
+      setAppCheckPresent(Boolean(h["X-Firebase-AppCheck"]));
     } catch {
-      setAppCheckProbe("missing");
+      setAppCheckPresent(false);
     }
   }, []);
 
   useEffect(() => {
     void probe();
   }, [probe]);
+
+  if (!allowed && !gatingReady) {
+    return (
+      <div style={wrap}>
+        <h1 style={h1}>Diagnostics</h1>
+        <p style={noteStyle}>Checking access…</p>
+      </div>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <div style={wrap}>
+        <h1 style={h1}>Diagnostics</h1>
+        <p style={noteStyle}>
+          Diagnostics are limited to staff or developer sessions. Append <code>?dev=1</code> to the URL to override temporarily.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={wrap}>
@@ -242,14 +293,17 @@ export default function Diagnostics() {
         <KV k="DEMO_ENABLED" v={String(DEMO_ENABLED)} />
         <KV k="SHOW_APPLE_WEB" v={String(SHOW_APPLE_WEB)} />
         <KV k="SW_ENABLED" v={String(SW_ENABLED)} />
-        <KV k="APPCHECK_SITE_KEY" v={String(Boolean(APPCHECK_SITE_KEY))} />
+        <KV k="App Check configured" v={String(Boolean(APPCHECK_SITE_KEY))} />
+        <KV k="Last App Check token" v={appCheckPresent == null ? "—" : String(appCheckPresent)} />
         <div style={row}>
           <button type="button" onClick={() => void onProbeAppCheck()} style={btn}>
             Check App Check token
           </button>
-          <div style={vStyle}>token: {appCheckProbe}</div>
+          <div style={vStyle}>
+            status: {appCheckPresent == null ? "tap to check" : appCheckPresent ? "present" : "missing"}
+          </div>
         </div>
-        <KV k="STRIPE_PUBLISHABLE_KEY" v={String(Boolean(STRIPE_PUBLISHABLE_KEY))} />
+        <KV k="Stripe key (suffix)" v={stripeKeySuffix} />
         <KV k="USDA_API_KEY" v={String(Boolean(USDA_API_KEY))} />
         <KV k="OFF_ENABLED" v={String(OFF_ENABLED)} />
       </Section>
@@ -312,6 +366,7 @@ const wrap: CSSProperties = { maxWidth: 960, margin: "24px auto", padding: "0 12
 const h1: CSSProperties = { fontSize: 22, margin: 0 };
 const h2: CSSProperties = { fontSize: 16, margin: "12px 0 8px 0" };
 const row: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
+const noteStyle: CSSProperties = { fontSize: 13, color: "#555" };
 const btn: CSSProperties = { padding: "8px 10px", border: "1px solid #ddd", borderRadius: 8, background: "white", cursor: "pointer", fontSize: 12 };
 const btnDanger: CSSProperties = { padding: "8px 10px", border: "1px solid #f5b5b5", borderRadius: 8, background: "#fff5f5", cursor: "pointer", fontSize: 12 };
 const time: CSSProperties = { fontSize: 12, color: "#666" };

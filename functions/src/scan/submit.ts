@@ -315,6 +315,7 @@ async function isFounder(uid: string): Promise<boolean> {
 export const submitScan = onRequest(
   { invoker: "public", concurrency: 10, region: "us-central1" },
   async (req, res) => {
+    let scanRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> | null = null;
     try {
       if (req.method !== "POST") {
         res.status(405).json({ error: "method_not_allowed" });
@@ -337,6 +338,7 @@ export const submitScan = onRequest(
       const apiKey = getOpenAIKey() as string;
       // Build images list: prefer direct imageUrls if provided, else infer from signed Storage read URLs
       let imagePairs: Array<{ pose: Pose; url: string }> = [];
+      let imageMetaList: ImageMeta[] = [];
       const poses: Pose[] = ["front", "back", "left", "right"];
       if (payload.imageUrls && (payload.imageUrls.length === 2 || payload.imageUrls.length === 4)) {
         // Map provided URLs to the first N poses
@@ -356,6 +358,7 @@ export const submitScan = onRequest(
           res.status(400).json({ error: "bad_request", message: "Missing required photos (need 2 or 4)." });
           return;
         }
+        imageMetaList = metas.map(({ meta }) => meta);
         imagePairs = metas.map(({ meta, url }) => ({ pose: meta.pose, url }));
       }
 
@@ -363,7 +366,23 @@ export const submitScan = onRequest(
       const idempRef = idempotencyKey
         ? db.doc(`users/${uid}/private/idempotency/${payload.scanId}_${idempotencyKey}`)
         : null;
-      const scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
+      scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
+
+      const inputRecord = toInputRecord(payload);
+
+      const processingUpdate: Record<string, unknown> = {
+        status: "processing",
+        updatedAt: Timestamp.now(),
+        inputs: inputRecord,
+      };
+      processingUpdate["metadata.sessionId"] = payload.scanId;
+      if (imageMetaList.length) {
+        processingUpdate["metadata.images"] = imageMetaList.map(({ pose, sizeBytes, md5Hash }) => ({
+          pose,
+          sizeBytes,
+          md5Hash: md5Hash ?? null,
+        }));
+      }
 
       if (idempRef) {
         const existing = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
@@ -382,6 +401,10 @@ export const submitScan = onRequest(
         }
       }
 
+      await scanRef.set(processingUpdate, { merge: true }).catch((error: unknown) => {
+        console.warn("scan_processing_update_failed", { uid, scanId: payload.scanId, message: (error as any)?.message });
+      });
+
       // Call OpenAI Vision
       let parsed: ParsedResult;
       try {
@@ -392,6 +415,10 @@ export const submitScan = onRequest(
           error: "scan_engine_unavailable",
           message: "Vision model temporarily unavailable. Try again shortly.",
         });
+        await scanRef.set(
+          { status: "failed", updatedAt: Timestamp.now(), error: "scan_engine_unavailable" },
+          { merge: true }
+        ).catch(() => undefined);
         if (idempRef) await idempRef.set({ status: "failed", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
         return;
       }
@@ -406,6 +433,9 @@ export const submitScan = onRequest(
       } else {
         credit = await consumeCredit(uid);
         if (!credit.consumed) {
+          await scanRef
+            .set({ status: "failed", updatedAt: Timestamp.now(), error: "no_credits" }, { merge: true })
+            .catch(() => undefined);
           if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
           res.status(402).json({ error: "no_credits" });
           return;
@@ -413,35 +443,56 @@ export const submitScan = onRequest(
       }
 
       // Persist scan result
-      const createdAt = Timestamp.now();
+      const completedAt = Timestamp.now();
+      const remainingCredits = Number.isFinite(credit.remaining) ? credit.remaining : null;
+      const metadataImages = imageMetaList.length
+        ? imageMetaList.map(({ pose, sizeBytes, md5Hash }) => ({ pose, sizeBytes, md5Hash: md5Hash ?? null }))
+        : imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null }));
+
       const stored: StoredScan = {
-        createdAt,
-        completedAt: createdAt,
+        createdAt: completedAt,
+        completedAt,
         engine: OPENAI_MODEL,
         status: "complete",
-        inputs: toInputRecord(payload),
+        inputs: inputRecord,
         result: parsed,
         metadata: {
           sessionId: payload.scanId,
-          images: imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null })),
+          images: metadataImages,
         },
       };
-      await scanRef.set(stored, { merge: true });
-      if (idempRef) await idempRef.set({ status: "complete", completedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+
+      const finalUpdate: Record<string, unknown> = {
+        ...stored,
+        updatedAt: completedAt,
+        creditsRemaining: remainingCredits,
+        charged: !unlimitedCredits,
+      };
+      finalUpdate["metadata.sessionId"] = payload.scanId;
+      finalUpdate["metadata.images"] = metadataImages;
+
+      await scanRef.set(finalUpdate, { merge: true });
+      if (idempRef)
+        await idempRef.set({ status: "complete", completedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
 
       res.json({
         id: payload.scanId,
-        createdAt: createdAt.toMillis(),
-        completedAt: createdAt.toMillis(),
+        createdAt: completedAt.toMillis(),
+        completedAt: completedAt.toMillis(),
         engine: OPENAI_MODEL,
         status: "complete",
-        inputs: stored.inputs,
-        result: stored.result,
+        inputs: inputRecord,
+        result: parsed,
         metadata: stored.metadata,
-        creditsRemaining: credit.remaining ?? null,
+        creditsRemaining: remainingCredits,
         provider: "openai",
       });
     } catch (err: any) {
+      if (scanRef) {
+        await scanRef
+          .set({ status: "failed", updatedAt: Timestamp.now(), error: err?.message || "scan_failed" }, { merge: true })
+          .catch(() => undefined);
+      }
       res.status(500).json({ error: "scan_failed", message: err?.message || "error" });
     }
   }

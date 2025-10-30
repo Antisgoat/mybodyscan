@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -18,7 +18,8 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
-import { PoseKey, ScanResultResponse, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
+import type { Unsubscribe } from "firebase/firestore";
+import { listenToScan, PoseKey, ScanResultResponse, type ScanStatus, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
 // App Check removed; treat as immediately ready
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 
@@ -74,11 +75,17 @@ export default function Scan() {
   const [progressText, setProgressText] = useState<string>("");
   const [uploadIndex, setUploadIndex] = useState<number>(0);
   const [result, setResult] = useState<ScanResultResponse | null>(null);
+  const [scanId, setScanId] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [weight, setWeight] = useState<string>("");
   const [height, setHeight] = useState<string>("");
   const [age, setAge] = useState<string>("");
   const [sex, setSex] = useState<"male" | "female" | "">("");
   const [submitting, setSubmitting] = useState(false);
+  const statusUnsub = useRef<Unsubscribe | null>(null);
+  const stageRef = useRef<Stage>("idle");
+  const completeToastShown = useRef(false);
+  const failureToastShown = useRef(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(() => readStoredIdempotencyKey());
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -125,9 +132,96 @@ export default function Scan() {
     persistIdempotencyKey(idempotencyKey);
   }, [idempotencyKey]);
 
-  const clearIdempotency = () => {
+  useEffect(() => {
+    return () => {
+      if (statusUnsub.current) {
+        statusUnsub.current();
+        statusUnsub.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+
+  const clearIdempotency = useCallback(() => {
     setIdempotencyKey(null);
-  };
+  }, []);
+
+  const attachStatusListener = useCallback(
+    (id: string) => {
+      if (statusUnsub.current) {
+        statusUnsub.current();
+        statusUnsub.current = null;
+      }
+      setScanId(id);
+      setScanStatus(null);
+      completeToastShown.current = false;
+      failureToastShown.current = false;
+      statusUnsub.current = listenToScan(
+        id,
+        (snapshot) => {
+          setScanStatus(snapshot);
+          if (!snapshot) return;
+          const normalizedStatus = snapshot.status?.toLowerCase?.() ?? "";
+
+          if (normalizedStatus === "complete" || normalizedStatus === "completed") {
+            if (snapshot.result) {
+              const normalized: ScanResultResponse = {
+                id: snapshot.id,
+                createdAt: snapshot.createdAt,
+                completedAt: snapshot.completedAt ?? snapshot.createdAt,
+                engine: snapshot.engine ?? "openai",
+                status: snapshot.status,
+                inputs: snapshot.inputs,
+                result: snapshot.result,
+                metadata: snapshot.metadata,
+                creditsRemaining: snapshot.creditsRemaining,
+                provider: snapshot.provider ?? "openai",
+              };
+              if (statusUnsub.current) {
+                statusUnsub.current();
+                statusUnsub.current = null;
+              }
+              setResult(normalized);
+              setStage("complete");
+              setProgressText("Estimate ready");
+              if (!completeToastShown.current) {
+                toast({ title: "Estimate ready", description: "Your result has been saved to History." });
+                completeToastShown.current = true;
+              }
+              clearIdempotency();
+            }
+          } else if (normalizedStatus === "failed" || normalizedStatus === "aborted") {
+            const description = snapshot.error || "Scan failed. Please try again.";
+            if (!failureToastShown.current) {
+              toast({ title: "Scan failed", description, variant: "destructive" });
+              failureToastShown.current = true;
+            }
+            if (statusUnsub.current) {
+              statusUnsub.current();
+              statusUnsub.current = null;
+            }
+            setScanId(null);
+            setStage("idle");
+            setProgressText(description);
+            setResult(null);
+            clearIdempotency();
+          } else {
+            if (stageRef.current !== "uploading" && stageRef.current !== "starting") {
+              setProgressText("Analyzing photos with OpenAI Vision…");
+            }
+            setStage((prev) => (prev === "uploading" || prev === "starting" ? prev : "analyzing"));
+          }
+        },
+        (error) => {
+          console.error("scan_status_error", error);
+        },
+      );
+    },
+    [clearIdempotency, toast],
+  );
 
   const handleFileChange = (pose: PoseKey, fileList: FileList | null) => {
     const file = fileList?.[0] || null;
@@ -212,6 +306,7 @@ export default function Scan() {
     try {
       const session = await startLiveScan();
       payload.scanId = session.scanId;
+      attachStatusListener(session.scanId);
       setStage("uploading");
       await uploadScanImages(session.uploadUrls, fileMap, ({ pose, index, total }) => {
         setUploadIndex(index + 1);
@@ -220,12 +315,7 @@ export default function Scan() {
       });
       setStage("analyzing");
       setProgressText("Analyzing photos with OpenAI Vision...");
-      const response = await submitLiveScan(payload);
-      setStage("complete");
-      setProgressText("Estimate ready");
-      setResult(response);
-      clearIdempotency();
-      toast({ title: "Estimate ready", description: "Your result has been saved to History." });
+      await submitLiveScan(payload);
     } catch (err: any) {
       console.error("scan_analyze_error", err);
       let description = err?.message || "Unable to process scan right now.";
@@ -259,6 +349,7 @@ export default function Scan() {
   const selectSexValue = sex === "" ? undefined : sex;
 
   const initializing = false;
+  const creditsDisplay = creditsLoading ? "…" : credits === Infinity ? "∞" : credits;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-scan">
@@ -447,7 +538,7 @@ export default function Scan() {
               {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
             </Button>
             <div className="text-xs text-center text-muted-foreground">
-              Credits: {creditsLoading ? "…" : credits}
+              Credits: {creditsDisplay}
             </div>
             {initializing && (
               <p className="text-xs text-center text-muted-foreground">Secure services are starting up—tap Analyze once this message disappears.</p>

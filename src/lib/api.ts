@@ -263,6 +263,8 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
   }
 }
 
+const APP_CHECK_PATH_PREFIXES = ["/api/scan", "/api/coach", "/api/nutrition"] as const;
+
 async function authedFetch(path: string, init?: RequestInit) {
   const url = fnUrl(path);
   if (!url) {
@@ -271,14 +273,18 @@ async function authedFetch(path: string, init?: RequestInit) {
   }
   const { user } = await requireAuthContext();
   const t = await user.getIdToken();
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckHeader();
+  const needsAppCheck = APP_CHECK_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+  let appCheckHeaders: Record<string, string> = {};
+  if (needsAppCheck) {
+    await ensureAppCheck();
+    appCheckHeaders = await getAppCheckHeader();
+  }
   return fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${t}`,
-      ...(appCheckHeaders || {}),
+      ...appCheckHeaders,
       ...(init?.headers || {}),
     },
   });
@@ -287,11 +293,16 @@ async function authedFetch(path: string, init?: RequestInit) {
 export async function startScan(params?: Record<string, unknown>) {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckHeader();
   const response = await fetch("/api/scan/start", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      ...(appCheckHeaders["X-Firebase-AppCheck"]
+        ? { "X-Firebase-AppCheck": appCheckHeaders["X-Firebase-AppCheck"] }
+        : {}),
     },
     body: JSON.stringify(params ?? {}),
   });

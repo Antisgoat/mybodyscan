@@ -3,8 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
-import { consumeOneCredit } from "@/lib/credits";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutritionBackend";
@@ -16,7 +14,6 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
-import { startScan } from "@/lib/scanLegacy";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 export default function Today() {
@@ -104,31 +101,9 @@ export default function Today() {
     };
   }, [demo, todayISO]);
 
-  const handleScan = async () => {
-    try {
-      track("start_scan_click");
-        await consumeOneCredit();
-        const scan = await startScan();
-        toast({ title: "Credit used", description: "Starting scan..." });
-        navigate("/scan", { state: scan });
-      } catch (err: any) {
-        if (err?.message === "demo-blocked") {
-          // already handled
-        } else if (err?.message?.includes("No credits")) {
-          toast({
-            title: "No credits available",
-            description: "Purchase credits to continue scanning.",
-            variant: "destructive",
-          });
-          navigate("/plans");
-        } else {
-        toast({
-          title: "Error",
-          description: err?.message || "Failed to start scan",
-          variant: "destructive",
-        });
-      }
-    }
+  const handleScan = () => {
+    track("start_scan_click");
+    navigate("/scan");
   };
 
   const handleLogMeal = () => {

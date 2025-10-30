@@ -17,7 +17,7 @@ import {
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { appleSignIn, emailPasswordSignIn, googleSignInWithFirebase, APPLE_WEB_ENABLED } from "@/lib/login";
+import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 
@@ -121,10 +121,11 @@ const Auth = () => {
     setLoading(true);
     try {
       rememberAuthRedirect(from);
-      const result = await googleSignInWithFirebase();
+      const result = await googleSignIn(auth);
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast(result.message ?? "Google sign-in failed.", "error");
+        const message = formatError(result.message ?? "Google sign-in failed.", result.code);
+        toast(message, "error");
         return;
       }
       if (auth.currentUser) {
@@ -133,7 +134,8 @@ const Auth = () => {
       }
     } catch (err: any) {
       consumeAuthRedirect();
-      toast(err?.message || "Google sign-in failed.", "error");
+      const message = formatError(err?.message || "Google sign-in failed.", err?.code);
+      toast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -309,4 +311,11 @@ const Auth = () => {
 };
 
 export default Auth;
+
+function formatError(message: string, code?: string) {
+  if (import.meta.env.DEV && code) {
+    return `${message} (${code})`;
+  }
+  return message;
+}
 

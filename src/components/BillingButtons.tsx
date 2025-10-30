@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
-import { openCustomerPortal, startCheckoutByPlan } from "@/lib/payments";
+import { openCustomerPortal, startCheckout, STRIPE_PRICE_IDS } from "@/lib/payments";
 
 type Props = {
   className?: string;
@@ -32,7 +32,14 @@ export default function BillingButtons({ className }: Props) {
     if (!enabled) return;
     setPending("checkout");
     try {
-      await startCheckoutByPlan("one");
+      await startCheckout(STRIPE_PRICE_IDS.ONE_TIME_STARTER);
+    } catch (err: any) {
+      const code = typeof err?.code === "string" ? err.code : undefined;
+      toast({
+        title: "Unable to start checkout",
+        description: code && import.meta.env.DEV ? `(${code})` : undefined,
+        variant: "destructive",
+      });
     } finally {
       setPending(null);
     }
@@ -47,6 +54,13 @@ export default function BillingButtons({ className }: Props) {
         return;
       }
       await openCustomerPortal();
+    } catch (err: any) {
+      const code = typeof err?.code === "string" ? err.code : undefined;
+      toast({
+        title: "Unable to open billing portal",
+        description: code && import.meta.env.DEV ? `(${code})` : undefined,
+        variant: "destructive",
+      });
     } finally {
       setPending(null);
     }

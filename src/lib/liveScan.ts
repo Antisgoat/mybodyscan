@@ -1,5 +1,6 @@
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { auth as firebaseAuth, db } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
+import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
 
 export type PoseKey = "front" | "back" | "left" | "right";
 
@@ -29,6 +30,23 @@ export interface ScanResultResponse {
   };
   creditsRemaining: number | null;
   provider?: string;
+}
+
+export interface ScanStatus {
+  id: string;
+  status: string;
+  createdAt: number;
+  completedAt: number | null;
+  engine: string | null;
+  inputs: Record<string, unknown>;
+  result?: ScanResultResponse["result"];
+  metadata: {
+    sessionId: string;
+    images: Array<{ pose: PoseKey; sizeBytes: number; md5Hash: string | null }>;
+  };
+  creditsRemaining: number | null;
+  provider?: string | null;
+  error?: string | null;
 }
 
 interface SubmitPayload {
@@ -136,4 +154,110 @@ export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResult
     throw buildError(response.status, data);
   }
   return data as ScanResultResponse;
+}
+
+export function listenToScan(
+  scanId: string,
+  handler: (snapshot: ScanStatus | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const user = firebaseAuth.currentUser;
+  if (!user) {
+    throw new Error("auth_required");
+  }
+  const ref = doc(db, `users/${user.uid}/scans/${scanId}`);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        handler(null);
+        return;
+      }
+      handler(normalizeScanStatus(snap.id, snap.data() as Record<string, unknown>));
+    },
+    onError,
+  );
+}
+
+function normalizeScanStatus(id: string, raw: Record<string, unknown>): ScanStatus {
+  const createdAt = timestampToMillis(raw.createdAt) ?? Date.now();
+  const completedAt = timestampToMillis(raw.completedAt);
+  const status = typeof raw.status === "string" ? raw.status : "processing";
+  const engine = typeof raw.engine === "string" ? raw.engine : null;
+  const provider = typeof raw.provider === "string" ? raw.provider : null;
+  const creditsRemaining = toNumber(raw.creditsRemaining);
+  const inputs = raw.inputs && typeof raw.inputs === "object" ? (raw.inputs as Record<string, unknown>) : {};
+  const metadataRaw = raw.metadata && typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : {};
+  const sessionId = typeof metadataRaw.sessionId === "string" && metadataRaw.sessionId
+    ? metadataRaw.sessionId
+    : id;
+  const imagesRaw = Array.isArray(metadataRaw.images) ? metadataRaw.images : [];
+  const images = imagesRaw.map((entry: any) => ({
+    pose: normalizePose(entry?.pose),
+    sizeBytes: typeof entry?.sizeBytes === "number" ? entry.sizeBytes : 0,
+    md5Hash: typeof entry?.md5Hash === "string" ? entry.md5Hash : null,
+  }));
+  const result = normalizeResult(raw.result);
+  const error = typeof raw.error === "string" ? raw.error : null;
+
+  return {
+    id,
+    status,
+    createdAt,
+    completedAt: completedAt ?? null,
+    engine,
+    inputs,
+    result: result ?? undefined,
+    metadata: { sessionId, images },
+    creditsRemaining,
+    provider,
+    error,
+  };
+}
+
+function normalizeResult(raw: unknown): ScanResultResponse["result"] | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const source = raw as Record<string, unknown>;
+  const bfPercent = toNumber(source.bfPercent ?? source.bf_percent);
+  if (bfPercent == null) return undefined;
+  const low = toNumber(source.low ?? source.lower) ?? bfPercent;
+  const high = toNumber(source.high ?? source.upper) ?? bfPercent;
+  const confidenceRaw = typeof source.confidence === "string" ? source.confidence.toLowerCase() : "";
+  const confidence: "low" | "medium" | "high" =
+    confidenceRaw === "high" || confidenceRaw === "medium" || confidenceRaw === "low"
+      ? (confidenceRaw as "low" | "medium" | "high")
+      : "medium";
+  const notes = typeof source.notes === "string" ? source.notes : "";
+  return { bfPercent, low, high, confidence, notes };
+}
+
+function timestampToMillis(value: unknown): number | null {
+  if (!value) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "object") {
+    const maybe = value as { toMillis?: () => number; seconds?: number };
+    if (typeof maybe.toMillis === "function") {
+      return maybe.toMillis();
+    }
+    if (typeof maybe.seconds === "number") {
+      return Math.round(maybe.seconds * 1000);
+    }
+  }
+  return null;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizePose(value: unknown): PoseKey {
+  if (value === "back" || value === "left" || value === "right") {
+    return value;
+  }
+  return "front";
 }

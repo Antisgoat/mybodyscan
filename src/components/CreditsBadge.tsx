@@ -13,7 +13,8 @@ export default function CreditsBadge(props: Props) {
     if (loading) return "—";
     if (!user) return "—";
     const dev = claims?.dev === true;
-    if (dev) return "∞";
+    const unlimited = claims?.unlimitedCredits === true;
+    if (dev || unlimited) return "∞";
     const n =
       typeof claims?.credits === "number" && Number.isFinite(claims.credits)
         ? Math.max(0, Math.floor(claims.credits))
@@ -23,7 +24,7 @@ export default function CreditsBadge(props: Props) {
 
   const title = (() => {
     if (!user) return "Not signed in";
-    if (claims?.dev === true) return "Developer account";
+    if (claims?.dev === true || claims?.unlimitedCredits === true) return "Unlimited credits";
     return "Available credits";
   })();
 
