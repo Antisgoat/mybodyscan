@@ -32,6 +32,8 @@ import { buildHash, buildTimestamp, publishableKeySuffix, describeStripeEnvironm
 import { Badge } from "@/components/ui/badge";
 import { describePortalError, openCustomerPortal } from "@/lib/payments";
 import { openExternal } from "@/lib/links";
+import { useClaims } from "@/lib/claims";
+import { buildErrorToast } from "@/lib/errorToasts";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -52,6 +54,7 @@ const Settings = () => {
   const [refreshingClaims, setRefreshingClaims] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
   const { credits, unlimited, loading: creditsLoading } = useCredits();
+  const { refresh: refreshClaimsHook } = useClaims();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
@@ -99,9 +102,12 @@ const Settings = () => {
       const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
       await setDoc(profileRef, { weight_kg: weightKg }, { merge: true });
       toast({ title: "Weight updated" });
-    } catch (error: any) {
-      console.error("save_weight", error);
-      toast({ title: "Unable to save weight", variant: "destructive" });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Unable to save weight", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     } finally {
       setSavingMetrics(false);
     }
@@ -149,8 +155,11 @@ const Settings = () => {
       }
       toast({ title: "Local data cleared" });
     } catch (error) {
-      console.error("reset_local_data", error);
-      toast({ title: "Unable to clear data", variant: "destructive" });
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Unable to clear data", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     }
   };
 
@@ -164,15 +173,20 @@ const Settings = () => {
         return;
       }
       toast({ title: "Portal unavailable", description: "Try again shortly.", variant: "destructive" });
-    } catch (error: any) {
-      console.error("open_portal", error);
-      const code = typeof error?.code === "string" ? error.code : undefined;
+    } catch (error) {
+      const code = typeof (error as any)?.code === "string" ? (error as any).code : undefined;
       const description = describePortalError(code);
-      toast({
+      const fallback = {
         title: "Unable to open billing portal",
         description: import.meta.env.DEV && code ? `${description} (${code})` : description,
-        variant: "destructive",
-      });
+        variant: "destructive" as const,
+      };
+      toast(
+        buildErrorToast(error, {
+          fallback,
+          includeCodeInDev: false,
+        }),
+      );
     } finally {
       setOpeningPortal(false);
     }
@@ -212,8 +226,11 @@ const Settings = () => {
         description: `Links expire ${new Date(payload.expiresAt).toLocaleTimeString()}.`,
       });
     } catch (error) {
-      console.error("export_data", error);
-      toast({ title: "Export failed", description: "Try again in a moment.", variant: "destructive" });
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Export failed", description: "Try again in a moment.", variant: "destructive" },
+        }),
+      );
     } finally {
       setExportingData(false);
     }
@@ -233,8 +250,11 @@ const Settings = () => {
       await signOutAll();
       navigate("/auth", { replace: true });
     } catch (error) {
-      console.error("delete_account", error);
-      toast({ title: "Delete failed", description: "Try again later.", variant: "destructive" });
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Delete failed", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     } finally {
       setDeletingAccount(false);
       setDeleteStep(0);
@@ -253,27 +273,40 @@ const Settings = () => {
   };
 
   const handleRefreshClaims = async () => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to refresh claims.", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
     try {
       setRefreshingClaims(true);
       const callable = httpsCallable(firebaseFunctions, "refreshClaims");
       await callable({});
-      await auth.currentUser?.getIdToken(true);
+
+      const claims = await refreshClaimsHook(true);
+
       let description: string | undefined;
-      const token = await auth.currentUser?.getIdTokenResult(true);
-      const unlimitedActive = token?.claims?.unlimitedCredits === true;
-      if (unlimitedActive) {
+      if (claims?.unlimitedCredits === true) {
         description = "Unlimited credits active.";
-      } else if (auth.currentUser) {
-        const snapshot = await getDoc(doc(db, `users/${auth.currentUser.uid}/private/credits`));
+      } else if (typeof claims?.credits === "number" && Number.isFinite(claims.credits)) {
+        description = `Credits remaining: ${claims.credits}`;
+      } else {
+        const snapshot = await getDoc(doc(db, `users/${user.uid}/private/credits`));
         const remaining = snapshot.data()?.creditsSummary?.totalAvailable as number | undefined;
         if (typeof remaining === "number" && Number.isFinite(remaining)) {
           description = `Credits remaining: ${remaining}`;
         }
       }
+
       toast({ title: "Claims refreshed", description });
     } catch (error) {
-      console.error("refresh_claims", error);
-      toast({ title: "Refresh failed", description: "Try again later.", variant: "destructive" });
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Refresh failed", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     } finally {
       setRefreshingClaims(false);
     }
@@ -405,7 +438,7 @@ const Settings = () => {
                 {refreshingClaims ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
                 {refreshingClaims ? "Refreshing…" : "Refresh claims"}
               </Button>
-              <p className="text-xs text-muted-foreground text-center">
+              <p className="text-xs text-muted-foreground text-center" role="status" aria-live="polite">
                 Credits: {unlimited ? "∞ (unlimited)" : creditsLabel}
               </p>
             </div>

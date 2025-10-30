@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lookupBarcode, searchFoods, type FoodItem, type SearchResult } from "@/lib/nutrition";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type Props = {
   className?: string;
@@ -12,34 +13,80 @@ export default function NutritionSearch(props: Props) {
   const [status, setStatus] = useState("");
   const [items, setItems] = useState<FoodItem[]>([]);
   const inputId = "nutrition-search-input";
+  const abortRef = useRef<AbortController | null>(null);
+  const debouncedQuery = useDebouncedValue(q, 350);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const isLikelyBarcode = useMemo(() => {
     const v = q.trim();
     return /^\d{8,}$/.test(v); // simple heuristic (UPC/EAN/GTIN)
   }, [q]);
 
-  async function runSearch() {
-    const term = q.trim();
-    if (!term) return;
-    setLoading(true);
-    setStatus("Searching…");
-    setItems([]);
-    try {
-      let res: SearchResult;
-      if (isLikelyBarcode) {
-        res = await lookupBarcode(term);
-      } else {
-        res = await searchFoods(term);
+  useEffect(() => {
+    setSearchTerm(debouncedQuery.trim());
+  }, [debouncedQuery]);
+
+  const runSearch = useCallback(
+    (manual = false) => {
+      const term = q.trim();
+      if (!term) {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        setLoading(false);
+        setStatus("");
+        setItems([]);
+        return;
       }
-      setStatus(res.status || "Done.");
-      setItems(Array.isArray(res.items) ? res.items : []);
-    } catch {
-      setStatus("Search failed. Please try again.");
-      setItems([]);
-    } finally {
+      setSearchTerm(term);
+      if (manual) {
+        setSearchNonce((value) => value + 1);
+      }
+    },
+    [q],
+  );
+
+  useEffect(() => {
+    if (!searchTerm) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setLoading(false);
+      setStatus("");
+      setItems([]);
+      return;
     }
-  }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const isBarcodeTerm = /^\d{8,}$/.test(searchTerm);
+    setLoading(true);
+    setStatus(isBarcodeTerm ? "Looking up barcode…" : "Searching…");
+
+    (async () => {
+      try {
+        const executor = isBarcodeTerm ? lookupBarcode : searchFoods;
+        const res: SearchResult = await executor(searchTerm, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setStatus(res.status || "Done.");
+        setItems(Array.isArray(res.items) ? res.items : []);
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        setStatus("Search failed. Please try again.");
+        setItems([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [searchTerm, searchNonce]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   return (
     <div className={className} style={wrap}>
@@ -52,12 +99,15 @@ export default function NutritionSearch(props: Props) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void runSearch();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runSearch(true);
+            }
           }}
           placeholder="Search foods (e.g., chicken breast) or paste a barcode…"
           style={input}
         />
-        <button type="button" onClick={() => void runSearch()} disabled={loading} style={btn}>
+        <button type="button" onClick={() => runSearch(true)} disabled={loading || !q.trim()} style={btn}>
           {loading ? "Searching…" : "Search"}
         </button>
       </div>

@@ -13,6 +13,7 @@ import {
   setCaptureMode,
   useScanCaptureStore,
 } from "./scanCaptureStore";
+import { MIN_IMAGE_DIMENSION, isAllowedImageType, readImageDimensions } from "@/lib/imageValidation";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
@@ -84,37 +85,44 @@ export default function ScanCapture() {
   };
 
   const handleFileChange = (view: CaptureView) => (event: ChangeEvent<HTMLInputElement>) => {
-    const { files: fileList } = event.target;
-    const file = fileList?.[0] ?? null;
+    const inputEl = event.target;
+    const file = inputEl.files?.[0] ?? null;
+    inputEl.value = "";
     if (!file) {
       setCaptureFile(view, undefined);
-      event.target.value = "";
       return;
     }
 
-    const lowerName = file.name?.toLowerCase?.() ?? "";
-    const typeValid =
-      (typeof file.type === "string" && file.type.startsWith("image/")) ||
-      /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(lowerName);
-
-    if (!typeValid) {
-      toast({
-        title: "Unsupported file",
-        description: "Add a photo captured from your camera or gallery.",
-        variant: "destructive",
-      });
-      event.target.value = "";
+    if (!isAllowedImageType(file)) {
+      toast({ title: "Unsupported photo", description: "Use JPEG or PNG photos.", variant: "destructive" });
       return;
     }
 
     if (file.size > MAX_FILE_BYTES) {
       toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
-      event.target.value = "";
       return;
     }
 
-    setCaptureFile(view, file);
-    event.target.value = "";
+    void (async () => {
+      try {
+        const { width, height } = await readImageDimensions(file);
+        if (Math.min(width, height) < MIN_IMAGE_DIMENSION) {
+          toast({
+            title: "Photo too small",
+            description: `Photos must be at least ${MIN_IMAGE_DIMENSION}px on the shortest side.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        setCaptureFile(view, file);
+      } catch {
+        toast({
+          title: "Photo unreadable",
+          description: "Select a different photo and try again.",
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const handleRemove = (view: CaptureView) => {
@@ -191,7 +199,7 @@ export default function ScanCapture() {
                       }}
                       id={`capture-${view}`}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                       capture="environment"
                       className="hidden"
                       onChange={handleFileChange(view)}

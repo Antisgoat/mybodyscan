@@ -1,5 +1,5 @@
 import "./lib/bootProbe";
-import { StrictMode } from "react";
+import { StrictMode, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -40,7 +40,9 @@ void (async () => {
     ReactDOM.createRoot(document.getElementById("root")!).render(
       <StrictMode>
         <AppErrorBoundary>
-          <App />
+          <Suspense fallback={null}>
+            <App />
+          </Suspense>
         </AppErrorBoundary>
       </StrictMode>
     );

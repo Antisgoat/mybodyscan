@@ -31,10 +31,19 @@ export default defineConfig(({ mode }) => ({
     ],
   },
   build: {
+    chunkSizeWarningLimit: 1800,
     rollupOptions: {
-      external: [
-        /^functions\/.*/
-      ]
-    }
-  }
+      external: [/^functions\/.*/],
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("firebase")) return "firebase";
+          if (id.includes("@tanstack")) return "tanstack";
+          if (id.includes("recharts")) return "recharts";
+          if (id.includes("lucide-react")) return "icons";
+          return "vendor";
+        },
+      },
+    },
+  },
 }));
