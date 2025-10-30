@@ -96,8 +96,14 @@ service cloud.firestore {
       }
     }
 
-    match /stripe_events/{eventId} {
-      allow read, write: if false;
+    match /stripeEvents/{eventId} {
+      allow read: if request.auth != null && request.auth.token.staff == true;
+      allow write: if false;
+    }
+
+    match /telemetryEvents/{eventId} {
+      allow read: if request.auth != null && request.auth.token.staff == true;
+      allow write: if false;
     }
   }
 }

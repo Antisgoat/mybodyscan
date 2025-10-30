@@ -3,18 +3,16 @@ import type { Request as ExpressRequest, Response as ExpressResponse } from "exp
 import { Timestamp, getFirestore } from "./firebase.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
 import { withCors } from "./middleware/cors.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { getOpenAIKey } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
+import { ensureRateLimit } from "./http/_middleware.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
 const MIN_TEXT_LENGTH = 1;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const RATE_LIMIT_COUNT = 30;
 const SYSTEM_PROMPT =
   "You are a fitness coach. Provide safe, non-medical workout & nutrition suggestions in 120–160 words, using sets×reps and RPE ranges. Consider goals, time available, and experience.";
 const OPENAI_MODELS = ["gpt-4o-mini", "gpt-3.5-turbo"] as const;
@@ -177,7 +175,11 @@ export const coachChat = onRequest(
         console.warn("coach_chat_rate_limit_error", { message: error?.message });
       }
 
-      await enforceRateLimit({ uid, key: "coach_chat", limit: RATE_LIMIT_COUNT, windowMs: RATE_LIMIT_WINDOW_MS });
+      const limiter = await ensureRateLimit({ key: "coach_chat", identifier: uid, limit: 8, windowSeconds: 60 });
+      if (!limiter.allowed) {
+        response.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+        return;
+      }
 
       const openAiKey = getOpenAIKey();
       let responseText = "";

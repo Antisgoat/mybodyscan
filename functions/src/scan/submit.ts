@@ -330,6 +330,7 @@ export const submitScan = onRequest(
         return;
       }
       const idempotencyKey = payload.idempotencyKey || undefined;
+      const debitRef = db.doc(`users/${uid}/private/debits/${payload.scanId}`) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
 
       if (!hasOpenAI()) {
         res.status(503).json({ error: "openai_not_configured" });
@@ -428,20 +429,79 @@ export const submitScan = onRequest(
 
       // Attempt to consume exactly one credit AFTER successful model call
       let credit = { consumed: true, remaining: 0 };
-      
+
       if (unlimitedCredits) {
         // Skip credit consumption for whitelisted users
         console.info("scan_submit_unlimited_credits", { uid });
         credit = { consumed: true, remaining: Infinity };
       } else {
-        credit = await consumeCredit(uid);
-        if (!credit.consumed) {
-          await scanRef
-            .set({ status: "failed", updatedAt: Timestamp.now(), error: "no_credits" }, { merge: true })
-            .catch(() => undefined);
-          if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-          res.status(402).json({ error: "no_credits" });
+        let debitGuard = { already: false, remaining: null as number | null };
+        try {
+          debitGuard = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+            const snap = (await tx.get(debitRef)) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+            if (snap.exists) {
+              const data = snap.data() as any;
+              if (data?.status === "complete") {
+                return {
+                  already: true,
+                  remaining: typeof data.remaining === "number" ? data.remaining : null,
+                };
+              }
+              if (data?.status === "pending") {
+                throw Object.assign(new Error("debit_in_progress"), { code: "debit_in_progress" });
+              }
+            }
+            tx.set(
+              debitRef,
+              {
+                status: "pending",
+                createdAt: Timestamp.now(),
+                idempotencyKey: idempotencyKey || null,
+              },
+              { merge: true }
+            );
+            return { already: false, remaining: null };
+          });
+        } catch (error: any) {
+          const code = (error?.code as string) || "unknown";
+          console.warn("scan_submit_debit_guard", { uid, code, message: error?.message });
+          res.status(409).json({ error: "scan_in_progress" });
           return;
+        }
+
+        if (debitGuard.already) {
+          credit = { consumed: true, remaining: debitGuard.remaining ?? 0 };
+        } else {
+          try {
+            credit = await consumeCredit(uid);
+            if (!credit.consumed) {
+              await debitRef.set(
+                {
+                  status: "failed",
+                  failedAt: Timestamp.now(),
+                  remaining: null,
+                },
+                { merge: true }
+              );
+              await scanRef
+                .set({ status: "failed", updatedAt: Timestamp.now(), error: "no_credits" }, { merge: true })
+                .catch(() => undefined);
+              if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+              res.status(402).json({ error: "no_credits" });
+              return;
+            }
+            await debitRef.set(
+              {
+                status: "complete",
+                completedAt: Timestamp.now(),
+                remaining: Number.isFinite(credit.remaining) ? credit.remaining : null,
+              },
+              { merge: true }
+            );
+          } catch (error) {
+            await debitRef.delete().catch(() => undefined);
+            throw error;
+          }
         }
       }
 

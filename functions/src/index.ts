@@ -12,6 +12,8 @@ export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { adjustWorkout } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { createCheckout, createCustomerPortal } from "./http/checkout.js";
+export { adminGateway } from "./http/admin.js";
+export { telemetryLog } from "./http/telemetry.js";
 export { refreshClaims } from "./claims.js";
 export { grantUnlimitedCredits } from "./claims.js";
 export { deleteMyAccount, exportMyData } from "./account.js";

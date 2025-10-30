@@ -2,7 +2,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { ensureRateLimit } from "./http/_middleware.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 
@@ -63,7 +63,11 @@ async function handler(req: Request, res: Response) {
   await verifyAppCheckStrict(req as any);
 
   const uid = await requireAuth(req);
-  await enforceRateLimit({ uid, key: "nutrition_barcode", limit: 100, windowMs: 60 * 60 * 1000 });
+  const limiter = await ensureRateLimit({ key: "nutrition_barcode", identifier: uid, limit: 30, windowSeconds: 60 });
+  if (!limiter.allowed) {
+    res.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+    return;
+  }
 
   const code = String(req.query?.code || req.body?.code || "").trim();
   if (!code) {
