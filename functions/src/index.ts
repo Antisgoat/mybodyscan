@@ -14,4 +14,4 @@ export { stripeWebhook } from "./stripeWebhook.js";
 export { createCheckout, createCustomerPortal } from "./http/checkout.js";
 export { refreshClaims } from "./claims.js";
 export { grantUnlimitedCredits } from "./claims.js";
-export { deleteMyAccount, createExportIndex } from "./account.js";
+export { deleteMyAccount, exportMyData } from "./account.js";

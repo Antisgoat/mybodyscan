@@ -9,12 +9,8 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isJpeg() {
-      return request.resource.contentType.matches('image/jpeg') || request.resource.contentType.matches('image/pjpeg');
-    }
-
     function validImageUpload() {
-      return request.resource.size <= 15 * 1024 * 1024 && isJpeg();
+      return request.resource.size < 15 * 1024 * 1024 && request.resource.contentType.matches('image/.+');
     }
 
     match /user_uploads/{uid}/{scanId}/{filename} {

@@ -2,22 +2,20 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { signOutAll } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { supportMailto } from "@/lib/support";
-import { useFlags } from "@/lib/flags";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoActive } from "@/lib/demoFlag";
-import { Download, Trash2, Loader2 } from "lucide-react";
+import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -29,6 +27,8 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { httpsCallable } from "firebase/functions";
 import { useCredits } from "@/hooks/useCredits";
+import HeaderEnvBadge from "@/components/HeaderEnvBadge";
+import { buildHash, buildTimestamp, publishableKeySuffix, describeStripeEnvironment } from "@/lib/env";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -37,7 +37,8 @@ const Settings = () => {
     checkinReminder: true,
     renewalReminder: true
   });
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
@@ -46,8 +47,12 @@ const Settings = () => {
   const [exportingData, setExportingData] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [refreshingClaims, setRefreshingClaims] = useState(false);
-  const { environment } = useFlags();
   const { credits, unlimited, loading: creditsLoading } = useCredits();
+
+  const deleteDialogOpen = deleteStep > 0;
+  const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
+  const stripeEnvironment = describeStripeEnvironment();
+  const showBuildInfo = import.meta.env.DEV;
 
   const creditsLabel = creditsLoading ? "…" : unlimited ? "∞" : credits;
 
@@ -56,9 +61,6 @@ const Settings = () => {
       setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
     }
   }, [profile?.weight_kg]);
-
-  const stripeModeLabel = environment.stripeMode === "live" ? "LIVE" : "TEST";
-  const stripeBadgeVariant = environment.stripeMode === "live" ? "default" : "secondary";
 
   const handleSaveMetrics = async () => {
     if (!auth.currentUser) {
@@ -191,8 +193,19 @@ const Settings = () => {
       toast({ title: "Delete failed", description: "Try again later.", variant: "destructive" });
     } finally {
       setDeletingAccount(false);
-      setShowDeleteConfirm(false);
+      setDeleteStep(0);
+      setDeleteConfirmInput("");
     }
+  };
+
+  const handleOpenDelete = () => {
+    setDeleteConfirmInput("");
+    setDeleteStep(1);
+  };
+
+  const handleCloseDelete = () => {
+    setDeleteConfirmInput("");
+    setDeleteStep(0);
   };
 
   const handleRefreshClaims = async () => {
@@ -232,10 +245,11 @@ const Settings = () => {
             <div className="rounded bg-muted p-2 text-center text-xs">Demo settings — sign up to save changes.</div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
-            <Badge variant={stripeBadgeVariant} aria-label={`Stripe environment ${stripeModeLabel}`}>
-              {stripeModeLabel}
-            </Badge>
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">{t('settings.title')}</h1>
+              <p className="text-xs text-muted-foreground">Securely manage your account, data, and preferences.</p>
+            </div>
+            <HeaderEnvBadge />
           </div>
 
         <Card>
@@ -319,120 +333,167 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Legal & Support */}
+        {/* Account & data */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('settings.legal')}</CardTitle>
+            <CardTitle>Account &amp; data</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <a href="/legal/privacy" className="block text-sm underline hover:text-primary">
-                Privacy Policy
-              </a>
-              <a href="/legal/terms" className="block text-sm underline hover:text-primary">
-                Terms of Service
-              </a>
-              <a href="/legal/refund" className="block text-sm underline hover:text-primary">
-                Refund Policy
-              </a>
-              <a href="/help" className="block text-sm underline hover:text-primary">
-                Help Center
-              </a>
-              <Button variant="outline" className="w-full" asChild>
-                <a href={supportMailto()} aria-label="Email support">
-                  Email support
-                </a>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Download your history or permanently remove your account. These tools affect only your MyBodyScan data.
+            </p>
+            <div className="grid gap-2">
+              <Button
+                variant="outline"
+                onClick={handleExportData}
+                className="w-full flex items-center gap-2"
+                disabled={exportingData}
+              >
+                {exportingData ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {exportingData ? "Preparing export…" : t('settings.export_data')}
               </Button>
-              <p className="text-xs text-muted-foreground text-center">support@mybodyscanapp.com</p>
+              <Button
+                variant="outline"
+                onClick={handleRefreshClaims}
+                className="w-full flex items-center gap-2"
+                disabled={refreshingClaims}
+              >
+                {refreshingClaims ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+                {refreshingClaims ? "Refreshing…" : "Refresh claims"}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Credits: {unlimited ? "∞ (unlimited)" : creditsLabel}
+              </p>
             </div>
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              onClick={handleExportData}
-              className="w-full flex items-center gap-2"
-              disabled={exportingData}
-            >
-              {exportingData ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {exportingData ? "Preparing export…" : t('settings.export_data')}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleRefreshClaims}
-              className="w-full flex items-center gap-2"
-              disabled={refreshingClaims}
-            >
-              {refreshingClaims ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {refreshingClaims ? "Refreshing…" : "Refresh claims"}
-            </Button>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Billing mode: {stripeModeLabel === "LIVE" ? "Live (real charges)" : "Test (no live charges)"}
-            </p>
-            <p className="text-xs text-muted-foreground text-center">
-              Credits: {unlimited ? "∞ (unlimited)" : creditsLabel}
-            </p>
-
-            <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  className="w-full flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {t('settings.delete_account')}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete Account</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
-                    Cancel
-                  </Button>
-                  <DemoWriteButton
-                    variant="destructive"
-                    onClick={handleDeleteAccount}
-                    disabled={deletingAccount}
-                  >
-                    {deletingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {deletingAccount ? "Deleting…" : "Delete Account"}
-                  </DemoWriteButton>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button
-              variant="outline"
-              onClick={handleSignOut}
-              className="w-full"
-            >
+            <div className="rounded border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-destructive flex items-center gap-2">
+                <Trash2 className="h-4 w-4" /> Irreversible delete
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                This will revoke access, remove scans, and delete uploaded photos. Sign back in to start fresh.
+              </p>
+              <Button variant="destructive" className="w-full" onClick={handleOpenDelete} disabled={deletingAccount}>
+                {deletingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {deletingAccount ? "Deleting…" : t('settings.delete_account')}
+              </Button>
+            </div>
+            <Button variant="outline" onClick={handleSignOut} className="w-full">
               {t('settings.sign_out')}
             </Button>
             <Button
               variant="outline"
-              onClick={async () => { await copyDiagnostics(); toast({ title: "Copied diagnostics" }); }}
+              onClick={async () => {
+                await copyDiagnostics();
+                toast({ title: "Copied diagnostics" });
+              }}
               className="w-full"
             >
               Copy diagnostics
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleResetLocalData}
-              className="w-full"
-            >
+            <Button variant="outline" onClick={handleResetLocalData} className="w-full">
               Reset local data
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Support & legal */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Support &amp; legal</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <Button variant="outline" asChild className="w-full flex items-center gap-2 justify-center">
+                <a href={supportMailto()} aria-label="Email support">
+                  <LifeBuoy className="h-4 w-4" /> Email support
+                </a>
+              </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <a href="/help" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" /> Help Center
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <a href="/legal/privacy" className="flex items-center gap-2">
+                  Privacy Policy
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <a href="/legal/terms" className="flex items-center gap-2">
+                  Terms of Service
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <a href="/legal/refund" className="flex items-center gap-2">
+                  Refund Policy
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
+            </div>
+            <div className="rounded bg-muted p-3 text-xs text-muted-foreground space-y-1">
+              <div>Stripe mode: {stripeEnvironment === "live" ? "Live" : stripeEnvironment === "test" ? "Test" : stripeEnvironment === "custom" ? "Custom key" : "Missing"}</div>
+              <div>Publishable key suffix: {publishableKeySuffix || "n/a"}</div>
+              {showBuildInfo ? (
+                <div>
+                  Build {buildHash}
+                  {buildTimestamp ? ` • ${new Date(buildTimestamp).toLocaleString()}` : ""}
+                </div>
+              ) : null}
+            </div>
+            <p className="text-center text-xs text-muted-foreground">support@mybodyscanapp.com</p>
+          </CardContent>
+        </Card>
+
+        <Dialog open={deleteDialogOpen} onOpenChange={(open) => (open ? setDeleteStep((prev) => (prev === 0 ? 1 : prev)) : handleCloseDelete())}>
+          <DialogContent>
+            {deleteStep === 1 ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Confirm delete</DialogTitle>
+                  <DialogDescription>
+                    Type <span className="font-semibold">DELETE</span> to continue. This starts the permanent removal process.
+                  </DialogDescription>
+                </DialogHeader>
+                <Input
+                  autoFocus
+                  value={deleteConfirmInput}
+                  onChange={(event) => setDeleteConfirmInput(event.target.value)}
+                  placeholder="Type DELETE"
+                  aria-label="Type DELETE to confirm"
+                />
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleCloseDelete}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={() => setDeleteStep(2)} disabled={!canAdvanceDelete}>
+                    Continue
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Final confirmation</DialogTitle>
+                  <DialogDescription>
+                    This will revoke access, delete scans, and erase uploads immediately. You cannot undo this action.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleCloseDelete}>
+                    Cancel
+                  </Button>
+                  <DemoWriteButton variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+                    {deletingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {deletingAccount ? "Deleting…" : "Delete forever"}
+                  </DemoWriteButton>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
       <BottomNav />
     </div>

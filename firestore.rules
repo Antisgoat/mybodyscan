@@ -1,4 +1,3 @@
-// UNUSED: database.rules.json is the authoritative ruleset.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -9,15 +8,6 @@ service cloud.firestore {
 
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
-    }
-
-    function disallowServerOwnedWrites() {
-      return !(('credits' in request.resource.data) ||
-               ('stripe' in request.resource.data) ||
-               ('plan' in request.resource.data) ||
-               ('subscription' in request.resource.data) ||
-               ('role' in request.resource.data) ||
-               ('stripeCustomerId' in request.resource.data));
     }
 
     function isDemoByClaim() {
@@ -32,10 +22,30 @@ service cloud.firestore {
       return isDemoByClaim() || isDemoByUid();
     }
 
+    function blocksServerOwnedWrites() {
+      return !(("credits" in request.resource.data) ||
+               ("stripe" in request.resource.data) ||
+               ("plan" in request.resource.data) ||
+               ("subscription" in request.resource.data) ||
+               ("role" in request.resource.data) ||
+               ("claims" in request.resource.data) ||
+               ("stripeCustomerId" in request.resource.data));
+    }
+
+    match /publicConfig/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /app/publicConfig {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if !isDemoUser() && isOwner(uid);
-      allow update: if !isDemoUser() && isOwner(uid) && disallowServerOwnedWrites();
+      allow update: if !isDemoUser() && isOwner(uid) && blocksServerOwnedWrites();
       allow delete: if false;
 
       match /scans/{scanId} {
@@ -50,6 +60,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /private/{doc=**} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       match /coach/{sub=**} {
         allow read: if isOwner(uid);
         allow write: if !isDemoUser() && isOwner(uid) && !request.resource.id.matches('plan(/.*)?');
@@ -58,6 +73,11 @@ service cloud.firestore {
       match /coach/plan/{rest=**} {
         allow read: if isOwner(uid);
         allow write: if false;
+      }
+
+      match /coachPlans/current {
+        allow read: if isOwner(uid);
+        allow write: if !isDemoUser() && isOwner(uid);
       }
 
       match /nutritionLogs/{day} {

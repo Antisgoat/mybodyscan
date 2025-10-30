@@ -196,6 +196,20 @@ Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safa
 6. Search for a meal in Nutrition, add it, and see the log update.
 7. Visit `/__diag` or `/__smoke` (SmokeKit) and run the Stripe, App Check, and nutrition probes.
 
+## Final smoke checklist
+
+- Delete account removes Auth user, Firestore subtree, and Storage folder; subsequent login creates a new clean user.
+- Export returns JSON with signed URLs and latest results.
+- Firestore/Storage rules compile and block writes where expected (private paths).
+- TEST badge appears when pk_test_ is in use; Settings shows Support, Terms, Privacy, and Refresh Claims works (∞ on developer@).
+- `/__smoke` probes show: rules write-deny, export JSON preview OK.
+- CI green; no regressions to sign-in, payments/portal, scans, coach, nutrition.
+
+## Legal pages
+
+- Terms of Service: `/legal/terms`
+- Privacy Policy: `/legal/privacy`
+
 ## Testing rules
 
 Run Firestore security rules tests using the emulator suite:

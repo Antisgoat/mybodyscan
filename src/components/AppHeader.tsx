@@ -3,6 +3,7 @@ import CreditsBadge from "./CreditsBadge";
 import BillingButtons from "./BillingButtons";
 import { useClaims } from "@/lib/claims";
 import { isDemo, startDemo } from "@/lib/demo";
+import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 
 export type AppHeaderProps = {
   className?: string;
@@ -111,6 +112,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
         <a href="/" style={brand} aria-label="MyBodyScan Home">
           MyBodyScan
         </a>
+        <HeaderEnvBadge />
         {demo && (
           <span style={demoPill} aria-label="Demo mode active">
             DEMO
