@@ -1,13 +1,42 @@
-const raw = (import.meta as any)?.env?.VITE_FUNCTIONS_BASE_URL ?? '';
-/** Cloud Functions base URL without trailing slash. */
-export const FUNCTIONS_BASE: string = typeof raw === 'string' ? raw.replace(/\/+$/, '') : '';
+const env = (import.meta as any)?.env ?? {};
 
-/** Build a URL to a function path. Returns '' if base is missing. */
+const publishableKey: string = env.VITE_STRIPE_PUBLISHABLE_KEY || "";
+const commitSha: string = env.VITE_COMMIT_SHA || env.COMMIT_SHA || "";
+const fallbackVersion: string = env.VITE_APP_VERSION || "";
+const buildTimeEnv: string = env.VITE_BUILD_TIME || env.BUILD_TIME || "";
+const functionsBaseEnv: string = env.VITE_FUNCTIONS_BASE_URL || env.FUNCTIONS_BASE_URL || "";
+const functionsRegion: string = env.VITE_FUNCTIONS_REGION || env.FUNCTIONS_REGION || "us-central1";
+const projectId: string = env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || "";
+
+export const isStripeTest = publishableKey.startsWith("pk_test_");
+export const isStripeLive = publishableKey.startsWith("pk_live_");
+
+export const publishableKeySuffix = publishableKey ? publishableKey.slice(-6) : "";
+
+export const buildHash =
+  commitSha && commitSha.length >= 7
+    ? commitSha.slice(0, 7)
+    : fallbackVersion && fallbackVersion.length >= 4
+    ? fallbackVersion
+    : "dev";
+
+export const buildTimestamp = buildTimeEnv || "";
+
+export function describeStripeEnvironment(): "test" | "live" | "custom" | "missing" {
+  if (isStripeTest) return "test";
+  if (isStripeLive) return "live";
+  if (publishableKey) return "custom";
+  return "missing";
+}
+
 export function fnUrl(path: string): string {
-  if (!FUNCTIONS_BASE) {
-    console.warn('[ENV] VITE_FUNCTIONS_BASE_URL missing; skipping network call for', path);
-    return '';
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const base = functionsBaseEnv.trim().replace(/\/?$/, "");
+  if (base) {
+    return `${base}${normalized}`;
   }
-  const p = path.startsWith('/') ? path : `/${path}`;
-  return `${FUNCTIONS_BASE}${p}`;
+  if (projectId) {
+    return `https://${functionsRegion}-${projectId}.cloudfunctions.net${normalized}`;
+  }
+  return normalized;
 }

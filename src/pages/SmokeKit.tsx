@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { httpsCallable } from "firebase/functions";
+import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { auth, functions } from "@/lib/firebase";
+import { Input } from "@/components/ui/input";
+import { auth, functions, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import { PRICE_IDS } from "@/lib/payments";
@@ -12,6 +14,7 @@ import { BUILD } from "@/lib/buildInfo";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
 import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
+import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 
 const PRICE_LABELS: Record<string, string> = {
   [PRICE_IDS.ONE_TIME_STARTER]: "ONE_TIME_STARTER",
@@ -67,6 +70,21 @@ type CoachProbe = HttpProbeResult & {
 type CacheState = {
   status: ProbeStatus;
   message?: string;
+};
+
+type RulesProbeState = {
+  status: ProbeStatus;
+  read?: "ok" | "denied";
+  write?: "blocked" | "allowed";
+  error?: string;
+};
+
+type ExportProbeState = {
+  status: ProbeStatus;
+  count?: number;
+  firstId?: string;
+  expiresAt?: string;
+  error?: string;
 };
 
 async function authedHeaders(includeJson = true): Promise<Record<string, string>> {
@@ -142,12 +160,24 @@ export default function SmokeKit() {
   const [nutritionSearchProbe, setNutritionSearchProbe] = useState<NutritionProbe>({ status: "idle" });
   const [barcodeProbe, setBarcodeProbe] = useState<BarcodeProbe>({ status: "idle" });
   const [cacheState, setCacheState] = useState<CacheState>({ status: "idle" });
+  const [rulesProbe, setRulesProbe] = useState<RulesProbeState>({ status: "idle" });
+  const [exportProbe, setExportProbe] = useState<ExportProbeState>({ status: "idle" });
+  const [deleteProbe, setDeleteProbe] = useState<ProbeStatus>("idle");
+  const [deleteText, setDeleteText] = useState("");
 
   const allowAccess = useMemo(() => {
     if (import.meta.env.DEV) return true;
     if (!claims) return false;
     return Boolean(claims?.staff === true || claims?.dev === true || claims?.unlimitedCredits === true);
   }, [claims]);
+
+  const allowFinalDelete = useMemo(() => {
+    if (import.meta.env.DEV) return true;
+    if (!claims) return false;
+    return Boolean(claims?.staff === true || claims?.dev === true);
+  }, [claims]);
+
+  const deleteReady = allowFinalDelete && deleteText.trim().toUpperCase() === "DELETE";
 
   const readableClaims = useMemo(() => {
     if (!claims) return "{}";
@@ -201,6 +231,81 @@ export default function SmokeKit() {
       }
     } catch (error: any) {
       setAppCheckState({ status: "error", hasToken: false, error: error?.message || "appcheck_error" });
+    }
+  }
+
+  async function probeRules() {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setRulesProbe({ status: "error", error: "auth_required" });
+      return;
+    }
+    setRulesProbe({ status: "running" });
+    try {
+      await firebaseReady();
+      const privateDoc = doc(db, `users/${currentUser.uid}/private/__rules_probe`);
+      let readError: string | undefined;
+      try {
+        await getDoc(privateDoc);
+      } catch (error: any) {
+        readError = error?.code || error?.message || "read_failed";
+      }
+
+      let writeBlocked = false;
+      let writeError: string | undefined;
+      try {
+        await setDoc(privateDoc, { touchedAt: Date.now() });
+        await deleteDoc(privateDoc).catch(() => undefined);
+      } catch (error: any) {
+        writeBlocked = true;
+        writeError = error?.code || error?.message || "write_denied";
+      }
+
+      if (!writeBlocked) {
+        setRulesProbe({ status: "error", read: readError ? "denied" : "ok", write: "allowed", error: "write_not_blocked" });
+        return;
+      }
+
+      if (readError) {
+        setRulesProbe({ status: "error", read: "denied", write: "blocked", error: readError });
+        return;
+      }
+
+      setRulesProbe({ status: "success", read: "ok", write: "blocked", error: writeError });
+    } catch (error: any) {
+      setRulesProbe({ status: "error", error: error?.code || error?.message || "rules_probe_failed" });
+    }
+  }
+
+  async function probeExportData() {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setExportProbe({ status: "error", error: "auth_required" });
+      return;
+    }
+    setExportProbe({ status: "running" });
+    try {
+      const payload = await requestExportIndex();
+      setExportProbe({
+        status: "success",
+        count: payload.scans.length,
+        firstId: payload.scans[0]?.id,
+        expiresAt: payload.expiresAt,
+      });
+    } catch (error: any) {
+      setExportProbe({ status: "error", error: error?.code || error?.message || "export_failed" });
+    }
+  }
+
+  async function probeDeleteAccount() {
+    if (!deleteReady) return;
+    setDeleteProbe("running");
+    try {
+      await requestAccountDeletion();
+      setDeleteProbe("success");
+      setDeleteText("");
+    } catch (error: any) {
+      setDeleteProbe("error");
     }
   }
 
@@ -440,10 +545,14 @@ export default function SmokeKit() {
       }
       try {
         if (typeof localStorage !== "undefined") localStorage.clear();
-      } catch {}
+      } catch (error) {
+        void error; // ignore storage clear failures
+      }
       try {
         if (typeof sessionStorage !== "undefined") sessionStorage.clear();
-      } catch {}
+      } catch (error) {
+        void error; // ignore session storage clear failures
+      }
       try {
         if (typeof indexedDB !== "undefined" && typeof (indexedDB as any).databases === "function") {
           const dbs = await (indexedDB as any).databases();
@@ -461,7 +570,9 @@ export default function SmokeKit() {
               ),
           );
         }
-      } catch {}
+      } catch (error) {
+        void error; // ignore IndexedDB clear failures
+      }
       setCacheState({ status: "success", message: "Reloading…" });
     } catch (error: any) {
       setCacheState({ status: "error", message: error?.message || "cache_clear_failed" });
@@ -520,6 +631,92 @@ export default function SmokeKit() {
           </CardHeader>
           <CardContent>
             <BuildSummary />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Data lifecycle</CardTitle>
+            <CardDescription>Security rules, export callable, and delete callable.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="border rounded-lg p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Rules probe</p>
+                  <p className="text-xs text-muted-foreground">Read private doc, block write</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={probeRules} disabled={rulesProbe.status === "running"}>
+                  {rulesProbe.status === "running" ? "Probing…" : "Probe rules"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Status: {rulesProbe.status === "idle" ? "Idle" : rulesProbe.status === "running" ? "Running" : rulesProbe.status === "success" ? "Read ok, write blocked" : rulesProbe.error || "Error"}
+              </p>
+              {rulesProbe.status !== "idle" && rulesProbe.status !== "running" && (
+                <p className="text-xs text-muted-foreground">
+                  Read: {rulesProbe.read || "unknown"} • Write: {rulesProbe.write || "unknown"}
+                </p>
+              )}
+            </div>
+
+            <div className="border rounded-lg p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Export probe</p>
+                  <p className="text-xs text-muted-foreground">Callable JSON + signed URLs</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={probeExportData} disabled={exportProbe.status === "running"}>
+                  {exportProbe.status === "running" ? "Preparing…" : "Export preview"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Status: {exportProbe.status === "idle" ? "Idle" : exportProbe.status === "running" ? "Running" : exportProbe.status === "success" ? `OK (${exportProbe.count ?? 0} scans)` : exportProbe.error || "Error"}
+              </p>
+              {exportProbe.firstId && (
+                <p className="text-xs">First scan id: {exportProbe.firstId}</p>
+              )}
+              {exportProbe.expiresAt && (
+                <p className="text-xs text-muted-foreground">Links expire {new Date(exportProbe.expiresAt).toLocaleTimeString()}</p>
+              )}
+            </div>
+
+            <div className="border rounded-lg p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-destructive">Final delete (callable)</p>
+                  <p className="text-xs text-muted-foreground">Requires typing DELETE (dev/staff only)</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={probeDeleteAccount}
+                  disabled={!deleteReady || deleteProbe === "running"}
+                >
+                  {deleteProbe === "running" ? "Deleting…" : "Delete account"}
+                </Button>
+              </div>
+              {!allowFinalDelete && (
+                <p className="text-xs text-muted-foreground">
+                  Enable in development or with staff claims to allow final delete.
+                </p>
+              )}
+              <Input
+                value={deleteText}
+                onChange={(event) => {
+                  setDeleteText(event.target.value);
+                  if (deleteProbe !== "running") {
+                    setDeleteProbe("idle");
+                  }
+                }}
+                placeholder="Type DELETE to enable"
+                className="max-w-xs"
+                disabled={!allowFinalDelete}
+              />
+              <p className="text-xs text-muted-foreground">
+                Status: {deleteProbe === "idle" ? "Idle" : deleteProbe === "success" ? "Deleted" : deleteProbe === "running" ? "Running" : "Error"}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
