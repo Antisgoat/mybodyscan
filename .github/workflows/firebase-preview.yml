@@ -1,0 +1,98 @@
+name: Firebase Hosting Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      FIREBASE_PROJECT: mybodyscan-f3daf
+      PREVIEW_CHANNEL: pr-${{ github.event.number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect Firebase credentials
+        id: creds
+        shell: bash
+        run: |
+          set -euo pipefail
+          HAS_CREDS="false"
+          MODE=""
+          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            HAS_CREDS="true"
+            MODE="sa"
+          elif [ -n "${{ secrets.FIREBASE_TOKEN }}" ]; then
+            HAS_CREDS="true"
+            MODE="token"
+          fi
+          echo "has=${HAS_CREDS}" >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize preview plan
+        if: always()
+        run: |
+          {
+            echo "### Firebase Preview"
+            echo ""
+            if [ "${{ steps.creds.outputs.has }}" != "true" ]; then
+              echo "🔸 No credentials configured (FIREBASE_SERVICE_ACCOUNT or FIREBASE_TOKEN)."
+              echo "This job will **skip deploy** and succeed so PRs aren't blocked."
+              echo ""
+              echo "How to enable preview deploys:"
+              echo "1) Add repo secret FIREBASE_SERVICE_ACCOUNT (raw JSON or base64)."
+              echo "   –or– add FIREBASE_TOKEN from \`firebase login:ci\`."
+            else
+              echo "✅ Credentials detected. Mode: **${{ steps.creds.outputs.mode }}**."
+              echo "Project: $FIREBASE_PROJECT"
+              echo "Channel: $PREVIEW_CHANNEL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare Firebase credentials (optional)
+        if: ${{ steps.creds.outputs.has == 'true' }}
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            KEY_PATH="$RUNNER_TEMP/firebase.json"
+            if [[ "$FIREBASE_SERVICE_ACCOUNT" == \{* ]]; then
+              printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$KEY_PATH"
+            else
+              printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | base64 --decode > "$KEY_PATH"
+            fi
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$KEY_PATH" >> "$GITHUB_ENV"
+            echo "FB_AUTH_MODE=sa" >> "$GITHUB_ENV"
+          elif [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo "FIREBASE_TOKEN=$FIREBASE_TOKEN" >> "$GITHUB_ENV"
+            echo "FB_AUTH_MODE=token" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Firebase CLI
+        if: ${{ steps.creds.outputs.has == 'true' }}
+        run: npm i -g firebase-tools
+
+      - name: Install deps and build web
+        run: |
+          (npm ci || npm install --prefer-online)
+          npm run build
+
+      - name: Deploy Hosting preview
+        if: ${{ steps.creds.outputs.has == 'true' && github.event.pull_request.head.repo.fork == false }}
+        run: |
+          firebase hosting:channel:deploy "$PREVIEW_CHANNEL" --project "$FIREBASE_PROJECT" --json > preview.json
+          URL=$(node -e "const j=require('./preview.json');console.log(j.result?.url || j.result?.channels?.[0]?.url || '')")
+          echo "Preview URL: $URL"
+          echo "🔗 **Preview URL**: $URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mark preview skipped (no credentials)
+        if: ${{ steps.creds.outputs.has != 'true' || github.event.pull_request.head.repo.fork == true }}
+        run: echo "Preview deploy skipped."
