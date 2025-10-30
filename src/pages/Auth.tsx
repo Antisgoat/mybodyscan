@@ -20,6 +20,7 @@ import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseA
 import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
+import { useFlags } from "@/lib/flags";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -38,6 +39,8 @@ const Auth = () => {
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
   const { user } = useAuthUser();
+  const { flags, loaded } = useFlags();
+  const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
     if (!user) return;
@@ -141,7 +144,8 @@ const Auth = () => {
     }
   };
 
-  const showAppleButton = forceAppleButton || (APPLE_WEB_ENABLED && appleEnabled !== false);
+  const remoteAppleEnabled = flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
+  const showAppleButton = forceAppleButton || (remoteAppleEnabled && appleEnabled !== false);
 
   const onApple = async () => {
     if (loading) return;
@@ -189,7 +193,11 @@ const Auth = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
-      <Seo title="Sign In – MyBodyScan" description="Access your MyBodyScan account to start and review scans." canonical={window.location.href} />
+      <Seo
+        title="Sign In – MyBodyScan"
+        description="Access your MyBodyScan account to start and review scans."
+        canonical={canonical}
+      />
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
           <div className="text-center">
@@ -287,17 +295,28 @@ const Auth = () => {
               disabled={loading}
               className="w-full h-11 inline-flex items-center justify-center gap-2"
               data-testid="auth-google-button"
+              aria-label="Continue with Google"
             >
               Continue with Google
             </Button>
           </div>
           <div className="mt-6">
-            <Button type="button" variant="ghost" className="w-full" onClick={onExploreDemo} disabled={loading}>
-              👀 Explore demo (no sign-up)
-            </Button>
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              Browse demo data. Create a free account to unlock scanning and save your progress.
-            </p>
+            {flags.enableDemo && (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={onExploreDemo}
+                  disabled={loading}
+                >
+                  👀 Explore demo (no sign-up)
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Browse demo data. Create a free account to unlock scanning and save your progress.
+                </p>
+              </>
+            )}
             <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
               <a href="/privacy" className="underline hover:no-underline">Privacy</a>
               <span>·</span>

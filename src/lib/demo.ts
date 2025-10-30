@@ -75,19 +75,33 @@ export function assertWritableOrThrow(): void {
   if (isDemo()) throw new DemoWriteError();
 }
 
+export function assertWritable(action?: string): void {
+  try {
+    assertWritableOrThrow();
+  } catch (error) {
+    if (error instanceof DemoWriteError) {
+      notifyDemoBlocked(action);
+    }
+    throw error;
+  }
+}
+
 /** Convenience wrapper for write functions. */
 export async function guardWrite<T>(fn: () => Promise<T>): Promise<T> {
-  assertWritableOrThrow();
+  assertWritable();
   return await fn();
 }
 
 /** Optional: lightweight toast/event for host app to listen and show a banner. */
-export function notifyDemoBlocked(): void {
+export function notifyDemoBlocked(action?: string): void {
   try {
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("mbs:toast", {
-          detail: { level: "info", message: "Demo is read-only." },
+          detail: {
+            level: "info",
+            message: action ? `Demo is read-only. ${action} disabled.` : "Demo is read-only.",
+          },
         }),
       );
     }

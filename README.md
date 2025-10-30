@@ -159,6 +159,43 @@ Authorized domains (Firebase Console → Auth → Settings):
 Notes:
 - The Storage bucket must be `mybodyscan-f3daf.appspot.com` (the canonical bucket), not `...firebasestorage.app` which is a download host.
 
+## Firestore & Storage rules quick reference
+
+Production deploys ship the compiled security rules from `database.rules.json` and `storage.rules`.
+
+```text
+// Firestore
+match /users/{uid}/scans/{scanId} {
+  allow read: if request.auth.uid == uid || request.auth.token.staff == true;
+  allow write: if false; // writes come through Cloud Functions
+}
+
+match /events/telemetry/{eventId} {
+  allow create: if request.auth != null;
+  allow read: if request.auth.token.staff == true;
+}
+
+// Storage
+match /user_uploads/{uid}/{scanId}/{filename} {
+  allow read: if request.auth.uid == uid;
+  allow create, update: if request.auth.uid == uid &&
+    request.resource.size <= 15 * 1024 * 1024 &&
+    request.resource.contentType.matches('image/jpeg|image/pjpeg');
+}
+```
+
+## Smoke test checklist
+
+Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safari):
+
+1. Sign in with Google (redirect flow) and verify return to `/home`.
+2. From `/plans`, start checkout for the One Scan plan and ensure Stripe test checkout loads.
+3. From Settings, open the Billing Portal (after completing a purchase) and verify it loads; confirm the `no_customer` message appears without purchases.
+4. Complete a full scan: upload four photos, confirm retries succeed on flaky network, and wait for the processing toast.
+5. Visit Coach and send a prompt; confirm reply renders.
+6. Search for a meal in Nutrition, add it, and see the log update.
+7. Visit `/__diag` or `/__smoke` (SmokeKit) and run the Stripe, App Check, and nutrition probes.
+
 ## Testing rules
 
 Run Firestore security rules tests using the emulator suite:

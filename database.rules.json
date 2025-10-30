@@ -2,15 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
+    function isStaff() {
+      return request.auth != null && request.auth.token.staff == true;
     }
 
     function serverOwnedKeys() {
@@ -18,22 +18,13 @@ service cloud.firestore {
     }
 
     function clientPreservesServerFields() {
-      return isAdmin() || (
+      return (
         !request.resource.data.keys().hasAny(serverOwnedKeys()) &&
-        !(exists(resource.name) && request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys()))
+        (
+          !exists(resource.name) ||
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys())
+        )
       );
-    }
-
-    function targetName() {
-      return request.resource != null ? request.resource.__name__ : resource.__name__;
-    }
-
-    function isScanDocument() {
-      return targetName().segments.size() >= 6 && targetName().segments[5] == 'scans';
-    }
-
-    function isNutritionLogDocument() {
-      return targetName().segments.size() >= 6 && targetName().segments[5] == 'nutritionLogs';
     }
 
     function isNumber(value) {
@@ -63,32 +54,47 @@ service cloud.firestore {
         optionalNumberField(data, 'carbs_g', 0, 2000) &&
         optionalNumberField(data, 'fat_g', 0, 2000) &&
         optionalNumberField(data, 'alcohol', 0, 2000) &&
-        (!("updatedAt" in data) || data.updatedAt is timestamp) &&
-        (!("meals" in data) || (data.meals is list && data.meals.size() <= 200)) &&
-        (!("totals" in data) || validNutritionTotals(data.totals));
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('meals' in data) || (data.meals is list && data.meals.size() <= 200)) &&
+        (!('totals' in data) || validNutritionTotals(data.totals));
     }
 
-    function validScanCreate() {
-      return request.resource.data.keys().hasOnly(['createdAt', 'status', 'notes', 'inputs']) &&
-        request.resource.data.status in ['queued', 'processing', 'complete', 'failed'] &&
-        request.resource.data.createdAt is timestamp &&
-        (!("notes" in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000)) &&
-        (!("inputs" in request.resource.data) || request.resource.data.inputs is map);
+    match /app/publicConfig {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /events/telemetry/{eventId} {
+      allow create: if isSignedIn();
+      allow read: if isStaff();
+      allow update, delete: if false;
     }
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && clientPreservesServerFields();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) && clientPreservesServerFields();
       allow delete: if false;
 
       match /scans/{scanId} {
-        allow read: if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) && clientPreservesServerFields() && validScanCreate();
-        allow update: if
-          (isOwner(uid) && clientPreservesServerFields() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notes', 'inputs']) &&
-            (!("notes" in request.resource.data) || (request.resource.data.notes is string && request.resource.data.notes.size() <= 2000)) &&
-            (!("inputs" in request.resource.data) || request.resource.data.inputs is map))
-          || isAdmin();
+        allow read: if isOwner(uid) || isStaff();
+        allow write: if false;
+      }
+
+      match /private/{document=**} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      match /coachPlans/{docId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && docId == 'current';
+        allow delete: if false;
+      }
+
+      match /coach/{document=**} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid);
         allow delete: if false;
       }
 
@@ -98,18 +104,19 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Coach plan: allow user to read/write their own plan doc at users/{uid}/coach/plan
-      match /coach/plan {
-        allow read: if isOwner(uid);
-        allow create, update: if isOwner(uid);
-        allow delete: if false;
-      }
-
       match /{document=**} {
         allow read: if isOwner(uid);
-        allow create, update: if isOwner(uid) && clientPreservesServerFields() && !isScanDocument() && !isNutritionLogDocument();
+        allow create, update: if isOwner(uid) && clientPreservesServerFields();
         allow delete: if false;
       }
+    }
+
+    match /stripe_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

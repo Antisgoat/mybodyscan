@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
 
@@ -17,7 +17,7 @@ export function useCredits() {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
+    const unsubscribe = onIdTokenChanged(
       firebaseAuth,
       async (u) => {
         setUid(u?.uid ?? null);

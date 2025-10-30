@@ -1,7 +1,6 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
     function isSignedIn() {
       return request.auth != null && request.auth.uid != null;
     }
@@ -10,20 +9,25 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Only allow images or short videos, max 50MB
-    function validContent() {
-      return request.resource.size < 50 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*')
-            || request.resource.contentType.matches('video/.*'));
+    function isJpeg() {
+      return request.resource.contentType.matches('image/jpeg') || request.resource.contentType.matches('image/pjpeg');
     }
 
-    match /scans/{uid}/{scanId}/{filename} {
+    function validImageUpload() {
+      return request.resource.size <= 15 * 1024 * 1024 && isJpeg();
+    }
+
+    match /user_uploads/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
-      allow create: if isOwner(uid) && validContent();
-      allow update, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validImageUpload();
+      allow delete: if isOwner(uid);
     }
 
-    // Deny everything else by default
+    match /public/{path=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /{all=**} {
       allow read, write: if false;
     }

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { startCheckout, PRICE_IDS } from "@/lib/payments";
+import { startCheckout, PRICE_IDS, describeCheckoutError } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -18,9 +18,8 @@ export default function Plans() {
       await startCheckout(plan.priceId);
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
-      const description = code && import.meta.env.DEV
-        ? `We couldn't open checkout. (${code})`
-        : "We couldn't open checkout. Please try again.";
+      const message = describeCheckoutError(code);
+      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
         title: "Checkout unavailable",
         description,
