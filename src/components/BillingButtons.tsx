@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
-import { openCustomerPortal, startCheckout, STRIPE_PRICE_IDS } from "@/lib/payments";
+import { openCustomerPortal, startCheckout, PRICE_IDS } from "@/lib/payments";
 
 type Props = {
   className?: string;
@@ -32,7 +32,7 @@ export default function BillingButtons({ className }: Props) {
     if (!enabled) return;
     setPending("checkout");
     try {
-      await startCheckout(STRIPE_PRICE_IDS.ONE_TIME_STARTER);
+      await startCheckout(PRICE_IDS.ONE_TIME_STARTER);
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
       toast({
