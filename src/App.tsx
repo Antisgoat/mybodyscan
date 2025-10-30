@@ -58,6 +58,7 @@ import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import Diagnostics from "./pages/Diagnostics";
+import SmokeKit from "./pages/SmokeKit";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Scan from "./pages/Scan";
@@ -613,6 +614,18 @@ const App = () => {
             <Route path="/dev/audit" element={<DevAudit />} />
             <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="/__diag" element={<Diagnostics />} />
+            <Route
+              path="/__smoke"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <SmokeKit />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />

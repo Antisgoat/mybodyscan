@@ -2,18 +2,20 @@ import { auth } from "./firebase";
 
 export type PlanKey = "one" | "extra" | "pro_monthly" | "elite_annual";
 
-export const STRIPE_PRICE_IDS = {
+export const PRICE_IDS = {
   ONE_TIME_STARTER: "price_1RuOpKQQU5vuhlNjipfFBsR0",
   EXTRA_ONE_TIME: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
   PRO_MONTHLY: "price_1S4XsVQQU5vuhlNjzdQzeySA",
   ELITE_ANNUAL: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 } as const;
 
+export const STRIPE_PRICE_IDS = PRICE_IDS;
+
 export const LEGACY_PLAN_PRICE_MAP: Record<PlanKey, string> = {
-  one: STRIPE_PRICE_IDS.ONE_TIME_STARTER,
-  extra: STRIPE_PRICE_IDS.EXTRA_ONE_TIME,
-  pro_monthly: STRIPE_PRICE_IDS.PRO_MONTHLY,
-  elite_annual: STRIPE_PRICE_IDS.ELITE_ANNUAL,
+  one: PRICE_IDS.ONE_TIME_STARTER,
+  extra: PRICE_IDS.EXTRA_ONE_TIME,
+  pro_monthly: PRICE_IDS.PRO_MONTHLY,
+  elite_annual: PRICE_IDS.ELITE_ANNUAL,
 };
 
 type ErrorPayload = { error: string; code?: string };
@@ -59,21 +61,33 @@ async function postWithAuth(path: string, body: unknown): Promise<any> {
   return data;
 }
 
-export async function startCheckout(priceId: string) {
+type CheckoutOptions = {
+  navigate?: boolean;
+};
+
+export async function startCheckout(priceId: string, options?: CheckoutOptions) {
   const trimmed = typeof priceId === "string" ? priceId.trim() : "";
   const result = await postWithAuth("/createCheckout", { priceId: trimmed });
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;
   }
+  if (options?.navigate === false) {
+    return { url } as const;
+  }
   location.assign(url);
+  return { url } as const;
 }
 
-export async function openCustomerPortal() {
+export async function openCustomerPortal(options?: CheckoutOptions) {
   const result = await postWithAuth("/createCustomerPortal", {});
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;
   }
+  if (options?.navigate === false) {
+    return { url } as const;
+  }
   location.assign(url);
+  return { url } as const;
 }

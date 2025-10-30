@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { startCheckout, STRIPE_PRICE_IDS } from "@/lib/payments";
+import { startCheckout, PRICE_IDS } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -38,7 +38,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "one" as const,
-      priceId: STRIPE_PRICE_IDS.ONE_TIME_STARTER,
+      priceId: PRICE_IDS.ONE_TIME_STARTER,
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -54,7 +54,7 @@ export default function Plans() {
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
       plan: "pro_monthly" as const,
-      priceId: STRIPE_PRICE_IDS.PRO_MONTHLY,
+      priceId: PRICE_IDS.PRO_MONTHLY,
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -74,7 +74,7 @@ export default function Plans() {
       period: "per year",
       credits: "3 scans/month + Everything included",
       plan: "elite_annual" as const,
-      priceId: STRIPE_PRICE_IDS.ELITE_ANNUAL,
+      priceId: PRICE_IDS.ELITE_ANNUAL,
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -99,7 +99,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "extra" as const,
-      priceId: STRIPE_PRICE_IDS.EXTRA_ONE_TIME,
+      priceId: PRICE_IDS.EXTRA_ONE_TIME,
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
