@@ -1,7 +1,7 @@
-import { isNative } from "@/lib/platform";
+import { isCapacitor } from "@/lib/platform";
 
 export function killSW() {
-  if (isNative) return;
+  if (isCapacitor()) return;
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   try {
     navigator.serviceWorker.getRegistrations().then((regs) => {

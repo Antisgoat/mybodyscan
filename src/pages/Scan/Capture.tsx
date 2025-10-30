@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Seo } from "@/components/Seo";
+import { useToast } from "@/hooks/use-toast";
 import {
   CAPTURE_VIEW_SETS,
   type CaptureView,
@@ -13,6 +14,8 @@ import {
   useScanCaptureStore,
 } from "./scanCaptureStore";
 
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
+
 export default function ScanCapture() {
   const navigate = useNavigate();
   const { mode, files } = useScanCaptureStore();
@@ -21,6 +24,7 @@ export default function ScanCapture() {
   const [previews, setPreviews] = useState<Partial<Record<CaptureView, string>>>({});
   const fileRefs = useRef<Partial<Record<CaptureView, File>>>({});
   const previewRef = useRef(previews);
+  const { toast } = useToast();
 
   useEffect(() => {
     setPreviews((prev) => {
@@ -80,7 +84,35 @@ export default function ScanCapture() {
   };
 
   const handleFileChange = (view: CaptureView) => (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const { files: fileList } = event.target;
+    const file = fileList?.[0] ?? null;
+    if (!file) {
+      setCaptureFile(view, undefined);
+      event.target.value = "";
+      return;
+    }
+
+    const lowerName = file.name?.toLowerCase?.() ?? "";
+    const typeValid =
+      (typeof file.type === "string" && file.type.startsWith("image/")) ||
+      /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(lowerName);
+
+    if (!typeValid) {
+      toast({
+        title: "Unsupported file",
+        description: "Add a photo captured from your camera or gallery.",
+        variant: "destructive",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_FILE_BYTES) {
+      toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
+      event.target.value = "";
+      return;
+    }
+
     setCaptureFile(view, file);
     event.target.value = "";
   };
@@ -160,6 +192,7 @@ export default function ScanCapture() {
                       id={`capture-${view}`}
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       className="hidden"
                       onChange={handleFileChange(view)}
                     />

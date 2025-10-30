@@ -39,6 +39,7 @@ import LegalRefund from "./pages/legal/Refund";
 import Help from "./pages/Help";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
+import OAuthReturn from "./pages/OAuthReturn";
 import ScanNew from "./pages/ScanNew";
 import ScanStart from "./pages/Scan/Start";
 import ScanCapture from "./pages/Scan/Capture";
@@ -84,6 +85,7 @@ import NetBanner from "./components/NetBanner";
 import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
+import { initBackHandler } from "./lib/back";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -105,6 +107,7 @@ const App = () => {
     if (MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE) {
       void loadPublicLayout();
     }
+    initBackHandler();
   }, []);
 
   return (
@@ -159,6 +162,7 @@ const App = () => {
                 <Auth />
               </Suspense>
             } />
+            <Route path="/oauth/return" element={<OAuthReturn />} />
             <Route path="/login" element={<Login />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />

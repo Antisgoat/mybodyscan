@@ -15,7 +15,7 @@ import { supportMailto } from "@/lib/support";
 import { useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoActive } from "@/lib/demoFlag";
-import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink } from "lucide-react";
+import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink, CreditCard } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -29,6 +29,9 @@ import { httpsCallable } from "firebase/functions";
 import { useCredits } from "@/hooks/useCredits";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { buildHash, buildTimestamp, publishableKeySuffix, describeStripeEnvironment } from "@/lib/env";
+import { Badge } from "@/components/ui/badge";
+import { describePortalError, openCustomerPortal } from "@/lib/payments";
+import { openExternal } from "@/lib/links";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -47,12 +50,29 @@ const Settings = () => {
   const [exportingData, setExportingData] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [refreshingClaims, setRefreshingClaims] = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
   const { credits, unlimited, loading: creditsLoading } = useCredits();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
   const stripeEnvironment = describeStripeEnvironment();
   const showBuildInfo = import.meta.env.DEV;
+  const environmentBadgeLabel =
+    stripeEnvironment === "live"
+      ? "LIVE"
+      : stripeEnvironment === "test"
+      ? "TEST"
+      : stripeEnvironment === "custom"
+      ? "CUSTOM"
+      : "MISSING";
+  const environmentTone =
+    stripeEnvironment === "live"
+      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+      : stripeEnvironment === "test"
+      ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+      : stripeEnvironment === "custom"
+      ? "bg-sky-500/10 text-sky-600 dark:text-sky-300"
+      : "bg-destructive/10 text-destructive";
 
   const creditsLabel = creditsLoading ? "…" : unlimited ? "∞" : credits;
 
@@ -131,6 +151,29 @@ const Settings = () => {
     } catch (error) {
       console.error("reset_local_data", error);
       toast({ title: "Unable to clear data", variant: "destructive" });
+    }
+  };
+
+  const handleOpenBillingPortal = async () => {
+    try {
+      setOpeningPortal(true);
+      const result = await openCustomerPortal({ navigate: false });
+      const url = result?.url;
+      if (url) {
+        openExternal(url);
+        return;
+      }
+      toast({ title: "Portal unavailable", description: "Try again shortly.", variant: "destructive" });
+    } catch (error: any) {
+      console.error("open_portal", error);
+      const code = typeof error?.code === "string" ? error.code : undefined;
+      toast({
+        title: "Unable to open billing portal",
+        description: describePortalError(code),
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningPortal(false);
     }
   };
 
@@ -402,6 +445,21 @@ const Settings = () => {
             <CardTitle>Support &amp; legal</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-md border border-muted px-3 py-2 text-sm">
+                <span>Environment</span>
+                <Badge className={`uppercase tracking-wide ${environmentTone}`}>{environmentBadgeLabel}</Badge>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleOpenBillingPortal}
+                className="w-full flex items-center justify-center gap-2"
+                disabled={openingPortal}
+              >
+                {openingPortal ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                {openingPortal ? "Opening portal…" : "Open billing portal"}
+              </Button>
+            </div>
             <div className="grid gap-2">
               <Button variant="outline" asChild className="w-full flex items-center gap-2 justify-center">
                 <a href={supportMailto()} aria-label="Email support">

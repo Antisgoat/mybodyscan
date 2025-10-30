@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -22,6 +22,7 @@ import type { Unsubscribe } from "firebase/firestore";
 import { listenToScan, PoseKey, ScanResultResponse, type ScanStatus, startLiveScan, submitLiveScan, uploadScanImages } from "@/lib/liveScan";
 // App Check removed; treat as immediately ready
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
+import { useBackNavigationGuard } from "@/lib/back";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const IDEMPOTENCY_STORAGE_KEY = "scan:idempotency";
@@ -94,6 +95,12 @@ export default function Scan() {
   const demo = useDemoMode();
   const appCheckReady = true;
   const { credits, loading: creditsLoading } = useCredits();
+  const guardMessage = "Going back may cancel the current action. Continue?";
+  const shouldBlockBackNavigation = useCallback(
+    () => submitting || stage === "starting" || stage === "uploading" || stage === "analyzing",
+    [stage, submitting],
+  );
+  useBackNavigationGuard(shouldBlockBackNavigation, { message: guardMessage });
 
   useEffect(() => {
     const next: PreviewMap = emptyPreviewMap();
@@ -224,22 +231,34 @@ export default function Scan() {
     [clearIdempotency, toast],
   );
 
-  const handleFileChange = (pose: PoseKey, fileList: FileList | null) => {
-    const file = fileList?.[0] || null;
+  const handleFileChange = (pose: PoseKey, event: ChangeEvent<HTMLInputElement>) => {
+    const { files: fileList } = event.target;
+    const file = fileList?.[0] ?? null;
     if (!file) {
       setFiles((prev) => ({ ...prev, [pose]: null }));
+      event.target.value = "";
       return;
     }
-    const typeValid = file.type === "image/jpeg" || file.name.toLowerCase().endsWith(".jpg") || file.name.toLowerCase().endsWith(".jpeg");
+    const lowerName = file.name?.toLowerCase?.() ?? "";
+    const typeValid =
+      (typeof file.type === "string" && file.type.startsWith("image/")) ||
+      /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(lowerName);
     if (!typeValid) {
-      toast({ title: "Unsupported file", description: "Please upload a .jpg or .jpeg photo.", variant: "destructive" });
+      toast({
+        title: "Unsupported file",
+        description: "Add a photo captured from your camera or gallery.",
+        variant: "destructive",
+      });
+      event.target.value = "";
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
       toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
+      event.target.value = "";
       return;
     }
     setFiles((prev) => ({ ...prev, [pose]: file }));
+    event.target.value = "";
   };
 
   const clearPhoto = (pose: PoseKey) => {
@@ -425,14 +444,14 @@ export default function Scan() {
                           accept="image/jpeg,.jpg,.jpeg,image/*"
                           capture="environment"
                           className="hidden"
-                          onChange={(event) => handleFileChange(key, event.target.files)}
+                          onChange={(event) => handleFileChange(key, event)}
                         />
                         {file ? (
                           <Button variant="ghost" size="sm" className="w-full" onClick={() => clearPhoto(key)}>
                             <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
                           </Button>
                         ) : (
-                          <p className="text-[11px] text-muted-foreground">JPG only · Under 15 MB</p>
+                          <p className="text-[11px] text-muted-foreground">Images only · Under 15 MB</p>
                         )}
                       </div>
                     );

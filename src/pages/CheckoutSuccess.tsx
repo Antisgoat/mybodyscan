@@ -3,9 +3,13 @@ import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { useBackNavigationGuard } from "@/lib/back";
 
 export default function CheckoutSuccess() {
   const navigate = useNavigate();
+  useBackNavigationGuard(() => true, {
+    message: "Going back may cancel the current action. Continue?",
+  });
   useEffect(() => {
     const t = setTimeout(() => navigate("/scan/new"), 4000);
     return () => clearTimeout(t);

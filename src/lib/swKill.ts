@@ -1,6 +1,8 @@
-import { isWeb, ENABLE_SW } from "./platform";
+import { isWeb } from "./platform";
 
-if (isWeb) {
+const ENABLE_SW = false;
+
+if (isWeb()) {
   (async () => {
     try {
       if (!ENABLE_SW && "serviceWorker" in navigator) {

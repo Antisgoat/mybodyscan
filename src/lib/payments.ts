@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { openExternal } from "./links";
 
 export type PlanKey = "one" | "extra" | "pro_monthly" | "elite_annual";
 
@@ -101,7 +102,7 @@ export async function startCheckout(priceId: string, options?: CheckoutOptions) 
   if (options?.navigate === false) {
     return { url } as const;
   }
-  location.assign(url);
+  openExternal(url);
   return { url } as const;
 }
 
@@ -114,6 +115,6 @@ export async function openCustomerPortal(options?: CheckoutOptions) {
   if (options?.navigate === false) {
     return { url } as const;
   }
-  location.assign(url);
+  openExternal(url);
   return { url } as const;
 }
