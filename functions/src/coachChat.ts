@@ -137,14 +137,18 @@ export const coachChat = onRequest(
       await verifyAppCheckStrict(request as any);
     } catch (error: any) {
       if (!response.headersSent) {
-        const status = typeof error?.status === "number" ? error.status : 401;
-        response.status(status).json({ error: error?.message ?? "app_check_required" });
+        const code = errorCode(error);
+        const status = code === "failed-precondition" ? 401 : statusFromCode(code);
+        response.status(status).json({
+          error: "Secure verification required. Refresh and try again.",
+          code: "app_check_unavailable",
+        });
       }
       return;
     }
 
     if (request.method !== "POST") {
-      response.status(405).json({ error: "method_not_allowed" });
+      response.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });
       return;
     }
 
@@ -156,7 +160,10 @@ export const coachChat = onRequest(
       try {
         text = sanitizeInput((request.body as any)?.text ?? (request.body as any)?.message);
       } catch (error: any) {
-        response.status(400).json({ error: error?.message ?? "invalid_text" });
+        response.status(400).json({
+          error: error?.message ?? "Invalid request",
+          code: "invalid_text",
+        });
         return;
       }
 
@@ -169,7 +176,7 @@ export const coachChat = onRequest(
         });
       } catch (error: any) {
         if (error?.status === 429) {
-          response.status(429).json({ error: "too_many_requests" });
+          response.status(429).json({ error: "Too many requests", code: "too_many_requests" });
           return;
         }
         console.warn("coach_chat_rate_limit_error", { message: error?.message });
@@ -177,7 +184,11 @@ export const coachChat = onRequest(
 
       const limiter = await ensureRateLimit({ key: "coach_chat", identifier: uid, limit: 8, windowSeconds: 60 });
       if (!limiter.allowed) {
-        response.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+        response.status(429).json({
+          error: "Rate limited. Try again soon.",
+          code: "rate_limited",
+          retryAfter: limiter.retryAfterSeconds ?? null,
+        });
         return;
       }
 
@@ -220,11 +231,14 @@ export const coachChat = onRequest(
       if (error instanceof HttpsError) {
         const code = errorCode(error);
         const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
-        response.status(status).json({ error: (error as any)?.message ?? "unknown", code });
+        response.status(status).json({
+          error: (error as any)?.message ?? "Request failed",
+          code,
+        });
         return;
       }
       console.error("coach_chat_unhandled", { message: error?.message });
-      response.status(500).json({ error: "server_error" });
+      response.status(500).json({ error: "Server error", code: "server_error" });
     }
   })
 );

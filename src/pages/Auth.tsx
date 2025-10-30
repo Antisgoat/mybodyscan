@@ -11,16 +11,23 @@ import {
   createAccountEmail,
   rememberAuthRedirect,
   consumeAuthRedirect,
-  resolveAuthRedirect,
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
-import { appleSignIn, emailPasswordSignIn, googleSignIn, APPLE_WEB_ENABLED } from "@/lib/login";
+import {
+  appleSignIn,
+  emailPasswordSignIn,
+  googleSignIn,
+  APPLE_WEB_ENABLED,
+  describeAuthError,
+  describeAuthErrorAsync,
+} from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 import { useFlags } from "@/lib/flags";
+import { consumeAuthRedirectError, consumeAuthRedirectResult } from "@/lib/authRedirect";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -76,23 +83,26 @@ const Auth = () => {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    resolveAuthRedirect(auth)
-      .then((result) => {
-        if (!active || !result) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await consumeAuthRedirectResult();
+      if (!cancelled && result) {
         const target = consumeAuthRedirect();
         if (target) {
           navigate(target, { replace: true });
+          return;
         }
-      })
-      .catch((err: any) => {
-        if (!active) return;
+      }
+
+      const error = await consumeAuthRedirectError();
+      if (!cancelled && error) {
         consumeAuthRedirect();
-        console.error("[auth] Redirect result failed:", err);
-        notify({ title: "Sign in failed", description: err?.message || "Please try again." });
-      });
+        const mapped = await describeAuthErrorAsync(auth, error);
+        notify({ title: "Sign in failed", description: formatError(mapped.message, mapped.code) });
+      }
+    })();
     return () => {
-      active = false;
+      cancelled = true;
     };
   }, [navigate]);
 
@@ -135,9 +145,10 @@ const Auth = () => {
         consumeAuthRedirect();
         navigate(from, { replace: true });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       consumeAuthRedirect();
-      const message = formatError(err?.message || "Google sign-in failed.", err?.code);
+      const mapped = describeAuthError(err);
+      const message = formatError(mapped.message ?? "Google sign-in failed.", mapped.code);
       toast(message, "error");
     } finally {
       setLoading(false);

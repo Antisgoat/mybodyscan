@@ -101,6 +101,8 @@ function buildError(status: number, data: any): Error {
   const error = new Error(message);
   (error as any).status = status;
   (error as any).details = data;
+  const code = typeof data?.code === "string" && data.code.trim().length ? data.code : message;
+  (error as any).code = code;
   return error;
 }
 

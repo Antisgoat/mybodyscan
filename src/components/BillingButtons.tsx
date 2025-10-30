@@ -38,7 +38,7 @@ export default function BillingButtons({ className }: Props) {
     if (!enabled) return;
     setPending("checkout");
     try {
-      await startCheckout(PRICE_IDS.ONE_TIME_STARTER);
+      await startCheckout({ plan: "one", priceId: PRICE_IDS.ONE_TIME_STARTER });
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
       const message = describeCheckoutError(code);

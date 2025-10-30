@@ -15,7 +15,7 @@ export default function Plans() {
   const handleCheckout = async (plan: { plan: string; priceId: string }) => {
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      await startCheckout(plan.priceId);
+      await startCheckout({ plan: plan.plan, priceId: plan.priceId });
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
       const message = describeCheckoutError(code);

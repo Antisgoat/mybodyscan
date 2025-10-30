@@ -2,6 +2,7 @@ import type { Auth } from "firebase/auth";
 import {
   GoogleAuthProvider,
   OAuthProvider,
+  fetchSignInMethodsForEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -10,14 +11,20 @@ import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { isCapacitor, isIOSWebView, isInAppBrowser } from "./platform";
 import { toast } from "./toast";
+import { isIOSSafari } from "./isIOSWeb";
 
-function mapAuthError(err: unknown): { code?: string; message: string } {
-  const code = (err && typeof err === "object" && "code" in (err as any)) ? String((err as any).code) : undefined;
+export type NormalizedAuthError = { code?: string; message: string };
+
+export function describeAuthError(err: unknown): NormalizedAuthError {
+  const code = getErrorCode(err);
   switch (code) {
     case "auth/api-key-not-valid":
       return { code, message: "Firebase Web API key is invalid for this project. Verify Hosting init.json and GCP restrictions." };
     case "auth/internal-error":
-      return { code, message: "Auth service returned an internal error. Ensure Identity Toolkit is enabled for this project." };
+      return {
+        code,
+        message: "Sign-in failed due to an Auth service error. Try again in a moment or contact support if it persists.",
+      };
     case "auth/network-request-failed":
       return { code, message: "Network error contacting Auth. Check your connection and try again." };
     case "auth/operation-not-allowed":
@@ -37,6 +44,11 @@ function mapAuthError(err: unknown): { code?: string; message: string } {
     case "auth/user-not-found":
     case "auth/wrong-password":
       return { code, message: "Email or password is incorrect." };
+    case "auth/account-exists-with-different-credential":
+      return {
+        code,
+        message: "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.",
+      };
     default:
       return { code, message: "Sign-in failed. Please try again." };
   }
@@ -49,7 +61,7 @@ export async function emailPasswordSignIn(email: string, password: string) {
     await signInWithEmailAndPassword(auth, email, password);
     return { ok: true as const };
   } catch (e) {
-    const m = mapAuthError(e);
+    const m = describeAuthError(e);
     return { ok: false as const, code: m.code, message: m.message };
   }
 }
@@ -62,12 +74,12 @@ export async function googleSignIn(auth: Auth) {
       await signInWithRedirect(auth, provider);
       return { ok: true as const };
     } catch (error) {
-      const mapped = mapAuthError(error);
+      const mapped = await describeAuthErrorAsync(auth, error);
       return { ok: false as const, code: mapped.code, message: mapped.message };
     }
   };
 
-  const constrainedWebView = isIOSWebView() || isCapacitor() || isInAppBrowser();
+  const constrainedWebView = isIOSWebView() || isCapacitor() || isInAppBrowser() || isIOSSafari();
   if (constrainedWebView) {
     if (import.meta.env.DEV) {
       toast("Using redirect for Google sign-in (WebView detected).");
@@ -90,7 +102,7 @@ export async function googleSignIn(auth: Auth) {
       return redirect();
     }
 
-    const mapped = mapAuthError(error);
+    const mapped = await describeAuthErrorAsync(auth, error);
     return { ok: false as const, code: mapped.code, message: mapped.message };
   }
 }
@@ -100,6 +112,23 @@ export async function googleSignInWithFirebase() {
   const auth = getFirebaseAuth();
   return googleSignIn(auth);
 }
+
+export async function appleSignIn() {
+  try {
+    await firebaseReady();
+    const auth = getFirebaseAuth();
+    const provider = new OAuthProvider("apple.com");
+    provider.addScope("email");
+    provider.addScope("name");
+    await popupThenRedirect(auth, provider);
+    return { ok: true as const };
+  } catch (e) {
+    const m = describeAuthError(e);
+    return { ok: false as const, code: m.code, message: m.message };
+  }
+}
+
+export const APPLE_WEB_ENABLED = false; // keep hidden unless configured
 
 function getErrorCode(err: unknown): string | undefined {
   if (
@@ -113,19 +142,58 @@ function getErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
-export async function appleSignIn() {
+export async function describeAuthErrorAsync(auth: Auth, error: unknown): Promise<NormalizedAuthError> {
+  const code = getErrorCode(error);
+  if (code === "auth/account-exists-with-different-credential") {
+    const collisionMessage = await buildAccountExistsMessage(auth, error);
+    return { code, message: collisionMessage };
+  }
+  return describeAuthError(error);
+}
+
+async function buildAccountExistsMessage(auth: Auth, error: unknown): Promise<string> {
+  const fallback = "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.";
+  const fbError = error as (NormalizedFirebaseError | undefined);
+  const email = fbError?.customData?.email;
+  if (!email) {
+    return fallback;
+  }
+
   try {
-    await firebaseReady();
-    const auth = getFirebaseAuth();
-    const provider = new OAuthProvider("apple.com");
-    provider.addScope("email");
-    provider.addScope("name");
-    await popupThenRedirect(auth, provider);
-    return { ok: true as const };
-  } catch (e) {
-    const m = mapAuthError(e);
-    return { ok: false as const, code: m.code, message: m.message };
+    const methods = await fetchSignInMethodsForEmail(auth, email);
+    if (!Array.isArray(methods) || methods.length === 0) {
+      return fallback;
+    }
+    const friendly = methods
+      .map((method) => FRIENDLY_PROVIDER_NAMES[method] || method)
+      .filter(Boolean);
+    if (friendly.length === 0) {
+      return fallback;
+    }
+    if (friendly.length === 1) {
+      return `Sign in with ${friendly[0]} for ${email}, then link Google from Settings.`;
+    }
+    const last = friendly[friendly.length - 1];
+    const rest = friendly.slice(0, -1);
+    const list = `${rest.join(", ")} or ${last}`;
+    return `Sign in with ${list} for ${email}, then link Google from Settings.`;
+  } catch (fetchError) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] fetchSignInMethodsForEmail failed", fetchError);
+    }
+    return fallback;
   }
 }
 
-export const APPLE_WEB_ENABLED = false; // keep hidden unless configured
+type NormalizedFirebaseError = {
+  code?: string;
+  customData?: {
+    email?: string;
+  };
+};
+
+const FRIENDLY_PROVIDER_NAMES: Record<string, string> = {
+  password: "email and password",
+  "google.com": "Google",
+  "apple.com": "Apple",
+};

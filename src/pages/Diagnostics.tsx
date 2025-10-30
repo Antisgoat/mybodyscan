@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useLocation } from "react-router-dom";
 
-import { auth, functions } from "../lib/firebase";
+import { auth, functions, db } from "../lib/firebase";
 import { fetchClaims } from "../lib/claims";
 import { BUILD } from "../lib/buildInfo";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../lib/flags";
 import { ensureAppCheck, getAppCheckHeader } from "../lib/appCheck";
 import { httpsCallable } from "firebase/functions";
+import { doc, getDoc } from "firebase/firestore";
 import { toast } from "../lib/toast";
 
 type InitInfo = { projectId?: string; authDomain?: string; apiKey?: string };
@@ -35,6 +36,8 @@ export default function Diagnostics() {
   const [now, setNow] = useState<string>("");
   const [appCheckPresent, setAppCheckPresent] = useState<boolean | null>(null);
   const [claimsReady, setClaimsReady] = useState(false);
+  const [stripeInfo, setStripeInfo] = useState<{ customerId: string | null; updatedAt: string | null } | null>(null);
+  const devMode = import.meta.env.DEV;
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -73,8 +76,8 @@ export default function Diagnostics() {
     return Boolean(bag.dev === true || bag.unlimitedCredits === true || bag.staff === true);
   }, [claims]);
 
-  const allowed = devOverride || allowByEmail || allowByClaims;
-  const gatingReady = claimsReady || devOverride || allowByEmail;
+  const allowed = devMode && (devOverride || allowByEmail || allowByClaims);
+  const gatingReady = !devMode || claimsReady || devOverride || allowByEmail;
 
   const probe = useCallback(async () => {
     setBusy(true);
@@ -131,6 +134,36 @@ export default function Diagnostics() {
       } catch {
         setClaims(null);
         setClaimsReady(true);
+      }
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          const stripeRef = doc(db, `users/${currentUser.uid}/private/stripe`);
+          const stripeSnap = await getDoc(stripeRef);
+          if (stripeSnap.exists()) {
+            const data = stripeSnap.data() as Record<string, unknown>;
+            const customerId = typeof data?.customerId === "string" ? data.customerId : null;
+            const updatedRaw = (data as Record<string, unknown>)?.updatedAt;
+            let updatedAt: string | null = null;
+            if (
+              updatedRaw &&
+              typeof updatedRaw === "object" &&
+              "toDate" in (updatedRaw as Record<string, unknown>) &&
+              typeof (updatedRaw as { toDate?: () => Date }).toDate === "function"
+            ) {
+              const date = (updatedRaw as { toDate: () => Date }).toDate();
+              updatedAt = date.toISOString();
+            }
+            setStripeInfo({ customerId, updatedAt });
+          } else {
+            setStripeInfo({ customerId: null, updatedAt: null });
+          }
+        } catch {
+          setStripeInfo({ customerId: null, updatedAt: null });
+        }
+      } else {
+        setStripeInfo(null);
       }
     } finally {
       setBusy(false);
@@ -222,8 +255,19 @@ export default function Diagnostics() {
   }, []);
 
   useEffect(() => {
-    void probe();
-  }, [probe]);
+    if (devMode) {
+      void probe();
+    }
+  }, [probe, devMode]);
+
+  if (!devMode) {
+    return (
+      <div style={wrap}>
+        <h1 style={h1}>Diagnostics</h1>
+        <p style={noteStyle}>Diagnostics are only available in development builds.</p>
+      </div>
+    );
+  }
 
   if (!allowed && !gatingReady) {
     return (
@@ -306,6 +350,12 @@ export default function Diagnostics() {
         <KV k="Stripe key (suffix)" v={stripeKeySuffix} />
         <KV k="USDA_API_KEY" v={String(Boolean(USDA_API_KEY))} />
         <KV k="OFF_ENABLED" v={String(OFF_ENABLED)} />
+      </Section>
+
+      <Section title="Stripe customer">
+        <KV k="cached" v={stripeInfo ? String(Boolean(stripeInfo.customerId)) : "—"} />
+        <KV k="customerId" v={stripeInfo?.customerId ?? "—"} />
+        <KV k="updatedAt" v={stripeInfo?.updatedAt ?? "—"} />
       </Section>
 
       <Section title="Build">
