@@ -111,6 +111,18 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           }
           break;
         }
+        case "customer.subscription.updated": {
+          const subscription = event.data.object as Stripe.Subscription;
+          const uid = (subscription.metadata?.uid as string) || null;
+          if (uid) {
+            const status = (subscription.status as string) || "active";
+            const normalized = status === "active" || status === "trialing" ? "active" : status === "canceled" ? "canceled" : "none";
+            const priceId = (subscription.items?.data?.[0]?.price?.id as string) || null;
+            const currentPeriodEnd = subscription.current_period_end || null;
+            await setSubscriptionStatus(uid, normalized as any, priceId, currentPeriodEnd);
+          }
+          break;
+        }
         case "customer.subscription.deleted": {
           const subscription = event.data.object as Stripe.Subscription;
           const uid = (subscription.metadata?.uid as string) || null;
