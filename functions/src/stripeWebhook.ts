@@ -5,6 +5,7 @@ import { defineSecret } from "firebase-functions/params";
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
+import { runUserOperation } from "./lib/ops.js";
 
 const STRIPE_WEBHOOK = defineSecret("STRIPE_WEBHOOK");
 const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
@@ -69,25 +70,27 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       return;
     }
 
-    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 1000 * 60 * 60 * 24 * 30));
-    const eventRef = db.collection("stripe_events").doc(event.id);
-    const shouldProcess = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const existing = (await tx.get(eventRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-      if (existing.exists) {
-        return false;
-      }
-      tx.create(eventRef, {
-        type: event.type,
-        receivedAt: FieldValue.serverTimestamp(),
-        expiresAt,
-      });
-      return true;
-    });
-
-    if (!shouldProcess) {
+    const eventLogRef = db.collection("stripeEvents").doc(event.id);
+    const existingLog = await eventLogRef.get();
+    if (existingLog.exists) {
       res.status(200).send("ok");
       return;
     }
+
+    const eventCreated = typeof event.created === "number"
+      ? Timestamp.fromMillis(event.created * 1000)
+      : Timestamp.now();
+    const logPayload: Record<string, unknown> = {
+      type: event.type,
+      created: eventCreated,
+      receivedAt: FieldValue.serverTimestamp(),
+      uid: null,
+      email: null,
+      priceId: null,
+      mode: null,
+      amount: null,
+      status: null,
+    };
 
     try {
       console.info("stripe_webhook_event", { type: event.type, id: event.id });
@@ -96,11 +99,20 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
           const session = event.data.object as Stripe.Checkout.Session;
           const uid = (session.metadata?.uid as string) || null;
           const priceId = (session.metadata?.priceId as string) || null;
+          logPayload.uid = uid;
+          logPayload.email = (session.customer_details?.email as string) || session.customer_email || null;
+          logPayload.priceId = priceId;
+          logPayload.mode = session.mode || null;
+          logPayload.amount = session.amount_total ?? null;
+          logPayload.status = session.payment_status || null;
           if (uid && priceId) {
             if (session.mode === "payment") {
               const credits = PRICE_CREDIT_MAP[priceId] ?? 0;
               if (credits > 0) {
-                await addCredits(uid, credits, `Checkout ${priceId}`, 12);
+                const opId = `stripe_${event.id}_credits`;
+                await runUserOperation(uid, opId, { type: "stripe_checkout", amount: credits, source: event.id }, async () => {
+                  await addCredits(uid, credits, `Checkout ${priceId}`, 12);
+                });
               }
             }
             if (session.mode === "subscription") {
@@ -112,6 +124,10 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
         case "invoice.payment_succeeded": {
           const invoice = event.data.object as Stripe.Invoice;
           const uid = (invoice.metadata?.uid as string) || null;
+          logPayload.uid = uid;
+          logPayload.email = (invoice.customer_email as string) || null;
+          logPayload.amount = invoice.amount_paid ?? null;
+          logPayload.status = invoice.status || null;
           if (uid) {
             const lines = Array.isArray(invoice.lines?.data) ? invoice.lines.data : [];
             let totalCredits = 0;
@@ -134,11 +150,16 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
             }
 
             if (totalCredits > 0) {
-              await addCredits(uid, totalCredits, "Stripe invoice", 12);
+              const opId = `stripe_${event.id}_invoice`;
+              await runUserOperation(uid, opId, { type: "stripe_invoice", amount: totalCredits, source: event.id }, async () => {
+                await addCredits(uid, totalCredits, "Stripe invoice", 12);
+              });
             }
 
             if (subscriptionPriceId) {
               await setSubscriptionStatus(uid, "active", subscriptionPriceId, renewalUnix);
+              logPayload.priceId = subscriptionPriceId;
+              logPayload.mode = "subscription";
             }
           }
           break;
@@ -146,21 +167,41 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
         case "customer.subscription.updated": {
           const subscription = event.data.object as Stripe.Subscription;
           const uid = (subscription.metadata?.uid as string) || null;
+          logPayload.uid = uid;
+          logPayload.email = (subscription.metadata?.email as string) || null;
           if (uid) {
             const status = (subscription.status as string) || "active";
             const normalized = status === "active" || status === "trialing" ? "active" : status === "canceled" ? "canceled" : "none";
             const priceId = (subscription.items?.data?.[0]?.price?.id as string) || null;
             const currentPeriodEnd = subscription.current_period_end || null;
             await setSubscriptionStatus(uid, normalized as any, priceId, currentPeriodEnd);
+            logPayload.priceId = priceId;
+            logPayload.status = normalized;
+            logPayload.mode = subscription.cancel_at_period_end ? "cancel_pending" : "subscription";
           }
           break;
         }
         case "customer.subscription.deleted": {
           const subscription = event.data.object as Stripe.Subscription;
           const uid = (subscription.metadata?.uid as string) || null;
+          logPayload.uid = uid;
+          logPayload.email = (subscription.metadata?.email as string) || null;
+          logPayload.priceId = (subscription.items?.data?.[0]?.price?.id as string) || null;
+          logPayload.status = "canceled";
           if (uid) {
             await setSubscriptionStatus(uid, "canceled", null, null);
           }
+          break;
+        }
+        case "payment_intent.payment_failed": {
+          const intent = event.data.object as Stripe.PaymentIntent;
+          const uid = (intent.metadata?.uid as string) || null;
+          logPayload.uid = uid;
+          logPayload.email = (intent.receipt_email as string) || null;
+          logPayload.amount = intent.amount ?? null;
+          logPayload.status = intent.status || "failed";
+          logPayload.mode = intent.payment_method_types?.[0] || null;
+          logPayload.priceId = (intent.metadata?.priceId as string) || null;
           break;
         }
         default: {
@@ -170,12 +211,25 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
         }
       }
 
-      await eventRef.set({ processedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await eventLogRef.set(
+        {
+          ...logPayload,
+          processedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
       res.status(200).send("ok");
       return;
     } catch (err: any) {
       console.error("stripeWebhook handler", err?.message || err);
-      await eventRef.set({ error: err?.message || String(err), processedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await eventLogRef.set(
+        {
+          ...logPayload,
+          error: err?.message || String(err),
+          processedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
       res.status(500).send("Handler error");
       return;
     }

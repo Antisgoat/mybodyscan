@@ -10,6 +10,7 @@ import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { firebaseReady } from "./lib/firebase";
 import { handleAuthRedirectOnce } from "./lib/authRedirect";
+import { initTelemetry } from "./lib/telemetry";
 
 handleAuthRedirectOnce();
 
@@ -28,6 +29,7 @@ if (typeof window !== "undefined") {
     }
   });
   console.log("[init] App mounted");
+  initTelemetry();
 }
 
 void (async () => {

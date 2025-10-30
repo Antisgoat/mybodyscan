@@ -1,0 +1,26 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "scans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionId": "stripeEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "created", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionId": "telemetryEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

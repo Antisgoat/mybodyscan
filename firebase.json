@@ -7,7 +7,7 @@
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "no-store"
+            "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
       },
@@ -37,7 +37,7 @@
           },
           {
             "key": "Referrer-Policy",
-            "value": "same-origin"
+            "value": "strict-origin-when-cross-origin"
           },
           {
             "key": "Permissions-Policy",
@@ -103,6 +103,20 @@
         "source": "/api/coach/chat",
         "function": {
           "functionId": "coachChat",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/admin/**",
+        "function": {
+          "functionId": "adminGateway",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/telemetry/log",
+        "function": {
+          "functionId": "telemetryLog",
           "region": "us-central1"
         }
       },

@@ -85,6 +85,7 @@ import NetBanner from "./components/NetBanner";
 import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
+import AdminConsole from "./pages/Admin";
 import { initBackHandler } from "./lib/back";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
@@ -618,6 +619,14 @@ const App = () => {
             <Route path="/dev/audit" element={<DevAudit />} />
             <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="/__diag" element={<Diagnostics />} />
+            <Route
+              path="/__admin"
+              element={
+                <ProtectedRoute>
+                  <AdminConsole />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/__smoke"
               element={

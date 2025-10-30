@@ -4,6 +4,7 @@ import { getAuth } from "./firebase.js";
 import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
+import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -441,6 +442,17 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     (req as any).auth = { uid };
   } else if ((req as any).auth) {
     delete (req as any).auth;
+  }
+
+  const limiter = await ensureRateLimit({
+    key: "nutrition_search",
+    identifier: uid || identifierFromRequest(req as any),
+    limit: 20,
+    windowSeconds: 60,
+  });
+  if (!limiter.allowed) {
+    res.status(429).json({ error: "rate_limited", retryAfter: limiter.retryAfterSeconds ?? null });
+    return;
   }
 
   try {
