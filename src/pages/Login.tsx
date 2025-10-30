@@ -22,10 +22,9 @@ export default function Login() {
     try {
       const r = await emailPasswordSignIn(email, pass);
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Email sign-in failed.";
-        toast(message, "error");
+        const base = ("message" in r && typeof r.message === "string" && r.message) ? r.message : "Email sign-in failed.";
+        const dev = import.meta.env.DEV && r.code ? ` (${r.code})` : "";
+        toast(base + dev, "error");
       }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Email sign-in failed.";
@@ -40,10 +39,9 @@ export default function Login() {
     try {
       const r = await googleSignInWithFirebase();
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Google sign-in failed.";
-        toast(message, "error");
+        const base = ("message" in r && typeof r.message === "string" && r.message) ? r.message : "Google sign-in failed.";
+        const dev = import.meta.env.DEV && (r as any)?.code ? ` (${(r as any).code}` + ")" : "";
+        toast(base + dev, "error");
       }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Google sign-in failed.";
@@ -58,10 +56,9 @@ export default function Login() {
     try {
       const r = await appleSignIn();
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Apple sign-in failed.";
-        toast(message, "error");
+        const base = ("message" in r && typeof r.message === "string" && r.message) ? r.message : "Apple sign-in failed.";
+        const dev = import.meta.env.DEV && (r as any)?.code ? ` (${(r as any).code}` + ")" : "";
+        toast(base + dev, "error");
       }
     } catch (err) {
       const message = (err as { message?: string } | undefined)?.message || "Apple sign-in failed.";

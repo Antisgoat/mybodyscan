@@ -124,7 +124,9 @@ const Auth = () => {
       const result = await googleSignInWithFirebase();
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast(result.message ?? "Google sign-in failed.", "error");
+        const base = result.message ?? "Google sign-in failed.";
+        const dev = import.meta.env.DEV && (result as any)?.code ? ` (${(result as any).code}` + ")" : "";
+        toast(base + dev, "error");
         return;
       }
       if (auth.currentUser) {
@@ -150,7 +152,9 @@ const Auth = () => {
       const result = await appleSignIn();
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast(result.message ?? "Apple sign-in failed.", "error");
+        const base = result.message ?? "Apple sign-in failed.";
+        const dev = import.meta.env.DEV && (result as any)?.code ? ` (${(result as any).code}` + ")" : "";
+        toast(base + dev, "error");
         return;
       }
       if (auth.currentUser) {

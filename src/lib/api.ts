@@ -271,8 +271,9 @@ async function authedFetch(path: string, init?: RequestInit) {
   }
   const { user } = await requireAuthContext();
   const t = await user.getIdToken();
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckHeader();
+  // Attach App Check token only for protected API families
+  const needsAppCheck = path.startsWith("/api/");
+  const appCheckHeaders = needsAppCheck ? (await (ensureAppCheck(), getAppCheckHeader())) : {};
   return fetch(url, {
     ...init,
     headers: {

@@ -26,8 +26,18 @@ async function postJSON(path: string, body: any) {
     body: JSON.stringify(body),
     credentials: "include",
   });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  const text = await r.text();
+  const json = (() => { try { return JSON.parse(text); } catch { return {}; } })();
+  if (!r.ok) {
+    const code = typeof json?.code === "string" ? json.code : typeof json?.error === "string" ? json.error : `http_${r.status}`;
+    const message = import.meta.env.DEV ? `Checkout failed (${code})` : "Checkout failed. Please try again.";
+    const err: any = new Error(message);
+    err.code = code;
+    err.status = r.status;
+    err.details = json;
+    throw err;
+  }
+  return json;
 }
 
 export async function startCheckoutByPrice(priceId: string) {
