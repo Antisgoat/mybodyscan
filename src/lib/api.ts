@@ -275,6 +275,10 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         if (fallbackIdToken) {
           fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
         }
+        const fallbackAppCheck = await getAppCheckHeader();
+        if (fallbackAppCheck["X-Firebase-AppCheck"]) {
+          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheck["X-Firebase-AppCheck"]);
+        }
         const response = await fetch(fallbackBase, {
           method: "GET",
           signal: controller.signal,

@@ -15,7 +15,7 @@ import {
   useAuthUser,
 } from "@/lib/auth";
 import { auth, firebaseReady } from "@/lib/firebase";
-import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
+import { isProviderEnabled, loadFirebaseAuthClientConfig, warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
   appleSignIn,
   emailPasswordSignIn,
@@ -35,6 +35,8 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+let appleProviderWarningLogged = false;
+
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,7 +46,11 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
-  const forceAppleButton = import.meta.env.VITE_FORCE_APPLE_BUTTON === "true";
+  const envShowApple =
+    import.meta.env.VITE_SHOW_APPLE === "1" ||
+    import.meta.env.VITE_SHOW_APPLE === "true" ||
+    import.meta.env.VITE_FORCE_APPLE_BUTTON === "true" ||
+    import.meta.env.VITE_SHOW_APPLE_WEB === "true";
   const { user } = useAuthUser();
   const { flags, loaded } = useFlags();
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
@@ -58,6 +64,10 @@ const Auth = () => {
   }, [user, navigate, location.pathname, location.state]);
 
   useEffect(() => {
+    warnIfDomainUnauthorized();
+  }, []);
+
+  useEffect(() => {
     let active = true;
     loadFirebaseAuthClientConfig()
       .then((config) => {
@@ -66,7 +76,7 @@ const Auth = () => {
         if (typeof window !== "undefined") {
           console.log("[auth] Apple provider client config:", {
             enabled,
-            forceAppleButton,
+            envShowApple,
           });
         }
         setAppleEnabled(enabled);
@@ -81,6 +91,13 @@ const Auth = () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (import.meta.env.DEV && appleEnabled === false && !envShowApple && !appleProviderWarningLogged) {
+      appleProviderWarningLogged = true;
+      console.warn("[auth] Apple provider disabled in Firebase Auth; hiding Apple sign-in button.");
+    }
+  }, [appleEnabled, envShowApple]);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,8 +189,9 @@ const Auth = () => {
     }
   };
 
-  const remoteAppleEnabled = flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
-  const showAppleButton = forceAppleButton || (remoteAppleEnabled && appleEnabled !== false);
+  const providerAllowsApple = appleEnabled === true;
+  const providerPendingAllowsApple = appleEnabled === null && (flags.enableApple || (!loaded && APPLE_WEB_ENABLED));
+  const showAppleButton = envShowApple || providerAllowsApple || providerPendingAllowsApple;
 
   const onApple = async () => {
     if (loading) return;

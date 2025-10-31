@@ -9,14 +9,43 @@ import { getOpenAIKey } from "./lib/env.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 import { ensureRateLimit } from "./http/_middleware.js";
+import { openAiSecretParam } from "./lib/config.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
 const MIN_TEXT_LENGTH = 1;
 const SYSTEM_PROMPT =
-  "You are a fitness coach. Provide safe, non-medical workout & nutrition suggestions in 120–160 words, using sets×reps and RPE ranges. Consider goals, time available, and experience.";
+  "You are MyBodyScan's virtual fitness coach. Reply in under 140 words with non-medical guidance, use sets×reps and RPE, and end with a quick recovery or nutrition reminder.";
 const OPENAI_MODELS = ["gpt-4o-mini", "gpt-3.5-turbo"] as const;
+const OPENAI_TIMEOUT_MS = 8000;
 const statusMap: Record<string, number> = { "failed-precondition": 503 };
+
+function logInfo(event: string, payload: Record<string, unknown> = {}): void {
+  console.info({ event, ...payload });
+}
+
+function logWarn(event: string, payload: Record<string, unknown> = {}): void {
+  console.warn({ event, ...payload });
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function getRequestId(req: ExpressRequest): string | null {
+  const header = req.get("x-request-id") || req.get("X-Request-Id") || null;
+  if (header) return header;
+  const trace = req.get("x-cloud-trace-context") || req.get("X-Cloud-Trace-Context") || "";
+  if (!trace) return null;
+  const [traceId] = trace.split("/");
+  return traceId || null;
+}
 
 type OpenAiModel = (typeof OPENAI_MODELS)[number];
 
@@ -79,37 +108,79 @@ function buildFallbackResponse(text: string): string {
   return ["Here's a focused " + splitPlan + " split for the next week:", ...sessions, nutrition, closer].join(" ");
 }
 
-async function callOpenAi(apiKey: string, model: OpenAiModel, text: string): Promise<string> {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+type OpenAiResult = { content: string; usageTokens: number | null };
+
+async function callOpenAi(
+  apiKey: string,
+  model: OpenAiModel,
+  text: string,
+  context: { uid: string; requestId: string | null },
+): Promise<OpenAiResult> {
+  const signal = AbortSignal.timeout(OPENAI_TIMEOUT_MS);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.6,
+        max_tokens: 256,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: text },
+        ],
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      logWarn("coach_chat.openai_http_error", {
+        uid: context.uid,
+        requestId: context.requestId,
+        model,
+        status: response.status,
+      });
+      throw new HttpsError("unavailable", "coach_unavailable");
+    }
+
+    const payload = (await response.json()) as any;
+    const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      logWarn("coach_chat.openai_empty", {
+        uid: context.uid,
+        requestId: context.requestId,
+        model,
+      });
+      throw new HttpsError("internal", "coach_unavailable");
+    }
+    const usageTokens = typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null;
+    return { content: content.trim(), usageTokens };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      logWarn("coach_chat.openai_timeout", {
+        uid: context.uid,
+        requestId: context.requestId,
+        model,
+        timeoutMs: OPENAI_TIMEOUT_MS,
+      });
+      throw new HttpsError("deadline-exceeded", "coach_timeout");
+    }
+
+    logWarn("coach_chat.openai_request_failed", {
+      uid: context.uid,
+      requestId: context.requestId,
       model,
-      temperature: 0.6,
-      max_tokens: 320,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.error("coach_chat_openai_error", { status: response.status, body: error.slice(0, 200) });
-    throw new HttpsError("unavailable", "openai_failed");
+      message: describeError(error),
+    });
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("unavailable", "coach_unavailable");
   }
-
-  const payload = (await response.json()) as any;
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
-    console.error("coach_chat_openai_missing_content", { payload });
-    throw new HttpsError("internal", "openai_no_content");
-  }
-  return content.trim();
 }
 
 async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
@@ -128,7 +199,7 @@ async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
 }
 
 export const coachChat = onRequest(
-  { invoker: "public", region: "us-central1" },
+  { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
   withCors(async (req, res) => {
     const request = req as ExpressRequest;
     const response = res as ExpressResponse;
@@ -155,6 +226,8 @@ export const coachChat = onRequest(
     try {
       const uid = await requireAuth(request as any);
       (request as any).auth = { uid };
+      const requestId = getRequestId(request);
+      const startedAt = Date.now();
 
       let text: string;
       try {
@@ -179,7 +252,11 @@ export const coachChat = onRequest(
           response.status(429).json({ error: "Too many requests", code: "too_many_requests" });
           return;
         }
-        console.warn("coach_chat_rate_limit_error", { message: error?.message });
+        logWarn("coach_chat.rate_limit_check_failed", {
+          uid,
+          requestId,
+          message: describeError(error),
+        });
       }
 
       const limiter = await ensureRateLimit({ key: "coach_chat", identifier: uid, limit: 8, windowSeconds: 60 });
@@ -192,25 +269,41 @@ export const coachChat = onRequest(
         return;
       }
 
-      const openAiKey = getOpenAIKey();
-      let responseText = "";
-      let usedLLM = false;
+      const openAiKey = (getOpenAIKey() || "").trim();
+      if (!openAiKey) {
+        logWarn("coach_chat.unconfigured", { uid, requestId });
+        response.status(501).json({ error: "coach_unconfigured", code: "coach_unconfigured" });
+        return;
+      }
 
-      if (openAiKey) {
-        for (const model of OPENAI_MODELS) {
-          try {
-            responseText = await callOpenAi(openAiKey, model, text);
-            usedLLM = true;
-            break;
-          } catch (error: any) {
-            console.warn("coach_chat_model_error", { model, message: error?.message });
+      let responseText: string | null = null;
+      let usedLLM = false;
+      let usageTokens: number | null = null;
+      let successfulModel: OpenAiModel | null = null;
+      let lastAiError: HttpsError | null = null;
+
+      for (const model of OPENAI_MODELS) {
+        try {
+          const result = await callOpenAi(openAiKey, model, text, { uid, requestId });
+          responseText = result.content;
+          usageTokens = result.usageTokens;
+          usedLLM = true;
+          successfulModel = model;
+          break;
+        } catch (error) {
+          if (error instanceof HttpsError) {
+            lastAiError = error;
+            continue;
           }
+          throw error;
         }
       }
 
       if (!responseText) {
-        responseText = buildFallbackResponse(text);
-        usedLLM = false;
+        if (lastAiError) {
+          throw lastAiError;
+        }
+        throw new HttpsError("unavailable", "coach_unavailable");
       }
 
       const reply = formatCoachReply(responseText);
@@ -223,6 +316,15 @@ export const coachChat = onRequest(
 
       await storeMessage(uid, record);
 
+      logInfo("coach_chat.reply_sent", {
+        uid,
+        requestId,
+        usedLLM,
+        model: successfulModel,
+        usageTokens,
+        latencyMs: Date.now() - startedAt,
+      });
+
       response.status(200).json({ reply, usedLLM });
     } catch (error: any) {
       if (response.headersSent) {
@@ -231,14 +333,15 @@ export const coachChat = onRequest(
       if (error instanceof HttpsError) {
         const code = errorCode(error);
         const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
+        const friendly = typeof (error as any)?.message === "string" ? (error as any).message : "coach_unavailable";
         response.status(status).json({
-          error: (error as any)?.message ?? "Request failed",
-          code,
+          error: friendly,
+          code: friendly,
         });
         return;
       }
-      console.error("coach_chat_unhandled", { message: error?.message });
-      response.status(500).json({ error: "Server error", code: "server_error" });
+      logWarn("coach_chat.unhandled_error", { message: describeError(error) });
+      response.status(500).json({ error: "server_error", code: "server_error" });
     }
   })
 );

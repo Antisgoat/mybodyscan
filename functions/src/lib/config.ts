@@ -7,6 +7,7 @@ type SecretHandle = ReturnType<typeof defineSecret>;
 
 const stripeSecretParam = defineSecret("STRIPE_SECRET");
 const stripeWebhookSecretParam = defineSecret("STRIPE_WEBHOOK");
+const openAiSecretParam = defineSecret("OPENAI_API_KEY");
 
 let cachedRuntimeConfig: RuntimeConfig | null | undefined;
 let runtimeConfigOverride: RuntimeConfig | null | undefined;
@@ -156,6 +157,28 @@ export function getWebhookSecret(): string | null {
   return null;
 }
 
+export function getOpenAiSecret(): string | null {
+  const secret = readSecret(openAiSecretParam);
+  if (secret) {
+    return secret;
+  }
+
+  const envSecret = firstNonEmpty([
+    process.env.OPENAI_API_KEY,
+    process.env.OPENAI_KEY,
+  ]);
+  if (envSecret) {
+    return envSecret;
+  }
+
+  const configSecret = readRuntimeConfig(["openai", "api_key"]);
+  if (configSecret) {
+    return configSecret;
+  }
+
+  return null;
+}
+
 export function getAppOrigin(): string | null {
   const envOrigin = firstNonEmpty([
     process.env.APP_ORIGIN,
@@ -210,7 +233,7 @@ export function getPriceAllowlist(): PriceAllowlist {
   return { allowlist, planToPrice, subscriptionPriceIds };
 }
 
-export { stripeSecretParam, stripeWebhookSecretParam };
+export { stripeSecretParam, stripeWebhookSecretParam, openAiSecretParam };
 
 export function __setRuntimeConfigForTest(config: RuntimeConfig | null): void {
   runtimeConfigOverride = config ?? {};

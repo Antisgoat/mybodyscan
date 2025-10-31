@@ -86,17 +86,21 @@ export default function SystemCheck() {
       setSdkProviderConstructible(false);
     }
 
+    const envAppleEnabled =
+      (import.meta as any)?.env?.VITE_SHOW_APPLE === "1" ||
+      (import.meta as any)?.env?.VITE_SHOW_APPLE === "true" ||
+      (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true" ||
+      (import.meta as any)?.env?.VITE_SHOW_APPLE_WEB === "true";
+
     loadFirebaseAuthClientConfig()
       .then((config) => {
         if (cancelled) return;
         const enabled = isProviderEnabled("apple.com", config);
-        const forced = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true";
-        setAppleLikelyEnabled(enabled || forced);
+        setAppleLikelyEnabled(enabled || envAppleEnabled);
       })
       .catch(() => {
         if (cancelled) return;
-        const forced = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true";
-        setAppleLikelyEnabled(forced || null);
+        setAppleLikelyEnabled(envAppleEnabled || null);
       });
 
     return () => {
@@ -131,7 +135,11 @@ export default function SystemCheck() {
   const isIOS = useMemo(() => isIOSWeb(), []);
   const popupRecommendation = isIOS ? "iOS Safari redirect recommended" : "Popup supported";
 
-  const envForceApple = (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON ?? "";
+  const envForceApple =
+    (import.meta as any)?.env?.VITE_SHOW_APPLE ??
+    (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON ??
+    (import.meta as any)?.env?.VITE_SHOW_APPLE_WEB ??
+    "";
   const envDebugPanel = (import.meta as any)?.env?.VITE_DEBUG_PANEL ?? "";
   const envApiBase = (import.meta as any)?.env?.VITE_API_BASE ?? "";
 

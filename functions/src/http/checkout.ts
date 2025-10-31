@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
-import { logger } from "firebase-functions";
 import Stripe from "stripe";
 
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
@@ -8,6 +7,24 @@ import { requireAuth } from "../http.js";
 import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretParam } from "../lib/config.js";
 
 const db = getFirestore();
+
+function logInfo(event: string, payload: Record<string, unknown> = {}): void {
+  console.info({ event, ...payload });
+}
+
+function logWarn(event: string, payload: Record<string, unknown> = {}): void {
+  console.warn({ event, ...payload });
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
 const FALLBACK_RETURN_HOST = "https://mybodyscanapp.com";
 const CONFIGURED_RETURN_HOST = (() => {
@@ -156,7 +173,7 @@ async function readCustomerCache(uid: string): Promise<{ customerId: string | nu
     const email = typeof data?.email === "string" ? data.email.trim() : "";
     return { customerId: customerId || null, email: email || null };
   } catch (error) {
-    logger.warn("stripe_cache_read_failed", { uid, message: (error as Error)?.message });
+    logWarn("checkout.cache_read_failed", { uid, message: describeError(error) });
     return { customerId: null, email: null };
   }
 }
@@ -173,7 +190,7 @@ async function writeCustomerCache(uid: string, customerId: string, email: string
       { merge: true },
     );
   } catch (error) {
-    logger.warn("stripe_cache_write_failed", { uid, customerId, message: (error as Error)?.message });
+    logWarn("checkout.cache_write_failed", { uid, customerId, message: describeError(error) });
   }
 }
 
@@ -194,7 +211,7 @@ async function searchCustomerByEmail(stripe: Stripe, email: string): Promise<Str
     const exact = results.data.find((item) => typeof item.email === "string" && item.email.trim().toLowerCase() === normalized);
     return exact ?? results.data[0];
   } catch (error) {
-    logger.warn("stripe_customer_search_failed", { email: normalized, message: (error as Error)?.message });
+    logWarn("checkout.customer_search_failed", { email: normalized, message: describeError(error) });
     return null;
   }
 }
@@ -205,7 +222,11 @@ async function ensureStripeCustomer(stripe: Stripe, uid: string, email: string):
     try {
       await stripe.customers.update(cache.customerId, { metadata: { uid } });
     } catch (error) {
-      logger.warn("stripe_customer_update_failed", { uid, customerId: cache.customerId, message: (error as Error)?.message });
+      logWarn("checkout.customer_update_failed", {
+        uid,
+        customerId: cache.customerId,
+        message: describeError(error),
+      });
     }
     return { customerId: cache.customerId, origin: "cache" };
   }
@@ -215,7 +236,11 @@ async function ensureStripeCustomer(stripe: Stripe, uid: string, email: string):
     try {
       await stripe.customers.update(existing.id, { metadata: { uid } });
     } catch (error) {
-      logger.warn("stripe_customer_update_failed", { uid, customerId: existing.id, message: (error as Error)?.message });
+      logWarn("checkout.customer_update_failed", {
+        uid,
+        customerId: existing.id,
+        message: describeError(error),
+      });
     }
     await writeCustomerCache(uid, existing.id, email);
     return { customerId: existing.id, origin: "search" };
@@ -246,7 +271,7 @@ async function resolveCustomerForPortal(
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       const sessionUid = (session.metadata?.uid as string | undefined) ?? session.client_reference_id ?? null;
       if (sessionUid && sessionUid !== uid) {
-        logger.warn("portal_session_uid_mismatch", { uid, sessionUid, sessionId });
+        logWarn("checkout.portal_session_uid_mismatch", { uid, sessionUid, sessionId });
       } else {
         const customer = session.customer;
         const customerId =
@@ -266,7 +291,11 @@ async function resolveCustomerForPortal(
         }
       }
     } catch (error) {
-      logger.warn("portal_session_lookup_failed", { uid, sessionId, message: (error as Error)?.message });
+      logWarn("checkout.portal_session_lookup_failed", {
+        uid,
+        sessionId,
+        message: describeError(error),
+      });
     }
   }
 
@@ -310,29 +339,32 @@ function resolveRequestedPrice(body: unknown): { priceId: string | null; plan: s
   return { priceId: null, plan };
 }
 
-function logOutcome(svc: "checkout" | "portal", ok: boolean, payload: LogPayload, level: "info" | "error" = ok ? "info" : "error"): void {
-  const record = {
-    svc,
+function logOutcome(
+  svc: "checkout" | "portal",
+  ok: boolean,
+  payload: LogPayload,
+  level: "info" | "error" = ok ? "info" : "error",
+): void {
+  const event = `payments.${svc}.${ok ? "success" : "failure"}`;
+  const data = {
     uid: payload.uid ?? null,
-    price: payload.priceId ?? null,
+    priceId: payload.priceId ?? null,
     mode: payload.mode ?? null,
-    customer: payload.customerId ?? null,
-    ok,
+    customerId: payload.customerId ?? null,
     code: payload.code ?? null,
     requestId: payload.requestId ?? null,
   };
-  const line = JSON.stringify(record);
   if (level === "info") {
-    logger.info(line);
+    logInfo(event, data);
   } else {
-    logger.error(line);
+    logWarn(event, data);
   }
 }
 
 function createErrorResponse(svc: "checkout" | "portal", res: Response, status: number, error: string, meta?: ErrorMeta): void {
   const code = meta?.code ?? error;
   res.status(status).json({ error, code });
-  logger.error(`${svc}_error`, {
+  logWarn(`payments.${svc}.error`, {
     status,
     error,
     code,
@@ -353,14 +385,14 @@ function createErrorResponse(svc: "checkout" | "portal", res: Response, status: 
 }
 
 function sendPaymentsDisabled(svc: "checkout" | "portal", res: Response, meta: ErrorMeta): void {
-  logger.error("stripe_config_missing", {
+  logWarn("payments.secret_missing", {
     service: svc,
     missing: "STRIPE_SECRET",
     requestId: meta.requestId ?? null,
     uid: meta.uid ?? null,
   });
   res.status(501).json({ error: "payments_disabled", code: "no_secret" });
-  logger.error(`${svc}_payments_disabled`, {
+  logWarn(`payments.${svc}.disabled`, {
     requestId: meta.requestId ?? null,
     uid: meta.uid ?? null,
     priceId: meta.priceId ?? null,
@@ -410,12 +442,12 @@ async function handleCreateCheckout(req: Request, res: Response) {
     const userRecord = await getAuth().getUser(uid);
     email = typeof userRecord.email === "string" ? userRecord.email.trim() : null;
   } catch (error) {
-    logger.error("checkout_user_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    logWarn("payments.checkout.user_lookup_failed", { uid, message: describeError(error) });
     createErrorResponse("checkout", res, 500, "server_error", {
       code: "user_lookup_failed",
       requestId,
       uid,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -464,11 +496,10 @@ async function handleCreateCheckout(req: Request, res: Response) {
   try {
     stripe = getStripe(secret);
   } catch (error) {
-    logger.error("checkout_stripe_init_failed", {
+    logWarn("payments.checkout.init_failed", {
       uid,
       priceId,
-      message: (error as Error)?.message,
-      stack: (error as Error)?.stack,
+      message: describeError(error),
     });
     createErrorResponse("checkout", res, 500, "server_error", {
       code: "stripe_init_failed",
@@ -476,7 +507,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
       uid,
       priceId,
       mode,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -486,11 +517,10 @@ async function handleCreateCheckout(req: Request, res: Response) {
     const ensureResult = await ensureStripeCustomer(stripe, uid, email);
     customerId = ensureResult.customerId;
   } catch (error) {
-    logger.error("checkout_customer_error", {
+    logWarn("payments.checkout.customer_failed", {
       uid,
       priceId,
-      message: (error as Error)?.message,
-      stack: (error as Error)?.stack,
+      message: describeError(error),
     });
     createErrorResponse("checkout", res, 500, "server_error", {
       code: (error as { code?: string })?.code ?? "stripe_customer_error",
@@ -498,7 +528,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
       uid,
       priceId,
       mode,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -529,7 +559,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
       return;
     }
 
-    logger.info("checkout_session_created", {
+    logInfo("payments.checkout.session_created", {
       uid,
       priceId,
       mode,
@@ -540,12 +570,11 @@ async function handleCreateCheckout(req: Request, res: Response) {
 
     res.json({ url: session.url });
   } catch (error) {
-    logger.error("checkout_session_error", {
+    logWarn("payments.checkout.session_failed", {
       uid,
       priceId,
       customerId,
-      message: (error as Error)?.message,
-      stack: (error as Error)?.stack,
+      message: describeError(error),
     });
     createErrorResponse("checkout", res, 500, "server_error", {
       code: (error as { code?: string })?.code ?? "stripe_error",
@@ -554,7 +583,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
       priceId,
       customerId,
       mode,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
   }
 }
@@ -591,12 +620,12 @@ async function handleCustomerPortal(req: Request, res: Response) {
     const userRecord = await getAuth().getUser(uid);
     email = typeof userRecord.email === "string" ? userRecord.email.trim() : null;
   } catch (error) {
-    logger.error("portal_user_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    logWarn("payments.portal.user_lookup_failed", { uid, message: describeError(error) });
     createErrorResponse("portal", res, 500, "server_error", {
       code: "user_lookup_failed",
       requestId,
       uid,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -625,12 +654,12 @@ async function handleCustomerPortal(req: Request, res: Response) {
   try {
     stripe = getStripe(secret);
   } catch (error) {
-    logger.error("portal_stripe_init_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    logWarn("payments.portal.init_failed", { uid, message: describeError(error) });
     createErrorResponse("portal", res, 500, "server_error", {
       code: "stripe_init_failed",
       requestId,
       uid,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -640,12 +669,12 @@ async function handleCustomerPortal(req: Request, res: Response) {
     const resolved = await resolveCustomerForPortal(stripe, uid, email, sessionId);
     customerId = resolved.customerId;
   } catch (error) {
-    logger.error("portal_customer_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    logWarn("payments.portal.customer_failed", { uid, message: describeError(error) });
     createErrorResponse("portal", res, 500, "server_error", {
       code: (error as { code?: string })?.code ?? "stripe_customer_error",
       requestId,
       uid,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
     return;
   }
@@ -671,18 +700,18 @@ async function handleCustomerPortal(req: Request, res: Response) {
       return;
     }
 
-    logger.info("portal_session_created", { uid, customerId, sessionId: session.id });
+    logInfo("payments.portal.session_created", { uid, customerId, sessionId: session.id });
     logOutcome("portal", true, { uid, customerId, requestId });
 
     res.json({ url: session.url });
   } catch (error) {
-    logger.error("portal_session_error", { uid, customerId, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    logWarn("payments.portal.session_failed", { uid, customerId, message: describeError(error) });
     createErrorResponse("portal", res, 500, "server_error", {
       code: (error as { code?: string })?.code ?? "stripe_error",
       requestId,
       uid,
       customerId,
-      context: { message: (error as Error)?.message },
+      context: { message: describeError(error) },
     });
   }
 }

@@ -14,7 +14,14 @@ if (isWeb) {
       apiKeyPresent = Boolean(key);
       console.log("[boot] origin:", location.origin, "apiKey:", apiKeyPresent);
 
-      if (key) {
+      const shouldProbeItk = (() => {
+        if (!key) return false;
+        if (import.meta.env.DEV) return true;
+        const path = location.pathname || "";
+        return path.startsWith("/auth") || path.startsWith("/login") || path.startsWith("/system-check");
+      })();
+
+      if (shouldProbeItk && key) {
         try {
           const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/config?key=${encodeURIComponent(key)}`;
           const r2 = await fetch(url, { mode: "cors" });
@@ -24,7 +31,7 @@ if (isWeb) {
         } catch (e) {
           console.warn("[boot] ITK probe failed:", e);
         }
-      } else {
+      } else if (!key) {
         console.warn("[boot] No apiKey in init.json.");
       }
     } catch (e) {

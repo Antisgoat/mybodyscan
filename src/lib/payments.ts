@@ -1,6 +1,26 @@
 import { auth } from "./firebase";
 import { openExternal } from "./links";
 
+type ErrorPayload = { error: string; code?: string };
+
+const STRIPE_PUBLISHABLE_KEY =
+  (import.meta.env.VITE_STRIPE_PK || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
+
+let loggedStripeWarning = false;
+
+function ensureStripePublishableKey(): string {
+  if (STRIPE_PUBLISHABLE_KEY) {
+    return STRIPE_PUBLISHABLE_KEY;
+  }
+
+  if (import.meta.env.DEV && !loggedStripeWarning) {
+    loggedStripeWarning = true;
+    console.warn("[payments] Stripe publishable key missing. Set VITE_STRIPE_PK for checkout.");
+  }
+
+  throw { error: "stripe_config_missing", code: "stripe_config_missing" } satisfies ErrorPayload;
+}
+
 const checkoutFunctionUrl = (import.meta.env.VITE_CHECKOUT_FUNCTION_URL ?? "").trim();
 const portalFunctionUrl = (import.meta.env.VITE_CUSTOMER_PORTAL_FUNCTION_URL ?? "").trim();
 
@@ -101,6 +121,10 @@ export function describePortalError(code?: string): string {
 }
 
 async function postPayments(endpoint: PaymentsEndpoint, body: unknown): Promise<any> {
+  if (endpoint === "createCheckout") {
+    ensureStripePublishableKey();
+  }
+
   const user = auth.currentUser;
   if (!user) {
     throw { error: "auth_required", code: "auth_required" } satisfies ErrorPayload;
@@ -215,6 +239,8 @@ function resolveCheckoutPriceId(input: CheckoutInput): string | null {
 }
 
 export async function startCheckout(input: CheckoutInput, options?: CheckoutOptions) {
+  ensureStripePublishableKey();
+
   const priceId = resolveCheckoutPriceId(input);
   if (!priceId) {
     throw { error: "invalid_price", code: "invalid_price" } satisfies ErrorPayload;

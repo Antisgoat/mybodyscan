@@ -1,4 +1,4 @@
-import { getStripeSecret as resolveStripeSecret, getWebhookSecret } from "./config.js";
+import { getStripeSecret as resolveStripeSecret, getWebhookSecret, getOpenAiSecret } from "./config.js";
 
 // Hardened environment helpers - all env reads go through these functions
 // to prevent import-time crashes from undefined values
@@ -28,7 +28,7 @@ export const getAllowedOrigins = (): string[] => {
 
 export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT", true);
 
-export const getOpenAIKey = () => getEnv("OPENAI_API_KEY");
+export const getOpenAIKey = () => getOpenAiSecret() ?? getEnv("OPENAI_API_KEY");
 
 export const getStripeSecret = () => resolveStripeSecret() ?? undefined;
 

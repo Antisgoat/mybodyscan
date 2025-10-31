@@ -205,7 +205,18 @@ export default function CoachChatPage() {
         setCoachError("Coach is already processing another message. Please wait.");
       } else {
         const status = typeof error?.status === "number" ? error.status : null;
-        if ((status !== null && status >= 400 && status < 500) || status === 501) {
+        const errorCode = typeof error?.message === "string" ? error.message : typeof error?.code === "string" ? error.code : null;
+
+        if (errorCode === "coach_unconfigured") {
+          const message = import.meta.env.DEV
+            ? "Coach not available (code=coach_unconfigured)."
+            : "Coach not available.";
+          setCoachError(message);
+        } else if (errorCode === "coach_timeout") {
+          setCoachError("Coach timed out. Please try again in a few seconds.");
+        } else if (errorCode === "coach_unavailable") {
+          setCoachError("Coach is temporarily unavailable; please try again soon.");
+        } else if (status !== null && status >= 400 && status < 500) {
           setCoachError("Coach temporarily unavailable; please try again.");
         } else {
           toast(
@@ -256,13 +267,13 @@ export default function CoachChatPage() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-coach">
-      <Seo title="Coach Chat – MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
+      <Seo title="Coach Chat ? MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
       <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
           {showPlanMissing ? (
             <Alert variant="default" data-testid="coach-plan-missing">
-              <AlertTitle>No plan yet — create one</AlertTitle>
+              <AlertTitle>No plan yet ? create one</AlertTitle>
               <AlertDescription>
                 Start a conversation or regenerate the weekly plan below to get your first program.
               </AlertDescription>
@@ -271,7 +282,7 @@ export default function CoachChatPage() {
           {initializing && (
             <Card className="border border-dashed border-primary/40 bg-primary/5">
               <CardContent className="text-sm text-primary">
-                Preparing secure chat… replies will appear once verification completes.
+                Preparing secure chat? replies will appear once verification completes.
               </CardContent>
             </Card>
           )}
@@ -291,7 +302,7 @@ export default function CoachChatPage() {
                     {formattedMessages.map((message) => (
                       <div key={message.id} className="space-y-2">
                         <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                          You · {formatDistanceToNow(message.createdAt, { addSuffix: true })}
+                          You ? {formatDistanceToNow(message.createdAt, { addSuffix: true })}
                         </div>
                         <div className="rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm">
                           {message.text}
@@ -337,7 +348,7 @@ export default function CoachChatPage() {
                       disabled={!supportsSpeech || pending || demo || initializing}
                       data-testid="coach-mic"
                     >
-                      {supportsSpeech ? (listening ? "■ Stop" : "🎤 Speak") : "🎤 N/A"}
+                      {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
                     </Button>
                     {pending ? (
                       <>
@@ -374,7 +385,7 @@ export default function CoachChatPage() {
                 <CardTitle className="text-xl">Weekly plan</CardTitle>
                 {plan ? (
                   <p className="text-sm text-muted-foreground">
-                    {plan.days} days · {plan.split} · Protein ≥ {plan.proteinFloor} g · Calories ≈ {plan.calorieTarget}
+                    {plan.days} days ? {plan.split} ? Protein ? {plan.proteinFloor} g ? Calories ? {plan.calorieTarget}
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Generate a plan to see your structured week.</p>
@@ -387,7 +398,7 @@ export default function CoachChatPage() {
                 {plan ? (
                   <div className="space-y-3 text-sm text-muted-foreground">
                     <p>
-                      {plan.disclaimer ?? "Training guidance for educational use only. Estimates only — not medical advice."}
+                      {plan.disclaimer ?? "Training guidance for educational use only. Estimates only ? not medical advice."}
                     </p>
                     <div className="space-y-3">
                       {plan.sessions.slice(0, plan.days).map((session) => (
@@ -397,7 +408,7 @@ export default function CoachChatPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Tap regenerate after onboarding to receive a day-by-day split with sets × reps and RPE.
+                    Tap regenerate after onboarding to receive a day-by-day split with sets ? reps and RPE.
                   </p>
                 )}
               </CardContent>
