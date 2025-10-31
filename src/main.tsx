@@ -4,7 +4,6 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { warnIfDomainUnauthorized } from "./lib/firebaseAuthConfig";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { firebaseReady } from "./lib/firebase";
 import { handleAuthRedirectOnce } from "./lib/authRedirect";
@@ -33,7 +32,6 @@ if (typeof window !== "undefined") {
 void (async () => {
   await firebaseReady();
 
-  warnIfDomainUnauthorized();
   void probeFirebaseRuntime();
 
   if (typeof window !== "undefined" && typeof document !== "undefined") {

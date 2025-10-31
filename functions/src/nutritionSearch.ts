@@ -5,6 +5,7 @@ import { withCors } from "./middleware/cors.js";
 import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
+import { getAppCheckEnforceSoft } from "./lib/env.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 
 export type MacroBreakdown = {
@@ -500,74 +501,30 @@ async function handleRequest(req: Request, res: Response): Promise<void> {
     }
   }
 
-  if (!items.length) {
-    // Fallback stub list when external APIs unavailable or keys missing
-    items = [
-      {
-        id: "stub-chicken-breast",
-        name: "Chicken breast, cooked",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 165, protein: 31, carbs: 0, fat: 3.6 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 },
-        per_100g: { kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 },
-        raw: { stub: true },
-      },
-      {
-        id: "stub-white-rice",
-        name: "White rice, cooked",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 130, protein: 2.7, carbs: 28, fat: 0.3 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 },
-        per_100g: { kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 },
-        raw: { stub: true },
-      },
-      {
-        id: "stub-apple",
-        name: "Apple, raw",
-        brand: null,
-        source: "USDA",
-        basePer100g: { kcal: 52, protein: 0.3, carbs: 14, fat: 0.2 },
-        servings: [
-          { id: "100g", label: "100 g", grams: 100, isDefault: true },
-        ],
-        serving: { qty: 100, unit: "g", text: "100 g" },
-        per_serving: { kcal: 52, protein_g: 0.3, carbs_g: 14, fat_g: 0.2 },
-        per_100g: { kcal: 52, protein_g: 0.3, carbs_g: 14, fat_g: 0.2 },
-        raw: { stub: true },
-      },
-    ];
-    primarySource = "USDA";
-  }
-
   res.status(200).json({ items, primarySource });
 }
 
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
   withCors(async (req, res) => {
+    const appCheckSoft = getAppCheckEnforceSoft();
     try {
       await verifyAppCheckStrict(req as any);
     } catch (error: any) {
-      if (!res.headersSent) {
-        console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
-        const code = errorCode(error);
-        const status = code === "failed-precondition" ? 401 : statusFromCode(code);
-        res.status(status).json({
-          error: "Secure verification required. Refresh and try again.",
-          code: "app_check_unavailable",
-        });
+      if (appCheckSoft) {
+        console.warn("nutrition_search_appcheck_soft_fail", { message: describeError(error) });
+      } else {
+        if (!res.headersSent) {
+          console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
+          const code = errorCode(error);
+          const status = code === "failed-precondition" ? 401 : statusFromCode(code);
+          res.status(status).json({
+            error: "Secure verification required. Refresh and try again.",
+            code: "app_check_unavailable",
+          });
+        }
+        return;
       }
-      return;
     }
 
     try {

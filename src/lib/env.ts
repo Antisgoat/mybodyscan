@@ -1,6 +1,7 @@
 const env = (import.meta as any)?.env ?? {};
 
-const publishableKey: string = env.VITE_STRIPE_PUBLISHABLE_KEY || "";
+const publishableKey: string =
+  env.VITE_STRIPE_PK || env.VITE_STRIPE_PUBLISHABLE_KEY || "";
 const commitSha: string = env.VITE_COMMIT_SHA || env.COMMIT_SHA || "";
 const fallbackVersion: string = env.VITE_APP_VERSION || "";
 const buildTimeEnv: string = env.VITE_BUILD_TIME || env.BUILD_TIME || "";
