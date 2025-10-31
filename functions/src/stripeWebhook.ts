@@ -1,25 +1,29 @@
 import { onRequest, type HttpsOptions, type Request } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions";
 import type { Response } from "express";
 import Stripe from "stripe";
-import { defineSecret } from "firebase-functions/params";
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
+import { getStripeSecret, getWebhookSecret, stripeSecretParam, stripeWebhookSecretParam } from "./lib/config.js";
 import { runUserOperation } from "./lib/ops.js";
-
-const STRIPE_WEBHOOK = defineSecret("STRIPE_WEBHOOK");
-const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
 
 const db = getFirestore();
 
 const PRICE_CREDIT_MAP: Record<string, number> = {
   price_1RuOpKQQU5vuhlNjipfFBsR0: 1,
+  price_1RuOr2QQU5vuhlNjcqTckCHL: 3,
+  price_1RuOrkQQU5vuhlNj15ebWfNP: 5,
+  price_1RuOtOQQU5vuhlNjmXnQSsYq: 3,
+  price_1RuOw0QQU5vuhlNjA5NZ66qq: 36,
   price_1S4Y9JQQU5vuhlNjB7cBfmaW: 1,
   price_1S4XsVQQU5vuhlNjzdQzeySA: 3,
   price_1S4Y6YQQU5vuhlNjeJFmshxX: 36,
 };
 
 const SUBSCRIPTION_PRICE_IDS = new Set<string>([
+  "price_1RuOtOQQU5vuhlNjmXnQSsYq",
+  "price_1RuOw0QQU5vuhlNjA5NZ66qq",
   "price_1S4XsVQQU5vuhlNjzdQzeySA",
   "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 ]);
@@ -28,7 +32,7 @@ const stripeWebhookOptions: HttpsOptions & { rawBody: true } = {
   region: "us-central1",
   cors: ["https://mybodyscanapp.com", "https://mybodyscan-f3daf.web.app"],
   maxInstances: 3,
-  secrets: [STRIPE_WEBHOOK, STRIPE_SECRET],
+  secrets: [stripeWebhookSecretParam, stripeSecretParam],
   rawBody: true,
 };
 
@@ -44,10 +48,10 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       return;
     }
 
-    const stripeSecret = STRIPE_SECRET.value();
-    const webhookSecret = STRIPE_WEBHOOK.value();
+    const stripeSecret = getStripeSecret();
+    const webhookSecret = getWebhookSecret();
     if (!stripeSecret || !webhookSecret) {
-      console.error("stripeWebhook", "Missing Stripe secrets");
+      logger.error("stripeWebhook_missing_secrets");
       res.status(500).send("Missing Stripe secrets");
       return;
     }
@@ -56,7 +60,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
 
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {
-      console.error("stripeWebhook", "Missing raw body");
+      logger.error("stripeWebhook_missing_raw_body");
       res.status(400).send("Missing raw body");
       return;
     }
@@ -65,7 +69,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
     try {
       event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     } catch (err: any) {
-      console.error("stripeWebhook", err?.message);
+      logger.error("stripeWebhook_signature_error", { message: err?.message });
       res.status(400).send(`Webhook Error: ${err.message}`);
       return;
     }
@@ -93,7 +97,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
     };
 
     try {
-      console.info("stripe_webhook_event", { type: event.type, id: event.id });
+      logger.info("stripe_webhook_event", { type: event.type, id: event.id });
       switch (event.type) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session;
@@ -206,7 +210,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
         }
         default: {
           // Defensive guard: ignore non-transactional events without crashing
-          console.warn("stripeWebhook_ignored_event", { type: event.type, id: event.id });
+          logger.warn("stripeWebhook_ignored_event", { type: event.type, id: event.id });
           break;
         }
       }
@@ -221,7 +225,7 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       res.status(200).send("ok");
       return;
     } catch (err: any) {
-      console.error("stripeWebhook handler", err?.message || err);
+      logger.error("stripeWebhook_handler_error", { message: err?.message || err });
       await eventLogRef.set(
         {
           ...logPayload,

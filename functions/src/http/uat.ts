@@ -3,7 +3,11 @@ import { onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
-import { PRICE_ALLOWLIST, SUBSCRIPTION_PRICE_IDS } from "./checkout.js";
+import { getPriceAllowlist } from "../lib/config.js";
+
+const PRICE_CONFIG = getPriceAllowlist();
+const PRICE_ALLOWLIST = PRICE_CONFIG.allowlist;
+const SUBSCRIPTION_PRICE_IDS = PRICE_CONFIG.subscriptionPriceIds;
 
 const ORIGIN_ALLOWLIST = new Set([
   "https://mybodyscanapp.com",

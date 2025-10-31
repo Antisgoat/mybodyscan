@@ -5,11 +5,24 @@ import Stripe from "stripe";
 
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
 import { requireAuth } from "../http.js";
-import { getStripeSecret } from "../lib/env.js";
+import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretParam } from "../lib/config.js";
 
 const db = getFirestore();
 
-const DEFAULT_RETURN_HOST = "https://mybodyscanapp.com";
+const FALLBACK_RETURN_HOST = "https://mybodyscanapp.com";
+const CONFIGURED_RETURN_HOST = (() => {
+  const configured = getAppOrigin();
+  if (!configured) return FALLBACK_RETURN_HOST;
+  try {
+    const url = new URL(configured);
+    if (!url.protocol || !url.hostname) {
+      return FALLBACK_RETURN_HOST;
+    }
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return FALLBACK_RETURN_HOST;
+  }
+})();
 
 const AUTHORIZED_HOSTS = new Set([
   "localhost",
@@ -20,26 +33,63 @@ const AUTHORIZED_HOSTS = new Set([
   "www.mybodyscanapp.com",
 ]);
 
-export const PRICE_ALLOWLIST = new Set([
-  "price_1RuOpKQQU5vuhlNjipfFBsR0", // ONE_TIME_STARTER
-  "price_1S4Y9JQQU5vuhlNjB7cBfmaW", // EXTRA_ONE_TIME
-  "price_1S4XsVQQU5vuhlNjzdQzeySA", // PRO_MONTHLY
-  "price_1S4Y6YQQU5vuhlNjeJFmshxX", // ELITE_ANNUAL
-]);
+try {
+  const configuredHost = new URL(CONFIGURED_RETURN_HOST).hostname;
+  AUTHORIZED_HOSTS.add(configuredHost);
+  if (configuredHost.startsWith("www.")) {
+    AUTHORIZED_HOSTS.add(configuredHost.replace(/^www\./, ""));
+  }
+} catch {
+  // ignore invalid configured origin
+}
 
-export const SUBSCRIPTION_PRICE_IDS = new Set([
-  "price_1S4XsVQQU5vuhlNjzdQzeySA",
-  "price_1S4Y6YQQU5vuhlNjeJFmshxX",
-]);
+const PRICE_CONFIG = getPriceAllowlist();
+const PRICE_ALLOWLIST = PRICE_CONFIG.allowlist;
+const PLAN_TO_PRICE: Record<string, string> = PRICE_CONFIG.planToPrice;
+const SUBSCRIPTION_PRICE_IDS: Set<string> = PRICE_CONFIG.subscriptionPriceIds;
 
-const LEGACY_PLAN_MAP: Record<string, string> = {
-  one: "price_1RuOpKQQU5vuhlNjipfFBsR0",
-  extra: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
-  pro_monthly: "price_1S4XsVQQU5vuhlNjzdQzeySA",
-  elite_annual: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+const PLAN_BY_PRICE = (() => {
+  const map = new Map<string, string>();
+  for (const [plan, price] of Object.entries(PLAN_TO_PRICE)) {
+    if (!price) continue;
+    if (!map.has(price)) {
+      map.set(price, plan);
+    }
+  }
+  return map;
+})();
+
+type CheckoutMode = Stripe.Checkout.SessionCreateParams.Mode;
+
+type ErrorMeta = {
+  code?: string;
+  requestId?: string | null;
+  uid?: string;
+  priceId?: string | null;
+  customerId?: string | null;
+  mode?: CheckoutMode | "unknown";
+  context?: Record<string, unknown>;
 };
 
-let stripeClient: Stripe | null = null;
+type LogPayload = {
+  uid?: string | null;
+  priceId?: string | null;
+  mode?: CheckoutMode | "unknown";
+  customerId?: string | null;
+  code?: string | null;
+  requestId?: string | null;
+};
+
+let cachedStripe: { secret: string; client: Stripe } | null = null;
+
+function getStripe(secret: string): Stripe {
+  if (cachedStripe && cachedStripe.secret === secret) {
+    return cachedStripe.client;
+  }
+  const client = new Stripe(secret, { apiVersion: "2024-06-20" });
+  cachedStripe = { secret, client };
+  return client;
+}
 
 function getRequestId(req: Request): string | null {
   const direct = req.get("x-request-id");
@@ -47,16 +97,6 @@ function getRequestId(req: Request): string | null {
   const trace = req.get("x-cloud-trace-context");
   if (trace) return trace.split("/")[0] ?? trace;
   return null;
-}
-
-function getStripe(): Stripe {
-  if (stripeClient) return stripeClient;
-  const secret = getStripeSecret();
-  if (!secret) {
-    throw Object.assign(new Error("stripe_config_missing"), { code: "stripe_config_missing" });
-  }
-  stripeClient = new Stripe(secret, { apiVersion: "2024-06-20" });
-  return stripeClient;
 }
 
 function resolveAllowedOrigin(originHeader?: string): string | null {
@@ -106,107 +146,232 @@ function hasUatFlag(req: Request): boolean {
   return false;
 }
 
-async function readStoredCustomerId(uid: string): Promise<string | null> {
+async function readCustomerCache(uid: string): Promise<{ customerId: string | null; email: string | null }> {
   try {
     const docRef = db.doc(`users/${uid}/private/stripe`);
     const snap = await docRef.get();
-    if (!snap.exists) return null;
+    if (!snap.exists) return { customerId: null, email: null };
     const data = snap.data() as Record<string, unknown> | undefined;
-    const id = typeof data?.customerId === "string" ? data.customerId.trim() : "";
-    return id || null;
+    const customerId = typeof data?.customerId === "string" ? data.customerId.trim() : "";
+    const email = typeof data?.email === "string" ? data.email.trim() : "";
+    return { customerId: customerId || null, email: email || null };
   } catch (error) {
-    console.warn("checkout_read_customer_error", { uid, message: (error as Error)?.message });
-    return null;
+    logger.warn("stripe_cache_read_failed", { uid, message: (error as Error)?.message });
+    return { customerId: null, email: null };
   }
 }
 
-async function getStripeCustomer(
-  stripe: Stripe,
-  uid: string,
-  options: { createIfMissing: boolean },
-): Promise<string> {
-  const docRef = db.doc(`users/${uid}/private/stripe`);
-  const snap = await docRef.get();
-  const data = snap.exists ? (snap.data() as Record<string, unknown>) : undefined;
-  let customerId = typeof data?.customerId === "string" ? data.customerId : undefined;
-
-  if (customerId) {
-    try {
-      await stripe.customers.update(customerId, { metadata: { uid } });
-    } catch (err) {
-      console.warn("stripe_customer_update_failed", { uid, customerId, error: (err as Error)?.message });
-      customerId = undefined;
-    }
-  }
-
-  if (!customerId) {
-    if (!options.createIfMissing) {
-      throw Object.assign(new Error("no_customer"), { code: "no_customer" });
-    }
-    const userRecord = await getAuth().getUser(uid);
-    const email = userRecord.email;
-    if (!email) {
-      throw Object.assign(new Error("no_email"), { code: "no_email" });
-    }
-    const customer = await stripe.customers.create({
-      email,
-      metadata: { uid },
-    });
-    customerId = customer.id;
+async function writeCustomerCache(uid: string, customerId: string, email: string | null): Promise<void> {
+  try {
+    const docRef = db.doc(`users/${uid}/private/stripe`);
     await docRef.set(
       {
         customerId,
-        email,
+        email: email ?? FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
-  } else {
-    await docRef.set({ updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  } catch (error) {
+    logger.warn("stripe_cache_write_failed", { uid, customerId, message: (error as Error)?.message });
   }
-
-  return customerId;
 }
 
-function resolvePriceId(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
+function escapeForStripeSearch(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+async function searchCustomerByEmail(stripe: Stripe, email: string): Promise<Stripe.Customer | null> {
+  const normalized = email.trim().toLowerCase();
+  try {
+    const results = await stripe.customers.search({
+      query: `email:'${escapeForStripeSearch(normalized)}'`,
+      limit: 5,
+    });
+    if (!Array.isArray(results.data) || results.data.length === 0) {
+      return null;
+    }
+    const exact = results.data.find((item) => typeof item.email === "string" && item.email.trim().toLowerCase() === normalized);
+    return exact ?? results.data[0];
+  } catch (error) {
+    logger.warn("stripe_customer_search_failed", { email: normalized, message: (error as Error)?.message });
+    return null;
+  }
+}
+
+async function ensureStripeCustomer(stripe: Stripe, uid: string, email: string): Promise<{ customerId: string; origin: "cache" | "search" | "created" }> {
+  const cache = await readCustomerCache(uid);
+  if (cache.customerId) {
+    try {
+      await stripe.customers.update(cache.customerId, { metadata: { uid } });
+    } catch (error) {
+      logger.warn("stripe_customer_update_failed", { uid, customerId: cache.customerId, message: (error as Error)?.message });
+    }
+    return { customerId: cache.customerId, origin: "cache" };
+  }
+
+  const existing = await searchCustomerByEmail(stripe, email);
+  if (existing) {
+    try {
+      await stripe.customers.update(existing.id, { metadata: { uid } });
+    } catch (error) {
+      logger.warn("stripe_customer_update_failed", { uid, customerId: existing.id, message: (error as Error)?.message });
+    }
+    await writeCustomerCache(uid, existing.id, email);
+    return { customerId: existing.id, origin: "search" };
+  }
+
+  const created = await stripe.customers.create({
+    email,
+    metadata: { uid },
+  });
+
+  await writeCustomerCache(uid, created.id, email);
+  return { customerId: created.id, origin: "created" };
+}
+
+async function resolveCustomerForPortal(
+  stripe: Stripe,
+  uid: string,
+  email: string | null,
+  sessionId: string | null,
+): Promise<{ customerId: string | null; source: "cache" | "session" | "search" | null }> {
+  const cache = await readCustomerCache(uid);
+  if (cache.customerId) {
+    return { customerId: cache.customerId, source: "cache" };
+  }
+
+  if (sessionId) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const sessionUid = (session.metadata?.uid as string | undefined) ?? session.client_reference_id ?? null;
+      if (sessionUid && sessionUid !== uid) {
+        logger.warn("portal_session_uid_mismatch", { uid, sessionUid, sessionId });
+      } else {
+        const customer = session.customer;
+        const customerId =
+          typeof customer === "string"
+            ? customer
+            : typeof (customer as Stripe.Customer).id === "string"
+              ? (customer as Stripe.Customer).id
+              : null;
+        if (customerId) {
+          const sessionEmail =
+            (session.customer_details?.email as string | undefined) ??
+            (session.customer_email as string | undefined) ??
+            email ??
+            null;
+          await writeCustomerCache(uid, customerId, sessionEmail);
+          return { customerId, source: "session" };
+        }
+      }
+    } catch (error) {
+      logger.warn("portal_session_lookup_failed", { uid, sessionId, message: (error as Error)?.message });
+    }
+  }
+
+  if (email) {
+    const existing = await searchCustomerByEmail(stripe, email);
+    if (existing) {
+      await writeCustomerCache(uid, existing.id, existing.email ?? email);
+      return { customerId: existing.id, source: "search" };
+    }
+  }
+
+  return { customerId: null, source: null };
+}
+
+function findPlanByPrice(priceId: string | null | undefined): string | null {
+  if (!priceId) return null;
+  return PLAN_BY_PRICE.get(priceId) ?? null;
+}
+
+function resolveRequestedPrice(body: unknown): { priceId: string | null; plan: string | null } {
+  if (!body || typeof body !== "object") return { priceId: null, plan: null };
   const payload = body as Record<string, unknown>;
-  const direct = typeof payload.priceId === "string" ? payload.priceId.trim() : "";
-  if (direct && PRICE_ALLOWLIST.has(direct)) {
-    return direct;
+  const directRaw = typeof payload.priceId === "string" ? payload.priceId.trim() : "";
+  const planRaw = typeof payload.plan === "string" ? payload.plan.trim() : "";
+  const plan = planRaw ? planRaw.toLowerCase() : null;
+
+  if (directRaw) {
+    if (PRICE_ALLOWLIST.has(directRaw)) {
+      return { priceId: directRaw, plan: plan ?? findPlanByPrice(directRaw) };
+    }
+    if (plan && PLAN_TO_PRICE[plan]) {
+      return { priceId: PLAN_TO_PRICE[plan], plan };
+    }
+    return { priceId: directRaw, plan };
   }
-  const plan = typeof payload.plan === "string" ? payload.plan.trim().toLowerCase() : "";
-  if (plan && LEGACY_PLAN_MAP[plan]) {
-    return LEGACY_PLAN_MAP[plan];
+
+  if (plan && PLAN_TO_PRICE[plan]) {
+    return { priceId: PLAN_TO_PRICE[plan], plan };
   }
-  return null;
+
+  return { priceId: null, plan };
 }
 
-type ErrorMeta = {
-  code?: string;
-  requestId?: string | null;
-  uid?: string;
-  priceId?: string | null;
-  context?: Record<string, unknown>;
-};
+function logOutcome(svc: "checkout" | "portal", ok: boolean, payload: LogPayload, level: "info" | "error" = ok ? "info" : "error"): void {
+  const record = {
+    svc,
+    uid: payload.uid ?? null,
+    price: payload.priceId ?? null,
+    mode: payload.mode ?? null,
+    customer: payload.customerId ?? null,
+    ok,
+    code: payload.code ?? null,
+    requestId: payload.requestId ?? null,
+  };
+  const line = JSON.stringify(record);
+  if (level === "info") {
+    logger.info(line);
+  } else {
+    logger.error(line);
+  }
+}
 
-function createErrorResponse(
-  res: Response,
-  status: number,
-  error: string,
-  meta?: ErrorMeta,
-): void {
-  const responseCode = meta?.code ?? error;
-  res.status(status).json({ error, code: responseCode });
-  logger.error("checkout_error", {
+function createErrorResponse(svc: "checkout" | "portal", res: Response, status: number, error: string, meta?: ErrorMeta): void {
+  const code = meta?.code ?? error;
+  res.status(status).json({ error, code });
+  logger.error(`${svc}_error`, {
     status,
     error,
-    code: responseCode,
+    code,
     requestId: meta?.requestId ?? null,
     uid: meta?.uid ?? null,
     priceId: meta?.priceId ?? null,
+    customerId: meta?.customerId ?? null,
     ...(meta?.context ?? {}),
   });
+  logOutcome(svc, false, {
+    uid: meta?.uid ?? null,
+    priceId: meta?.priceId ?? null,
+    mode: meta?.mode ?? "unknown",
+    customerId: meta?.customerId ?? null,
+    code,
+    requestId: meta?.requestId ?? null,
+  }, "error");
+}
+
+function sendPaymentsDisabled(svc: "checkout" | "portal", res: Response, meta: ErrorMeta): void {
+  res.status(501).json({ error: "payments_disabled", code: "no_secret" });
+  logger.error(`${svc}_payments_disabled`, {
+    requestId: meta.requestId ?? null,
+    uid: meta.uid ?? null,
+    priceId: meta.priceId ?? null,
+  });
+  logOutcome(
+    svc,
+    false,
+    {
+      uid: meta.uid ?? null,
+      priceId: meta.priceId ?? null,
+      mode: meta.mode ?? "unknown",
+      customerId: meta.customerId ?? null,
+      code: "no_secret",
+      requestId: meta.requestId ?? null,
+    },
+    "error",
+  );
 }
 
 async function handleCreateCheckout(req: Request, res: Response) {
@@ -215,78 +380,119 @@ async function handleCreateCheckout(req: Request, res: Response) {
 
   const requestedOrigin = req.headers.origin as string | undefined;
   if (requestedOrigin && !allowedOrigin) {
-    createErrorResponse(res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
+    createErrorResponse("checkout", res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   if (req.method !== "POST") {
-    createErrorResponse(res, 405, "method_not_allowed", { requestId: getRequestId(req) });
+    createErrorResponse("checkout", res, 405, "method_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   const requestId = getRequestId(req);
+
   let uid: string;
   try {
     uid = await requireAuth(req);
   } catch {
-    createErrorResponse(res, 401, "auth_required", { requestId });
+    createErrorResponse("checkout", res, 401, "auth_required", { requestId });
     return;
   }
 
-  const priceId = resolvePriceId(req.body);
-  if (!priceId || !PRICE_ALLOWLIST.has(priceId)) {
-    createErrorResponse(res, 400, "invalid_price", { requestId, uid, priceId: priceId ?? null });
+  let email: string | null = null;
+  try {
+    const userRecord = await getAuth().getUser(uid);
+    email = typeof userRecord.email === "string" ? userRecord.email.trim() : null;
+  } catch (error) {
+    logger.error("checkout_user_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    createErrorResponse("checkout", res, 500, "server_error", {
+      code: "user_lookup_failed",
+      requestId,
+      uid,
+      context: { message: (error as Error)?.message },
+    });
     return;
   }
+
+  if (!email) {
+    createErrorResponse("checkout", res, 400, "missing_email", { requestId, uid, code: "missing_email" });
+    return;
+  }
+
+  const { priceId: requestedPriceId, plan } = resolveRequestedPrice(req.body);
+  const priceId = requestedPriceId?.trim() ?? "";
+  if (!priceId || !PRICE_ALLOWLIST.has(priceId)) {
+    createErrorResponse("checkout", res, 400, "invalid_price", {
+      requestId,
+      uid,
+      priceId: priceId || null,
+      code: "invalid_price",
+    });
+    return;
+  }
+
+  const mode: CheckoutMode = SUBSCRIPTION_PRICE_IDS.has(priceId) ? "subscription" : "payment";
 
   const isUat = hasUatFlag(req);
-  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
-  const mode: Stripe.Checkout.SessionCreateParams.Mode = SUBSCRIPTION_PRICE_IDS.has(priceId) ? "subscription" : "payment";
+  const origin = allowedOrigin || CONFIGURED_RETURN_HOST;
 
   if (isUat) {
+    logOutcome("checkout", true, { uid, priceId, mode, code: "uat", requestId });
     res.json({
       url: `${origin}/__uat/checkout/${priceId}?mode=${mode}`,
       mode,
       priceId,
+      plan,
       uat: true,
     });
     return;
   }
 
+  const secret = getStripeSecret();
+  if (!secret) {
+    sendPaymentsDisabled("checkout", res, { requestId, uid, priceId, mode });
+    return;
+  }
+
   let stripe: Stripe;
   try {
-    stripe = getStripe();
-  } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code;
-    createErrorResponse(res, 500, "stripe_config_missing", {
-      code,
+    stripe = getStripe(secret);
+  } catch (error) {
+    logger.error("checkout_stripe_init_failed", {
+      uid,
+      priceId,
+      message: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
+    createErrorResponse("checkout", res, 500, "server_error", {
+      code: "stripe_init_failed",
       requestId,
       uid,
       priceId,
+      mode,
+      context: { message: (error as Error)?.message },
     });
     return;
   }
 
   let customerId: string;
   try {
-    customerId = await getStripeCustomer(stripe, uid, { createIfMissing: true });
-  } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code;
-    if (code === "no_email") {
-      createErrorResponse(res, 400, "missing_email", {
-        code,
-        requestId,
-        uid,
-        priceId,
-      });
-      return;
-    }
-    createErrorResponse(res, 500, "stripe_customer_error", {
-      code,
+    const ensureResult = await ensureStripeCustomer(stripe, uid, email);
+    customerId = ensureResult.customerId;
+  } catch (error) {
+    logger.error("checkout_customer_error", {
+      uid,
+      priceId,
+      message: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
+    createErrorResponse("checkout", res, 500, "server_error", {
+      code: (error as { code?: string })?.code ?? "stripe_customer_error",
       requestId,
       uid,
       priceId,
-      context: { message: (err as Error)?.message },
+      mode,
+      context: { message: (error as Error)?.message },
     });
     return;
   }
@@ -300,24 +506,49 @@ async function handleCreateCheckout(req: Request, res: Response) {
       cancel_url: `${origin}/plans?canceled=1`,
       allow_promotion_codes: mode === "subscription",
       client_reference_id: uid,
-      metadata: { uid, priceId },
+      metadata: { uid, priceId, plan: plan ?? findPlanByPrice(priceId) ?? "unknown" },
       payment_intent_data: mode === "payment" ? { metadata: { uid, priceId } } : undefined,
       subscription_data: mode === "subscription" ? { metadata: { uid, priceId } } : undefined,
     });
 
-    const url = session.url;
-    if (!url) {
-      createErrorResponse(res, 500, "stripe_session_missing", { requestId, uid, priceId });
+    if (!session?.url) {
+      createErrorResponse("checkout", res, 500, "server_error", {
+        code: "stripe_session_missing",
+        requestId,
+        uid,
+        priceId,
+        customerId,
+        mode,
+      });
       return;
     }
 
-    res.json({ url });
-  } catch (err) {
-    createErrorResponse(res, 500, "stripe_error", {
+    logger.info("checkout_session_created", {
+      uid,
+      priceId,
+      mode,
+      customerId,
+      sessionId: session.id,
+    });
+    logOutcome("checkout", true, { uid, priceId, mode, customerId, requestId });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    logger.error("checkout_session_error", {
+      uid,
+      priceId,
+      customerId,
+      message: (error as Error)?.message,
+      stack: (error as Error)?.stack,
+    });
+    createErrorResponse("checkout", res, 500, "server_error", {
+      code: (error as { code?: string })?.code ?? "stripe_error",
       requestId,
       uid,
       priceId,
-      context: { message: (err as Error)?.message },
+      customerId,
+      mode,
+      context: { message: (error as Error)?.message },
     });
   }
 }
@@ -328,72 +559,93 @@ async function handleCustomerPortal(req: Request, res: Response) {
 
   const requestedOrigin = req.headers.origin as string | undefined;
   if (requestedOrigin && !allowedOrigin) {
-    createErrorResponse(res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
+    createErrorResponse("portal", res, 403, "origin_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   if (req.method !== "POST") {
-    createErrorResponse(res, 405, "method_not_allowed", { requestId: getRequestId(req) });
+    createErrorResponse("portal", res, 405, "method_not_allowed", { requestId: getRequestId(req) });
     return;
   }
 
   const requestId = getRequestId(req);
+
   let uid: string;
   try {
     uid = await requireAuth(req);
   } catch {
-    createErrorResponse(res, 401, "auth_required", { requestId });
+    createErrorResponse("portal", res, 401, "auth_required", { requestId });
+    return;
+  }
+
+  const sessionId = typeof req.query?.session_id === "string" ? req.query.session_id.trim() : null;
+
+  let email: string | null = null;
+  try {
+    const userRecord = await getAuth().getUser(uid);
+    email = typeof userRecord.email === "string" ? userRecord.email.trim() : null;
+  } catch (error) {
+    logger.error("portal_user_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    createErrorResponse("portal", res, 500, "server_error", {
+      code: "user_lookup_failed",
+      requestId,
+      uid,
+      context: { message: (error as Error)?.message },
+    });
     return;
   }
 
   const isUat = hasUatFlag(req);
-  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
+  const origin = allowedOrigin || CONFIGURED_RETURN_HOST;
 
   if (isUat) {
-    const customerId = await readStoredCustomerId(uid);
-    if (!customerId) {
-      createErrorResponse(res, 404, "no_customer", {
-        requestId,
-        uid,
-      });
+    const cache = await readCustomerCache(uid);
+    if (!cache.customerId) {
+      createErrorResponse("portal", res, 404, "no_customer", { requestId, uid, code: "no_customer" });
       return;
     }
-    res.json({ url: `${origin}/__uat/customer-portal/${customerId}`, uat: true });
+    logOutcome("portal", true, { uid, customerId: cache.customerId, code: "uat", requestId });
+    res.json({ url: `${origin}/__uat/customer-portal/${cache.customerId}`, uat: true });
+    return;
+  }
+
+  const secret = getStripeSecret();
+  if (!secret) {
+    sendPaymentsDisabled("portal", res, { requestId, uid });
     return;
   }
 
   let stripe: Stripe;
   try {
-    stripe = getStripe();
-  } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code;
-    createErrorResponse(res, 500, "stripe_config_missing", {
-      code,
+    stripe = getStripe(secret);
+  } catch (error) {
+    logger.error("portal_stripe_init_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    createErrorResponse("portal", res, 500, "server_error", {
+      code: "stripe_init_failed",
       requestId,
       uid,
+      context: { message: (error as Error)?.message },
     });
     return;
   }
 
-  let customerId: string;
+  let customerId: string | null = null;
   try {
-    customerId = await getStripeCustomer(stripe, uid, { createIfMissing: false });
-  } catch (err) {
-    const code = (err as { code?: string } | undefined)?.code;
-    if (code === "no_email" || code === "no_customer") {
-      createErrorResponse(res, 404, "no_customer", {
-        code,
-        requestId,
-        uid,
-      });
-      return;
-    }
-    createErrorResponse(res, 500, "stripe_customer_error", {
-      code,
+    const resolved = await resolveCustomerForPortal(stripe, uid, email, sessionId);
+    customerId = resolved.customerId;
+  } catch (error) {
+    logger.error("portal_customer_lookup_failed", { uid, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    createErrorResponse("portal", res, 500, "server_error", {
+      code: (error as { code?: string })?.code ?? "stripe_customer_error",
       requestId,
       uid,
-      context: { message: (err as Error)?.message },
+      context: { message: (error as Error)?.message },
     });
+    return;
+  }
+
+  if (!customerId) {
+    createErrorResponse("portal", res, 404, "no_customer", { requestId, uid, code: "no_customer" });
     return;
   }
 
@@ -403,27 +655,44 @@ async function handleCustomerPortal(req: Request, res: Response) {
       return_url: `${origin}/settings`,
     });
 
-    if (!session.url) {
-      createErrorResponse(res, 500, "stripe_portal_missing", { requestId, uid });
+    if (!session?.url) {
+      createErrorResponse("portal", res, 500, "server_error", {
+        code: "stripe_portal_missing",
+        requestId,
+        uid,
+        customerId,
+      });
       return;
     }
 
+    logger.info("portal_session_created", { uid, customerId, sessionId: session.id });
+    logOutcome("portal", true, { uid, customerId, requestId });
+
     res.json({ url: session.url });
-  } catch (err) {
-    createErrorResponse(res, 500, "stripe_error", {
+  } catch (error) {
+    logger.error("portal_session_error", { uid, customerId, message: (error as Error)?.message, stack: (error as Error)?.stack });
+    createErrorResponse("portal", res, 500, "server_error", {
+      code: (error as { code?: string })?.code ?? "stripe_error",
       requestId,
       uid,
-      context: { message: (err as Error)?.message },
+      customerId,
+      context: { message: (error as Error)?.message },
     });
   }
 }
 
-export const createCheckout = onRequest({ region: "us-central1" }, (req, res) => {
-  void handleCreateCheckout(req as Request, res as Response);
-});
+export const createCheckout = onRequest(
+  { region: "us-central1", secrets: [stripeSecretParam] },
+  (req, res) => {
+    void handleCreateCheckout(req as Request, res as Response);
+  },
+);
 
-export const createCustomerPortal = onRequest({ region: "us-central1" }, (req, res) => {
-  void handleCustomerPortal(req as Request, res as Response);
-});
+export const createCustomerPortal = onRequest(
+  { region: "us-central1", secrets: [stripeSecretParam] },
+  (req, res) => {
+    void handleCustomerPortal(req as Request, res as Response);
+  },
+);
 
-export { LEGACY_PLAN_MAP };
+export const LEGACY_PLAN_MAP = PLAN_TO_PRICE;

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p ./tsconfig.json",
     "list": "tsc -p ./tsconfig.json --listFiles",
     "lint": "echo \"skip\"",
+    "test": "node --loader ts-node/esm --test ./test/**/*.test.ts",
     "deploy:functions": "npm run build && firebase deploy --only functions --project mybodyscan-f3daf",
     "set:staff": "ts-node scripts/setStaffClaim.ts"
   },

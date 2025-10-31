@@ -150,6 +150,20 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 - `APP_CHECK_ALLOWED_ORIGINS` may be empty. Keeping `APP_CHECK_ENFORCE_SOFT=true` allows soft enforcement so missing tokens log warnings instead of failing the request.
 - If `STRIPE_SECRET` and `STRIPE_SECRET_KEY` are absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
 
+### Payments config sources & troubleshooting
+
+- Stripe HTTPS handlers resolve secrets in order: `process.env.STRIPE_SECRET_KEY` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret` → Firebase Secret Manager entry `STRIPE_SECRET`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
+- Webhook verification follows the same pattern for `STRIPE_WEBHOOK_SECRET`, `functions.config().stripe.webhook_secret`, and the `STRIPE_WEBHOOK` secret.
+- Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus legacy keys (`one`, `extra`, `pro_monthly`, `elite_annual`). The default table includes:
+  - `price_1RuOpKQQU5vuhlNjipfFBsR0` (`single` / `one`)
+  - `price_1RuOr2QQU5vuhlNjcqTckCHL` (`pack3`)
+  - `price_1RuOrkQQU5vuhlNj15ebWfNP` (`pack5`)
+  - `price_1RuOtOQQU5vuhlNjmXnQSsYq` (`monthly`)
+  - `price_1RuOw0QQU5vuhlNjA5NZ66qq` (`annual`)
+  - Legacy extras remain allowlisted for existing subscriptions.
+- Successful checkout/portal requests emit one-line JSON logs (`svc` = `checkout` or `portal`) with `uid`, `price`, `mode`, `customer`, and `ok:true`. Failures log the same shape with `ok:false` and a `code` value for triage.
+- Run `npm --prefix functions test` to confirm the active secret source resolves in your environment before deploying.
+
 ### Example production secret values
 
 - `HOST_BASE_URL = https://mybodyscanapp.com`

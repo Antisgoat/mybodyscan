@@ -74,6 +74,7 @@ export async function googleSignIn(auth: Auth) {
       await signInWithRedirect(auth, provider);
       return { ok: true as const };
     } catch (error) {
+      debugAuthFailure(error);
       const mapped = await describeAuthErrorAsync(auth, error);
       return { ok: false as const, code: mapped.code, message: mapped.message };
     }
@@ -99,9 +100,11 @@ export async function googleSignIn(auth: Auth) {
       code === "auth/internal-error" ||
       !code
     ) {
+      debugAuthFailure(error);
       return redirect();
     }
 
+    debugAuthFailure(error);
     const mapped = await describeAuthErrorAsync(auth, error);
     return { ok: false as const, code: mapped.code, message: mapped.message };
   }
@@ -140,6 +143,21 @@ function getErrorCode(err: unknown): string | undefined {
     return (err as Record<string, unknown>).code as string;
   }
   return undefined;
+}
+
+function debugAuthFailure(err: unknown): void {
+  if (!import.meta.env.DEV) return;
+  const code = getErrorCode(err) ?? "unknown";
+  const message = typeof (err as { message?: string }).message === "string" ? (err as { message?: string }).message : undefined;
+  const detailsCandidate =
+    (err as { customData?: { details?: string } })?.customData?.details ??
+    (err as { details?: string }).details;
+  const payload: Record<string, unknown> = { code };
+  if (message) payload.message = message;
+  if (code === "auth/internal-error" && detailsCandidate) {
+    payload.details = detailsCandidate;
+  }
+  console.debug("auth failure", payload);
 }
 
 export async function describeAuthErrorAsync(auth: Auth, error: unknown): Promise<NormalizedAuthError> {
