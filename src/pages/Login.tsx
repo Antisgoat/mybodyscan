@@ -24,7 +24,32 @@ export default function Login() {
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
   const { flags, loaded } = useFlags();
-  const appleAllowed = flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
+  const envEnableApple =
+    import.meta.env.VITE_ENABLE_APPLE === "true" || import.meta.env.VITE_ENABLE_APPLE === "1";
+  const appleAllowed = envEnableApple || flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
+
+  useEffect(() => {
+    if (!appleAllowed) return;
+    if (typeof document === "undefined") return;
+    const existing = document.querySelector<HTMLScriptElement>("script[data-apple-auth]");
+    if (existing) return;
+    try {
+      const script = document.createElement("script");
+      script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
+      script.async = true;
+      script.dataset.appleAuth = "true";
+      script.onerror = () => {
+        if (import.meta.env.DEV) {
+          console.warn("[login] Failed to load Apple JS SDK");
+        }
+      };
+      document.head.appendChild(script);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[login] Unable to load Apple JS", err);
+      }
+    }
+  }, [appleAllowed]);
 
   useEffect(() => {
     let cancelled = false;

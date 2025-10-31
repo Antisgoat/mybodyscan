@@ -1,12 +1,10 @@
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
-import { withCors } from "./middleware/cors.js";
-import { verifyRateLimit } from "./verifyRateLimit.js";
 import { verifyAppCheckStrict } from "./http.js";
-import { errorCode, statusFromCode } from "./lib/errors.js";
-import { getAppCheckEnforceSoft } from "./lib/env.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
+import { getEnv } from "./lib/env.js";
+import { HttpError, send } from "./util/http.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -57,8 +55,7 @@ const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
 
-const FETCH_TIMEOUT_MS = 6500;
-const auth = getAuth();
+const FETCH_TIMEOUT_MS = 8000;
 
 function describeError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -146,20 +143,6 @@ function normalizeBrand(value: unknown): string | null {
     return value.trim();
   }
   return null;
-}
-
-async function extractUid(req: Request): Promise<string | null> {
-  const header = req.headers.authorization || (req.headers.Authorization as string | undefined);
-  if (!header || typeof header !== "string") return null;
-  const match = header.match(/^Bearer (.+)$/);
-  if (!match) return null;
-  try {
-    const decoded = await auth.verifyIdToken(match[1]!);
-    return decoded.uid || null;
-  } catch (error) {
-    console.warn("nutrition_search_token_invalid", { message: describeError(error) });
-    return null;
-  }
 }
 
 function buildServingSnapshot(serving: ServingOption | undefined) {
@@ -290,6 +273,51 @@ function parseServingSizeText(text: string | null | undefined) {
   }
 }
 
+async function requestJson(url: URL, init: RequestInit, label: string): Promise<any> {
+  let lastError: HttpError | null = null;
+
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const response = await fetch(url.toString(), {
+        ...init,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          throw new HttpError(502, "upstream_4xx", `${label}_${response.status}`);
+        }
+        lastError = new HttpError(502, "upstream_timeout", `${label}_${response.status}`);
+        if (attempt === 1) {
+          throw lastError;
+        }
+        continue;
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof HttpError) {
+        if (error.code === "upstream_4xx" || attempt === 1) {
+          throw error;
+        }
+        lastError = error;
+        continue;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      lastError = new HttpError(502, "upstream_timeout", `${label}_${message}`);
+      if (error instanceof Error && error.name === "AbortError" && attempt < 1) {
+        continue;
+      }
+      if (attempt === 1) {
+        throw lastError;
+      }
+    }
+  }
+
+  throw lastError ?? new HttpError(502, "upstream_timeout", `${label}_unknown`);
+}
+
 export function fromOpenFoodFacts(product: any): FoodItem | null {
   if (!product) return null;
 
@@ -389,15 +417,14 @@ async function searchUsda(query: string, apiKey: string | undefined): Promise<Fo
   url.searchParams.set("pageSize", "20");
   url.searchParams.set("dataType", USDA_DATA_TYPES.join(","));
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`usda_${response.status}`);
-  }
-  const data = (await response.json()) as any;
+  const data = (await requestJson(
+    url,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    },
+    "usda",
+  )) as any;
   if (!Array.isArray(data?.foods)) return [];
   return data.foods.map((item: any) => fromUsdaFood(item)).filter(Boolean) as FoodItem[];
 }
@@ -410,136 +437,166 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
   url.searchParams.set("json", "1");
   url.searchParams.set("page_size", "20");
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "mybodyscan-nutrition-search/1.0",
+  const data = (await requestJson(
+    url,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "mybodyscan-nutrition-search/1.0",
+      },
     },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`off_${response.status}`);
-  }
-  const data = (await response.json()) as any;
+    "off",
+  )) as any;
   if (!Array.isArray(data?.products)) return [];
   return data.products.map((item: any) => fromOpenFoodFacts(item)).filter(Boolean) as FoodItem[];
 }
 
-async function handleRequest(req: Request, res: Response): Promise<void> {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET,OPTIONS");
-    res.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });
-    return;
+function extractBearerToken(req: Request): string {
+  const header = req.get("authorization") || req.get("Authorization") || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
   }
-
-  const query = String(req.query?.q ?? req.query?.query ?? "").trim();
-  if (!query) {
-    res.status(200).json({ items: [] });
-    return;
+  const token = match[1]?.trim();
+  if (!token) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
   }
+  return token;
+}
 
-  const uid = await extractUid(req);
-  if (uid) {
-    (req as any).auth = { uid };
-  } else if ((req as any).auth) {
-    delete (req as any).auth;
-  }
-
-  const limiter = await ensureRateLimit({
-    key: "nutrition_search",
-    identifier: uid || identifierFromRequest(req as any),
-    limit: 20,
-    windowSeconds: 60,
-  });
-  if (!limiter.allowed) {
-    res.status(429).json({
-      error: "Rate limited. Try again soon.",
-      code: "rate_limited",
-      retryAfter: limiter.retryAfterSeconds ?? null,
-    });
-    return;
-  }
-
+async function verifyAuthorization(req: Request): Promise<{ uid: string | null }> {
+  const token = extractBearerToken(req);
   try {
-    const { getEnvInt } = await import("./lib/env.js");
-    await verifyRateLimit(req, {
-      key: "nutrition",
-      max: getEnvInt("NUTRITION_RPM", 20),
-      windowSeconds: 60,
-    });
-  } catch (error: any) {
-    if (error?.status === 429) {
-      console.warn("nutrition_search_rate_limited", { type: uid ? "uid" : "ip" });
-      res.status(429).json({ error: "Too many requests", code: "too_many_requests" });
-      return;
-    }
-    throw error;
-  }
-
-  let items: FoodItem[] = [];
-  let primarySource: NutritionSource = "USDA";
-
-  try {
-    const { getEnv } = await import("./lib/env.js");
-    const apiKey = getEnv("USDA_FDC_API_KEY");
-    if (!apiKey) {
-      console.warn("nutrition_search_usda_key_missing", { query });
-    } else {
-      items = await searchUsda(query, apiKey);
-    }
+    const decoded = await getAuth().verifyIdToken(token);
+    return { uid: decoded.uid ?? null };
   } catch (error) {
-    console.error("nutrition_search_usda_error", { query, message: describeError(error) });
-  }
-
-  if (!items.length) {
-    try {
-      items = await searchOpenFoodFacts(query);
-      primarySource = "Open Food Facts";
-    } catch (error) {
-      console.error("nutrition_search_off_error", { query, message: describeError(error) });
+    const message = (error as { message?: string })?.message ?? String(error);
+    const code = (error as { code?: string })?.code ?? "";
+    if (
+      code === "app/no-app" ||
+      code === "app/invalid-credential" ||
+      message.includes("credential") ||
+      message.includes("initializeApp")
+    ) {
+      console.warn("no_admin_verify", { reason: message || code || "unknown" });
+      return { uid: null };
     }
+
+    console.warn("nutrition_search.auth_failed", { message });
+    throw new HttpError(401, "unauthorized", "invalid_token");
+  }
+}
+
+async function ensureAppCheck(req: Request): Promise<void> {
+  try {
+    await verifyAppCheckStrict(req);
+  } catch (error) {
+    throw new HttpError(401, "app_check_required");
+  }
+}
+
+type SourceResult = { items: FoodItem[]; error?: HttpError | null };
+
+async function runSafe(source: NutritionSource, fn: () => Promise<FoodItem[]>): Promise<SourceResult> {
+  try {
+    const items = await fn();
+    return { items };
+  } catch (error) {
+    if (error instanceof HttpError) {
+      console.warn(`nutrition_${source.toLowerCase().replace(/\s+/g, "_")}_error`, {
+        code: error.code,
+        message: error.message,
+      });
+      return { items: [], error };
+    }
+
+    console.warn(`nutrition_${source.toLowerCase().replace(/\s+/g, "_")}_error`, {
+      code: "upstream_timeout",
+      message: describeError(error),
+    });
+    return { items: [], error: new HttpError(502, "upstream_timeout") };
+  }
+}
+
+function pickError(errors: HttpError[]): HttpError {
+  const upstream4xx = errors.find((error) => error.code === "upstream_4xx");
+  return upstream4xx ?? errors[0] ?? new HttpError(502, "upstream_timeout");
+}
+
+function handleError(res: Response, error: unknown): void {
+  if (error instanceof HttpError) {
+    const payload: Record<string, unknown> = { error: error.code };
+    if (error.message && error.message !== error.code) {
+      payload.reason = error.message;
+    }
+    send(res, error.status, payload);
+    return;
   }
 
-  res.status(200).json({ items, primarySource });
+  console.error("nutrition_search_unhandled", { message: describeError(error) });
+  send(res, 502, { error: "upstream_timeout" });
 }
 
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
-  withCors(async (req, res) => {
-    const appCheckSoft = getAppCheckEnforceSoft();
-    try {
-      await verifyAppCheckStrict(req as any);
-    } catch (error: any) {
-      if (appCheckSoft) {
-        console.warn("nutrition_search_appcheck_soft_fail", { message: describeError(error) });
-      } else {
-        if (!res.headersSent) {
-          console.warn("nutrition_search_appcheck_rejected", { message: describeError(error) });
-          const code = errorCode(error);
-          const status = code === "failed-precondition" ? 401 : statusFromCode(code);
-          res.status(status).json({
-            error: "Secure verification required. Refresh and try again.",
-            code: "app_check_unavailable",
-          });
-        }
-        return;
-      }
+  async (req: Request, res: Response) => {
+    if (req.method === "OPTIONS") {
+      send(res, 204, null);
+      return;
     }
 
     try {
-      await handleRequest(req as Request, res as Response);
-    } catch (error: any) {
-      if (res.headersSent) {
+      await ensureAppCheck(req);
+
+      if (req.method !== "GET") {
+        res.setHeader("Allow", "GET,OPTIONS");
+        throw new HttpError(405, "method_not_allowed");
+      }
+
+      const auth = await verifyAuthorization(req);
+      const uid = auth.uid;
+
+      const query = String(req.query?.q ?? req.query?.query ?? "").trim();
+      if (!query) {
+        send(res, 200, { results: [], status: "no_results" });
         return;
       }
-      if (typeof error?.status === "number") {
-        const code = typeof error?.code === "string" && error.code ? error.code : "request_failed";
-        res.status(error.status).json({ error: error.message ?? "Request failed", code });
+
+      const rateLimit = await ensureRateLimit({
+        key: "nutrition_search",
+        identifier: uid ?? identifierFromRequest(req as any),
+        limit: 20,
+        windowSeconds: 60,
+      });
+
+      if (!rateLimit.allowed) {
+        send(res, 429, {
+          error: "rate_limited",
+          retryAfter: rateLimit.retryAfterSeconds ?? null,
+        });
         return;
       }
-      console.error("nutrition_search_unhandled", { message: describeError(error) });
-      res.status(500).json({ error: "Server error", code: "server_error" });
+
+      const apiKey = getEnv("USDA_FDC_API_KEY");
+      const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey));
+      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query));
+
+      const merged = [...usdaResult.items, ...offResult.items];
+
+      if (merged.length > 0) {
+        send(res, 200, { results: merged, status: "ok" });
+        return;
+      }
+
+      const errors = [usdaResult.error, offResult.error].filter(Boolean) as HttpError[];
+      if (errors.length > 0) {
+        throw pickError(errors);
+      }
+
+      send(res, 200, { results: [], status: "no_results" });
+    } catch (error) {
+      handleError(res, error);
     }
-  }),
+  },
 );

@@ -1,37 +1,52 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+
+import { firebaseApiKey } from "../lib/firebase";
+
+type HealthSnapshot = {
+  identityToolkitReachable?: boolean;
+  identityToolkitReason?: string;
+};
 
 export default function SetupBanner() {
-  const [visible, setVisible] = useState(false);
-  const [msg, setMsg] = useState<string>("");
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    function onBoot(e: Event) {
-      const d = (e as CustomEvent)?.detail as { apiKey?: boolean; itk?: number } | undefined;
-      const apiKey = !!d?.apiKey;
-      const itk = Number(d?.itk || 0);
-
-      if (!apiKey) {
-        setMsg("Firebase init.json has no apiKey. Check Hosting config.");
-        setVisible(true);
-      } else if (itk && itk !== 200) {
-        setMsg(
-          "Identity Toolkit not reachable for this key. Enable the API or relax key restrictions.",
-        );
-        setVisible(true);
-      } else {
-        setVisible(false);
-      }
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (firebaseApiKey) {
+      params.set("clientKey", firebaseApiKey);
     }
 
-    window.addEventListener("mbs:boot", onBoot as EventListener);
-    return () => window.removeEventListener("mbs:boot", onBoot as EventListener);
+    fetch(`/systemHealth${params.size ? `?${params.toString()}` : ""}`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        try {
+          return (await response.json()) as HealthSnapshot;
+        } catch {
+          return null;
+        }
+      })
+      .then((payload) => {
+        if (!payload) return;
+        if (payload.identityToolkitReachable === false) {
+          setMessage(describeIdentityToolkitIssue(payload.identityToolkitReason));
+        }
+      })
+      .catch(() => {
+        // ignore banner errors
+      });
+
+    return () => controller.abort();
   }, []);
 
-  if (!visible) return null;
+  if (!message) return null;
 
   return (
-    <div style={bar} role="alert" aria-live="polite">
-      <span>{msg}</span>
+    <div style={bar} role="status" aria-live="polite">
+      <span>{message}</span>
       <span style={{ marginLeft: 8 }}>
         <a href="/diagnostics" style={link}>
           Diagnostics
@@ -41,7 +56,23 @@ export default function SetupBanner() {
   );
 }
 
-const bar: React.CSSProperties = {
+function describeIdentityToolkitIssue(reason?: string): string {
+  switch (reason) {
+    case "no_client_key":
+      return "Diagnostics missing client API key. Update environment settings.";
+    case "timeout":
+      return "Identity Toolkit check timed out.";
+    case "network_error":
+      return "Identity Toolkit check failed (network error).";
+    default:
+      if (reason?.startsWith("status_")) {
+        return `Identity Toolkit returned status ${reason.replace("status_", "")}.`;
+      }
+      return "Identity Toolkit might be unreachable for this API key.";
+  }
+}
+
+const bar: CSSProperties = {
   position: "sticky",
   top: 0,
   left: 0,
@@ -58,7 +89,7 @@ const bar: React.CSSProperties = {
   gap: 8,
 };
 
-const link: React.CSSProperties = {
+const link: CSSProperties = {
   color: "#7a1f1f",
   textDecoration: "underline",
 };

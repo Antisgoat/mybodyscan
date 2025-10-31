@@ -46,7 +46,11 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
+  const envEnableApple =
+    import.meta.env.VITE_ENABLE_APPLE === "true" ||
+    import.meta.env.VITE_ENABLE_APPLE === "1";
   const envShowApple =
+    envEnableApple ||
     import.meta.env.VITE_SHOW_APPLE === "1" ||
     import.meta.env.VITE_SHOW_APPLE === "true" ||
     import.meta.env.VITE_FORCE_APPLE_BUTTON === "true" ||
@@ -193,6 +197,29 @@ const Auth = () => {
   const providerPendingAllowsApple = appleEnabled === null && (flags.enableApple || (!loaded && APPLE_WEB_ENABLED));
   const showAppleButton = envShowApple || providerAllowsApple || providerPendingAllowsApple;
 
+  useEffect(() => {
+    if (!showAppleButton) return;
+    if (typeof document === "undefined") return;
+    const existing = document.querySelector<HTMLScriptElement>("script[data-apple-auth]");
+    if (existing) return;
+    try {
+      const script = document.createElement("script");
+      script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
+      script.async = true;
+      script.dataset.appleAuth = "true";
+      script.onerror = () => {
+        if (import.meta.env.DEV) {
+          console.warn("[auth] Failed to load Apple JS SDK");
+        }
+      };
+      document.head.appendChild(script);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[auth] Unable to load Apple JS", err);
+      }
+    }
+  }, [showAppleButton]);
+
   const onApple = async () => {
     if (loading) return;
 
@@ -240,7 +267,7 @@ const Auth = () => {
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo
-        title="Sign In – MyBodyScan"
+        title="Sign In ? MyBodyScan"
         description="Access your MyBodyScan account to start and review scans."
         canonical={canonical}
       />
@@ -248,7 +275,7 @@ const Auth = () => {
         <CardHeader>
           <div className="text-center">
             <CardTitle className="text-2xl mb-2">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
-            <CardDescription className="text-slate-600">Track body fat, weight and progress—private and secure.</CardDescription>
+            <CardDescription className="text-slate-600">Track body fat, weight and progress?private and secure.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -273,7 +300,7 @@ const Auth = () => {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>Private by default—your data, your control</span>
+                <span>Private by default?your data, your control</span>
               </div>
             </div>
           </div>
@@ -312,10 +339,6 @@ const Auth = () => {
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
-                  data-apple-config={
-                    appleEnabled === null ? "unknown" : appleEnabled ? "enabled" : "disabled"
-                  }
-                  data-apple-force={String(forceAppleButton)}
                 >
                   <AppleIcon />
                   Continue with Apple
@@ -328,7 +351,7 @@ const Auth = () => {
                     <TooltipTrigger asChild>
                       <span className="w-full inline-flex">{appleButton}</span>
                     </TooltipTrigger>
-                    <TooltipContent>Finishing previous sign-in…</TooltipContent>
+                    <TooltipContent>Finishing previous sign-in?</TooltipContent>
                   </Tooltip>
                 );
               }
@@ -356,7 +379,7 @@ const Auth = () => {
                   onClick={onExploreDemo}
                   disabled={loading}
                 >
-                  👀 Explore demo (no sign-up)
+                  ?? Explore demo (no sign-up)
                 </Button>
                 <p className="text-xs text-muted-foreground text-center mt-2">
                   Browse demo data. Create a free account to unlock scanning and save your progress.
@@ -365,7 +388,7 @@ const Auth = () => {
             )}
             <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
               <a href="/privacy" className="underline hover:no-underline">Privacy</a>
-              <span>·</span>
+              <span>?</span>
               <a href="/terms" className="underline hover:no-underline">Terms</a>
             </div>
           </div>

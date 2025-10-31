@@ -1,12 +1,15 @@
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
-import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { ensureRateLimit } from "./http/_middleware.js";
+
+import { getAuth } from "./firebase.js";
+import { verifyAppCheckStrict } from "./http.js";
+import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
+import { getEnv } from "./lib/env.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
-import { errorCode, statusFromCode } from "./lib/errors.js";
+import { HttpError, send } from "./util/http.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
+const FETCH_TIMEOUT_MS = 8000;
 
 interface CacheEntry {
   expires: number;
@@ -15,15 +18,105 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-async function fetchOff(code: string) {
-  const response = await fetch(
-    `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`,
-    { headers: { "User-Agent": "mybodyscan-nutrition-barcode/1.0" }, signal: AbortSignal.timeout(4000) },
-  );
-  if (!response.ok) {
-    throw new Error(`off_${response.status}`);
+function extractBearerToken(req: Request): string {
+  const header = req.get("authorization") || req.get("Authorization") || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
   }
-  const data = (await response.json()) as any;
+  const token = match[1]?.trim();
+  if (!token) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
+  }
+  return token;
+}
+
+async function verifyAuthorization(req: Request): Promise<{ uid: string | null }> {
+  const token = extractBearerToken(req);
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    return { uid: decoded.uid ?? null };
+  } catch (error) {
+    const message = (error as { message?: string })?.message ?? String(error);
+    const code = (error as { code?: string })?.code ?? "";
+    if (
+      code === "app/no-app" ||
+      code === "app/invalid-credential" ||
+      message.includes("credential") ||
+      message.includes("initializeApp")
+    ) {
+      console.warn("no_admin_verify", { reason: message || code || "unknown" });
+      return { uid: null };
+    }
+
+    console.warn("nutrition_barcode.auth_failed", { message });
+    throw new HttpError(401, "unauthorized", "invalid_token");
+  }
+}
+
+async function ensureAppCheck(req: Request): Promise<void> {
+  try {
+    await verifyAppCheckStrict(req);
+  } catch (error) {
+    throw new HttpError(401, "app_check_required");
+  }
+}
+
+async function requestJson(url: URL | string, init: RequestInit, label: string): Promise<any> {
+  let lastError: HttpError | null = null;
+  const target = typeof url === "string" ? url : url.toString();
+
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const response = await fetch(target, {
+        ...init,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          throw new HttpError(502, "upstream_4xx", `${label}_${response.status}`);
+        }
+        lastError = new HttpError(502, "upstream_timeout", `${label}_${response.status}`);
+        if (attempt === 1) {
+          throw lastError;
+        }
+        continue;
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof HttpError) {
+        if (error.code === "upstream_4xx" || attempt === 1) {
+          throw error;
+        }
+        lastError = error;
+        continue;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      lastError = new HttpError(502, "upstream_timeout", `${label}_${message}`);
+      if (error instanceof Error && error.name === "AbortError" && attempt < 1) {
+        continue;
+      }
+      if (attempt === 1) {
+        throw lastError;
+      }
+    }
+  }
+
+  throw lastError ?? new HttpError(502, "upstream_timeout", `${label}_unknown`);
+}
+
+async function fetchOff(code: string) {
+  const url = `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`;
+  const data = (await requestJson(
+    url,
+    {
+      headers: { "User-Agent": "mybodyscan-nutrition-barcode/1.0" },
+    },
+    "off_product",
+  )) as any;
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
   return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
@@ -35,15 +128,14 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   url.searchParams.set("query", code);
   url.searchParams.set("pageSize", "5");
   url.searchParams.set("dataType", "Branded");
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(4000),
-  });
-  if (!response.ok) {
-    throw new Error(`usda_${response.status}`);
-  }
-  const data = (await response.json()) as any;
+  const data = (await requestJson(
+    url,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    },
+    "usda_barcode",
+  )) as any;
   if (!Array.isArray(data?.foods) || !data.foods.length) return null;
   const normalized = data.foods
     .map((food: any) => fromUsdaFood(food))
@@ -54,101 +146,115 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   return item ? { item, source: "USDA" as const } : null;
 }
 
-async function handler(req: Request, res: Response) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+type ProviderResult = { item: FoodItem; source: "Open Food Facts" | "USDA" };
+type ProviderOutcome = { result: ProviderResult | null; error?: HttpError | null };
 
+async function runSafe(label: string, fn: () => Promise<ProviderResult | null>): Promise<ProviderOutcome> {
   try {
-    await verifyAppCheckStrict(req as any);
-  } catch (error: any) {
-    const code = errorCode(error);
-    const status = code === "failed-precondition" ? 401 : statusFromCode(code);
-    res.status(status).json({
-      error: "Secure verification required. Refresh and try again.",
-      code: "app_check_unavailable",
-    });
-    return;
-  }
-
-  const uid = await requireAuth(req);
-  const limiter = await ensureRateLimit({ key: "nutrition_barcode", identifier: uid, limit: 30, windowSeconds: 60 });
-  if (!limiter.allowed) {
-    res.status(429).json({
-      error: "Rate limited. Try again soon.",
-      code: "rate_limited",
-      retryAfter: limiter.retryAfterSeconds ?? null,
-    });
-    return;
-  }
-
-  const code = String(req.query?.code || req.body?.code || "").trim();
-  if (!code) {
-    throw new HttpsError("invalid-argument", "code required");
-  }
-
-  const now = Date.now();
-  const cached = cache.get(code);
-  if (cached && cached.expires > now) {
-    if (!cached.value) {
-      res.status(404).json({ error: "Not found", code: "not_found", cached: true });
-      return;
-    }
-    res.json({ item: cached.value.item, code, source: cached.value.source, cached: true });
-    return;
-  }
-
-  let result: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null = null;
-
-  try {
-    result = await fetchOff(code);
+    const result = await fn();
+    return { result };
   } catch (error) {
-    console.error("nutrition_barcode_off_error", { code, message: (error as Error)?.message });
-  }
-
-  if (!result) {
-    try {
-      const { getEnv } = await import("./lib/env.js");
-      const key = getEnv("USDA_FDC_API_KEY");
-      if (key) {
-        result = await fetchUsdaByBarcode(key, code);
-      }
-    } catch (error) {
-      console.error("nutrition_barcode_usda_error", { code, message: (error as Error)?.message });
+    if (error instanceof HttpError) {
+      console.warn(`${label}_error`, { code: error.code, message: error.message });
+      return { result: null, error };
     }
+    console.warn(`${label}_error`, { code: "upstream_timeout", message: (error as Error)?.message });
+    return { result: null, error: new HttpError(502, "upstream_timeout") };
   }
+}
 
-  if (!result) {
-    cache.set(code, { value: null, expires: now + CACHE_TTL });
-    res.status(404).json({ error: "Not found", code: "not_found" });
+function handleError(res: Response, error: unknown): void {
+  if (error instanceof HttpError) {
+    const payload: Record<string, unknown> = { error: error.code };
+    if (error.message && error.message !== error.code) {
+      payload.reason = error.message;
+    }
+    send(res, error.status, payload);
     return;
   }
 
-  cache.set(code, { value: result, expires: now + CACHE_TTL });
-  res.json({ item: result.item, code, source: result.source, cached: false });
+  console.error("nutrition_barcode_unhandled", { message: (error as Error)?.message || String(error) });
+  send(res, 502, { error: "upstream_timeout" });
 }
 
 export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
-  withCors(async (req, res) => {
+  async (req: Request, res: Response) => {
+    if (req.method === "OPTIONS") {
+      send(res, 204, null);
+      return;
+    }
+
     try {
-      await handler(req as unknown as Request, res as unknown as Response);
-    } catch (error: any) {
-      if (error instanceof HttpsError) {
-        const code = errorCode(error);
-        const status =
-          code === "unauthenticated"
-            ? 401
-            : code === "invalid-argument"
-            ? 400
-            : code === "resource-exhausted"
-            ? 429
-            : statusFromCode(code);
-        res.status(status).json({ error: error.message ?? "Request failed", code });
+      await ensureAppCheck(req);
+
+      if (req.method !== "GET" && req.method !== "POST") {
+        res.setHeader("Allow", "GET,POST,OPTIONS");
+        throw new HttpError(405, "method_not_allowed");
+      }
+
+      const auth = await verifyAuthorization(req);
+      const uid = auth.uid;
+
+      const rateLimit = await ensureRateLimit({
+        key: "nutrition_barcode",
+        identifier: uid ?? identifierFromRequest(req as any),
+        limit: 30,
+        windowSeconds: 60,
+      });
+
+      if (!rateLimit.allowed) {
+        send(res, 429, {
+          error: "rate_limited",
+          retryAfter: rateLimit.retryAfterSeconds ?? null,
+        });
         return;
       }
-      res.status(500).json({ error: error?.message || "Server error", code: "server_error" });
+
+      const code = String(req.query?.code || req.body?.code || "").trim();
+      if (!code) {
+        throw new HttpError(400, "invalid_request", "code_required");
+      }
+
+      const now = Date.now();
+      const cached = cache.get(code);
+      if (cached && cached.expires > now) {
+        if (!cached.value) {
+          send(res, 404, { error: "not_found", cached: true });
+          return;
+        }
+        send(res, 200, { item: cached.value.item, code, source: cached.value.source, cached: true });
+        return;
+      }
+
+      const offOutcome = await runSafe("nutrition_barcode_off", () => fetchOff(code));
+
+      let result = offOutcome.result;
+      let usdaOutcome: ProviderOutcome | null = null;
+
+      if (!result) {
+        const apiKey = getEnv("USDA_FDC_API_KEY");
+        if (apiKey) {
+          usdaOutcome = await runSafe("nutrition_barcode_usda", () => fetchUsdaByBarcode(apiKey, code));
+          result = usdaOutcome.result;
+        }
+      }
+
+      if (result) {
+        cache.set(code, { value: result, expires: now + CACHE_TTL });
+        send(res, 200, { item: result.item, code, source: result.source, cached: false });
+        return;
+      }
+
+      const errors = [offOutcome.error, usdaOutcome?.error].filter(Boolean) as HttpError[];
+      if (errors.length > 0) {
+        throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
+      }
+
+      cache.set(code, { value: null, expires: now + CACHE_TTL });
+      send(res, 404, { error: "not_found", cached: false });
+    } catch (error) {
+      handleError(res, error);
     }
-  }),
+  },
 );
