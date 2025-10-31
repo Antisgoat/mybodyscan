@@ -111,8 +111,12 @@ function collectConfigPrices(): Record<string, string> {
 }
 
 export function getStripeSecret(): string | null {
+  const secret = readSecret(stripeSecretParam);
+  if (secret) {
+    return secret;
+  }
+
   const envSecret = firstNonEmpty([
-    process.env.STRIPE_SECRET_KEY,
     process.env.STRIPE_SECRET,
     process.env.STRIPE_API_KEY,
     process.env.STRIPE_KEY,
@@ -126,15 +130,19 @@ export function getStripeSecret(): string | null {
     return configSecret;
   }
 
-  return readSecret(stripeSecretParam);
+  return null;
 }
 
 export function getWebhookSecret(): string | null {
+  const secret = readSecret(stripeWebhookSecretParam);
+  if (secret) {
+    return secret;
+  }
+
   const envSecret = firstNonEmpty([
-    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_WEBHOOK,
     process.env.STRIPE_SIGNING_SECRET,
     process.env.STRIPE_SIGNATURE,
-    process.env.STRIPE_WEBHOOK,
   ]);
   if (envSecret) {
     return envSecret;
@@ -145,7 +153,7 @@ export function getWebhookSecret(): string | null {
     return configSecret;
   }
 
-  return readSecret(stripeWebhookSecretParam);
+  return null;
 }
 
 export function getAppOrigin(): string | null {

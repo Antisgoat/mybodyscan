@@ -124,7 +124,7 @@ Cloud Functions read Stripe credentials from Firebase Secrets Manager entries na
 Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
 
 - `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
-- `STRIPE_SECRET` **and** `STRIPE_SECRET_KEY` *(both required for live payments; missing either causes Stripe HTTPS endpoints to respond with 501)*
+- `STRIPE_SECRET` *(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)*
 - `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
 - `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
 - `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
@@ -148,12 +148,12 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 
 - `HOST_BASE_URL` is optional; HTTPS handlers fall back to each request's origin when it is not configured.
 - `APP_CHECK_ALLOWED_ORIGINS` may be empty. Keeping `APP_CHECK_ENFORCE_SOFT=true` allows soft enforcement so missing tokens log warnings instead of failing the request.
-- If `STRIPE_SECRET` and `STRIPE_SECRET_KEY` are absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
+- If `STRIPE_SECRET` is absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
 
 ### Payments config sources & troubleshooting
 
-- Stripe HTTPS handlers resolve secrets in order: `process.env.STRIPE_SECRET_KEY` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret` → Firebase Secret Manager entry `STRIPE_SECRET`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
-- Webhook verification follows the same pattern for `STRIPE_WEBHOOK_SECRET`, `functions.config().stripe.webhook_secret`, and the `STRIPE_WEBHOOK` secret.
+- Stripe HTTPS handlers resolve secrets in order: Firebase Secret Manager entry `STRIPE_SECRET` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
+- Webhook verification follows the same pattern for the `STRIPE_WEBHOOK` secret (Secret Manager first, then environment variables `STRIPE_WEBHOOK`/`STRIPE_SIGNING_SECRET`, followed by `functions.config().stripe.webhook_secret`).
 - Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus legacy keys (`one`, `extra`, `pro_monthly`, `elite_annual`). The default table includes:
   - `price_1RuOpKQQU5vuhlNjipfFBsR0` (`single` / `one`)
   - `price_1RuOr2QQU5vuhlNjcqTckCHL` (`pack3`)
@@ -279,7 +279,6 @@ Deploy Functions and Hosting after setting Stripe keys and webhook secret via `f
 
 ```sh
 firebase functions:secrets:set STRIPE_SECRET
-firebase functions:secrets:set STRIPE_SECRET_KEY
 firebase functions:secrets:set STRIPE_WEBHOOK
 firebase deploy --only functions,hosting
 ```
@@ -317,9 +316,9 @@ After deploying this PR, validate end-to-end:
 - If no credits and not whitelisted, a toast prompts to buy credits
 
 3) Credits & Billing
-- Plans: “Buy Now/Subscribe/Yearly” open Stripe Checkout via `/createCheckout`
+- Plans: “Buy Now/Subscribe/Yearly” call Cloud Run `https://createcheckout-534gpapj7q-uc.a.run.app` (set `VITE_USE_HOSTING_SHIM=true` to force `/createCheckout` during testing)
 - After successful payment and webhook, credits/subscription reflect on the account
-- “Manage Billing” opens Stripe Customer Portal via `/createCustomerPortal`
+- “Manage Billing” opens Stripe Customer Portal via `https://createcustomerportal-534gpapj7q-uc.a.run.app` with the same optional hosting shim fallback
 
 4) Coach & Nutrition
 - Coach chat responds for authed users; errors show friendly toasts
@@ -342,6 +341,5 @@ After deploying this PR, validate end-to-end:
   - `firebase functions:secrets:set APP_CHECK_ENFORCE_SOFT --project <projectId>`
   - `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`
   - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
-  - Optional: `firebase functions:secrets:set STRIPE_SECRET_KEY --project <projectId>`
 - Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
 - Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)

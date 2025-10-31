@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider } from "firebase/auth";
 import { Copy, ExternalLink, RefreshCw, RotateCcw, Send } from "lucide-react";
+import { httpsCallable } from "firebase/functions";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +13,20 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
+import { auth, firebaseReady, getFirebaseAuth, functions } from "@/lib/firebase";
 import { googleSignInWithFirebase } from "@/lib/login";
-import { PRICE_IDS } from "@/lib/payments";
+import {
+  PRICE_IDS,
+  getPaymentFunctionUrl,
+  getPaymentHostingPath,
+  isHostingShimEnabled,
+  startCheckout,
+  openCustomerPortal,
+  describeCheckoutError,
+  describePortalError,
+} from "@/lib/payments";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
-import { resolveUatAccess, useProbe, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
+import { resolveUatAccess, useProbe, type ProbeExecutionResult, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 
@@ -100,8 +110,8 @@ function ResultLine({ state }: { state: UatProbeState }) {
   );
 }
 
-const Section = ({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) => (
-  <Card>
+const Section = ({ title, description, children, id }: { title: string; description?: string; id?: string; children: React.ReactNode }) => (
+  <Card id={id}>
     <CardHeader>
       <CardTitle>{title}</CardTitle>
       {description && <CardDescription>{description}</CardDescription>}
@@ -214,27 +224,61 @@ const UATPage = () => {
 
   const checkoutProbe = useProbe<Record<string, unknown>>("Checkout dry-run", pushLog);
   const portalProbe = useProbe<Record<string, unknown>>("Portal dry-run", pushLog);
+  const seedUnlimitedProbe = useProbe<Record<string, unknown>>("Grant unlimited credits", pushLog);
+  const checkoutLiveProbe = useProbe<Record<string, unknown>>("Checkout live open", pushLog);
+  const portalLiveProbe = useProbe<Record<string, unknown>>("Portal live open", pushLog);
 
   const handleCheckoutDryRun = useCallback(async () => {
     await checkoutProbe.run(async () => {
       const headers = await authHeaders();
       headers["X-UAT"] = "1";
-      const response = await fetch("/createCheckout", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ priceId: DEFAULT_PRICE_ID }),
-        credentials: "include",
-      });
-      const json = await response.json().catch(() => ({}));
-      const ok = response.ok && typeof json?.url === "string";
+      const shimEnabled = isHostingShimEnabled();
+      const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
+        { url: getPaymentFunctionUrl("createCheckout"), kind: "function" },
+      ];
+      if (shimEnabled) {
+        endpoints.push({ url: getPaymentHostingPath("createCheckout"), kind: "hosting" });
+      }
+
+      let lastError: unknown = null;
+      let lastKind: "function" | "hosting" | undefined;
+
+      for (const endpoint of endpoints) {
+        lastKind = endpoint.kind;
+        try {
+          const response = await fetch(endpoint.url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ priceId: DEFAULT_PRICE_ID }),
+            credentials: "include",
+          });
+          const json = await response.json().catch(() => ({}));
+          const ok = response.ok && typeof json?.url === "string";
+          return {
+            ok,
+            status: ok ? "pass" : "fail",
+            code: ok ? null : (json?.code as string | null) ?? "checkout_failed",
+            message: ok ? "Dry-run URL issued" : json?.error || "Checkout failed",
+            data: { ...(typeof json === "object" && json ? json : {}), endpoint: endpoint.kind } as Record<string, unknown>,
+            httpStatus: response.status,
+          } satisfies ProbeExecutionResult<Record<string, unknown>>;
+        } catch (error) {
+          lastError = error;
+          if (endpoint.kind === "function" && shimEnabled) {
+            continue;
+          }
+          break;
+        }
+      }
+
+      const message = (lastError as Error | undefined)?.message || "Checkout request failed";
       return {
-        ok,
-        status: ok ? "pass" : "fail",
-        code: ok ? null : (json?.code as string | null) ?? "checkout_failed",
-        message: ok ? "Dry-run URL issued" : json?.error || "Checkout failed",
-        data: json,
-        httpStatus: response.status,
-      };
+        ok: false,
+        status: "fail",
+        code: "network_error",
+        message,
+        data: { endpoint: lastKind, error: message } as Record<string, unknown>,
+      } satisfies ProbeExecutionResult<Record<string, unknown>>;
     });
   }, [authHeaders, checkoutProbe]);
 
@@ -242,25 +286,139 @@ const UATPage = () => {
     await portalProbe.run(async () => {
       const headers = await authHeaders();
       headers["X-UAT"] = "1";
-      const response = await fetch("/createCustomerPortal", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-        credentials: "include",
-      });
-      const json = await response.json().catch(() => ({}));
-      const expectedNoCustomer = response.status === 404 && json?.error === "no_customer";
-      const ok = response.ok || expectedNoCustomer;
+      const shimEnabled = isHostingShimEnabled();
+      const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
+        { url: getPaymentFunctionUrl("createCustomerPortal"), kind: "function" },
+      ];
+      if (shimEnabled) {
+        endpoints.push({ url: getPaymentHostingPath("createCustomerPortal"), kind: "hosting" });
+      }
+
+      let lastError: unknown = null;
+      let lastKind: "function" | "hosting" | undefined;
+
+      for (const endpoint of endpoints) {
+        lastKind = endpoint.kind;
+        try {
+          const response = await fetch(endpoint.url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({}),
+            credentials: "include",
+          });
+          const json = await response.json().catch(() => ({}));
+          const expectedNoCustomer = response.status === 404 && json?.error === "no_customer";
+          const ok = response.ok || expectedNoCustomer;
+          return {
+            ok,
+            status: ok ? "pass" : "fail",
+            code: json?.code ?? (expectedNoCustomer ? "no_customer" : null),
+            message: ok ? (expectedNoCustomer ? "No customer (expected)" : "Portal URL issued") : json?.error || "Portal failed",
+            data: { ...(typeof json === "object" && json ? json : {}), endpoint: endpoint.kind } as Record<string, unknown>,
+            httpStatus: response.status,
+          } satisfies ProbeExecutionResult<Record<string, unknown>>;
+        } catch (error) {
+          lastError = error;
+          if (endpoint.kind === "function" && shimEnabled) {
+            continue;
+          }
+          break;
+        }
+      }
+
+      const message = (lastError as Error | undefined)?.message || "Portal request failed";
       return {
-        ok,
-        status: ok ? "pass" : "fail",
-        code: json?.code ?? (expectedNoCustomer ? "no_customer" : null),
-        message: ok ? (expectedNoCustomer ? "No customer (expected)" : "Portal URL issued") : json?.error || "Portal failed",
-        data: json,
-        httpStatus: response.status,
-      };
+        ok: false,
+        status: "fail",
+        code: "network_error",
+        message,
+        data: { endpoint: lastKind, error: message } as Record<string, unknown>,
+      } satisfies ProbeExecutionResult<Record<string, unknown>>;
     });
   }, [authHeaders, portalProbe]);
+
+  const handleSeedUnlimited = useCallback(async () => {
+    await seedUnlimitedProbe.run(async () => {
+      const email = "developer@adlrlabs.com";
+      try {
+        await firebaseReady();
+        const callable = httpsCallable(functions, "grantUnlimitedCredits");
+        const response = await callable({ email });
+        const payload = response?.data;
+        const data = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+        await refreshClaims(true);
+        return {
+          ok: true,
+          status: "pass",
+          message: `Granted unlimited credits to ${email}`,
+          data,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      } catch (error: any) {
+        const code = typeof error?.code === "string" ? error.code : null;
+        return {
+          ok: false,
+          status: "fail",
+          code: code ?? null,
+          message: typeof error?.message === "string" ? error.message : "Failed to grant unlimited credits",
+          data: null,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      }
+    });
+  }, [refreshClaims, seedUnlimitedProbe]);
+
+  const handleCheckoutLive = useCallback(async () => {
+    await checkoutLiveProbe.run(async () => {
+      try {
+        const result = await startCheckout({ priceId: DEFAULT_PRICE_ID }, { navigate: false });
+        if (typeof window !== "undefined" && result?.url) {
+          window.open(result.url, "_blank", "noopener,noreferrer");
+        }
+        return {
+          ok: true,
+          status: "pass",
+          message: result?.url ? "Checkout URL opened" : "Checkout session created",
+          data: result,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      } catch (error: any) {
+        const code = typeof error?.code === "string" ? error.code : undefined;
+        const message = code ? describeCheckoutError(code) : error?.message || "Checkout failed";
+        return {
+          ok: false,
+          status: "fail",
+          code: code ?? null,
+          message,
+          data: null,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      }
+    });
+  }, [checkoutLiveProbe]);
+
+  const handlePortalLive = useCallback(async () => {
+    await portalLiveProbe.run(async () => {
+      try {
+        const result = await openCustomerPortal({ navigate: false });
+        if (typeof window !== "undefined" && result?.url) {
+          window.open(result.url, "_blank", "noopener,noreferrer");
+        }
+        return {
+          ok: true,
+          status: "pass",
+          message: result?.url ? "Portal URL opened" : "Portal session created",
+          data: result,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      } catch (error: any) {
+        const code = typeof error?.code === "string" ? error.code : undefined;
+        const message = code ? describePortalError(code) : error?.message || "Portal failed";
+        return {
+          ok: false,
+          status: "fail",
+          code: code ?? null,
+          message,
+          data: null,
+        } satisfies ProbeExecutionResult<Record<string, unknown>>;
+      }
+    });
+  }, [portalLiveProbe]);
 
   const appCheckTokenProbe = useProbe<{ suffix?: string }>("App Check token", pushLog);
 
@@ -739,6 +897,44 @@ const UATPage = () => {
                   <p className="text-xs text-red-500">Error: {authOutcome.error.code ?? "unknown"}</p>
                 )}
                 {!authOutcome && <p className="text-xs">No redirect outcome recorded yet.</p>}
+              </div>
+            </Section>
+
+            <Section id="seed-unlimited" title="Dev Shortcuts" description="Staff-only helpers for fast QA.">
+              <div className="grid gap-3 lg:grid-cols-[auto,1fr,auto] lg:items-center">
+                <Button onClick={handleSeedUnlimited} disabled={seedUnlimitedProbe.state.status === "running"}>
+                  {seedUnlimitedProbe.state.status === "running" ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                  Seed ∞ credits (developer@adlrlabs.com)
+                </Button>
+                <div className="space-y-1">
+                  <StatusBadge state={seedUnlimitedProbe.state} />
+                  <ResultLine state={seedUnlimitedProbe.state} />
+                </div>
+                <CopyJsonButton value={seedUnlimitedProbe.state.data} label="seed-unlimited" />
+              </div>
+
+              <div id="checkout-starter" className="grid gap-3 lg:grid-cols-[auto,1fr,auto] lg:items-center">
+                <Button onClick={handleCheckoutLive} disabled={checkoutLiveProbe.state.status === "running"}>
+                  {checkoutLiveProbe.state.status === "running" ? <ExternalLink className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                  Open Stripe Checkout (Starter)
+                </Button>
+                <div className="space-y-1">
+                  <StatusBadge state={checkoutLiveProbe.state} />
+                  <ResultLine state={checkoutLiveProbe.state} />
+                </div>
+                <CopyJsonButton value={checkoutLiveProbe.state.data} label="checkout-live" />
+              </div>
+
+              <div id="portal" className="grid gap-3 lg:grid-cols-[auto,1fr,auto] lg:items-center">
+                <Button onClick={handlePortalLive} disabled={portalLiveProbe.state.status === "running"}>
+                  {portalLiveProbe.state.status === "running" ? <ExternalLink className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                  Open Customer Portal
+                </Button>
+                <div className="space-y-1">
+                  <StatusBadge state={portalLiveProbe.state} />
+                  <ResultLine state={portalLiveProbe.state} />
+                </div>
+                <CopyJsonButton value={portalLiveProbe.state.data} label="portal-live" />
               </div>
             </Section>
 

@@ -8,8 +8,8 @@
 - Strict App Check validation is active for: `beginPaidScan`, `startScanSession`, `submitScan`, `processQueuedScanHttp`, `getScanStatus`, payments HTTP/callable endpoints, `useCredit`, `nutritionSearch`, `nutritionBarcode`, and Stripe webhook handling. Soft verification remains for legacy read-only health and workout endpoints.
 - Stripe webhook and checkout handlers validate environment configuration at startup and fail fast if secrets are missing.
 - Required environment variables (production):
-  - `STRIPE_SECRET` or `STRIPE_SECRET_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
+  - `STRIPE_SECRET`
+  - `STRIPE_WEBHOOK`
   - `HOST_BASE_URL`
   - `USDA_FDC_API_KEY` (nutrition fallbacks)
 - Credits ledger updates occur inside Firestore transactions with optimistic locking to prevent race conditions.

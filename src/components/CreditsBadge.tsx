@@ -1,5 +1,6 @@
 import React from "react";
 import { useClaims } from "@/lib/claims";
+import { useCredits } from "@/hooks/useCredits";
 
 type Props = {
   className?: string;
@@ -7,24 +8,25 @@ type Props = {
 
 export default function CreditsBadge(props: Props) {
   const { className } = props;
-  const { user, claims, loading, refresh } = useClaims();
+  const { user, claims, loading: claimsLoading, refresh } = useClaims();
+  const { credits, loading: creditsLoading, unlimited: creditsUnlimited } = useCredits();
+  const loading = claimsLoading || creditsLoading;
 
   const text = (() => {
     if (loading) return "—";
     if (!user) return "—";
     const dev = claims?.dev === true;
-    const unlimited = claims?.unlimitedCredits === true;
-    if (dev || unlimited) return "∞";
-    const n =
-      typeof claims?.credits === "number" && Number.isFinite(claims.credits)
-        ? Math.max(0, Math.floor(claims.credits))
-        : 0;
+    const unlimited = dev || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity;
+    if (unlimited) return "∞";
+    const n = Number.isFinite(credits) ? Math.max(0, Math.floor(Number(credits))) : 0;
     return String(n);
   })();
 
   const title = (() => {
     if (!user) return "Not signed in";
-    if (claims?.dev === true || claims?.unlimitedCredits === true) return "Unlimited credits";
+    if (claims?.dev === true || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity) {
+      return "Unlimited credits";
+    }
     return "Available credits";
   })();
 

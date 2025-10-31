@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { getStripeSecret, __resetConfigForTest, __setRuntimeConfigForTest } from "../src/lib/config.js";
 
-const SECRET_ENV_KEYS = ["STRIPE_SECRET_KEY", "STRIPE_SECRET", "STRIPE_API_KEY", "STRIPE_KEY"] as const;
+const SECRET_ENV_KEYS = ["STRIPE_SECRET", "STRIPE_API_KEY", "STRIPE_KEY"] as const;
 
 type SecretSnapshot = Record<(typeof SECRET_ENV_KEYS)[number], string | undefined>;
 
@@ -26,14 +26,14 @@ function restoreSecrets(snapshot: SecretSnapshot) {
   }
 }
 
-test("getStripeSecret prefers STRIPE_SECRET_KEY environment variable", () => {
+test("getStripeSecret prefers STRIPE_SECRET environment variable", () => {
   const snapshot = snapshotSecrets();
   try {
     __resetConfigForTest();
     for (const key of SECRET_ENV_KEYS) {
       delete process.env[key];
     }
-    process.env.STRIPE_SECRET_KEY = "sk_test_env_123";
+    process.env.STRIPE_SECRET = "sk_test_env_123";
 
     const secret = getStripeSecret();
     assert.equal(secret, "sk_test_env_123");

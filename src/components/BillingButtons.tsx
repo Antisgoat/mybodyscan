@@ -8,6 +8,9 @@ import {
   PRICE_IDS,
   describeCheckoutError,
   describePortalError,
+  getPaymentFunctionUrl,
+  getPaymentHostingPath,
+  isHostingShimEnabled,
 } from "@/lib/payments";
 
 type Props = {
@@ -21,11 +24,34 @@ export default function BillingButtons({ className }: Props) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch("/createCustomerPortal", { method: "OPTIONS" });
-        if (!cancelled) setPortalAvailable(res.ok);
-      } catch {
-        if (!cancelled) setPortalAvailable(false);
+      const shimEnabled = isHostingShimEnabled();
+      const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
+        { url: getPaymentFunctionUrl("createCustomerPortal"), kind: "function" },
+      ];
+      if (shimEnabled) {
+        endpoints.push({ url: getPaymentHostingPath("createCustomerPortal"), kind: "hosting" });
+      }
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint.url, { method: "OPTIONS" });
+          if (!cancelled) {
+            setPortalAvailable(res.ok);
+          }
+          return;
+        } catch (error) {
+          if (endpoint.kind === "function" && shimEnabled) {
+            continue;
+          }
+          if (!cancelled) {
+            setPortalAvailable(false);
+          }
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setPortalAvailable(false);
       }
     })();
     return () => {

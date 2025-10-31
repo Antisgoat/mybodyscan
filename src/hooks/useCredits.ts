@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth as firebaseAuth, db, functions as firebaseFunctions, getFirebaseConfig } from "@/lib/firebase";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -9,6 +10,7 @@ export function useCredits() {
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [unlimited, setUnlimited] = useState(false);
+  const refreshAttemptRef = useRef<string | null>(null);
   let projectId = "";
   try {
     projectId = getFirebaseConfig().projectId;
@@ -25,8 +27,21 @@ export function useCredits() {
           setCredits(0);
           setUnlimited(false);
           setLoading(false);
+          refreshAttemptRef.current = null;
         } else {
-          const token = await u.getIdTokenResult();
+          let token = await u.getIdTokenResult();
+          if (refreshAttemptRef.current !== u.uid) {
+            refreshAttemptRef.current = u.uid;
+            try {
+              const refresh = httpsCallable(firebaseFunctions, "refreshClaims");
+              await refresh();
+              token = await u.getIdTokenResult(true);
+            } catch (refreshError) {
+              if (import.meta.env.DEV) {
+                console.warn("[credits] refreshClaims failed", refreshError);
+              }
+            }
+          }
           const hasUnlimited = token.claims.unlimitedCredits === true;
           setUnlimited(hasUnlimited);
         }

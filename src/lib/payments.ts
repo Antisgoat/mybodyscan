@@ -1,6 +1,37 @@
 import { auth } from "./firebase";
 import { openExternal } from "./links";
 
+const checkoutFunctionUrl = (import.meta.env.VITE_CHECKOUT_FUNCTION_URL ?? "").trim();
+const portalFunctionUrl = (import.meta.env.VITE_CUSTOMER_PORTAL_FUNCTION_URL ?? "").trim();
+
+const PAYMENT_FUNCTION_URLS = {
+  createCheckout: checkoutFunctionUrl || "https://createcheckout-534gpapj7q-uc.a.run.app",
+  createCustomerPortal: portalFunctionUrl || "https://createcustomerportal-534gpapj7q-uc.a.run.app",
+} as const;
+
+const HOSTING_ENDPOINTS = {
+  createCheckout: "/createCheckout",
+  createCustomerPortal: "/createCustomerPortal",
+} as const;
+
+const USE_HOSTING_SHIM = import.meta.env.VITE_USE_HOSTING_SHIM === "true";
+
+type PaymentsEndpoint = keyof typeof PAYMENT_FUNCTION_URLS;
+
+export type PaymentsEndpointKey = PaymentsEndpoint;
+
+export function getPaymentFunctionUrl(endpoint: PaymentsEndpointKey): string {
+  return PAYMENT_FUNCTION_URLS[endpoint];
+}
+
+export function getPaymentHostingPath(endpoint: PaymentsEndpointKey): string {
+  return HOSTING_ENDPOINTS[endpoint];
+}
+
+export function isHostingShimEnabled(): boolean {
+  return USE_HOSTING_SHIM;
+}
+
 export type PlanKey =
   | "one"
   | "single"
@@ -47,6 +78,7 @@ const CHECKOUT_ERROR_COPY: Record<string, string> = {
   invalid_price: "That plan isn't available right now. Refresh and try again.",
   auth_required: "Sign in to purchase a plan.",
   origin_not_allowed: "Open checkout from the MyBodyScan app or site.",
+  network_error: "We couldn't reach billing right now. Check your connection and try again.",
 };
 
 const PORTAL_ERROR_COPY: Record<string, string> = {
@@ -55,6 +87,7 @@ const PORTAL_ERROR_COPY: Record<string, string> = {
   no_secret: "Billing is currently offline. Try again shortly.",
   stripe_customer_error: "We couldn't open the portal. Contact support if the issue continues.",
   auth_required: "Sign in to manage billing.",
+  network_error: "We couldn't reach billing right now. Check your connection and try again.",
 };
 
 export function describeCheckoutError(code?: string): string {
@@ -67,7 +100,7 @@ export function describePortalError(code?: string): string {
   return PORTAL_ERROR_COPY[code] ?? "We couldn't open the billing portal. Please try again.";
 }
 
-async function postWithAuth(path: string, body: unknown): Promise<any> {
+async function postPayments(endpoint: PaymentsEndpoint, body: unknown): Promise<any> {
   const user = auth.currentUser;
   if (!user) {
     throw { error: "auth_required", code: "auth_required" } satisfies ErrorPayload;
@@ -80,38 +113,78 @@ async function postWithAuth(path: string, body: unknown): Promise<any> {
     throw { error: "auth_required", code: "auth_required" } satisfies ErrorPayload;
   }
 
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-    credentials: "include",
-  });
+  const attempts: Array<{ url: string; kind: "function" | "hosting" }> = [
+    { url: PAYMENT_FUNCTION_URLS[endpoint], kind: "function" },
+  ];
 
-  let data: any = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
+  if (USE_HOSTING_SHIM) {
+    attempts.push({ url: HOSTING_ENDPOINTS[endpoint], kind: "hosting" });
   }
 
-  if (!response.ok) {
-    if (data && typeof data === "object") {
-      const payload = data as Partial<ErrorPayload>;
-      if (import.meta.env.DEV && payload.code) {
-        console.log(`[payments] ${path} error`, payload.code);
+  let lastNetworkError: unknown = null;
+
+  for (const attempt of attempts) {
+    let response: Response;
+    try {
+      response = await fetch(attempt.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+    } catch (error) {
+      lastNetworkError = error;
+      if (attempt.kind === "function" && USE_HOSTING_SHIM) {
+        if (import.meta.env.DEV) {
+          console.warn(`[payments] ${endpoint} primary endpoint unavailable, trying hosting shim`, error);
+        }
+        continue;
       }
-      throw { error: payload.error ?? "unknown_error", code: payload.code } satisfies ErrorPayload;
+      if (import.meta.env.DEV) {
+        console.error(`[payments] ${endpoint} request failed`, error);
+      }
+      throw { error: "network_error", code: "network_error" } satisfies ErrorPayload;
     }
-    if (import.meta.env.DEV) {
-      console.log(`[payments] ${path} error`, "unknown_error");
+
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
     }
-    throw { error: "unknown_error" } satisfies ErrorPayload;
+
+    if (!response.ok) {
+      if (data && typeof data === "object") {
+        const payload = data as Partial<ErrorPayload>;
+        if (import.meta.env.DEV) {
+          console.error(`[payments] ${endpoint} ${attempt.kind} error`, {
+            url: attempt.url,
+            status: response.status,
+            code: payload.code ?? null,
+            error: payload.error ?? null,
+          });
+        }
+        throw { error: payload.error ?? "unknown_error", code: payload.code } satisfies ErrorPayload;
+      }
+      if (import.meta.env.DEV) {
+        console.error(`[payments] ${endpoint} ${attempt.kind} error`, {
+          url: attempt.url,
+          status: response.status,
+        });
+      }
+      throw { error: "unknown_error" } satisfies ErrorPayload;
+    }
+
+    return data;
   }
 
-  return data;
+  if (import.meta.env.DEV) {
+    console.error(`[payments] ${endpoint} exhausted endpoints`, lastNetworkError);
+  }
+  throw { error: "network_error", code: "network_error" } satisfies ErrorPayload;
 }
 
 type CheckoutOptions = {
@@ -146,7 +219,7 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
   if (!priceId) {
     throw { error: "invalid_price", code: "invalid_price" } satisfies ErrorPayload;
   }
-  const result = await postWithAuth("/createCheckout", { priceId });
+  const result = await postPayments("createCheckout", { priceId });
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;
@@ -159,7 +232,7 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
 }
 
 export async function openCustomerPortal(options?: CheckoutOptions) {
-  const result = await postWithAuth("/createCustomerPortal", {});
+  const result = await postPayments("createCustomerPortal", {});
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;

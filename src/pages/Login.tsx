@@ -16,6 +16,7 @@ import {
 import {
   consumeAuthRedirectError,
   consumeAuthRedirectResult,
+  type FriendlyFirebaseError,
 } from "../lib/authRedirect";
 
 export default function Login() {
@@ -28,6 +29,7 @@ export default function Login() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      await firebaseReady();
       const result = await consumeAuthRedirectResult();
       if (!cancelled && result) {
         const target = consumeAuthRedirect();
@@ -40,13 +42,22 @@ export default function Login() {
       const error = await consumeAuthRedirectError();
       if (!cancelled && error) {
         consumeAuthRedirect();
-        try {
-          const auth = getFirebaseAuth();
-          const mapped = await describeAuthErrorAsync(auth, error);
-          toast(formatError(mapped.message, mapped.code), "error");
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] Unable to surface redirect error", err);
+        const friendly = error as FriendlyFirebaseError;
+        const friendlyMessage = friendly.friendlyMessage ?? null;
+        const friendlyCode = friendly.friendlyCode ?? error.code;
+        if (friendlyMessage) {
+          toast(formatError(friendlyMessage, friendlyCode), "error");
+        } else {
+          try {
+            const auth = getFirebaseAuth();
+            const mapped = await describeAuthErrorAsync(auth, error);
+            toast(formatError(mapped.message, mapped.code ?? friendlyCode), "error");
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn("[auth] Unable to surface redirect error", err);
+            }
+            const fallback = error.message || "Sign-in failed. Please try again.";
+            toast(formatError(fallback, friendlyCode), "error");
           }
         }
       }

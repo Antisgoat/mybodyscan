@@ -197,7 +197,7 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <AuthedLayout>
-                    <Suspense fallback={<LoadingOverlay label="Preparing onboarding…" />}>
+                    <Suspense fallback={<LoadingOverlay label="Preparing onboarding?" />}>
                       <Onboarding />
                     </Suspense>
                   </AuthedLayout>
@@ -675,7 +675,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
-            <Route path="/__uat" element={<UATPage />} />
+            {import.meta.env.DEV && <Route path="/__uat" element={<UATPage />} />}
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />
