@@ -20,14 +20,14 @@ const AUTHORIZED_HOSTS = new Set([
   "www.mybodyscanapp.com",
 ]);
 
-const PRICE_ALLOWLIST = new Set([
+export const PRICE_ALLOWLIST = new Set([
   "price_1RuOpKQQU5vuhlNjipfFBsR0", // ONE_TIME_STARTER
   "price_1S4Y9JQQU5vuhlNjB7cBfmaW", // EXTRA_ONE_TIME
   "price_1S4XsVQQU5vuhlNjzdQzeySA", // PRO_MONTHLY
   "price_1S4Y6YQQU5vuhlNjeJFmshxX", // ELITE_ANNUAL
 ]);
 
-const SUBSCRIPTION_PRICE_IDS = new Set([
+export const SUBSCRIPTION_PRICE_IDS = new Set([
   "price_1S4XsVQQU5vuhlNjzdQzeySA",
   "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 ]);
@@ -87,12 +87,37 @@ function applyCors(req: Request, res: Response): { allowedOrigin: string | null;
 
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-UAT");
     res.status(204).end();
     return { allowedOrigin, ended: true };
   }
 
   return { allowedOrigin, ended: false };
+}
+
+function hasUatFlag(req: Request): boolean {
+  const header = (req.get("x-uat") || req.get("X-UAT") || "").trim().toLowerCase();
+  if (header === "1" || header === "true" || header === "yes") return true;
+  const queryValue = req.query?.uat;
+  if (typeof queryValue === "string") {
+    const normalized = queryValue.trim().toLowerCase();
+    if (normalized === "1" || normalized === "true" || normalized === "yes") return true;
+  }
+  return false;
+}
+
+async function readStoredCustomerId(uid: string): Promise<string | null> {
+  try {
+    const docRef = db.doc(`users/${uid}/private/stripe`);
+    const snap = await docRef.get();
+    if (!snap.exists) return null;
+    const data = snap.data() as Record<string, unknown> | undefined;
+    const id = typeof data?.customerId === "string" ? data.customerId.trim() : "";
+    return id || null;
+  } catch (error) {
+    console.warn("checkout_read_customer_error", { uid, message: (error as Error)?.message });
+    return null;
+  }
 }
 
 async function getStripeCustomer(
@@ -214,6 +239,20 @@ async function handleCreateCheckout(req: Request, res: Response) {
     return;
   }
 
+  const isUat = hasUatFlag(req);
+  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
+  const mode: Stripe.Checkout.SessionCreateParams.Mode = SUBSCRIPTION_PRICE_IDS.has(priceId) ? "subscription" : "payment";
+
+  if (isUat) {
+    res.json({
+      url: `${origin}/__uat/checkout/${priceId}?mode=${mode}`,
+      mode,
+      priceId,
+      uat: true,
+    });
+    return;
+  }
+
   let stripe: Stripe;
   try {
     stripe = getStripe();
@@ -251,9 +290,6 @@ async function handleCreateCheckout(req: Request, res: Response) {
     });
     return;
   }
-
-  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
-  const mode: Stripe.Checkout.SessionCreateParams.Mode = SUBSCRIPTION_PRICE_IDS.has(priceId) ? "subscription" : "payment";
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -310,6 +346,22 @@ async function handleCustomerPortal(req: Request, res: Response) {
     return;
   }
 
+  const isUat = hasUatFlag(req);
+  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
+
+  if (isUat) {
+    const customerId = await readStoredCustomerId(uid);
+    if (!customerId) {
+      createErrorResponse(res, 404, "no_customer", {
+        requestId,
+        uid,
+      });
+      return;
+    }
+    res.json({ url: `${origin}/__uat/customer-portal/${customerId}`, uat: true });
+    return;
+  }
+
   let stripe: Stripe;
   try {
     stripe = getStripe();
@@ -344,8 +396,6 @@ async function handleCustomerPortal(req: Request, res: Response) {
     });
     return;
   }
-
-  const origin = allowedOrigin || DEFAULT_RETURN_HOST;
 
   try {
     const session = await stripe.billingPortal.sessions.create({

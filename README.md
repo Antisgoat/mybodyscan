@@ -207,6 +207,13 @@ Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safa
 6. Search for a meal in Nutrition, add it, and see the log update.
 7. Visit `/__diag` or `/__smoke` (SmokeKit) and run the Stripe, App Check, and nutrition probes.
 
+## UAT harness
+
+- Route: `https://<host>/__uat` (also available at the Vite dev URL). Access requires a staff claim, the allowlisted `developer@adlrlabs.com`, or development mode.
+- Probes cover runtime config, auth redirect capability, Stripe dry-runs (`X-UAT: 1`), App Check enforcement for coach/nutrition, scan start/upload/submit idempotency, coach reply, nutrition search, barcode lookup, and diagnostics.
+- Expected PASS: init.json exposes `projectId`/`apiKey`/`authDomain`; checkout dry-run returns `{ url }`; portal dry-run returns `{ url }` or `{ error:"no_customer" }`; `/api/coach` rejects without App Check and passes with it (or returns a structured empty message error); duplicate scan submit yields `code: "duplicate_submit"`; nutrition probes return items; diagnostics clear caches and emit telemetry.
+- The "Recent Logs" panel lists the last five runs and mirrors `[uat]` entries in the browser console for deeper triage.
+
 ## Final smoke checklist
 
 - Delete account removes Auth user, Firestore subtree, and Storage folder; subsequent login creates a new clean user.

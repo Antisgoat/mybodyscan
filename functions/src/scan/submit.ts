@@ -414,9 +414,16 @@ export const submitScan = onRequest(
           const doneSnap = await scanRef.get();
           if (doneSnap.exists) {
             const data = doneSnap.data() as any;
-            res.json({ id: payload.scanId, ...data });
+            res.json({
+              id: payload.scanId,
+              duplicate: true,
+              code: "duplicate_submit",
+              ...data,
+            });
             return;
           }
+          res.status(409).json({ error: "duplicate_submit_missing", code: "duplicate_submit_missing" });
+          return;
         }
       }
 

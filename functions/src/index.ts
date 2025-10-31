@@ -14,6 +14,7 @@ export { stripeWebhook } from "./stripeWebhook.js";
 export { createCheckout, createCustomerPortal } from "./http/checkout.js";
 export { adminGateway } from "./http/admin.js";
 export { telemetryLog } from "./http/telemetry.js";
+export { uatHelper } from "./http/uat.js";
 export { refreshClaims } from "./claims.js";
 export { grantUnlimitedCredits } from "./claims.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
