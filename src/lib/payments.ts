@@ -88,14 +88,14 @@ const PLAN_PRICE_MAP: Record<PlanKey, string> = {
   annual: PRICE_IDS.ANNUAL_ALT,
 };
 
-type ErrorPayload = { error: string; code?: string };
-
 const CHECKOUT_ERROR_COPY: Record<string, string> = {
-  stripe_config_missing: "Billing is currently offline. Please try again soon.",
-  no_secret: "Billing is currently offline. Please try again soon.",
+  stripe_config_missing: "Billing is temporarily unavailable.",
+  payments_disabled: "Billing is temporarily unavailable.",
+  no_secret: "Billing is temporarily unavailable.",
+  stripe_unavailable: "Billing is having issues; please try again.",
   stripe_customer_error: "We couldn't sync your billing details. Contact support if it persists.",
   missing_email: "Add an email to your account before purchasing.",
-  invalid_price: "That plan isn't available right now. Refresh and try again.",
+  invalid_price: "Invalid plan, contact support.",
   auth_required: "Sign in to purchase a plan.",
   origin_not_allowed: "Open checkout from the MyBodyScan app or site.",
   network_error: "We couldn't reach billing right now. Check your connection and try again.",
@@ -104,7 +104,9 @@ const CHECKOUT_ERROR_COPY: Record<string, string> = {
 const PORTAL_ERROR_COPY: Record<string, string> = {
   no_customer: "Complete a purchase first to access the billing portal.",
   stripe_config_missing: "Billing is currently offline. Try again shortly.",
+  payments_disabled: "Billing is currently offline. Try again shortly.",
   no_secret: "Billing is currently offline. Try again shortly.",
+  stripe_unavailable: "Billing is having issues; please try again.",
   stripe_customer_error: "We couldn't open the portal. Contact support if the issue continues.",
   auth_required: "Sign in to manage billing.",
   network_error: "We couldn't reach billing right now. Check your connection and try again.",

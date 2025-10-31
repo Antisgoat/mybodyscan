@@ -4,45 +4,49 @@ import { DEMO_ENABLED, SHOW_APPLE_WEB, SW_ENABLED, APPCHECK_SITE_KEY } from "./f
 
 if (isWeb) {
   (async () => {
-    let apiKeyPresent = false;
-    let itkStatus = 0;
+    const key = (import.meta.env.VITE_FIREBASE_API_KEY || "").trim();
+    const apiKeyPresent = Boolean(key);
+    let identityToolkitReachable: boolean | null = null;
+    let identityToolkitReason: string | undefined;
+    let stripeSecretPresent: boolean | null = null;
+    let openaiKeyPresent: boolean | null = null;
+    let appCheckMode: string | undefined;
 
     try {
-      const r = await fetch("/__/firebase/init.json", { cache: "no-store" });
-      const j: any = await r.json().catch(() => ({}));
-      const key = j?.apiKey;
-      apiKeyPresent = Boolean(key);
-      console.log("[boot] origin:", location.origin, "apiKey:", apiKeyPresent);
-
-      const shouldProbeItk = (() => {
-        if (!key) return false;
-        if (import.meta.env.DEV) return true;
-        const path = location.pathname || "";
-        return path.startsWith("/auth") || path.startsWith("/login") || path.startsWith("/system-check");
-      })();
-
-      if (shouldProbeItk && key) {
-        try {
-          const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/config?key=${encodeURIComponent(key)}`;
-          const r2 = await fetch(url, { mode: "cors" });
-          itkStatus = r2.status;
-          console.log("[boot] IdentityToolkit:", r2.status);
-          if (!r2.ok) console.warn("[boot] ITK non-200; key restrictions or API disabled.");
-        } catch (e) {
-          console.warn("[boot] ITK probe failed:", e);
+      const params = new URLSearchParams();
+      if (key) params.set("clientKey", key);
+      const response = await fetch(`/systemHealth${params.size ? `?${params.toString()}` : ""}`, {
+        cache: "no-store",
+      });
+      if (response.ok) {
+        const payload = (await response.json().catch(() => null)) as any;
+        if (payload) {
+          identityToolkitReachable = Boolean(payload.identityToolkitReachable);
+          identityToolkitReason = payload.identityToolkitReason;
+          stripeSecretPresent = typeof payload.stripeSecretPresent === "boolean" ? payload.stripeSecretPresent : null;
+          openaiKeyPresent = typeof payload.openaiKeyPresent === "boolean" ? payload.openaiKeyPresent : null;
+          appCheckMode = typeof payload.appCheck === "string" ? payload.appCheck : undefined;
         }
-      } else if (!key) {
-        console.warn("[boot] No apiKey in init.json.");
+      } else if (import.meta.env.DEV) {
+        console.warn("[boot] systemHealth request failed", response.status);
       }
-    } catch (e) {
-      console.error("[boot] probe error:", e);
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[boot] systemHealth probe error", error);
+      }
     }
 
     try {
       console.log("[boot] summary:", {
         origin: location.origin,
         apiKey: apiKeyPresent,
-        itk: itkStatus || null,
+        identityToolkit: {
+          reachable: identityToolkitReachable,
+          reason: identityToolkitReason,
+        },
+        stripe: stripeSecretPresent,
+        openai: openaiKeyPresent,
+        appCheck: appCheckMode,
         flags: {
           demo: DEMO_ENABLED,
           appleWeb: SHOW_APPLE_WEB,
@@ -60,7 +64,13 @@ if (isWeb) {
       try {
         window.dispatchEvent(
           new CustomEvent("mbs:boot", {
-            detail: { apiKey: apiKeyPresent, itk: itkStatus || 0 },
+            detail: {
+              apiKey: apiKeyPresent,
+              identityToolkit: identityToolkitReachable,
+              identityToolkitReason,
+              stripeSecretPresent,
+              openaiKeyPresent,
+            },
           }),
         );
       } catch {

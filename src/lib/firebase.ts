@@ -16,17 +16,6 @@ import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { isWeb } from "./platform";
 
-type HostingConfig = {
-  apiKey?: string;
-  authDomain?: string;
-  projectId?: string;
-  appId?: string;
-  measurementId?: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-  databaseURL?: string;
-};
-
 type ResolvedConfig = {
   apiKey: string;
   authDomain: string;
@@ -101,24 +90,6 @@ function createLazyProxy<T extends object>(getter: LazyGetter<T>, label: string)
   });
 }
 
-function assignConfigFromApp(existing: FirebaseApp): void {
-  const options = existing.options || {};
-  const cfg: ResolvedConfig = {
-    apiKey: options.apiKey || "",
-    authDomain: options.authDomain || "",
-    projectId: options.projectId || "",
-    appId: options.appId || "",
-    measurementId: options.measurementId || undefined,
-    storageBucket: options.storageBucket || undefined,
-    messagingSenderId: options.messagingSenderId || undefined,
-    databaseURL: options.databaseURL || undefined,
-  };
-  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId || !cfg.appId) {
-    throw new Error("Firebase config missing. Check Hosting init.json.");
-  }
-  configInstance = cfg;
-}
-
 function ensureDeviceLanguage(auth: Auth) {
   try {
     auth.useDeviceLanguage();
@@ -127,13 +98,47 @@ function ensureDeviceLanguage(auth: Auth) {
   }
 }
 
+let envConfigCache: ResolvedConfig | null = null;
+
+function configFromEnv(): ResolvedConfig {
+  if (envConfigCache) {
+    return envConfigCache;
+  }
+
+  const cfg: ResolvedConfig = {
+    apiKey: (import.meta.env.VITE_FIREBASE_API_KEY || "").trim(),
+    authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
+    projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
+    appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
+    measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "").trim() || undefined,
+    storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim() || undefined,
+    messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim() || undefined,
+    databaseURL: (import.meta.env.VITE_FIREBASE_DATABASE_URL || "").trim() || undefined,
+  };
+
+  const missing: string[] = [];
+  if (!cfg.apiKey) missing.push("VITE_FIREBASE_API_KEY");
+  if (!cfg.authDomain) missing.push("VITE_FIREBASE_AUTH_DOMAIN");
+  if (!cfg.projectId) missing.push("VITE_FIREBASE_PROJECT_ID");
+  if (!cfg.appId) missing.push("VITE_FIREBASE_APP_ID");
+
+  if (missing.length) {
+    throw new Error(`Firebase env config missing: ${missing.join(", ")}`);
+  }
+
+  envConfigCache = cfg;
+  return cfg;
+}
+
+export const firebaseApiKey = configFromEnv().apiKey;
+
 async function init(): Promise<void> {
   if (appInstance && authInstance) return;
 
   // If already initialized elsewhere in dev, reuse
   if (getApps().length > 0) {
     appInstance = getApps()[0]!;
-    assignConfigFromApp(appInstance);
+    configInstance = configFromEnv();
     authInstance = getAuth(appInstance);
     ensureDeviceLanguage(authInstance);
     return;
@@ -141,24 +146,7 @@ async function init(): Promise<void> {
 
   if (!isWeb) throw new Error("web-only init");
 
-  // Fetch hosting config fresh (avoid stale caches)
-  const r = await fetch("/__/firebase/init.json?ts=" + Date.now(), { cache: "no-store" });
-  const j = (await r.json().catch(() => ({}))) as HostingConfig;
-  const cfg: ResolvedConfig = {
-    apiKey: j.apiKey || "",
-    authDomain: j.authDomain || "",
-    projectId: j.projectId || "",
-    appId: j.appId || "",
-    measurementId: j.measurementId || undefined,
-    storageBucket: j.storageBucket || undefined,
-    databaseURL: j.databaseURL || undefined,
-    messagingSenderId: j.messagingSenderId || undefined,
-  };
-
-  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId || !cfg.appId) {
-    console.warn("[firebase] invalid init.json", cfg);
-    throw new Error("Firebase config missing. Check Hosting init.json.");
-  }
+  const cfg = configFromEnv();
 
   configInstance = cfg;
   appInstance = initializeApp(cfg);

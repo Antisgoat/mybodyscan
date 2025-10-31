@@ -5,7 +5,8 @@ import Stripe from "stripe";
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
-import { getStripeSecret, getWebhookSecret, stripeSecretParam, stripeWebhookSecretParam } from "./lib/config.js";
+import { getWebhookSecret, stripeSecretParam, stripeWebhookSecretParam } from "./lib/config.js";
+import { getStripeKey } from "./stripe/config.js";
 import { runUserOperation } from "./lib/ops.js";
 
 const db = getFirestore();
@@ -48,11 +49,12 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       return;
     }
 
-    const stripeSecret = getStripeSecret();
+    const stripeSecretResult = getStripeKey();
+    const stripeSecret = stripeSecretResult.present ? stripeSecretResult.value : null;
     const webhookSecret = getWebhookSecret();
     if (!stripeSecret || !webhookSecret) {
       const missing: string[] = [];
-      if (!stripeSecret) missing.push("STRIPE_SECRET");
+      if (!stripeSecret) missing.push("STRIPE_SECRET_KEY/STRIPE_SECRET");
       if (!webhookSecret) missing.push("STRIPE_WEBHOOK");
       logger.error("stripe_config_missing", { service: "stripeWebhook", missing });
       res.status(500).send("Missing Stripe secrets");

@@ -1,348 +1,208 @@
-import { onRequest, HttpsError } from "firebase-functions/v2/https";
-import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
-import { Timestamp, getFirestore } from "./firebase.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
-import { withCors } from "./middleware/cors.js";
-import { verifyRateLimit } from "./verifyRateLimit.js";
+import type { Request, Response } from "express";
+import { onRequest } from "firebase-functions/v2/https";
+
+import { Timestamp, getAuth, getFirestore } from "./firebase.js";
 import { formatCoachReply } from "./coachUtils.js";
-import { getOpenAIKey } from "./lib/env.js";
-import { errorCode, statusFromCode } from "./lib/errors.js";
-import { coachChatCollectionPath } from "./lib/paths.js";
+import { verifyAppCheckStrict } from "./http.js";
 import { ensureRateLimit } from "./http/_middleware.js";
 import { openAiSecretParam } from "./lib/config.js";
+import { coachChatCollectionPath } from "./lib/paths.js";
+import { chatSimple } from "./openai/client.js";
+import { HttpError, send } from "./util/http.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
 const MIN_TEXT_LENGTH = 1;
-const SYSTEM_PROMPT =
-  "You are MyBodyScan's virtual fitness coach. Reply in under 140 words with non-medical guidance, use sets×reps and RPE, and end with a quick recovery or nutrition reminder.";
-const OPENAI_MODELS = ["gpt-4o-mini", "gpt-3.5-turbo"] as const;
-const OPENAI_TIMEOUT_MS = 8000;
-const statusMap: Record<string, number> = { "failed-precondition": 503 };
 
-function logInfo(event: string, payload: Record<string, unknown> = {}): void {
-  console.info({ event, ...payload });
-}
-
-function logWarn(event: string, payload: Record<string, unknown> = {}): void {
-  console.warn({ event, ...payload });
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "string") return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-function getRequestId(req: ExpressRequest): string | null {
-  const header = req.get("x-request-id") || req.get("X-Request-Id") || null;
-  if (header) return header;
-  const trace = req.get("x-cloud-trace-context") || req.get("X-Cloud-Trace-Context") || "";
-  if (!trace) return null;
-  const [traceId] = trace.split("/");
-  return traceId || null;
-}
-
-type OpenAiModel = (typeof OPENAI_MODELS)[number];
-
-type ChatRecord = {
-  text: string;
-  response: string;
-  createdAt: Timestamp;
-  usedLLM: boolean;
+type AuthDetails = {
+  uid: string | null;
 };
 
-function sanitizeInput(raw: unknown): string {
+function normalizeBody(body: unknown): Record<string, unknown> {
+  if (!body) {
+    return {};
+  }
+  if (typeof body === "object") {
+    return body as Record<string, unknown>;
+  }
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return {};
+}
+
+function sanitizeMessage(raw: unknown): string {
   if (typeof raw !== "string") {
-    throw new HttpsError("invalid-argument", "text must be a string");
+    throw new HttpError(400, "invalid_request", "message_required");
   }
   const trimmed = raw.trim();
-  if (trimmed.length < MIN_TEXT_LENGTH || trimmed.length > MAX_TEXT_LENGTH) {
-    throw new HttpsError("invalid-argument", "text must be 1-800 characters");
+  if (trimmed.length < MIN_TEXT_LENGTH) {
+    throw new HttpError(400, "invalid_request", "message_too_short");
+  }
+  if (trimmed.length > MAX_TEXT_LENGTH) {
+    throw new HttpError(400, "invalid_request", "message_too_long");
   }
   return trimmed;
 }
 
-function buildFallbackResponse(text: string): string {
-  const lower = text.toLowerCase();
-  const needsRecovery =
-    lower.includes("sore") || lower.includes("sleep") || lower.includes("tired") || lower.includes("ache");
-
-  if (needsRecovery) {
-    return [
-      "Let's treat today as a recovery-focused reset so you can push harder later.",
-      "Start with 10 minutes of easy cardio at RPE 4-5 to raise body temperature, then move into three mobility blocks:",
-      "• Thoracic opener: 2×12 cat-cows and 2×30s child's pose with reaches.",
-      "• Lower-body flow: 2×10 walking lunges with a slow return, followed by 2×30s couch stretch per leg.",
-      "• Core stability: 3×30s dead bugs and 3×12 bird-dogs at RPE 5.",
-      "Finish with light foam rolling on quads, glutes, and lats plus a 5 minute nasal-breathing walk.",
-      "Keep protein high (~0.8g per lb) and add a colorful carb + lean protein meal within two hours.",
-      "Hydrate with 16-20 oz water and aim for 8-9 hours of sleep tonight. Not medical advice, just smart recovery guidance."
-    ].join(" ");
-  }
-
-  const splitPlan = lower.includes("time") || lower.includes("busy") ? "upper/lower" : "push/pull/legs";
-  const sessions = splitPlan === "upper/lower"
-    ? [
-        "Day 1 Upper: Bench Press 3×8 @ RPE 7, One-Arm Row 3×10 @ RPE 7, Arnold Press 3×10 @ RPE 7-8, Incline Push-Ups 2×12 @ RPE 6, Face Pulls 2×15 @ RPE 6.",
-        "Day 2 Lower: Back Squat 4×6 @ RPE 7-8, Romanian Deadlift 3×8 @ RPE 7, Walking Lunges 3×12/leg @ RPE 7, Seated Calf Raises 3×15 @ RPE 6, Hanging Knee Raises 3×12 @ RPE 6.",
-        "Day 3 Upper Repeat: Weighted Chin-Ups 4×6 @ RPE 8, DB Incline Press 3×10 @ RPE 7, Cable Row 3×12 @ RPE 7, Lateral Raise 3×15 @ RPE 6, Farmer Carry 3×40m @ RPE 7.",
-        "Day 4 Lower Repeat: Trap Bar Deadlift 3×6 @ RPE 8, Split Squat 3×10/leg @ RPE 7, Leg Curl 3×12 @ RPE 7, Glute Bridge 3×15 @ RPE 6, Plank 3×45s @ RPE 6."
-      ]
-    : [
-        "Day 1 Push: Flat Bench 4×6 @ RPE 8, Incline DB Press 3×10 @ RPE 7, Overhead Press 3×8 @ RPE 7, Cable Fly 2×15 @ RPE 6, Tricep Rope Pushdown 3×12 @ RPE 6.",
-        "Day 2 Pull: Deadlift 3×5 @ RPE 8, Chest-Supported Row 3×10 @ RPE 7, Lat Pulldown 3×12 @ RPE 7, Rear-Delt Fly 3×15 @ RPE 6, Barbell Curl 3×12 @ RPE 6.",
-        "Day 3 Legs: Back Squat 4×6 @ RPE 8, Bulgarian Split Squat 3×10/leg @ RPE 7, Romanian Deadlift 3×10 @ RPE 7, Leg Press 2×15 @ RPE 6, Standing Calf Raise 3×15 @ RPE 6.",
-        "Day 4 Optional Conditioning: 20 minute incline walk at RPE 6, then 3 rounds of kettlebell swings 12 reps @ RPE 7 and plank 45s @ RPE 6."
-      ];
-
-  const nutrition =
-    "Aim for 0.8-1.0g protein per lb, build plates around lean protein + veggies + complex carbs, and keep hydration steady (at least 90 oz water).";
-  const closer =
-    "Stick with a steady RPE ramp across the week, deload every 4 weeks, and adjust volume based on how you recover. All guidance is educational only and not medical advice.";
-
-  return ["Here's a focused " + splitPlan + " split for the next week:", ...sessions, nutrition, closer].join(" ");
+function resolveMessage(payload: Record<string, unknown>): string {
+  const candidate = payload.message ?? payload.text;
+  return sanitizeMessage(candidate);
 }
 
-type OpenAiResult = { content: string; usageTokens: number | null };
+function extractBearerToken(req: Request): string {
+  const header = req.get("authorization") || req.get("Authorization") || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
+  }
+  const token = match[1]?.trim();
+  if (!token) {
+    throw new HttpError(401, "unauthorized", "missing_bearer");
+  }
+  return token;
+}
 
-async function callOpenAi(
-  apiKey: string,
-  model: OpenAiModel,
-  text: string,
-  context: { uid: string; requestId: string | null },
-): Promise<OpenAiResult> {
-  const signal = AbortSignal.timeout(OPENAI_TIMEOUT_MS);
+async function verifyAuthorization(req: Request): Promise<AuthDetails> {
+  const token = extractBearerToken(req);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.6,
-        max_tokens: 256,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: text },
-        ],
-      }),
-      signal,
-    });
-
-    if (!response.ok) {
-      logWarn("coach_chat.openai_http_error", {
-        uid: context.uid,
-        requestId: context.requestId,
-        model,
-        status: response.status,
-      });
-      throw new HttpsError("unavailable", "coach_unavailable");
-    }
-
-    const payload = (await response.json()) as any;
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      logWarn("coach_chat.openai_empty", {
-        uid: context.uid,
-        requestId: context.requestId,
-        model,
-      });
-      throw new HttpsError("internal", "coach_unavailable");
-    }
-    const usageTokens = typeof payload?.usage?.total_tokens === "number" ? payload.usage.total_tokens : null;
-    return { content: content.trim(), usageTokens };
+    const decoded = await getAuth().verifyIdToken(token);
+    return { uid: decoded.uid ?? null };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      logWarn("coach_chat.openai_timeout", {
-        uid: context.uid,
-        requestId: context.requestId,
-        model,
-        timeoutMs: OPENAI_TIMEOUT_MS,
-      });
-      throw new HttpsError("deadline-exceeded", "coach_timeout");
+    const message = (error as { message?: string })?.message ?? String(error);
+    const code = (error as { code?: string })?.code ?? "";
+    if (
+      code === "app/no-app" ||
+      code === "app/invalid-credential" ||
+      message.includes("credential") ||
+      message.includes("initializeApp")
+    ) {
+      console.warn("no_admin_verify", { reason: message || code || "unknown" });
+      return { uid: null };
     }
 
-    logWarn("coach_chat.openai_request_failed", {
-      uid: context.uid,
-      requestId: context.requestId,
-      model,
-      message: describeError(error),
-    });
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    throw new HttpsError("unavailable", "coach_unavailable");
+    console.warn("coach_chat.auth_failed", { message });
+    throw new HttpError(401, "unauthorized", "invalid_token");
   }
 }
 
-async function storeMessage(uid: string, record: ChatRecord): Promise<void> {
+async function ensureAppCheck(req: Request): Promise<void> {
+  try {
+    await verifyAppCheckStrict(req);
+  } catch (error: unknown) {
+    throw new HttpError(401, "app_check_required");
+  }
+}
+
+async function storeMessage(uid: string, text: string, response: string): Promise<void> {
   const colRef = db.collection(coachChatCollectionPath(uid));
-  const docRef = await colRef.add(record);
+  const docRef = await colRef.add({
+    text,
+    response,
+    createdAt: Timestamp.now(),
+    usedLLM: true,
+  });
 
-  const snapshot = await colRef
-    .orderBy("createdAt", "desc")
-    .offset(10)
-    .get();
-
+  const snapshot = await colRef.orderBy("createdAt", "desc").offset(10).get();
   const deletions = snapshot.docs.filter((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.id !== docRef.id);
   await Promise.allSettled(
     deletions.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.ref.delete().catch(() => undefined)),
   );
 }
 
+function handleError(res: Response, error: unknown, uid: string | null, started: number): void {
+  const ms = Date.now() - started;
+  if (error instanceof HttpError) {
+    console.warn({ fn: "coachChat", uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
+    const payload: Record<string, unknown> = { error: error.code };
+    if (error.message && error.message !== error.code) {
+      payload.reason = error.message;
+    }
+    send(res, error.status, payload);
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn({ fn: "coachChat", uid: uid ?? "anonymous", code: "openai_failed", ms, err: message });
+  send(res, 502, { error: "openai_failed" });
+}
+
 export const coachChat = onRequest(
   { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
-  withCors(async (req, res) => {
-    const request = req as ExpressRequest;
-    const response = res as ExpressResponse;
-
-    try {
-      await verifyAppCheckStrict(request as any);
-    } catch (error: any) {
-      if (!response.headersSent) {
-        const code = errorCode(error);
-        const status = code === "failed-precondition" ? 401 : statusFromCode(code);
-        response.status(status).json({
-          error: "Secure verification required. Refresh and try again.",
-          code: "app_check_unavailable",
-        });
-      }
+  async (req: Request, res: Response) => {
+    if (req.method === "OPTIONS") {
+      send(res, 204, null);
       return;
     }
 
-    if (request.method !== "POST") {
-      response.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });
-      return;
-    }
+    const startedAt = Date.now();
+    let uid: string | null = null;
 
     try {
-      const uid = await requireAuth(request as any);
-      (request as any).auth = { uid };
-      const requestId = getRequestId(request);
-      const startedAt = Date.now();
+      await ensureAppCheck(req);
 
-      let text: string;
-      try {
-        text = sanitizeInput((request.body as any)?.text ?? (request.body as any)?.message);
-      } catch (error: any) {
-        response.status(400).json({
-          error: error?.message ?? "Invalid request",
-          code: "invalid_text",
-        });
-        return;
+      if (req.method !== "POST") {
+        throw new HttpError(405, "method_not_allowed");
       }
 
-      try {
-        const { getEnvInt } = await import("./lib/env.js");
-        await verifyRateLimit(request, {
-          key: "coach",
-          max: getEnvInt("COACH_RPM", 6),
-          windowSeconds: 60,
-        });
-      } catch (error: any) {
-        if (error?.status === 429) {
-          response.status(429).json({ error: "Too many requests", code: "too_many_requests" });
-          return;
-        }
-        logWarn("coach_chat.rate_limit_check_failed", {
-          uid,
-          requestId,
-          message: describeError(error),
-        });
-      }
+      const auth = await verifyAuthorization(req);
+      uid = auth.uid;
 
-      const limiter = await ensureRateLimit({ key: "coach_chat", identifier: uid, limit: 8, windowSeconds: 60 });
-      if (!limiter.allowed) {
-        response.status(429).json({
-          error: "Rate limited. Try again soon.",
-          code: "rate_limited",
-          retryAfter: limiter.retryAfterSeconds ?? null,
-        });
-        return;
-      }
+      const payload = normalizeBody(req.body);
+      const message = resolveMessage(payload);
 
-      const openAiKey = (getOpenAIKey() || "").trim();
-      if (!openAiKey) {
-        logWarn("coach_chat.unconfigured", { uid, requestId });
-        response.status(501).json({ error: "coach_unconfigured", code: "coach_unconfigured" });
-        return;
-      }
-
-      let responseText: string | null = null;
-      let usedLLM = false;
-      let usageTokens: number | null = null;
-      let successfulModel: OpenAiModel | null = null;
-      let lastAiError: HttpsError | null = null;
-
-      for (const model of OPENAI_MODELS) {
-        try {
-          const result = await callOpenAi(openAiKey, model, text, { uid, requestId });
-          responseText = result.content;
-          usageTokens = result.usageTokens;
-          usedLLM = true;
-          successfulModel = model;
-          break;
-        } catch (error) {
-          if (error instanceof HttpsError) {
-            lastAiError = error;
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      if (!responseText) {
-        if (lastAiError) {
-          throw lastAiError;
-        }
-        throw new HttpsError("unavailable", "coach_unavailable");
-      }
-
-      const reply = formatCoachReply(responseText);
-      const record: ChatRecord = {
-        text,
-        response: reply,
-        createdAt: Timestamp.now(),
-        usedLLM,
-      };
-
-      await storeMessage(uid, record);
-
-      logInfo("coach_chat.reply_sent", {
-        uid,
-        requestId,
-        usedLLM,
-        model: successfulModel,
-        usageTokens,
-        latencyMs: Date.now() - startedAt,
+      const limitResult = await ensureRateLimit({
+        key: "coach_chat",
+        identifier: uid ?? "anonymous",
+        limit: 8,
+        windowSeconds: 60,
       });
 
-      response.status(200).json({ reply, usedLLM });
-    } catch (error: any) {
-      if (response.headersSent) {
-        return;
-      }
-      if (error instanceof HttpsError) {
-        const code = errorCode(error);
-        const status = (statusMap && statusMap[code]) ?? statusFromCode(code);
-        const friendly = typeof (error as any)?.message === "string" ? (error as any).message : "coach_unavailable";
-        response.status(status).json({
-          error: friendly,
-          code: friendly,
+      if (!limitResult.allowed) {
+        console.warn({
+          fn: "coachChat",
+          uid: uid ?? "anonymous",
+          code: "rate_limited",
+          ms: Date.now() - startedAt,
+          err: "limit_reached",
+        });
+        send(res, 429, {
+          error: "rate_limited",
+          retryAfter: limitResult.retryAfterSeconds ?? null,
         });
         return;
       }
-      logWarn("coach_chat.unhandled_error", { message: describeError(error) });
-      response.status(500).json({ error: "server_error", code: "server_error" });
+
+      const replyText = await chatSimple(message, { userId: uid ?? undefined });
+      const formatted = formatCoachReply(replyText);
+
+      if (uid) {
+        try {
+          await storeMessage(uid, message, formatted);
+        } catch (error) {
+          console.warn({
+            fn: "coachChat",
+            uid,
+            code: "store_failed",
+            ms: Date.now() - startedAt,
+            err: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      console.info({ fn: "coachChat", uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
+      send(res, 200, { message: formatted });
+    } catch (error) {
+      handleError(res, error, uid, startedAt);
     }
-  })
+  },
 );
 
