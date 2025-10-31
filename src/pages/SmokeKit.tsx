@@ -164,12 +164,15 @@ export default function SmokeKit() {
   const [exportProbe, setExportProbe] = useState<ExportProbeState>({ status: "idle" });
   const [deleteProbe, setDeleteProbe] = useState<ProbeStatus>("idle");
   const [deleteText, setDeleteText] = useState("");
+  const [runtimeProbe, setRuntimeProbe] = useState<{ status: "idle" | "running" | "success" | "error"; message?: string }>({ status: "idle" });
 
   const allowAccess = useMemo(() => {
     if (import.meta.env.DEV) return true;
     if (!claims) return false;
     return Boolean(claims?.staff === true || claims?.dev === true || claims?.unlimitedCredits === true);
   }, [claims]);
+
+  const showDevHelpers = import.meta.env.DEV || claims?.staff === true;
 
   const allowFinalDelete = useMemo(() => {
     if (import.meta.env.DEV) return true;
@@ -206,8 +209,7 @@ export default function SmokeKit() {
       const callable = httpsCallable(functions, "refreshClaims");
       const response = await callable({});
       const data = (response?.data || {}) as { updated?: boolean; unlimitedCredits?: boolean };
-      await currentUser.getIdToken(true);
-      const refreshed = await refreshClaimsHook();
+      const refreshed = await refreshClaimsHook(true);
       setClaimsState({
         status: "success",
         message: data.updated ? "Claims updated" : "Claims already up to date",
@@ -532,6 +534,29 @@ export default function SmokeKit() {
     }
   }
 
+  function triggerDevError() {
+    throw new Error("SmokeKit dev error triggered");
+  }
+
+  async function handleRuntimeConfigCheck() {
+    setRuntimeProbe({ status: "running" });
+    try {
+      const response = await fetch(`/__/firebase/init.json?ts=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const json = await response.json().catch(() => ({}));
+      const projectIdPresent = Boolean(json?.projectId);
+      const apiKeyPresent = Boolean(json?.apiKey);
+      setRuntimeProbe({
+        status: "success",
+        message: `projectId ${projectIdPresent ? "✅" : "❌"} • apiKey ${apiKeyPresent ? "✅" : "❌"}`,
+      });
+    } catch (error: any) {
+      setRuntimeProbe({ status: "error", message: error?.message || "runtime_check_failed" });
+    }
+  }
+
   async function clearCaches() {
     setCacheState({ status: "running", message: "Clearing caches…" });
     try {
@@ -633,6 +658,45 @@ export default function SmokeKit() {
             <BuildSummary />
           </CardContent>
         </Card>
+
+        {showDevHelpers && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Dev helpers</CardTitle>
+              <CardDescription>Quick utilities for manual smoke testing.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={triggerDevError}>
+                  Trigger fake error
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRuntimeConfigCheck}
+                  disabled={runtimeProbe.status === "running"}
+                >
+                  {runtimeProbe.status === "running" ? "Checking…" : "Check runtime config"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={clearCaches}
+                  disabled={cacheState.status === "running"}
+                >
+                  {cacheState.status === "running" ? "Clearing…" : "Clear SW + caches"}
+                </Button>
+              </div>
+              {runtimeProbe.status !== "idle" && (
+                <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                  {runtimeProbe.status === "success"
+                    ? runtimeProbe.message
+                    : runtimeProbe.status === "error"
+                      ? runtimeProbe.message || "Runtime config check failed."
+                      : "Checking runtime config…"}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

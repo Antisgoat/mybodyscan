@@ -73,7 +73,9 @@ export async function nutritionSearch(
   return response.json();
 }
 
-export async function coachChat(payload: { message: string }) {
+const coachChatInFlight = new Map<string, AbortController>();
+
+export async function coachChat(payload: { message: string }, options: { signal?: AbortSignal } = {}) {
   const message = payload.message?.trim();
   if (!message) {
     const error: any = new Error("message_required");
@@ -81,25 +83,51 @@ export async function coachChat(payload: { message: string }) {
     throw error;
   }
   const { user } = await requireAuthContext();
-  await ensureAppCheck();
-  const [idToken, appCheckHeaders] = await Promise.all([user.getIdToken(), getAppCheckHeader()]);
-  const response = await fetch(`/api/coach/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-      ...(appCheckHeaders || {}),
-    },
-    credentials: "include",
-    body: JSON.stringify({ message, text: message }),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
-    error.status = response.status;
+  const existing = coachChatInFlight.get(user.uid);
+  if (existing && !existing.signal.aborted) {
+    const error: any = new Error("coach_chat_in_flight");
+    error.code = "coach_chat_in_flight";
     throw error;
   }
-  return response.json();
+  await ensureAppCheck();
+  const [idToken, appCheckHeaders] = await Promise.all([user.getIdToken(), getAppCheckHeader()]);
+  const controller = new AbortController();
+  coachChatInFlight.set(user.uid, controller);
+
+  let removeListener: (() => void) | undefined;
+  if (options.signal) {
+    if (options.signal.aborted) {
+      controller.abort(options.signal.reason as any);
+    } else {
+      const abortListener = () => controller.abort(options.signal?.reason as any);
+      options.signal.addEventListener("abort", abortListener, { once: true });
+      removeListener = () => options.signal?.removeEventListener("abort", abortListener);
+    }
+  }
+
+  try {
+    const response = await fetch(`/api/coach/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+        ...(appCheckHeaders || {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ message, text: message }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
+  } finally {
+    removeListener?.();
+    coachChatInFlight.delete(user.uid);
+  }
 }
 
 const NUTRITION_SEARCH_TIMEOUT_MS = 6000;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -23,6 +23,8 @@ import { addDoc } from "@/lib/dbWrite";
 import { collection, serverTimestamp } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { buildErrorToast } from "@/lib/errorToasts";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -254,6 +256,8 @@ export default function MealsSearch() {
   const [logging, setLogging] = useState(false);
   const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
+  const abortRef = useRef<AbortController | null>(null);
+  const debouncedQuery = useDebouncedValue(query, 350);
 
   useEffect(() => {
     if (!authReady || !uid) {
@@ -271,8 +275,10 @@ export default function MealsSearch() {
   }, [authReady, uid]);
 
   useEffect(() => {
-    const trimmed = query.trim();
-    if (!trimmed) {
+    const term = debouncedQuery.trim();
+    if (!term) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
@@ -281,41 +287,47 @@ export default function MealsSearch() {
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setSearchWarning(null);
     setStatus("Searching…");
-    let cancelled = false;
-    const handle = window.setTimeout(() => {
-      searchFoods(trimmed)
-        .then((result) => {
-          if (cancelled) return;
-          setStatus(result.status);
-          const items = result.items.map(adaptSearchItem);
-          setResults(items);
-          setPrimarySource(items.length ? items[0]!.source : null);
-          setSearchWarning(null);
-        })
-        .catch((error) => {
-          if (cancelled) return;
-          console.error("nutrition_search_error", error);
-          toast({ title: "Search failed", description: "Try another food", variant: "destructive" });
-          setResults([]);
-          setPrimarySource(null);
-          setStatus("Search failed. Try again.");
-          setSearchWarning("Food database temporarily busy; try again.");
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoading(false);
-          }
-        });
-    }, 300);
+
+    (async () => {
+      try {
+        const result = await searchFoods(term, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setStatus(result.status || "Done.");
+        const items = (result.items ?? []).map(adaptSearchItem);
+        setResults(items);
+        setPrimarySource(items.length ? items[0]!.source : null);
+        setSearchWarning(null);
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        toast(
+          buildErrorToast(error, {
+            fallback: { title: "Search failed", description: "Try another food", variant: "destructive" },
+          }),
+        );
+        setResults([]);
+        setPrimarySource(null);
+        setStatus("Search failed. Try again.");
+        setSearchWarning("Food database temporarily busy; try again.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
+      controller.abort();
     };
-  }, [query, toast]);
+  }, [debouncedQuery, toast]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -337,8 +349,12 @@ export default function MealsSearch() {
         await saveFavorite(item);
         toast({ title: "Added to favorites", description: item.name });
       }
-    } catch (error: any) {
-      toast({ title: "Favorite update failed", description: error?.message || "Try again", variant: "destructive" });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Favorite update failed", description: "Try again", variant: "destructive" },
+        }),
+      );
     }
   };
 
@@ -375,8 +391,12 @@ export default function MealsSearch() {
       toast({ title: "Food logged", description: item.name });
       updateRecents(item);
       setSelectedItem(null);
-    } catch (error: any) {
-      toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Unable to log", description: "Try again", variant: "destructive" },
+        }),
+      );
     } finally {
       setLogging(false);
     }
@@ -456,7 +476,11 @@ export default function MealsSearch() {
             <div className="text-xs text-muted-foreground">{primaryCaption}</div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {status && <p className="text-xs text-muted-foreground">{status}</p>}
+            {status && (
+              <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+                {status}
+              </p>
+            )}
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
@@ -495,7 +519,13 @@ export default function MealsSearch() {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <DemoWriteButton size="sm" variant="ghost" onClick={() => toggleFavorite(item)}>
+                      <DemoWriteButton
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleFavorite(item)}
+                        aria-label={favorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+                        aria-pressed={Boolean(favorite)}
+                      >
                         {favorite ? (
                           <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
                         ) : (

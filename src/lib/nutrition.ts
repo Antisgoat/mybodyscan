@@ -1,6 +1,17 @@
 import { USDA_API_KEY, OFF_ENABLED } from "./flags";
 import { netError } from "./net";
 
+type RequestOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
+function isAbortError(error: unknown): boolean {
+  if (!error) return false;
+  if (error instanceof DOMException && error.name === "AbortError") return true;
+  return error instanceof Error && error.name === "AbortError";
+}
+
 /** Normalized food shape returned to UI. */
 export type FoodItem = {
   id: string; // stable id (usda:fdcId:<id> or off:barcode:<code>)
@@ -26,6 +37,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 type CacheEntry = { v: unknown; t: number };
 const cache = new Map<string, CacheEntry>();
 
+const BARCODE_TIMEOUT_MS = 5_000;
+
 function cacheGet<T>(k: string): T | undefined {
   const e = cache.get(k);
   if (!e) return;
@@ -45,15 +58,29 @@ function cacheSet(k: string, v: unknown) {
   }
 }
 
-async function fetchJson(url: string, opts: RequestInit = {}, timeoutMs = 10_000): Promise<any> {
+async function fetchJson(url: string, opts: RequestInit = {}, options: RequestOptions = {}): Promise<any> {
+  const { timeoutMs = 10_000, signal } = options;
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  let removeListener: (() => void) | undefined;
+  if (signal) {
+    if (signal.aborted) {
+      ctrl.abort(signal.reason as any);
+    } else {
+      const abortListener = () => ctrl.abort(signal.reason as any);
+      signal.addEventListener("abort", abortListener, { once: true });
+      removeListener = () => signal.removeEventListener("abort", abortListener);
+    }
+  }
+
   try {
     const res = await fetch(url, { ...opts, signal: ctrl.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } finally {
-    clearTimeout(id);
+    clearTimeout(timeoutId);
+    removeListener?.();
   }
 }
 
@@ -66,10 +93,11 @@ function n(x: unknown): number | undefined {
 
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
 
-async function usdaSearch(q: string): Promise<FoodItem[]> {
+async function usdaSearch(q: string, options: RequestOptions = {}): Promise<FoodItem[]> {
   if (!USDA_API_KEY) return [];
   const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(q)}&pageSize=25`;
-  const data = await fetchJson(url).catch(() => {
+  const data = await fetchJson(url, {}, options).catch((error) => {
+    if (isAbortError(error)) throw error;
     netError("Nutrition request failed.");
     return null;
   });
@@ -91,10 +119,11 @@ async function usdaSearch(q: string): Promise<FoodItem[]> {
     .filter((x: FoodItem) => x.name.length > 0);
 }
 
-async function usdaGtin(gtin: string): Promise<FoodItem | null> {
+async function usdaGtin(gtin: string, options: RequestOptions = {}): Promise<FoodItem | null> {
   if (!USDA_API_KEY) return null;
   const url = `${USDA_BASE}/foods/search?api_key=${encodeURIComponent(USDA_API_KEY)}&query=${encodeURIComponent(gtin)}&pageSize=5`;
-  const data = await fetchJson(url).catch(() => {
+  const data = await fetchJson(url, {}, options).catch((error) => {
+    if (isAbortError(error)) throw error;
     netError("Nutrition request failed.");
     return null;
   });
@@ -153,10 +182,11 @@ function extractUsdaMacros(
 const OFF_SEARCH = "https://world.openfoodfacts.org/cgi/search.pl";
 const OFF_PRODUCT = "https://world.openfoodfacts.org/api/v2/product";
 
-async function offSearch(q: string): Promise<FoodItem[]> {
+async function offSearch(q: string, options: RequestOptions = {}): Promise<FoodItem[]> {
   if (!OFF_ENABLED) return [];
   const url = `${OFF_SEARCH}?search_terms=${encodeURIComponent(q)}&search_simple=1&json=1&page_size=25`;
-  const data = await fetchJson(url).catch(() => {
+  const data = await fetchJson(url, {}, options).catch((error) => {
+    if (isAbortError(error)) throw error;
     netError("Nutrition request failed.");
     return null;
   });
@@ -178,10 +208,11 @@ async function offSearch(q: string): Promise<FoodItem[]> {
     .filter((x: FoodItem) => x.name.length > 0);
 }
 
-async function offBarcode(code: string): Promise<FoodItem | null> {
+async function offBarcode(code: string, options: RequestOptions = {}): Promise<FoodItem | null> {
   if (!OFF_ENABLED) return null;
   const url = `${OFF_PRODUCT}/${encodeURIComponent(code)}.json`;
-  const data = await fetchJson(url).catch(() => {
+  const data = await fetchJson(url, {}, options).catch((error) => {
+    if (isAbortError(error)) throw error;
     netError("Nutrition request failed.");
     return null;
   });
@@ -214,7 +245,7 @@ function extractOffMacros(p: any): { calories?: number; protein?: number; fat?: 
 /* ------------------ Public API ------------------ */
 
 /** Search foods by free text. Tries USDA first; if empty/error, tries OFF. Cached 5m. */
-export async function searchFoods(q: string): Promise<SearchResult> {
+export async function searchFoods(q: string, options: RequestOptions = {}): Promise<SearchResult> {
   const key = `search:${q.toLowerCase()}`;
   const cached = cacheGet<SearchResult>(key);
   if (cached) return cached;
@@ -229,8 +260,9 @@ export async function searchFoods(q: string): Promise<SearchResult> {
   if (USDA_API_KEY) {
     statusParts.push("Searching USDA…");
     try {
-      items = await usdaSearch(q);
-    } catch {
+      items = await usdaSearch(q, options);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
       netError("Nutrition request failed.");
     }
   }
@@ -238,8 +270,9 @@ export async function searchFoods(q: string): Promise<SearchResult> {
   if (items.length === 0 && OFF_ENABLED) {
     statusParts.push("Trying Open Food Facts…");
     try {
-      items = await offSearch(q);
-    } catch {
+      items = await offSearch(q, options);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
       netError("Nutrition request failed.");
     }
   }
@@ -249,18 +282,24 @@ export async function searchFoods(q: string): Promise<SearchResult> {
   }
 
   const res: SearchResult = { items, status: statusParts.join(" ") || "Done." };
-  cacheSet(key, res);
+  if (!options.signal?.aborted) {
+    cacheSet(key, res);
+  }
   return res;
 }
 
 /** Lookup by barcode (GTIN/UPC/EAN). Tries USDA GTIN then OFF. Cached 5m. */
-export async function lookupBarcode(code: string): Promise<SearchResult> {
+export async function lookupBarcode(code: string, options: RequestOptions = {}): Promise<SearchResult> {
   const key = `barcode:${code}`;
   const cached = cacheGet<SearchResult>(key);
   if (cached) return cached;
 
   const statusParts: string[] = [];
   let item: FoodItem | null = null;
+  const requestOptions: RequestOptions = {
+    signal: options.signal,
+    timeoutMs: options.timeoutMs ?? BARCODE_TIMEOUT_MS,
+  };
 
   if (!USDA_API_KEY && !OFF_ENABLED) {
     statusParts.push("Nutrition lookups unavailable. Add an API key in settings.");
@@ -269,8 +308,9 @@ export async function lookupBarcode(code: string): Promise<SearchResult> {
   if (USDA_API_KEY) {
     statusParts.push("Looking up in USDA…");
     try {
-      item = await usdaGtin(code);
-    } catch {
+      item = await usdaGtin(code, requestOptions);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
       netError("Nutrition request failed.");
     }
   }
@@ -278,17 +318,23 @@ export async function lookupBarcode(code: string): Promise<SearchResult> {
   if (!item && OFF_ENABLED) {
     statusParts.push("Trying Open Food Facts…");
     try {
-      item = await offBarcode(code);
-    } catch {
+      item = await offBarcode(code, requestOptions);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
       netError("Nutrition request failed.");
     }
   }
 
-  const statusPartsWithResult = [...statusParts, item ? "Found." : "No match found."];
+  const statusPartsWithResult = [
+    ...statusParts,
+    item ? "Found." : "No match found. Try again or scan barcode 737628064502.",
+  ];
   const res: SearchResult = {
     items: item ? [item] : [],
     status: statusPartsWithResult.join(" ") || "Done.",
   };
-  cacheSet(key, res);
+  if (!options.signal?.aborted) {
+    cacheSet(key, res);
+  }
   return res;
 }

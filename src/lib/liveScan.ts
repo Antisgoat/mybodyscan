@@ -118,16 +118,16 @@ export async function startLiveScan(): Promise<ScanStartResponse> {
   return data as ScanStartResponse;
 }
 
-function isValidJpeg(file: File): boolean {
+function isSupportedImage(file: File): boolean {
   if (!file.type && !file.name) return false;
   const type = (file.type || "").toLowerCase();
   const name = file.name.toLowerCase();
-  if (type === "image/jpeg" || type === "image/pjpeg") return true;
-  return name.endsWith(".jpg") || name.endsWith(".jpeg");
+  if (type === "image/jpeg" || type === "image/pjpeg" || type === "image/png") return true;
+  return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png");
 }
 
 function ensureValidFile(file: File, pose: PoseKey): void {
-  if (!isValidJpeg(file)) {
+  if (!isSupportedImage(file)) {
     const error = new Error(`invalid_type_${pose}`);
     (error as any).code = "invalid_type";
     throw error;
@@ -151,11 +151,24 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal) return;
+  if (signal.aborted) {
+    const reason = signal.reason instanceof Error ? signal.reason : undefined;
+    throw reason ?? new DOMException("Aborted", "AbortError");
+  }
+}
+
 export async function uploadScanImages(
   uploadUrls: Record<PoseKey, string>,
   files: Record<PoseKey, File>,
-  onProgress?: (info: { pose: PoseKey; index: number; total: number }) => void
+  options: {
+    onProgress?: (info: { pose: PoseKey; index: number; total: number }) => void;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<void> {
+  const { onProgress, signal } = options;
+  throwIfAborted(signal);
   const entries = Object.entries(uploadUrls) as Array<[PoseKey, string]>;
   const total = entries.length;
   for (let index = 0; index < entries.length; index += 1) {
@@ -173,12 +186,14 @@ export async function uploadScanImages(
     while (true) {
       attempt += 1;
       try {
+        throwIfAborted(signal);
         const response = await fetch(url, {
           method: "PUT",
           headers: {
             "Content-Type": file.type || "image/jpeg",
           },
           body: file,
+          signal,
         });
         if (response.ok) {
           break;
@@ -186,18 +201,24 @@ export async function uploadScanImages(
         if (shouldRetry(response.status) && attempt < MAX_UPLOAD_ATTEMPTS) {
           const backoff = 300 * attempt + Math.random() * 200;
           await sleep(backoff);
+          throwIfAborted(signal);
           continue;
         }
         const error = new Error(`upload_failed_${pose}`);
         (error as any).status = response.status;
         throw error;
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
         if (attempt >= MAX_UPLOAD_ATTEMPTS) {
           throw error;
         }
         await sleep(300 * attempt + Math.random() * 200);
+        throwIfAborted(signal);
       }
     }
+    throwIfAborted(signal);
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
@@ -24,10 +24,10 @@ async function readClaims(u: User | null, force: boolean): Promise<UserClaims> {
   }
 }
 
-/** Force-refresh claims on the current user (getIdTokenResult(true)). */
-export async function fetchClaims(): Promise<UserClaims> {
+/** Refresh claims on the current user. Force defaults to true for compatibility. */
+export async function fetchClaims(force = true): Promise<UserClaims> {
   const u = auth.currentUser;
-  return await readClaims(u, true);
+  return await readClaims(u, force);
 }
 
 /** React hook to expose current user + claims with a refresh() helper. */
@@ -35,11 +35,12 @@ export function useClaims(): {
   user: User | null;
   claims: UserClaims;
   loading: boolean;
-  refresh: () => Promise<UserClaims>;
+  refresh: (force?: boolean) => Promise<UserClaims>;
 } {
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [claims, setClaims] = useState<UserClaims>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const lastUidRef = useRef<string | null>(auth.currentUser?.uid ?? null);
 
   useEffect(() => {
     let alive = true;
@@ -47,8 +48,11 @@ export function useClaims(): {
       if (!alive) return;
       setUser(u);
       setLoading(true);
-      const c = await readClaims(u, true);
+      const currentUid = u?.uid ?? null;
+      const shouldForce = currentUid != null && lastUidRef.current !== currentUid;
+      const c = await readClaims(u, shouldForce);
       if (!alive) return;
+      lastUidRef.current = currentUid;
       setClaims(c);
       setLoading(false);
     });
@@ -59,10 +63,15 @@ export function useClaims(): {
   }, []);
 
   const refresh = useMemo(() => {
-    return async () => {
+    return async (force = true) => {
       const u = auth.currentUser;
-      const c = await readClaims(u, true);
+      setLoading(true);
+      const c = await readClaims(u, force);
+      if (force && u?.uid) {
+        lastUidRef.current = u.uid;
+      }
       setClaims(c);
+      setLoading(false);
       return c;
     };
   }, []);

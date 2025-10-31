@@ -23,6 +23,7 @@ import { listenToScan, PoseKey, ScanResultResponse, type ScanStatus, startLiveSc
 // App Check removed; treat as immediately ready
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { useBackNavigationGuard } from "@/lib/back";
+import { MIN_IMAGE_DIMENSION, isAllowedImageType, readImageDimensions } from "@/lib/imageValidation";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const IDEMPOTENCY_STORAGE_KEY = "scan:idempotency";
@@ -88,6 +89,7 @@ export default function Scan() {
   const stageRef = useRef<Stage>("idle");
   const completeToastShown = useRef(false);
   const failureToastShown = useRef(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(() => readStoredIdempotencyKey());
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -231,45 +233,69 @@ export default function Scan() {
     [clearIdempotency, toast],
   );
 
-  const handleFileChange = (pose: PoseKey, event: ChangeEvent<HTMLInputElement>) => {
-    const { files: fileList } = event.target;
-    const file = fileList?.[0] ?? null;
-    if (!file) {
-      setFiles((prev) => ({ ...prev, [pose]: null }));
-      event.target.value = "";
-      return;
-    }
-    const lowerName = file.name?.toLowerCase?.() ?? "";
-    const typeValid =
-      (typeof file.type === "string" && file.type.startsWith("image/")) ||
-      /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(lowerName);
-    if (!typeValid) {
-      toast({
-        title: "Unsupported file",
-        description: "Add a photo captured from your camera or gallery.",
-        variant: "destructive",
-      });
-      event.target.value = "";
-      return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
-      event.target.value = "";
-      return;
-    }
-    setFiles((prev) => ({ ...prev, [pose]: file }));
-    event.target.value = "";
-  };
+  const handleFileChange = useCallback(
+    (pose: PoseKey, event: ChangeEvent<HTMLInputElement>) => {
+      const inputEl = event.target;
+      const file = inputEl.files?.[0] ?? null;
+      inputEl.value = "";
+      if (!file) {
+        setFiles((prev) => ({ ...prev, [pose]: null }));
+        return;
+      }
+
+      if (!isAllowedImageType(file)) {
+        toast({ title: "Unsupported photo", description: "Use JPEG or PNG photos.", variant: "destructive" });
+        return;
+      }
+
+      if (file.size > MAX_FILE_BYTES) {
+        toast({ title: "Photo too large", description: "Each photo must be under 15 MB.", variant: "destructive" });
+        return;
+      }
+
+      void (async () => {
+        try {
+          const { width, height } = await readImageDimensions(file);
+          if (Math.min(width, height) < MIN_IMAGE_DIMENSION) {
+            toast({
+              title: "Photo too small",
+              description: `Photos must be at least ${MIN_IMAGE_DIMENSION}px on the shortest side.`,
+              variant: "destructive",
+            });
+            return;
+          }
+          setFiles((prev) => ({ ...prev, [pose]: file }));
+        } catch {
+          toast({
+            title: "Photo unreadable",
+            description: "Select a different photo and try again.",
+            variant: "destructive",
+          });
+        }
+      })();
+    },
+    [toast],
+  );
 
   const clearPhoto = (pose: PoseKey) => {
     setFiles((prev) => ({ ...prev, [pose]: null }));
   };
 
-  const resetState = () => {
+  const abortActiveUpload = useCallback(() => {
+    if (uploadAbortRef.current) {
+      uploadAbortRef.current.abort();
+      uploadAbortRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => abortActiveUpload(), [abortActiveUpload]);
+
+  const resetState = useCallback(() => {
+    abortActiveUpload();
     setStage("idle");
     setProgressText("");
     setUploadIndex(0);
-  };
+  }, [abortActiveUpload]);
 
   const handleAnalyze = async () => {
     if (submitting) return;
@@ -323,20 +349,35 @@ export default function Scan() {
     setUploadIndex(0);
     setResult(null);
 
+    let uploadController: AbortController | null = null;
     try {
       const session = await startLiveScan();
       payload.scanId = session.scanId;
       attachStatusListener(session.scanId);
       setStage("uploading");
-      await uploadScanImages(session.uploadUrls, fileMap, ({ pose, index, total }) => {
-        setUploadIndex(index + 1);
-        const label = POSES.find((item) => item.key === pose)?.label || pose;
-        setProgressText(`Uploading ${label} (${index + 1}/${total})`);
+      uploadController = new AbortController();
+      uploadAbortRef.current = uploadController;
+      await uploadScanImages(session.uploadUrls, fileMap, {
+        signal: uploadController.signal,
+        onProgress: ({ pose, index, total }) => {
+          setUploadIndex(index + 1);
+          const label = POSES.find((item) => item.key === pose)?.label || pose;
+          setProgressText(`Uploading ${label} (${index + 1}/${total})`);
+        },
       });
+      uploadAbortRef.current = null;
+      uploadController = null;
       setStage("analyzing");
       setProgressText("Analyzing photos with OpenAI Vision...");
       await submitLiveScan(payload);
     } catch (err: any) {
+      if (err?.name === "AbortError") {
+        resetState();
+        toast({ title: "Upload canceled", description: "You can try again when ready." });
+        setScanId(null);
+        setScanStatus(null);
+        return;
+      }
       console.error("scan_analyze_error", err);
       let description = err?.message || "Unable to process scan right now.";
       if (err?.code === "app_check_unavailable") {
@@ -359,8 +400,16 @@ export default function Scan() {
         navigate("/auth");
       }
       toast({ title: "Scan failed", description, variant: "destructive" });
+      setScanId(null);
+      setScanStatus(null);
       resetState();
     } finally {
+      if (uploadController) {
+        uploadController.abort();
+      }
+      if (uploadAbortRef.current === uploadController) {
+        uploadAbortRef.current = null;
+      }
       setSubmitting(false);
     }
   };
@@ -441,7 +490,7 @@ export default function Scan() {
                         <input
                           id={inputId}
                           type="file"
-                          accept="image/jpeg,.jpg,.jpeg,image/*"
+                          accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                           capture="environment"
                           className="hidden"
                           onChange={(event) => handleFileChange(key, event)}
@@ -451,7 +500,7 @@ export default function Scan() {
                             <RefreshCw className="mr-2 h-4 w-4" /> Replace photo
                           </Button>
                         ) : (
-                          <p className="text-[11px] text-muted-foreground">Images only · Under 15 MB</p>
+                          <p className="text-[11px] text-muted-foreground">Images only · Under 15 MB · ≥ 640px</p>
                         )}
                       </div>
                     );
@@ -517,7 +566,7 @@ export default function Scan() {
             <Card>
             <CardContent className="flex items-start gap-3 py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <div>
+            <div role="status" aria-live="polite">
                 <p className="text-sm font-medium text-foreground">{progressText || "Processing..."}</p>
                 {stage === "uploading" && (
                   <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>

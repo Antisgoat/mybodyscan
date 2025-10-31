@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { BottomNav } from "@/components/BottomNav";
@@ -21,6 +21,7 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
+import { buildErrorToast } from "@/lib/errorToasts";
 
 declare global {
   interface Window {
@@ -71,6 +72,8 @@ export default function CoachChatPage() {
   const [coachError, setCoachError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const pendingRef = useRef(false);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
 
@@ -102,6 +105,8 @@ export default function CoachChatPage() {
       // ignore
     }
   }, [recognizer]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -152,8 +157,11 @@ export default function CoachChatPage() {
   const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
-    if (pending || demo) {
-      if (demo) demoToast();
+    if (pendingRef.current || pending) {
+      return;
+    }
+    if (demo) {
+      demoToast();
       return;
     }
 
@@ -181,19 +189,42 @@ export default function CoachChatPage() {
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    pendingRef.current = true;
     setPending(true);
     setCoachError(null);
     try {
-      await sendCoachChat({ message: sanitized });
+      await sendCoachChat({ message: sanitized }, { signal: controller.signal });
       setInput("");
     } catch (error: any) {
-      const status = typeof error?.status === "number" ? error.status : null;
-      if ((status !== null && status >= 400 && status < 500) || status === 501) {
-        setCoachError("Coach temporarily unavailable; please try again.");
+      if (error?.name === "AbortError") {
+        setCoachError(null);
+      } else if (error?.code === "coach_chat_in_flight") {
+        setCoachError("Coach is already processing another message. Please wait.");
+      } else {
+        const status = typeof error?.status === "number" ? error.status : null;
+        if ((status !== null && status >= 400 && status < 500) || status === 501) {
+          setCoachError("Coach temporarily unavailable; please try again.");
+        } else {
+          toast(
+            buildErrorToast(error, {
+              fallback: { title: "Message failed", description: "Try again shortly.", variant: "destructive" },
+            }),
+          );
+        }
       }
     } finally {
+      pendingRef.current = false;
+      abortRef.current = null;
       setPending(false);
     }
+  };
+
+  const handleCancelSend = () => {
+    if (!pendingRef.current) return;
+    abortRef.current?.abort();
   };
 
   const regeneratePlan = async () => {
@@ -210,12 +241,12 @@ export default function CoachChatPage() {
       const callable = httpsCallable(functions, "generatePlan");
       await callable({});
       toast({ title: "Weekly plan updated", description: "Your coach plan was regenerated." });
-    } catch (error: any) {
-      toast({
-        title: "Unable to regenerate",
-        description: error?.message ?? "Please try again in a moment.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Unable to regenerate", description: "Please try again in a moment.", variant: "destructive" },
+        }),
+      );
     } finally {
       setRegenerating(false);
     }
@@ -308,13 +339,29 @@ export default function CoachChatPage() {
                     >
                       {supportsSpeech ? (listening ? "■ Stop" : "🎤 Speak") : "🎤 N/A"}
                     </Button>
-                    <Button
-                      onClick={handleSend}
-                      disabled={pending || demo || !input.trim() || initializing}
-                      data-testid="coach-send-button"
-                    >
-                      {pending ? "Sending..." : "Send"}
-                    </Button>
+                    {pending ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelSend}
+                          disabled={!pending}
+                          data-testid="coach-cancel-button"
+                        >
+                          Cancel
+                        </Button>
+                        <Button disabled data-testid="coach-send-button">
+                          Sending...
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        onClick={handleSend}
+                        disabled={pending || demo || !input.trim() || initializing}
+                        data-testid="coach-send-button"
+                      >
+                        Send
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

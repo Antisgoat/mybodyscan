@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
+import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -55,8 +56,6 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
-import Diagnostics from "./pages/Diagnostics";
-import SmokeKit from "./pages/SmokeKit";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Workouts from "./pages/Workouts";
@@ -65,7 +64,6 @@ import CoachDay from "./pages/Coach/Day";
 import ProgramsCatalog from "./pages/Programs";
 import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
-import Nutrition from "./pages/Nutrition";
 import PolicyGate from "./components/PolicyGate";
 import { DemoModeProvider } from "./components/DemoModeProvider";
 import MealsSearch from "./pages/MealsSearch";
@@ -84,7 +82,6 @@ import NetBanner from "./components/NetBanner";
 import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
-import AdminConsole from "./pages/Admin";
 import { initBackHandler } from "./lib/back";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
@@ -97,8 +94,22 @@ const Plans = lazy(() => import("./pages/Plans"));
 const Coach = lazy(() => import("./pages/Coach"));
 const Meals = lazy(() => import("./pages/Meals"));
 const ScanResult = lazy(() => import("./pages/ScanResult"));
+const Nutrition = lazy(() => import("./pages/Nutrition"));
+const Diagnostics = lazy(() => import("./pages/Diagnostics"));
+const SmokeKit = lazy(() => import("./pages/SmokeKit"));
+const AdminConsole = lazy(() => import("./pages/Admin"));
 
 const queryClient = new QueryClient();
+
+const PageSuspense = ({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) => (
+  <Suspense fallback={fallback ?? <PageSkeleton />}>{children}</Suspense>
+);
+
+const withPublicLayout = (content: ReactNode, fallback?: ReactNode) => (
+  <PageSuspense fallback={fallback}>
+    <PublicLayout>{content}</PublicLayout>
+  </PageSuspense>
+);
 
 const App = () => {
   useEffect(() => {
@@ -129,33 +140,33 @@ const App = () => {
                   <DemoModeProvider>
                     <OnboardingRedirectMBS>
                       <div id="main-content" role="main">
-                        <Suspense fallback={<PageSkeleton />}>
+                        <Suspense fallback={null}>
                           <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
               element={
                 MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE
-                  ? <PublicLayout><PublicLanding /></PublicLayout>
+                  ? withPublicLayout(<PublicLanding />)
                   : <Index />
               }
             />
             <Route path="/__previewframe/*" element={<PreviewFrame />} />
             <Route path="/demo" element={<DemoGate />} />
             {/* Marketing page */}
-            <Route path="/welcome" element={<PublicLayout><WelcomeRedirect /></PublicLayout>} />
+            <Route path="/welcome" element={withPublicLayout(<WelcomeRedirect />)} />
             {/* Public pages */}
-            <Route path="/privacy" element={<PublicLayout><Privacy /></PublicLayout>} />
-            <Route path="/terms" element={<PublicLayout><Terms /></PublicLayout>} />
-            <Route path="/legal/disclaimer" element={<PublicLayout><Disclaimer /></PublicLayout>} />
-            <Route path="/support" element={<PublicLayout><Support /></PublicLayout>} />
-            <Route path="/help" element={<PublicLayout><Help /></PublicLayout>} />
-            <Route path="/legal/privacy" element={<PublicLayout><LegalPrivacy /></PublicLayout>} />
-            <Route path="/legal/terms" element={<PublicLayout><LegalTerms /></PublicLayout>} />
-            <Route path="/legal/refund" element={<PublicLayout><LegalRefund /></PublicLayout>} />
+            <Route path="/privacy" element={withPublicLayout(<Privacy />)} />
+            <Route path="/terms" element={withPublicLayout(<Terms />)} />
+            <Route path="/legal/disclaimer" element={withPublicLayout(<Disclaimer />)} />
+            <Route path="/support" element={withPublicLayout(<Support />)} />
+            <Route path="/help" element={withPublicLayout(<Help />)} />
+            <Route path="/legal/privacy" element={withPublicLayout(<LegalPrivacy />)} />
+            <Route path="/legal/terms" element={withPublicLayout(<LegalTerms />)} />
+            <Route path="/legal/refund" element={withPublicLayout(<LegalRefund />)} />
             {/* Checkout result pages (public) */}
-            <Route path="/checkout/success" element={<PublicLayout><CheckoutSuccess /></PublicLayout>} />
-            <Route path="/checkout/canceled" element={<PublicLayout><CheckoutCanceled /></PublicLayout>} />
+            <Route path="/checkout/success" element={withPublicLayout(<CheckoutSuccess />)} />
+            <Route path="/checkout/canceled" element={withPublicLayout(<CheckoutCanceled />)} />
             {/* Auth */}
             <Route path="/auth" element={
               <Suspense fallback={<PageSkeleton />}>
@@ -201,7 +212,9 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <DataBoundary page="scan">
-                          <Scan />
+                          <PageSuspense>
+                            <Scan />
+                          </PageSuspense>
                         </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
@@ -217,7 +230,9 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <DataBoundary page="coach">
-                          <Coach />
+                          <PageSuspense>
+                            <Coach />
+                          </PageSuspense>
                         </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
@@ -303,7 +318,9 @@ const App = () => {
                     <AuthedLayout>
                       <RouteBoundary>
                         <DataBoundary page="nutrition">
-                          <Nutrition />
+                          <PageSuspense>
+                            <Nutrition />
+                          </PageSuspense>
                         </DataBoundary>
                       </RouteBoundary>
                     </AuthedLayout>
@@ -360,7 +377,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Meals />
+                        <PageSuspense>
+                          <Meals />
+                        </PageSuspense>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -484,7 +503,9 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <Plans />
+                        <PageSuspense>
+                          <Plans />
+                        </PageSuspense>
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>
@@ -609,20 +630,33 @@ const App = () => {
               }
             />
             <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/scan/:scanId" element={<ProtectedRoute><AuthedLayout><ScanResult /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/scan/:scanId"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <PageSuspense>
+                      <ScanResult />
+                    </PageSuspense>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/scan/tips" element={<ProtectedRoute><AuthedLayout><ScanTips /></AuthedLayout></ProtectedRoute>} />
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/system/check" element={<SystemCheck />} />
-            <Route path="/dev/audit" element={<DevAudit />} />
-            <Route path="/diagnostics" element={<Diagnostics />} />
-            <Route path="/__diag" element={<Diagnostics />} />
+            <Route path="/system/check" element={<PageSuspense><SystemCheck /></PageSuspense>} />
+            <Route path="/dev/audit" element={<PageSuspense><DevAudit /></PageSuspense>} />
+            <Route path="/diagnostics" element={<PageSuspense><Diagnostics /></PageSuspense>} />
+            <Route path="/__diag" element={<PageSuspense><Diagnostics /></PageSuspense>} />
             <Route
               path="/__admin"
               element={
                 <ProtectedRoute>
-                  <AdminConsole />
+                  <PageSuspense>
+                    <AdminConsole />
+                  </PageSuspense>
                 </ProtectedRoute>
               }
             />
@@ -631,9 +665,11 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <AuthedLayout>
-                    <RouteBoundary>
-                      <SmokeKit />
-                    </RouteBoundary>
+                      <RouteBoundary>
+                        <PageSuspense>
+                          <SmokeKit />
+                        </PageSuspense>
+                      </RouteBoundary>
                   </AuthedLayout>
                 </ProtectedRoute>
               }
@@ -645,9 +681,9 @@ const App = () => {
             <Route
               path="/onboarding-mbs"
               element={
-                <Suspense fallback={<PageSkeleton />}>
+                <PageSuspense>
                   <OnboardingMBS />
-                </Suspense>
+                </PageSuspense>
               }
             />
             {/* Friendly not-found route and wildcard */}

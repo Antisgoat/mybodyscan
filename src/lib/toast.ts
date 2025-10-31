@@ -4,14 +4,10 @@ export function toast(message: string, level: ToastLevel = "info"): void {
   if (typeof window === "undefined") return;
   try {
     window.dispatchEvent(new CustomEvent("mbs:toast", { detail: { message, level } }));
-  } catch {
+  } catch (error) {
     if (typeof window !== "undefined") {
-      try {
-        // eslint-disable-next-line no-alert
-        window.alert(message);
-      } catch {
-        // swallow errors to avoid crashing toast calls
-      }
+      // eslint-disable-next-line no-console
+      console.warn("[toast] dispatch failed", error, message);
     }
   }
 }

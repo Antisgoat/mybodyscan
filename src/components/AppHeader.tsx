@@ -4,6 +4,8 @@ import BillingButtons from "./BillingButtons";
 import { useClaims } from "@/lib/claims";
 import { isDemo, startDemo } from "@/lib/demo";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
+import { toast } from "@/hooks/use-toast";
+import { buildErrorToast } from "@/lib/errorToasts";
 
 export type AppHeaderProps = {
   className?: string;
@@ -92,7 +94,11 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
       const result = await startDemo();
       if (!result.ok) {
         const message = "message" in result ? result.message : undefined;
-        window.alert(message ?? exploreError);
+        toast({
+          title: "Demo sign-in failed",
+          description: message ?? exploreError,
+          variant: "destructive",
+        });
         return;
       }
       if (typeof window !== "undefined") {
@@ -101,6 +107,13 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           new CustomEvent("mbs:toast", { detail: { level: "info", message: demoSuccessMessage } })
         );
       }
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Demo sign-in failed", description: exploreError, variant: "destructive" },
+          includeCodeInDev: false,
+        }),
+      );
     } finally {
       setPending(false);
     }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import {
   TelemetryEventRecord,
 } from "@/lib/admin";
 import { APPCHECK_SITE_KEY, STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
+import { buildErrorToast } from "@/lib/errorToasts";
 
 const STAFF_EMAIL_ALLOW = new Set(["developer@adlrlabs.com"]);
 
@@ -116,8 +118,11 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
       await adminGrantCredits(uid, amount);
       await onRefresh();
     } catch (error) {
-      console.error("admin_grant_error", error);
-      alert("Grant failed. Check logs.");
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Grant failed", description: "Check logs.", variant: "destructive" },
+        }),
+      );
     } finally {
       setBusy(null);
     }
@@ -129,8 +134,11 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
       await adminToggleUnlimited(uid, value);
       await onRefresh();
     } catch (error) {
-      console.error("admin_toggle_error", error);
-      alert("Toggle failed.");
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Toggle failed", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     } finally {
       setBusy(null);
     }
@@ -142,8 +150,11 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
       await adminRefreshClaims(uid);
       await onRefresh();
     } catch (error) {
-      console.error("admin_refresh_error", error);
-      alert("Refresh failed.");
+      toast(
+        buildErrorToast(error, {
+          fallback: { title: "Refresh failed", description: "Try again later.", variant: "destructive" },
+        }),
+      );
     } finally {
       setBusy(null);
     }
