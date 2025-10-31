@@ -131,6 +131,7 @@ export async function coachChat(payload: { message: string }, options: { signal?
 }
 
 const NUTRITION_SEARCH_TIMEOUT_MS = 6000;
+let nutritionSearchController: AbortController | null = null;
 
 function normalizeServingOption(raw: any, index: number): ServingOption | null {
   const grams = Number(raw?.grams);
@@ -241,7 +242,12 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
   const query = q?.trim();
   if (!query) return [];
 
+  if (nutritionSearchController) {
+    nutritionSearchController.abort();
+  }
+
   const controller = new AbortController();
+  nutritionSearchController = controller;
   const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
 
   try {
@@ -289,6 +295,9 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
     return payload.items.map(sanitizeFoodItem);
   } finally {
     clearTimeout(timer);
+    if (nutritionSearchController === controller) {
+      nutritionSearchController = null;
+    }
   }
 }
 

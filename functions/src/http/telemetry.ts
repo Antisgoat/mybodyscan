@@ -119,9 +119,9 @@ export const telemetryLog = onRequest({ region: "us-central1" }, async (req: Req
     userAgent: sanitizeString(req.get("user-agent"), 300),
     url: sanitizeString(body.url, 500),
     kind: sanitizeString(body.kind, 100),
-    message: sanitizeString(body.message, 500),
+    message: sanitizeString(body.message, 320),
     code: typeof body.code === "string" || typeof body.code === "number" ? String(body.code).slice(0, 120) : null,
-    stack: sanitizeString(body.stack, 2000),
+    stack: sanitizeString(body.stack, 1200),
     component: sanitizeString(body.component, 120),
     extra: normalizeExtra(body.extra),
     headers: {

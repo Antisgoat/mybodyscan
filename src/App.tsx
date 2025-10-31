@@ -83,6 +83,7 @@ import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
+import UATPage from "./pages/UAT";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -674,6 +675,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+            <Route path="/__uat" element={<UATPage />} />
             <Route path="/debug/credits" element={<DebugCredits />} />
             <Route path="/debug/plan" element={<DebugPlan />} />
             <Route path="/debug/health" element={<DebugHealth />} />

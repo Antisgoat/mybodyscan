@@ -121,6 +121,13 @@
         }
       },
       {
+        "source": "/uat/**",
+        "function": {
+          "functionId": "uatHelper",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/createCheckout",
         "function": {
           "functionId": "createCheckout",
