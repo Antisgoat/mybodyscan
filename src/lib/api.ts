@@ -4,7 +4,7 @@ import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type { Auth, User } from "firebase/auth";
-import { openExternal } from "./links";
+import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
 
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
   return { auth: firebaseAuth, user: firebaseAuth.currentUser };
@@ -352,30 +352,15 @@ export async function startScan(params?: Record<string, unknown>) {
 }
 
 export async function openStripeCheckout(priceId: string) {
-  const r = await authedFetch(`/createCheckout`, {
-    method: "POST",
-    body: JSON.stringify({ priceId }),
-  });
-  const { url } = await r.json();
-  if (url) openExternal(url);
+  await startCheckoutFlow(priceId);
 }
 
 export async function openStripeCheckoutByProduct(productId: string) {
-  const r = await authedFetch(`/createCheckout`, {
-    method: "POST",
-    body: JSON.stringify({ priceId: productId }),
-  });
-  const { url } = await r.json();
-  if (url) openExternal(url);
+  await startCheckoutFlow(productId);
 }
 
 export async function openStripePortal() {
-  const r = await authedFetch(`/createCustomerPortal`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-  const { url } = await r.json();
-  if (url) openExternal(url);
+  await openPaymentsPortal();
 }
 
 async function handleJsonResponse(response: Response) {

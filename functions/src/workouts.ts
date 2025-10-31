@@ -4,7 +4,7 @@ import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 
@@ -136,7 +136,6 @@ async function fetchCurrentPlan(uid: string) {
 }
 
 async function handleGenerate(req: Request, res: Response) {
-  await verifyAppCheckStrict(req as any);
   const uid = await requireAuth(req);
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
@@ -144,14 +143,12 @@ async function handleGenerate(req: Request, res: Response) {
 }
 
 async function handleGetPlan(req: Request, res: Response) {
-  await verifyAppCheckStrict(req as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
 async function handleMarkDone(req: Request, res: Response) {
-  await verifyAppCheckStrict(req as any);
   const uid = await requireAuth(req);
   const body = req.body as {
     planId?: string;
@@ -198,7 +195,6 @@ async function handleMarkDone(req: Request, res: Response) {
 }
 
 async function handleGetWorkouts(req: Request, res: Response) {
-  await verifyAppCheckStrict(req as any);
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
@@ -223,7 +219,6 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
     { invoker: "public" },
     withCors(async (req, res) => {
       try {
-        await verifyAppCheckStrict(req as any);
         await handler(req as unknown as Request, res as unknown as Response);
     } catch (err: any) {
       const code = errorCode(err);
@@ -254,7 +249,6 @@ export const adjustWorkout = onRequest(
   { invoker: "public", region: "us-central1" },
   withCors(async (req: ExpressRequest, res: ExpressResponse) => {
     try {
-      await verifyAppCheckStrict(req as any);
       const uid = await requireAuth(req as any);
       const { dayId, bodyFeel, notes } = (req.body as any) || {};
       if (!uid || !dayId || !bodyFeel) {

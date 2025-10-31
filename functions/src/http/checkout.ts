@@ -353,6 +353,12 @@ function createErrorResponse(svc: "checkout" | "portal", res: Response, status: 
 }
 
 function sendPaymentsDisabled(svc: "checkout" | "portal", res: Response, meta: ErrorMeta): void {
+  logger.error("stripe_config_missing", {
+    service: svc,
+    missing: "STRIPE_SECRET",
+    requestId: meta.requestId ?? null,
+    uid: meta.uid ?? null,
+  });
   res.status(501).json({ error: "payments_disabled", code: "no_secret" });
   logger.error(`${svc}_payments_disabled`, {
     requestId: meta.requestId ?? null,

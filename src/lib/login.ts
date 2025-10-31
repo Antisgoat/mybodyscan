@@ -35,6 +35,11 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
       return { code, message: "Popup was closed before completing sign-in." };
     case "auth/cancelled-popup-request":
       return { code, message: "Another popup was already open. Redirect will continue." };
+    case "auth/unauthorized-domain":
+      return {
+        code,
+        message: "This domain isn't authorized for Firebase Auth. Add it in Firebase Console -> Auth -> Settings -> Authorized domains.",
+      };
     case "auth/invalid-client":
       return { code, message: "Apple credentials invalid. Check Services ID, Key ID, and private key." };
     case "auth/redirect-uri-mismatch":

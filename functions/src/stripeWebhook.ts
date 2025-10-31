@@ -51,7 +51,10 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
     const stripeSecret = getStripeSecret();
     const webhookSecret = getWebhookSecret();
     if (!stripeSecret || !webhookSecret) {
-      logger.error("stripeWebhook_missing_secrets");
+      const missing: string[] = [];
+      if (!stripeSecret) missing.push("STRIPE_SECRET");
+      if (!webhookSecret) missing.push("STRIPE_WEBHOOK");
+      logger.error("stripe_config_missing", { service: "stripeWebhook", missing });
       res.status(500).send("Missing Stripe secrets");
       return;
     }

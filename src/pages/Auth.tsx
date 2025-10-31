@@ -14,7 +14,7 @@ import {
   sendReset,
   useAuthUser,
 } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import { auth, firebaseReady } from "@/lib/firebase";
 import { isProviderEnabled, loadFirebaseAuthClientConfig } from "@/lib/firebaseAuthConfig";
 import {
   appleSignIn,
@@ -27,7 +27,7 @@ import {
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 import { useFlags } from "@/lib/flags";
-import { consumeAuthRedirectError, consumeAuthRedirectResult } from "@/lib/authRedirect";
+import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -85,6 +85,7 @@ const Auth = () => {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      await firebaseReady();
       const result = await consumeAuthRedirectResult();
       if (!cancelled && result) {
         const target = consumeAuthRedirect();
@@ -97,8 +98,23 @@ const Auth = () => {
       const error = await consumeAuthRedirectError();
       if (!cancelled && error) {
         consumeAuthRedirect();
-        const mapped = await describeAuthErrorAsync(auth, error);
-        notify({ title: "Sign in failed", description: formatError(mapped.message, mapped.code) });
+        const friendly = error as FriendlyFirebaseError;
+        const friendlyMessage = friendly.friendlyMessage ?? null;
+        const friendlyCode = friendly.friendlyCode ?? error.code;
+        if (friendlyMessage) {
+          notify({ title: "Sign in failed", description: formatError(friendlyMessage, friendlyCode) });
+        } else {
+          try {
+            const mapped = await describeAuthErrorAsync(auth, error);
+            notify({ title: "Sign in failed", description: formatError(mapped.message, mapped.code ?? friendlyCode) });
+          } catch (err) {
+            if (import.meta.env.DEV) {
+              console.warn("[auth] Unable to map redirect error", err);
+            }
+            const fallback = error.message || "Sign in failed";
+            notify({ title: "Sign in failed", description: formatError(fallback, friendlyCode) });
+          }
+        }
       }
     })();
     return () => {
@@ -133,6 +149,7 @@ const Auth = () => {
   const onGoogle = async () => {
     setLoading(true);
     try {
+      await firebaseReady();
       rememberAuthRedirect(from);
       const result = await googleSignIn(auth);
       if (result.ok === false) {

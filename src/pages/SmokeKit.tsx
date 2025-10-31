@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { auth, functions, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
-import { PRICE_IDS } from "@/lib/payments";
+import { PRICE_IDS, getPaymentFunctionUrl, getPaymentHostingPath, isHostingShimEnabled } from "@/lib/payments";
 import { BUILD } from "@/lib/buildInfo";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
 import { Seo } from "@/components/Seo";
@@ -32,6 +32,7 @@ type HttpProbeResult = {
   error?: string;
   code?: string;
   url?: string;
+  endpoint?: "function" | "hosting";
 };
 
 type AppCheckState = {
@@ -318,27 +319,56 @@ export default function SmokeKit() {
       return;
     }
     setCheckoutProbes((prev) => ({ ...prev, [priceId]: { status: "running" } }));
-    try {
-      const headers = await authedHeaders();
-      const response = await fetch("/createCheckout", {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify({ priceId }),
-      });
-      const json = await response.json().catch(() => ({}));
-      const result: HttpProbeResult = {
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
-        payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
-        code: typeof json?.code === "string" ? json.code : undefined,
-        url: typeof json?.url === "string" ? json.url : undefined,
-      };
-      setCheckoutProbes((prev) => ({ ...prev, [priceId]: result }));
-    } catch (error: any) {
-      setCheckoutProbes((prev) => ({ ...prev, [priceId]: { status: "error", error: error?.message || "checkout_failed" } }));
+    const shimEnabled = isHostingShimEnabled();
+    const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
+      { url: getPaymentFunctionUrl("createCheckout"), kind: "function" },
+    ];
+    if (shimEnabled) {
+      endpoints.push({ url: getPaymentHostingPath("createCheckout"), kind: "hosting" });
     }
+
+    const headers = await authedHeaders();
+    let lastError: unknown = null;
+    let lastKind: "function" | "hosting" | undefined;
+
+    for (const endpoint of endpoints) {
+      lastKind = endpoint.kind;
+      try {
+        const response = await fetch(endpoint.url, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ priceId }),
+        });
+        const json = await response.json().catch(() => ({}));
+        const result: HttpProbeResult = {
+          status: response.ok ? "success" : "error",
+          httpStatus: response.status,
+          payload: json,
+          error: typeof json?.error === "string" ? json.error : undefined,
+          code: typeof json?.code === "string" ? json.code : undefined,
+          url: typeof json?.url === "string" ? json.url : undefined,
+          endpoint: endpoint.kind,
+        };
+        setCheckoutProbes((prev) => ({ ...prev, [priceId]: result }));
+        return;
+      } catch (error) {
+        lastError = error;
+        if (endpoint.kind === "function" && shimEnabled) {
+          continue;
+        }
+        break;
+      }
+    }
+
+    setCheckoutProbes((prev) => ({
+      ...prev,
+      [priceId]: {
+        status: "error",
+        error: (lastError as Error | undefined)?.message || "checkout_failed",
+        endpoint: lastKind,
+      },
+    }));
   }
 
   async function probePortal() {
@@ -348,26 +378,52 @@ export default function SmokeKit() {
       return;
     }
     setPortalProbe({ status: "running" });
-    try {
-      const headers = await authedHeaders();
-      const response = await fetch("/createCustomerPortal", {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify({}),
-      });
-      const json = await response.json().catch(() => ({}));
-      setPortalProbe({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
-        payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
-        code: typeof json?.code === "string" ? json.code : undefined,
-        url: typeof json?.url === "string" ? json.url : undefined,
-      });
-    } catch (error: any) {
-      setPortalProbe({ status: "error", error: error?.message || "portal_failed" });
+    const shimEnabled = isHostingShimEnabled();
+    const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
+      { url: getPaymentFunctionUrl("createCustomerPortal"), kind: "function" },
+    ];
+    if (shimEnabled) {
+      endpoints.push({ url: getPaymentHostingPath("createCustomerPortal"), kind: "hosting" });
     }
+
+    const headers = await authedHeaders();
+    let lastError: unknown = null;
+    let lastKind: "function" | "hosting" | undefined;
+
+    for (const endpoint of endpoints) {
+      lastKind = endpoint.kind;
+      try {
+        const response = await fetch(endpoint.url, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({}),
+        });
+        const json = await response.json().catch(() => ({}));
+        setPortalProbe({
+          status: response.ok ? "success" : "error",
+          httpStatus: response.status,
+          payload: json,
+          error: typeof json?.error === "string" ? json.error : undefined,
+          code: typeof json?.code === "string" ? json.code : undefined,
+          url: typeof json?.url === "string" ? json.url : undefined,
+          endpoint: endpoint.kind,
+        });
+        return;
+      } catch (error) {
+        lastError = error;
+        if (endpoint.kind === "function" && shimEnabled) {
+          continue;
+        }
+        break;
+      }
+    }
+
+    setPortalProbe({
+      status: "error",
+      error: (lastError as Error | undefined)?.message || "portal_failed",
+      endpoint: lastKind,
+    });
   }
 
   async function probeScanStart() {

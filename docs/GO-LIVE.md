@@ -12,7 +12,6 @@ APP_CHECK_ENFORCE_SOFT=true
 OPENAI_API_KEY=*****
 # Optional
 STRIPE_SECRET=*****
-STRIPE_SECRET_KEY=*****
 ```
 
 ## No-Mock Policy
