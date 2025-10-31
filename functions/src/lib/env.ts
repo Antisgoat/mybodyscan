@@ -1,3 +1,5 @@
+import { getStripeSecret as resolveStripeSecret, getWebhookSecret } from "./config.js";
+
 // Hardened environment helpers - all env reads go through these functions
 // to prevent import-time crashes from undefined values
 
@@ -28,20 +30,12 @@ export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT",
 
 export const getOpenAIKey = () => getEnv("OPENAI_API_KEY");
 
-export const getStripeSecret = () =>
-  (getEnv("STRIPE_SECRET") || getEnv("STRIPE_API_KEY") || getEnv("STRIPE_SECRET_KEY") || undefined);
+export const getStripeSecret = () => resolveStripeSecret() ?? undefined;
 
-export const getStripeSigningSecret = () =>
-  (
-    getEnv("STRIPE_WEBHOOK_SECRET") ||
-    getEnv("STRIPE_SIGNING_SECRET") ||
-    getEnv("STRIPE_SIGNATURE") ||
-    getEnv("STRIPE_SECRET_KEY") ||
-    undefined
-  );
+export const getStripeSigningSecret = () => getWebhookSecret() ?? undefined;
 
 export const hasOpenAI = () => Boolean(getOpenAIKey());
-export const hasStripe = () => Boolean(getStripeSecret() && getStripeSigningSecret());
+export const hasStripe = () => Boolean(resolveStripeSecret() && getWebhookSecret());
 
 export function assertStripeConfigured() {
   if (!hasStripe()) throw new Error("stripe_not_configured");

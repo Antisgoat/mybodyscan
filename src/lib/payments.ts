@@ -1,28 +1,47 @@
 import { auth } from "./firebase";
 import { openExternal } from "./links";
 
-export type PlanKey = "one" | "extra" | "pro_monthly" | "elite_annual";
+export type PlanKey =
+  | "one"
+  | "single"
+  | "extra"
+  | "pack3"
+  | "pack5"
+  | "pro_monthly"
+  | "monthly"
+  | "elite_annual"
+  | "annual";
 
 export const PRICE_IDS = {
   ONE_TIME_STARTER: "price_1RuOpKQQU5vuhlNjipfFBsR0",
   EXTRA_ONE_TIME: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
   PRO_MONTHLY: "price_1S4XsVQQU5vuhlNjzdQzeySA",
   ELITE_ANNUAL: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+  PACK3: "price_1RuOr2QQU5vuhlNjcqTckCHL",
+  PACK5: "price_1RuOrkQQU5vuhlNj15ebWfNP",
+  MONTHLY_ALT: "price_1RuOtOQQU5vuhlNjmXnQSsYq",
+  ANNUAL_ALT: "price_1RuOw0QQU5vuhlNjA5NZ66qq",
 } as const;
 
 export const STRIPE_PRICE_IDS = PRICE_IDS;
 
-export const LEGACY_PLAN_PRICE_MAP: Record<PlanKey, string> = {
+const PLAN_PRICE_MAP: Record<PlanKey, string> = {
   one: PRICE_IDS.ONE_TIME_STARTER,
+  single: PRICE_IDS.ONE_TIME_STARTER,
   extra: PRICE_IDS.EXTRA_ONE_TIME,
+  pack3: PRICE_IDS.PACK3,
+  pack5: PRICE_IDS.PACK5,
   pro_monthly: PRICE_IDS.PRO_MONTHLY,
+  monthly: PRICE_IDS.MONTHLY_ALT,
   elite_annual: PRICE_IDS.ELITE_ANNUAL,
+  annual: PRICE_IDS.ANNUAL_ALT,
 };
 
 type ErrorPayload = { error: string; code?: string };
 
 const CHECKOUT_ERROR_COPY: Record<string, string> = {
   stripe_config_missing: "Billing is currently offline. Please try again soon.",
+  no_secret: "Billing is currently offline. Please try again soon.",
   stripe_customer_error: "We couldn't sync your billing details. Contact support if it persists.",
   missing_email: "Add an email to your account before purchasing.",
   invalid_price: "That plan isn't available right now. Refresh and try again.",
@@ -33,6 +52,7 @@ const CHECKOUT_ERROR_COPY: Record<string, string> = {
 const PORTAL_ERROR_COPY: Record<string, string> = {
   no_customer: "Complete a purchase first to access the billing portal.",
   stripe_config_missing: "Billing is currently offline. Try again shortly.",
+  no_secret: "Billing is currently offline. Try again shortly.",
   stripe_customer_error: "We couldn't open the portal. Contact support if the issue continues.",
   auth_required: "Sign in to manage billing.",
 };
@@ -80,7 +100,13 @@ async function postWithAuth(path: string, body: unknown): Promise<any> {
   if (!response.ok) {
     if (data && typeof data === "object") {
       const payload = data as Partial<ErrorPayload>;
-      throw { error: payload.error ?? "unknown_error", code: payload.code };
+      if (import.meta.env.DEV && payload.code) {
+        console.log(`[payments] ${path} error`, payload.code);
+      }
+      throw { error: payload.error ?? "unknown_error", code: payload.code } satisfies ErrorPayload;
+    }
+    if (import.meta.env.DEV) {
+      console.log(`[payments] ${path} error`, "unknown_error");
     }
     throw { error: "unknown_error" } satisfies ErrorPayload;
   }
@@ -94,37 +120,33 @@ type CheckoutOptions = {
 
 type CheckoutInput = string | PlanKey | { priceId?: string | null; plan?: string | null };
 
-function normalizeCheckoutPayload(input: CheckoutInput): Record<string, string> {
+function resolveCheckoutPriceId(input: CheckoutInput): string | null {
   if (typeof input === "string") {
     const trimmed = input.trim();
-    const fromPlan = LEGACY_PLAN_PRICE_MAP[trimmed as PlanKey] ?? "";
-    if (fromPlan) {
-      return { priceId: fromPlan, plan: trimmed };
-    }
-    return trimmed ? { priceId: trimmed } : {};
+    if (!trimmed) return null;
+    const mapped = PLAN_PRICE_MAP[trimmed as PlanKey];
+    return mapped ?? trimmed;
   }
 
   if (typeof input === "object" && input !== null) {
-    const priceId = typeof input.priceId === "string" ? input.priceId.trim() : "";
+    const direct = typeof input.priceId === "string" ? input.priceId.trim() : "";
+    if (direct) return direct;
     const planRaw = typeof input.plan === "string" ? input.plan.trim() : "";
     const plan = planRaw ? planRaw.toLowerCase() : "";
-    const mappedPrice = plan ? LEGACY_PLAN_PRICE_MAP[plan as PlanKey] ?? "" : "";
-    const resolvedPrice = priceId || mappedPrice;
-    const payload: Record<string, string> = {};
-    if (resolvedPrice) payload.priceId = resolvedPrice;
-    if (plan) payload.plan = plan;
-    return payload;
+    if (plan && PLAN_PRICE_MAP[plan as PlanKey]) {
+      return PLAN_PRICE_MAP[plan as PlanKey];
+    }
   }
 
-  return {};
+  return null;
 }
 
 export async function startCheckout(input: CheckoutInput, options?: CheckoutOptions) {
-  const payload = normalizeCheckoutPayload(input);
-  if (!payload.priceId) {
+  const priceId = resolveCheckoutPriceId(input);
+  if (!priceId) {
     throw { error: "invalid_price", code: "invalid_price" } satisfies ErrorPayload;
   }
-  const result = await postWithAuth("/createCheckout", payload);
+  const result = await postWithAuth("/createCheckout", { priceId });
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
     throw { error: "invalid_response" } satisfies ErrorPayload;
