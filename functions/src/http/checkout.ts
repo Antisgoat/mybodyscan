@@ -4,7 +4,7 @@ import Stripe from "stripe";
 
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
 import { requireAuth } from "../http.js";
-import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretParam } from "../lib/config.js";
+import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretKeyParam, stripeSecretParam } from "../lib/config.js";
 
 const db = getFirestore();
 
@@ -717,14 +717,14 @@ async function handleCustomerPortal(req: Request, res: Response) {
 }
 
 export const createCheckout = onRequest(
-  { region: "us-central1", secrets: [stripeSecretParam] },
+  { region: "us-central1", secrets: [stripeSecretParam, stripeSecretKeyParam] },
   (req, res) => {
     void handleCreateCheckout(req as Request, res as Response);
   },
 );
 
 export const createCustomerPortal = onRequest(
-  { region: "us-central1", secrets: [stripeSecretParam] },
+  { region: "us-central1", secrets: [stripeSecretParam, stripeSecretKeyParam] },
   (req, res) => {
     void handleCustomerPortal(req as Request, res as Response);
   },

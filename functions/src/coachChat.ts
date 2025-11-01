@@ -5,7 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { Timestamp, getAuth, getFirestore } from "./firebase.js";
 import { formatCoachReply } from "./coachUtils.js";
 import { ensureRateLimit } from "./http/_middleware.js";
-import { openAiSecretParam } from "./lib/config.js";
+import { openAiSecretParam } from "./openai/keys.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { HttpError, send } from "./util/http.js";
@@ -124,14 +124,24 @@ function handleError(res: Response, error: unknown, uid: string | null, requestI
   }
 
   if (error instanceof OpenAIClientError) {
+    const payload: Record<string, unknown> = { error: error.code };
+    if (error.code === "openai_missing_key") {
+      payload.error = "openai_disabled";
+    } else if (typeof error.message === "string" && error.message.includes("timeout")) {
+      payload.error = "upstream_unavailable";
+    }
     console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
-    send(res, error.status, { error: error.code });
+    send(res, error.code === "openai_missing_key" ? 501 : error.status, payload);
     return;
   }
 
   const message = error instanceof Error ? error.message : String(error);
   console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "openai_failed", ms, err: message });
-  send(res, 502, { error: "openai_failed" });
+  const payload: Record<string, unknown> = { error: "upstream_unavailable" };
+  if (message) {
+    payload.reason = message;
+  }
+  send(res, 502, payload);
 }
 
 export const coachChat = onRequest(

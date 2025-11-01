@@ -1,3 +1,5 @@
+import { getOpenAIKey } from "./keys.js";
+
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 8_000;
 
@@ -13,15 +15,6 @@ export class OpenAIClientError extends Error {
     this.code = code;
     this.status = status;
   }
-}
-
-function resolveOpenAiKey(): string {
-  const envKey = (process.env.OPENAI_API_KEY || "").trim();
-  if (envKey) {
-    return envKey;
-  }
-
-  throw new OpenAIClientError("openai_missing_key", 501);
 }
 
 function buildModelList(candidate?: string): string[] {
@@ -126,7 +119,15 @@ export async function chatOnce(
     throw new OpenAIClientError("openai_failed", 400, "empty_prompt");
   }
 
-  const key = resolveOpenAiKey();
+  let key: string;
+  try {
+    key = getOpenAIKey();
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key") {
+      throw new OpenAIClientError("openai_missing_key", 501);
+    }
+    throw error;
+  }
   const models = buildModelList(opts.model);
   let lastError: OpenAIClientError | Error | null = null;
 
