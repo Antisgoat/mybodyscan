@@ -1,16 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 
 import { Timestamp, getAuth, getFirestore } from "./firebase.js";
 import { formatCoachReply } from "./coachUtils.js";
-import { verifyAppCheck } from "./http.js";
 import { ensureRateLimit } from "./http/_middleware.js";
 import { openAiSecretParam } from "./lib/config.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { HttpError, send } from "./util/http.js";
-import { getAppCheckMode, type AppCheckMode } from "./lib/env.js";
+import { appCheckSoft } from "./middleware/appCheckSoft.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -96,18 +95,6 @@ async function verifyAuthorization(req: Request): Promise<AuthDetails> {
   }
 }
 
-async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
-  try {
-    await verifyAppCheck(req, mode);
-  } catch (error: unknown) {
-    if (error instanceof HttpsError) {
-      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
-      throw new HttpError(401, code);
-    }
-    throw error;
-  }
-}
-
 async function storeMessage(uid: string, text: string, response: string): Promise<void> {
   const colRef = db.collection(coachChatCollectionPath(uid));
   const docRef = await colRef.add({
@@ -160,8 +147,7 @@ export const coachChat = onRequest(
     let uid: string | null = null;
 
     try {
-      const appCheckMode = getAppCheckMode();
-      await ensureAppCheck(req, appCheckMode);
+      appCheckSoft(req, res, () => undefined);
 
       if (req.method !== "POST") {
         throw new HttpError(405, "method_not_allowed");

@@ -1,12 +1,12 @@
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 
 import { getAuth } from "./firebase.js";
-import { verifyAppCheck } from "./http.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { getAppCheckMode, getEnv, type AppCheckMode } from "./lib/env.js";
+import { getEnv } from "./lib/env.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
+import { appCheckSoft } from "./middleware/appCheckSoft.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
@@ -52,18 +52,6 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
 
     console.warn("nutrition_barcode.auth_failed", { message });
     throw new HttpError(401, "unauthorized", "invalid_token");
-  }
-}
-
-async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
-  try {
-    await verifyAppCheck(req, mode);
-  } catch (error) {
-    if (error instanceof HttpsError) {
-      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
-      throw new HttpError(401, code);
-    }
-    throw error;
   }
 }
 
@@ -191,8 +179,7 @@ export const nutritionBarcode = onRequest(
     }
 
     try {
-      const appCheckMode = getAppCheckMode();
-      await ensureAppCheck(req, appCheckMode);
+      appCheckSoft(req, res, () => undefined);
 
       if (req.method !== "GET" && req.method !== "POST") {
         res.setHeader("Allow", "GET,POST,OPTIONS");
