@@ -153,6 +153,8 @@ async function init(): Promise<void> {
 
   const cfg = configFromEnv();
 
+  console.log("[firebase] runtime init.json:", { projectId: cfg.projectId, authDomain: cfg.authDomain, apiKey: cfg.apiKey ? "***" : "missing" });
+
   configInstance = cfg;
   appInstance = initializeApp(cfg);
   authInstance = ensureAuth(appInstance);
