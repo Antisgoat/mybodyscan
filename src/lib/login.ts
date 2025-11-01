@@ -7,7 +7,6 @@ import {
   signInWithPopup,
   signInWithRedirect,
 } from "firebase/auth";
-import { popupThenRedirect } from "./popupThenRedirect";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { isCapacitor, isIOSWebView, isInAppBrowser } from "./platform";
 import { toast } from "./toast";
@@ -122,17 +121,47 @@ export async function googleSignInWithFirebase() {
 }
 
 export async function appleSignIn() {
+  await firebaseReady();
+  const auth = getFirebaseAuth();
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
+
+  const startRedirect = async () => {
+    try {
+      await signInWithRedirect(auth, provider);
+      return { ok: true as const };
+    } catch (error) {
+      debugAuthFailure(error);
+      const mapped = await describeAuthErrorAsync(auth, error);
+      return { ok: false as const, code: mapped.code, message: mapped.message };
+    }
+  };
+
+  if (isIOSSafari()) {
+    return startRedirect();
+  }
+
   try {
-    await firebaseReady();
-    const auth = getFirebaseAuth();
-    const provider = new OAuthProvider("apple.com");
-    provider.addScope("email");
-    provider.addScope("name");
-    await popupThenRedirect(auth, provider);
+    await signInWithPopup(auth, provider);
     return { ok: true as const };
-  } catch (e) {
-    const m = describeAuthError(e);
-    return { ok: false as const, code: m.code, message: m.message };
+  } catch (error: unknown) {
+    const code = getErrorCode(error);
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/cancelled-popup-request" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/internal-error" ||
+      code === "auth/web-storage-unsupported" ||
+      code === "auth/operation-not-supported-in-this-environment"
+    ) {
+      debugAuthFailure(error);
+      return startRedirect();
+    }
+
+    debugAuthFailure(error);
+    const mapped = await describeAuthErrorAsync(auth, error);
+    return { ok: false as const, code: mapped.code, message: mapped.message };
   }
 }
 

@@ -5,7 +5,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
-import { firebaseReady } from "./lib/firebase";
+import { firebaseReady, logFirebaseRuntimeInfo } from "./lib/firebase";
 import { handleAuthRedirectOnce } from "./lib/authRedirect";
 import { initTelemetry } from "./lib/telemetry";
 
@@ -31,6 +31,7 @@ if (typeof window !== "undefined") {
 
 void (async () => {
   await firebaseReady();
+  logFirebaseRuntimeInfo();
 
   void probeFirebaseRuntime();
 

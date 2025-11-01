@@ -14,6 +14,7 @@ const FETCH_TIMEOUT_MS = 8000;
 interface CacheEntry {
   expires: number;
   value: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null;
+  source: "Open Food Facts" | "USDA";
 }
 
 const cache = new Map<string, CacheEntry>();
@@ -195,6 +196,9 @@ export const nutritionBarcode = onRequest(
 
       const auth = await verifyAuthorization(req);
       const uid = auth.uid;
+      if (!uid) {
+        throw new HttpError(401, "unauthorized");
+      }
 
       const rateLimit = await ensureRateLimit({
         key: "nutrition_barcode",
@@ -220,10 +224,12 @@ export const nutritionBarcode = onRequest(
       const cached = cache.get(code);
       if (cached && cached.expires > now) {
         if (!cached.value) {
-          send(res, 404, { error: "not_found", cached: true });
+          const cachedSource = cached.source === "USDA" ? "USDA" : "OFF";
+          send(res, 200, { results: [], source: cachedSource, message: "no_results", cached: true });
           return;
         }
-        send(res, 200, { item: cached.value.item, code, source: cached.value.source, cached: true });
+        const cachedSource = cached.value.source === "USDA" ? "USDA" : "OFF";
+        send(res, 200, { results: [cached.value.item], source: cachedSource, cached: true });
         return;
       }
 
@@ -232,17 +238,17 @@ export const nutritionBarcode = onRequest(
       let result = offOutcome.result;
       let usdaOutcome: ProviderOutcome | null = null;
 
-      if (!result) {
-        const apiKey = getEnv("USDA_FDC_API_KEY");
-        if (apiKey) {
-          usdaOutcome = await runSafe("nutrition_barcode_usda", () => fetchUsdaByBarcode(apiKey, code));
-          result = usdaOutcome.result;
-        }
+      const apiKey = getEnv("USDA_FDC_API_KEY");
+
+      if (!result && apiKey) {
+        usdaOutcome = await runSafe("nutrition_barcode_usda", () => fetchUsdaByBarcode(apiKey, code));
+        result = usdaOutcome.result;
       }
 
       if (result) {
-        cache.set(code, { value: result, expires: now + CACHE_TTL });
-        send(res, 200, { item: result.item, code, source: result.source, cached: false });
+        cache.set(code, { value: result, source: result.source, expires: now + CACHE_TTL });
+        const normalizedSource = result.source === "USDA" ? "USDA" : "OFF";
+        send(res, 200, { results: [result.item], source: normalizedSource, cached: false });
         return;
       }
 
@@ -251,8 +257,14 @@ export const nutritionBarcode = onRequest(
         throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
       }
 
-      cache.set(code, { value: null, expires: now + CACHE_TTL });
-      send(res, 404, { error: "not_found", cached: false });
+      const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
+      cache.set(code, { value: null, source: fallbackSource, expires: now + CACHE_TTL });
+      send(res, 200, {
+        results: [],
+        source: fallbackSource === "USDA" ? "USDA" : "OFF",
+        message: "no_results",
+        cached: false,
+      });
     } catch (error) {
       handleError(res, error);
     }

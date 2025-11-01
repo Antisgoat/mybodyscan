@@ -6,12 +6,21 @@ import { OAuthProvider } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
 
+type ProviderStatus = {
+  google: boolean;
+  apple: boolean;
+  email: boolean;
+};
+
 type HealthResponse = {
-  hasOpenAI: boolean;
-  model: string | null;
-  hasStripe: boolean;
-  appCheckSoft: boolean;
+  stripeSecretPresent: boolean;
+  openaiKeyPresent: boolean;
+  identityToolkitReachable: boolean;
+  identityToolkitReason?: string;
+  appCheckMode: "disabled" | "soft" | "strict";
   host: string | null;
+  timestamp: string;
+  authProviders?: ProviderStatus | { unknown: true };
 };
 
 function formatHost(host: string | null | undefined) {
@@ -38,7 +47,7 @@ export default function SystemCheck() {
     async function load() {
       try {
         setLoading(true);
-        const response = await fetch("/system/health", {
+        const response = await fetch("/systemHealth", {
           method: "GET",
           credentials: "include",
           signal: controller.signal,
@@ -49,6 +58,11 @@ export default function SystemCheck() {
         const payload = (await response.json()) as HealthResponse;
         if (cancelled) return;
         setStatus(payload);
+        const providers = payload.authProviders;
+        if (providers && !("unknown" in providers)) {
+          setAppleLikelyEnabled(providers.apple);
+          setGoogleEnabled(providers.google);
+        }
         setHealthJson(JSON.stringify(payload, null, 2));
         setError(null);
       } catch (err: any) {
@@ -92,42 +106,66 @@ export default function SystemCheck() {
       (import.meta as any)?.env?.VITE_FORCE_APPLE_BUTTON === "true" ||
       (import.meta as any)?.env?.VITE_SHOW_APPLE_WEB === "true";
 
+    if (status?.authProviders && !("unknown" in status.authProviders)) {
+      if (!cancelled) {
+        setAppleLikelyEnabled(status.authProviders.apple || envAppleEnabled);
+        setGoogleEnabled(status.authProviders.google);
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
+
     loadFirebaseAuthClientConfig()
       .then((config) => {
         if (cancelled) return;
         const enabled = isProviderEnabled("apple.com", config);
         setAppleLikelyEnabled(enabled || envAppleEnabled);
+        setGoogleEnabled(isProviderEnabled("google.com", config));
       })
       .catch(() => {
         if (cancelled) return;
         setAppleLikelyEnabled(envAppleEnabled || null);
+        setGoogleEnabled(null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [status?.authProviders]);
 
   const openAiBadge = status
-    ? status.hasOpenAI
+    ? status.openaiKeyPresent
       ? "Configured"
-      : "Missing (scans disabled)"
+      : "Missing"
     : loading
     ? "Checking…"
     : "Unknown";
 
   const stripeBadge = status
-    ? status.hasStripe
+    ? status.stripeSecretPresent
       ? "Configured"
-      : "Disabled (501)"
+      : "Disabled"
     : loading
     ? "Checking…"
     : "Unknown";
 
   const appCheckBadge = status
-    ? status.appCheckSoft
-      ? "Soft"
-      : "Strict"
+    ? status.appCheckMode === "disabled"
+      ? "Disabled"
+      : status.appCheckMode === "soft"
+        ? "Soft"
+        : "Strict"
+    : loading
+    ? "Checking…"
+    : "Unknown";
+
+  const identityBadge = status
+    ? status.identityToolkitReachable
+      ? "Reachable"
+      : status.identityToolkitReason === "no_client_key"
+        ? "API key missing"
+        : "Unavailable"
     : loading
     ? "Checking…"
     : "Unknown";
@@ -181,15 +219,15 @@ export default function SystemCheck() {
                 <CardTitle>OpenAI</CardTitle>
                 <CardDescription>Vision API access for scan processing.</CardDescription>
               </div>
-              <Badge variant={status ? (status.hasOpenAI ? "default" : "destructive") : "outline"}>
+              <Badge variant={status ? (status.openaiKeyPresent ? "default" : "destructive") : "outline"}>
                 {openAiBadge}
               </Badge>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {status?.hasOpenAI
-                  ? `OPENAI_API_KEY detected. Scans will use ${status?.model || "gpt-4o-mini"}.`
-                  : "Set OPENAI_API_KEY as a Firebase Functions variable before enabling scans."}
+                {status?.openaiKeyPresent
+                  ? "OPENAI_API_KEY detected. Coach replies and scan summaries are allowed."
+                  : "OPENAI_API_KEY missing. Coach chat will return a friendly unavailable error."}
               </p>
             </CardContent>
           </Card>
@@ -199,15 +237,15 @@ export default function SystemCheck() {
                 <CardTitle>Stripe</CardTitle>
                 <CardDescription>Payments remain optional.</CardDescription>
               </div>
-              <Badge variant={status ? (status.hasStripe ? "default" : "secondary") : "outline"}>
+              <Badge variant={status ? (status.stripeSecretPresent ? "default" : "secondary") : "outline"}>
                 {stripeBadge}
               </Badge>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {status?.hasStripe
-                  ? "Stripe keys detected. Payment endpoints will be enabled."
-                  : "Without Stripe keys, payment endpoints respond with HTTP 501."}
+                {status?.stripeSecretPresent
+                  ? "Stripe secret detected. Checkout endpoints are live."
+                  : "Missing Stripe secret. Checkout will respond with HTTP 501 (payments_disabled)."}
               </p>
             </CardContent>
           </Card>
@@ -217,22 +255,52 @@ export default function SystemCheck() {
                 <CardTitle>App Check</CardTitle>
                 <CardDescription>Enforcement mode for browser clients.</CardDescription>
               </div>
-              <Badge variant={status ? (status.appCheckSoft ? "default" : "secondary") : "outline"}>
+              <Badge
+                variant={status
+                  ? status.appCheckMode === "strict"
+                    ? "secondary"
+                    : status.appCheckMode === "soft"
+                      ? "default"
+                      : "outline"
+                  : "outline"}
+              >
                 {appCheckBadge}
               </Badge>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {status?.appCheckSoft
-                  ? "Soft enforcement: requests log warnings but are allowed."
-                  : "Strict enforcement: invalid App Check tokens receive HTTP 403."}
+                {status
+                  ? status.appCheckMode === "disabled"
+                    ? "App Check disabled: tokens are optional in this environment."
+                    : status.appCheckMode === "soft"
+                      ? "Soft enforcement: requests log warnings but are allowed."
+                      : "Strict enforcement: invalid App Check tokens receive HTTP 403."
+                  : "Checking…"}
               </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Identity Toolkit</CardTitle>
+                <CardDescription>Firebase Auth REST availability.</CardDescription>
+              </div>
+              <Badge variant={status ? (status.identityToolkitReachable ? "default" : "destructive") : "outline"}>
+                {identityBadge}
+              </Badge>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-1">
+              <div>
+                {status?.identityToolkitReachable
+                  ? "Server-side probe succeeded."
+                  : `Probe failed${status?.identityToolkitReason ? ` (${status.identityToolkitReason})` : ""}.`}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>Health JSON</CardTitle>
-              <CardDescription>Raw payload from GET /system/health</CardDescription>
+              <CardDescription>Raw payload from GET /systemHealth</CardDescription>
             </CardHeader>
             <CardContent>
               <pre className="overflow-auto rounded-md border bg-muted p-3 text-xs leading-relaxed">
@@ -245,11 +313,16 @@ export default function SystemCheck() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Firebase Auth Providers</CardTitle>
-                <CardDescription>Detect Apple provider and client capability.</CardDescription>
+                <CardDescription>Console-detected providers and client hints.</CardDescription>
               </div>
-              <Badge variant={appleLikelyEnabled ? "default" : appleLikelyEnabled === false ? "secondary" : "outline"}>
-                {appleLikelyEnabled === null ? "Unknown" : appleLikelyEnabled ? "Apple likely enabled" : "Apple likely disabled"}
-              </Badge>
+              <div className="flex gap-2">
+                <Badge variant={appleLikelyEnabled ? "default" : appleLikelyEnabled === false ? "secondary" : "outline"}>
+                  {appleLikelyEnabled === null ? "Apple ?" : appleLikelyEnabled ? "Apple on" : "Apple off"}
+                </Badge>
+                <Badge variant={googleEnabled ? "default" : googleEnabled === false ? "secondary" : "outline"}>
+                  {googleEnabled === null ? "Google ?" : googleEnabled ? "Google on" : "Google off"}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
               <div>
@@ -305,6 +378,14 @@ export default function SystemCheck() {
             <CardContent>
               <p className="text-sm">
                 <span className="font-medium">Host:</span> {status ? formatHost(status.host) : loading ? "Checking…" : "Unknown"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Last check:</span>{" "}
+                {status?.timestamp
+                  ? new Date(status.timestamp).toLocaleString()
+                  : loading
+                  ? "Checking…"
+                  : "Unknown"}
               </p>
             </CardContent>
           </Card>

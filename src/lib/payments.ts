@@ -63,15 +63,22 @@ export type PlanKey =
   | "elite_annual"
   | "annual";
 
+const envPrices = import.meta.env as Record<string, string | undefined>;
+
+const getPriceEnv = (key: string): string => {
+  const value = envPrices[key];
+  return typeof value === "string" ? value.trim() : "";
+};
+
 export const PRICE_IDS = {
-  ONE_TIME_STARTER: "price_1RuOpKQQU5vuhlNjipfFBsR0",
-  EXTRA_ONE_TIME: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
-  PRO_MONTHLY: "price_1S4XsVQQU5vuhlNjzdQzeySA",
-  ELITE_ANNUAL: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
-  PACK3: "price_1RuOr2QQU5vuhlNjcqTckCHL",
-  PACK5: "price_1RuOrkQQU5vuhlNj15ebWfNP",
-  MONTHLY_ALT: "price_1RuOtOQQU5vuhlNjmXnQSsYq",
-  ANNUAL_ALT: "price_1RuOw0QQU5vuhlNjA5NZ66qq",
+  ONE_TIME_STARTER: getPriceEnv("VITE_PRICE_STARTER"),
+  EXTRA_ONE_TIME: getPriceEnv("VITE_PRICE_EXTRA"),
+  PRO_MONTHLY: getPriceEnv("VITE_PRICE_MONTHLY"),
+  ELITE_ANNUAL: getPriceEnv("VITE_PRICE_YEARLY"),
+  PACK3: getPriceEnv("VITE_PRICE_PACK3"),
+  PACK5: getPriceEnv("VITE_PRICE_PACK5"),
+  MONTHLY_ALT: getPriceEnv("VITE_PRICE_MONTHLY_ALT"),
+  ANNUAL_ALT: getPriceEnv("VITE_PRICE_ANNUAL_ALT"),
 } as const;
 
 export const STRIPE_PRICE_IDS = PRICE_IDS;
@@ -83,9 +90,9 @@ const PLAN_PRICE_MAP: Record<PlanKey, string> = {
   pack3: PRICE_IDS.PACK3,
   pack5: PRICE_IDS.PACK5,
   pro_monthly: PRICE_IDS.PRO_MONTHLY,
-  monthly: PRICE_IDS.MONTHLY_ALT,
+  monthly: PRICE_IDS.MONTHLY_ALT || PRICE_IDS.PRO_MONTHLY,
   elite_annual: PRICE_IDS.ELITE_ANNUAL,
-  annual: PRICE_IDS.ANNUAL_ALT,
+  annual: PRICE_IDS.ANNUAL_ALT || PRICE_IDS.ELITE_ANNUAL,
 };
 
 const CHECKOUT_ERROR_COPY: Record<string, string> = {

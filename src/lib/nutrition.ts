@@ -1,9 +1,16 @@
 import { USDA_API_KEY, OFF_ENABLED } from "./flags";
+import { nutritionSearch as requestNutritionSearch, nutritionBarcodeLookup as requestNutritionBarcode } from "./api";
 import { netError } from "./net";
 
 type RequestOptions = {
   signal?: AbortSignal;
   timeoutMs?: number;
+};
+
+type BackendNutritionResponse = {
+  results?: unknown[];
+  source?: string;
+  message?: string;
 };
 
 function isAbortError(error: unknown): boolean {
@@ -244,97 +251,90 @@ function extractOffMacros(p: any): { calories?: number; protein?: number; fat?: 
 
 /* ------------------ Public API ------------------ */
 
-/** Search foods by free text. Tries USDA first; if empty/error, tries OFF. Cached 5m. */
+/** Search foods by free text via backend function. Cached 5m. */
 export async function searchFoods(q: string, options: RequestOptions = {}): Promise<SearchResult> {
-  const key = `search:${q.toLowerCase()}`;
-  const cached = cacheGet<SearchResult>(key);
+  const cacheKey = `search:${q.toLowerCase()}`;
+  const cached = cacheGet<SearchResult>(cacheKey);
   if (cached) return cached;
 
-  const statusParts: string[] = [];
-  let items: FoodItem[] = [];
-
-  if (!USDA_API_KEY && !OFF_ENABLED) {
-    statusParts.push("Nutrition lookups unavailable. Add an API key in settings.");
+  const trimmed = q.trim();
+  if (!trimmed) {
+    const empty: SearchResult = { items: [], status: "Enter a search term to begin." };
+    cacheSet(cacheKey, empty);
+    return empty;
   }
 
-  if (USDA_API_KEY) {
-    statusParts.push("Searching USDA…");
-    try {
-      items = await usdaSearch(q, options);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      netError("Nutrition request failed.");
+  let payload: BackendNutritionResponse | undefined;
+  try {
+    payload = await requestNutritionSearch(trimmed, { signal: options.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if ((error as { code?: string } | undefined)?.code === "auth_required") {
+      throw error;
     }
+    netError("Nutrition request failed.");
+    payload = { results: [] };
   }
 
-  if (items.length === 0 && OFF_ENABLED) {
-    statusParts.push("Trying Open Food Facts…");
-    try {
-      items = await offSearch(q, options);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      netError("Nutrition request failed.");
-    }
-  }
+  const items = Array.isArray(payload?.results)
+    ? (payload!.results as unknown[]).map(sanitizeFoodItem)
+    : [];
 
-  if (items.length === 0) {
-    statusParts.push('No results. Try "chicken breast" or a known barcode.');
-  }
+  const statusMessage = payload?.message === "no_results"
+    ? 'No results. Try "chicken breast" or a known barcode.'
+    : payload?.source
+      ? `Source: ${payload.source}`
+      : items.length
+        ? "Done."
+        : "No results.";
 
-  const res: SearchResult = { items, status: statusParts.join(" ") || "Done." };
+  const result: SearchResult = { items, status: statusMessage };
   if (!options.signal?.aborted) {
-    cacheSet(key, res);
+    cacheSet(cacheKey, result);
   }
-  return res;
+  return result;
 }
 
-/** Lookup by barcode (GTIN/UPC/EAN). Tries USDA GTIN then OFF. Cached 5m. */
+/** Lookup by barcode (GTIN/UPC/EAN) via backend function. Cached 5m. */
 export async function lookupBarcode(code: string, options: RequestOptions = {}): Promise<SearchResult> {
-  const key = `barcode:${code}`;
-  const cached = cacheGet<SearchResult>(key);
+  const cacheKey = `barcode:${code}`;
+  const cached = cacheGet<SearchResult>(cacheKey);
   if (cached) return cached;
 
-  const statusParts: string[] = [];
-  let item: FoodItem | null = null;
-  const requestOptions: RequestOptions = {
-    signal: options.signal,
-    timeoutMs: options.timeoutMs ?? BARCODE_TIMEOUT_MS,
-  };
-
-  if (!USDA_API_KEY && !OFF_ENABLED) {
-    statusParts.push("Nutrition lookups unavailable. Add an API key in settings.");
+  const trimmed = code.trim();
+  if (!trimmed) {
+    const empty: SearchResult = { items: [], status: "Enter a barcode to search." };
+    cacheSet(cacheKey, empty);
+    return empty;
   }
 
-  if (USDA_API_KEY) {
-    statusParts.push("Looking up in USDA…");
-    try {
-      item = await usdaGtin(code, requestOptions);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      netError("Nutrition request failed.");
+  let payload: BackendNutritionResponse | undefined;
+  try {
+    payload = await requestNutritionBarcode(trimmed, { signal: options.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if ((error as { code?: string } | undefined)?.code === "auth_required") {
+      throw error;
     }
+    netError("Nutrition request failed.");
+    payload = { results: [] };
   }
 
-  if (!item && OFF_ENABLED) {
-    statusParts.push("Trying Open Food Facts…");
-    try {
-      item = await offBarcode(code, requestOptions);
-    } catch (error) {
-      if (isAbortError(error)) throw error;
-      netError("Nutrition request failed.");
-    }
-  }
+  const items = Array.isArray(payload?.results)
+    ? (payload!.results as unknown[]).map(sanitizeFoodItem)
+    : [];
 
-  const statusPartsWithResult = [
-    ...statusParts,
-    item ? "Found." : "No match found. Try again or scan barcode 737628064502.",
-  ];
-  const res: SearchResult = {
-    items: item ? [item] : [],
-    status: statusPartsWithResult.join(" ") || "Done.",
-  };
+  const statusMessage = payload?.message === "no_results"
+    ? "No barcode match found."
+    : payload?.source
+      ? `Source: ${payload.source}`
+      : items.length
+        ? "Found."
+        : "No barcode match found.";
+
+  const result: SearchResult = { items, status: statusMessage };
   if (!options.signal?.aborted) {
-    cacheSet(key, res);
+    cacheSet(cacheKey, result);
   }
-  return res;
+  return result;
 }

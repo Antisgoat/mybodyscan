@@ -14,14 +14,24 @@ export default function Plans() {
   const { t } = useI18n();
   const handleCheckout = async (plan: { plan: string; priceId: string }) => {
     try {
+      if (!plan.priceId) {
+        toast({
+          title: "Plan unavailable",
+          description: "This plan is not configured yet.",
+          variant: "destructive",
+        });
+        return;
+      }
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
       await startCheckout({ plan: plan.plan, priceId: plan.priceId });
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
-      const message = describeCheckoutError(code);
+      const message = code === "payments_disabled"
+        ? "Billing temporarily unavailable; try again later."
+        : describeCheckoutError(code);
       const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
-        title: "Checkout unavailable",
+        title: code === "payments_disabled" ? "Billing offline" : "Checkout unavailable",
         description,
         variant: "destructive",
       });
@@ -172,6 +182,7 @@ export default function Plans() {
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
                   onClick={() => handleCheckout(plan)}
+                  disabled={!plan.priceId}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>

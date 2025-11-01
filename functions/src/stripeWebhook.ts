@@ -6,7 +6,7 @@ import Stripe from "stripe";
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
 import { getWebhookSecret, stripeSecretParam, stripeWebhookSecretParam } from "./lib/config.js";
-import { getStripeKey } from "./stripe/config.js";
+import { getStripeSecret, PaymentsDisabledError } from "./stripe/config.js";
 import { runUserOperation } from "./lib/ops.js";
 
 const db = getFirestore();
@@ -49,8 +49,17 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
       return;
     }
 
-    const stripeSecretResult = getStripeKey();
-    const stripeSecret = stripeSecretResult.present ? stripeSecretResult.value : null;
+    let stripeSecret: string | null = null;
+    try {
+      stripeSecret = getStripeSecret();
+    } catch (error) {
+      if (error instanceof PaymentsDisabledError || (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled")) {
+        stripeSecret = null;
+      } else {
+        throw error;
+      }
+    }
+
     const webhookSecret = getWebhookSecret();
     if (!stripeSecret || !webhookSecret) {
       const missing: string[] = [];

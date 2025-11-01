@@ -556,10 +556,13 @@ export const nutritionSearch = onRequest(
 
       const auth = await verifyAuthorization(req);
       const uid = auth.uid;
+      if (!uid) {
+        throw new HttpError(401, "unauthorized");
+      }
 
       const query = String(req.query?.q ?? req.query?.query ?? "").trim();
       if (!query) {
-        send(res, 200, { results: [], status: "no_results" });
+        send(res, 200, { results: [], source: "USDA", message: "no_results" });
         return;
       }
 
@@ -583,9 +586,16 @@ export const nutritionSearch = onRequest(
       const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query));
 
       const merged = [...usdaResult.items, ...offResult.items];
+      const preferredSource: "USDA" | "OFF" = usdaResult.items.length > 0
+        ? "USDA"
+        : offResult.items.length > 0
+          ? "OFF"
+          : apiKey
+            ? "USDA"
+            : "OFF";
 
       if (merged.length > 0) {
-        send(res, 200, { results: merged, status: "ok" });
+        send(res, 200, { results: merged, source: preferredSource });
         return;
       }
 
@@ -594,7 +604,7 @@ export const nutritionSearch = onRequest(
         throw pickError(errors);
       }
 
-      send(res, 200, { results: [], status: "no_results" });
+      send(res, 200, { results: [], source: preferredSource, message: "no_results" });
     } catch (error) {
       handleError(res, error);
     }
