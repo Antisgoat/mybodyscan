@@ -20,6 +20,13 @@ const CHECKOUT_OPTIONS = {
   secrets: [stripeSecretParam, stripeSecretKeyParam],
 };
 
+const CHECKOUT_ALLOWED_ORIGINS = [
+  "https://mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+] as const;
+
+const CHECKOUT_ALLOWED_ORIGIN_SET = new Set(CHECKOUT_ALLOWED_ORIGINS);
+
 function extractBearerToken(req: Request): string {
   const header = req.get("authorization") || req.get("Authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -162,6 +169,11 @@ export const createCheckout = onRequest(
     }
 
     try {
+      const origin = req.headers.origin as string | undefined;
+      if (origin && !CHECKOUT_ALLOWED_ORIGIN_SET.has(origin)) {
+        throw new HttpError(403, "origin_not_allowed");
+      }
+
       const appCheckMode = getAppCheckMode();
       await ensureAppCheck(req, appCheckMode);
 
@@ -221,5 +233,5 @@ export const createCheckout = onRequest(
     } catch (error) {
       handleError(res, error);
     }
-  })
+  }, { allowedOrigins: CHECKOUT_ALLOWED_ORIGINS })
 );
