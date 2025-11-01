@@ -1,12 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 import { toast } from "../lib/toast";
-import {
-  emailPasswordSignIn,
-  googleSignIn,
-  appleSignIn,
-  describeAuthErrorAsync,
-} from "../lib/login";
+import { emailPasswordSignIn, describeAuthErrorAsync } from "../lib/login";
 import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
 import {
   consumeAuthRedirect,
@@ -16,7 +11,8 @@ import {
   consumeAuthRedirectResult,
   type FriendlyFirebaseError,
 } from "../lib/authRedirect";
-import { SocialButtons } from "../components/SocialButtons";
+import { SocialButtons } from "../auth/components/SocialButtons";
+import type { NormalizedAuthError } from "../lib/login";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -83,39 +79,6 @@ export default function Login() {
     }
   }
 
-  async function onGoogle() {
-    setBusy(true);
-    try {
-      await firebaseReady();
-      const auth = getFirebaseAuth();
-      const r = await googleSignIn(auth);
-      if (!r.ok) {
-        const show = formatError(r.message, r.code);
-        toast(show, "error");
-      }
-    } catch (err) {
-      const normalized = normalizeFirebaseError(err);
-      toast(formatError(normalized.message ?? "Google sign-in failed.", normalized.code), "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onApple() {
-    setBusy(true);
-    try {
-      const r = await appleSignIn();
-      if (!r.ok) {
-        toast(formatError(r.message ?? "Apple sign-in failed.", r.code), "error");
-      }
-    } catch (err) {
-      const normalized = normalizeFirebaseError(err);
-      toast(formatError(normalized.message ?? "Apple sign-in failed.", normalized.code), "error");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div style={wrap}>
       <h1 style={h1}>Sign in</h1>
@@ -157,26 +120,36 @@ export default function Login() {
       <SocialButtons
         loading={busy}
         style={providers}
-        renderGoogle={({ loading }) => (
+        onBusyChange={setBusy}
+        onSignInSuccess={() => {
+          const target = consumeAuthRedirect();
+          if (target) {
+            window.location.replace(target);
+          }
+        }}
+        onSignInError={(_provider, error: NormalizedAuthError) => {
+          toast(formatError(error.message, error.code), "error");
+        }}
+        renderGoogle={({ loading, disabled, onClick }) => (
           <button
             type="button"
-            onClick={() => void onGoogle()}
-            disabled={loading}
+            onClick={onClick}
+            disabled={disabled}
             style={btn}
             aria-label="Continue with Google"
           >
-            Continue with Google
+            {loading ? "Continuing…" : "Continue with Google"}
           </button>
         )}
-        renderApple={({ loading }) => (
+        renderApple={({ loading, disabled, onClick }) => (
           <button
             type="button"
-            onClick={() => void onApple()}
-            disabled={loading}
+            onClick={onClick}
+            disabled={disabled}
             style={btn}
             aria-label="Continue with Apple"
           >
-            Continue with Apple
+            {loading ? "Continuing…" : "Continue with Apple"}
           </button>
         )}
       />

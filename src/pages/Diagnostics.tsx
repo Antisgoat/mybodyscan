@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
 import { auth, firebaseApiKey } from "../lib/firebase";
+import { checkIdentityToolkitReachability, type IdentityToolkitStatus } from "@/utils/idtoolkit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,8 @@ export default function Diagnostics() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [clientIdentityToolkitStatus, setClientIdentityToolkitStatus] =
+    useState<IdentityToolkitStatus | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (current) => {
@@ -48,6 +51,31 @@ export default function Diagnostics() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    void checkIdentityToolkitReachability(firebaseApiKey, { signal: controller.signal })
+      .then((result) => {
+        if (!cancelled) {
+          setClientIdentityToolkitStatus(result);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err && typeof err === "object" && "name" in err && (err as { name?: string }).name === "AbortError") {
+          return;
+        }
+        const message = err instanceof Error && err.message ? err.message : "network_error";
+        setClientIdentityToolkitStatus({ reachable: false, reason: message });
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [firebaseApiKey]);
 
   const fetchHealth = useCallback(async () => {
     setLoading(true);
@@ -96,12 +124,17 @@ export default function Diagnostics() {
     return `${key.slice(0, 6)}…${key.slice(-4)}`;
   }, []);
 
+  const identityToolkitOk = clientIdentityToolkitStatus?.reachable ?? data?.identityToolkitReachable ?? null;
+  const identityToolkitDetail = describeIdentityToolkitReason(
+    clientIdentityToolkitStatus?.reason ?? data?.identityToolkitReason,
+  );
+
   const statusItems: StatusItem[] = useMemo(() => {
     if (!data) {
       return [
         { label: "Stripe secret", ok: null },
         { label: "OpenAI key", ok: null },
-        { label: "Identity Toolkit", ok: null },
+        { label: "Identity Toolkit", ok: identityToolkitOk, detail: identityToolkitDetail },
       ];
     }
     return [
@@ -117,11 +150,11 @@ export default function Diagnostics() {
       },
       {
         label: "Identity Toolkit",
-        ok: data.identityToolkitReachable,
-        detail: describeIdentityToolkitReason(data.identityToolkitReason),
+        ok: identityToolkitOk ?? data.identityToolkitReachable,
+        detail: identityToolkitDetail,
       },
     ];
-  }, [data]);
+  }, [data, identityToolkitDetail, identityToolkitOk]);
 
   const identityProviderBadges = useMemo(() => {
     if (!data) {
@@ -265,6 +298,10 @@ function describeIdentityToolkitReason(reason?: string): string | null {
       return "Timed out reaching Identity Toolkit.";
     case "network_error":
       return "Network error during Identity Toolkit check.";
+    case "missing_api_key":
+      return "API key missing for Identity Toolkit check.";
+    case "aborted":
+      return "Identity Toolkit check was cancelled.";
     default:
       if (reason.startsWith("status_")) {
         return `Received status ${reason.replace("status_", "")}`;
