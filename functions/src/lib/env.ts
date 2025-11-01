@@ -26,7 +26,15 @@ export const getAllowedOrigins = (): string[] => {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 };
 
-export const getAppCheckEnforceSoft = () => getEnvBool("APP_CHECK_ENFORCE_SOFT", true);
+export type AppCheckMode = "strict" | "soft" | "disabled";
+
+export const getAppCheckMode = (): AppCheckMode => {
+  const raw = (getEnv("APP_CHECK_MODE") || "").trim().toLowerCase();
+  if (raw === "strict" || raw === "disabled") {
+    return raw;
+  }
+  return "soft";
+};
 
 export const getOpenAIKey = () => getOpenAiSecret() ?? getEnv("OPENAI_API_KEY");
 

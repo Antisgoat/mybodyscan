@@ -186,7 +186,12 @@ export default function Diagnostics() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <CardSection title="Auth providers">{identityProviderBadges}</CardSection>
-              <CardSection title="App Check mode">{appCheckBadge}</CardSection>
+              <CardSection title="App Check mode">
+                <div className="flex items-center gap-2">{appCheckBadge}</div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Soft mode logs missing App Check tokens but continues diagnostics; strict mode returns a 401 error when the token is absent or invalid.
+                </p>
+              </CardSection>
             </div>
           </CardContent>
         </Card>
@@ -252,6 +257,8 @@ function hasProviderFlags(input: SystemHealthResponse["authProviders"]): input i
 function describeIdentityToolkitReason(reason?: string): string | null {
   if (!reason) return null;
   switch (reason) {
+    case "no_project_id":
+      return "Project ID missing on server.";
     case "no_client_key":
       return "Client API key not provided.";
     case "timeout":

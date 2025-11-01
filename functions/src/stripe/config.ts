@@ -1,4 +1,4 @@
-import { readSecret } from "../util/env.js";
+import type Stripe from "stripe";
 
 export class PaymentsDisabledError extends Error {
   code = "payments_disabled" as const;
@@ -10,17 +10,26 @@ export class PaymentsDisabledError extends Error {
 }
 
 export function getStripeSecret(): string {
-  const secret = readSecret("STRIPE_SECRET_KEY", ["STRIPE_SECRET"]);
-  if (secret.present && typeof secret.value === "string" && secret.value.trim()) {
-    return secret.value.trim();
-  }
-
-  const envFallback = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
-  if (envFallback) {
-    return envFallback;
+  const envSecret = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
+  if (envSecret) {
+    return envSecret;
   }
 
   throw new PaymentsDisabledError();
+}
+
+let cachedStripe: { secret: string; client: Stripe } | null = null;
+
+export async function getStripe(): Promise<Stripe> {
+  const secret = getStripeSecret();
+  if (cachedStripe && cachedStripe.secret === secret) {
+    return cachedStripe.client;
+  }
+
+  const stripeModule = await import("stripe");
+  const client = new stripeModule.default(secret, { apiVersion: "2024-06-20" });
+  cachedStripe = { secret, client };
+  return client;
 }
 
 export function hasStripeSecret(): boolean {

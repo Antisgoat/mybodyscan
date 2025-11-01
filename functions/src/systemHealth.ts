@@ -2,9 +2,7 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "./firebase.js";
-import { getEnv, getEnvBool, getHostBaseUrl } from "./lib/env.js";
-import { getOpenAiSecret } from "./lib/config.js";
-import { hasStripeSecret } from "./stripe/config.js";
+import { getEnv, getAppCheckMode, getHostBaseUrl } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
 
 type IdentityToolkitResult = {
@@ -43,6 +41,7 @@ function extractClientKey(req: Request): string | undefined {
 
 function resolveClientKey(req: Request): string | undefined {
   const envCandidates = [
+    getEnv("CLIENT_FIREBASE_API_KEY"),
     getEnv("FIREBASE_API_KEY"),
     getEnv("WEB_API_KEY"),
     getEnv("VITE_FIREBASE_API_KEY"),
@@ -57,21 +56,52 @@ function resolveClientKey(req: Request): string | undefined {
   return extractClientKey(req);
 }
 
-async function checkIdentityToolkit(clientKey: string | undefined): Promise<IdentityToolkitResult> {
+function resolveProjectId(): string | undefined {
+  const candidates = [
+    process.env.GCLOUD_PROJECT,
+    process.env.GCP_PROJECT,
+    process.env.PROJECT_ID,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  const firebaseConfig = process.env.FIREBASE_CONFIG;
+  if (firebaseConfig) {
+    try {
+      const parsed = JSON.parse(firebaseConfig) as { projectId?: string; project_id?: string };
+      const id = parsed.projectId || parsed.project_id;
+      if (typeof id === "string" && id.trim()) {
+        return id.trim();
+      }
+    } catch {
+      // ignore malformed config
+    }
+  }
+
+  return undefined;
+}
+
+async function checkIdentityToolkit(projectId: string | undefined, clientKey: string | undefined): Promise<IdentityToolkitResult> {
+  if (!projectId) {
+    return { reachable: false, reason: "no_project_id" };
+  }
   if (!clientKey) {
     return { reachable: false, reason: "no_client_key" };
   }
 
-  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(clientKey)}`;
+  const url = `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/config?key=${encodeURIComponent(clientKey)}`;
   try {
     const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ returnSecureToken: false, email: "healthcheck@example.com" }),
+      method: "GET",
+      headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(6000),
     });
 
-    if (response.status < 500) {
+    if (response.ok) {
       return { reachable: true };
     }
 
@@ -137,11 +167,7 @@ function normalizeClientProviders(candidate: unknown): AuthProviderStatus | null
 }
 
 function resolveAppCheckMode(): "disabled" | "soft" | "strict" {
-  const raw = getEnv("APP_CHECK_ENFORCE_SOFT");
-  if (raw === undefined) {
-    return "disabled";
-  }
-  return getEnvBool("APP_CHECK_ENFORCE_SOFT", true) ? "soft" : "strict";
+  return getAppCheckMode();
 }
 
 export const systemHealth = onRequest({ region: "us-central1" }, async (req: Request, res: Response) => {
@@ -155,10 +181,11 @@ export const systemHealth = onRequest({ region: "us-central1" }, async (req: Req
       throw new HttpError(405, "method_not_allowed");
     }
 
-    const stripeSecretPresent = hasStripeSecret();
-    const openAiSecret = getOpenAiSecret();
-    const openaiKeyPresent = Boolean(typeof openAiSecret === "string" && openAiSecret.trim());
-    const identityToolkit = await checkIdentityToolkit(resolveClientKey(req));
+    const stripeSecretPresent = Boolean((process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim());
+    const openaiKeyPresent = Boolean((process.env.OPENAI_API_KEY || "").trim());
+    const clientKey = resolveClientKey(req);
+    const projectId = resolveProjectId();
+    const identityToolkit = await checkIdentityToolkit(projectId, clientKey);
     let authProviders = await fetchAuthProviders();
 
     if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
