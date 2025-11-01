@@ -1,0 +1,15 @@
+name: Prod Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci && FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }} PROJECT_ID=mybodyscan-f3daf npm run probe

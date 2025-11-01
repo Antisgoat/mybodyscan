@@ -129,6 +129,25 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - `npm run smoke` invokes `scripts/smoke.sh`, generating a temporary Firebase user to call critical endpoints. Set `VITE_FIREBASE_API_KEY` (and optional `BASE_URL`) before running.
 - Visit `/diagnostics` while signed in (or set `VITE_SHOW_DIAGNOSTICS=true`) to review system status from Cloud Functions.
 
+## Prod Smoke
+
+- `npm run probe` mints an anonymous Firebase ID token with `FIREBASE_WEB_API_KEY` and probes production HTTPS endpoints via Cloud Functions/Run bases.
+- Required env: `FIREBASE_WEB_API_KEY`, `PROJECT_ID`; optional: `REGION` (defaults to `us-central1`), `BASES` (comma/space-separated host templates), `TEST_PRICE_ID` (overrides `price_xxx`).
+- Example (default bases):
+
+```sh
+FIREBASE_WEB_API_KEY=your_web_api_key PROJECT_ID=mybodyscan-f3daf npm run probe
+```
+
+- Example overriding bases explicitly:
+
+```sh
+FIREBASE_WEB_API_KEY=your_web_api_key \
+PROJECT_ID=mybodyscan-f3daf \
+BASES="https://us-central1-mybodyscan-f3daf.cloudfunctions.net https://mybodyscan-f3daf-us-central1.a.run.app" \
+npm run probe
+```
+
 ## Environment variables
 
 Create a `.env.local` for development based on `.env.example` and a `.env.production` for production builds.
