@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
-import { verifyAppCheck } from "./http.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { getAppCheckMode, getEnv, type AppCheckMode } from "./lib/env.js";
+import { getEnv } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
+import { appCheckSoft } from "./middleware/appCheckSoft.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -488,18 +488,6 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
   }
 }
 
-async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
-  try {
-    await verifyAppCheck(req, mode);
-  } catch (error) {
-    if (error instanceof HttpsError) {
-      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
-      throw new HttpError(401, code);
-    }
-    throw error;
-  }
-}
-
 type SourceResult = { items: FoodItem[]; error?: HttpError | null };
 
 async function runSafe(source: NutritionSource, fn: () => Promise<FoodItem[]>): Promise<SourceResult> {
@@ -551,8 +539,7 @@ export const nutritionSearch = onRequest(
     }
 
     try {
-      const appCheckMode = getAppCheckMode();
-      await ensureAppCheck(req, appCheckMode);
+      appCheckSoft(req, res, () => undefined);
 
       if (req.method !== "GET") {
         res.setHeader("Allow", "GET,OPTIONS");
