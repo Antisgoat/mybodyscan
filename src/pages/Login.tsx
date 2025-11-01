@@ -16,62 +16,12 @@ import {
   consumeAuthRedirectResult,
   type FriendlyFirebaseError,
 } from "../lib/authRedirect";
-import { loadFirebaseAuthClientConfig, isProviderEnabled } from "../lib/firebaseAuthConfig";
+import { SocialButtons } from "../components/SocialButtons";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
-  const [appleProviderEnabled, setAppleProviderEnabled] = useState<boolean | null>(null);
-  const envEnableAppleRaw = import.meta.env.VITE_ENABLE_APPLE as string | undefined;
-  const envEnableApple = typeof envEnableAppleRaw === "string"
-    ? ["true", "1", "yes", "on"].includes(envEnableAppleRaw.trim().toLowerCase())
-    : false;
-  const showAppleButton = envEnableApple || appleProviderEnabled === true;
-
-  useEffect(() => {
-    let cancelled = false;
-    loadFirebaseAuthClientConfig()
-      .then((config) => {
-        if (cancelled) return;
-        setAppleProviderEnabled(isProviderEnabled("apple.com", config));
-      })
-      .catch((error) => {
-        if (import.meta.env.DEV) {
-          console.warn("[login] Unable to load Firebase Auth client config", error);
-        }
-        if (!cancelled) {
-          setAppleProviderEnabled(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!showAppleButton) return;
-    if (typeof document === "undefined") return;
-    const existing = document.querySelector<HTMLScriptElement>("script[data-apple-auth]");
-    if (existing) return;
-    try {
-      const script = document.createElement("script");
-      script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
-      script.async = true;
-      script.dataset.appleAuth = "true";
-      script.onerror = () => {
-        if (import.meta.env.DEV) {
-          console.warn("[login] Failed to load Apple JS SDK");
-        }
-      };
-      document.head.appendChild(script);
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn("[login] Unable to load Apple JS", err);
-      }
-    }
-  }, [showAppleButton]);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -204,29 +154,32 @@ export default function Login() {
 
       <div style={hr} />
 
-      <div style={providers}>
-        <button
-          type="button"
-          onClick={() => void onGoogle()}
-          disabled={busy}
-          style={btn}
-          aria-label="Continue with Google"
-        >
-          Continue with Google
-        </button>
-
-        {appleAllowed && (
+      <SocialButtons
+        loading={busy}
+        style={providers}
+        renderGoogle={({ loading }) => (
+          <button
+            type="button"
+            onClick={() => void onGoogle()}
+            disabled={loading}
+            style={btn}
+            aria-label="Continue with Google"
+          >
+            Continue with Google
+          </button>
+        )}
+        renderApple={({ loading }) => (
           <button
             type="button"
             onClick={() => void onApple()}
-            disabled={busy}
+            disabled={loading}
             style={btn}
             aria-label="Continue with Apple"
           >
             Continue with Apple
           </button>
         )}
-      </div>
+      />
     </div>
   );
 }

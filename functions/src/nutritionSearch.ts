@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
-import { verifyAppCheckStrict } from "./http.js";
+import { verifyAppCheck } from "./http.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { getEnv } from "./lib/env.js";
+import { getAppCheckMode, getEnv, type AppCheckMode } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
 
 export type MacroBreakdown = {
@@ -488,11 +488,15 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
   }
 }
 
-async function ensureAppCheck(req: Request): Promise<void> {
+async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
   try {
-    await verifyAppCheckStrict(req);
+    await verifyAppCheck(req, mode);
   } catch (error) {
-    throw new HttpError(401, "app_check_required");
+    if (error instanceof HttpsError) {
+      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
+      throw new HttpError(401, code);
+    }
+    throw error;
   }
 }
 
@@ -547,7 +551,8 @@ export const nutritionSearch = onRequest(
     }
 
     try {
-      await ensureAppCheck(req);
+      const appCheckMode = getAppCheckMode();
+      await ensureAppCheck(req, appCheckMode);
 
       if (req.method !== "GET") {
         res.setHeader("Allow", "GET,OPTIONS");

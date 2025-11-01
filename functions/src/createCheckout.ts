@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import type Stripe from "stripe";
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "./firebase.js";
+import { verifyAppCheck } from "./http.js";
 import { getPriceAllowlist, stripeSecretParam } from "./lib/config.js";
+import { getAppCheckMode, type AppCheckMode } from "./lib/env.js";
 import { withCors } from "./middleware/cors.js";
-import { getStripeSecret, PaymentsDisabledError } from "./stripe/config.js";
+import { getStripe, PaymentsDisabledError } from "./stripe/config.js";
 import { HttpError, send } from "./util/http.js";
 
 type AuthDetails = {
@@ -16,19 +18,6 @@ const CHECKOUT_OPTIONS = {
   region: "us-central1",
   secrets: [stripeSecretParam],
 };
-
-let cachedStripe: { key: string; client: Stripe } | null = null;
-
-async function getStripeClient(secret: string): Promise<Stripe> {
-  if (cachedStripe && cachedStripe.key === secret) {
-    return cachedStripe.client;
-  }
-
-  const stripeModule = await import("stripe");
-  const client = new stripeModule.default(secret, { apiVersion: "2024-06-20" });
-  cachedStripe = { key: secret, client };
-  return client;
-}
 
 function extractBearerToken(req: Request): string {
   const header = req.get("authorization") || req.get("Authorization") || "";
@@ -150,6 +139,18 @@ function isStripeError(error: unknown): boolean {
   return typeof raw?.type === "string" && raw.type.toLowerCase().includes("stripe");
 }
 
+async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
+  try {
+    await verifyAppCheck(req, mode);
+  } catch (error: unknown) {
+    if (error instanceof HttpsError) {
+      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
+      throw new HttpError(401, code);
+    }
+    throw error;
+  }
+}
+
 export const createCheckout = onRequest(
   CHECKOUT_OPTIONS,
   withCors(async (req: Request, res: Response) => {
@@ -160,6 +161,9 @@ export const createCheckout = onRequest(
     }
 
     try {
+      const appCheckMode = getAppCheckMode();
+      await ensureAppCheck(req, appCheckMode);
+
       const auth = await verifyAuthorization(req);
       const payload = normalizeBody(req.body);
       const { allowlist, planToPrice, subscriptionPriceIds } = getPriceAllowlist();
@@ -169,20 +173,13 @@ export const createCheckout = onRequest(
         throw new HttpError(400, "invalid_price");
       }
 
-      let stripeSecret: string;
+      let stripe: Stripe;
       try {
-        stripeSecret = getStripeSecret();
+        stripe = await getStripe();
       } catch (error) {
         if (error instanceof PaymentsDisabledError || (error as { code?: string }).code === "payments_disabled") {
           throw error;
         }
-        throw error;
-      }
-
-      let stripe: Stripe;
-      try {
-        stripe = await getStripeClient(stripeSecret);
-      } catch (error) {
         if (isStripeError(error)) {
           throw new HttpError(502, "stripe_unavailable");
         }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,7 +15,7 @@ import {
   useAuthUser,
 } from "@/lib/auth";
 import { auth, firebaseReady } from "@/lib/firebase";
-import { isProviderEnabled, loadFirebaseAuthClientConfig, warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
+import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
   appleSignIn,
   emailPasswordSignIn,
@@ -27,6 +27,7 @@ import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 import { useFlags } from "@/lib/flags";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
+import { SocialButtons } from "@/components/SocialButtons";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -44,14 +45,16 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [appleProviderEnabled, setAppleProviderEnabled] = useState<boolean | null>(null);
-  const enableAppleEnvRaw = import.meta.env.VITE_ENABLE_APPLE as string | undefined;
-  const envEnableApple = typeof enableAppleEnvRaw === "string"
-    ? ["true", "1", "yes", "on"].includes(enableAppleEnvRaw.trim().toLowerCase())
-    : false;
   const { user } = useAuthUser();
   const { flags } = useFlags();
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
+
+  const handleAppleAvailability = useCallback((available: boolean) => {
+    if (import.meta.env.DEV && !available && !appleProviderWarningLogged) {
+      appleProviderWarningLogged = true;
+      console.warn("[auth] Apple provider disabled in Firebase Auth; hiding Apple sign-in button.");
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -64,38 +67,6 @@ const Auth = () => {
   useEffect(() => {
     warnIfDomainUnauthorized();
   }, []);
-
-  useEffect(() => {
-    let active = true;
-    loadFirebaseAuthClientConfig()
-      .then((config) => {
-        if (!active) return;
-        const enabled = isProviderEnabled("apple.com", config);
-        if (import.meta.env.DEV && typeof window !== "undefined") {
-          console.log("[auth] Apple provider client config:", {
-            enabled,
-            envEnableApple,
-          });
-        }
-        setAppleProviderEnabled(enabled);
-      })
-      .catch((err) => {
-        console.warn("[auth] Unable to determine Apple availability:", err);
-        if (active) {
-          setAppleProviderEnabled(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (import.meta.env.DEV && appleProviderEnabled === false && !envEnableApple && !appleProviderWarningLogged) {
-      appleProviderWarningLogged = true;
-      console.warn("[auth] Apple provider disabled in Firebase Auth; hiding Apple sign-in button.");
-    }
-  }, [appleProviderEnabled, envEnableApple]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,31 +156,6 @@ const Auth = () => {
       setLoading(false);
     }
   };
-
-  const showAppleButton = envEnableApple || appleProviderEnabled === true;
-
-  useEffect(() => {
-    if (!showAppleButton) return;
-    if (typeof document === "undefined") return;
-    const existing = document.querySelector<HTMLScriptElement>("script[data-apple-auth]");
-    if (existing) return;
-    try {
-      const script = document.createElement("script");
-      script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
-      script.async = true;
-      script.dataset.appleAuth = "true";
-      script.onerror = () => {
-        if (import.meta.env.DEV) {
-          console.warn("[auth] Failed to load Apple JS SDK");
-        }
-      };
-      document.head.appendChild(script);
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn("[auth] Unable to load Apple JS", err);
-      }
-    }
-  }, [showAppleButton]);
 
   const onApple = async () => {
     if (loading) return;
@@ -317,14 +263,16 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <div className="space-y-3">
-            {showAppleButton && (() => {
-              const appleButtonDisabled = loading;
+          <SocialButtons
+            loading={loading}
+            className="space-y-3"
+            onAvailabilityChange={handleAppleAvailability}
+            renderApple={({ loading }) => {
               const appleButton = (
                 <Button
                   variant="secondary"
                   onClick={onApple}
-                  disabled={appleButtonDisabled}
+                  disabled={loading}
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
@@ -334,7 +282,7 @@ const Auth = () => {
                 </Button>
               );
 
-              if (appleButtonDisabled) {
+              if (loading) {
                 return (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -346,18 +294,20 @@ const Auth = () => {
               }
 
               return appleButton;
-            })()}
-            <Button
-              variant="secondary"
-              onClick={onGoogle}
-              disabled={loading}
-              className="w-full h-11 inline-flex items-center justify-center gap-2"
-              data-testid="auth-google-button"
-              aria-label="Continue with Google"
-            >
-              Continue with Google
-            </Button>
-          </div>
+            }}
+            renderGoogle={({ loading }) => (
+              <Button
+                variant="secondary"
+                onClick={onGoogle}
+                disabled={loading}
+                className="w-full h-11 inline-flex items-center justify-center gap-2"
+                data-testid="auth-google-button"
+                aria-label="Continue with Google"
+              >
+                Continue with Google
+              </Button>
+            )}
+          />
           <div className="mt-6">
             {flags.enableDemo && (
               <>

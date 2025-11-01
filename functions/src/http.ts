@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
-import { getHostBaseUrl } from "./lib/env.js";
+import { getAppCheckMode, getHostBaseUrl, type AppCheckMode } from "./lib/env.js";
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;
@@ -47,28 +47,53 @@ export async function requireAuthWithClaims(req: Request): Promise<{ uid: string
   }
 }
 
-export async function verifyAppCheckStrict(req: Request): Promise<void> {
-  const token = req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "";
-  if (!token) {
-    console.warn("appcheck_missing", { path: req.path || req.url });
-    throw new HttpsError("failed-precondition", "App Check token required");
+function readAppCheckToken(req: Request): string | null {
+  const header = req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "";
+  const trimmed = header.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function verifyToken(token: string): Promise<void> {
+  await getAppCheck().verifyToken(token);
+}
+
+export async function verifyAppCheck(req: Request, mode: AppCheckMode = getAppCheckMode()): Promise<void> {
+  if (mode === "disabled") {
+    return;
   }
+
+  const token = readAppCheckToken(req);
+  if (!token) {
+    if (mode === "soft") {
+      console.warn("appcheck_missing", { path: req.path || req.url });
+      return;
+    }
+    throw new HttpsError("unauthenticated", "app_check_required");
+  }
+
   try {
-    await getAppCheck().verifyToken(token);
+    await verifyToken(token);
   } catch (err) {
+    if (mode === "soft") {
+      console.warn("appcheck_invalid", { path: req.path || req.url, message: (err as any)?.message });
+      return;
+    }
     console.warn("appcheck_invalid", { path: req.path || req.url, message: (err as any)?.message });
-    throw new HttpsError("failed-precondition", "Invalid App Check token");
+    throw new HttpsError("unauthenticated", "app_check_invalid");
   }
 }
 
-export async function verifyAppCheckSoft(req: Request): Promise<void> {
-  const token = req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "";
-  if (!token) return;
-  try {
-    await getAppCheck().verifyToken(token);
-  } catch (err) {
-    // ignore soft failures to keep compatibility endpoints usable
+export async function verifyAppCheckStrict(req: Request): Promise<void> {
+  const mode = getAppCheckMode();
+  if (mode === "disabled" || mode === "soft") {
+    await verifyAppCheck(req, mode);
+    return;
   }
+  await verifyAppCheck(req, "strict");
+}
+
+export async function verifyAppCheckSoft(req: Request): Promise<void> {
+  await verifyAppCheck(req, "soft");
 }
 
 export function publicBaseUrl(req: { protocol?: string; get?: (header: string) => string | undefined }): string {

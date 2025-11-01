@@ -1,9 +1,11 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
 import { getFirestore, getStorage } from "../firebase.js";
-import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithClaims, verifyAppCheck } from "../http.js";
 import { isStaff } from "../claims.js";
+import { getAppCheckMode, type AppCheckMode } from "../lib/env.js";
+import { HttpError } from "../util/http.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -59,16 +61,34 @@ function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
   return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
 }
 
+async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
+  try {
+    await verifyAppCheck(req, mode);
+  } catch (error: any) {
+    if (error instanceof HttpsError) {
+      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
+      throw new HttpError(401, code);
+    }
+    throw error;
+  }
+}
+
 async function handleStart(req: Request, res: any) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
     return;
   }
+  const appCheckMode = getAppCheckMode();
   try {
-    await verifyAppCheckStrict(req);
+    await ensureAppCheck(req, appCheckMode);
   } catch (error: any) {
-    console.warn("scan_start_appcheck_failed", { message: error?.message });
-    res.status(401).json({ error: "app_check_unavailable", code: "app_check_unavailable" });
+    if (error instanceof HttpError) {
+      console.warn("scan_start_appcheck_failed", { mode: appCheckMode, code: error.code });
+      res.status(error.status).json({ error: error.code, code: error.code });
+      return;
+    }
+    console.warn("scan_start_appcheck_failed", { mode: appCheckMode, message: error?.message });
+    res.status(401).json({ error: "app_check_required", code: "app_check_required" });
     return;
   }
 

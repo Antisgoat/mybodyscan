@@ -118,6 +118,7 @@ export function getStripeSecret(): string | null {
   }
 
   const envSecret = firstNonEmpty([
+    process.env.STRIPE_SECRET_KEY,
     process.env.STRIPE_SECRET,
     process.env.STRIPE_API_KEY,
     process.env.STRIPE_KEY,

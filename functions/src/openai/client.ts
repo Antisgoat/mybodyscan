@@ -1,7 +1,5 @@
-import { readSecret } from "../util/env.js";
-
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const OPENAI_TIMEOUT_MS = 20_000;
+const OPENAI_TIMEOUT_MS = 8_000;
 
 class InvalidModelError extends Error {}
 
@@ -18,11 +16,6 @@ export class OpenAIClientError extends Error {
 }
 
 function resolveOpenAiKey(): string {
-  const secret = readSecret("OPENAI_API_KEY", []);
-  if (secret.present && typeof secret.value === "string" && secret.value.trim()) {
-    return secret.value.trim();
-  }
-
   const envKey = (process.env.OPENAI_API_KEY || "").trim();
   if (envKey) {
     return envKey;
@@ -68,7 +61,7 @@ function buildRequestBody(model: string, prompt: string, userId?: string): strin
   return JSON.stringify(payload);
 }
 
-async function executeRequest(model: string, prompt: string, key: string, userId?: string): Promise<string> {
+async function executeRequest(model: string, prompt: string, key: string, userId: string | undefined, requestId: string | undefined): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
@@ -126,7 +119,7 @@ async function executeRequest(model: string, prompt: string, key: string, userId
 
 export async function chatOnce(
   prompt: string,
-  opts: { userId?: string; model?: string } = {},
+  opts: { userId?: string; model?: string; requestId?: string } = {},
 ): Promise<string> {
   const trimmed = prompt?.trim();
   if (!trimmed) {
@@ -139,10 +132,10 @@ export async function chatOnce(
 
   for (const model of models) {
     try {
-      return await executeRequest(model, trimmed, key, opts.userId);
+      return await executeRequest(model, trimmed, key, opts.userId, opts.requestId);
     } catch (error) {
       if (error instanceof InvalidModelError) {
-        console.warn("[openai] model unavailable, trying fallback", { model });
+        console.warn({ fn: "openai", event: "model_unavailable", requestId: opts.requestId ?? null, model });
         lastError = error;
         continue;
       }
