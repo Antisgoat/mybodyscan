@@ -10,6 +10,7 @@ import { coachChatCollectionPath } from "./lib/paths.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { HttpError, send } from "./util/http.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
+import { runMiddleware } from "./util/runMiddleware.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -144,77 +145,85 @@ function handleError(res: Response, error: unknown, uid: string | null, requestI
   send(res, 502, payload);
 }
 
-export const coachChat = onRequest(
-  { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
-  async (req: Request, res: Response) => {
-    if (req.method === "OPTIONS") {
-      send(res, 204, null);
+async function handleCoachChat(req: Request, res: Response): Promise<void> {
+  if (req.method === "OPTIONS") {
+    send(res, 204, null);
+    return;
+  }
+
+  const startedAt = Date.now();
+  const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+  let uid: string | null = null;
+
+  try {
+    if (req.method !== "POST") {
+      throw new HttpError(405, "method_not_allowed");
+    }
+
+    const auth = await verifyAuthorization(req);
+    uid = auth.uid;
+
+    const payload = normalizeBody(req.body);
+    const message = resolveMessage(payload);
+
+    const limitResult = await ensureRateLimit({
+      key: "coach_chat",
+      identifier: uid ?? "anonymous",
+      limit: 8,
+      windowSeconds: 60,
+    });
+
+    if (!limitResult.allowed) {
+      console.warn({
+        fn: "coachChat",
+        requestId,
+        uid: uid ?? "anonymous",
+        code: "rate_limited",
+        ms: Date.now() - startedAt,
+        err: "limit_reached",
+      });
+      send(res, 429, {
+        error: "rate_limited",
+        retryAfter: limitResult.retryAfterSeconds ?? null,
+      });
       return;
     }
 
-    const startedAt = Date.now();
-    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
-    let uid: string | null = null;
+    const replyText = await chatOnce(message, { userId: uid ?? undefined, requestId });
+    const formatted = formatCoachReply(replyText);
 
-    try {
-      appCheckSoft(req, res, () => undefined);
-
-      if (req.method !== "POST") {
-        throw new HttpError(405, "method_not_allowed");
-      }
-
-      const auth = await verifyAuthorization(req);
-      uid = auth.uid;
-
-      const payload = normalizeBody(req.body);
-      const message = resolveMessage(payload);
-
-      const limitResult = await ensureRateLimit({
-        key: "coach_chat",
-        identifier: uid ?? "anonymous",
-        limit: 8,
-        windowSeconds: 60,
-      });
-
-      if (!limitResult.allowed) {
+    if (uid) {
+      try {
+        await storeMessage(uid, message, formatted);
+      } catch (error) {
         console.warn({
           fn: "coachChat",
           requestId,
-          uid: uid ?? "anonymous",
-          code: "rate_limited",
+          uid,
+          code: "store_failed",
           ms: Date.now() - startedAt,
-          err: "limit_reached",
+          err: error instanceof Error ? error.message : String(error),
         });
-        send(res, 429, {
-          error: "rate_limited",
-          retryAfter: limitResult.retryAfterSeconds ?? null,
-        });
-        return;
       }
-
-      const replyText = await chatOnce(message, { userId: uid ?? undefined, requestId });
-      const formatted = formatCoachReply(replyText);
-
-      if (uid) {
-        try {
-          await storeMessage(uid, message, formatted);
-        } catch (error) {
-          console.warn({
-            fn: "coachChat",
-            requestId,
-            uid,
-            code: "store_failed",
-            ms: Date.now() - startedAt,
-            err: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-
-      console.info({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
-      send(res, 200, { message: formatted });
-    } catch (error) {
-      handleError(res, error, uid, requestId, startedAt);
     }
+
+    console.info({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
+    send(res, 200, { message: formatted });
+  } catch (error) {
+    handleError(res, error, uid, requestId, startedAt);
+  }
+}
+
+export const coachChat = onRequest(
+  { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
+  async (req: Request, res: Response) => {
+    await runMiddleware(req, res, appCheckSoft);
+    if (res.headersSent) {
+      return;
+    }
+
+    // Soft App Check guard executed for every request path before handler logic.
+    await handleCoachChat(req, res);
   },
 );
 

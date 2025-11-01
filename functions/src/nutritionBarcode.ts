@@ -9,6 +9,7 @@ import { getEnv } from "./lib/env.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
+import { runMiddleware } from "./util/runMiddleware.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
@@ -207,104 +208,112 @@ function handleError(res: Response, error: unknown): void {
   send(res, 502, { error: "upstream_unavailable" });
 }
 
-export const nutritionBarcode = onRequest(
-  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
-  async (req: Request, res: Response) => {
-    if (req.method === "OPTIONS") {
-      send(res, 204, null);
+async function handleNutritionBarcode(req: Request, res: Response): Promise<void> {
+  if (req.method === "OPTIONS") {
+    send(res, 204, null);
+    return;
+  }
+
+  try {
+    if (req.method !== "GET" && req.method !== "POST") {
+      res.setHeader("Allow", "GET,POST,OPTIONS");
+      throw new HttpError(405, "method_not_allowed");
+    }
+
+    const auth = await verifyAuthorization(req);
+    const uid = auth.uid;
+    if (!uid) {
+      throw new HttpError(401, "unauthorized");
+    }
+
+    const rateLimit = await ensureRateLimit({
+      key: "nutrition_barcode",
+      identifier: uid ?? identifierFromRequest(req as any),
+      limit: 30,
+      windowSeconds: 60,
+    });
+
+    if (!rateLimit.allowed) {
+      send(res, 429, {
+        error: "rate_limited",
+        retryAfter: rateLimit.retryAfterSeconds ?? null,
+      });
       return;
     }
 
-    try {
-      appCheckSoft(req, res, () => undefined);
+    const code = String(req.query?.code || req.body?.code || "").trim();
+    if (!code) {
+      throw new HttpError(400, "invalid_request", "code_required");
+    }
 
-      if (req.method !== "GET" && req.method !== "POST") {
-        res.setHeader("Allow", "GET,POST,OPTIONS");
-        throw new HttpError(405, "method_not_allowed");
-      }
-
-      const auth = await verifyAuthorization(req);
-      const uid = auth.uid;
-      if (!uid) {
-        throw new HttpError(401, "unauthorized");
-      }
-
-      const rateLimit = await ensureRateLimit({
-        key: "nutrition_barcode",
-        identifier: uid ?? identifierFromRequest(req as any),
-        limit: 30,
-        windowSeconds: 60,
-      });
-
-      if (!rateLimit.allowed) {
-        send(res, 429, {
-          error: "rate_limited",
-          retryAfter: rateLimit.retryAfterSeconds ?? null,
-        });
+    const now = Date.now();
+    const cached = cache.get(code);
+    if (cached && cached.expires > now) {
+      if (!cached.value) {
+        const cachedSource = cached.source === "USDA" ? "USDA" : "OFF";
+        send(res, 200, { results: [], source: cachedSource, message: "no_results", cached: true });
         return;
       }
+      const cachedSource = cached.value.source === "USDA" ? "USDA" : "OFF";
+      send(res, 200, { results: [cached.value.item], source: cachedSource, cached: true });
+      return;
+    }
 
-      const code = String(req.query?.code || req.body?.code || "").trim();
-      if (!code) {
-        throw new HttpError(400, "invalid_request", "code_required");
-      }
+    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+    const offOutcome = await runSafe(
+      "nutrition_barcode_off",
+      () => fetchOff(code),
+      { requestId, uid },
+    );
 
-      const now = Date.now();
-      const cached = cache.get(code);
-      if (cached && cached.expires > now) {
-        if (!cached.value) {
-          const cachedSource = cached.source === "USDA" ? "USDA" : "OFF";
-          send(res, 200, { results: [], source: cachedSource, message: "no_results", cached: true });
-          return;
-        }
-        const cachedSource = cached.value.source === "USDA" ? "USDA" : "OFF";
-        send(res, 200, { results: [cached.value.item], source: cachedSource, cached: true });
-        return;
-      }
+    let result = offOutcome.result;
+    let usdaOutcome: ProviderOutcome | null = null;
 
-      const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
-      const offOutcome = await runSafe(
-        "nutrition_barcode_off",
-        () => fetchOff(code),
+    const apiKey = getUsdaApiKey();
+
+    if (!result && apiKey) {
+      usdaOutcome = await runSafe(
+        "nutrition_barcode_usda",
+        () => fetchUsdaByBarcode(apiKey, code),
         { requestId, uid },
       );
-
-      let result = offOutcome.result;
-      let usdaOutcome: ProviderOutcome | null = null;
-
-      const apiKey = getUsdaApiKey();
-
-      if (!result && apiKey) {
-        usdaOutcome = await runSafe(
-          "nutrition_barcode_usda",
-          () => fetchUsdaByBarcode(apiKey, code),
-          { requestId, uid },
-        );
-        result = usdaOutcome.result;
-      }
-
-      if (result) {
-        cache.set(code, { value: result, source: result.source, expires: now + CACHE_TTL });
-        const normalizedSource = result.source === "USDA" ? "USDA" : "OFF";
-        send(res, 200, { results: [result.item], source: normalizedSource, cached: false });
-        return;
-      }
-
-      const errors = [offOutcome.error, usdaOutcome?.error].filter(Boolean) as HttpError[];
-      if (errors.length > 0) {
-        throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
-      }
-
-      const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
-      cache.set(code, { value: null, source: fallbackSource, expires: now + CACHE_TTL });
-      send(res, 200, {
-        results: [],
-        source: fallbackSource === "USDA" ? "USDA" : "OFF",
-        message: "no_results",
-        cached: false,
-      });
-    } catch (error) {
-      handleError(res, error);
+      result = usdaOutcome.result;
     }
+
+    if (result) {
+      cache.set(code, { value: result, source: result.source, expires: now + CACHE_TTL });
+      const normalizedSource = result.source === "USDA" ? "USDA" : "OFF";
+      send(res, 200, { results: [result.item], source: normalizedSource, cached: false });
+      return;
+    }
+
+    const errors = [offOutcome.error, usdaOutcome?.error].filter(Boolean) as HttpError[];
+    if (errors.length > 0) {
+      throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
+    }
+
+    const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
+    cache.set(code, { value: null, source: fallbackSource, expires: now + CACHE_TTL });
+    send(res, 200, {
+      results: [],
+      source: fallbackSource === "USDA" ? "USDA" : "OFF",
+      message: "no_results",
+      cached: false,
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+}
+
+export const nutritionBarcode = onRequest(
+  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
+  async (req: Request, res: Response) => {
+    await runMiddleware(req, res, appCheckSoft);
+    if (res.headersSent) {
+      return;
+    }
+
+    // Soft App Check guard executed for every request path before handler logic.
+    await handleNutritionBarcode(req, res);
   },
 );

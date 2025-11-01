@@ -7,6 +7,7 @@ import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
+import { runMiddleware } from "./util/runMiddleware.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -563,76 +564,84 @@ function handleError(res: Response, error: unknown): void {
   send(res, 502, { error: "upstream_unavailable" });
 }
 
-export const nutritionSearch = onRequest(
-  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
-  async (req: Request, res: Response) => {
-    if (req.method === "OPTIONS") {
-      send(res, 204, null);
+async function handleNutritionSearch(req: Request, res: Response): Promise<void> {
+  if (req.method === "OPTIONS") {
+    send(res, 204, null);
+    return;
+  }
+
+  try {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET,OPTIONS");
+      throw new HttpError(405, "method_not_allowed");
+    }
+
+    const auth = await verifyAuthorization(req);
+    const uid = auth.uid;
+    if (!uid) {
+      throw new HttpError(401, "unauthorized");
+    }
+
+    const query = String(req.query?.q ?? req.query?.query ?? "").trim();
+    if (!query) {
+      send(res, 200, { results: [], source: "USDA", message: "no_results" });
       return;
     }
 
-    try {
-      appCheckSoft(req, res, () => undefined);
+    const rateLimit = await ensureRateLimit({
+      key: "nutrition_search",
+      identifier: uid ?? identifierFromRequest(req as any),
+      limit: 20,
+      windowSeconds: 60,
+    });
 
-      if (req.method !== "GET") {
-        res.setHeader("Allow", "GET,OPTIONS");
-        throw new HttpError(405, "method_not_allowed");
-      }
-
-      const auth = await verifyAuthorization(req);
-      const uid = auth.uid;
-      if (!uid) {
-        throw new HttpError(401, "unauthorized");
-      }
-
-      const query = String(req.query?.q ?? req.query?.query ?? "").trim();
-      if (!query) {
-        send(res, 200, { results: [], source: "USDA", message: "no_results" });
-        return;
-      }
-
-      const rateLimit = await ensureRateLimit({
-        key: "nutrition_search",
-        identifier: uid ?? identifierFromRequest(req as any),
-        limit: 20,
-        windowSeconds: 60,
+    if (!rateLimit.allowed) {
+      send(res, 429, {
+        error: "rate_limited",
+        retryAfter: rateLimit.retryAfterSeconds ?? null,
       });
-
-      if (!rateLimit.allowed) {
-        send(res, 429, {
-          error: "rate_limited",
-          retryAfter: rateLimit.retryAfterSeconds ?? null,
-        });
-        return;
-      }
-
-      const apiKey = getUsdaApiKey();
-      const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
-      const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
-      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
-
-      const merged = [...usdaResult.items, ...offResult.items];
-      const preferredSource: "USDA" | "OFF" = usdaResult.items.length > 0
-        ? "USDA"
-        : offResult.items.length > 0
-          ? "OFF"
-          : apiKey
-            ? "USDA"
-            : "OFF";
-
-      if (merged.length > 0) {
-        send(res, 200, { results: merged, source: preferredSource });
-        return;
-      }
-
-      const errors = [usdaResult.error, offResult.error].filter(Boolean) as HttpError[];
-      if (errors.length > 0) {
-        throw pickError(errors);
-      }
-
-      send(res, 200, { results: [], source: preferredSource, message: "no_results" });
-    } catch (error) {
-      handleError(res, error);
+      return;
     }
+
+    const apiKey = getUsdaApiKey();
+    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+    const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
+    const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
+
+    const merged = [...usdaResult.items, ...offResult.items];
+    const preferredSource: "USDA" | "OFF" = usdaResult.items.length > 0
+      ? "USDA"
+      : offResult.items.length > 0
+        ? "OFF"
+        : apiKey
+          ? "USDA"
+          : "OFF";
+
+    if (merged.length > 0) {
+      send(res, 200, { results: merged, source: preferredSource });
+      return;
+    }
+
+    const errors = [usdaResult.error, offResult.error].filter(Boolean) as HttpError[];
+    if (errors.length > 0) {
+      throw pickError(errors);
+    }
+
+    send(res, 200, { results: [], source: preferredSource, message: "no_results" });
+  } catch (error) {
+    handleError(res, error);
+  }
+}
+
+export const nutritionSearch = onRequest(
+  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
+  async (req: Request, res: Response) => {
+    await runMiddleware(req, res, appCheckSoft);
+    if (res.headersSent) {
+      return;
+    }
+
+    // Soft App Check guard executed for every request path before handler logic.
+    await handleNutritionSearch(req, res);
   },
 );
