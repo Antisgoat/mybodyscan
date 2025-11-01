@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,19 +6,39 @@ import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { startCheckout, PRICE_IDS, describeCheckoutError } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { isDemoActive } from "@/lib/demoFlag";
 
+type PlanConfig = {
+  name: string;
+  price: string;
+  period: string;
+  credits: string;
+  plan: "one" | "pro_monthly" | "elite_annual" | "extra";
+  priceId: string;
+  envKey?: string;
+  mode: "payment" | "subscription";
+  features: string[];
+  description?: string;
+  badge?: string;
+  popular: boolean;
+  originalPrice?: string;
+  subscriberOnly: boolean;
+};
+
 export default function Plans() {
   const { t } = useI18n();
-  const handleCheckout = async (plan: { plan: string; priceId: string }) => {
+  const handleCheckout = async (plan: PlanConfig) => {
     try {
       if (!plan.priceId) {
+        const description = plan.envKey
+          ? `This plan is not configured yet. Set ${plan.envKey} before enabling checkout.`
+          : "This plan is not configured yet.";
         toast({
           title: "Plan unavailable",
-          description: "This plan is not configured yet.",
+          description,
           variant: "destructive",
         });
         return;
@@ -40,7 +61,7 @@ export default function Plans() {
 
   const ENABLE_SCAN_PACKS = false;
 
-  const corePlans = [
+  const corePlans: PlanConfig[] = [
     {
       name: "One Scan",
       price: "$9.99",
@@ -48,6 +69,7 @@ export default function Plans() {
       credits: "1 scan credit",
       plan: "one" as const,
       priceId: PRICE_IDS.ONE_TIME_STARTER,
+      envKey: "VITE_PRICE_STARTER",
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -64,6 +86,7 @@ export default function Plans() {
       credits: "3 scans/month + Coach + Nutrition",
       plan: "pro_monthly" as const,
       priceId: PRICE_IDS.PRO_MONTHLY,
+      envKey: "VITE_PRICE_MONTHLY",
       mode: "subscription" as const,
       features: [
         "3 scans per month",
@@ -84,6 +107,7 @@ export default function Plans() {
       credits: "3 scans/month + Everything included",
       plan: "elite_annual" as const,
       priceId: PRICE_IDS.ELITE_ANNUAL,
+      envKey: "VITE_PRICE_YEARLY",
       mode: "subscription" as const,
       popular: true,
       features: [
@@ -101,7 +125,7 @@ export default function Plans() {
     },
   ];
 
-  const scanPackPlans = [
+  const scanPackPlans: PlanConfig[] = [
     {
       name: "Extra Scan",
       price: "$9.99",
@@ -109,6 +133,7 @@ export default function Plans() {
       credits: "1 scan credit",
       plan: "extra" as const,
       priceId: PRICE_IDS.EXTRA_ONE_TIME,
+      envKey: "VITE_PRICE_EXTRA",
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
       description: "For subscribers who need extra scans",
@@ -119,12 +144,18 @@ export default function Plans() {
     },
   ];
 
-  const plans = [
+  const plans: PlanConfig[] = [
     corePlans[0],
     ...(ENABLE_SCAN_PACKS ? scanPackPlans : []),
     corePlans[1],
     corePlans[2],
   ];
+
+  const missingPriceEnvKeys = plans
+    .filter((plan) => !plan.priceId && plan.envKey)
+    .map((plan) => plan.envKey as string);
+
+  const uniqueMissingEnvKeys = Array.from(new Set(missingPriceEnvKeys));
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -140,6 +171,15 @@ export default function Plans() {
           )}
         </div>
         
+        {uniqueMissingEnvKeys.length > 0 && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Billing setup incomplete — set {uniqueMissingEnvKeys.join(", ")} to enable Stripe checkout.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-4">
           {plans.filter(plan => !plan.subscriberOnly || false).map((plan) => ( // TODO: Check subscription status
             <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
