@@ -35,7 +35,8 @@
     "ci-or-install": "npm ci || npm install --prefer-online --no-audit --no-fund",
     "verify:local": "npm run build && npm --prefix functions run build",
     "dev:check": "vite --open /system/check",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "probe": "node scripts/probe.mjs"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",
