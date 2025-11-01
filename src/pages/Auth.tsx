@@ -16,26 +16,18 @@ import {
 } from "@/lib/auth";
 import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
-import {
-  appleSignIn,
-  emailPasswordSignIn,
-  googleSignIn,
-  describeAuthError,
-  describeAuthErrorAsync,
-} from "@/lib/login";
+import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { startDemo } from "@/lib/demo";
 import { useFlags } from "@/lib/flags";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
-import { SocialButtons } from "@/components/SocialButtons";
+import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
     <path d="M10.24 9.1c.01 2.16 1.86 2.88 1.88 2.89-.01.04-.3 1.03-1 2.03-.6.86-1.23 1.72-2.22 1.74-.97.02-1.28-.56-2.38-.56-1.1 0-1.44.54-2.35.58-.94.04-1.66-.93-2.27-1.79C.68 12.5-.2 10 0 7.66c.13-1.26.73-2.43 1.7-3.11.75-.51 1.67-.73 2.56-.6.6.12 1.1.36 1.48.56.38.2.68.37.88.36.18 0 .5-.18.88-.37.53-.28 1.13-.6 1.93-.6.01 0 .01 0 .02 0 .72.01 2.26.18 3.33 1.77-.09.06-1.98 1.15-1.93 3.43ZM7.3 1.62C7.9.88 8.97.33 9.88.32c.1.98-.29 1.96-.87 2.64C8.4 3.7 7.39 4.28 6.37 4.2c-.1-.96.4-1.98.93-2.58Z" fill="currentColor"/>
   </svg>
 );
-
-let appleProviderWarningLogged = false;
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -48,13 +40,6 @@ const Auth = () => {
   const { user } = useAuthUser();
   const { flags } = useFlags();
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
-
-  const handleAppleAvailability = useCallback((available: boolean) => {
-    if (import.meta.env.DEV && !available && !appleProviderWarningLogged) {
-      appleProviderWarningLogged = true;
-      console.warn("[auth] Apple provider disabled in Firebase Auth; hiding Apple sign-in button.");
-    }
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -131,57 +116,39 @@ const Auth = () => {
     }
   };
 
-  const onGoogle = async () => {
-    setLoading(true);
-    try {
-      await firebaseReady();
+  const handleSocialBusyChange = useCallback((busy: boolean) => {
+    setLoading(busy);
+  }, []);
+
+  const handleSocialBefore = useCallback(
+    (_provider: SocialProvider) => {
       rememberAuthRedirect(from);
-      const result = await googleSignIn(auth);
-      if (result.ok === false) {
-        consumeAuthRedirect();
-        const message = formatError(result.message ?? "Google sign-in failed.", result.code);
-        toast(message, "error");
+    },
+    [from],
+  );
+
+  const handleSocialSuccess = useCallback(
+    (_provider: SocialProvider) => {
+      const target = consumeAuthRedirect();
+      if (target) {
+        navigate(target, { replace: true });
         return;
       }
       if (auth.currentUser) {
-        consumeAuthRedirect();
         navigate(from, { replace: true });
       }
-    } catch (err: unknown) {
+    },
+    [from, navigate],
+  );
+
+  const handleSocialError = useCallback(
+    (_provider: SocialProvider, error: NormalizedAuthError) => {
       consumeAuthRedirect();
-      const mapped = describeAuthError(err);
-      const message = formatError(mapped.message ?? "Google sign-in failed.", mapped.code);
+      const message = formatError(error.message, error.code);
       toast(message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onApple = async () => {
-    if (loading) return;
-
-    setLoading(true);
-    try {
-      rememberAuthRedirect(from);
-      const result = await appleSignIn();
-      if (result.ok === false) {
-        consumeAuthRedirect();
-        toast(formatError(result.message ?? "Apple sign-in failed.", result.code), "error");
-        return;
-      }
-      if (auth.currentUser) {
-        consumeAuthRedirect();
-        navigate(from, { replace: true });
-      }
-    } catch (err: unknown) {
-      consumeAuthRedirect();
-      console.error("[auth] Apple login failed:", err);
-      const normalized = normalizeFirebaseError(err);
-      toast(formatError(normalized.message ?? "Apple sign-in failed.", normalized.code), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [],
+  );
 
   const onExploreDemo = async () => {
     if (loading) return;
@@ -266,19 +233,22 @@ const Auth = () => {
           <SocialButtons
             loading={loading}
             className="space-y-3"
-            onAvailabilityChange={handleAppleAvailability}
-            renderApple={({ loading }) => {
+            onBusyChange={handleSocialBusyChange}
+            onBeforeSignIn={handleSocialBefore}
+            onSignInSuccess={handleSocialSuccess}
+            onSignInError={handleSocialError}
+            renderApple={({ loading, disabled, onClick }) => {
               const appleButton = (
                 <Button
                   variant="secondary"
-                  onClick={onApple}
-                  disabled={loading}
+                  onClick={onClick}
+                  disabled={disabled}
                   className="w-full h-11 inline-flex items-center justify-center gap-2"
                   aria-label="Continue with Apple"
                   data-testid="auth-apple-button"
                 >
                   <AppleIcon />
-                  Continue with Apple
+                  {loading ? "Continuing…" : "Continue with Apple"}
                 </Button>
               );
 
@@ -295,16 +265,16 @@ const Auth = () => {
 
               return appleButton;
             }}
-            renderGoogle={({ loading }) => (
+            renderGoogle={({ loading, disabled, onClick }) => (
               <Button
                 variant="secondary"
-                onClick={onGoogle}
-                disabled={loading}
+                onClick={onClick}
+                disabled={disabled}
                 className="w-full h-11 inline-flex items-center justify-center gap-2"
                 data-testid="auth-google-button"
                 aria-label="Continue with Google"
               >
-                Continue with Google
+                {loading ? "Continuing…" : "Continue with Google"}
               </Button>
             )}
           />
