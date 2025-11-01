@@ -4,6 +4,14 @@ import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "./firebase.js";
 import { getEnv, getAppCheckMode, getHostBaseUrl } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
+import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
+import {
+  getStripeKey,
+  legacyStripeWebhookParam,
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+} from "./stripe/keys.js";
 
 type IdentityToolkitResult = {
   reachable: boolean;
@@ -170,54 +178,82 @@ function resolveAppCheckMode(): "disabled" | "soft" | "strict" {
   return getAppCheckMode();
 }
 
-export const systemHealth = onRequest({ region: "us-central1" }, async (req: Request, res: Response) => {
-  if (req.method === "OPTIONS") {
-    send(res, 204, null);
-    return;
-  }
-
-  try {
-    if (req.method !== "GET" && req.method !== "POST") {
-      throw new HttpError(405, "method_not_allowed");
+export const systemHealth = onRequest(
+  {
+    region: "us-central1",
+    secrets: [openAiSecretParam, stripeSecretParam, stripeSecretKeyParam, stripeWebhookSecretParam, legacyStripeWebhookParam],
+  },
+  async (req: Request, res: Response) => {
+    if (req.method === "OPTIONS") {
+      send(res, 204, null);
+      return;
     }
 
-    const stripeSecretPresent = Boolean((process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim());
-    const openaiKeyPresent = Boolean((process.env.OPENAI_API_KEY || "").trim());
-    const clientKey = resolveClientKey(req);
-    const projectId = resolveProjectId();
-    const identityToolkit = await checkIdentityToolkit(projectId, clientKey);
-    let authProviders = await fetchAuthProviders();
-
-    if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
-      const body = req.body as Record<string, unknown>;
-      const clientProvided = normalizeClientProviders(body.authProviders ?? body.providers);
-      if (clientProvided) {
-        authProviders = clientProvided;
+    try {
+      if (req.method !== "GET" && req.method !== "POST") {
+        throw new HttpError(405, "method_not_allowed");
       }
+
+      let stripeSecretPresent = false;
+      try {
+        getStripeKey();
+        stripeSecretPresent = true;
+      } catch (error) {
+        if (!(error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled")) {
+          console.warn("systemHealth.stripe_secret_check_failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      let openaiKeyPresent = false;
+      try {
+        getOpenAIKey();
+        openaiKeyPresent = true;
+      } catch (error) {
+        if (!(error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key")) {
+          console.warn("systemHealth.openai_key_check_failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      const clientKey = resolveClientKey(req);
+      const projectId = resolveProjectId();
+      const identityToolkit = await checkIdentityToolkit(projectId, clientKey);
+      let authProviders = await fetchAuthProviders();
+
+      if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
+        const body = req.body as Record<string, unknown>;
+        const clientProvided = normalizeClientProviders(body.authProviders ?? body.providers);
+        if (clientProvided) {
+          authProviders = clientProvided;
+        }
+      }
+
+      const hostCandidate = getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
+      const host = typeof hostCandidate === "string" && hostCandidate.trim().length ? hostCandidate.trim() : null;
+
+      const payload: Record<string, unknown> = {
+        stripeSecretPresent,
+        openaiKeyPresent,
+        identityToolkitReachable: identityToolkit.reachable,
+        appCheckMode: resolveAppCheckMode(),
+        host,
+        timestamp: new Date().toISOString(),
+        authProviders,
+      };
+
+      if (identityToolkit.reason) {
+        payload.identityToolkitReason = identityToolkit.reason;
+      }
+
+      send(res, 200, payload);
+    } catch (error) {
+      handleSystemHealthError(res, error);
     }
-
-    const hostCandidate = getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
-    const host = typeof hostCandidate === "string" && hostCandidate.trim().length ? hostCandidate.trim() : null;
-
-    const payload: Record<string, unknown> = {
-      stripeSecretPresent,
-      openaiKeyPresent,
-      identityToolkitReachable: identityToolkit.reachable,
-      appCheckMode: resolveAppCheckMode(),
-      host,
-      timestamp: new Date().toISOString(),
-      authProviders,
-    };
-
-    if (identityToolkit.reason) {
-      payload.identityToolkitReason = identityToolkit.reason;
-    }
-
-    send(res, 200, payload);
-  } catch (error) {
-    handleSystemHealthError(res, error);
-  }
-});
+  },
+);
 
 function handleSystemHealthError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {

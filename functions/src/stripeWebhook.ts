@@ -5,9 +5,15 @@ import Stripe from "stripe";
 
 import { addCredits, setSubscriptionStatus } from "./credits.js";
 import { FieldValue, Timestamp, getFirestore } from "./firebase.js";
-import { getWebhookSecret, stripeSecretParam, stripeWebhookSecretParam } from "./lib/config.js";
-import { getStripeSecret, PaymentsDisabledError } from "./stripe/config.js";
 import { runUserOperation } from "./lib/ops.js";
+import {
+  getStripeKey,
+  getStripeWebhookSecret,
+  stripeSecretParam,
+  stripeSecretKeyParam,
+  stripeWebhookSecretParam,
+  legacyStripeWebhookParam,
+} from "./stripe/keys.js";
 
 const db = getFirestore();
 
@@ -33,7 +39,7 @@ const stripeWebhookOptions: HttpsOptions & { rawBody: true } = {
   region: "us-central1",
   cors: ["https://mybodyscanapp.com", "https://mybodyscan-f3daf.web.app"],
   maxInstances: 3,
-  secrets: [stripeWebhookSecretParam, stripeSecretParam],
+  secrets: [stripeWebhookSecretParam, legacyStripeWebhookParam, stripeSecretParam, stripeSecretKeyParam],
   rawBody: true,
 };
 
@@ -51,16 +57,16 @@ export const stripeWebhook = onRequest(stripeWebhookOptions, async (req: Request
 
     let stripeSecret: string | null = null;
     try {
-      stripeSecret = getStripeSecret();
+      stripeSecret = getStripeKey();
     } catch (error) {
-      if (error instanceof PaymentsDisabledError || (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled")) {
+      if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
         stripeSecret = null;
       } else {
         throw error;
       }
     }
 
-    const webhookSecret = getWebhookSecret();
+    const webhookSecret = getStripeWebhookSecret();
     if (!stripeSecret || !webhookSecret) {
       const missing: string[] = [];
       if (!stripeSecret) missing.push("STRIPE_SECRET_KEY/STRIPE_SECRET");

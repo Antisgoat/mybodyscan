@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 
+import { getStripeKey } from "./keys.js";
+
 export class PaymentsDisabledError extends Error {
   code = "payments_disabled" as const;
 
@@ -10,12 +12,14 @@ export class PaymentsDisabledError extends Error {
 }
 
 export function getStripeSecret(): string {
-  const envSecret = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
-  if (envSecret) {
-    return envSecret;
+  try {
+    return getStripeKey();
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
+      throw new PaymentsDisabledError("Stripe secret missing");
+    }
+    throw error;
   }
-
-  throw new PaymentsDisabledError();
 }
 
 let cachedStripe: { secret: string; client: Stripe } | null = null;
@@ -34,7 +38,8 @@ export async function getStripe(): Promise<Stripe> {
 
 export function hasStripeSecret(): boolean {
   try {
-    return Boolean(getStripeSecret());
+    getStripeKey();
+    return true;
   } catch (error) {
     if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
       return false;

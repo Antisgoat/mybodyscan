@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import type { Request, Response } from "express";
 
 import { getAuth } from "./firebase.js";
@@ -10,6 +12,23 @@ import { appCheckSoft } from "./middleware/appCheckSoft.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
+const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+
+function getUsdaApiKey(): string | undefined {
+  try {
+    const secretValue = usdaApiKeyParam.value();
+    if (typeof secretValue === "string") {
+      const trimmed = secretValue.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  } catch {
+    // secret not bound
+  }
+  const envValue = getEnv("USDA_FDC_API_KEY")?.trim();
+  return envValue ? envValue : undefined;
+}
 
 interface CacheEntry {
   expires: number;
@@ -142,16 +161,30 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
 type ProviderResult = { item: FoodItem; source: "Open Food Facts" | "USDA" };
 type ProviderOutcome = { result: ProviderResult | null; error?: HttpError | null };
 
-async function runSafe(label: string, fn: () => Promise<ProviderResult | null>): Promise<ProviderOutcome> {
+async function runSafe(
+  label: string,
+  fn: () => Promise<ProviderResult | null>,
+  context: { requestId: string; uid: string | null },
+): Promise<ProviderOutcome> {
   try {
     const result = await fn();
     return { result };
   } catch (error) {
     if (error instanceof HttpError) {
-      console.warn(`${label}_error`, { code: error.code, message: error.message });
+      console.warn(`${label}_error`, {
+        code: error.code,
+        message: error.message,
+        requestId: context.requestId,
+        uid: context.uid ?? "anonymous",
+      });
       return { result: null, error };
     }
-    console.warn(`${label}_error`, { code: "upstream_timeout", message: (error as Error)?.message });
+    console.warn(`${label}_error`, {
+      code: "upstream_timeout",
+      message: (error as Error)?.message,
+      requestId: context.requestId,
+      uid: context.uid ?? "anonymous",
+    });
     return { result: null, error: new HttpError(502, "upstream_timeout") };
   }
 }
@@ -159,19 +192,23 @@ async function runSafe(label: string, fn: () => Promise<ProviderResult | null>):
 function handleError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {
     const payload: Record<string, unknown> = { error: error.code };
+    if (error.code === "upstream_timeout") {
+      payload.error = "upstream_unavailable";
+    }
     if (error.message && error.message !== error.code) {
       payload.reason = error.message;
     }
-    send(res, error.status, payload);
+    const status = error.code === "upstream_timeout" ? 502 : error.status;
+    send(res, status, payload);
     return;
   }
 
   console.error("nutrition_barcode_unhandled", { message: (error as Error)?.message || String(error) });
-  send(res, 502, { error: "upstream_timeout" });
+  send(res, 502, { error: "upstream_unavailable" });
 }
 
 export const nutritionBarcode = onRequest(
-  { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
+  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
   async (req: Request, res: Response) => {
     if (req.method === "OPTIONS") {
       send(res, 204, null);
@@ -225,15 +262,24 @@ export const nutritionBarcode = onRequest(
         return;
       }
 
-      const offOutcome = await runSafe("nutrition_barcode_off", () => fetchOff(code));
+      const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+      const offOutcome = await runSafe(
+        "nutrition_barcode_off",
+        () => fetchOff(code),
+        { requestId, uid },
+      );
 
       let result = offOutcome.result;
       let usdaOutcome: ProviderOutcome | null = null;
 
-      const apiKey = getEnv("USDA_FDC_API_KEY");
+      const apiKey = getUsdaApiKey();
 
       if (!result && apiKey) {
-        usdaOutcome = await runSafe("nutrition_barcode_usda", () => fetchUsdaByBarcode(apiKey, code));
+        usdaOutcome = await runSafe(
+          "nutrition_barcode_usda",
+          () => fetchUsdaByBarcode(apiKey, code),
+          { requestId, uid },
+        );
         result = usdaOutcome.result;
       }
 

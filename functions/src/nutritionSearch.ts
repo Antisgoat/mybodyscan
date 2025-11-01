@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
@@ -54,6 +56,25 @@ export interface FoodItem {
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
+
+const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+
+function getUsdaApiKey(): string | undefined {
+  try {
+    const secretValue = usdaApiKeyParam.value();
+    if (typeof secretValue === "string") {
+      const trimmed = secretValue.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  } catch {
+    // Secret not bound in this environment
+  }
+
+  const envValue = getEnv("USDA_FDC_API_KEY")?.trim();
+  return envValue ? envValue : undefined;
+}
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -490,7 +511,11 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
 
 type SourceResult = { items: FoodItem[]; error?: HttpError | null };
 
-async function runSafe(source: NutritionSource, fn: () => Promise<FoodItem[]>): Promise<SourceResult> {
+async function runSafe(
+  source: NutritionSource,
+  fn: () => Promise<FoodItem[]>,
+  context: { requestId: string; uid: string | null },
+): Promise<SourceResult> {
   try {
     const items = await fn();
     return { items };
@@ -499,6 +524,8 @@ async function runSafe(source: NutritionSource, fn: () => Promise<FoodItem[]>): 
       console.warn(`nutrition_${source.toLowerCase().replace(/\s+/g, "_")}_error`, {
         code: error.code,
         message: error.message,
+        requestId: context.requestId,
+        uid: context.uid ?? "anonymous",
       });
       return { items: [], error };
     }
@@ -506,6 +533,8 @@ async function runSafe(source: NutritionSource, fn: () => Promise<FoodItem[]>): 
     console.warn(`nutrition_${source.toLowerCase().replace(/\s+/g, "_")}_error`, {
       code: "upstream_timeout",
       message: describeError(error),
+      requestId: context.requestId,
+      uid: context.uid ?? "anonymous",
     });
     return { items: [], error: new HttpError(502, "upstream_timeout") };
   }
@@ -519,19 +548,23 @@ function pickError(errors: HttpError[]): HttpError {
 function handleError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {
     const payload: Record<string, unknown> = { error: error.code };
+    if (error.code === "upstream_timeout") {
+      payload.error = "upstream_unavailable";
+    }
     if (error.message && error.message !== error.code) {
       payload.reason = error.message;
     }
-    send(res, error.status, payload);
+    const status = error.code === "upstream_timeout" ? 502 : error.status;
+    send(res, status, payload);
     return;
   }
 
   console.error("nutrition_search_unhandled", { message: describeError(error) });
-  send(res, 502, { error: "upstream_timeout" });
+  send(res, 502, { error: "upstream_unavailable" });
 }
 
 export const nutritionSearch = onRequest(
-  { region: "us-central1", secrets: ["USDA_FDC_API_KEY"], invoker: "public", concurrency: 20 },
+  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
   async (req: Request, res: Response) => {
     if (req.method === "OPTIONS") {
       send(res, 204, null);
@@ -573,9 +606,10 @@ export const nutritionSearch = onRequest(
         return;
       }
 
-      const apiKey = getEnv("USDA_FDC_API_KEY");
-      const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey));
-      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query));
+      const apiKey = getUsdaApiKey();
+      const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+      const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
+      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
 
       const merged = [...usdaResult.items, ...offResult.items];
       const preferredSource: "USDA" | "OFF" = usdaResult.items.length > 0

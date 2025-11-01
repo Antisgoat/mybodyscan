@@ -4,11 +4,12 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "./firebase.js";
 import { verifyAppCheck } from "./http.js";
-import { getPriceAllowlist, stripeSecretParam } from "./lib/config.js";
+import { getPriceAllowlist } from "./lib/config.js";
 import { getAppCheckMode, type AppCheckMode } from "./lib/env.js";
 import { withCors } from "./middleware/cors.js";
 import { getStripe, PaymentsDisabledError } from "./stripe/config.js";
 import { HttpError, send } from "./util/http.js";
+import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
 
 type AuthDetails = {
   uid: string | null;
@@ -16,7 +17,7 @@ type AuthDetails = {
 
 const CHECKOUT_OPTIONS = {
   region: "us-central1",
-  secrets: [stripeSecretParam],
+  secrets: [stripeSecretParam, stripeSecretKeyParam],
 };
 
 function extractBearerToken(req: Request): string {

@@ -1,13 +1,16 @@
 import { config as firebaseConfig } from "firebase-functions";
-import { defineSecret } from "firebase-functions/params";
+
+import { getOpenAIKey, openAiSecretParam } from "../openai/keys.js";
+import {
+  getStripeKey,
+  getStripeWebhookSecret as readStripeWebhookSecret,
+  legacyStripeWebhookParam,
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+} from "../stripe/keys.js";
 
 type RuntimeConfig = Record<string, any>;
-
-type SecretHandle = ReturnType<typeof defineSecret>;
-
-const stripeSecretParam = defineSecret("STRIPE_SECRET");
-const stripeWebhookSecretParam = defineSecret("STRIPE_WEBHOOK");
-const openAiSecretParam = defineSecret("OPENAI_API_KEY");
 
 let cachedRuntimeConfig: RuntimeConfig | null | undefined;
 let runtimeConfigOverride: RuntimeConfig | null | undefined;
@@ -57,19 +60,6 @@ function readRuntimeConfig(path: string[]): string | null {
   return null;
 }
 
-function readSecret(secret: SecretHandle): string | null {
-  try {
-    const value = secret.value();
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      return trimmed ? trimmed : null;
-    }
-  } catch {
-    // secret not available in this execution context
-  }
-  return null;
-}
-
 function firstNonEmpty(values: Array<string | null | undefined>): string | null {
   for (const value of values) {
     if (typeof value === "string") {
@@ -112,42 +102,24 @@ function collectConfigPrices(): Record<string, string> {
 }
 
 export function getStripeSecret(): string | null {
-  const secret = readSecret(stripeSecretParam);
-  if (secret) {
-    return secret;
+  try {
+    return getStripeKey();
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
+      const configSecret = readRuntimeConfig(["stripe", "secret"]);
+      if (configSecret) {
+        return configSecret;
+      }
+      return null;
+    }
+    throw error;
   }
-
-  const envSecret = firstNonEmpty([
-    process.env.STRIPE_SECRET_KEY,
-    process.env.STRIPE_SECRET,
-    process.env.STRIPE_API_KEY,
-    process.env.STRIPE_KEY,
-  ]);
-  if (envSecret) {
-    return envSecret;
-  }
-
-  const configSecret = readRuntimeConfig(["stripe", "secret"]);
-  if (configSecret) {
-    return configSecret;
-  }
-
-  return null;
 }
 
 export function getWebhookSecret(): string | null {
-  const secret = readSecret(stripeWebhookSecretParam);
+  const secret = readStripeWebhookSecret();
   if (secret) {
     return secret;
-  }
-
-  const envSecret = firstNonEmpty([
-    process.env.STRIPE_WEBHOOK,
-    process.env.STRIPE_SIGNING_SECRET,
-    process.env.STRIPE_SIGNATURE,
-  ]);
-  if (envSecret) {
-    return envSecret;
   }
 
   const configSecret = readRuntimeConfig(["stripe", "webhook_secret"]);
@@ -159,25 +131,18 @@ export function getWebhookSecret(): string | null {
 }
 
 export function getOpenAiSecret(): string | null {
-  const secret = readSecret(openAiSecretParam);
-  if (secret) {
-    return secret;
+  try {
+    return getOpenAIKey();
+  } catch (error) {
+    if (error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key") {
+      const configSecret = readRuntimeConfig(["openai", "api_key"]);
+      if (configSecret) {
+        return configSecret;
+      }
+      return null;
+    }
+    throw error;
   }
-
-  const envSecret = firstNonEmpty([
-    process.env.OPENAI_API_KEY,
-    process.env.OPENAI_KEY,
-  ]);
-  if (envSecret) {
-    return envSecret;
-  }
-
-  const configSecret = readRuntimeConfig(["openai", "api_key"]);
-  if (configSecret) {
-    return configSecret;
-  }
-
-  return null;
 }
 
 export function getAppOrigin(): string | null {
@@ -234,7 +199,13 @@ export function getPriceAllowlist(): PriceAllowlist {
   return { allowlist, planToPrice, subscriptionPriceIds };
 }
 
-export { stripeSecretParam, stripeWebhookSecretParam, openAiSecretParam };
+export {
+  legacyStripeWebhookParam,
+  openAiSecretParam,
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+};
 
 export function __setRuntimeConfigForTest(config: RuntimeConfig | null): void {
   runtimeConfigOverride = config ?? {};
