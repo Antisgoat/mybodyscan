@@ -3,8 +3,9 @@ import type Stripe from "stripe";
 import { onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "./firebase.js";
-import { getPriceAllowlist } from "./lib/config.js";
-import { getStripeKey } from "./stripe/config.js";
+import { getPriceAllowlist, stripeSecretParam } from "./lib/config.js";
+import { withCors } from "./middleware/cors.js";
+import { getStripeSecret, PaymentsDisabledError } from "./stripe/config.js";
 import { HttpError, send } from "./util/http.js";
 
 type AuthDetails = {
@@ -13,6 +14,7 @@ type AuthDetails = {
 
 const CHECKOUT_OPTIONS = {
   region: "us-central1",
+  secrets: [stripeSecretParam],
 };
 
 let cachedStripe: { key: string; client: Stripe } | null = null;
@@ -106,17 +108,32 @@ function resolvePriceId(payload: Record<string, unknown>, planToPrice: Record<st
 }
 
 function handleError(res: Response, error: unknown): void {
+  if (error instanceof PaymentsDisabledError || (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled")) {
+    send(res, 501, { error: "payments_disabled" });
+    return;
+  }
+
   if (error instanceof HttpError) {
     const payload: Record<string, unknown> = { error: error.code };
     if (error.message && error.message !== error.code) {
       payload.reason = error.message;
     }
+    if (error.code === "invalid_price") {
+      send(res, 400, { error: "invalid_price" });
+      return;
+    }
     send(res, error.status, payload);
     return;
   }
 
+  if (isStripeError(error)) {
+    console.error("createCheckout_stripe_error", error);
+    send(res, 502, { error: "stripe_unavailable" });
+    return;
+  }
+
   console.error("createCheckout_unexpected", error);
-  send(res, 500, { error: "internal", code: "internal_error" });
+  send(res, 502, { error: "stripe_unavailable" });
 }
 
 function isStripeError(error: unknown): boolean {
@@ -133,75 +150,78 @@ function isStripeError(error: unknown): boolean {
   return typeof raw?.type === "string" && raw.type.toLowerCase().includes("stripe");
 }
 
-export const createCheckout = onRequest(CHECKOUT_OPTIONS, async (req: Request, res: Response) => {
-  if (req.method === "OPTIONS") {
-    send(res, 204, null);
-    return;
-  }
-
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST,OPTIONS");
-    handleError(res, new HttpError(405, "method_not_allowed"));
-    return;
-  }
-
-  try {
-    const auth = await verifyAuthorization(req);
-    const payload = normalizeBody(req.body);
-    const { allowlist, planToPrice, subscriptionPriceIds } = getPriceAllowlist();
-    const priceId = resolvePriceId(payload, planToPrice);
-
-    if (allowlist.size > 0 && !allowlist.has(priceId)) {
-      throw new HttpError(400, "invalid_price");
+export const createCheckout = onRequest(
+  CHECKOUT_OPTIONS,
+  withCors(async (req: Request, res: Response) => {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST,OPTIONS");
+      handleError(res, new HttpError(405, "method_not_allowed"));
+      return;
     }
-
-    const stripeKey = getStripeKey();
-    if (!stripeKey.present || !stripeKey.value) {
-      throw new HttpError(501, "payments_disabled", "missing_stripe_secret");
-    }
-
-    let stripe: Stripe;
-    try {
-      stripe = await getStripeClient(stripeKey.value);
-    } catch (error) {
-      if (isStripeError(error)) {
-        throw new HttpError(502, "stripe_unavailable");
-      }
-      throw error;
-    }
-
-    const mode: Stripe.Checkout.SessionCreateParams.Mode = subscriptionPriceIds.has(priceId)
-      ? "subscription"
-      : "payment";
 
     try {
-      const session = await stripe.checkout.sessions.create({
-        mode,
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: "https://mybodyscanapp.com/settings?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url: "https://mybodyscanapp.com/plans?canceled=1",
-        client_reference_id: auth.uid ?? undefined,
-        metadata: {
-          uid: auth.uid ?? "anonymous",
-          priceId,
-        },
-      });
+      const auth = await verifyAuthorization(req);
+      const payload = normalizeBody(req.body);
+      const { allowlist, planToPrice, subscriptionPriceIds } = getPriceAllowlist();
+      const priceId = resolvePriceId(payload, planToPrice);
 
-      if (!session?.url) {
-        throw new HttpError(502, "stripe_unavailable", "session_missing_url");
+      if (allowlist.size > 0 && !allowlist.has(priceId)) {
+        throw new HttpError(400, "invalid_price");
       }
 
-      send(res, 200, { url: session.url });
-    } catch (error) {
-      if (error instanceof HttpError) {
+      let stripeSecret: string;
+      try {
+        stripeSecret = getStripeSecret();
+      } catch (error) {
+        if (error instanceof PaymentsDisabledError || (error as { code?: string }).code === "payments_disabled") {
+          throw error;
+        }
         throw error;
       }
-      if (isStripeError(error)) {
-        throw new HttpError(502, "stripe_unavailable");
+
+      let stripe: Stripe;
+      try {
+        stripe = await getStripeClient(stripeSecret);
+      } catch (error) {
+        if (isStripeError(error)) {
+          throw new HttpError(502, "stripe_unavailable");
+        }
+        throw error;
       }
-      throw error;
+
+      const mode: Stripe.Checkout.SessionCreateParams.Mode = subscriptionPriceIds.has(priceId)
+        ? "subscription"
+        : "payment";
+
+      try {
+        const session = await stripe.checkout.sessions.create({
+          mode,
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: "https://mybodyscanapp.com/settings?session_id={CHECKOUT_SESSION_ID}",
+          cancel_url: "https://mybodyscanapp.com/plans?canceled=1",
+          client_reference_id: auth.uid ?? undefined,
+          metadata: {
+            uid: auth.uid ?? "anonymous",
+            priceId,
+          },
+        });
+
+        if (!session?.url) {
+          throw new HttpError(502, "stripe_unavailable", "session_missing_url");
+        }
+
+        send(res, 200, { url: session.url });
+      } catch (error) {
+        if (error instanceof HttpError) {
+          throw error;
+        }
+        if (isStripeError(error)) {
+          throw new HttpError(502, "stripe_unavailable");
+        }
+        throw error;
+      }
+    } catch (error) {
+      handleError(res, error);
     }
-  } catch (error) {
-    handleError(res, error);
-  }
-});
+  })
+);

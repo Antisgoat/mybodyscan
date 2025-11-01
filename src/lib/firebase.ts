@@ -21,10 +21,8 @@ type ResolvedConfig = {
   authDomain: string;
   projectId: string;
   appId: string;
-  measurementId?: string;
   storageBucket?: string;
   messagingSenderId?: string;
-  databaseURL?: string;
 };
 
 let appInstance: FirebaseApp | null = null;
@@ -110,10 +108,8 @@ function configFromEnv(): ResolvedConfig {
     authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
     projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
     appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
-    measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "").trim() || undefined,
     storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim() || undefined,
     messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim() || undefined,
-    databaseURL: (import.meta.env.VITE_FIREBASE_DATABASE_URL || "").trim() || undefined,
   };
 
   const missing: string[] = [];
@@ -131,6 +127,15 @@ function configFromEnv(): ResolvedConfig {
 }
 
 export const firebaseApiKey = configFromEnv().apiKey;
+
+let loggedConfig = false;
+
+export function logFirebaseRuntimeInfo(): void {
+  if (!import.meta.env.DEV || loggedConfig) return;
+  const { projectId, authDomain } = configFromEnv();
+  console.info(`[firebase] project=${projectId} authDomain=${authDomain}`);
+  loggedConfig = true;
+}
 
 async function init(): Promise<void> {
   if (appInstance && authInstance) return;

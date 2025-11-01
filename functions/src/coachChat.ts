@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
@@ -7,7 +8,7 @@ import { verifyAppCheckStrict } from "./http.js";
 import { ensureRateLimit } from "./http/_middleware.js";
 import { openAiSecretParam } from "./lib/config.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
-import { chatSimple } from "./openai/client.js";
+import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { HttpError, send } from "./util/http.js";
 
 const db = getFirestore();
@@ -118,10 +119,10 @@ async function storeMessage(uid: string, text: string, response: string): Promis
   );
 }
 
-function handleError(res: Response, error: unknown, uid: string | null, started: number): void {
+function handleError(res: Response, error: unknown, uid: string | null, requestId: string, started: number): void {
   const ms = Date.now() - started;
   if (error instanceof HttpError) {
-    console.warn({ fn: "coachChat", uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
+    console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
     const payload: Record<string, unknown> = { error: error.code };
     if (error.message && error.message !== error.code) {
       payload.reason = error.message;
@@ -130,8 +131,14 @@ function handleError(res: Response, error: unknown, uid: string | null, started:
     return;
   }
 
+  if (error instanceof OpenAIClientError) {
+    console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
+    send(res, error.status, { error: error.code });
+    return;
+  }
+
   const message = error instanceof Error ? error.message : String(error);
-  console.warn({ fn: "coachChat", uid: uid ?? "anonymous", code: "openai_failed", ms, err: message });
+  console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "openai_failed", ms, err: message });
   send(res, 502, { error: "openai_failed" });
 }
 
@@ -144,6 +151,7 @@ export const coachChat = onRequest(
     }
 
     const startedAt = Date.now();
+    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
     let uid: string | null = null;
 
     try {
@@ -169,6 +177,7 @@ export const coachChat = onRequest(
       if (!limitResult.allowed) {
         console.warn({
           fn: "coachChat",
+          requestId,
           uid: uid ?? "anonymous",
           code: "rate_limited",
           ms: Date.now() - startedAt,
@@ -181,7 +190,7 @@ export const coachChat = onRequest(
         return;
       }
 
-      const replyText = await chatSimple(message, { userId: uid ?? undefined });
+      const replyText = await chatOnce(message, { userId: uid ?? undefined });
       const formatted = formatCoachReply(replyText);
 
       if (uid) {
@@ -190,6 +199,7 @@ export const coachChat = onRequest(
         } catch (error) {
           console.warn({
             fn: "coachChat",
+            requestId,
             uid,
             code: "store_failed",
             ms: Date.now() - startedAt,
@@ -198,10 +208,10 @@ export const coachChat = onRequest(
         }
       }
 
-      console.info({ fn: "coachChat", uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
+      console.info({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
       send(res, 200, { message: formatted });
     } catch (error) {
-      handleError(res, error, uid, startedAt);
+      handleError(res, error, uid, requestId, startedAt);
     }
   },
 );

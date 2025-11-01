@@ -18,7 +18,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 export default function Nutrition() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { authReady } = useAuthUser();
+  const { authReady, user } = useAuthUser();
   const appCheckReady = true;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +27,13 @@ export default function Nutrition() {
 
   useEffect(() => {
     if (!authReady || !appCheckReady) {
+      return;
+    }
+
+    if (!user) {
+      setTotals({ calories: 0 });
+      setHistory([]);
+      setError("Sign in to view nutrition data.");
       setLoading(false);
       return;
     }
@@ -57,12 +64,13 @@ export default function Nutrition() {
       }
     };
 
+    setError(null);
     void load();
 
     return () => {
       cancelled = true;
     };
-  }, [authReady, appCheckReady]);
+  }, [authReady, appCheckReady, user]);
 
   const mostRecent = useMemo(() => history[history.length - 1], [history]);
 
@@ -82,7 +90,11 @@ export default function Nutrition() {
 
           <Card>
             <CardContent>
-              <NutritionSearch />
+              {user ? (
+                <NutritionSearch />
+              ) : (
+                <p className="text-sm text-muted-foreground">Sign in to search foods and scan barcodes.</p>
+              )}
             </CardContent>
           </Card>
 

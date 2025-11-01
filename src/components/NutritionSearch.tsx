@@ -72,6 +72,11 @@ export default function NutritionSearch(props: Props) {
         setItems(Array.isArray(res.items) ? res.items : []);
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        if ((error as { code?: string } | undefined)?.code === "auth_required") {
+          setStatus("Sign in to search.");
+          setItems([]);
+          return;
+        }
         setStatus("Search failed. Please try again.");
         setItems([]);
       } finally {

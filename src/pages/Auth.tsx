@@ -20,7 +20,6 @@ import {
   appleSignIn,
   emailPasswordSignIn,
   googleSignIn,
-  APPLE_WEB_ENABLED,
   describeAuthError,
   describeAuthErrorAsync,
 } from "@/lib/login";
@@ -45,18 +44,13 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
-  const envEnableApple =
-    import.meta.env.VITE_ENABLE_APPLE === "true" ||
-    import.meta.env.VITE_ENABLE_APPLE === "1";
-  const envShowApple =
-    envEnableApple ||
-    import.meta.env.VITE_SHOW_APPLE === "1" ||
-    import.meta.env.VITE_SHOW_APPLE === "true" ||
-    import.meta.env.VITE_FORCE_APPLE_BUTTON === "true" ||
-    import.meta.env.VITE_SHOW_APPLE_WEB === "true";
+  const [appleProviderEnabled, setAppleProviderEnabled] = useState<boolean | null>(null);
+  const enableAppleEnvRaw = import.meta.env.VITE_ENABLE_APPLE as string | undefined;
+  const envEnableApple = typeof enableAppleEnvRaw === "string"
+    ? ["true", "1", "yes", "on"].includes(enableAppleEnvRaw.trim().toLowerCase())
+    : false;
   const { user } = useAuthUser();
-  const { flags, loaded } = useFlags();
+  const { flags } = useFlags();
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
@@ -77,18 +71,18 @@ const Auth = () => {
       .then((config) => {
         if (!active) return;
         const enabled = isProviderEnabled("apple.com", config);
-        if (typeof window !== "undefined") {
+        if (import.meta.env.DEV && typeof window !== "undefined") {
           console.log("[auth] Apple provider client config:", {
             enabled,
-            envShowApple,
+            envEnableApple,
           });
         }
-        setAppleEnabled(enabled);
+        setAppleProviderEnabled(enabled);
       })
       .catch((err) => {
         console.warn("[auth] Unable to determine Apple availability:", err);
         if (active) {
-          setAppleEnabled(false);
+          setAppleProviderEnabled(false);
         }
       });
     return () => {
@@ -97,11 +91,11 @@ const Auth = () => {
   }, []);
 
   useEffect(() => {
-    if (import.meta.env.DEV && appleEnabled === false && !envShowApple && !appleProviderWarningLogged) {
+    if (import.meta.env.DEV && appleProviderEnabled === false && !envEnableApple && !appleProviderWarningLogged) {
       appleProviderWarningLogged = true;
       console.warn("[auth] Apple provider disabled in Firebase Auth; hiding Apple sign-in button.");
     }
-  }, [appleEnabled, envShowApple]);
+  }, [appleProviderEnabled, envEnableApple]);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,18 +144,17 @@ const Auth = () => {
       if (mode === "signin") {
         const result = await emailPasswordSignIn(email, password);
         if (result.ok === false) {
-          toast(result.message ?? "Email sign-in failed.", "error");
+          toast(formatError(result.message, result.code), "error");
           return;
         }
       } else {
         await createAccountEmail(email, password);
       }
       navigate(from, { replace: true });
-    } catch (err: any) {
-      toast(
-        err?.message || (mode === "signin" ? "Email sign-in failed." : "Account creation failed."),
-        "error",
-      );
+    } catch (err: unknown) {
+      const normalized = normalizeFirebaseError(err);
+      const fallback = mode === "signin" ? "Email sign-in failed." : "Account creation failed.";
+      toast(formatError(normalized.message ?? fallback, normalized.code), "error");
     } finally {
       setLoading(false);
     }
@@ -193,9 +186,7 @@ const Auth = () => {
     }
   };
 
-  const providerAllowsApple = appleEnabled === true;
-  const providerPendingAllowsApple = appleEnabled === null && (flags.enableApple || (!loaded && APPLE_WEB_ENABLED));
-  const showAppleButton = envShowApple || providerAllowsApple || providerPendingAllowsApple;
+  const showAppleButton = envEnableApple || appleProviderEnabled === true;
 
   useEffect(() => {
     if (!showAppleButton) return;
@@ -229,7 +220,7 @@ const Auth = () => {
       const result = await appleSignIn();
       if (result.ok === false) {
         consumeAuthRedirect();
-        toast(result.message ?? "Apple sign-in failed.", "error");
+        toast(formatError(result.message ?? "Apple sign-in failed.", result.code), "error");
         return;
       }
       if (auth.currentUser) {
@@ -239,10 +230,8 @@ const Auth = () => {
     } catch (err: unknown) {
       consumeAuthRedirect();
       console.error("[auth] Apple login failed:", err);
-      toast(
-        (err as { message?: string } | undefined)?.message || "Apple sign-in failed.",
-        "error",
-      );
+      const normalized = normalizeFirebaseError(err);
+      toast(formatError(normalized.message ?? "Apple sign-in failed.", normalized.code), "error");
     } finally {
       setLoading(false);
     }
@@ -400,10 +389,32 @@ const Auth = () => {
 
 export default Auth;
 
-function formatError(message: string, code?: string) {
-  if (import.meta.env.DEV && code) {
-    return `${message} (${code})`;
+function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
+  if (!err) return {};
+  if (typeof err === "string") {
+    return { message: err };
   }
-  return message;
+  if (typeof err === "object") {
+    const record = err as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : undefined;
+    const code = typeof record.code === "string" ? record.code : undefined;
+    return { message, code };
+  }
+  return {};
+}
+
+function cleanFirebaseMessage(message?: string): string | undefined {
+  if (!message) return undefined;
+  let cleaned = message.replace(/^Firebase:\s*/i, "");
+  cleaned = cleaned.replace(/\s*\(auth\/[\w-]+\)\.?$/i, "").trim();
+  return cleaned || undefined;
+}
+
+function formatError(message?: string, code?: string) {
+  const cleaned = cleanFirebaseMessage(message) ?? message ?? "Firebase sign-in failed.";
+  if (code) {
+    return `${cleaned} (${code})`;
+  }
+  return cleaned;
 }
 

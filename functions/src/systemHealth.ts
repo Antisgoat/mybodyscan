@@ -2,9 +2,9 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "./firebase.js";
-import { getEnv, getEnvBool } from "./lib/env.js";
-import { getOpenAIKey } from "./openai/client.js";
-import { getStripeKey } from "./stripe/config.js";
+import { getEnv, getEnvBool, getHostBaseUrl } from "./lib/env.js";
+import { getOpenAiSecret } from "./lib/config.js";
+import { hasStripeSecret } from "./stripe/config.js";
 import { HttpError, send } from "./util/http.js";
 
 type IdentityToolkitResult = {
@@ -41,6 +41,22 @@ function extractClientKey(req: Request): string | undefined {
   return undefined;
 }
 
+function resolveClientKey(req: Request): string | undefined {
+  const envCandidates = [
+    getEnv("FIREBASE_API_KEY"),
+    getEnv("WEB_API_KEY"),
+    getEnv("VITE_FIREBASE_API_KEY"),
+  ];
+
+  for (const candidate of envCandidates) {
+    if (candidate && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return extractClientKey(req);
+}
+
 async function checkIdentityToolkit(clientKey: string | undefined): Promise<IdentityToolkitResult> {
   if (!clientKey) {
     return { reachable: false, reason: "no_client_key" };
@@ -52,7 +68,7 @@ async function checkIdentityToolkit(clientKey: string | undefined): Promise<Iden
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ returnSecureToken: false, email: "healthcheck@example.com" }),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (response.status < 500) {
@@ -103,7 +119,24 @@ async function fetchAuthProviders(): Promise<AuthProviderStatus> {
   }
 }
 
-function resolveAppCheck(): "disabled" | "soft" | "strict" {
+function normalizeClientProviders(candidate: unknown): AuthProviderStatus | null {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const record = candidate as Record<string, unknown>;
+  const google = typeof record.google === "boolean" ? record.google : undefined;
+  const apple = typeof record.apple === "boolean" ? record.apple : undefined;
+  const email = typeof record.email === "boolean" ? record.email : undefined;
+
+  if (google === undefined || apple === undefined || email === undefined) {
+    return null;
+  }
+
+  return { google, apple, email };
+}
+
+function resolveAppCheckMode(): "disabled" | "soft" | "strict" {
   const raw = getEnv("APP_CHECK_ENFORCE_SOFT");
   if (raw === undefined) {
     return "disabled";
@@ -122,18 +155,31 @@ export const systemHealth = onRequest({ region: "us-central1" }, async (req: Req
       throw new HttpError(405, "method_not_allowed");
     }
 
-    const stripeKey = getStripeKey();
-    const openAiKey = getOpenAIKey();
-    const identityToolkit = await checkIdentityToolkit(extractClientKey(req));
-    const authProviders = await fetchAuthProviders();
-    const appCheck = resolveAppCheck();
+    const stripeSecretPresent = hasStripeSecret();
+    const openAiSecret = getOpenAiSecret();
+    const openaiKeyPresent = Boolean(typeof openAiSecret === "string" && openAiSecret.trim());
+    const identityToolkit = await checkIdentityToolkit(resolveClientKey(req));
+    let authProviders = await fetchAuthProviders();
+
+    if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
+      const body = req.body as Record<string, unknown>;
+      const clientProvided = normalizeClientProviders(body.authProviders ?? body.providers);
+      if (clientProvided) {
+        authProviders = clientProvided;
+      }
+    }
+
+    const hostCandidate = getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
+    const host = typeof hostCandidate === "string" && hostCandidate.trim().length ? hostCandidate.trim() : null;
 
     const payload: Record<string, unknown> = {
-      stripeSecretPresent: Boolean(stripeKey.present && stripeKey.value),
-      openaiKeyPresent: Boolean(openAiKey.present && openAiKey.value),
+      stripeSecretPresent,
+      openaiKeyPresent,
       identityToolkitReachable: identityToolkit.reachable,
+      appCheckMode: resolveAppCheckMode(),
+      host,
+      timestamp: new Date().toISOString(),
       authProviders,
-      appCheck,
     };
 
     if (identityToolkit.reason) {

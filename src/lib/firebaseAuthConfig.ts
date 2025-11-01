@@ -92,9 +92,10 @@ function parseProviders(payload: any): string[] {
 }
 
 function withEnvFallback(config: FirebaseAuthClientConfig): FirebaseAuthClientConfig {
-  const envFlag = import.meta.env.VITE_APPLE_ENABLED as string | undefined;
-  const forceOn = envFlag === "true";
-  const forceOff = envFlag === "false";
+  const rawEnv = (import.meta.env.VITE_ENABLE_APPLE ?? import.meta.env.VITE_APPLE_ENABLED) as string | undefined;
+  const normalized = typeof rawEnv === "string" ? rawEnv.trim().toLowerCase() : undefined;
+  const forceOn = normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+  const forceOff = normalized === "false" || normalized === "0" || normalized === "off";
 
   if (forceOn && !config.providerIds.includes("apple.com")) {
     config.providerIds = [...config.providerIds, "apple.com"];

@@ -8,22 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+type ProviderStatus = {
+  google: boolean;
+  apple: boolean;
+  email: boolean;
+};
+
 type SystemHealthResponse = {
   stripeSecretPresent: boolean;
   openaiKeyPresent: boolean;
   identityToolkitReachable: boolean;
   identityToolkitReason?: string;
-  authProviders:
-    | {
-        google: boolean;
-        apple: boolean;
-        email: boolean;
-        unknown?: false;
-      }
-    | {
-        unknown: true;
-      };
-  appCheck: "disabled" | "soft" | "strict";
+  authProviders?: ProviderStatus | { unknown: true };
+  appCheckMode: "disabled" | "soft" | "strict";
+  host: string | null;
+  timestamp: string;
 };
 
 type StatusItem = {
@@ -128,10 +127,11 @@ export default function Diagnostics() {
     if (!data) {
       return <Badge variant="outline">Loading…</Badge>;
     }
-    if (!hasProviderFlags(data.authProviders)) {
+    const providersData = data.authProviders;
+    if (!providersData || !hasProviderFlags(providersData)) {
       return <Badge variant="outline">Status unknown</Badge>;
     }
-    const providers = data.authProviders;
+    const providers = providersData;
     return (
       <div className="flex flex-wrap gap-2">
         <ProviderBadge label="Google" ok={providers.google} />
@@ -143,8 +143,8 @@ export default function Diagnostics() {
 
   const appCheckBadge = useMemo(() => {
     if (!data) return <Badge variant="outline">Loading…</Badge>;
-    const variant = data.appCheck === "strict" ? "default" : data.appCheck === "soft" ? "secondary" : "outline";
-    const label = data.appCheck === "disabled" ? "Disabled" : data.appCheck === "soft" ? "Soft" : "Strict";
+    const variant = data.appCheckMode === "strict" ? "default" : data.appCheckMode === "soft" ? "secondary" : "outline";
+    const label = data.appCheckMode === "disabled" ? "Disabled" : data.appCheckMode === "soft" ? "Soft" : "Strict";
     return <Badge variant={variant}>{label}</Badge>;
   }, [data]);
 
@@ -171,6 +171,11 @@ export default function Diagnostics() {
               <InfoRow
                 label="Last updated"
                 value={lastUpdated ? new Date(lastUpdated).toLocaleString() : "—"}
+              />
+              <InfoRow label="System host" value={data?.host || "—"} />
+              <InfoRow
+                label="Server timestamp"
+                value={data?.timestamp ? new Date(data.timestamp).toLocaleString() : "—"}
               />
             </div>
             {error && <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
@@ -237,9 +242,10 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function hasProviderFlags(
-  input: SystemHealthResponse["authProviders"],
-): input is { google: boolean; apple: boolean; email: boolean } {
+function hasProviderFlags(input: SystemHealthResponse["authProviders"]): input is ProviderStatus {
+  if (!input || typeof input !== "object") {
+    return false;
+  }
   return !("unknown" in input);
 }
 

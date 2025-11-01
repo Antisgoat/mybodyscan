@@ -32,13 +32,19 @@ export function nutritionFnUrl(params?: Record<string, string>) {
   return url.toString();
 }
 
+type NutritionSearchResponse = {
+  results?: unknown[];
+  source?: string;
+  message?: string;
+};
+
 export async function nutritionSearch(
   query: string,
   init?: RequestInit,
-): Promise<{ items?: unknown[] }> {
+): Promise<NutritionSearchResponse> {
   const trimmed = query.trim();
   if (!trimmed) {
-    return { items: [] };
+    return { results: [] };
   }
   const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
   const headers = new Headers(init?.headers ?? undefined);
@@ -59,18 +65,89 @@ export async function nutritionSearch(
   if (appCheckHeaders["X-Firebase-AppCheck"]) {
     headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
   }
+
+  if (!headers.has("Authorization")) {
+    const authError: any = new Error("auth_required");
+    authError.code = "auth_required";
+    throw authError;
+  }
   const response = await fetch(url, {
     ...init,
     headers,
     credentials: "include",
     method: "GET",
   });
+  let payload: NutritionSearchResponse | null = null;
+  try {
+    payload = (await response.json()) as NutritionSearchResponse;
+  } catch {
+    payload = null;
+  }
   if (!response.ok) {
     const err: any = new Error(`rewrite_status_${response.status}`);
     err.status = response.status;
+    err.body = payload;
     throw err;
   }
-  return response.json();
+  return payload ?? {};
+}
+
+export async function nutritionBarcodeLookup(
+  code: string,
+  init?: RequestInit,
+): Promise<NutritionSearchResponse> {
+  const trimmed = code.trim();
+  if (!trimmed) {
+    return { results: [] };
+  }
+  const url = `/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`;
+  const headers = new Headers(init?.headers ?? undefined);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  const idTokenPromise: Promise<string | null> = headers.has("Authorization")
+    ? Promise.resolve<string | null>(null)
+    : (async () => {
+        const { user } = await getAuthContext();
+        return user ? user.getIdToken() : null;
+      })();
+  await ensureAppCheck();
+  const [idToken, appCheckHeaders] = await Promise.all([idTokenPromise, getAppCheckHeader()]);
+  if (idToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${idToken}`);
+  }
+  if (appCheckHeaders["X-Firebase-AppCheck"]) {
+    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
+  }
+
+  if (!headers.has("Authorization")) {
+    const authError: any = new Error("auth_required");
+    authError.code = "auth_required";
+    throw authError;
+  }
+
+  const response = await fetch(url, {
+    ...init,
+    headers,
+    credentials: "include",
+    method: "GET",
+  });
+
+  let payload: NutritionSearchResponse | null = null;
+  try {
+    payload = (await response.json()) as NutritionSearchResponse;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const err: any = new Error(`rewrite_status_${response.status}`);
+    err.status = response.status;
+    err.body = payload;
+    throw err;
+  }
+
+  return payload ?? {};
 }
 
 const coachChatInFlight = new Map<string, AbortController>();
@@ -251,7 +328,7 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
   const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
 
   try {
-    let payload: { items?: unknown[] } | undefined;
+    let payload: NutritionSearchResponse | undefined;
 
     try {
       payload = await nutritionSearch(query, { signal: controller.signal });
@@ -275,6 +352,11 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         if (fallbackIdToken) {
           fallbackHeaders.set("Authorization", `Bearer ${fallbackIdToken}`);
         }
+        if (!fallbackIdToken) {
+          const authError: any = new Error("auth_required");
+          authError.code = "auth_required";
+          throw authError;
+        }
         const fallbackAppCheck = await getAppCheckHeader();
         if (fallbackAppCheck["X-Firebase-AppCheck"]) {
           fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheck["X-Firebase-AppCheck"]);
@@ -289,14 +371,14 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
           fallbackError.status = response.status;
           throw fallbackError;
         }
-        payload = await response.json().catch(() => ({ items: [] as any[] }));
+        payload = await response.json().catch(() => ({ results: [] as any[] }));
       }
     }
 
-    if (!Array.isArray(payload?.items)) {
+    if (!Array.isArray(payload?.results)) {
       return [];
     }
-    return payload.items.map(sanitizeFoodItem);
+    return payload.results.map(sanitizeFoodItem);
   } finally {
     clearTimeout(timer);
     if (nutritionSearchController === controller) {

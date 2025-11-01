@@ -89,11 +89,40 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Runbook (envs, demo, App Check, rewrites)
 
-- VITE_RECAPTCHA_V3_SITE_KEY: site key for Firebase App Check (reCAPTCHA v3). If unset in dev/demo, App Check runs in soft mode and does not block.
-- VITE_DEMO_MODE: set to `true` to always enable demo. Demo also auto-enables on localhost/127.0.0.1/lovable hosts or with `?demo=1`.
-- SPA rewrites: `firebase.json` places API rewrites (e.g., `/api/nutrition/*`) before the final catch-all to `/index.html` to avoid 404s on deep links.
-- Nutrition endpoints: frontend uses only `/api/nutrition/search` and `/api/nutrition/barcode`.
-- System smoke check: run `npm run smoke` to exercise `/systemHealth`, `/nutritionSearch`, `/coachChat`, and `/createCheckout` (requires `VITE_FIREBASE_API_KEY`).
+### Required web environment variables
+
+- `VITE_FIREBASE_API_KEY` – Firebase Web API key consumed by `src/lib/firebase.ts`.
+- `VITE_FIREBASE_AUTH_DOMAIN` – Firebase Auth domain (e.g., `mybodyscan-f3daf.firebaseapp.com`).
+- `VITE_FIREBASE_PROJECT_ID` – Firebase project ID shared across web and Cloud Functions.
+- `VITE_FIREBASE_APP_ID` – Firebase App ID for the deployed web app.
+- `VITE_FIREBASE_STORAGE_BUCKET` – Required for scan uploads and storage access.
+- `VITE_FIREBASE_MESSAGING_SENDER_ID` – Required for Firebase Auth session handling.
+- `VITE_PRICE_STARTER` – Stripe price ID for the one-time starter plan.
+- `VITE_PRICE_YEARLY` – Stripe price ID for the yearly subscription.
+
+### Optional web toggles & helpers
+
+- `VITE_ENABLE_APPLE` – Set to `true` to force-render Apple sign-in alongside provider autodetect.
+- `VITE_ENABLE_DEMO` – Set to `true` to expose the hosted demo sign-in on any origin.
+- `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check (soft enforcement when unset).
+- `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
+- `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
+
+### Cloud Functions secrets (attach via `firebase functions:secrets:set`)
+
+| Function | Secret name(s) | Purpose |
+| --- | --- | --- |
+| `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`) | Stripe API key for hosted checkout + portal. |
+| `stripeWebhook` | `STRIPE_SECRET`, `STRIPE_WEBHOOK` | Stripe API key and webhook signing secret. |
+| `coachChat` | `OPENAI_API_KEY` | Grants access to OpenAI chat models. |
+| `nutritionSearch`, `nutritionBarcode` | `USDA_FDC_API_KEY` | USDA FoodData Central lookups (Open Food Facts handles fallback). |
+
+### Operational notes
+
+- CSP `connect-src` in `firebase.json` already includes Identity Toolkit, Secure Token, Firestore, Storage, Stripe, Apple ID, Cloud Functions, and Cloud Run endpoints; extend here first before hitting new SaaS APIs.
+- Hosting rewrites send `/systemHealth` to the health-check function and `/api/nutrition/*` to authenticated nutrition handlers. Keep these rules ahead of the SPA catch-all.
+- `scripts/smoke.sh` is idempotent and requires `VITE_FIREBASE_API_KEY` plus configured `VITE_PRICE_*` envs. It creates a throwaway Firebase user, fetches an ID token, and probes `/systemHealth`, `/nutritionSearch`, `/coachChat`, and `/createCheckout` (accepts `200`, `501`, or `502` based on config).
+- Nutrition and barcode features now require a signed-in Firebase user; signed-out visitors see "Sign in to search foods and scan barcodes."
 
 ## Prod Diagnostics & Probes
 
@@ -102,7 +131,9 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Environment variables
 
-Create a `.env.local` for development based on `.env.example` and a `.env.production` for production builds. Required variables:
+Create a `.env.local` for development based on `.env.example` and a `.env.production` for production builds.
+
+**Required**
 
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -110,10 +141,17 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`
-- `VITE_FIREBASE_MEASUREMENT_ID`
+- `VITE_PRICE_STARTER`
+- `VITE_PRICE_YEARLY`
+
+**Optional / toggles**
+
+- `VITE_ENABLE_APPLE`
+- `VITE_ENABLE_DEMO`
+- `VITE_APPCHECK_SITE_KEY`
 - `VITE_FUNCTIONS_BASE_URL`
-- `VITE_APPCHECK_SITE_KEY` *(App Check reCAPTCHA v3 site key; soft if missing in dev)*
-- `VITE_DEMO_MODE` *(optional; demo auto-enables on localhost/lovable or with `?demo=1`)*
+- `VITE_STRIPE_PK` or `VITE_STRIPE_PUBLISHABLE_KEY`
+- `VITE_USDA_API_KEY`
 
 ### Enable Sign in with Apple (Web)
 
@@ -129,7 +167,7 @@ Cloud Functions read Stripe credentials from Firebase Secrets Manager entries na
 Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
 
 - `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
-- `STRIPE_SECRET` *(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)*
+- `STRIPE_SECRET_KEY` or `STRIPE_SECRET` *(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)*
 - `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
 - `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
 - `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*

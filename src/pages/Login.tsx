@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from "react";
 
-import { useFlags } from "@/lib/flags";
 import { toast } from "../lib/toast";
 import {
   emailPasswordSignIn,
   googleSignIn,
   appleSignIn,
-  APPLE_WEB_ENABLED,
   describeAuthErrorAsync,
 } from "../lib/login";
 import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
@@ -18,18 +16,41 @@ import {
   consumeAuthRedirectResult,
   type FriendlyFirebaseError,
 } from "../lib/authRedirect";
+import { loadFirebaseAuthClientConfig, isProviderEnabled } from "../lib/firebaseAuthConfig";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
-  const { flags, loaded } = useFlags();
-  const envEnableApple =
-    import.meta.env.VITE_ENABLE_APPLE === "true" || import.meta.env.VITE_ENABLE_APPLE === "1";
-  const appleAllowed = envEnableApple || flags.enableApple || (!loaded && APPLE_WEB_ENABLED);
+  const [appleProviderEnabled, setAppleProviderEnabled] = useState<boolean | null>(null);
+  const envEnableAppleRaw = import.meta.env.VITE_ENABLE_APPLE as string | undefined;
+  const envEnableApple = typeof envEnableAppleRaw === "string"
+    ? ["true", "1", "yes", "on"].includes(envEnableAppleRaw.trim().toLowerCase())
+    : false;
+  const showAppleButton = envEnableApple || appleProviderEnabled === true;
 
   useEffect(() => {
-    if (!appleAllowed) return;
+    let cancelled = false;
+    loadFirebaseAuthClientConfig()
+      .then((config) => {
+        if (cancelled) return;
+        setAppleProviderEnabled(isProviderEnabled("apple.com", config));
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) {
+          console.warn("[login] Unable to load Firebase Auth client config", error);
+        }
+        if (!cancelled) {
+          setAppleProviderEnabled(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showAppleButton) return;
     if (typeof document === "undefined") return;
     const existing = document.querySelector<HTMLScriptElement>("script[data-apple-auth]");
     if (existing) return;
@@ -49,7 +70,7 @@ export default function Login() {
         console.warn("[login] Unable to load Apple JS", err);
       }
     }
-  }, [appleAllowed]);
+  }, [showAppleButton]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,14 +123,11 @@ export default function Login() {
     try {
       const r = await emailPasswordSignIn(email, pass);
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Email sign-in failed.";
-        toast(message, "error");
+        toast(formatError(r.message, r.code), "error");
       }
     } catch (err) {
-      const message = (err as { message?: string } | undefined)?.message || "Email sign-in failed.";
-      toast(message, "error");
+      const normalized = normalizeFirebaseError(err);
+      toast(formatError(normalized.message, normalized.code), "error");
     } finally {
       setBusy(false);
     }
@@ -126,9 +144,8 @@ export default function Login() {
         toast(show, "error");
       }
     } catch (err) {
-      const message = (err as { message?: string } | undefined)?.message || "Google sign-in failed.";
-      const show = formatError(message, (err as { code?: string } | undefined)?.code);
-      toast(show, "error");
+      const normalized = normalizeFirebaseError(err);
+      toast(formatError(normalized.message ?? "Google sign-in failed.", normalized.code), "error");
     } finally {
       setBusy(false);
     }
@@ -139,14 +156,11 @@ export default function Login() {
     try {
       const r = await appleSignIn();
       if (!r.ok) {
-        const message = "message" in r && typeof r.message === "string" && r.message
-          ? r.message
-          : "Apple sign-in failed.";
-        toast(message, "error");
+        toast(formatError(r.message ?? "Apple sign-in failed.", r.code), "error");
       }
     } catch (err) {
-      const message = (err as { message?: string } | undefined)?.message || "Apple sign-in failed.";
-      toast(message, "error");
+      const normalized = normalizeFirebaseError(err);
+      toast(formatError(normalized.message ?? "Apple sign-in failed.", normalized.code), "error");
     } finally {
       setBusy(false);
     }
@@ -217,11 +231,33 @@ export default function Login() {
   );
 }
 
-function formatError(message: string, code?: string) {
-  if (import.meta.env.DEV && code) {
-    return `${message} (${code})`;
+function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
+  if (!err) return {};
+  if (typeof err === "string") {
+    return { message: err };
   }
-  return message;
+  if (typeof err === "object") {
+    const record = err as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : undefined;
+    const code = typeof record.code === "string" ? record.code : undefined;
+    return { message, code };
+  }
+  return {};
+}
+
+function cleanFirebaseMessage(message?: string): string | undefined {
+  if (!message) return undefined;
+  let cleaned = message.replace(/^Firebase:\s*/i, "");
+  cleaned = cleaned.replace(/\s*\(auth\/[\w-]+\)\.?$/i, "").trim();
+  return cleaned || undefined;
+}
+
+function formatError(message?: string, code?: string) {
+  const cleaned = cleanFirebaseMessage(message) ?? message ?? "Firebase sign-in failed.";
+  if (code) {
+    return `${cleaned} (${code})`;
+  }
+  return cleaned;
 }
 
 /* minimal inline styles */
