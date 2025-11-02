@@ -8,8 +8,9 @@ import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
+import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { runMiddleware } from "./util/runMiddleware.js";
+import { chain } from "./middleware/chain.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
@@ -307,13 +308,6 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
 
 export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
-  async (req: Request, res: Response) => {
-    await runMiddleware(req, res, appCheckSoft);
-    if (res.headersSent) {
-      return;
-    }
-
-    // Soft App Check guard executed for every request path before handler logic.
-    await handleNutritionBarcode(req, res);
-  },
+  (req: Request, res: Response) =>
+    chain(withCors, appCheckSoft)(req, res, () => void handleNutritionBarcode(req, res)),
 );
