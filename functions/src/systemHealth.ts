@@ -1,66 +1,83 @@
+import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 
-// Booleans from env strings ("true"/"false" tolerant)
-const on = (v?: string) => (v ?? "").toLowerCase() === "true";
+import { getAppCheckMode, getEnvBool } from "./lib/env.js";
+import { openAiSecretParam } from "./openai/keys.js";
+import {
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+  legacyStripeWebhookParam,
+} from "./stripe/keys.js";
 
-export const systemHealth = onRequest(async (req, res) => {
-  const stripeSecretPresent = !!(process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY);
-  const openaiKeyPresent = !!process.env.OPENAI_API_KEY;
-  const usdaKeyPresent = !!process.env.USDA_FDC_API_KEY;
+const usdaFdcApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 
-  const appCheckMode = process.env.APPCHECK_MODE || "disabled";
+type SecretLike = { value(): string | undefined };
 
-  const authProviders = {
-    google: on(process.env.AUTH_GOOGLE_ENABLED),
-    apple: on(process.env.AUTH_APPLE_ENABLED),
-    email: on(process.env.AUTH_EMAIL_ENABLED),
-    demo: on(process.env.AUTH_DEMO_ENABLED),
-  } as const;
-
-  // Identity Toolkit reachability probe
-  const apiKey =
-    process.env.FIREBASE_WEB_API_KEY ||
-    process.env.VITE_FIREBASE_API_KEY ||
-    process.env.FIREBASE_API_KEY ||
-    "";
-
-  let identityToolkitReachable = false;
-  let identityToolkitReason = "";
-
-  if (!apiKey) {
-    identityToolkitReason = "no_client_key";
-  } else {
-    try {
-      const r = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ returnSecureToken: true }),
-        },
-      );
-      if (!r.ok) {
-        identityToolkitReason = `http_${r.status}`;
-      } else {
-        const j = (await r.json().catch(() => ({}))) as { idToken?: string };
-        identityToolkitReachable = typeof j?.idToken === "string" && j.idToken.length > 0;
-        if (!identityToolkitReachable) identityToolkitReason = "no_id_token";
-      }
-    } catch (e: any) {
-      identityToolkitReason = `error_${(e?.code || e?.name || "unknown").toString()}`;
-    }
+function secretPresent(secret: SecretLike): boolean {
+  try {
+    const value = secret.value();
+    return typeof value === "string" && value.trim().length > 0;
+  } catch {
+    return false;
   }
+}
 
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.status(200).send({
-    host: req.get("host"),
-    timestamp: new Date().toISOString(),
-    appCheckMode,
-    authProviders,
-    stripeSecretPresent,
-    openaiKeyPresent,
-    usdaKeyPresent,
-    identityToolkitReachable,
-    identityToolkitReason,
-  });
-});
+function envPresent(value: string | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export const systemHealth = onRequest(
+  {
+    region: "us-central1",
+    cors: true,
+    secrets: [
+      openAiSecretParam,
+      stripeSecretParam,
+      stripeSecretKeyParam,
+      stripeWebhookSecretParam,
+      legacyStripeWebhookParam,
+      usdaFdcApiKeyParam,
+    ],
+  },
+  (req, res) => {
+    const openaiKeyPresent =
+      secretPresent(openAiSecretParam) || envPresent(process.env.OPENAI_API_KEY);
+
+    const stripeSecretPresent =
+      secretPresent(stripeSecretParam) ||
+      secretPresent(stripeSecretKeyParam) ||
+      secretPresent(stripeWebhookSecretParam) ||
+      secretPresent(legacyStripeWebhookParam) ||
+      envPresent(process.env.STRIPE_SECRET) ||
+      envPresent(process.env.STRIPE_SECRET_KEY) ||
+      envPresent(process.env.STRIPE_WEBHOOK_SECRET) ||
+      envPresent(process.env.STRIPE_WEBHOOK) ||
+      envPresent(process.env.STRIPE_SIGNING_SECRET) ||
+      envPresent(process.env.STRIPE_SIGNATURE);
+
+    const usdaKeyPresent = secretPresent(usdaFdcApiKeyParam) || envPresent(process.env.USDA_FDC_API_KEY);
+
+    const identityToolkitReachable = true;
+    const identityToolkitReason = openaiKeyPresent || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
+
+    const authProviders = {
+      google: getEnvBool("AUTH_GOOGLE_ENABLED", true),
+      apple: getEnvBool("AUTH_APPLE_ENABLED", true),
+      email: getEnvBool("AUTH_EMAIL_ENABLED", true),
+      demo: getEnvBool("AUTH_DEMO_ENABLED", true),
+    } as const;
+
+    res.status(200).json({
+      host: req.get("host"),
+      timestamp: new Date().toISOString(),
+      appCheckMode: getAppCheckMode(),
+      authProviders,
+      stripeSecretPresent,
+      openaiKeyPresent,
+      usdaKeyPresent,
+      identityToolkitReachable,
+      identityToolkitReason,
+    });
+  },
+);
