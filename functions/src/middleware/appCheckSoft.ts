@@ -16,8 +16,7 @@ export async function appCheckSoft(req: Request, _res: Response, next: NextFunct
   }
   try {
     // Lazy import to avoid hard dependency in cold starts
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { getAppCheck } = require("firebase-admin/app-check");
+    const { getAppCheck } = await import("firebase-admin/app-check");
     await getAppCheck().verifyToken(hdr);
     return next();
   } catch (e) {

@@ -83,6 +83,7 @@ import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
 import UATPage from "./pages/UAT";
+import Billing from "./pages/Billing";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -176,6 +177,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute><AuthedLayout><Billing /></AuthedLayout></ProtectedRoute>} />
             <Route
               path="/today"
               element={

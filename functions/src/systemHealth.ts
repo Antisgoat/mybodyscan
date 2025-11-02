@@ -42,9 +42,10 @@ export const systemHealth = onRequest(
   },
   (req, res) => {
     const openaiKeyPresent =
-      secretPresent(openAiSecretParam) || envPresent(process.env.OPENAI_API_KEY);
+      !!process.env.OPENAI_API_KEY || secretPresent(openAiSecretParam) || envPresent(process.env.OPENAI_API_KEY);
 
     const stripeSecretPresent =
+      !!process.env.STRIPE_SECRET ||
       secretPresent(stripeSecretParam) ||
       secretPresent(stripeSecretKeyParam) ||
       secretPresent(stripeWebhookSecretParam) ||
