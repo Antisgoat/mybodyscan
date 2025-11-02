@@ -197,7 +197,14 @@
         "STRIPE_SECRET_KEY",
         "STRIPE_WEBHOOK_SECRET",
         "USDA_FDC_API_KEY"
-      ]
+      ],
+      "environmentVariables": {
+        "AUTH_GOOGLE_ENABLED": "true",
+        "AUTH_APPLE_ENABLED": "true",
+        "AUTH_EMAIL_ENABLED": "true",
+        "AUTH_DEMO_ENABLED": "true",
+        "APPCHECK_MODE": "soft"
+      }
     }
   ],
   "firestore": {
