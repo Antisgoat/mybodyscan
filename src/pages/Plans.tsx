@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { AlertTriangle, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
-import { isDemoActive } from "@/lib/demoFlag";
+import { isDemo } from "@/lib/demoFlag";
 
 type PlanConfig = {
   name: string;
@@ -30,7 +30,15 @@ type PlanConfig = {
 
 export default function Plans() {
   const { t } = useI18n();
+  const demoMode = isDemo();
   const handleCheckout = async (plan: PlanConfig) => {
+    if (demoMode) {
+      toast({
+        title: "Demo mode",
+        description: "Sign in to purchase a plan.",
+      });
+      return;
+    }
     try {
       if (!plan.priceId) {
         const description = plan.envKey
@@ -164,9 +172,9 @@ export default function Plans() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
-          {isDemoActive() && (
+          {demoMode && (
             <p className="text-xs text-muted-foreground mt-2">
-              Demo mode — purchase requires sign-up.
+              Demo Mode — sign in to purchase.
             </p>
           )}
         </div>
@@ -222,7 +230,8 @@ export default function Plans() {
                   className="w-full"
                   variant={plan.popular ? "default" : "outline"}
                   onClick={() => handleCheckout(plan)}
-                  disabled={!plan.priceId}
+                  disabled={demoMode || !plan.priceId}
+                  title={demoMode ? "Demo mode is read-only" : undefined}
                 >
                   {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
                 </Button>

@@ -13,6 +13,8 @@ import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { demoNoAuth, isDemo } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
 
 type LastScan = {
   id: string;
@@ -25,7 +27,17 @@ const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const demo = useDemoMode();
-  const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [lastScan, setLastScan] = useState<LastScan | null>(() => {
+    if (isDemo() && demoNoAuth) {
+      return {
+        id: DEMO_LATEST_RESULT.id,
+        createdAt: DEMO_LATEST_RESULT.completedAt.toDate?.() ?? new Date(),
+        status: DEMO_LATEST_RESULT.status,
+        raw: DEMO_LATEST_RESULT,
+      } satisfies LastScan;
+    }
+    return null;
+  });
   const loggedOnce = useRef(false);
 
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
@@ -37,6 +49,15 @@ const Home = () => {
   const bmi = summary.bmiText;
 
   useEffect(() => {
+    if (demo && demoNoAuth) {
+      setLastScan({
+        id: DEMO_LATEST_RESULT.id,
+        createdAt: DEMO_LATEST_RESULT.completedAt.toDate?.() ?? new Date(),
+        status: DEMO_LATEST_RESULT.status,
+        raw: DEMO_LATEST_RESULT,
+      });
+      return;
+    }
     if (!user?.uid) return;
     const uid = user.uid;
 
@@ -80,7 +101,7 @@ const Home = () => {
   }, [user]);
 
   const renderStartButton = (props: { variant?: "default" | "secondary" | "outline"; className?: string } = {}) => {
-    if (!demo) {
+    if (!demo || demoNoAuth) {
       return (
         <Button
           variant={props.variant}

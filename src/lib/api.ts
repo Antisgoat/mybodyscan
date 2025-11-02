@@ -5,6 +5,13 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type { Auth, User } from "firebase/auth";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
+import { isDemo } from "./demoFlag";
+import {
+  mockBarcodeLookup,
+  mockCoachReply,
+  mockNutritionSearch,
+  mockStartScan,
+} from "./demoApiMocks";
 
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
   return { auth: firebaseAuth, user: firebaseAuth.currentUser };
@@ -45,6 +52,9 @@ export async function nutritionSearch(
   const trimmed = query.trim();
   if (!trimmed) {
     return { results: [] };
+  }
+  if (isDemo()) {
+    return mockNutritionSearch(trimmed);
   }
   const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
   const headers = new Headers(init?.headers ?? undefined);
@@ -99,6 +109,9 @@ export async function nutritionBarcodeLookup(
   const trimmed = code.trim();
   if (!trimmed) {
     return { results: [] };
+  }
+  if (isDemo()) {
+    return mockBarcodeLookup(trimmed);
   }
   const url = `/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`;
   const headers = new Headers(init?.headers ?? undefined);
@@ -158,6 +171,9 @@ export async function coachChat(payload: { message: string }, options: { signal?
     const error: any = new Error("message_required");
     error.code = "message_required";
     throw error;
+  }
+  if (isDemo()) {
+    return mockCoachReply(message);
   }
   const { user } = await requireAuthContext();
   const existing = coachChatInFlight.get(user.uid);
@@ -415,6 +431,10 @@ async function authedFetch(path: string, init?: RequestInit) {
 }
 
 export async function startScan(params?: Record<string, unknown>) {
+  if (isDemo()) {
+    const mock = mockStartScan(params);
+    return { scanId: mock.scanId };
+  }
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
   await ensureAppCheck();
@@ -465,6 +485,10 @@ export async function beginPaidScan(payload: {
   gateScore: number;
   mode: "2" | "4";
 }) {
+  if (isDemo()) {
+    const mock = mockStartScan(payload);
+    return { ok: true, remainingCredits: 0, scanId: mock.scanId, resultId: mock.resultId };
+  }
   const response = await authedFetch(`/beginPaidScan`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -478,6 +502,9 @@ export async function beginPaidScan(payload: {
 }
 
 export async function recordGateFailure() {
+  if (isDemo()) {
+    return { ok: true, remaining: 0 };
+  }
   const response = await authedFetch(`/recordGateFailure`, { method: "POST" });
   const data = await handleJsonResponse(response);
   if (!response.ok) {
@@ -487,6 +514,9 @@ export async function recordGateFailure() {
 }
 
 export async function refundIfNoResult(scanId: string) {
+  if (isDemo()) {
+    return { ok: true, refunded: false };
+  }
   const response = await authedFetch(`/refundIfNoResult`, {
     method: "POST",
     body: JSON.stringify({ scanId }),

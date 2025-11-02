@@ -8,6 +8,7 @@ import { Seo } from "@/components/Seo";
 import { getLastWeight, setLastWeight } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { demoNoAuth } from "@/lib/demoFlag";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -24,7 +25,7 @@ export default function ScanStart() {
   const demo = useDemoMode();
 
   const goToCapture = () => {
-    if (demo) {
+    if (demo && !demoNoAuth) {
       demoToast();
       return;
     }
@@ -35,7 +36,7 @@ export default function ScanStart() {
     event?.preventDefault();
     setError(null);
 
-    if (demo) {
+    if (demo && !demoNoAuth) {
       demoToast();
       return;
     }
@@ -79,11 +80,11 @@ export default function ScanStart() {
             />
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
-          {demo ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span onClick={() => demoToast()}>
-                  <Button type="button" size="lg" disabled className="pointer-events-none">
+            {demo && !demoNoAuth ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span onClick={() => demoToast()}>
+                    <Button type="button" size="lg" disabled className="pointer-events-none">
                     Save and continue
                   </Button>
                 </span>
@@ -100,11 +101,11 @@ export default function ScanStart() {
         <div className="space-y-4">
           <p className="text-lg font-medium">Is your weight still {formatWeight(storedWeight!)} lb?</p>
           <div className="flex flex-wrap gap-3">
-            {demo ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span onClick={() => demoToast()}>
-                    <Button size="lg" disabled className="pointer-events-none">
+              {demo && !demoNoAuth ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span onClick={() => demoToast()}>
+                      <Button size="lg" disabled className="pointer-events-none">
                       Yes
                     </Button>
                   </span>

@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { auth as firebaseAuth, db } from "@/lib/firebase";
 import { ensureDemoData } from "@/lib/demoData";
-import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
+import { DEMO_SESSION_KEY, demoNoAuth, enableDemo } from "@/lib/demoFlag";
 import { startDemo } from "@/lib/demo";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
+import { mockLatestScan } from "@/lib/demoApiMocks";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -22,6 +24,24 @@ export default function DemoGate() {
       try {
         setFailed(false);
         setLoading(true);
+
+        if (demoNoAuth) {
+          if (typeof window !== "undefined") {
+            try {
+              enableDemo();
+              window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+              (window as any).__MBS_DEMO__ = {
+                latestResult: DEMO_LATEST_RESULT,
+                history: DEMO_SCAN_HISTORY,
+              };
+            } catch (err) {
+              console.warn("[demo] unable to seed session", err);
+            }
+          }
+          mockLatestScan();
+          if (mountedRef.current) navigate("/home", { replace: true });
+          return;
+        }
 
         const auth = firebaseAuth;
         if (auth.currentUser) {

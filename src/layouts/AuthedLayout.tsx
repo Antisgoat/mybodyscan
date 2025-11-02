@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
+import { useNavigate, NavLink, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,6 +8,7 @@ import { Menu, User } from "lucide-react";
 import { signOutToAuth } from "@/lib/auth";
 import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
+import { isDemo } from "@/lib/demoFlag";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -28,6 +29,7 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const demoMode = isDemo();
 
   const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 
@@ -139,6 +141,16 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             </div>
           </div>
         </div>
+        {demoMode ? (
+          <div className="border-t bg-amber-50 text-amber-900 text-xs">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 py-2 flex items-center justify-between gap-2">
+              <span>Demo Mode (read-only)</span>
+              <Link to="/system/check" className="underline-offset-4 hover:underline">
+                Diagnostics
+              </Link>
+            </div>
+          </div>
+        ) : null}
       </header>
 
       {/* Main Content */}

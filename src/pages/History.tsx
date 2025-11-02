@@ -10,6 +10,8 @@ import { auth, db } from "@/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
+import { isDemo } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
 
 interface ScanHistoryEntry {
   id: string;
@@ -39,6 +41,8 @@ const methodCopy: Record<string, string> = {
   bmi_fallback: "BMI Fallback",
 };
 
+const DEMO_HISTORY_LIST = [...DEMO_SCAN_HISTORY, DEMO_LATEST_RESULT] as unknown as ScanHistoryEntry[];
+
 function confidenceLabel(value?: number) {
   if (value == null) return { label: "Unknown", tone: "secondary" } as const;
   if (value >= 0.85) return { label: "High", tone: "default" } as const;
@@ -60,11 +64,16 @@ function modeLabel(mode?: "2" | "4") {
 }
 
 export default function History() {
-  const [entries, setEntries] = useState<ScanHistoryEntry[]>([]);
+  const [entries, setEntries] = useState<ScanHistoryEntry[]>(() => (isDemo() ? DEMO_HISTORY_LIST : []));
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      if (isDemo()) {
+        setEntries(DEMO_HISTORY_LIST);
+      }
+      return;
+    }
     const ref = collection(db, "users", user.uid, "scans");
     const q = query(ref, orderBy("completedAt", "desc"), limit(25));
     const unsub = onSnapshot(q, (snapshot) => {

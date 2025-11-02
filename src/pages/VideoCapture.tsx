@@ -9,6 +9,8 @@ import { ref, uploadBytes } from "firebase/storage";
 import { startScan } from "@/lib/api";
 import { consumeOneCredit } from "@/lib/credits";
 import { sanitizeFilename } from "@/lib/utils";
+import { isDemo, demoNoAuth } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
 
 const MAX_SECONDS = 10;
 
@@ -18,6 +20,7 @@ const VideoCapture = () => {
   const [duration, setDuration] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [loading, setLoading] = useState(false);
+  const demoMode = isDemo() && demoNoAuth;
 
   useEffect(() => {
     if (!file) return;
@@ -38,6 +41,19 @@ const VideoCapture = () => {
 
   const onContinue = async () => {
     const uid = firebaseAuth.currentUser?.uid;
+    if (demoMode) {
+      if (!file || duration == null || duration > MAX_SECONDS) {
+        toast({ title: "Select a video", description: "Choose a short clip to preview demo results." });
+        return;
+      }
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        toast({ title: "Demo estimate ready", description: "Showing a sample report." });
+        navigate(`/results/${DEMO_LATEST_RESULT.id}`);
+      }, 1200);
+      return;
+    }
     if (!uid || !file || duration == null) {
       if (!uid) {
         toast({ title: "Sign in required" });
@@ -112,13 +128,19 @@ const VideoCapture = () => {
               <span className="text-muted-foreground">No video selected</span>
             )}
           </div>
-          <Button 
-            className="w-full" 
-            onClick={onContinue} 
+          <Button
+            className="w-full"
+            onClick={onContinue}
             disabled={!file || duration == null || duration > MAX_SECONDS || loading}
             aria-label={file && duration != null && duration <= MAX_SECONDS ? "Analyze video" : "Select a valid video first"}
           >
-            {loading ? "Creating scan..." : file && duration != null ? "Analyze Video" : "Select Video"}
+            {loading
+              ? demoMode
+                ? "Loading demo..."
+                : "Creating scan..."
+              : file && duration != null
+                ? "Analyze Video"
+                : "Select Video"}
           </Button>
         </CardContent>
       </Card>
