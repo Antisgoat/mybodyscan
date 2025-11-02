@@ -7,6 +7,7 @@ import { useEffect, lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
+import LoginPanel from "./components/LoginPanel";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
@@ -15,7 +16,6 @@ import { MBS_FLAGS } from "./lib/flags";
 import Index from "./pages/Index";
 import WelcomeRedirect from "./pages/WelcomeRedirect";
 import Auth from "./pages/Auth";
-import Login from "./pages/Login";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
@@ -175,7 +175,7 @@ const App = () => {
               </Suspense>
             } />
             <Route path="/oauth/return" element={<OAuthReturn />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<LoginPanel />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             <Route

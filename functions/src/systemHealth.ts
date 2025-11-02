@@ -7,9 +7,8 @@ import { HttpError, send } from "./util/http.js";
 import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
 import { chain } from "./middleware/chain.js";
-import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
+import { openAiSecretParam } from "./openai/keys.js";
 import {
-  getStripeKey,
   legacyStripeWebhookParam,
   stripeSecretKeyParam,
   stripeSecretParam,
@@ -33,6 +32,7 @@ function detectIdentityToolkitConfig(clientKeyOverride?: string) {
     clientKeyOverride ||
     process.env.FIREBASE_WEB_API_KEY ||
     process.env.VITE_FIREBASE_API_KEY ||
+    process.env.FIREBASE_API_KEY ||
     "";
 
   if (!clientKey) {
@@ -40,6 +40,24 @@ function detectIdentityToolkitConfig(clientKeyOverride?: string) {
   }
   // We do not make a network call here; just report presence to avoid cold-start latency.
   return { identityToolkitReachable: true, identityToolkitReason: "client_key_present" } as const;
+}
+
+function detectSecrets() {
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  const hasStripeSecret = !!process.env.STRIPE_SECRET;
+  const hasStripeSecretKey = !!process.env.STRIPE_SECRET_KEY;
+  const hasStripeWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const hasUsda = !!process.env.USDA_FDC_API_KEY;
+  const all =
+    hasOpenAI && hasStripeSecret && hasStripeSecretKey && hasStripeWebhookSecret && hasUsda;
+  return {
+    openaiKeyPresent: hasOpenAI,
+    stripeSecretPresent: hasStripeSecret,
+    stripeSecretKeyPresent: hasStripeSecretKey,
+    stripeWebhookSecretPresent: hasStripeWebhookSecret,
+    usdaKeyPresent: hasUsda,
+    secretsBound: all,
+  } as const;
 }
 
 function extractClientKey(req: Request): string | undefined {
@@ -146,32 +164,9 @@ async function handleSystemHealth(req: Request, res: Response): Promise<void> {
       throw new HttpError(405, "method_not_allowed");
     }
 
-    let stripeSecretPresent = false;
-    try {
-      getStripeKey();
-      stripeSecretPresent = true;
-    } catch (error) {
-      if (!(error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled")) {
-        console.warn("systemHealth.stripe_secret_check_failed", {
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    let openaiKeyPresent = false;
-    try {
-      getOpenAIKey();
-      openaiKeyPresent = true;
-    } catch (error) {
-      if (!(error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key")) {
-        console.warn("systemHealth.openai_key_check_failed", {
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
     const clientKey = resolveClientKey(req);
     const idtk = detectIdentityToolkitConfig(clientKey);
+    const sec = detectSecrets();
     let authProviders = await fetchAuthProviders();
 
     if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
@@ -182,22 +177,29 @@ async function handleSystemHealth(req: Request, res: Response): Promise<void> {
       }
     }
 
-    const hostCandidate = getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
-    const host = typeof hostCandidate === "string" && hostCandidate.trim().length ? hostCandidate.trim() : null;
+    const hostCandidate =
+      process.env.K_SERVICE
+        ? `${process.env.K_SERVICE}-*.a.run.app`
+        : getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
+    const host =
+      typeof hostCandidate === "string" && hostCandidate.trim().length
+        ? hostCandidate.trim()
+        : "local";
 
     const payload: Record<string, unknown> = {
-      stripeSecretPresent,
-      openaiKeyPresent,
-      identityToolkitReachable: idtk.identityToolkitReachable,
-      appCheckMode: resolveAppCheckMode(),
       host,
       timestamp: new Date().toISOString(),
+      appCheckMode: process.env.APPCHECK_MODE || resolveAppCheckMode(),
       authProviders,
+      identityToolkitReachable: idtk.identityToolkitReachable,
+      identityToolkitReason: idtk.identityToolkitReason,
+      openaiKeyPresent: sec.openaiKeyPresent,
+      stripeSecretPresent: sec.stripeSecretPresent,
+      stripeSecretKeyPresent: sec.stripeSecretKeyPresent,
+      stripeWebhookSecretPresent: sec.stripeWebhookSecretPresent,
+      usdaKeyPresent: sec.usdaKeyPresent,
+      secretsBound: sec.secretsBound,
     };
-
-    if (idtk.identityToolkitReason) {
-      payload.identityToolkitReason = idtk.identityToolkitReason;
-    }
 
     send(res, 200, payload);
   } catch (error) {
