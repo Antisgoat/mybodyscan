@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
@@ -8,6 +9,7 @@ import {
   signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   type Auth,
 } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
@@ -24,32 +26,19 @@ type FirebaseConfig = {
   measurementId?: string;
 };
 
-const readEnv = (key: string) =>
-  (import.meta as any).env?.[key] ?? (globalThis as any)?.process?.env?.[key];
-
-const projectId =
-  readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID") || "";
-
 const firebaseConfig: FirebaseConfig = {
-  apiKey:
-    readEnv("VITE_FIREBASE_API_KEY") ||
-    readEnv("FIREBASE_WEB_API_KEY") ||
-    readEnv("FIREBASE_API_KEY") ||
-    "",
-  projectId,
-  authDomain:
-    readEnv("VITE_FIREBASE_AUTH_DOMAIN") ||
-    (projectId ? `${projectId}.firebaseapp.com` : undefined),
-  storageBucket: readEnv("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: readEnv("VITE_FIREBASE_APP_ID"),
-  measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID"),
+  apiKey: env.VITE_FIREBASE_API_KEY || "",
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || undefined,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || undefined,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || undefined,
+  appId: env.VITE_FIREBASE_APP_ID || undefined,
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || undefined,
 };
 
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
 let persistenceReady: Promise<void> = Promise.resolve();
-let appCheckInitialized = false;
 let firestoreInstance: Firestore | null = null;
 let functionsInstance: Functions | null = null;
 let storageInstance: FirebaseStorage | null = null;
@@ -73,35 +62,14 @@ export function initFirebase(): { app: FirebaseApp; auth: Auth } {
     persistenceReady = setPersistence(authInstance, browserLocalPersistence).catch(() => {
       /* non-fatal */
     });
-
-    const siteKey = (readEnv("VITE_APPCHECK_SITE_KEY") || "").trim();
-    if (siteKey && !appCheckInitialized) {
-      appCheckInitialized = true;
-      void import("firebase/app-check")
-        .then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
-          try {
-            initializeAppCheck(appInstance!, {
-              provider: new ReCaptchaV3Provider(siteKey),
-              isTokenAutoRefreshEnabled: true,
-            });
-          } catch (err) {
-            if (import.meta.env?.DEV) {
-              console.warn("[firebase] App Check init failed", err);
-            }
-          }
-        })
-        .catch((err) => {
-          if (import.meta.env?.DEV) {
-            console.warn("[firebase] Unable to load app-check", err);
-          }
-        });
-    }
   }
 
   return { app: appInstance!, auth: authInstance! };
 }
 
 const { app: firebaseApp, auth } = initFirebase();
+
+export const app = firebaseApp;
 
 const firestoreSingleton = getFirestore(firebaseApp);
 const functionsSingleton = getFunctions(firebaseApp, "us-central1");
@@ -163,27 +131,39 @@ export function logFirebaseRuntimeInfo(): void {
 
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
-appleProvider.addScope("email");
-appleProvider.addScope("name");
 
 export async function signInWithGoogle() {
-  const { auth } = initFirebase();
   return signInWithPopup(auth, googleProvider);
 }
 
 export async function signInWithApple() {
-  const { auth } = initFirebase();
-  return signInWithPopup(auth, appleProvider);
+  return signInWithRedirect(auth, appleProvider);
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const { auth } = initFirebase();
   return signInWithEmailAndPassword(auth, email, password);
 }
 
 export async function signInDemo() {
-  const { auth } = initFirebase();
   return signInAnonymously(auth);
 }
+
+const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
+  if (value == null) return fallback;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (["false", "0", "off", "no"].includes(normalized)) return false;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  return fallback;
+};
+
+export const providerFlags = {
+  google: parseFlag(env.VITE_ENABLE_GOOGLE, true),
+  apple: parseFlag(env.VITE_ENABLE_APPLE, true),
+  email: parseFlag(env.VITE_ENABLE_EMAIL, true),
+  demo: parseFlag(env.VITE_ENABLE_DEMO, true),
+};
+
+export const envFlags = providerFlags;
 
 export { auth, firebaseApp, firebaseConfig };

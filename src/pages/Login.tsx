@@ -1,148 +1,110 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
 import {
-  initFirebase,
-  signInWithApple,
-  signInWithEmail,
-  signInWithGoogle,
-  signInDemo,
-} from "@/lib/firebase";
+  signInWithPopup,
+  signInWithRedirect,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+} from "firebase/auth";
 import { consumeAuthRedirect } from "@/lib/auth";
 
-type Flags = {
-  google: boolean;
-  apple: boolean;
-  email: boolean;
-  demo: boolean;
-};
-
-async function fetchHealth(): Promise<{ authProviders: Flags } | null> {
-  const targets = ["/api/systemHealth", "/systemHealth"];
-  for (const url of targets) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        return (await response.json()) as { authProviders: Flags };
-      }
-    } catch {
-      // ignore network errors and try the next endpoint
-    }
-  }
-  return null;
-}
-
 export default function Login() {
-  initFirebase();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
 
-  const [flags, setFlags] = useState<Flags>({ google: true, apple: true, email: true, demo: true });
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const [pass, setPass] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchHealth().then((result) => {
-      if (!cancelled && result?.authProviders) {
-        setFlags(result.authProviders);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const finish = () => {
     const target = consumeAuthRedirect() ?? from ?? "/";
     navigate(target, { replace: true });
   };
 
-  const run = async (fn: () => Promise<unknown>) => {
-    setErr(null);
+  async function wrap<T>(fn: () => Promise<T>, options?: { autoFinish?: boolean }) {
+    const { autoFinish = true } = options ?? {};
     setBusy(true);
+    setMsg(null);
     try {
       await fn();
-      finish();
+      if (autoFinish) finish();
     } catch (e: any) {
       const message = typeof e?.message === "string" && e.message.length ? e.message : null;
-      setErr(message ?? "Sign in failed. Please try again.");
+      setMsg(message ?? "Sign-in failed");
     } finally {
       setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
+    <div className="mx-auto max-w-sm p-6">
+      <h1 className="mb-4 text-2xl font-bold">Sign in</h1>
 
-      {flags.google && (
+      {providerFlags.google && (
         <button
-          className="w-full rounded border px-4 py-2 text-sm font-medium"
+          className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => run(signInWithGoogle)}
+          onClick={() => wrap(() => signInWithPopup(auth, googleProvider))}
         >
           Continue with Google
         </button>
       )}
 
-      {flags.apple && (
+      {providerFlags.apple && (
         <button
-          className="w-full rounded border px-4 py-2 text-sm font-medium"
+          className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => run(signInWithApple)}
+          onClick={() => wrap(() => signInWithRedirect(auth, appleProvider), { autoFinish: false })}
         >
           Continue with Apple
         </button>
       )}
 
-      {flags.email && (
-        <div className="mt-2 space-y-2">
+      {providerFlags.email && (
+        <div className="mb-4">
           <input
-            className="w-full rounded border px-3 py-2 text-sm"
-            type="email"
+            className="mb-2 w-full rounded border p-2"
             placeholder="Email"
+            type="email"
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={busy}
           />
           <input
-            className="w-full rounded border px-3 py-2 text-sm"
-            type="password"
+            className="mb-2 w-full rounded border p-2"
             placeholder="Password"
+            type="password"
             autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            value={pass}
+            onChange={(event) => setPass(event.target.value)}
             disabled={busy}
           />
           <button
-            className="w-full rounded border px-4 py-2 text-sm font-medium"
-            disabled={busy || !email || !password}
-            onClick={() => run(() => signInWithEmail(email.trim(), password))}
+            className="w-full rounded border p-2"
+            disabled={busy}
+            onClick={() => wrap(() => signInWithEmailAndPassword(auth, email, pass))}
           >
             Continue with Email
           </button>
         </div>
       )}
 
-      {flags.demo && (
+      {providerFlags.demo && (
         <button
-          className="w-full rounded border px-4 py-2 text-sm font-medium"
+          className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => run(signInDemo)}
+          onClick={() => wrap(() => signInAnonymously(auth))}
         >
-          Try Demo (no email)
+          Try Demo (no account)
         </button>
       )}
 
-      {err && <p className="text-sm text-red-600">{err}</p>}
-
-      <p className="text-xs text-muted-foreground">
-        By continuing, you agree to our Terms and Privacy Policy.
-      </p>
+      {msg && <p className="mt-2 text-sm text-red-600">{msg}</p>}
+      <p className="mt-4 text-xs text-gray-500">By continuing you agree to our Terms and Privacy Policy.</p>
     </div>
   );
 }
