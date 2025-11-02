@@ -2,17 +2,19 @@ import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
   getAuth,
-  initializeAuth,
+  GoogleAuthProvider,
+  OAuthProvider,
   setPersistence,
-  browserPopupRedirectResolver,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signInWithPopup,
   type Auth,
 } from "firebase/auth";
-import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
-type FBConfig = {
+type FirebaseConfig = {
   apiKey: string;
   authDomain?: string;
   projectId: string;
@@ -22,123 +24,126 @@ type FBConfig = {
   measurementId?: string;
 };
 
-const env = (key: string) => (import.meta as any).env?.[key] ?? (globalThis as any)?.process?.env?.[key];
+const readEnv = (key: string) =>
+  (import.meta as any).env?.[key] ?? (globalThis as any)?.process?.env?.[key];
 
-function loadConfig(): FBConfig {
-  const projectId =
-    env("VITE_FIREBASE_PROJECT_ID") ||
-    env("FIREBASE_PROJECT_ID") ||
-    "";
+const projectId =
+  readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID") || "";
 
-  const authDomain =
-    env("VITE_FIREBASE_AUTH_DOMAIN") ||
-    (projectId ? `${projectId}.firebaseapp.com` : undefined);
+const firebaseConfig: FirebaseConfig = {
+  apiKey:
+    readEnv("VITE_FIREBASE_API_KEY") ||
+    readEnv("FIREBASE_WEB_API_KEY") ||
+    readEnv("FIREBASE_API_KEY") ||
+    "",
+  projectId,
+  authDomain:
+    readEnv("VITE_FIREBASE_AUTH_DOMAIN") ||
+    (projectId ? `${projectId}.firebaseapp.com` : undefined),
+  storageBucket: readEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: readEnv("VITE_FIREBASE_APP_ID"),
+  measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID"),
+};
 
-  return {
-    apiKey:
-      env("VITE_FIREBASE_API_KEY") ||
-      env("FIREBASE_WEB_API_KEY") ||
-      env("FIREBASE_API_KEY") ||
-      "",
-    projectId,
-    authDomain,
-    storageBucket: env("VITE_FIREBASE_STORAGE_BUCKET"),
-    messagingSenderId: env("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-    appId: env("VITE_FIREBASE_APP_ID"),
-    measurementId: env("VITE_FIREBASE_MEASUREMENT_ID"),
-  };
-}
-
-const firebaseConfig = loadConfig();
-
-let appInstance: FirebaseApp;
-
-function ensureApp(): FirebaseApp {
-  if (appInstance) return appInstance;
-  const existing = getApps();
-  if (existing.length > 0) {
-    appInstance = existing[0]!;
-    return appInstance;
-  }
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.error("Missing Firebase config: apiKey or projectId");
-  }
-  appInstance = initializeApp(firebaseConfig as any);
-  return appInstance;
-}
-
-const app = ensureApp();
-
-let authInstance: Auth | undefined;
+let appInstance: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
 let persistenceReady: Promise<void> = Promise.resolve();
-
-function ensureAuth(): Auth {
-  if (authInstance) return authInstance;
-  try {
-    authInstance = initializeAuth(app, {
-      popupRedirectResolver: browserPopupRedirectResolver,
-    });
-  } catch {
-    authInstance = getAuth(app);
-  }
-  persistenceReady = setPersistence(authInstance, browserLocalPersistence).catch(() => {});
-  return authInstance;
-}
-
-const auth = ensureAuth();
-
-let analytics: Analytics | undefined;
-try {
-  isSupported()
-    .then((supported) => {
-      if (supported) {
-        analytics = getAnalytics(app);
-      }
-    })
-    .catch(() => {});
-} catch {
-  /* noop */
-}
-
-let firestoreInstance: Firestore | undefined;
-let functionsInstance: Functions | undefined;
-let storageInstance: FirebaseStorage | undefined;
-
-export const db: Firestore = (firestoreInstance = getFirestore(app));
-export const functions: Functions = (functionsInstance = getFunctions(app, "us-central1"));
-export const storage: FirebaseStorage = (storageInstance = getStorage(app));
-
+let appCheckInitialized = false;
+let firestoreInstance: Firestore | null = null;
+let functionsInstance: Functions | null = null;
+let storageInstance: FirebaseStorage | null = null;
 let loggedInfo = false;
+
+export function initFirebase(): { app: FirebaseApp; auth: Auth } {
+  if (!appInstance) {
+    const existing = getApps();
+    if (existing.length > 0) {
+      appInstance = existing[0]!;
+    } else {
+      if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+        console.warn("[firebase] Missing Firebase config: apiKey or projectId");
+      }
+      appInstance = initializeApp(firebaseConfig as any);
+    }
+  }
+
+  if (!authInstance) {
+    authInstance = getAuth(appInstance);
+    persistenceReady = setPersistence(authInstance, browserLocalPersistence).catch(() => {
+      /* non-fatal */
+    });
+
+    const siteKey = (readEnv("VITE_APPCHECK_SITE_KEY") || "").trim();
+    if (siteKey && !appCheckInitialized) {
+      appCheckInitialized = true;
+      void import("firebase/app-check")
+        .then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+          try {
+            initializeAppCheck(appInstance!, {
+              provider: new ReCaptchaV3Provider(siteKey),
+              isTokenAutoRefreshEnabled: true,
+            });
+          } catch (err) {
+            if (import.meta.env?.DEV) {
+              console.warn("[firebase] App Check init failed", err);
+            }
+          }
+        })
+        .catch((err) => {
+          if (import.meta.env?.DEV) {
+            console.warn("[firebase] Unable to load app-check", err);
+          }
+        });
+    }
+  }
+
+  return { app: appInstance!, auth: authInstance! };
+}
+
+const { app: firebaseApp, auth } = initFirebase();
+
+const firestoreSingleton = getFirestore(firebaseApp);
+const functionsSingleton = getFunctions(firebaseApp, "us-central1");
+const storageSingleton = getStorage(firebaseApp);
+
+firestoreInstance = firestoreSingleton;
+functionsInstance = functionsSingleton;
+storageInstance = storageSingleton;
+
+export const db: Firestore = firestoreSingleton;
+export const functions: Functions = functionsSingleton;
+export const storage: FirebaseStorage = storageSingleton;
 
 export async function firebaseReady(): Promise<void> {
   await persistenceReady.catch(() => {});
 }
 
 export function getFirebaseApp(): FirebaseApp {
-  return ensureApp();
+  return initFirebase().app;
 }
 
 export function getFirebaseAuth(): Auth {
-  return ensureAuth();
+  return initFirebase().auth;
 }
 
 export function getFirebaseFirestore(): Firestore {
   if (!firestoreInstance) {
-    firestoreInstance = getFirestore(app);
+    firestoreInstance = getFirestore(initFirebase().app);
   }
   return firestoreInstance;
 }
 
 export function getFirebaseFunctions(): Functions {
   if (!functionsInstance) {
-    functionsInstance = getFunctions(app, "us-central1");
+    functionsInstance = getFunctions(initFirebase().app, "us-central1");
   }
   return functionsInstance;
 }
 
 export function getFirebaseStorage(): FirebaseStorage {
   if (!storageInstance) {
-    storageInstance = getStorage(app);
+    storageInstance = getStorage(initFirebase().app);
   }
   return storageInstance;
 }
@@ -150,28 +155,35 @@ export function getFirebaseConfig() {
 export const firebaseApiKey = firebaseConfig.apiKey;
 
 export function logFirebaseRuntimeInfo(): void {
-  if (!import.meta.env.DEV || loggedInfo) return;
-  const { projectId, authDomain } = firebaseConfig;
-  console.info(`[firebase] project=${projectId} authDomain=${authDomain}`);
+  if (!import.meta.env?.DEV || loggedInfo) return;
+  const { projectId: pid, authDomain } = firebaseConfig;
+  console.info(`[firebase] project=${pid} authDomain=${authDomain}`);
   loggedInfo = true;
 }
 
-export const firebaseApp = app;
-export { analytics, firebaseConfig };
-export { auth };
+export const googleProvider = new GoogleAuthProvider();
+export const appleProvider = new OAuthProvider("apple.com");
+appleProvider.addScope("email");
+appleProvider.addScope("name");
 
-const flag = (key: string, defaultValue = true) => {
-  const raw = env(key);
-  if (typeof raw === "string") {
-    if (raw === "true" || raw === "1") return true;
-    if (raw === "false" || raw === "0") return false;
-  }
-  return defaultValue;
-};
+export async function signInWithGoogle() {
+  const { auth } = initFirebase();
+  return signInWithPopup(auth, googleProvider);
+}
 
-export const envFlags = {
-  enableGoogle: flag("VITE_ENABLE_GOOGLE", true),
-  enableApple: flag("VITE_ENABLE_APPLE", true),
-  enableEmail: flag("VITE_ENABLE_EMAIL", true),
-  enableDemo: flag("VITE_ENABLE_DEMO", true),
-};
+export async function signInWithApple() {
+  const { auth } = initFirebase();
+  return signInWithPopup(auth, appleProvider);
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  const { auth } = initFirebase();
+  return signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function signInDemo() {
+  const { auth } = initFirebase();
+  return signInAnonymously(auth);
+}
+
+export { auth, firebaseApp, firebaseConfig };
