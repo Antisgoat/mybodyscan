@@ -5,13 +5,14 @@ import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { demoNoAuth } from "@/lib/demoFlag";
 
 const CapturePicker = () => {
   const navigate = useNavigate();
   const demo = useDemoMode();
 
   const renderButton = (label: string, path: string) => {
-    if (!demo) {
+    if (!demo || demoNoAuth) {
       return (
         <Button className="w-full" onClick={() => navigate(path)}>
           {label}

@@ -2,10 +2,12 @@ import React from "react";
 import { clearDemoFlag, isDemo as isDemoAuthFlag, setDemoFlag } from "./demo";
 
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+export const demoNoAuth = import.meta.env.VITE_DEMO_NO_AUTH === "true";
 
 export const DEMO_SESSION_KEY = "mbs:demo";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
+  "/",
   "/welcome",
   "/home",
   "/demo",
@@ -13,6 +15,19 @@ export const DEMO_ALLOWED_PATHS = [
   "/programs",
   "/coach",
   "/settings",
+  "/history",
+  "/scan",
+  "/scan/new",
+  "/scan/history",
+  "/scan/tips",
+  "/results",
+  "/results/:scanId",
+  "/report",
+  "/barcode",
+  "/plans",
+  "/system/check",
+  "/dev/audit",
+  "/diagnostics",
 ] as const;
 
 export type DemoAllowedPath = (typeof DEMO_ALLOWED_PATHS)[number];
@@ -20,11 +35,45 @@ export type DemoAllowedPath = (typeof DEMO_ALLOWED_PATHS)[number];
 function hostIsLocalOrLovable(): boolean {
   if (typeof window === "undefined") return false;
   const h = window.location.hostname || "";
-  return (
-    h.includes("localhost") ||
-    h.includes("127.0.0.1") ||
-    h.includes("lovable")
-  );
+  return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
+}
+
+function persistSessionFlag(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearSessionFlag(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function hasSessionFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(DEMO_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function queryEnablesDemo(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  const value = params.get(DEMO_QUERY_PARAM);
+  const enabled = value === "1" || value === "true";
+  if (enabled) {
+    persistSessionFlag();
+  }
+  return enabled;
 }
 
 /**
@@ -37,40 +86,26 @@ function hostIsLocalOrLovable(): boolean {
 export function isDemo(): boolean {
   if (isDemoAuthFlag()) return true;
   if (DEMO_MODE) return true;
-  if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  const hasParam = params.get(DEMO_QUERY_PARAM) === "1";
-  return hasParam || hostIsLocalOrLovable();
+  if (queryEnablesDemo()) return true;
+  if (hasSessionFlag()) return true;
+  return hostIsLocalOrLovable();
 }
 
 // Back-compat for existing imports
 export function isDemoActive(): boolean {
   if (isDemo()) return true;
-  if (typeof window === "undefined") return false;
-  try {
-    return window.sessionStorage.getItem(DEMO_SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return hasSessionFlag();
 }
 
 export function enableDemo() {
   if (typeof window === "undefined") return;
   setDemoFlag();
-  try {
-    window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
-  } catch {
-    // ignore storage errors
-  }
+  persistSessionFlag();
 }
 
 export function disableDemo() {
   if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-  } catch {
-    // ignore storage errors
-  }
+  clearSessionFlag();
   clearDemoFlag();
 }
 
@@ -85,7 +120,16 @@ export function isDemoMode(user: { uid?: string } | null | undefined, currentLoc
 }
 
 export function isPathAllowedInDemo(pathname: string): boolean {
-  return DEMO_ALLOWED_PATHS.some((allowed) => pathname === allowed || pathname.startsWith(`${allowed}/`));
+  return DEMO_ALLOWED_PATHS.some((allowed) => {
+    if (allowed === "/") {
+      return pathname === "/";
+    }
+    if (allowed.includes(":")) {
+      const pattern = new RegExp(`^${allowed.replace(/:[^/]+/g, "[^/]+")}$`);
+      return pattern.test(pathname);
+    }
+    return pathname === allowed || pathname.startsWith(`${allowed}/`);
+  });
 }
 
 /** Throws when in demo mode to block writes */

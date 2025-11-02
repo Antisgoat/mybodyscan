@@ -16,6 +16,8 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
+import { demoNoAuth } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import type { Unsubscribe } from "firebase/firestore";
@@ -299,7 +301,24 @@ export default function Scan() {
 
   const handleAnalyze = async () => {
     if (submitting) return;
-    if (demo) {
+    if (demo && demoNoAuth) {
+      if (!allPhotosSelected) {
+        toast({ title: "Add all photos", description: "Front, back, left, and right photos are required." });
+        return;
+      }
+      setSubmitting(true);
+      setStage("analyzing");
+      setProgressText("Processing demo scan…");
+      setTimeout(() => {
+        setSubmitting(false);
+        setStage("complete");
+        setProgressText("Estimate ready");
+        toast({ title: "Demo estimate ready", description: "Showing a sample result." });
+        navigate(`/results/${DEMO_LATEST_RESULT.id}`);
+      }, 1200);
+      return;
+    }
+    if (demo && !demoNoAuth) {
       demoToast();
       return;
     }

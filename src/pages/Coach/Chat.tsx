@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
 import { buildErrorToast } from "@/lib/errorToasts";
+import { DEMO_COACH_MESSAGES } from "@/lib/demoSamples";
 
 declare global {
   interface Window {
@@ -65,7 +66,17 @@ export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
   const { plan } = useUserProfile();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    demo
+      ? DEMO_COACH_MESSAGES.map((msg) => ({
+          id: msg.id,
+          text: msg.text,
+          response: msg.response,
+          createdAt: msg.createdAt,
+          usedLLM: msg.usedLLM,
+        }))
+      : [],
+  );
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -117,6 +128,18 @@ export default function CoachChatPage() {
   const initializing = !authReady;
 
   useEffect(() => {
+    if (demo) {
+      setMessages(
+        DEMO_COACH_MESSAGES.map((msg) => ({
+          id: msg.id,
+          text: msg.text,
+          response: msg.response,
+          createdAt: msg.createdAt,
+          usedLLM: msg.usedLLM,
+        })),
+      );
+      return;
+    }
     if (!authReady || !appCheckReady || !uid) {
       setMessages([]);
       return;
@@ -151,7 +174,7 @@ export default function CoachChatPage() {
       setMessages(sortMessages(next));
     });
     return () => unsubscribe();
-  }, [authReady, uid]);
+  }, [authReady, uid, demo]);
 
   const hasMessages = messages.length > 0;
   const showPlanMissing = !demo && !plan;

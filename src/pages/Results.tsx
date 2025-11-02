@@ -15,6 +15,8 @@ import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { DemoBanner } from "@/components/DemoBanner";
+import { isDemo } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -75,13 +77,15 @@ const Results = () => {
   const { scan, loading, error, user } = useLatestScanForUser();
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const demo = isDemo();
+  const activeScan = scan ?? (demo ? (DEMO_LATEST_RESULT as any) : null);
 
   // Initialize note from scan data
   useEffect(() => {
-    if (scan?.note) {
-      setNote(scan.note);
+    if (activeScan?.note) {
+      setNote(activeScan.note);
     }
-  }, [scan?.note]);
+  }, [activeScan?.note]);
 
   const onSaveNote = async () => {
     if (!user || !scan || !note.trim()) return;
@@ -103,11 +107,10 @@ const Results = () => {
   };
 
   // Redirect to auth if not signed in
-  if (!user && !loading) {
+  if (!user && !demo && !loading) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
         <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
-        <DemoBanner />
         <DemoBanner />
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">Results</h1>
@@ -125,11 +128,10 @@ const Results = () => {
   }
 
   // Loading state
-  if (loading) {
+  if (loading && !demo) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
         <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
-        <DemoBanner />
         <DemoBanner />
         <h1 className="text-2xl font-semibold mb-6">Results</h1>
         
@@ -180,7 +182,7 @@ const Results = () => {
   }
 
   // No scans exist
-  if (!scan) {
+  if (!activeScan) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
         <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
@@ -199,7 +201,7 @@ const Results = () => {
     );
   }
 
-  const metrics = extractScanMetrics(scan);
+  const metrics = extractScanMetrics(activeScan);
   const summary = summarizeScanMetrics(metrics);
   const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
   const weightDisplay = summary.weightText;
@@ -209,7 +211,7 @@ const Results = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
       <DemoBanner />
-      
+
       <h1 className="text-2xl font-semibold mb-6">Results</h1>
 
       {/* Status Card */}
@@ -217,26 +219,26 @@ const Results = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              {formatDate(scan.completedAt || scan.createdAt)}
+              {formatDate(activeScan.completedAt || activeScan.createdAt)}
             </CardTitle>
             <Badge variant={
-              scan.status === "completed" ? "default" : 
-              scan.status === "processing" ? "secondary" : 
+              activeScan.status === "completed" ? "default" :
+              activeScan.status === "processing" ? "secondary" :
               "destructive"
             }>
-              {scan.status}
+              {activeScan.status}
             </Badge>
           </div>
         </CardHeader>
-        
+
         <CardContent>
-          {scan.status === "processing" ? (
+          {activeScan.status === "processing" ? (
             <ProcessingUI />
-          ) : scan.status === "failed" ? (
+          ) : activeScan.status === "failed" ? (
             <div className="text-center py-6">
               <p className="text-destructive mb-4">Scan analysis failed</p>
               <p className="text-sm text-muted-foreground mb-4">
-                {scan.error || "We couldn't process your scan. Please try again with better lighting or clearer angles."}
+                {activeScan.error || "We couldn't process your scan. Please try again with better lighting or clearer angles."}
               </p>
               <Button onClick={() => navigate("/scan/new")} variant="outline">
                 Try Again
@@ -276,7 +278,7 @@ const Results = () => {
       </Card>
 
       {/* Notes section - only show for completed scans */}
-      {scan.status === "completed" && (
+      {activeScan.status === "completed" && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg">Notes</CardTitle>

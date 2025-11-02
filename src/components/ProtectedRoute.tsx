@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
-import { isPathAllowedInDemo } from "@/lib/demoFlag";
+import { isDemo, isPathAllowedInDemo } from "@/lib/demoFlag";
 import { useDemoMode } from "./DemoModeProvider";
 import { PageSkeleton } from "@/components/system/PageSkeleton";
 import AuthGate from "./AuthGate";
@@ -17,14 +17,15 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 function ProtectedRouteInner({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuthUser();
   const location = useLocation();
-  const demo = useDemoMode();
+  const demoContext = useDemoMode();
+  const demo = demoContext || isDemo();
 
   if (!authReady) {
     return <PageSkeleton label="Checking your session…" />;
   }
 
   if (!user) {
-    if (demo && isPathAllowedInDemo(location.pathname)) {
+    if (demo && isDemo() && isPathAllowedInDemo(location.pathname)) {
       return <>{children}</>;
     }
 

@@ -9,6 +9,8 @@ import { auth, db } from "@/lib/firebase";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics, formatCentimetersAsInches } from "@/lib/scanDisplay";
+import { isDemo } from "@/lib/demoFlag";
+import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
 
 interface ScanDocument {
   id: string;
@@ -73,9 +75,19 @@ export default function ScanResult() {
   const [scan, setScan] = useState<ScanDocument | null>(null);
   const [history, setHistory] = useState<ScanDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const demoMode = isDemo();
+  const demoEntries = [...DEMO_SCAN_HISTORY, DEMO_LATEST_RESULT] as unknown as ScanDocument[];
 
   useEffect(() => {
     const user = auth.currentUser;
+    if (demoMode && (!user || !user.uid)) {
+      const target = demoEntries.find((entry) => entry.id === scanId) ?? (DEMO_LATEST_RESULT as unknown as ScanDocument);
+      setScan(target);
+      setHistory(demoEntries.filter((entry) => entry.id !== target.id));
+      setLoading(false);
+      return;
+    }
+
     if (!user || !scanId) return;
 
     const scanRef = doc(db, "users", user.uid, "scans", scanId);
@@ -107,7 +119,7 @@ export default function ScanResult() {
 
     loadHistory().catch((error) => console.error("loadHistory", error));
     return () => unsub();
-  }, [scanId]);
+  }, [scanId, demoMode]);
 
   const normalized = useMemo(() => (scan ? extractScanMetrics(scan) : null), [scan]);
   const summary = useMemo(() => summarizeScanMetrics(normalized), [normalized]);
