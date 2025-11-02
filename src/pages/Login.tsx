@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 
 import { toast } from "../lib/toast";
-import { emailPasswordSignIn, describeAuthErrorAsync } from "../lib/login";
-import { firebaseReady, getFirebaseAuth } from "../lib/firebase";
+import { describeAuthError, describeAuthErrorAsync } from "../lib/login";
+import { firebaseReady, auth } from "@/lib/firebase";
 import {
   consumeAuthRedirect,
 } from "../lib/auth";
@@ -11,13 +11,87 @@ import {
   consumeAuthRedirectResult,
   type FriendlyFirebaseError,
 } from "../lib/authRedirect";
-import { SocialButtons } from "../auth/components/SocialButtons";
-import type { NormalizedAuthError } from "../lib/login";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithRedirect,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+} from "firebase/auth";
+
+// env flags default to TRUE if undefined
+const readBool = (v: any, def = true) =>
+  v === "false" || v === false ? false : v === "true" || v === true ? true : def;
+
+const ENABLE_GOOGLE = readBool((import.meta as any).env?.VITE_ENABLE_GOOGLE, true);
+const ENABLE_APPLE = readBool((import.meta as any).env?.VITE_ENABLE_APPLE, true);
+const ENABLE_EMAIL = readBool((import.meta as any).env?.VITE_ENABLE_EMAIL, true);
+const ENABLE_DEMO = readBool((import.meta as any).env?.VITE_ENABLE_DEMO, true);
+
+// Prefer redirect on mobile browsers to avoid popup blockers
+const useRedirect =
+  typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+async function withUiErrors<T>(op: () => Promise<T>) {
+  try {
+    return await op();
+  } catch (e: any) {
+    const code = e?.code || "auth/unknown";
+    let message = describeAuthError(e).message;
+    try {
+      const mapped = await describeAuthErrorAsync(auth, e);
+      if (mapped?.message) {
+        message = mapped.message;
+      }
+    } catch {
+      // ignore secondary mapping failures
+    }
+    const formatted = formatError(message, code);
+    try {
+      toast(formatted, "error");
+    } catch {
+      if (typeof alert === "function") {
+        alert(`${code}: ${message ?? "Sign-in failed"}`);
+      }
+    }
+    throw e;
+  }
+}
+
+export async function handleGoogle() {
+  await firebaseReady();
+  const provider = new GoogleAuthProvider();
+  return withUiErrors(() =>
+    useRedirect ? signInWithRedirect(auth, provider) : signInWithPopup(auth, provider)
+  );
+}
+
+export async function handleApple() {
+  await firebaseReady();
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
+  return withUiErrors(() =>
+    useRedirect ? signInWithRedirect(auth, provider) : signInWithPopup(auth, provider)
+  );
+}
+
+export async function handleEmail(email: string, password: string) {
+  await firebaseReady();
+  return withUiErrors(() => signInWithEmailAndPassword(auth, email, password));
+}
+
+export async function handleDemo() {
+  await firebaseReady();
+  return withUiErrors(() => signInAnonymously(auth));
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -41,7 +115,6 @@ export default function Login() {
           toast(formatError(friendlyMessage, friendlyCode), "error");
         } else {
           try {
-            const auth = getFirebaseAuth();
             const mapped = await describeAuthErrorAsync(auth, error);
             toast(formatError(mapped.message, mapped.code ?? friendlyCode), "error");
           } catch (err) {
@@ -59,116 +132,111 @@ export default function Login() {
     };
   }, []);
 
+  async function runAuthFlow(op: () => Promise<unknown>, provider: string | null = null) {
+    setBusy(true);
+    setActiveProvider(provider);
+    try {
+      await op();
+      const target = consumeAuthRedirect();
+      if (target) {
+        window.location.replace(target);
+      }
+    } catch {
+      // handled upstream by withUiErrors
+    } finally {
+      setActiveProvider(null);
+      setBusy(false);
+    }
+  }
+
   async function onEmailSignIn(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !pass) {
       toast("Enter email and password.", "warn");
       return;
     }
-    setBusy(true);
-    try {
-      const r = await emailPasswordSignIn(email, pass);
-      if (!r.ok) {
-        toast(formatError(r.message, r.code), "error");
-      }
-    } catch (err) {
-      const normalized = normalizeFirebaseError(err);
-      toast(formatError(normalized.message, normalized.code), "error");
-    } finally {
-      setBusy(false);
-    }
+    await runAuthFlow(() => handleEmail(email, pass), "email");
   }
 
   return (
     <div style={wrap}>
       <h1 style={h1}>Sign in</h1>
 
-      <form onSubmit={onEmailSignIn} style={form}>
-        <label htmlFor="email" style={lab}>
-          Email
-        </label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={inp}
-          placeholder="you@example.com"
-          autoComplete="email"
-        />
+      {ENABLE_EMAIL && (
+        <form onSubmit={onEmailSignIn} style={form}>
+          <label htmlFor="email" style={lab}>
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={inp}
+            placeholder="you@example.com"
+            autoComplete="email"
+            disabled={busy}
+          />
 
-        <label htmlFor="pass" style={lab}>
-          Password
-        </label>
-        <input
-          id="pass"
-          type="password"
-          value={pass}
-          onChange={(e) => setPass(e.target.value)}
-          style={inp}
-          placeholder="••••••••"
-          autoComplete="current-password"
-        />
+          <label htmlFor="pass" style={lab}>
+            Password
+          </label>
+          <input
+            id="pass"
+            type="password"
+            value={pass}
+            onChange={(e) => setPass(e.target.value)}
+            style={inp}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            disabled={busy}
+          />
 
-        <button type="submit" disabled={busy} style={btnPrimary}>
-          {busy ? "Signing in…" : "Sign in with Email"}
-        </button>
-      </form>
+          <button type="submit" disabled={busy} style={btnPrimary}>
+            {activeProvider === "email" ? "Signing in…" : "Sign in with Email"}
+          </button>
+        </form>
+      )}
 
       <div style={hr} />
 
-      <SocialButtons
-        loading={busy}
-        style={providers}
-        onBusyChange={setBusy}
-        onSignInSuccess={() => {
-          const target = consumeAuthRedirect();
-          if (target) {
-            window.location.replace(target);
-          }
-        }}
-        onSignInError={(_provider, error: NormalizedAuthError) => {
-          toast(formatError(error.message, error.code), "error");
-        }}
-        renderGoogle={({ loading, disabled, onClick }) => (
+      <div style={providers}>
+        {ENABLE_GOOGLE && (
           <button
             type="button"
-            onClick={onClick}
-            disabled={disabled}
+            onClick={() => void runAuthFlow(() => handleGoogle(), "google")}
+            disabled={busy}
             style={btn}
             aria-label="Continue with Google"
           >
-            {loading ? "Continuing…" : "Continue with Google"}
+            {activeProvider === "google" ? "Continuing…" : "Continue with Google"}
           </button>
         )}
-        renderApple={({ loading, disabled, onClick }) => (
+        {ENABLE_APPLE && (
           <button
             type="button"
-            onClick={onClick}
-            disabled={disabled}
+            onClick={() => void runAuthFlow(() => handleApple(), "apple")}
+            disabled={busy}
             style={btn}
             aria-label="Continue with Apple"
           >
-            {loading ? "Continuing…" : "Continue with Apple"}
+            {activeProvider === "apple" ? "Continuing…" : "Continue with Apple"}
           </button>
         )}
-      />
+        {ENABLE_DEMO && (
+          <button
+            type="button"
+            onClick={() => void runAuthFlow(() => handleDemo(), "demo")}
+            disabled={busy}
+            style={btnSecondary}
+            aria-label="Try Demo"
+          >
+            {activeProvider === "demo" ? "Preparing demo…" : "Try Demo"}
+          </button>
+        )}
+      </div>
     </div>
   );
-}
-
-function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
-  if (!err) return {};
-  if (typeof err === "string") {
-    return { message: err };
-  }
-  if (typeof err === "object") {
-    const record = err as Record<string, unknown>;
-    const message = typeof record.message === "string" ? record.message : undefined;
-    const code = typeof record.code === "string" ? record.code : undefined;
-    return { message, code };
-  }
-  return {};
 }
 
 function cleanFirebaseMessage(message?: string): string | undefined {
@@ -213,3 +281,4 @@ const btn: React.CSSProperties = {
   background: "white",
   cursor: "pointer",
 };
+const btnSecondary: React.CSSProperties = { ...btn, background: "#f5f5f5" };
