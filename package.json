@@ -39,6 +39,7 @@
     "smoke:auth": "bash ops/smoke-auth.sh",
     "smoke:fn": "bash ops/smoke-fn.sh",
     "smoke:fns": "bash ops/smoke-fn.sh",
+    "smoke:idtk": "bash ops/idtk-smoke.sh",
     "probe": "node scripts/probe.mjs"
   },
   "dependencies": {

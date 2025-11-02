@@ -1,105 +1,121 @@
 import React, { useState } from "react";
-import { auth, envFlags } from "../lib/firebase";
+import { getFirebaseAuth } from "../lib/firebase";
 import {
   GoogleAuthProvider,
   OAuthProvider,
-  signInAnonymously,
   signInWithPopup,
-  signOut,
+  signInAnonymously,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
 
+const on = (k: string, def = false) => {
+  const v = (import.meta as any).env?.[k];
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return def;
+};
+
+const ENABLE_GOOGLE = on("VITE_ENABLE_GOOGLE", true);
+const ENABLE_APPLE = on("VITE_ENABLE_APPLE", true);
+const ENABLE_EMAIL = on("VITE_ENABLE_EMAIL", true);
+const ENABLE_DEMO = on("VITE_ENABLE_DEMO", true);
+
 export default function LoginPanel() {
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const doGoogle = async () => {
-    setError(null);
-    setBusy(true);
+  async function withLoad<T>(label: string, fn: () => Promise<T>) {
+    setLoading(label);
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (e: any) {
-      setError(e?.code || e?.message || "google_signin_failed");
+      return await fn();
     } finally {
-      setBusy(false);
+      setLoading(null);
     }
-  };
-
-  const doApple = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const provider = new OAuthProvider("apple.com");
-      provider.addScope("email");
-      provider.addScope("name");
-      await signInWithPopup(auth, provider);
-    } catch (e: any) {
-      setError(e?.code || e?.message || "apple_signin_failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doDemo = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      await signInAnonymously(auth);
-    } catch (e: any) {
-      setError(e?.code || e?.message || "anonymous_not_enabled");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doSignOut = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      await signOut(auth);
-    } catch (e: any) {
-      setError(e?.code || e?.message || "signout_failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  }
 
   return (
-    <div
-      style={{
-        maxWidth: 480,
-        margin: "40px auto",
-        padding: 24,
-        border: "1px solid #eee",
-        borderRadius: 12,
-      }}
-    >
-      <h2>Sign in</h2>
-      <p style={{ opacity: 0.7, marginTop: 4 }}>Choose a method below.</p>
+    <div className="mx-auto max-w-sm p-6 space-y-3">
+      <h1 className="text-2xl font-semibold">Sign in</h1>
 
-      {envFlags.enableGoogle && (
-        <button disabled={busy} onClick={doGoogle} style={{ width: "100%", padding: 12, marginTop: 12 }}>
+      {ENABLE_GOOGLE && (
+        <button
+          className="btn w-full"
+          disabled={!!loading}
+          onClick={() =>
+            withLoad("google", async () => {
+              const auth = await getFirebaseAuth();
+              const provider = new GoogleAuthProvider();
+              await signInWithPopup(auth, provider);
+            })
+          }
+        >
           Continue with Google
         </button>
       )}
-      {envFlags.enableApple && (
-        <button disabled={busy} onClick={doApple} style={{ width: "100%", padding: 12, marginTop: 12 }}>
+
+      {ENABLE_APPLE && (
+        <button
+          className="btn w-full"
+          disabled={!!loading}
+          onClick={() =>
+            withLoad("apple", async () => {
+              const auth = await getFirebaseAuth();
+              const provider = new OAuthProvider("apple.com");
+              await signInWithPopup(auth, provider);
+            })
+          }
+        >
           Continue with Apple
         </button>
       )}
-      {envFlags.enableDemo && (
-        <button disabled={busy} onClick={doDemo} style={{ width: "100%", padding: 12, marginTop: 12 }}>
-          Try Demo (Anonymous)
+
+      {ENABLE_EMAIL && (
+        <div className="space-y-2">
+          <input
+            className="input w-full"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            className="input w-full"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            className="btn w-full"
+            disabled={!!loading || !email || !password}
+            onClick={() =>
+              withLoad("email", async () => {
+                const auth = await getFirebaseAuth();
+                await signInWithEmailAndPassword(auth, email, password);
+              })
+            }
+          >
+            Sign in with Email
+          </button>
+        </div>
+      )}
+
+      {ENABLE_DEMO && (
+        <button
+          className="btn w-full"
+          disabled={!!loading}
+          onClick={() =>
+            withLoad("demo", async () => {
+              const auth = await getFirebaseAuth();
+              await signInAnonymously(auth);
+            })
+          }
+        >
+          Enter Demo (no account)
         </button>
       )}
-      <button disabled={busy} onClick={doSignOut} style={{ width: "100%", padding: 12, marginTop: 12 }}>
-        Sign out
-      </button>
 
-      {!!error && <div style={{ marginTop: 12, color: "#b00020" }}>Error: {String(error)}</div>}
-
-      <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7 }}>
-        If you see operation-not-allowed, enable that provider in Firebase Console → Authentication.
-      </div>
+      {loading && <p className="text-sm opacity-70">Working: {loading}…</p>}
     </div>
   );
 }
