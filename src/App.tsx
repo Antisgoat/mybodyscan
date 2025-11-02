@@ -7,9 +7,7 @@ import { useEffect, lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
-import LoginPanel from "./components/LoginPanel";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AuthGate from "./components/AuthGate";
 import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
 import AuthedLayout from "./layouts/AuthedLayout";
 import { MBS_FLAGS } from "./lib/flags";
@@ -40,6 +38,7 @@ import Help from "./pages/Help";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import OAuthReturn from "./pages/OAuthReturn";
+import Login from "./pages/Login";
 import ScanNew from "./pages/ScanNew";
 import ScanStart from "./pages/Scan/Start";
 import ScanCapture from "./pages/Scan/Capture";
@@ -136,13 +135,12 @@ const App = () => {
             <Toaster />
             <Sonner />
             <NetBanner />
-            <AuthGate>
-              <BrowserRouter>
-                  <DemoModeProvider>
-                    <OnboardingRedirectMBS>
-                      <div id="main-content" role="main">
-                        <Suspense fallback={null}>
-                          <Routes>
+            <BrowserRouter>
+              <DemoModeProvider>
+                <OnboardingRedirectMBS>
+                  <div id="main-content" role="main">
+                    <Suspense fallback={null}>
+                      <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -175,7 +173,7 @@ const App = () => {
               </Suspense>
             } />
             <Route path="/oauth/return" element={<OAuthReturn />} />
-            <Route path="/login" element={<LoginPanel />} />
+            <Route path="/login" element={<Login />} />
             {/* Protected app */}
             <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
             <Route
@@ -691,13 +689,12 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </Suspense>
-                      </div>
-                    </OnboardingRedirectMBS>
-                  </DemoModeProvider>
-                </BrowserRouter>
-            </AuthGate>
+                      </Routes>
+                    </Suspense>
+                  </div>
+                </OnboardingRedirectMBS>
+              </DemoModeProvider>
+            </BrowserRouter>
           </AppCheckProvider>
         </TooltipProvider>
       </QueryClientProvider>
