@@ -16,11 +16,6 @@ import {
   stripeWebhookSecretParam,
 } from "./stripe/keys.js";
 
-type IdentityToolkitResult = {
-  reachable: boolean;
-  reason?: string;
-};
-
 type AuthProviderStatus =
   | {
       google: boolean;
@@ -31,6 +26,21 @@ type AuthProviderStatus =
   | {
       unknown: true;
     };
+
+function detectIdentityToolkitConfig(clientKeyOverride?: string) {
+  // Accept either FIREBASE_WEB_API_KEY (functions env) or VITE_FIREBASE_API_KEY (if someone set it).
+  const clientKey =
+    clientKeyOverride ||
+    process.env.FIREBASE_WEB_API_KEY ||
+    process.env.VITE_FIREBASE_API_KEY ||
+    "";
+
+  if (!clientKey) {
+    return { identityToolkitReachable: false, identityToolkitReason: "no_client_key" } as const;
+  }
+  // We do not make a network call here; just report presence to avoid cold-start latency.
+  return { identityToolkitReachable: true, identityToolkitReason: "client_key_present" } as const;
+}
 
 function extractClientKey(req: Request): string | undefined {
   const queryKey = typeof req.query?.clientKey === "string" ? req.query.clientKey : undefined;
@@ -65,62 +75,6 @@ function resolveClientKey(req: Request): string | undefined {
   }
 
   return extractClientKey(req);
-}
-
-function resolveProjectId(): string | undefined {
-  const candidates = [
-    process.env.GCLOUD_PROJECT,
-    process.env.GCP_PROJECT,
-    process.env.PROJECT_ID,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-
-  const firebaseConfig = process.env.FIREBASE_CONFIG;
-  if (firebaseConfig) {
-    try {
-      const parsed = JSON.parse(firebaseConfig) as { projectId?: string; project_id?: string };
-      const id = parsed.projectId || parsed.project_id;
-      if (typeof id === "string" && id.trim()) {
-        return id.trim();
-      }
-    } catch {
-      // ignore malformed config
-    }
-  }
-
-  return undefined;
-}
-
-async function checkIdentityToolkit(projectId: string | undefined, clientKey: string | undefined): Promise<IdentityToolkitResult> {
-  if (!projectId) {
-    return { reachable: false, reason: "no_project_id" };
-  }
-  if (!clientKey) {
-    return { reachable: false, reason: "no_client_key" };
-  }
-
-  const url = `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/config?key=${encodeURIComponent(clientKey)}`;
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
-    });
-
-    if (response.ok) {
-      return { reachable: true };
-    }
-
-    return { reachable: false, reason: `status_${response.status}` };
-  } catch (error) {
-    const message = error instanceof Error ? error.name : "unknown";
-    return { reachable: false, reason: message === "AbortError" ? "timeout" : "network_error" };
-  }
 }
 
 async function fetchAuthProviders(): Promise<AuthProviderStatus> {
@@ -217,8 +171,7 @@ async function handleSystemHealth(req: Request, res: Response): Promise<void> {
     }
 
     const clientKey = resolveClientKey(req);
-    const projectId = resolveProjectId();
-    const identityToolkit = await checkIdentityToolkit(projectId, clientKey);
+    const idtk = detectIdentityToolkitConfig(clientKey);
     let authProviders = await fetchAuthProviders();
 
     if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
@@ -235,15 +188,15 @@ async function handleSystemHealth(req: Request, res: Response): Promise<void> {
     const payload: Record<string, unknown> = {
       stripeSecretPresent,
       openaiKeyPresent,
-      identityToolkitReachable: identityToolkit.reachable,
+      identityToolkitReachable: idtk.identityToolkitReachable,
       appCheckMode: resolveAppCheckMode(),
       host,
       timestamp: new Date().toISOString(),
       authProviders,
     };
 
-    if (identityToolkit.reason) {
-      payload.identityToolkitReason = identityToolkit.reason;
+    if (idtk.identityToolkitReason) {
+      payload.identityToolkitReason = idtk.identityToolkitReason;
     }
 
     send(res, 200, payload);

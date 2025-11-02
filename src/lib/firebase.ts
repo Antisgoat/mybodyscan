@@ -1,68 +1,73 @@
-// src/lib/firebase.ts
-import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
-  getAuth,
-  type Auth,
-  setPersistence,
   browserLocalPersistence,
+  getAuth,
   indexedDBLocalPersistence,
+  initializeAuth,
+  setPersistence,
+  type Auth,
 } from "firebase/auth";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
-// ---- fallback public config (do not change) ----
-export const PUBLIC_WEB_CONFIG = {
+const FALLBACK_CONFIG = {
   apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
   authDomain: "mybodyscan-f3daf.firebaseapp.com",
   projectId: "mybodyscan-f3daf",
-  storageBucket: "mybodyscan-f3daf.firebasestorage.app",
+  storageBucket: "mybodyscan-f3daf.appspot.com",
   messagingSenderId: "157018993008",
   appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
   measurementId: "G-TV8M3PY1X3",
 } as const;
 
-// Pull from Vite env if present; otherwise fallback to PUBLIC_WEB_CONFIG
-function cfgFromEnv() {
-  const e = import.meta.env as any;
-  const cfg = {
-    apiKey: e?.VITE_FIREBASE_API_KEY,
-    authDomain: e?.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: e?.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: e?.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: e?.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: e?.VITE_FIREBASE_APP_ID,
-    measurementId: e?.VITE_FIREBASE_MEASUREMENT_ID,
-  };
-  const hasAll = Object.values(cfg).filter(Boolean).length >= 6 && !!cfg.apiKey && !!cfg.appId;
-  return hasAll ? (cfg as typeof PUBLIC_WEB_CONFIG) : PUBLIC_WEB_CONFIG;
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || FALLBACK_CONFIG.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || FALLBACK_CONFIG.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || FALLBACK_CONFIG.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || FALLBACK_CONFIG.storageBucket,
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || FALLBACK_CONFIG.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || FALLBACK_CONFIG.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || FALLBACK_CONFIG.measurementId,
+};
+
+function ensureApp(): FirebaseApp {
+  const apps = getApps();
+  return apps.length ? apps[0] : initializeApp(firebaseConfig);
 }
 
-const firebaseConfig = cfgFromEnv();
+const app = ensureApp();
 
-const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
-const auth: Auth = getAuth(app);
+let authInstance: Auth;
+let persistenceReady: Promise<void> = Promise.resolve();
 
-// Prefer local persistence; fall back silently if unsupported
-const persistenceReady = (async () => {
-  try {
-    await setPersistence(auth, browserLocalPersistence);
-  } catch {
+try {
+  authInstance = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  });
+} catch {
+  authInstance = getAuth(app);
+  persistenceReady = setPersistence(authInstance, browserLocalPersistence).catch(async () => {
     try {
-      await setPersistence(auth, indexedDBLocalPersistence);
+      await setPersistence(authInstance, indexedDBLocalPersistence);
     } catch {
       // noop
     }
-  }
-})();
+  });
+}
 
 // Analytics is optional; never throw
 let analytics: Analytics | undefined;
 try {
-  // set later if supported
-  // @ts-ignore
-  isSupported().then((ok: boolean) => ok && (analytics = getAnalytics(app))).catch(() => {});
+  isSupported()
+    .then((ok) => {
+      if (ok) {
+        analytics = getAnalytics(app);
+      }
+    })
+    .catch(() => {});
 } catch {
   /* noop */
 }
@@ -86,7 +91,7 @@ export function getFirebaseApp(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  return auth;
+  return authInstance;
 }
 
 export function getFirebaseFirestore(): Firestore {
@@ -123,4 +128,13 @@ export function logFirebaseRuntimeInfo(): void {
   loggedInfo = true;
 }
 
-export { app, auth, analytics, firebaseConfig };
+export const firebaseApp = app;
+export const auth = authInstance;
+export { app, analytics, firebaseConfig };
+
+export const envFlags = {
+  enableGoogle: (import.meta.env.VITE_ENABLE_GOOGLE ?? "true") !== "false",
+  enableApple: (import.meta.env.VITE_ENABLE_APPLE ?? "true") !== "false",
+  enableEmail: (import.meta.env.VITE_ENABLE_EMAIL ?? "true") !== "false",
+  enableDemo: (import.meta.env.VITE_ENABLE_DEMO ?? "true") !== "false",
+};
