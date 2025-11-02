@@ -11,7 +11,7 @@ import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestor
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { isDemo } from "@/lib/demoFlag";
-import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
+import { demoLatestScan, demoScanHistory } from "@/lib/demoDataset";
 
 interface ScanHistoryEntry {
   id: string;
@@ -41,7 +41,7 @@ const methodCopy: Record<string, string> = {
   bmi_fallback: "BMI Fallback",
 };
 
-const DEMO_HISTORY_LIST = [...DEMO_SCAN_HISTORY, DEMO_LATEST_RESULT] as unknown as ScanHistoryEntry[];
+const DEMO_HISTORY_LIST = [...demoScanHistory, demoLatestScan] as unknown as ScanHistoryEntry[];
 
 function confidenceLabel(value?: number) {
   if (value == null) return { label: "Unknown", tone: "secondary" } as const;

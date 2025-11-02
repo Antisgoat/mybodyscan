@@ -6,7 +6,6 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   setPersistence,
-  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -142,10 +141,6 @@ export async function signInWithApple() {
 
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
-}
-
-export async function signInDemo() {
-  return signInAnonymously(auth);
 }
 
 const parseFlag = (value: string | undefined, fallback: boolean): boolean => {

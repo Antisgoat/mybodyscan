@@ -184,7 +184,7 @@ export default function OnboardingMBS() {
             </label>
             <label className="text-sm">Scan mode
               <select className="mt-1 w-full border rounded-lg px-3 py-2" value={scanMode} onChange={e=>setScanMode(e.target.value as any)}>
-                <option value="photos">Photos (4 angles)</option><option value="video">10s Video</option>
+                <option value="photos">Photos (4 angles)</option>
               </select>
             </label>
           </div>

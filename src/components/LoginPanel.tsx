@@ -1,12 +1,6 @@
 import React, { useState } from "react";
 import { getFirebaseAuth } from "../lib/firebase";
-import {
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithPopup,
-  signInAnonymously,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+import { GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -104,14 +98,11 @@ export default function LoginPanel() {
         <button
           className="btn w-full"
           disabled={!!loading}
-          onClick={() =>
-            withLoad("demo", async () => {
-              const auth = await getFirebaseAuth();
-              await signInAnonymously(auth);
-            })
-          }
+          onClick={() => {
+            window.location.assign("/demo");
+          }}
         >
-          Enter Demo (no account)
+          Browse the demo
         </button>
       )}
 

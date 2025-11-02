@@ -1,12 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
-import {
-  signInWithPopup,
-  signInWithRedirect,
-  signInWithEmailAndPassword,
-  signInAnonymously,
-} from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
 import { consumeAuthRedirect } from "@/lib/auth";
 
 export default function Login() {
@@ -93,15 +88,13 @@ export default function Login() {
         </div>
       )}
 
-      {providerFlags.demo && (
-        <button
-          className="mb-3 w-full rounded border p-2"
-          disabled={busy}
-          onClick={() => wrap(() => signInAnonymously(auth))}
-        >
-          Try Demo (no account)
-        </button>
-      )}
+      <button
+        className="mb-3 w-full rounded border p-2"
+        disabled={busy}
+        onClick={() => navigate("/demo")}
+      >
+        Browse the demo
+      </button>
 
       {msg && <p className="mt-2 text-sm text-red-600">{msg}</p>}
       <p className="mt-4 text-xs text-gray-500">By continuing you agree to our Terms and Privacy Policy.</p>

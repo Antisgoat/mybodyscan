@@ -4,14 +4,9 @@ import { useAuthUser } from "@/lib/auth";
 import { isDemo, isPathAllowedInDemo } from "@/lib/demoFlag";
 import { useDemoMode } from "./DemoModeProvider";
 import { PageSkeleton } from "@/components/system/PageSkeleton";
-import AuthGate from "./AuthGate";
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
-  return (
-    <AuthGate>
-      <ProtectedRouteInner>{children}</ProtectedRouteInner>
-    </AuthGate>
-  );
+  return <ProtectedRouteInner>{children}</ProtectedRouteInner>;
 }
 
 function ProtectedRouteInner({ children }: { children: ReactNode }) {
@@ -19,13 +14,14 @@ function ProtectedRouteInner({ children }: { children: ReactNode }) {
   const location = useLocation();
   const demoContext = useDemoMode();
   const demo = demoContext || isDemo();
+  const allowDemo = demo && isPathAllowedInDemo(location.pathname);
 
   if (!authReady) {
     return <PageSkeleton label="Checking your session…" />;
   }
 
   if (!user) {
-    if (demo && isDemo() && isPathAllowedInDemo(location.pathname)) {
+    if (allowDemo) {
       return <>{children}</>;
     }
 

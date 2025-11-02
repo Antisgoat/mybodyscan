@@ -8,7 +8,7 @@ import { Seo } from "@/components/Seo";
 import { getLastWeight, setLastWeight } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { demoNoAuth } from "@/lib/demoFlag";
+import { useAuthUser } from "@/lib/auth";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -23,9 +23,11 @@ export default function ScanStart() {
   const [weightInput, setWeightInput] = useState<string>(initialWeight != null ? initialWeight.toString() : "");
   const [error, setError] = useState<string | null>(null);
   const demo = useDemoMode();
+  const { user } = useAuthUser();
+  const readOnlyDemo = demo && !user;
 
   const goToCapture = () => {
-    if (demo && !demoNoAuth) {
+    if (readOnlyDemo) {
       demoToast();
       return;
     }
@@ -36,7 +38,7 @@ export default function ScanStart() {
     event?.preventDefault();
     setError(null);
 
-    if (demo && !demoNoAuth) {
+    if (readOnlyDemo) {
       demoToast();
       return;
     }
@@ -61,7 +63,7 @@ export default function ScanStart() {
       <Seo title="Start Scan – MyBodyScan" description="Begin your next body scan." />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold">Start a Scan</h1>
-        <p className="text-muted-foreground">Get set to capture your next progress photos.</p>
+        <p className="text-muted-foreground">Get set to capture four clear progress photos.</p>
       </div>
 
       {showInput ? (
@@ -80,7 +82,7 @@ export default function ScanStart() {
             />
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </div>
-            {demo && !demoNoAuth ? (
+            {readOnlyDemo ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span onClick={() => demoToast()}>
@@ -89,7 +91,7 @@ export default function ScanStart() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Sign in to use</TooltipContent>
+              <TooltipContent>Sign up to save progress</TooltipContent>
             </Tooltip>
           ) : (
             <Button type="submit" size="lg">
@@ -101,16 +103,16 @@ export default function ScanStart() {
         <div className="space-y-4">
           <p className="text-lg font-medium">Is your weight still {formatWeight(storedWeight!)} lb?</p>
           <div className="flex flex-wrap gap-3">
-              {demo && !demoNoAuth ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span onClick={() => demoToast()}>
-                      <Button size="lg" disabled className="pointer-events-none">
-                      Yes
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Sign in to use</TooltipContent>
+            {readOnlyDemo ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span onClick={() => demoToast()}>
+                    <Button size="lg" disabled className="pointer-events-none">
+                    Yes
+                  </Button>
+                </span>
+              </TooltipTrigger>
+                <TooltipContent>Sign up to save progress</TooltipContent>
               </Tooltip>
             ) : (
               <Button size="lg" onClick={goToCapture}>

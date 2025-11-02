@@ -10,7 +10,7 @@ import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "fir
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics, formatCentimetersAsInches } from "@/lib/scanDisplay";
 import { isDemo } from "@/lib/demoFlag";
-import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
+import { demoLatestScan, demoScanHistory, getDemoScanById } from "@/lib/demoDataset";
 
 interface ScanDocument {
   id: string;
@@ -76,12 +76,12 @@ export default function ScanResult() {
   const [history, setHistory] = useState<ScanDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const demoMode = isDemo();
-  const demoEntries = [...DEMO_SCAN_HISTORY, DEMO_LATEST_RESULT] as unknown as ScanDocument[];
+  const demoEntries = [...demoScanHistory, demoLatestScan] as unknown as ScanDocument[];
 
   useEffect(() => {
     const user = auth.currentUser;
     if (demoMode && (!user || !user.uid)) {
-      const target = demoEntries.find((entry) => entry.id === scanId) ?? (DEMO_LATEST_RESULT as unknown as ScanDocument);
+      const target = (getDemoScanById(scanId ?? "") as unknown as ScanDocument | null) ?? (demoLatestScan as unknown as ScanDocument);
       setScan(target);
       setHistory(demoEntries.filter((entry) => entry.id !== target.id));
       setLoading(false);

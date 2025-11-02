@@ -3,7 +3,7 @@ import { onSnapshot, query, orderBy, limit, collection } from 'firebase/firestor
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth as firebaseAuth, db } from '@/lib/firebase';
 import { isDemo } from '@/lib/demoFlag';
-import { DEMO_LATEST_RESULT } from '@/lib/demoSamples';
+import { demoLatestScan } from '@/lib/demoDataset';
 
 type ScanData = {
   id: string;
@@ -32,7 +32,7 @@ export function useLatestScanForUser() {
       setUser(currentUser);
       if (!currentUser) {
         if (isDemo()) {
-          setScan(DEMO_LATEST_RESULT as unknown as ScanData);
+          setScan(demoLatestScan as unknown as ScanData);
         } else {
           setScan(null);
         }

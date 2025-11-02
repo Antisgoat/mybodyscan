@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
+import { AlertTriangle, Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -16,8 +16,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { demoNoAuth } from "@/lib/demoFlag";
-import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
+import { useAuthUser } from "@/lib/auth";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { cn } from "@/lib/utils";
 import type { Unsubscribe } from "firebase/firestore";
@@ -81,6 +80,7 @@ export default function Scan() {
   const [result, setResult] = useState<ScanResultResponse | null>(null);
   const [scanId, setScanId] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [weight, setWeight] = useState<string>("");
   const [height, setHeight] = useState<string>("");
   const [age, setAge] = useState<string>("");
@@ -96,6 +96,7 @@ export default function Scan() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
+  const { user } = useAuthUser();
   const demo = useDemoMode();
   const appCheckReady = true;
   const { credits, loading: creditsLoading } = useCredits();
@@ -301,24 +302,7 @@ export default function Scan() {
 
   const handleAnalyze = async () => {
     if (submitting) return;
-    if (demo && demoNoAuth) {
-      if (!allPhotosSelected) {
-        toast({ title: "Add all photos", description: "Front, back, left, and right photos are required." });
-        return;
-      }
-      setSubmitting(true);
-      setStage("analyzing");
-      setProgressText("Processing demo scan…");
-      setTimeout(() => {
-        setSubmitting(false);
-        setStage("complete");
-        setProgressText("Estimate ready");
-        toast({ title: "Demo estimate ready", description: "Showing a sample result." });
-        navigate(`/results/${DEMO_LATEST_RESULT.id}`);
-      }, 1200);
-      return;
-    }
-    if (demo && !demoNoAuth) {
+    if (demo && !user) {
       demoToast();
       return;
     }
@@ -331,6 +315,7 @@ export default function Scan() {
       return;
     }
 
+    setScanError(null);
     let key = idempotencyKey;
     if (!key) {
       key = generateIdempotencyKey();
@@ -387,8 +372,18 @@ export default function Scan() {
       uploadAbortRef.current = null;
       uploadController = null;
       setStage("analyzing");
-      setProgressText("Analyzing photos with OpenAI Vision...");
-      await submitLiveScan(payload);
+      setProgressText("Processing ~60 seconds — please keep the app open.");
+      const submission = await submitLiveScan(payload);
+      setStage("complete");
+      setProgressText("Scan complete — redirecting to your results.");
+      clearIdempotency();
+      if (statusUnsub.current) {
+        statusUnsub.current();
+        statusUnsub.current = null;
+      }
+      setResult(submission);
+      navigate(`/results/${submission.id}`, { replace: true });
+      return;
     } catch (err: any) {
       if (err?.name === "AbortError") {
         resetState();
@@ -422,6 +417,7 @@ export default function Scan() {
       setScanId(null);
       setScanStatus(null);
       resetState();
+      setScanError(description);
     } finally {
       if (uploadController) {
         uploadController.abort();
@@ -433,7 +429,7 @@ export default function Scan() {
     }
   };
 
-  const disableAnalyze = !allPhotosSelected || submitting || demo;
+  const disableAnalyze = !allPhotosSelected || submitting || (demo && !user);
   const selectSexValue = sex === "" ? undefined : sex;
 
   const initializing = false;
@@ -583,21 +579,33 @@ export default function Scan() {
 
           {submitting && (
             <Card>
-            <CardContent className="flex items-start gap-3 py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <div role="status" aria-live="polite">
-                <p className="text-sm font-medium text-foreground">{progressText || "Processing..."}</p>
-                {stage === "uploading" && (
-                  <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>
-                )}
-                {showProcessingTip && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    This can take a bit. You can navigate; we’ll update automatically.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              <CardContent className="flex items-start gap-3 py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <div role="status" aria-live="polite">
+                  <p className="text-sm font-medium text-foreground">{progressText || "Processing..."}</p>
+                  {stage === "uploading" && (
+                    <p className="text-xs text-muted-foreground">Uploaded {Math.min(uploadIndex, POSES.length)} / {POSES.length}</p>
+                  )}
+                  {showProcessingTip && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      This can take a bit. You can navigate; we’ll update automatically.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {scanError && (
+            <Card className="border-destructive/40">
+              <CardContent className="flex items-start gap-3 py-4">
+                <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Scan failed</p>
+                  <p className="text-xs text-muted-foreground">{scanError}</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {result && (
@@ -640,7 +648,7 @@ export default function Scan() {
               data-testid="scan-submit"
             >
               {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              {demo ? "Demo only" : submitting ? "Analyzing…" : "Analyze"}
+              {demo && !user ? "Demo preview" : submitting ? "Analyzing…" : "Analyze"}
             </Button>
             <div className="text-xs text-center text-muted-foreground">
               Credits: {creditsDisplay}

@@ -1,10 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-export type CaptureMode = "2" | "4";
+export type CaptureMode = "4";
 export type CaptureView = "Front" | "Side" | "Back" | "Left" | "Right";
 
 export const CAPTURE_VIEW_SETS: Record<CaptureMode, CaptureView[]> = {
-  "2": ["Front", "Side"],
   "4": ["Front", "Back", "Left", "Right"],
 };
 
@@ -14,7 +13,7 @@ interface CaptureState {
 }
 
 let state: CaptureState = {
-  mode: "2",
+  mode: "4",
   files: {},
 };
 

@@ -1,4 +1,4 @@
-import { DEMO_LATEST_RESULT } from "./demoSamples";
+import { demoCoach, demoLatestScan } from "./demoDataset";
 
 type DemoNutritionItem = {
   id: string;
@@ -86,11 +86,11 @@ export function mockBarcodeLookup(code: string) {
 
 export function mockCoachReply(message: string) {
   const trimmed = message.trim();
+  const defaultReply = demoCoach.messages[0]?.reply ??
+    "In demo mode, imagine I’m your coach. Tip: hit your protein target and keep daily steps high.";
+  const followUp = demoCoach.messages[1]?.reply ?? defaultReply;
   return {
-    reply:
-      trimmed.length > 0
-        ? "In demo mode, imagine I’m your coach. Tip: Hit 0.7–1.0g protein/lb and walk 10–12k steps."
-        : "Welcome to demo mode! Ask me about nutrition, workouts, or how to track progress.",
+    reply: trimmed.length > 0 ? followUp : defaultReply,
   };
 }
 
@@ -98,11 +98,11 @@ export function mockStartScan(payload: unknown) {
   return {
     scanId: "demo-scan-new",
     status: "completed",
-    resultId: DEMO_LATEST_RESULT.id,
+    resultId: demoLatestScan.id,
     payload,
   };
 }
 
 export function mockLatestScan() {
-  return DEMO_LATEST_RESULT;
+  return demoLatestScan;
 }

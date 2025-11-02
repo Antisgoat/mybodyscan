@@ -5,10 +5,10 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Menu, User } from "lucide-react";
-import { signOutToAuth } from "@/lib/auth";
+import { signOutToAuth, useAuthUser } from "@/lib/auth";
 import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
-import { isDemo } from "@/lib/demoFlag";
+import { useDemoMode } from "@/components/DemoModeProvider";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -29,7 +29,9 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const demoMode = isDemo();
+  const demoMode = useDemoMode();
+  const { user } = useAuthUser();
+  const readOnlyDemo = demoMode && !user;
 
   const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 
@@ -60,13 +62,20 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
           {/* Logo */}
-          <button
-            className="flex items-center gap-2 font-semibold"
-            onClick={() => navigate("/home")}
-          >
-            <img src="/logo.svg" alt="MyBodyScan" className="w-6 h-6" />
-            MyBodyScan
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="flex items-center gap-2 font-semibold"
+              onClick={() => navigate("/home")}
+            >
+              <img src="/logo.svg" alt="MyBodyScan" className="w-6 h-6" />
+              MyBodyScan
+            </button>
+            {demoMode ? (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                Demo
+              </span>
+            ) : null}
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6 text-sm" data-testid="app-nav">
@@ -143,11 +152,18 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
         </div>
         {demoMode ? (
           <div className="border-t bg-amber-50 text-amber-900 text-xs">
-            <div className="max-w-7xl mx-auto px-4 md:px-6 py-2 flex items-center justify-between gap-2">
-              <span>Demo Mode (read-only)</span>
-              <Link to="/system/check" className="underline-offset-4 hover:underline">
-                Diagnostics
-              </Link>
+            <div className="max-w-7xl mx-auto px-4 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+              <span>Demo preview — read-only experience.</span>
+              <div className="flex items-center gap-3">
+                {readOnlyDemo ? (
+                  <Link to="/plans" className="underline-offset-4 hover:underline font-medium">
+                    Sign up to save progress
+                  </Link>
+                ) : null}
+                <Link to="/system/check" className="underline-offset-4 hover:underline">
+                  Diagnostics
+                </Link>
+              </div>
             </div>
           </div>
         ) : null}

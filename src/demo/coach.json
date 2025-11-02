@@ -1,0 +1,23 @@
+{
+  "intro": "Welcome to the MyBodyScan demo! Here's how a typical check-in feels.",
+  "messages": [
+    {
+      "id": "coach-welcome",
+      "role": "user",
+      "message": "Coach, what should I focus on this month?",
+      "reply": "Keep chasing consistent protein (~0.8-1.0g per lb), three strength sessions, and 10-12k steps. We'll reassess in two weeks."
+    },
+    {
+      "id": "coach-followup",
+      "role": "user",
+      "message": "Nutrition has been okay but weekends are tough.",
+      "reply": "Block time for meal prep on Friday, keep protein-forward snacks handy, and log one weekend day so we can spot trends."
+    },
+    {
+      "id": "coach-cardio",
+      "role": "user",
+      "message": "Should I add more cardio?",
+      "reply": "Keep two 20-minute Zone 2 sessions for recovery and add a short interval ride if energy is high. Prioritize sleep before stacking extra work."
+    }
+  ]
+}

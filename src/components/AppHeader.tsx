@@ -176,9 +176,7 @@ function formatUserLabel(email?: string | null): string {
   return "Signed in";
 }
 
-const exploreError = "Demo sign-in failed. Please reload and try again.";
-
-const demoSuccessMessage = "Demo mode enabled.";
+const exploreError = "Demo preview failed. Please try again.";
 
 type DevAppCheckInfo = {
   status: "idle" | "loading" | "available" | "unavailable" | "error";
@@ -245,22 +243,19 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
       if (!result.ok) {
         const message = "message" in result ? result.message : undefined;
         toast({
-          title: "Demo sign-in failed",
+          title: "Demo preview unavailable",
           description: message ?? exploreError,
           variant: "destructive",
         });
         return;
       }
       if (typeof window !== "undefined") {
-        // Optional: navigate after demo starts. Update to suit your router if desired.
-        window.dispatchEvent(
-          new CustomEvent("mbs:toast", { detail: { level: "info", message: demoSuccessMessage } })
-        );
+        window.location.assign("/demo");
       }
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Demo sign-in failed", description: exploreError, variant: "destructive" },
+          fallback: { title: "Demo preview unavailable", description: exploreError, variant: "destructive" },
           includeCodeInDev: false,
         }),
       );

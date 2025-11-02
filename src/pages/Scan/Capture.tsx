@@ -2,20 +2,24 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Seo } from "@/components/Seo";
 import { useToast } from "@/hooks/use-toast";
 import {
   CAPTURE_VIEW_SETS,
   type CaptureView,
-  pruneCaptureFiles,
   setCaptureFile,
-  setCaptureMode,
   useScanCaptureStore,
 } from "./scanCaptureStore";
 import { MIN_IMAGE_DIMENSION, isAllowedImageType, readImageDimensions } from "@/lib/imageValidation";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+
+const CAPTURE_HINTS: Record<CaptureView, string> = {
+  Front: "Face forward, arms relaxed at your sides.",
+  Back: "Back to camera, stand tall with even lighting.",
+  Left: "Left profile, arms slightly away from your torso.",
+  Right: "Right profile, mirror the left side pose.",
+};
 
 export default function ScanCapture() {
   const navigate = useNavigate();
@@ -77,13 +81,6 @@ export default function ScanCapture() {
     };
   }, []);
 
-  const handleModeChange = (value: string) => {
-    if (value === "2" || value === "4") {
-      setCaptureMode(value);
-      pruneCaptureFiles(CAPTURE_VIEW_SETS[value]);
-    }
-  };
-
   const handleFileChange = (view: CaptureView) => (event: ChangeEvent<HTMLInputElement>) => {
     const inputEl = event.target;
     const file = inputEl.files?.[0] ?? null;
@@ -141,26 +138,10 @@ export default function ScanCapture() {
 
   return (
     <div className="space-y-6">
-      <Seo title="Capture Photos – MyBodyScan" description="Select how many angles to capture for your scan." />
+      <Seo title="Capture Photos – MyBodyScan" description="Upload the four required angles for your scan." />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold">Capture Photos</h1>
-        <p className="text-muted-foreground">Choose the angles you will capture. Camera integration arrives later.</p>
-      </div>
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-muted-foreground">Capture mode</p>
-        <ToggleGroup
-          type="single"
-          value={mode}
-          onValueChange={handleModeChange}
-          className="grid w-full grid-cols-2 gap-2"
-        >
-          <ToggleGroupItem value="2" aria-label="Capture two photos" className="py-3">
-            2 photos
-          </ToggleGroupItem>
-          <ToggleGroupItem value="4" aria-label="Capture four photos" className="py-3">
-            4 photos
-          </ToggleGroupItem>
-        </ToggleGroup>
+        <p className="text-muted-foreground">Upload clear photos for each angle: front, back, left, and right.</p>
       </div>
       <Card>
         <CardHeader>
@@ -188,7 +169,7 @@ export default function ScanCapture() {
                     <div>
                       <p className="font-medium">{view}</p>
                       <p className="text-sm text-muted-foreground">
-                        {file ? file.name : "Add a photo to continue."}
+                        {file ? file.name : CAPTURE_HINTS[view]}
                       </p>
                     </div>
                   </div>

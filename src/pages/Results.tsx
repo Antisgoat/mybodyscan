@@ -16,12 +16,16 @@ import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { DemoBanner } from "@/components/DemoBanner";
 import { isDemo } from "@/lib/demoFlag";
-import { DEMO_LATEST_RESULT } from "@/lib/demoSamples";
+import { demoLatestScan } from "@/lib/demoDataset";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
   if (timestamp.toDate) return timestamp.toDate().toLocaleString();
   if (timestamp instanceof Date) return timestamp.toLocaleString();
+  if (typeof timestamp === "string") {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  }
   return "—";
 };
 
@@ -78,7 +82,8 @@ const Results = () => {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const demo = isDemo();
-  const activeScan = scan ?? (demo ? (DEMO_LATEST_RESULT as any) : null);
+  const readOnlyDemo = demo && !user;
+  const activeScan = scan ?? (demo ? (demoLatestScan as any) : null);
 
   // Initialize note from scan data
   useEffect(() => {
@@ -286,18 +291,21 @@ const Results = () => {
           <CardContent>
             <div className="space-y-3">
               <Textarea
-                placeholder="Add a note about this scan..."
+                placeholder={readOnlyDemo ? "Demo preview — notes are read-only." : "Add a note about this scan..."}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="min-h-[80px]"
+                readOnly={readOnlyDemo}
+                disabled={readOnlyDemo}
               />
               <DemoWriteButton
                 onClick={onSaveNote}
-                disabled={!note.trim() || saving}
+                disabled={!note.trim() || saving || readOnlyDemo}
+                title={readOnlyDemo ? "Demo preview — sign up to save notes" : undefined}
                 variant="secondary"
                 className="w-full"
               >
-                {saving ? "Saving..." : "Save Note"}
+                {saving ? "Saving..." : readOnlyDemo ? "Sign up to save notes" : "Save Note"}
               </DemoWriteButton>
             </div>
           </CardContent>
