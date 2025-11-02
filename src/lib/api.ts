@@ -497,4 +497,42 @@ export async function refundIfNoResult(scanId: string) {
   }
   return data as { ok: boolean; refunded: boolean };
 }
+
+export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
+  const { user } = await requireAuthContext();
+  const token = await user.getIdToken();
+  const response = await fetch("/api/createCheckout", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ kind, credits }),
+  });
+  if (!response.ok) {
+    const payload = await handleJsonResponse(response);
+    const message = (payload as { error?: string })?.error || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return (await response.json()) as { url: string; id: string };
+}
+
+export async function createCustomerPortal() {
+  const { user } = await requireAuthContext();
+  const token = await user.getIdToken();
+  const response = await fetch("/api/createCustomerPortal", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    const payload = await handleJsonResponse(response);
+    const message = (payload as { error?: string })?.error || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return (await response.json()) as { url: string };
+}
 export { authedFetch };

@@ -12,7 +12,7 @@ export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export { adjustWorkout } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { createCheckout } from "./createCheckout.js";
-export { createCustomerPortal } from "./http/checkout.js";
+export { createCustomerPortal } from "./createCustomerPortal.js";
 export { adminGateway } from "./http/admin.js";
 export { telemetryLog } from "./http/telemetry.js";
 export { uatHelper } from "./http/uat.js";

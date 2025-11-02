@@ -30,8 +30,8 @@ const PAYMENT_FUNCTION_URLS = {
 } as const;
 
 const HOSTING_ENDPOINTS = {
-  createCheckout: "/createCheckout",
-  createCustomerPortal: "/createCustomerPortal",
+  createCheckout: "/api/createCheckout",
+  createCustomerPortal: "/api/createCustomerPortal",
 } as const;
 
 const USE_HOSTING_SHIM = import.meta.env.VITE_USE_HOSTING_SHIM === "true";
