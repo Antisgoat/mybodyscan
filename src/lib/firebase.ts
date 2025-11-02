@@ -1,283 +1,126 @@
-/* eslint-disable no-console */
-import { initializeApp, type FirebaseApp, getApps } from "firebase/app";
-import type { FirebaseError } from "firebase/app";
+// src/lib/firebase.ts
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import {
-  browserLocalPersistence,
-  browserPopupRedirectResolver,
-  browserSessionPersistence,
   getAuth,
-  indexedDBLocalPersistence,
-  inMemoryPersistence,
-  initializeAuth,
   type Auth,
+  setPersistence,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
 } from "firebase/auth";
+import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
-import { isWeb } from "./platform";
 
-type ResolvedConfig = {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  appId: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-};
+// ---- fallback public config (do not change) ----
+export const PUBLIC_WEB_CONFIG = {
+  apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
+  authDomain: "mybodyscan-f3daf.firebaseapp.com",
+  projectId: "mybodyscan-f3daf",
+  storageBucket: "mybodyscan-f3daf.firebasestorage.app",
+  messagingSenderId: "157018993008",
+  appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
+  measurementId: "G-TV8M3PY1X3",
+} as const;
 
-let appInstance: FirebaseApp | null = null;
-let authInstance: Auth | null = null;
-let firestoreInstance: Firestore | null = null;
-let storageInstance: FirebaseStorage | null = null;
-let functionsInstance: Functions | null = null;
-let configInstance: ResolvedConfig | null = null;
-let initPromise: Promise<void> | null = null;
-
-type LazyGetter<T> = () => T;
-
-function bindIfFunction<T extends object>(target: T, value: unknown) {
-  if (typeof value !== "function") return value;
-  return (value as (...args: unknown[]) => unknown).bind(target);
-}
-
-function createLazyProxy<T extends object>(getter: LazyGetter<T>, label: string): T {
-  return new Proxy({} as T, {
-    get(_target, prop, receiver) {
-      const instance = getter();
-      const value = Reflect.get(instance as object, prop, receiver);
-      return bindIfFunction(instance, value);
-    },
-    set(_target, prop, value, receiver) {
-      const instance = getter();
-      return Reflect.set(instance as object, prop, value, receiver);
-    },
-    has(_target, prop) {
-      const instance = getter();
-      return Reflect.has(instance as object, prop);
-    },
-    ownKeys() {
-      const instance = getter();
-      return Reflect.ownKeys(instance as object);
-    },
-    getOwnPropertyDescriptor(_target, prop) {
-      const instance = getter();
-      return Reflect.getOwnPropertyDescriptor(instance as object, prop);
-    },
-    getPrototypeOf() {
-      const instance = getter();
-      return Object.getPrototypeOf(instance as object);
-    },
-    setPrototypeOf(_target, proto) {
-      const instance = getter();
-      return Reflect.setPrototypeOf(instance as object, proto);
-    },
-    deleteProperty(_target, prop) {
-      const instance = getter();
-      return Reflect.deleteProperty(instance as object, prop);
-    },
-    defineProperty(_target, prop, descriptor) {
-      const instance = getter();
-      return Reflect.defineProperty(instance as object, prop, descriptor);
-    },
-    apply() {
-      throw new Error(`${label} is not callable.`);
-    },
-    construct() {
-      throw new Error(`${label} is not constructible.`);
-    },
-  });
-}
-
-function ensureDeviceLanguage(auth: Auth) {
-  try {
-    auth.useDeviceLanguage();
-  } catch {
-    // ignore unsupported platforms
-  }
-}
-
-let envConfigCache: ResolvedConfig | null = null;
-
-function configFromEnv(): ResolvedConfig {
-  if (envConfigCache) {
-    return envConfigCache;
-  }
-
-  const cfg: ResolvedConfig = {
-    apiKey: (import.meta.env.VITE_FIREBASE_API_KEY || "").trim(),
-    authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
-    projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(),
-    appId: (import.meta.env.VITE_FIREBASE_APP_ID || "").trim(),
-    storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "").trim() || undefined,
-    messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim() || undefined,
+// Pull from Vite env if present; otherwise fallback to PUBLIC_WEB_CONFIG
+function cfgFromEnv() {
+  const e = import.meta.env as any;
+  const cfg = {
+    apiKey: e?.VITE_FIREBASE_API_KEY,
+    authDomain: e?.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: e?.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: e?.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: e?.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: e?.VITE_FIREBASE_APP_ID,
+    measurementId: e?.VITE_FIREBASE_MEASUREMENT_ID,
   };
+  const hasAll = Object.values(cfg).filter(Boolean).length >= 6 && !!cfg.apiKey && !!cfg.appId;
+  return hasAll ? (cfg as typeof PUBLIC_WEB_CONFIG) : PUBLIC_WEB_CONFIG;
+}
 
-  const missing: string[] = [];
-  if (!cfg.apiKey) missing.push("VITE_FIREBASE_API_KEY");
-  if (!cfg.authDomain) missing.push("VITE_FIREBASE_AUTH_DOMAIN");
-  if (!cfg.projectId) missing.push("VITE_FIREBASE_PROJECT_ID");
-  if (!cfg.appId) missing.push("VITE_FIREBASE_APP_ID");
+const firebaseConfig = cfgFromEnv();
 
-  if (missing.length) {
-    throw new Error(`Firebase env config missing: ${missing.join(", ")}`);
+const app: FirebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
+const auth: Auth = getAuth(app);
+
+// Prefer local persistence; fall back silently if unsupported
+const persistenceReady = (async () => {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    try {
+      await setPersistence(auth, indexedDBLocalPersistence);
+    } catch {
+      // noop
+    }
   }
+})();
 
-  envConfigCache = cfg;
-  return cfg;
+// Analytics is optional; never throw
+let analytics: Analytics | undefined;
+try {
+  // set later if supported
+  // @ts-ignore
+  isSupported().then((ok: boolean) => ok && (analytics = getAnalytics(app))).catch(() => {});
+} catch {
+  /* noop */
 }
 
-export const firebaseApiKey = configFromEnv().apiKey;
+let firestoreInstance: Firestore | undefined;
+let functionsInstance: Functions | undefined;
+let storageInstance: FirebaseStorage | undefined;
 
-let loggedConfig = false;
+export const db: Firestore = (firestoreInstance = getFirestore(app));
+export const functions: Functions = (functionsInstance = getFunctions(app, "us-central1"));
+export const storage: FirebaseStorage = (storageInstance = getStorage(app));
 
-export function logFirebaseRuntimeInfo(): void {
-  if (!import.meta.env.DEV || loggedConfig) return;
-  const { projectId, authDomain } = configFromEnv();
-  console.info(`[firebase] project=${projectId} authDomain=${authDomain}`);
-  loggedConfig = true;
+let loggedInfo = false;
+
+export async function firebaseReady(): Promise<void> {
+  await persistenceReady.catch(() => {});
 }
 
-async function init(): Promise<void> {
-  if (appInstance && authInstance) return;
-
-  // If already initialized elsewhere in dev, reuse
-  if (getApps().length > 0) {
-    appInstance = getApps()[0]!;
-    configInstance = configFromEnv();
-    authInstance = getAuth(appInstance);
-    ensureDeviceLanguage(authInstance);
-    return;
-  }
-
-  if (!isWeb) throw new Error("web-only init");
-
-  const cfg = configFromEnv();
-
-  configInstance = cfg;
-  appInstance = initializeApp(cfg);
-  authInstance = ensureAuth(appInstance);
-  ensureDeviceLanguage(authInstance);
+export function getFirebaseApp(): FirebaseApp {
+  return app;
 }
 
-function requireApp(): FirebaseApp {
-  if (!appInstance) {
-    throw new Error("Firebase not initialized. Call firebaseReady() first.");
-  }
-  return appInstance;
+export function getFirebaseAuth(): Auth {
+  return auth;
 }
 
-function requireAuth(): Auth {
-  if (!authInstance) {
-    throw new Error("Firebase not initialized. Call firebaseReady() first.");
-  }
-  return authInstance;
-}
-
-function requireConfig(): ResolvedConfig {
-  if (!configInstance) {
-    throw new Error("Firebase not initialized. Call firebaseReady() first.");
-  }
-  return configInstance;
-}
-
-function ensureFirestore(): Firestore {
+export function getFirebaseFirestore(): Firestore {
   if (!firestoreInstance) {
-    firestoreInstance = getFirestore(requireApp());
+    firestoreInstance = getFirestore(app);
   }
   return firestoreInstance;
 }
 
-function ensureStorage(): FirebaseStorage {
-  if (!storageInstance) {
-    storageInstance = getStorage(requireApp());
-  }
-  return storageInstance;
-}
-
-function ensureFunctions(): Functions {
+export function getFirebaseFunctions(): Functions {
   if (!functionsInstance) {
-    functionsInstance = getFunctions(requireApp(), "us-central1");
+    functionsInstance = getFunctions(app, "us-central1");
   }
   return functionsInstance;
 }
 
-function ensureAuth(app: FirebaseApp): Auth {
-  if (authInstance) {
-    return authInstance;
-  }
-
-  const persistence = [
-    indexedDBLocalPersistence,
-    browserLocalPersistence,
-    browserSessionPersistence,
-  ];
-
-  const attempt = (opts: Parameters<typeof initializeAuth>[1]) => {
-    try {
-      authInstance = initializeAuth(app, opts);
-      return authInstance;
-    } catch (error) {
-      const fbError = error as FirebaseError | undefined;
-      if (fbError?.code === "auth/already-initialized") {
-        authInstance = getAuth(app);
-        return authInstance;
-      }
-      throw error;
-    }
-  };
-
-  try {
-    return attempt({ persistence, popupRedirectResolver: browserPopupRedirectResolver });
-  } catch (error) {
-    const fbError = error as FirebaseError | undefined;
-    if (import.meta.env.DEV) {
-      console.warn("[firebase] Falling back to in-memory auth persistence", fbError?.code || error);
-    }
-    return attempt({ persistence: [inMemoryPersistence], popupRedirectResolver: browserPopupRedirectResolver });
-  }
-}
-
-export async function firebaseReady(): Promise<void> {
-  if (appInstance && authInstance) return;
-  if (!initPromise) {
-    initPromise = init().catch((error) => {
-      initPromise = null;
-      throw error;
-    });
-  }
-  await initPromise;
-}
-
-export function getFirebaseApp(): FirebaseApp {
-  return requireApp();
-}
-
-export function getFirebaseAuth(): Auth {
-  return requireAuth();
-}
-
-export function getFirebaseFirestore(): Firestore {
-  return ensureFirestore();
-}
-
 export function getFirebaseStorage(): FirebaseStorage {
-  return ensureStorage();
+  if (!storageInstance) {
+    storageInstance = getStorage(app);
+  }
+  return storageInstance;
 }
 
-export function getFirebaseFunctions(): Functions {
-  return ensureFunctions();
+export function getFirebaseConfig() {
+  return firebaseConfig;
 }
 
-export function getFirebaseConfig(): ResolvedConfig {
-  return requireConfig();
+export const firebaseApiKey = firebaseConfig.apiKey;
+
+export function logFirebaseRuntimeInfo(): void {
+  if (!import.meta.env.DEV || loggedInfo) return;
+  const { projectId, authDomain } = firebaseConfig;
+  console.info(`[firebase] project=${projectId} authDomain=${authDomain}`);
+  loggedInfo = true;
 }
 
-const app = createLazyProxy(() => getFirebaseApp(), "Firebase app");
-const auth = createLazyProxy(() => getFirebaseAuth(), "Firebase auth");
-const db = createLazyProxy(() => getFirebaseFirestore(), "Firestore");
-const storage = createLazyProxy(() => getFirebaseStorage(), "Firebase storage");
-const functions = createLazyProxy(() => getFirebaseFunctions(), "Firebase functions");
-const firebaseConfig = createLazyProxy(() => getFirebaseConfig(), "Firebase config");
-
-export { app, db, storage, functions, firebaseConfig };
-export { auth }; // kept for legacy imports; throws if accessed before ready()
+export { app, auth, analytics, firebaseConfig };

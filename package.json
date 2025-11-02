@@ -36,6 +36,7 @@
     "verify:local": "npm run build && npm --prefix functions run build",
     "dev:check": "vite --open /system/check",
     "smoke": "bash scripts/smoke.sh",
+    "smoke:auth": "bash ops/smoke-auth.sh",
     "probe": "node scripts/probe.mjs"
   },
   "dependencies": {
