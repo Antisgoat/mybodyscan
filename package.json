@@ -37,6 +37,7 @@
     "dev:check": "vite --open /system/check",
     "smoke": "bash scripts/smoke.sh",
     "smoke:auth": "bash ops/smoke-auth.sh",
+    "smoke:fn": "bash ops/smoke-fn.sh",
     "smoke:fns": "bash ops/smoke-fn.sh",
     "probe": "node scripts/probe.mjs"
   },

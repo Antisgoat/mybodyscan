@@ -181,14 +181,25 @@
       }
     ]
   },
-  "functions": {
-    "source": "functions",
-    "predeploy": [
-      "npm --prefix \"$RESOURCE_DIR\" cache clean --force || true",
-      "npm --prefix \"$RESOURCE_DIR\" run ci-or-install",
-      "npm --prefix \"$RESOURCE_DIR\" run build"
-    ]
-  },
+  "functions": [
+    {
+      "codebase": "default",
+      "source": "functions",
+      "runtime": "nodejs20",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" cache clean --force || true",
+        "npm --prefix \"$RESOURCE_DIR\" run ci-or-install",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ],
+      "secrets": [
+        "OPENAI_API_KEY",
+        "STRIPE_SECRET",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "USDA_FDC_API_KEY"
+      ]
+    }
+  ],
   "firestore": {
     "rules": "database.rules.json"
   },

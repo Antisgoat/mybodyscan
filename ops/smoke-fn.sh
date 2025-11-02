@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-C="https://coachchat-534gpapj7q-uc.a.run.app"
-N="https://nutritionsearch-534gpapj7q-uc.a.run.app"
-H="https://systemhealth-534gpapj7q-uc.a.run.app"
+PROJECT_ID="${PROJECT_ID:-mybodyscan-f3daf}"
 
-echo "coachChat (no appcheck) => expect normal payload (not app_check_required)"
-curl -sS -X POST "$C" -H "Content-Type: application/json" -d '{"message":"ping"}' | sed 's/^/RESPONSE: /'
+echo "=== recent coachChat logs (most recent 50 by default) ==="
+firebase functions:log --project "${PROJECT_ID}" --only "coachChat" || true
+
 echo
-
-echo "nutritionSearch (no appcheck) => expect normal payload (not app_check_required)"
-curl -sS -X POST "$N" -H "Content-Type: application/json" -d '{"q":"chicken breast"}' | sed 's/^/RESPONSE: /'
-echo
-
-echo "systemHealth snapshot"
-curl -sS "$H" | sed 's/^/RESPONSE: /'
+echo "=== systemHealth probe ==="
+HEALTH_URL="${HEALTH_URL:-https://systemhealth-534gpapj7q-uc.a.run.app}"
+curl -sS "${HEALTH_URL}" | jq . || curl -sS "${HEALTH_URL}"
 echo
