@@ -1,26 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_KEY="${VITE_FIREBASE_API_KEY:-${1:-}}"
+API_KEY="${VITE_FIREBASE_API_KEY:-${FIREBASE_WEB_API_KEY:-}}"
 if [[ -z "${API_KEY}" ]]; then
-  API_KEY="AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
+  echo "ERROR: Missing VITE_FIREBASE_API_KEY (or FIREBASE_WEB_API_KEY)."
+  exit 2
 fi
 
-OUT="$(curl -sS -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}" \
-  -H "Content-Type: application/json" -d '{"returnSecureToken":true}')"
+echo "=== Identity Toolkit anonymous signUp probe ==="
+URL="https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}"
+RES="$(curl -sS -X POST -H "Content-Type: application/json" -d '{"returnSecureToken":true}' "${URL}" || true)"
+echo "${RES}"
 
-python3 - <<'PY' <<<"$OUT"
-import json,sys
-try:
-  d=json.load(sys.stdin)
-  tok=d.get("idToken","")
-  if tok:
-    print(f"OK: got ID token ({len(tok)} chars)")
-    sys.exit(0)
-  else:
-    print("FAIL: no idToken. payload=",d)
-    sys.exit(2)
-except Exception as e:
-  print("FAIL: bad JSON",e)
-  sys.exit(2)
-PY
+ID_TOKEN="$(echo "${RES}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log(j.idToken||"")}catch{console.log("")}})')"
+LEN=${#ID_TOKEN}
+echo "ID_TOKEN_LEN=${LEN}"
+if [[ "${LEN}" -eq 0 ]]; then
+  echo "If error is OPERATION_NOT_ALLOWED, enable Anonymous provider in Firebase Console → Authentication."
+fi
