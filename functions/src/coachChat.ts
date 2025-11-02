@@ -9,8 +9,9 @@ import { openAiSecretParam } from "./openai/keys.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { HttpError, send } from "./util/http.js";
+import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { runMiddleware } from "./util/runMiddleware.js";
+import { chain } from "./middleware/chain.js";
 
 const db = getFirestore();
 const MAX_TEXT_LENGTH = 800;
@@ -216,14 +217,7 @@ async function handleCoachChat(req: Request, res: Response): Promise<void> {
 
 export const coachChat = onRequest(
   { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
-  async (req: Request, res: Response) => {
-    await runMiddleware(req, res, appCheckSoft);
-    if (res.headersSent) {
-      return;
-    }
-
-    // Soft App Check guard executed for every request path before handler logic.
-    await handleCoachChat(req, res);
-  },
+  (req: Request, res: Response) =>
+    chain(withCors, appCheckSoft)(req, res, () => void handleCoachChat(req, res)),
 );
 

@@ -6,8 +6,9 @@ import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
+import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { runMiddleware } from "./util/runMiddleware.js";
+import { chain } from "./middleware/chain.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -635,13 +636,6 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
 
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
-  async (req: Request, res: Response) => {
-    await runMiddleware(req, res, appCheckSoft);
-    if (res.headersSent) {
-      return;
-    }
-
-    // Soft App Check guard executed for every request path before handler logic.
-    await handleNutritionSearch(req, res);
-  },
+  (req: Request, res: Response) =>
+    chain(withCors, appCheckSoft)(req, res, () => void handleNutritionSearch(req, res)),
 );

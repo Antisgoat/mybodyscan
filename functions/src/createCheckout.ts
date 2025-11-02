@@ -25,7 +25,7 @@ const CHECKOUT_ALLOWED_ORIGINS = [
   "https://mybodyscan-f3daf.web.app",
 ] as const;
 
-const CHECKOUT_ALLOWED_ORIGIN_SET = new Set(CHECKOUT_ALLOWED_ORIGINS);
+const CHECKOUT_ALLOWED_ORIGIN_SET = new Set<string>(CHECKOUT_ALLOWED_ORIGINS);
 
 function extractBearerToken(req: Request): string {
   const header = req.get("authorization") || req.get("Authorization") || "";
