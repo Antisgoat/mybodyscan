@@ -5,14 +5,16 @@ import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { demoNoAuth } from "@/lib/demoFlag";
+import { useAuthUser } from "@/lib/auth";
 
 const CapturePicker = () => {
   const navigate = useNavigate();
   const demo = useDemoMode();
+  const { user } = useAuthUser();
+  const readOnlyDemo = demo && !user;
 
   const renderButton = (label: string, path: string) => {
-    if (!demo || demoNoAuth) {
+    if (!readOnlyDemo) {
       return (
         <Button className="w-full" onClick={() => navigate(path)}>
           {label}
@@ -28,7 +30,7 @@ const CapturePicker = () => {
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>Sign in to use</TooltipContent>
+        <TooltipContent>Sign up to use this feature</TooltipContent>
       </Tooltip>
     );
   };
@@ -37,7 +39,7 @@ const CapturePicker = () => {
     <main className="min-h-screen p-6 max-w-md mx-auto">
       <Seo
         title="Choose Capture – MyBodyScan"
-        description="Pick photos or video to start your scan."
+        description="Pick the four photo angles required for your scan."
         canonical={window.location.href}
       />
       <h1 className="text-2xl font-semibold mb-4">Start a Scan</h1>
@@ -47,12 +49,6 @@ const CapturePicker = () => {
             <CardTitle>Photos</CardTitle>
           </CardHeader>
           <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
-        </Card>
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Video</CardTitle>
-          </CardHeader>
-          <CardContent>{renderButton("Record Video", "/capture/video")}</CardContent>
         </Card>
       </div>
     </main>

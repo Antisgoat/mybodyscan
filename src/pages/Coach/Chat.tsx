@@ -22,7 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
 import { buildErrorToast } from "@/lib/errorToasts";
-import { DEMO_COACH_MESSAGES } from "@/lib/demoSamples";
+import { demoCoach } from "@/lib/demoDataset";
 
 declare global {
   interface Window {
@@ -38,6 +38,17 @@ interface ChatMessage {
   createdAt: Date;
   usedLLM: boolean;
 }
+
+const DEMO_CHAT_MESSAGES: ChatMessage[] = demoCoach.messages.map((msg, index) => {
+  const created = new Date(Date.now() - (demoCoach.messages.length - index) * 60 * 60 * 1000);
+  return {
+    id: msg.id,
+    text: msg.message,
+    response: msg.reply,
+    createdAt: created,
+    usedLLM: true,
+  } satisfies ChatMessage;
+});
 
 function sortMessages(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -66,17 +77,7 @@ export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
   const { plan } = useUserProfile();
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    demo
-      ? DEMO_COACH_MESSAGES.map((msg) => ({
-          id: msg.id,
-          text: msg.text,
-          response: msg.response,
-          createdAt: msg.createdAt,
-          usedLLM: msg.usedLLM,
-        }))
-      : [],
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() => (demo ? DEMO_CHAT_MESSAGES : []));
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -129,15 +130,7 @@ export default function CoachChatPage() {
 
   useEffect(() => {
     if (demo) {
-      setMessages(
-        DEMO_COACH_MESSAGES.map((msg) => ({
-          id: msg.id,
-          text: msg.text,
-          response: msg.response,
-          createdAt: msg.createdAt,
-          usedLLM: msg.usedLLM,
-        })),
-      );
+      setMessages(DEMO_CHAT_MESSAGES);
       return;
     }
     if (!authReady || !appCheckReady || !uid) {
@@ -177,13 +170,14 @@ export default function CoachChatPage() {
   }, [authReady, uid, demo]);
 
   const hasMessages = messages.length > 0;
+  const readOnlyDemo = demo && !user;
   const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
     if (pendingRef.current || pending) {
       return;
     }
-    if (demo) {
+    if (readOnlyDemo) {
       demoToast();
       return;
     }
@@ -294,6 +288,12 @@ export default function CoachChatPage() {
       <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
+          {readOnlyDemo ? (
+            <Alert variant="default" data-testid="coach-demo-intro">
+              <AlertTitle>Demo preview</AlertTitle>
+              <AlertDescription>{demoCoach.intro}</AlertDescription>
+            </Alert>
+          ) : null}
           {showPlanMissing ? (
             <Alert variant="default" data-testid="coach-plan-missing">
               <AlertTitle>No plan yet ? create one</AlertTitle>
@@ -358,9 +358,9 @@ export default function CoachChatPage() {
                       setCoachError(null);
                     }
                   }}
-                  placeholder={demo ? "Sign in to chat with your coach" : "Share wins or ask for tweaks..."}
+                  placeholder={readOnlyDemo ? "Demo preview — chat is read-only." : "Share wins or ask for tweaks..."}
                   rows={4}
-                  disabled={pending || demo || initializing}
+                  disabled={pending || readOnlyDemo || initializing}
                   data-testid="coach-message-input"
                 />
                 <div className="flex justify-end">
@@ -368,7 +368,7 @@ export default function CoachChatPage() {
                     <Button
                       variant="secondary"
                       onClick={listening ? stopListening : startListening}
-                      disabled={!supportsSpeech || pending || demo || initializing}
+                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing}
                       data-testid="coach-mic"
                     >
                       {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
@@ -390,10 +390,11 @@ export default function CoachChatPage() {
                     ) : (
                       <Button
                         onClick={handleSend}
-                        disabled={pending || demo || !input.trim() || initializing}
+                        disabled={pending || readOnlyDemo || !input.trim() || initializing}
+                        title={readOnlyDemo ? "Demo preview — sign up to chat" : undefined}
                         data-testid="coach-send-button"
                       >
-                        Send
+                        {readOnlyDemo ? "Sign up to chat" : "Send"}
                       </Button>
                     )}
                   </div>

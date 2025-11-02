@@ -8,7 +8,6 @@ interface ImportMetaEnv {
   readonly VITE_OFF_ENABLED?: string;             // "0"/"false" to disable OFF fallback
   readonly VITE_STRIPE_PK?: string;               // Stripe publishable key (preferred)
   readonly VITE_STRIPE_PUBLISHABLE_KEY?: string;  // Legacy Stripe key env
-  readonly VITE_DEMO_NO_AUTH?: string;            // "true" enables read-only demo without auth
   readonly VITE_SW_ENABLED?: string;              // "1"/"true" to allow SW registration
   readonly VITE_ENABLE_PUBLIC_MARKETING_PAGE?: string;
 }

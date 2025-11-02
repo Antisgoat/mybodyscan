@@ -15,7 +15,6 @@ function bool(v: unknown, def = false): boolean {
 
 export const APPCHECK_SITE_KEY: string | undefined = env.VITE_APPCHECK_SITE_KEY || undefined;
 export const DEMO_ENABLED: boolean = bool(env.VITE_ENABLE_DEMO ?? env.VITE_DEMO_MODE ?? env.VITE_DEMO_ENABLED, false);
-export const DEMO_NO_AUTH: boolean = bool(env.VITE_DEMO_NO_AUTH, false);
 export const SHOW_APPLE_WEB: boolean = bool(env.VITE_ENABLE_APPLE ?? env.VITE_SHOW_APPLE ?? env.VITE_SHOW_APPLE_WEB, false);
 
 export const USDA_API_KEY: string | undefined = env.VITE_USDA_API_KEY || undefined;

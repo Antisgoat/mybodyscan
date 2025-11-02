@@ -140,43 +140,12 @@ export default function ScanFlowResult() {
   );
 
   useEffect(() => {
-    if (!allCaptured) return;
-    if (!tasks.length) return;
-    if (creditStatus !== "idle") return;
-    let cancelled = false;
-    setCreditStatus("pending");
-    setCreditError(null);
-    consumeOneCredit()
-      .then(() => {
-        if (cancelled) return;
-        setCreditStatus("consumed");
-      })
-      .catch((error: any) => {
-        if (cancelled) return;
-        setCreditStatus("error");
-        setCreditError(error?.message === "No credits available" ? "no-credits" : "general");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [allCaptured, tasks, creditStatus]);
-
-  useEffect(() => {
     let cancelled = false;
 
-    if (!tasks.length) {
+    if (!tasks.length || !allCaptured) {
       setPhotoFeatures(null);
       setAnalysisError(null);
       setAnalyzing(false);
-      return;
-    }
-
-    if (creditStatus !== "consumed") {
-      setAnalyzing(false);
-      if (creditStatus === "error") {
-        setPhotoFeatures(null);
-      }
       return;
     }
 
@@ -209,7 +178,8 @@ export default function ScanFlowResult() {
     return () => {
       cancelled = true;
     };
-  }, [tasks, creditStatus]);
+  }, [tasks, allCaptured]);
+
 
   const sex = profile?.sex === "male" || profile?.sex === "female" ? profile.sex : undefined;
   const age = profile?.age && Number.isFinite(profile.age) ? profile.age : undefined;
@@ -390,6 +360,35 @@ export default function ScanFlowResult() {
     photoMetadata,
     thumbnailDataUrl,
   ]);
+
+  useEffect(() => {
+    if (!payload) {
+      if (creditStatus !== "idle") {
+        setCreditStatus("idle");
+        setCreditError(null);
+      }
+      return;
+    }
+    if (creditStatus !== "idle") {
+      return;
+    }
+    let cancelled = false;
+    setCreditStatus("pending");
+    setCreditError(null);
+    consumeOneCredit()
+      .then(() => {
+        if (cancelled) return;
+        setCreditStatus("consumed");
+      })
+      .catch((error: any) => {
+        if (cancelled) return;
+        setCreditStatus("error");
+        setCreditError(error?.message === "No credits available" ? "no-credits" : "general");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payload, creditStatus]);
 
   const payloadSignature = useMemo(() => (payload ? JSON.stringify(payload) : null), [payload]);
 

@@ -1,6 +1,3 @@
-import { signInAnonymously } from "firebase/auth";
-import { firebaseReady, getFirebaseAuth } from "./firebase";
-
 const DEMO_FLAG_KEY = "mbs_demo";
 
 export type DemoResult = { ok: true } | { ok: false; code?: string; message?: string };
@@ -21,43 +18,24 @@ export function clearDemoFlag(): void {
   }
 }
 
-function currentAuthUser() {
-  try {
-    return getFirebaseAuth().currentUser;
-  } catch {
-    return null;
-  }
-}
-
 export function isDemo(): boolean {
   try {
     if (typeof window !== "undefined" && localStorage.getItem(DEMO_FLAG_KEY) === "1") return true;
   } catch {
     /* empty */
   }
-  const u = currentAuthUser();
-  return Boolean(u?.isAnonymous);
+  return false;
 }
 
-/** One-tap demo start: anonymous sign-in with a single retry. */
+/** One-tap demo start: persist demo flag locally so routes unlock. */
 export async function startDemo(): Promise<DemoResult> {
   if (isDemo()) return { ok: true };
-  await firebaseReady();
-  const auth = getFirebaseAuth();
   try {
-    await signInAnonymously(auth);
     setDemoFlag();
     return { ok: true };
-  } catch {
-    await new Promise((r) => setTimeout(r, 300));
-    try {
-      await signInAnonymously(auth);
-      setDemoFlag();
-      return { ok: true };
-    } catch (err: any) {
-      const code = err && typeof err === "object" && "code" in err ? String(err.code) : undefined;
-      return { ok: false, code, message: "Demo sign-in failed. Please reload and try again." };
-    }
+  } catch (err: any) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : undefined;
+    return { ok: false, code, message: "Demo preview could not start. Please try again." };
   }
 }
 

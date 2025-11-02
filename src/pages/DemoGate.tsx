@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
-import { ensureDemoData } from "@/lib/demoData";
-import { DEMO_SESSION_KEY, demoNoAuth, enableDemo } from "@/lib/demoFlag";
+import { DEMO_SESSION_KEY, enableDemo } from "@/lib/demoFlag";
 import { startDemo } from "@/lib/demo";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { DEMO_LATEST_RESULT, DEMO_SCAN_HISTORY } from "@/lib/demoSamples";
-import { mockLatestScan } from "@/lib/demoApiMocks";
+import { demoLatestScan, demoScanHistory } from "@/lib/demoDataset";
 
 export default function DemoGate() {
   const navigate = useNavigate();
@@ -25,54 +22,27 @@ export default function DemoGate() {
         setFailed(false);
         setLoading(true);
 
-        if (demoNoAuth) {
-          if (typeof window !== "undefined") {
-            try {
-              enableDemo();
-              window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
-              (window as any).__MBS_DEMO__ = {
-                latestResult: DEMO_LATEST_RESULT,
-                history: DEMO_SCAN_HISTORY,
-              };
-            } catch (err) {
-              console.warn("[demo] unable to seed session", err);
-            }
-          }
-          mockLatestScan();
-          if (mountedRef.current) navigate("/home", { replace: true });
-          return;
-        }
-
-        const auth = firebaseAuth;
-        if (auth.currentUser) {
-          if (mountedRef.current) navigate("/coach", { replace: true });
-          return;
-        }
-
         const result = await startDemo();
         if (!result.ok) {
           const code = "code" in result ? result.code : undefined;
           throw new Error(code ?? "demo-start-failed");
         }
 
-        const user = auth.currentUser;
-        if (!user) throw new Error("auth-missing-user");
-
-        // Ensure demo content and enable demo mode; non-fatal on errors
-        try {
-          await ensureDemoData(db, user.uid);
-        } catch (err) {
-          console.warn("[demo] ensureDemoData failed (non-fatal)", err);
-        }
         if (typeof window !== "undefined") {
           try {
             window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+            (window as any).__MBS_DEMO__ = {
+              latestResult: demoLatestScan,
+              history: demoScanHistory,
+            };
           } catch (err) {
             console.warn("[demo] unable to persist session flag", err);
           }
         }
 
-        if (mountedRef.current) navigate("/coach", { replace: true });
+        enableDemo();
+
+        if (mountedRef.current) navigate("/home?demo=1", { replace: true });
       } catch (error: any) {
         console.error("demo_gate_error", error);
         if (mountedRef.current) {

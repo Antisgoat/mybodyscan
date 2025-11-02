@@ -2,8 +2,6 @@ import React from "react";
 import { clearDemoFlag, isDemo as isDemoAuthFlag, setDemoFlag } from "./demo";
 
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
-export const demoNoAuth = import.meta.env.VITE_DEMO_NO_AUTH === "true";
-
 export const DEMO_SESSION_KEY = "mbs:demo";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
@@ -22,6 +20,7 @@ export const DEMO_ALLOWED_PATHS = [
   "/scan/tips",
   "/results",
   "/results/:scanId",
+  "/results/:id",
   "/report",
   "/barcode",
   "/plans",

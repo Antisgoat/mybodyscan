@@ -17,7 +17,6 @@ import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
-import VideoCapture from "./pages/VideoCapture";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
 import History from "./pages/History";
@@ -441,18 +440,8 @@ const App = () => {
                 </AuthedLayout>
               </ProtectedRoute>
             } />
-            <Route path="/capture/video" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<CaptureSkeleton />}>
-                    <VideoCapture />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
             <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
             <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/video-capture" element={<ProtectedRoute><AuthedLayout><VideoCapture /></AuthedLayout></ProtectedRoute>} />
             {/* Processing routes (old + new kept) */}
             <Route path="/processing/:uid/:scanId" element={
               <ProtectedRoute>

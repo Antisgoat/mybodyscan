@@ -1,0 +1,59 @@
+{
+  "date": "2024-05-18",
+  "totals": {
+    "calories": 1985,
+    "protein": 142,
+    "carbs": 186,
+    "fat": 61
+  },
+  "meals": [
+    {
+      "id": "demo-breakfast",
+      "name": "Greek yogurt parfait",
+      "time": "07:45",
+      "calories": 380,
+      "protein": 32,
+      "carbs": 46,
+      "fat": 9,
+      "notes": "Non-fat yogurt, berries, granola"
+    },
+    {
+      "id": "demo-lunch",
+      "name": "Chicken quinoa bowl",
+      "time": "12:30",
+      "calories": 520,
+      "protein": 45,
+      "carbs": 52,
+      "fat": 16,
+      "notes": "Roasted veggies, avocado drizzle"
+    },
+    {
+      "id": "demo-snack",
+      "name": "Protein shake",
+      "time": "15:30",
+      "calories": 240,
+      "protein": 30,
+      "carbs": 18,
+      "fat": 4
+    },
+    {
+      "id": "demo-dinner",
+      "name": "Salmon with roasted potatoes",
+      "time": "19:00",
+      "calories": 620,
+      "protein": 35,
+      "carbs": 48,
+      "fat": 24,
+      "notes": "Side salad with olive oil"
+    },
+    {
+      "id": "demo-evening",
+      "name": "Dark chocolate square",
+      "time": "21:00",
+      "calories": 225,
+      "protein": 0,
+      "carbs": 22,
+      "fat": 8
+    }
+  ]
+}

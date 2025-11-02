@@ -13,6 +13,10 @@ import {
   mockStartScan,
 } from "./demoApiMocks";
 
+function showDemoPreviewToast(description?: string) {
+  toast({ title: "Demo preview — sign up to use this feature.", description });
+}
+
 async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
   return { auth: firebaseAuth, user: firebaseAuth.currentUser };
 }
@@ -54,6 +58,7 @@ export async function nutritionSearch(
     return { results: [] };
   }
   if (isDemo()) {
+    showDemoPreviewToast("Sample nutrition results are shown in demo mode.");
     return mockNutritionSearch(trimmed);
   }
   const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
@@ -111,6 +116,7 @@ export async function nutritionBarcodeLookup(
     return { results: [] };
   }
   if (isDemo()) {
+    showDemoPreviewToast("Sample barcode matches are shown in demo mode.");
     return mockBarcodeLookup(trimmed);
   }
   const url = `/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`;
@@ -173,6 +179,7 @@ export async function coachChat(payload: { message: string }, options: { signal?
     throw error;
   }
   if (isDemo()) {
+    showDemoPreviewToast("Sign up to chat with your coach.");
     return mockCoachReply(message);
   }
   const { user } = await requireAuthContext();
@@ -432,6 +439,7 @@ async function authedFetch(path: string, init?: RequestInit) {
 
 export async function startScan(params?: Record<string, unknown>) {
   if (isDemo()) {
+    showDemoPreviewToast("Scans require an account. Showing sample data.");
     const mock = mockStartScan(params);
     return { scanId: mock.scanId };
   }
@@ -486,6 +494,7 @@ export async function beginPaidScan(payload: {
   mode: "2" | "4";
 }) {
   if (isDemo()) {
+    showDemoPreviewToast("Demo preview — paid scans are disabled.");
     const mock = mockStartScan(payload);
     return { ok: true, remainingCredits: 0, scanId: mock.scanId, resultId: mock.resultId };
   }

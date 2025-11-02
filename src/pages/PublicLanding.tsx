@@ -8,7 +8,7 @@ import { PRICING_CATALOG } from "@/content/pricing";
 
 const PublicLanding = () => {
   const navigate = useNavigate();
-  const demoLink = import.meta.env.VITE_DEMO_MODE === "true" ? "/welcome" : "/welcome?demo=1";
+  const demoLink = "/demo";
   const handleLaunch = () => {
     if (firebaseAuth.currentUser) navigate("/home");
     else navigate("/auth");
@@ -34,7 +34,7 @@ const PublicLanding = () => {
               <Button size="lg" onClick={handleLaunch}>Launch Web App</Button>
               <Button size="lg" variant="outline" onClick={() => navigate("/plans")}>Pricing</Button>
               <Link to={demoLink} className="btn-secondary">
-                Try Demo (read-only)
+                Browse the demo
               </Link>
             </div>
           </article>

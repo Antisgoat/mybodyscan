@@ -1,5 +1,6 @@
 import type { CoachPlan, CoachProfile } from "@/hooks/useUserProfile";
 import type { FavoriteDocWithId, TemplateDocWithId } from "@/lib/nutritionCollections";
+import { demoMeals } from "@/lib/demoDataset";
 
 type DemoMealEntry = {
   id: string;
@@ -20,60 +21,38 @@ const DEMO_CALORIE_TARGET = 2200;
 
 export const DEMO_NUTRITION_LOG: { totals: { calories: number; protein: number; carbs: number; fat: number; alcohol?: number }; meals: DemoMealEntry[] } = {
   totals: {
-    calories: Math.round(DEMO_CALORIE_TARGET * 0.84),
-    protein: 128,
-    carbs: 180,
-    fat: 62,
+    calories: demoMeals.totals.calories,
+    protein: demoMeals.totals.protein,
+    carbs: demoMeals.totals.carbs,
+    fat: demoMeals.totals.fat,
     alcohol: 0,
   },
-  meals: [
-    {
-      id: "demo-breakfast",
-      name: "Greek yogurt parfait",
-      protein: 32,
-      carbs: 38,
-      fat: 9,
-      calories: 380,
-      notes: "Non-fat yogurt, berries, granola",
-    },
-    {
-      id: "demo-lunch",
-      name: "Chicken quinoa bowl",
-      protein: 45,
-      carbs: 55,
-      fat: 16,
-      calories: 540,
-      notes: "Roasted veggies and avocado",
-    },
-    {
-      id: "demo-snack",
-      name: "Protein shake",
-      protein: 28,
-      carbs: 18,
-      fat: 4,
-      calories: 240,
-    },
-    {
-      id: "demo-dinner",
-      name: "Salmon with roasted potatoes",
-      protein: 40,
-      carbs: 42,
-      fat: 24,
-      calories: 520,
-    },
-  ],
+  meals: demoMeals.meals.map((meal) => ({
+    id: meal.id,
+    name: meal.name,
+    protein: meal.protein,
+    carbs: meal.carbs,
+    fat: meal.fat,
+    calories: meal.calories,
+    notes: meal.notes,
+  })),
 };
 
 export const DEMO_NUTRITION_HISTORY: DemoNutritionHistoryDay[] = Array.from({ length: 7 }).map((_, index) => {
-  const date = new Date();
-  date.setDate(date.getDate() - index);
+  const anchor = demoMeals.date ? new Date(demoMeals.date) : new Date();
+  const date = new Date(anchor);
+  date.setDate(anchor.getDate() - index);
+  const calorieSwing = ((index % 3) - 1) * 90;
+  const proteinSwing = ((index % 2) - 0.5) * 8;
+  const carbSwing = ((index % 4) - 1.5) * 12;
+  const fatSwing = ((index % 3) - 1) * 5;
   return {
     date: date.toISOString().slice(0, 10),
     totals: {
-      calories: 1800 + (index % 3) * 120,
-      protein: 120 + (index % 2) * 10,
-      carbs: 180 + (index % 4) * 15,
-      fat: 55 + (index % 3) * 6,
+      calories: Math.max(1500, Math.round(demoMeals.totals.calories + calorieSwing)),
+      protein: Math.max(90, Math.round(demoMeals.totals.protein + proteinSwing)),
+      carbs: Math.max(120, Math.round(demoMeals.totals.carbs + carbSwing)),
+      fat: Math.max(35, Math.round(demoMeals.totals.fat + fatSwing)),
       alcohol: 0,
     },
   };
