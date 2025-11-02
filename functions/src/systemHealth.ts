@@ -1,229 +1,66 @@
-import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
-import { getAuth } from "./firebase.js";
-import { getEnv, getAppCheckMode, getHostBaseUrl } from "./lib/env.js";
-import { HttpError, send } from "./util/http.js";
-import { withCors } from "./middleware/cors.js";
-import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { chain } from "./middleware/chain.js";
-import { openAiSecretParam } from "./openai/keys.js";
-import {
-  legacyStripeWebhookParam,
-  stripeSecretKeyParam,
-  stripeSecretParam,
-  stripeWebhookSecretParam,
-} from "./stripe/keys.js";
+// Booleans from env strings ("true"/"false" tolerant)
+const on = (v?: string) => (v ?? "").toLowerCase() === "true";
 
-type AuthProviderStatus =
-  | {
-      google: boolean;
-      apple: boolean;
-      email: boolean;
-      unknown?: false;
-    }
-  | {
-      unknown: true;
-    };
+export const systemHealth = onRequest(async (req, res) => {
+  const stripeSecretPresent = !!(process.env.STRIPE_SECRET || process.env.STRIPE_SECRET_KEY);
+  const openaiKeyPresent = !!process.env.OPENAI_API_KEY;
+  const usdaKeyPresent = !!process.env.USDA_FDC_API_KEY;
 
-function detectIdentityToolkitConfig(clientKeyOverride?: string) {
-  // Accept either FIREBASE_WEB_API_KEY (functions env) or VITE_FIREBASE_API_KEY (if someone set it).
-  const clientKey =
-    clientKeyOverride ||
+  const appCheckMode = process.env.APPCHECK_MODE || "disabled";
+
+  const authProviders = {
+    google: on(process.env.AUTH_GOOGLE_ENABLED),
+    apple: on(process.env.AUTH_APPLE_ENABLED),
+    email: on(process.env.AUTH_EMAIL_ENABLED),
+    demo: on(process.env.AUTH_DEMO_ENABLED),
+  } as const;
+
+  // Identity Toolkit reachability probe
+  const apiKey =
     process.env.FIREBASE_WEB_API_KEY ||
     process.env.VITE_FIREBASE_API_KEY ||
     process.env.FIREBASE_API_KEY ||
     "";
 
-  if (!clientKey) {
-    return { identityToolkitReachable: false, identityToolkitReason: "no_client_key" } as const;
-  }
-  // We do not make a network call here; just report presence to avoid cold-start latency.
-  return { identityToolkitReachable: true, identityToolkitReason: "client_key_present" } as const;
-}
+  let identityToolkitReachable = false;
+  let identityToolkitReason = "";
 
-function detectSecrets() {
-  const hasOpenAI = !!process.env.OPENAI_API_KEY;
-  const hasStripeSecret = !!process.env.STRIPE_SECRET;
-  const hasStripeSecretKey = !!process.env.STRIPE_SECRET_KEY;
-  const hasStripeWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
-  const hasUsda = !!process.env.USDA_FDC_API_KEY;
-  const all =
-    hasOpenAI && hasStripeSecret && hasStripeSecretKey && hasStripeWebhookSecret && hasUsda;
-  return {
-    openaiKeyPresent: hasOpenAI,
-    stripeSecretPresent: hasStripeSecret,
-    stripeSecretKeyPresent: hasStripeSecretKey,
-    stripeWebhookSecretPresent: hasStripeWebhookSecret,
-    usdaKeyPresent: hasUsda,
-    secretsBound: all,
-  } as const;
-}
-
-function extractClientKey(req: Request): string | undefined {
-  const queryKey = typeof req.query?.clientKey === "string" ? req.query.clientKey : undefined;
-  if (queryKey && queryKey.trim()) {
-    return queryKey.trim();
-  }
-  const headerKey = req.get("x-client-key") || req.get("X-Client-Key") || "";
-  if (headerKey && headerKey.trim()) {
-    return headerKey.trim();
-  }
-  if (req.method === "POST" && typeof req.body === "object" && req.body !== null) {
-    const bodyKey = (req.body as Record<string, unknown>).clientKey;
-    if (typeof bodyKey === "string" && bodyKey.trim()) {
-      return bodyKey.trim();
-    }
-  }
-  return undefined;
-}
-
-function resolveClientKey(req: Request): string | undefined {
-  const envCandidates = [
-    getEnv("CLIENT_FIREBASE_API_KEY"),
-    getEnv("FIREBASE_API_KEY"),
-    getEnv("WEB_API_KEY"),
-    getEnv("VITE_FIREBASE_API_KEY"),
-  ];
-
-  for (const candidate of envCandidates) {
-    if (candidate && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-
-  return extractClientKey(req);
-}
-
-async function fetchAuthProviders(): Promise<AuthProviderStatus> {
-  try {
-    const manager = getAuth().projectConfigManager();
-    const config = await manager.getProjectConfig();
-    const json = config.toJSON() as Record<string, unknown>;
-
-    const signIn = (json?.signIn ?? {}) as Record<string, unknown>;
-    const providerSettings = Array.isArray(signIn?.providerSettings) ? (signIn.providerSettings as Array<Record<string, unknown>>) : [];
-
-    const findProvider = (id: string): boolean => {
-      const entry = providerSettings.find((setting) => {
-        const providerId = (setting.providerId ?? setting.provider) as string | undefined;
-        return typeof providerId === "string" && providerId.toLowerCase() === id;
-      });
-      if (!entry) return false;
-      if (typeof entry.enabled === "boolean") return entry.enabled;
-      if (typeof entry.status === "string") {
-        return entry.status.toLowerCase() === "enabled";
+  if (!apiKey) {
+    identityToolkitReason = "no_client_key";
+  } else {
+    try {
+      const r = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ returnSecureToken: true }),
+        },
+      );
+      if (!r.ok) {
+        identityToolkitReason = `http_${r.status}`;
+      } else {
+        const j = (await r.json().catch(() => ({}))) as { idToken?: string };
+        identityToolkitReachable = typeof j?.idToken === "string" && j.idToken.length > 0;
+        if (!identityToolkitReachable) identityToolkitReason = "no_id_token";
       }
-      return true;
-    };
-
-    const emailConfig = (signIn?.email ?? {}) as { enabled?: boolean };
-
-    return {
-      google: findProvider("google.com"),
-      apple: findProvider("apple.com"),
-      email: Boolean(emailConfig?.enabled),
-    };
-  } catch (error) {
-    console.warn("systemHealth.authProviders_error", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return { unknown: true };
-  }
-}
-
-function normalizeClientProviders(candidate: unknown): AuthProviderStatus | null {
-  if (!candidate || typeof candidate !== "object") {
-    return null;
-  }
-
-  const record = candidate as Record<string, unknown>;
-  const google = typeof record.google === "boolean" ? record.google : undefined;
-  const apple = typeof record.apple === "boolean" ? record.apple : undefined;
-  const email = typeof record.email === "boolean" ? record.email : undefined;
-
-  if (google === undefined || apple === undefined || email === undefined) {
-    return null;
-  }
-
-  return { google, apple, email };
-}
-
-function resolveAppCheckMode(): "disabled" | "soft" | "strict" {
-  return getAppCheckMode();
-}
-
-async function handleSystemHealth(req: Request, res: Response): Promise<void> {
-  if (req.method === "OPTIONS") {
-    send(res, 204, null);
-    return;
-  }
-
-  try {
-    if (req.method !== "GET" && req.method !== "POST") {
-      throw new HttpError(405, "method_not_allowed");
+    } catch (e: any) {
+      identityToolkitReason = `error_${(e?.code || e?.name || "unknown").toString()}`;
     }
-
-    const clientKey = resolveClientKey(req);
-    const idtk = detectIdentityToolkitConfig(clientKey);
-    const sec = detectSecrets();
-    let authProviders = await fetchAuthProviders();
-
-    if (authProviders.unknown && req.method === "POST" && req.body && typeof req.body === "object") {
-      const body = req.body as Record<string, unknown>;
-      const clientProvided = normalizeClientProviders(body.authProviders ?? body.providers);
-      if (clientProvided) {
-        authProviders = clientProvided;
-      }
-    }
-
-    const hostCandidate =
-      process.env.K_SERVICE
-        ? `${process.env.K_SERVICE}-*.a.run.app`
-        : getHostBaseUrl() || req.get("origin") || req.get("Origin") || req.get("host") || null;
-    const host =
-      typeof hostCandidate === "string" && hostCandidate.trim().length
-        ? hostCandidate.trim()
-        : "local";
-
-    const payload: Record<string, unknown> = {
-      host,
-      timestamp: new Date().toISOString(),
-      appCheckMode: process.env.APPCHECK_MODE || resolveAppCheckMode(),
-      authProviders,
-      identityToolkitReachable: idtk.identityToolkitReachable,
-      identityToolkitReason: idtk.identityToolkitReason,
-      openaiKeyPresent: sec.openaiKeyPresent,
-      stripeSecretPresent: sec.stripeSecretPresent,
-      stripeSecretKeyPresent: sec.stripeSecretKeyPresent,
-      stripeWebhookSecretPresent: sec.stripeWebhookSecretPresent,
-      usdaKeyPresent: sec.usdaKeyPresent,
-      secretsBound: sec.secretsBound,
-    };
-
-    send(res, 200, payload);
-  } catch (error) {
-    handleSystemHealthError(res, error);
-  }
-}
-
-export const systemHealth = onRequest(
-  {
-    region: "us-central1",
-    secrets: [openAiSecretParam, stripeSecretParam, stripeSecretKeyParam, stripeWebhookSecretParam, legacyStripeWebhookParam],
-  },
-  (req: Request, res: Response) =>
-    chain(withCors, appCheckSoft)(req, res, () => void handleSystemHealth(req, res)),
-);
-
-function handleSystemHealthError(res: Response, error: unknown): void {
-  if (error instanceof HttpError) {
-    send(res, error.status, { error: error.code });
-    return;
   }
 
-  console.error("systemHealth_unhandled", {
-    message: error instanceof Error ? error.message : String(error),
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.status(200).send({
+    host: req.get("host"),
+    timestamp: new Date().toISOString(),
+    appCheckMode,
+    authProviders,
+    stripeSecretPresent,
+    openaiKeyPresent,
+    usdaKeyPresent,
+    identityToolkitReachable,
+    identityToolkitReason,
   });
-  send(res, 500, { error: "internal_error" });
-}
+});
