@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
-import { DEMO_QUERY_PARAM, isDemoMode } from "@/lib/demoFlag";
-import { useFlags } from "@/lib/flags";
+import { DEMO_KEY, isDemo as readDemo } from "@/lib/demo";
+import { disableDemo as disableDemoMode } from "@/lib/demoFlag";
 
 interface DemoModeContextValue {
   demo: boolean;
@@ -12,57 +11,37 @@ const DemoModeContext = createContext<DemoModeContextValue>({ demo: false });
 
 export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuthUser();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { flags } = useFlags();
-  const [persistedDemo, setPersistedDemo] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return isDemoMode(user, window.location);
-  });
-
-  const baseDemo = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    if (!flags.enableDemo) return false;
-    return isDemoMode(user, window.location);
-  }, [user, location.pathname, location.search, flags.enableDemo]);
+  const [demo, setDemo] = useState<boolean>(() => readDemo());
 
   useEffect(() => {
-    if (!flags.enableDemo && persistedDemo) {
-      setPersistedDemo(false);
+    if (user && demo) {
+      disableDemoMode();
+      setDemo(false);
     }
-  }, [flags.enableDemo, persistedDemo]);
+  }, [user, demo]);
 
   useEffect(() => {
-    if (baseDemo) {
-      if (!persistedDemo) {
-        setPersistedDemo(true);
-      }
-      return;
-    }
+    if (typeof window === "undefined") return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== DEMO_KEY) return;
+      setDemo(readDemo());
+    };
+    const handleChange = () => {
+      setDemo(readDemo());
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("mbs:demo-change", handleChange as EventListener);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("mbs:demo-change", handleChange as EventListener);
+    };
+  }, []);
 
-    if (user) {
-      if (persistedDemo) {
-        setPersistedDemo(false);
-      }
-      if (typeof window !== "undefined" && location.search.includes(`${DEMO_QUERY_PARAM}=`)) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete(DEMO_QUERY_PARAM);
-        navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true });
-      }
-      return;
+  useEffect(() => {
+    if (!user) {
+      setDemo(readDemo());
     }
-
-    if (persistedDemo && typeof window !== "undefined") {
-      const hasParam = location.search.includes(`${DEMO_QUERY_PARAM}=`);
-      if (!hasParam) {
-        const url = new URL(window.location.href);
-        url.searchParams.set(DEMO_QUERY_PARAM, "1");
-        navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true });
-      }
-    }
-  }, [baseDemo, persistedDemo, user, location.search, location.pathname, location.hash, navigate]);
-
-  const demo = baseDemo || (!user && persistedDemo);
+  }, [user]);
 
   const value = useMemo(() => ({ demo }), [demo]);
 

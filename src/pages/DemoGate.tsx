@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { DEMO_SESSION_KEY, enableDemo } from "@/lib/demoFlag";
-import { startDemo } from "@/lib/demo";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { demoLatestScan, demoScanHistory } from "@/lib/demoDataset";
@@ -21,12 +20,6 @@ export default function DemoGate() {
       try {
         setFailed(false);
         setLoading(true);
-
-        const result = await startDemo();
-        if (!result.ok) {
-          const code = "code" in result ? result.code : undefined;
-          throw new Error(code ?? "demo-start-failed");
-        }
 
         if (typeof window !== "undefined") {
           try {

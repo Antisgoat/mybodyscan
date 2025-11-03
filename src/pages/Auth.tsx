@@ -18,7 +18,7 @@ import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
-import { enterDemo } from "@/lib/demo";
+import { disableDemo, enableDemo, isDemo } from "@/lib/demo";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
 
@@ -37,11 +37,14 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
-  const demoEnabled = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase() !== "false";
+  const demoEnabled = String(import.meta.env.VITE_DEMO_ENABLED ?? "false").toLowerCase() === "true";
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
     if (!user) return;
+    if (isDemo()) {
+      disableDemo();
+    }
     const defaultTarget = (location.state as any)?.from || "/home";
     if (location.pathname !== defaultTarget) {
       navigate(defaultTarget, { replace: true });
@@ -150,8 +153,9 @@ const Auth = () => {
   );
 
   const onBrowseDemo = () => {
-    if (!demoEnabled) return;
-    enterDemo();
+    if (!demoEnabled || user) return;
+    enableDemo();
+    navigate("/", { replace: true });
   };
 
   return (
@@ -269,7 +273,7 @@ const Auth = () => {
             )}
           />
           <div className="mt-6">
-            {demoEnabled && (
+            {demoEnabled && !user && (
               <>
                 <div className="mt-4">
                   <button
@@ -278,7 +282,7 @@ const Auth = () => {
                     onClick={onBrowseDemo}
                     aria-label="Browse the demo"
                   >
-                    Browse the demo (no signup)
+                    Continue without account (Demo)
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center mt-2">

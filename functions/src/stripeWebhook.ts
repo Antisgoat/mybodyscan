@@ -1,7 +1,99 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { stripe, incCredits, setSubscriptionStatus } from "./stripe/common.js";
+import { stripe, setSubscriptionStatus } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
+import { FieldValue, getFirestore } from "./firebase.js";
+
+const db = getFirestore();
+
+function parseCredits(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const PLAN_ONE_CREDITS = parseCredits(process.env.PLAN_ONE_CREDITS, 1);
+const PLAN_MONTHLY_CREDITS = parseCredits(process.env.PLAN_MONTHLY_CREDITS, 3);
+const PLAN_YEARLY_CREDITS = parseCredits(process.env.PLAN_YEARLY_CREDITS, 36);
+
+const PRICE_ONE =
+  process.env.PRICE_ONE ||
+  process.env.VITE_PRICE_ONE ||
+  process.env.STRIPE_PRICE_ONE ||
+  process.env.STRIPE_PRICE_SUB_ONCE ||
+  "";
+const PRICE_MONTHLY =
+  process.env.PRICE_MONTHLY ||
+  process.env.VITE_PRICE_MONTHLY ||
+  process.env.STRIPE_PRICE_SUB_MONTHLY ||
+  "";
+const PRICE_YEARLY =
+  process.env.PRICE_YEARLY ||
+  process.env.VITE_PRICE_YEARLY ||
+  process.env.STRIPE_PRICE_SUB_ANNUAL ||
+  "";
+const PRICE_EXTRA = process.env.PRICE_EXTRA || process.env.VITE_PRICE_EXTRA || "";
+
+type PlanInfo = {
+  plan: "one" | "monthly" | "yearly" | "extra";
+  credits: number;
+};
+
+const priceToPlan = new Map<string, PlanInfo>(
+  [
+    PRICE_ONE ? [PRICE_ONE, { plan: "one", credits: PLAN_ONE_CREDITS }] : null,
+    PRICE_MONTHLY ? [PRICE_MONTHLY, { plan: "monthly", credits: PLAN_MONTHLY_CREDITS }] : null,
+    PRICE_YEARLY ? [PRICE_YEARLY, { plan: "yearly", credits: PLAN_YEARLY_CREDITS }] : null,
+    PRICE_EXTRA ? [PRICE_EXTRA, { plan: "extra", credits: PLAN_ONE_CREDITS }] : null,
+  ].filter((entry): entry is [string, PlanInfo] => Boolean(entry?.[0])),
+);
+
+async function uidFromCustomer(customerId: string): Promise<string> {
+  if (!customerId) return "";
+  const customer = await stripe.customers.retrieve(customerId);
+  if (Array.isArray(customer)) return "";
+  return (customer.metadata?.uid as string) || "";
+}
+
+async function recordLedgerDeposit(
+  eventId: string,
+  uid: string,
+  amount: number,
+  meta: Record<string, unknown>,
+): Promise<boolean> {
+  if (!uid || !amount || amount <= 0) return false;
+  const ledgerRef = db.collection("credits_ledger").doc(eventId);
+  const userRef = db.collection("users").doc(uid);
+
+  return await db.runTransaction(async (tx) => {
+    const existing = await tx.get(ledgerRef);
+    if (existing.exists) {
+      return false;
+    }
+    const snapshot = await tx.get(userRef);
+    const snapshotData = snapshot.exists ? (snapshot.data() as { credits?: number } | undefined) : undefined;
+    const currentCredits = typeof snapshotData?.credits === "number" ? snapshotData.credits : 0;
+    tx.set(
+      ledgerRef,
+      {
+        uid,
+        amount,
+        meta,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: false },
+    );
+    tx.set(
+      userRef,
+      {
+        credits: currentCredits + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return true;
+  });
+}
 
 export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req, res) => {
   const sig = req.get("stripe-signature");
@@ -27,39 +119,47 @@ export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const uid = (session.metadata?.uid as string) || (session.client_reference_id as string) || "";
-        if (uid && session.mode === "payment") {
-          const credits = Math.max(1, Number(session.metadata?.credits || 1));
-          await incCredits(uid, credits);
-          logger.info("Credits granted", { uid, credits, session: session.id });
+        const priceId = (session.metadata?.priceId as string) || "";
+        const planInfo = priceToPlan.get(priceId);
+        if (uid && session.mode === "payment" && session.payment_status === "paid" && planInfo) {
+          const granted = await recordLedgerDeposit(`checkout:${session.id}`, uid, planInfo.credits, {
+            plan: planInfo.plan,
+            priceId,
+            sessionId: session.id,
+          });
+          if (granted) {
+            logger.info("credits_deposited", { uid, plan: planInfo.plan, amount: planInfo.credits, session: session.id });
+          }
         }
         break;
       }
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         const sub = invoice.subscription as string | null;
-        const priceObj = invoice.lines?.data?.[0]?.price;
-        const price = priceObj?.id ?? null;
-        const productRef = priceObj?.product;
-        const product = typeof productRef === "string" ? productRef : null;
+        const line = invoice.lines?.data?.[0] ?? null;
+        const priceId = (line?.price?.id as string) || "";
+        const planInfo = priceToPlan.get(priceId);
         const customerId = (invoice.customer as string) || "";
-        let uid = "";
-        if (customerId) {
-          const customer = await stripe.customers.retrieve(customerId);
-          if (!Array.isArray(customer) && "metadata" in customer) {
-            uid = (customer as any).metadata?.uid || "";
-          }
-        }
-        const eligiblePrices = new Set(
-          [process.env.STRIPE_PRICE_SUB_MONTHLY, process.env.STRIPE_PRICE_SUB_ANNUAL].filter(Boolean) as string[],
-        );
-        const depositCredits = price ? eligiblePrices.has(price) : false;
+        const uid = await uidFromCustomer(customerId);
         if (uid) {
-          await setSubscriptionStatus(uid, "active", product ?? undefined, price ?? undefined);
-          if (depositCredits) {
-            await incCredits(uid, 3);
-            logger.info("Subscription active + credits deposited", { uid, sub, price });
-          } else {
-            logger.info("Subscription active", { uid, sub, price });
+          const productRef = line?.price?.product;
+          const product = typeof productRef === "string" ? productRef : undefined;
+          await setSubscriptionStatus(uid, "active", product, priceId || undefined);
+          if (planInfo) {
+            const granted = await recordLedgerDeposit(`invoice:${invoice.id}`, uid, planInfo.credits, {
+              plan: planInfo.plan,
+              priceId,
+              invoiceId: invoice.id,
+              subscriptionId: sub,
+            });
+            if (granted) {
+              logger.info("subscription_credits_deposited", {
+                uid,
+                amount: planInfo.credits,
+                priceId,
+                invoiceId: invoice.id,
+              });
+            }
           }
         }
         break;
@@ -67,13 +167,7 @@ export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = (sub.customer as string) || "";
-        let uid = "";
-        if (customerId) {
-          const customer = await stripe.customers.retrieve(customerId);
-          if (!Array.isArray(customer) && "metadata" in customer) {
-            uid = (customer as any).metadata?.uid || "";
-          }
-        }
+        const uid = await uidFromCustomer(customerId);
         if (uid) {
           await setSubscriptionStatus(uid, "canceled");
           logger.info("Subscription canceled", { uid, sub: sub.id });

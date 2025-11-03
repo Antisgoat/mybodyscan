@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { bootstrapSystem } from "@/lib/system";
 
 export type UserClaims = {
   dev?: boolean;
@@ -41,6 +42,7 @@ export function useClaims(): {
   const [claims, setClaims] = useState<UserClaims>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const lastUidRef = useRef<string | null>(auth.currentUser?.uid ?? null);
+  const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -55,6 +57,31 @@ export function useClaims(): {
       lastUidRef.current = currentUid;
       setClaims(c);
       setLoading(false);
+
+      if (u?.uid) {
+        if (bootstrappedRef.current !== u.uid) {
+          bootstrappedRef.current = u.uid;
+          void (async () => {
+            try {
+              const result = await bootstrapSystem();
+              if (!result) return;
+              if (result.claimsUpdated) {
+                await u.getIdToken(true);
+                const refreshed = await readClaims(u, true);
+                if (!alive) return;
+                lastUidRef.current = u.uid;
+                setClaims(refreshed);
+              } else if (typeof result.credits === "number") {
+                setClaims((prev) => (prev ? { ...prev, credits: result.credits } : prev));
+              }
+            } catch (error) {
+              console.error("claims_bootstrap_error", error);
+            }
+          })();
+        }
+      } else {
+        bootstrappedRef.current = null;
+      }
     });
     return () => {
       alive = false;
@@ -72,6 +99,22 @@ export function useClaims(): {
       }
       setClaims(c);
       setLoading(false);
+      if (u?.uid) {
+        try {
+          const result = await bootstrapSystem();
+          if (result?.claimsUpdated) {
+            await u.getIdToken(true);
+            const refreshed = await readClaims(u, true);
+            setClaims(refreshed);
+            return refreshed;
+          }
+          if (result && typeof result.credits === "number") {
+            setClaims((prev) => (prev ? { ...prev, credits: result.credits } : prev));
+          }
+        } catch (error) {
+          console.error("claims_refresh_bootstrap_error", error);
+        }
+      }
       return c;
     };
   }, []);

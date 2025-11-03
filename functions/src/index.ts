@@ -1,6 +1,13 @@
 // IMPORTANT: use .js suffixes so Node ESM can resolve compiled files at runtime.
 // Export only Cloud Function handlers - no middleware/util exports, no wildcard exports
 
+import express from "express";
+import { onRequest } from "firebase-functions/v2/https";
+import { billingRouter } from "./billing.js";
+import { coachRouter } from "./coach.js";
+import { nutritionRouter } from "./nutrition.js";
+import { systemRouter } from "./system.js";
+
 export { systemHealth } from "./systemHealth.js";
 export { coachChat } from "./coachChat.js";
 export { nutritionSearch } from "./nutritionSearch.js";
@@ -19,4 +26,13 @@ export { uatHelper } from "./http/uat.js";
 export { refreshClaims } from "./claims.js";
 export { grantUnlimitedCredits } from "./claims.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
-export { createCheckout } from "./billing.js";
+
+const app = express();
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(billingRouter);
+app.use(coachRouter);
+app.use(nutritionRouter);
+app.use(systemRouter);
+
+export const api = onRequest({ region: "us-central1" }, app);

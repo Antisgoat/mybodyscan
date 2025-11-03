@@ -1,10 +1,11 @@
 import { randomUUID } from "crypto";
+import express from "express";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth, verifyAppCheckStrict } from "./http.js";
+import { cors, requireAuth, verifyAppCheckStrict } from "./http.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -335,3 +336,242 @@ export const getDailyLog = getDayLog;
 export const getNutritionHistory = withHandler(handleGetHistory);
 
 export { nutritionSearch } from "./nutritionSearch.js";
+
+type ApiNutritionItem = {
+  id: string;
+  name: string;
+  brand: string | null;
+  source: "USDA" | "OFF";
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+};
+
+const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
+const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
+const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product/";
+const OFF_UA =
+  process.env.OFF_USER_AGENT ||
+  process.env.OFF_APP_USER_AGENT ||
+  "MyBodyScan/1.0 (+https://mybodyscanapp.com)";
+
+function getUsdaKey(): string | null {
+  const envKey = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
+  if (envKey && envKey.trim()) {
+    return envKey.trim();
+  }
+  return null;
+}
+
+function numberOrZero(value: unknown): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? Number(num.toFixed(2)) : 0;
+}
+
+function fromUsdaFood(food: any): ApiNutritionItem | null {
+  if (!food) return null;
+  const name = (food.description || food.lowercaseDescription || "").toString().trim();
+  if (!name) return null;
+  const brand = (food.brandOwner || food.brand || "").toString().trim() || null;
+  const nutrients = Array.isArray(food.foodNutrients) ? food.foodNutrients : [];
+  const lookup = new Map<string, number>();
+  for (const nutrient of nutrients) {
+    const key = (nutrient?.nutrientName || nutrient?.nutrient?.name || "").toString().toLowerCase();
+    if (!key) continue;
+    const amount = Number(nutrient?.value);
+    if (Number.isFinite(amount)) {
+      lookup.set(key, amount);
+    }
+  }
+  const fallbackKcal = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "208");
+  const fallbackProtein = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "203");
+  const fallbackCarbs = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "205");
+  const fallbackFat = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "204");
+
+  const kcal =
+    lookup.get("energy") ??
+    lookup.get("energy (kcal)") ??
+    lookup.get("calories") ??
+    (fallbackKcal && fallbackKcal.value != null ? Number(fallbackKcal.value) : undefined) ??
+    0;
+  const protein =
+    lookup.get("protein") ??
+    (fallbackProtein && fallbackProtein.value != null ? Number(fallbackProtein.value) : undefined) ??
+    0;
+  const carbs =
+    lookup.get("carbohydrate, by difference") ??
+    lookup.get("carbohydrate") ??
+    (fallbackCarbs && fallbackCarbs.value != null ? Number(fallbackCarbs.value) : undefined) ??
+    0;
+  const fat =
+    lookup.get("total lipid (fat)") ??
+    lookup.get("fat") ??
+    (fallbackFat && fallbackFat.value != null ? Number(fallbackFat.value) : undefined) ??
+    0;
+
+  return {
+    id: `usda_${food.fdcId ?? randomUUID()}`,
+    name,
+    brand,
+    source: "USDA",
+    kcal: numberOrZero(kcal),
+    protein_g: numberOrZero(protein),
+    carbs_g: numberOrZero(carbs),
+    fat_g: numberOrZero(fat),
+  };
+}
+
+function fromOffProduct(product: any): ApiNutritionItem | null {
+  if (!product) return null;
+  const name = (product.product_name || product.generic_name || product.name || "").toString().trim();
+  if (!name) return null;
+  const brand = (product.brands || product.brand_owner || "").toString().split(",")[0]?.trim() || null;
+  const nutriments = product.nutriments || {};
+  const kcal = nutriments["energy-kcal_100g"] ?? nutriments["energy-kcal"] ?? nutriments["energy"];
+  return {
+    id: `off_${product.code || randomUUID()}`,
+    name,
+    brand,
+    source: "OFF",
+    kcal: numberOrZero(kcal),
+    protein_g: numberOrZero(nutriments.proteins_100g ?? nutriments.protein),
+    carbs_g: numberOrZero(nutriments.carbohydrates_100g ?? nutriments.carbs),
+    fat_g: numberOrZero(nutriments.fat_100g ?? nutriments.fat),
+  };
+}
+
+async function searchUsda(query: string): Promise<ApiNutritionItem[]> {
+  const key = getUsdaKey();
+  if (!key) {
+    return [];
+  }
+  const url = new URL(USDA_SEARCH_URL);
+  url.searchParams.set("api_key", key);
+  url.searchParams.set("query", query);
+  url.searchParams.set("pageSize", "20");
+  url.searchParams.set("sortBy", "dataType.keyword");
+  url.searchParams.set("sortOrder", "asc");
+  const response = await fetch(url.toString(), { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`usda_status_${response.status}`);
+  }
+  const data = (await response.json().catch(() => ({}))) as any;
+  const foods = Array.isArray(data?.foods) ? data.foods : [];
+  return foods.map(fromUsdaFood).filter((item): item is ApiNutritionItem => Boolean(item));
+}
+
+async function searchOff(query: string): Promise<ApiNutritionItem[]> {
+  const url = new URL(OFF_SEARCH_URL);
+  url.searchParams.set("action", "process");
+  url.searchParams.set("json", "true");
+  url.searchParams.set("page_size", "20");
+  url.searchParams.set("fields", "product_name,brands,nutriments,code");
+  url.searchParams.set("search_simple", "1");
+  url.searchParams.set("search_terms", query);
+  const response = await fetch(url.toString(), {
+    headers: { "User-Agent": OFF_UA },
+  });
+  if (!response.ok) {
+    throw new Error(`off_status_${response.status}`);
+  }
+  const data = (await response.json().catch(() => ({}))) as any;
+  const products = Array.isArray(data?.products) ? data.products : [];
+  return products.map(fromOffProduct).filter((item): item is ApiNutritionItem => Boolean(item));
+}
+
+async function lookupBarcode(barcode: string): Promise<ApiNutritionItem[]> {
+  if (!barcode) return [];
+  const url = `${OFF_PRODUCT_URL}${encodeURIComponent(barcode)}.json`;
+  const response = await fetch(url, {
+    headers: { "User-Agent": OFF_UA },
+  });
+  if (!response.ok) {
+    return [];
+  }
+  const data = (await response.json().catch(() => ({}))) as any;
+  const product = data?.product;
+  const item = fromOffProduct(product);
+  return item ? [item] : [];
+}
+
+function dedupe(items: ApiNutritionItem[]): ApiNutritionItem[] {
+  const seen = new Map<string, ApiNutritionItem>();
+  for (const item of items) {
+    const key = `${item.name.toLowerCase()}::${(item.brand || "").toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.set(key, item);
+    }
+  }
+  return Array.from(seen.values());
+}
+
+export const nutritionRouter = express.Router();
+
+nutritionRouter.use(cors);
+
+nutritionRouter.get("/nutrition/search", async (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const barcode = typeof req.query.barcode === "string" ? req.query.barcode.trim() : "";
+
+  if (!query && !barcode) {
+    res.status(400).json({ error: "missing_query" });
+    return;
+  }
+
+  try {
+    let results: ApiNutritionItem[] = [];
+    let primarySource: "usda" | "off" | "barcode" | null = null;
+
+    if (query) {
+      try {
+        results = await searchUsda(query);
+        if (results.length > 0) {
+          primarySource = "usda";
+        }
+      } catch (error) {
+        console.warn("usda_search_failed", { message: (error as Error)?.message });
+      }
+    }
+
+    if (results.length === 0) {
+      try {
+        if (barcode) {
+          results = await lookupBarcode(barcode);
+          if (results.length > 0) {
+            primarySource = "barcode";
+          }
+        }
+        if (results.length === 0 && query) {
+          results = await searchOff(query);
+          if (results.length > 0) {
+            primarySource = "off";
+          }
+        }
+      } catch (error) {
+        console.warn("off_search_failed", { message: (error as Error)?.message });
+      }
+    }
+
+    if (results.length === 0 && barcode) {
+      try {
+        const barcodeFallback = await lookupBarcode(barcode);
+        results = barcodeFallback;
+        if (results.length > 0) {
+          primarySource = "barcode";
+        }
+      } catch (error) {
+        console.warn("off_barcode_failed", { message: (error as Error)?.message });
+      }
+    }
+
+    const normalized = dedupe(results).slice(0, 25);
+    const message = normalized.length === 0 ? "no_results" : "ok";
+    res.json({ results: normalized, source: primarySource, message });
+  } catch (error) {
+    console.error("nutrition_search_error", {
+      message: (error as Error)?.message,
+    });
+    res.status(502).json({ error: "nutrition_unavailable" });
+  }
+});

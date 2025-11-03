@@ -9,7 +9,7 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { sanitizeFoodItem, searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
+import { sanitizeSearchTerm, searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import {
   saveFavorite,
@@ -275,7 +275,7 @@ export default function MealsSearch() {
   }, [authReady, uid]);
 
   useEffect(() => {
-    const term = sanitizeFoodItem(debouncedQuery);
+    const term = sanitizeSearchTerm(debouncedQuery);
     if (!term) {
       abortRef.current?.abort();
       abortRef.current = null;
@@ -306,6 +306,7 @@ export default function MealsSearch() {
         setSearchWarning(null);
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        console.error("nutrition_search_error", error);
         toast(
           buildErrorToast(error, {
             fallback: { title: "Search failed", description: "Try another food", variant: "destructive" },
@@ -313,8 +314,8 @@ export default function MealsSearch() {
         );
         setResults([]);
         setPrimarySource(null);
-        setStatus("Search failed. Try again.");
-        setSearchWarning("Food database temporarily busy; try again.");
+        setStatus("Database busy; try again.");
+        setSearchWarning("Database busy; try again.");
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);

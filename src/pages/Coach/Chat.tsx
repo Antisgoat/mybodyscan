@@ -178,7 +178,7 @@ export default function CoachChatPage() {
     if (pendingRef.current || pending) {
       return;
     }
-    if (!demoGuard("")) {
+    if (!demo && !demoGuard("coach chat")) {
       return;
     }
 
@@ -213,9 +213,18 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      await coachSend(sanitized, { signal: controller.signal });
+      const answer = await coachSend(sanitized, { signal: controller.signal });
       setInput("");
+      const localMessage: ChatMessage = {
+        id: `local-${Date.now()}`,
+        text: sanitized,
+        response: answer,
+        createdAt: new Date(),
+        usedLLM: true,
+      };
+      setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
+      console.error("coach_send_error", error);
       if (error?.name === "AbortError") {
         setCoachError(null);
       } else if (error?.code === "demo_blocked") {
@@ -240,7 +249,8 @@ export default function CoachChatPage() {
         } else if (errorCode === "coach_unavailable") {
           setCoachError("Coach is temporarily unavailable; please try again soon.");
         } else if (status !== null && status >= 400 && status < 500) {
-          setCoachError("Coach temporarily unavailable; please try again.");
+          const message = errorCode || `Request failed (${status})`;
+          setCoachError(message);
         } else {
           toast(
             buildErrorToast(error, {

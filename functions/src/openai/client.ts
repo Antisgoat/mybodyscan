@@ -73,13 +73,21 @@ async function executeRequest(model: string, prompt: string, key: string, userId
       throw new InvalidModelError(`model_not_found_${model}`);
     }
 
-    if (response.status === 429 || response.status >= 500) {
-      throw new OpenAIClientError("openai_failed", 502, `status_${response.status}`);
+    if (response.status === 429) {
+      throw new OpenAIClientError("openai_failed", 429, `status_${response.status}`);
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new OpenAIClientError("openai_failed", 401, `status_${response.status}`);
+    }
+
+    if (response.status >= 500) {
+      throw new OpenAIClientError("openai_failed", 500, `status_${response.status}`);
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new OpenAIClientError("openai_failed", 502, text || `status_${response.status}`);
+      throw new OpenAIClientError("openai_failed", response.status, text || `status_${response.status}`);
     }
 
     let data: any;
