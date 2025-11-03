@@ -1,15 +1,19 @@
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { startCheckout, PRICE_IDS, describeCheckoutError } from "@/lib/payments";
+import { PRICE_IDS } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
 import { AlertTriangle, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
-import { isDemo } from "@/lib/demoFlag";
+import { isDemo } from "@/lib/demo";
+import { demoGuard } from "@/lib/demoGuard";
+import { billingCheckout } from "@/lib/api";
+import { useAuthUser } from "@/lib/auth";
 
 type PlanConfig = {
   name: string;
@@ -30,40 +34,64 @@ type PlanConfig = {
 
 export default function Plans() {
   const { t } = useI18n();
+  const { user } = useAuthUser();
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const demoMode = isDemo();
+
   const handleCheckout = async (plan: PlanConfig) => {
-    if (demoMode) {
-      toast({
-        title: "Demo mode",
-        description: "Sign in to purchase a plan.",
-      });
+    if (!user) {
+      window.location.assign("/auth?next=/plans");
       return;
     }
-    try {
-      if (!plan.priceId) {
-        const description = plan.envKey
-          ? `This plan is not configured yet. Set ${plan.envKey} before enabling checkout.`
-          : "This plan is not configured yet.";
-        toast({
-          title: "Plan unavailable",
-          description,
-          variant: "destructive",
-        });
-        return;
-      }
-      track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      await startCheckout({ plan: plan.plan, priceId: plan.priceId });
-    } catch (err: any) {
-      const code = typeof err?.code === "string" ? err.code : undefined;
-      const message = code === "payments_disabled"
-        ? "Billing temporarily unavailable; try again later."
-        : describeCheckoutError(code);
-      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
+    if (demoMode) {
+      demoGuard("billing checkout");
+      return;
+    }
+    if (!plan.priceId) {
+      const description = plan.envKey
+        ? `This plan is not configured yet. Set ${plan.envKey} before enabling checkout.`
+        : "This plan is not configured yet.";
       toast({
-        title: code === "payments_disabled" ? "Billing offline" : "Checkout unavailable",
+        title: "Plan unavailable",
         description,
         variant: "destructive",
       });
+      return;
+    }
+
+    const normalizedPlan = (() => {
+      switch (plan.plan) {
+        case "one":
+        case "extra":
+          return "one" as const;
+        case "pro_monthly":
+          return "monthly" as const;
+        default:
+          return "yearly" as const;
+      }
+    })();
+
+    setPendingPlan(plan.plan);
+    try {
+      track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
+      const { url } = await billingCheckout(normalizedPlan);
+      window.location.href = url;
+    } catch (err: any) {
+      const status = typeof err?.status === "number" ? err.status : null;
+      const code = typeof err?.message === "string" ? err.message : undefined;
+      const description =
+        code === "unauthenticated" || status === 401
+          ? "Sign in to purchase a plan."
+          : status === 500
+          ? "Billing temporarily unavailable; try again later."
+          : `We couldn't open checkout. Please try again.${import.meta.env.DEV && status ? ` (status ${status})` : ""}`;
+      toast({
+        title: "Checkout unavailable",
+        description,
+        variant: "destructive",
+      });
+    } finally {
+      setPendingPlan(null);
     }
   };
 
@@ -226,15 +254,27 @@ export default function Plans() {
                 {plan.features.some((feature) => feature.includes("3 scans per month")) && (
                   <p className="text-xs text-muted-foreground mt-2">*Unused scans roll over for 12 months.*</p>
                 )}
-                <Button
-                  className="w-full"
-                  variant={plan.popular ? "default" : "outline"}
-                  onClick={() => handleCheckout(plan)}
-                  disabled={demoMode || !plan.priceId}
-                  title={demoMode ? "Demo mode is read-only" : undefined}
-                >
-                  {plan.mode === "subscription" ? t('plans.subscribe') : t('plans.buyNow')}
-                </Button>
+                <div className="space-y-1">
+                  <Button
+                    className="w-full"
+                    variant={plan.popular ? "default" : "outline"}
+                    onClick={() => handleCheckout(plan)}
+                    disabled={demoMode || !plan.priceId || pendingPlan === plan.plan}
+                    title={demoMode ? "Demo mode is read-only" : undefined}
+                  >
+                    {pendingPlan === plan.plan
+                      ? "Opening checkout…"
+                      : plan.mode === "subscription"
+                      ? t('plans.subscribe')
+                      : t('plans.buyNow')}
+                  </Button>
+                  {demoMode && (
+                    <p className="text-xs text-muted-foreground text-center">Sign up to purchase. Demo is read-only.</p>
+                  )}
+                  {!user && !demoMode && (
+                    <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

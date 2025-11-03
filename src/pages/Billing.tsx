@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { onAuthStateChanged, getAuth } from "firebase/auth";
 import { doc, getFirestore, onSnapshot } from "firebase/firestore";
-import { createCheckout, createCustomerPortal } from "@/lib/api";
+import { billingCheckout, createCustomerPortal } from "@/lib/api";
 
 export default function Billing() {
   const [uid, setUid] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await createCheckout("scan", 1);
+              const r = await billingCheckout("one");
               window.location.href = r.url;
             })
           }
@@ -74,7 +74,7 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await createCheckout("sub_monthly");
+              const r = await billingCheckout("monthly");
               window.location.href = r.url;
             })
           }
@@ -87,7 +87,7 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await createCheckout("sub_annual");
+              const r = await billingCheckout("yearly");
               window.location.href = r.url;
             })
           }

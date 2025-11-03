@@ -1,7 +1,7 @@
 import { appJson, requireStripe, requireUidFromAuthHeader, stripe } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
 
-export const createCheckout = appJson(async (req, res) => {
+export const legacyCreateCheckout = appJson(async (req, res) => {
   requireStripe();
   if (req.method !== "POST") return res.status(405).send(JSON.stringify({ error: "method_not_allowed" }));
 

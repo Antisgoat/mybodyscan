@@ -3,7 +3,7 @@ import CreditsBadge from "./CreditsBadge";
 import BillingButtons from "./BillingButtons";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
-import { isDemo, startDemo } from "@/lib/demo";
+import { isDemo, startDemo, leaveDemo, enterDemo } from "@/lib/demo";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
@@ -51,8 +51,9 @@ const demoPill: React.CSSProperties = {
   fontSize: 10,
   padding: "2px 6px",
   borderRadius: 999,
-  border: "1px solid #ddd",
-  background: "#fffbf0",
+  border: "1px solid #facc15",
+  background: "#fef3c7",
+  color: "#92400e",
 };
 
 const signedInAs: React.CSSProperties = {
@@ -249,9 +250,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
         });
         return;
       }
-      if (typeof window !== "undefined") {
-        window.location.assign("/demo");
-      }
+      enterDemo();
     } catch (error) {
       toast(
         buildErrorToast(error, {
@@ -295,7 +294,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           <HeaderEnvBadge />
           {demo && (
             <span style={demoPill} aria-label="Demo mode active">
-              DEMO
+              Demo
             </span>
           )}
         </div>
@@ -326,7 +325,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
             </button>
           )}
 
-          {!user && (
+          {!user && !demo && (
             <button
               type="button"
               onClick={onExploreDemo}
@@ -335,6 +334,17 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
               disabled={pending}
             >
               {pending ? "Loading…" : "Explore Demo"}
+            </button>
+          )}
+
+          {demo && (
+            <button
+              type="button"
+              onClick={() => leaveDemo()}
+              style={demoBtn}
+              aria-label="Leave demo"
+            >
+              Leave demo
             </button>
           )}
         </div>

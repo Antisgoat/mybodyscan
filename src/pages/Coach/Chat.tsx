@@ -15,7 +15,7 @@ import { functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { coachChat as sendCoachChat } from "@/lib/api";
+import { coachSend } from "@/lib/api";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,6 +23,7 @@ import { coachChatCollectionPath } from "@/lib/paths";
 import { coachChatCollection } from "@/lib/db/coachPaths";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { demoCoach } from "@/lib/demoDataset";
+import { demoGuard } from "@/lib/demoGuard";
 
 declare global {
   interface Window {
@@ -177,8 +178,7 @@ export default function CoachChatPage() {
     if (pendingRef.current || pending) {
       return;
     }
-    if (readOnlyDemo) {
-      demoToast();
+    if (!demoGuard("coach chat")) {
       return;
     }
 
@@ -213,7 +213,7 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      await sendCoachChat({ message: sanitized }, { signal: controller.signal });
+      await coachSend(sanitized, { signal: controller.signal });
       setInput("");
     } catch (error: any) {
       if (error?.name === "AbortError") {

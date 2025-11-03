@@ -130,6 +130,13 @@
       {
         "source": "/api/createCheckout",
         "function": {
+          "functionId": "legacyCreateCheckout",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/billing/checkout",
+        "function": {
           "functionId": "createCheckout",
           "region": "us-central1"
         }
@@ -151,7 +158,7 @@
       {
         "source": "/createCheckout",
         "function": {
-          "functionId": "createCheckout",
+          "functionId": "legacyCreateCheckout",
           "region": "us-central1"
         }
       },
