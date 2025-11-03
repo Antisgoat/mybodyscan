@@ -470,14 +470,9 @@ export async function startScan(params?: Record<string, unknown>) {
     const mock = mockStartScan(params);
     return { scanId: mock.scanId };
   }
-  const { user } = await requireAuthContext();
-  const token = await user.getIdToken();
   try {
-    const payload = (await apiFetch("/api/scan/start", {
+    const payload = (await apiFetch("/scan/start", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify(params ?? {}),
     })) as { scanId?: string };
     if (typeof payload?.scanId !== "string") {
@@ -565,14 +560,10 @@ export async function refundIfNoResult(scanId: string) {
 }
 
 export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
-  const { user } = await requireAuthContext();
-  const token = await user.getIdToken();
+  await requireAuthContext();
   try {
     return (await apiFetch("/api/createCheckout", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({ kind, credits }),
     })) as { url: string; id: string };
   } catch (error) {
@@ -581,14 +572,10 @@ export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual"
 }
 
 export async function createCustomerPortal() {
-  const { user } = await requireAuthContext();
-  const token = await user.getIdToken();
+  await requireAuthContext();
   try {
-    return (await apiFetch("/billing/customer-portal", {
+    return (await apiFetch("/billing/portal", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({}),
     })) as { url: string };
   } catch (error) {

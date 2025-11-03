@@ -129,8 +129,8 @@ billingRouter.post("/create-checkout-session", async (req, res) => {
       mode === "subscription" || mode === "payment" ? mode : priceConfig.mode ?? resolvePriceMode(normalizedPrice);
     const params: Stripe.Checkout.SessionCreateParams = {
       mode: inferredMode,
-      success_url: `${BASE_URL.replace(/\/$/, "")}/plans?status=success`,
-      cancel_url: `${BASE_URL.replace(/\/$/, "")}/plans?status=cancel`,
+      success_url: `${BASE_URL.replace(/\/$/, "")}/plans?success=1`,
+      cancel_url: `${BASE_URL.replace(/\/$/, "")}/plans?canceled=1`,
       line_items: [{ price: normalizedPrice, quantity: 1 }],
       customer: customer.id,
       allow_promotion_codes: false,
@@ -159,7 +159,7 @@ billingRouter.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-billingRouter.post("/portal", async (req, res) => {
+async function handlePortal(req: express.Request, res: express.Response) {
   if (!stripe) {
     res.status(501).json({ error: "payments_disabled" });
     return;
@@ -189,4 +189,7 @@ billingRouter.post("/portal", async (req, res) => {
     const status = info.status && info.status >= 400 && info.status < 600 ? info.status : 400;
     res.status(status).json({ error: info.message, code: info.code || null });
   }
-});
+}
+
+billingRouter.post("/portal", handlePortal);
+billingRouter.post("/customer-portal", handlePortal);

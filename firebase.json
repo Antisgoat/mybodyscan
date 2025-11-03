@@ -65,9 +65,9 @@
     ],
     "rewrites": [
       {
-        "source": "/api/nutrition/search",
+        "source": "/api/**",
         "function": {
-          "functionId": "nutritionSearch",
+          "functionId": "api",
           "region": "us-central1"
         }
       },
@@ -75,41 +75,6 @@
         "source": "/workouts/adjust",
         "function": {
           "functionId": "adjustWorkout",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/nutrition/barcode",
-        "function": {
-          "functionId": "nutritionBarcode",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/scan/start",
-        "function": {
-          "functionId": "startScanSession",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/scan/submit",
-        "function": {
-          "functionId": "submitScan",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/coach/chat",
-        "function": {
-          "functionId": "coachChat",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/system/bootstrap",
-        "function": {
-          "functionId": "systemBootstrap",
           "region": "us-central1"
         }
       },
@@ -131,48 +96,6 @@
         "source": "/uat/**",
         "function": {
           "functionId": "uatHelper",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/createCheckout",
-        "function": {
-          "functionId": "legacyCreateCheckout",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/billing/checkout",
-        "function": {
-          "functionId": "createCheckout",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/createCustomerPortal",
-        "function": {
-          "functionId": "createCustomerPortal",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/stripeWebhook",
-        "function": {
-          "functionId": "stripeWebhook",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/createCheckout",
-        "function": {
-          "functionId": "legacyCreateCheckout",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/createCustomerPortal",
-        "function": {
-          "functionId": "createCustomerPortal",
           "region": "us-central1"
         }
       },

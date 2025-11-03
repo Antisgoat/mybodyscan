@@ -479,9 +479,9 @@ const UATPage = () => {
 
   const handleCoachNoAppCheck = useCallback(async () => {
     await coachNoAppCheckProbe.run(async () => {
-      const response = await makeAuthedFetch("/api/coach/chat", {
+      const response = await makeAuthedFetch("/coach/chat", {
         method: "POST",
-        body: JSON.stringify({ message: "uat ping", text: "uat ping" }),
+        body: JSON.stringify({ question: "uat ping", message: "uat ping" }),
       });
       const json = await response.json().catch(() => ({}));
       const ok = response.status === 401 || response.status === 403 || response.status === 412;
@@ -499,10 +499,10 @@ const UATPage = () => {
   const handleCoachWithAppCheck = useCallback(async () => {
     await coachWithAppCheckProbe.run(async () => {
       const response = await makeAuthedFetch(
-        "/api/coach/chat",
+        "/coach/chat",
         {
           method: "POST",
-          body: JSON.stringify({ message: "Hello from UAT", text: "Hello from UAT" }),
+          body: JSON.stringify({ question: "Hello from UAT", message: "Hello from UAT" }),
         },
         { forceAppCheck: true },
       );
@@ -522,7 +522,7 @@ const UATPage = () => {
   const handleNutritionSearch = useCallback(async () => {
     await nutritionSearchProbe.run(async () => {
       const response = await makeAuthedFetch(
-        "/api/nutrition/search?q=chicken",
+        "/nutrition/search?q=chicken",
         {
           method: "GET",
           headers: {
@@ -655,7 +655,7 @@ const UATPage = () => {
   const handleCoachReply = useCallback(async () => {
     await coachReplyProbe.run(async () => {
       const response = await makeAuthedFetch(
-        "/api/coach/chat",
+        "/coach/chat",
         {
           method: "POST",
           body: JSON.stringify({ message: "Hello", text: "Hello" }),
@@ -679,7 +679,7 @@ const UATPage = () => {
   const handleNutritionItems = useCallback(async () => {
     await nutritionItemsProbe.run(async () => {
       const response = await makeAuthedFetch(
-        "/api/nutrition/search?q=chicken",
+        "/nutrition/search?q=chicken",
         {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -703,7 +703,7 @@ const UATPage = () => {
   const handleBarcode = useCallback(async () => {
     await barcodeProbe.run(async () => {
       const response = await makeAuthedFetch(
-        "/api/nutrition/barcode?code=737628064502",
+        "/nutrition/barcode?code=737628064502",
         {
           method: "GET",
           headers: { Accept: "application/json" },

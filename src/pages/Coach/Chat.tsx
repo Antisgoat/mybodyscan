@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { BottomNav } from "@/components/BottomNav";
@@ -78,6 +79,7 @@ export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
   const { plan } = useUserProfile();
+  const location = useLocation();
   const [messages, setMessages] = useState<ChatMessage[]>(() => (demo ? DEMO_CHAT_MESSAGES : []));
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
@@ -124,6 +126,7 @@ export default function CoachChatPage() {
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
   const appCheckReady = true;
+  const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   // derive uid only after auth is ready
   const uid = authReady ? (user?.uid ?? null) : null;
@@ -307,7 +310,12 @@ export default function CoachChatPage() {
           {readOnlyDemo ? (
             <Alert variant="default" data-testid="coach-demo-intro">
               <AlertTitle>Demo preview</AlertTitle>
-              <AlertDescription>{demoCoach.intro}</AlertDescription>
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>{demoCoach.intro}</span>
+                <Button asChild size="sm" variant="outline">
+                  <a href={signUpHref}>Sign up to use this feature</a>
+                </Button>
+              </AlertDescription>
             </Alert>
           ) : null}
           {showPlanMissing ? (
@@ -403,14 +411,17 @@ export default function CoachChatPage() {
                           Sending...
                         </Button>
                       </>
+                    ) : readOnlyDemo ? (
+                      <Button asChild data-testid="coach-send-button">
+                        <a href={signUpHref}>Sign up to chat</a>
+                      </Button>
                     ) : (
                       <Button
                         onClick={handleSend}
-                        disabled={pending || readOnlyDemo || !input.trim() || initializing}
-                        title={readOnlyDemo ? "Demo preview — sign up to chat" : undefined}
+                        disabled={pending || !input.trim() || initializing}
                         data-testid="coach-send-button"
                       >
-                        {readOnlyDemo ? "Sign up to chat" : "Send"}
+                        Send
                       </Button>
                     )}
                   </div>
@@ -432,9 +443,15 @@ export default function CoachChatPage() {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button onClick={regeneratePlan} disabled={regenerating || demo || initializing} className="w-full">
-                  {regenerating ? (plan ? "Regenerating..." : "Creating...") : (plan ? "Regenerate weekly plan" : "Create plan")}
-                </Button>
+                {readOnlyDemo ? (
+                  <Button asChild className="w-full" variant="outline">
+                    <a href={signUpHref}>Sign up to use this feature</a>
+                  </Button>
+                ) : (
+                  <Button onClick={regeneratePlan} disabled={regenerating || initializing} className="w-full">
+                    {regenerating ? (plan ? "Regenerating..." : "Creating...") : (plan ? "Regenerate weekly plan" : "Create plan")}
+                  </Button>
+                )}
                 {plan ? (
                   <div className="space-y-3 text-sm text-muted-foreground">
                     <p>
