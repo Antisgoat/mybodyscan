@@ -20,6 +20,7 @@
     "@google-cloud/storage": "^7.11.0",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.0",
+    "openai": "file:vendor/openai",
     "express-rate-limit": "file:vendor/express-rate-limit",
     "stripe": "^16.0.0"
   },

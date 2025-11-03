@@ -178,7 +178,7 @@ export default function CoachChatPage() {
     if (pendingRef.current || pending) {
       return;
     }
-    if (!demoGuard("coach chat")) {
+    if (!demoGuard("")) {
       return;
     }
 
@@ -217,6 +217,12 @@ export default function CoachChatPage() {
       setInput("");
     } catch (error: any) {
       if (error?.name === "AbortError") {
+        setCoachError(null);
+      } else if (error?.code === "demo_blocked") {
+        toast({
+          title: "Demo is read-only",
+          description: "Sign up to chat with the coach.",
+        });
         setCoachError(null);
       } else if (error?.code === "coach_chat_in_flight") {
         setCoachError("Coach is already processing another message. Please wait.");

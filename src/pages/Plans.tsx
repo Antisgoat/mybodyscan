@@ -43,8 +43,7 @@ export default function Plans() {
       window.location.assign("/auth?next=/plans");
       return;
     }
-    if (demoMode) {
-      demoGuard("billing checkout");
+    if (!demoGuard("")) {
       return;
     }
     if (!plan.priceId) {
@@ -77,6 +76,13 @@ export default function Plans() {
       const { url } = await billingCheckout(normalizedPlan);
       window.location.href = url;
     } catch (err: any) {
+      if (err?.code === "demo_blocked") {
+        toast({
+          title: "Demo is read-only",
+          description: "Sign up to purchase a plan.",
+        });
+        return;
+      }
       const status = typeof err?.status === "number" ? err.status : null;
       const code = typeof err?.message === "string" ? err.message : undefined;
       const description =
@@ -259,8 +265,7 @@ export default function Plans() {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() => handleCheckout(plan)}
-                    disabled={demoMode || !plan.priceId || pendingPlan === plan.plan}
-                    title={demoMode ? "Demo mode is read-only" : undefined}
+                    disabled={pendingPlan === plan.plan}
                   >
                     {pendingPlan === plan.plan
                       ? "Opening checkout…"

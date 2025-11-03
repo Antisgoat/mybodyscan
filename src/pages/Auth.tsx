@@ -37,7 +37,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
-  const demoEnabled = import.meta.env.VITE_DEMO_ENABLED === "true";
+  const demoEnabled = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase() !== "false";
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {

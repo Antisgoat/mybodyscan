@@ -1,17 +1,17 @@
-import { onRequest, type Request } from "firebase-functions/v2/https";
+import * as functions from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
-import { getAuth } from "firebase-admin/auth";
 
-const ALLOWED_ORIGINS = [
+import { uidFromBearer } from "./util/auth.js";
+
+const corsOrigins = [
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
 ];
-
-const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "";
-const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET, { apiVersion: "2024-06-20" }) : null;
+const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "";
+const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2024-06-20" }) : null;
 
 const PRICE_ONE = process.env.PRICE_ONE || process.env.VITE_PRICE_ONE || process.env.STRIPE_PRICE_SCAN || "";
 const PRICE_MONTHLY =
@@ -23,37 +23,20 @@ const BASE_URL = process.env.APP_BASE_URL || process.env.VITE_APP_BASE_URL || "h
 
 type CheckoutPlan = "one" | "monthly" | "yearly";
 
-type RequestBody = { plan?: string; kind?: string };
-
-async function requireUid(req: Request): Promise<string> {
-  const header = (req.headers["authorization"] || req.headers["Authorization"]) as string | undefined;
-  if (!header || !header.startsWith("Bearer ")) {
-    throw new Error("unauthenticated");
+function resolvePlan(raw: unknown): CheckoutPlan | null {
+  if (!raw || typeof raw !== "object") return null;
+  const payload = raw as { plan?: string; kind?: string };
+  const plan = String(payload.plan ?? payload.kind ?? "").trim();
+  if (plan === "one" || plan === "monthly" || plan === "yearly") {
+    return plan;
   }
-  const token = header.slice(7).trim();
-  if (!token) {
-    throw new Error("unauthenticated");
-  }
-  const decoded = await getAuth().verifyIdToken(token);
-  if (!decoded?.uid) {
-    throw new Error("unauthenticated");
-  }
-  return decoded.uid;
-}
-
-function resolvePlan(payload: RequestBody): CheckoutPlan | null {
-  const direct = payload.plan?.toString().trim();
-  if (direct === "one" || direct === "monthly" || direct === "yearly") {
-    return direct;
-  }
-  const legacy = payload.kind?.toString().trim();
-  if (legacy === "scan") return "one";
-  if (legacy === "sub_monthly") return "monthly";
-  if (legacy === "sub_annual") return "yearly";
+  if (plan === "scan") return "one";
+  if (plan === "sub_monthly") return "monthly";
+  if (plan === "sub_annual") return "yearly";
   return null;
 }
 
-export const createCheckout = onRequest({ region: "us-central1", cors: ALLOWED_ORIGINS }, async (req, res) => {
+export const createCheckout = functions.onRequest({ region: "us-central1", cors: corsOrigins }, async (req, res) => {
   if (!stripe) {
     logger.error("createCheckout.missing_stripe_secret");
     res.status(501).json({ error: "stripe_unconfigured" });
@@ -66,17 +49,20 @@ export const createCheckout = onRequest({ region: "us-central1", cors: ALLOWED_O
   }
 
   try {
-    const rawBody = (req.body && typeof req.body === "object") ? (req.body as RequestBody) : {};
-    const plan = resolvePlan(rawBody);
+    const plan = resolvePlan(req.body);
     if (!plan) {
       res.status(400).json({ error: "invalid_plan" });
       return;
     }
 
-    const uid = await requireUid(req);
+    const uid = await uidFromBearer(req);
+    if (!uid) {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
+    }
 
     let mode: Stripe.Checkout.SessionCreateParams.Mode;
-    let priceId: string;
+    let priceId: string | undefined;
     if (plan === "one") {
       mode = "payment";
       priceId = PRICE_ONE;
@@ -108,10 +94,6 @@ export const createCheckout = onRequest({ region: "us-central1", cors: ALLOWED_O
     const session = await stripe.checkout.sessions.create(params);
     res.json({ url: session.url });
   } catch (error: any) {
-    if (error?.message === "unauthenticated") {
-      res.status(401).json({ error: "unauthenticated" });
-      return;
-    }
     logger.error("createCheckout.error", error);
     res.status(500).json({ error: "checkout_failed" });
   }

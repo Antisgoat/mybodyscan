@@ -5,13 +5,9 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type { Auth, User } from "firebase/auth";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
-import { isDemo } from "./demoFlag";
-import {
-  mockBarcodeLookup,
-  mockCoachReply,
-  mockNutritionSearch,
-  mockStartScan,
-} from "./demoApiMocks";
+import { isDemo } from "./demo";
+import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
+import { authedJsonPost } from "./authedFetch";
 
 function showDemoPreviewToast(description?: string) {
   toast({ title: "Demo preview — sign up to use this feature.", description });
@@ -35,34 +31,18 @@ export async function billingCheckout(plan: "one" | "monthly" | "yearly"): Promi
   if (!plan) {
     throw new Error("invalid_plan");
   }
-  const { user } = await requireAuthContext();
-  const token = await user.getIdToken();
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckHeader();
-  const response = await fetch("/api/billing/checkout", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(appCheckHeaders || {}),
-    },
-    body: JSON.stringify({ plan }),
-    credentials: "include",
-  });
-
-  let payload: any = null;
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok || !payload || typeof payload.url !== "string") {
-    const error: any = new Error(typeof payload?.error === "string" ? payload.error : `checkout_failed_${response.status}`);
-    error.status = response.status;
+  if (isDemo()) {
+    const error: any = new Error("demo_blocked");
+    error.code = "demo_blocked";
     throw error;
   }
-
+  await requireAuthContext();
+  const payload = await authedJsonPost<{ url?: string }>("/api/billing/checkout", { plan });
+  if (!payload || typeof payload.url !== "string") {
+    const error: any = new Error("checkout_failed");
+    error.code = "checkout_failed";
+    throw error;
+  }
   return { url: payload.url };
 }
 
@@ -84,6 +64,29 @@ type NutritionSearchResponse = {
   message?: string;
 };
 
+const DEMO_NUTRITION_RESULTS = [
+  {
+    id: "demo-grilled-chicken",
+    name: "Grilled Chicken Breast (sample)",
+    brand: "Demo meal",
+    calories: 165,
+    protein: 31,
+    carbs: 0,
+    fat: 4,
+    source: "demo",
+  },
+  {
+    id: "demo-chicken-salad",
+    name: "Chicken Salad (sample)",
+    brand: "Demo meal",
+    calories: 240,
+    protein: 20,
+    carbs: 8,
+    fat: 14,
+    source: "demo",
+  },
+] satisfies Array<Record<string, unknown>>;
+
 export async function nutritionSearch(
   query: string,
   init?: RequestInit,
@@ -94,52 +97,26 @@ export async function nutritionSearch(
   }
   if (isDemo()) {
     showDemoPreviewToast("Sample nutrition results are shown in demo mode.");
-    return mockNutritionSearch(trimmed);
-  }
-  const url = `/api/nutrition/search?q=${encodeURIComponent(trimmed)}`;
-  const headers = new Headers(init?.headers ?? undefined);
-  if (!headers.has("Accept")) {
-    headers.set("Accept", "application/json");
-  }
-  const idTokenPromise: Promise<string | null> = headers.has("Authorization")
-    ? Promise.resolve<string | null>(null)
-    : (async () => {
-        const { user } = await getAuthContext();
-        return user ? user.getIdToken() : null;
-      })();
-  await ensureAppCheck();
-  const [idToken, appCheckHeaders] = await Promise.all([idTokenPromise, getAppCheckHeader()]);
-  if (idToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${idToken}`);
-  }
-  if (appCheckHeaders["X-Firebase-AppCheck"]) {
-    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
+    return {
+      results: DEMO_NUTRITION_RESULTS.map((item) => ({ ...item })),
+      source: "demo",
+      message: "demo_results",
+    } satisfies NutritionSearchResponse;
   }
 
-  if (!headers.has("Authorization")) {
+  if (!firebaseAuth.currentUser) {
     const authError: any = new Error("auth_required");
     authError.code = "auth_required";
     throw authError;
   }
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: "include",
-    method: "GET",
-  });
-  let payload: NutritionSearchResponse | null = null;
-  try {
-    payload = (await response.json()) as NutritionSearchResponse;
-  } catch {
-    payload = null;
-  }
-  if (!response.ok) {
-    const err: any = new Error(`rewrite_status_${response.status}`);
-    err.status = response.status;
-    err.body = payload;
-    throw err;
-  }
-  return payload ?? {};
+
+  const payload = await authedJsonPost<NutritionSearchResponse>(
+    "/api/nutrition/search",
+    { q: trimmed },
+    init?.signal ? { signal: init.signal } : undefined,
+  );
+
+  return payload ?? { results: [] };
 }
 
 export async function nutritionBarcodeLookup(
@@ -204,74 +181,24 @@ export async function nutritionBarcodeLookup(
   return payload ?? {};
 }
 
-const coachChatInFlight = new Map<string, AbortController>();
-
-export async function coachChat(payload: { message: string }, options: { signal?: AbortSignal } = {}) {
-  const message = payload.message?.trim();
-  if (!message) {
-    const error: any = new Error("message_required");
-    error.code = "message_required";
-    throw error;
-  }
-  if (isDemo()) {
-    showDemoPreviewToast("Sign up to chat with your coach.");
-    return mockCoachReply(message);
-  }
-  const { user } = await requireAuthContext();
-  const existing = coachChatInFlight.get(user.uid);
-  if (existing && !existing.signal.aborted) {
-    const error: any = new Error("coach_chat_in_flight");
-    error.code = "coach_chat_in_flight";
-    throw error;
-  }
-  await ensureAppCheck();
-  const [idToken, appCheckHeaders] = await Promise.all([user.getIdToken(), getAppCheckHeader()]);
-  const controller = new AbortController();
-  coachChatInFlight.set(user.uid, controller);
-
-  let removeListener: (() => void) | undefined;
-  if (options.signal) {
-    if (options.signal.aborted) {
-      controller.abort(options.signal.reason as any);
-    } else {
-      const abortListener = () => controller.abort(options.signal?.reason as any);
-      options.signal.addEventListener("abort", abortListener, { once: true });
-      removeListener = () => options.signal?.removeEventListener("abort", abortListener);
-    }
-  }
-
-  try {
-    const response = await fetch(`/api/coach/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-        ...(appCheckHeaders || {}),
-      },
-      credentials: "include",
-      body: JSON.stringify({ message, text: message }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const error: any = new Error(typeof data?.error === "string" ? data.error : "coach_chat_failed");
-      error.status = response.status;
-      throw error;
-    }
-    return response.json();
-  } finally {
-    removeListener?.();
-    coachChatInFlight.delete(user.uid);
-  }
-}
-
 export async function coachSend(message: string, options: { signal?: AbortSignal } = {}): Promise<string> {
   const trimmed = message.trim();
   if (!trimmed) {
     throw new Error("message_required");
   }
-  const response = await coachChat({ message: trimmed }, options);
-  const reply = typeof response?.reply === "string" ? response.reply : null;
+  if (isDemo()) {
+    const error: any = new Error("demo_blocked");
+    error.code = "demo_blocked";
+    throw error;
+  }
+
+  await requireAuthContext();
+  const payload = await authedJsonPost<{ reply?: string }>(
+    "/api/coach/chat",
+    { message: trimmed },
+    options.signal ? { signal: options.signal } : undefined,
+  );
+  const reply = typeof payload?.reply === "string" ? payload.reply.trim() : "";
   if (!reply) {
     throw new Error("coach_send_failed");
   }
