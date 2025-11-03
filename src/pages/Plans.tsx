@@ -1,19 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { PRICE_IDS } from "@/lib/payments";
 import { toast } from "@/hooks/use-toast";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
-import { isDemo } from "@/lib/demo";
-import { demoGuard } from "@/lib/demoGuard";
-import { billingCheckout } from "@/lib/api";
 import { useAuthUser } from "@/lib/auth";
+import { useDemoMode } from "@/components/DemoModeProvider";
+
+const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
+const FUNCTIONS_ORIGIN = (import.meta.env.VITE_FUNCTIONS_ORIGIN ?? "").trim().replace(/\/$/, "");
+const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
+const PRICE_ID_MONTHLY = (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim();
+const PRICE_ID_YEARLY = (import.meta.env.VITE_PRICE_YEARLY ?? "").trim();
+const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
 
 type PlanConfig = {
   name: string;
@@ -36,14 +41,22 @@ export default function Plans() {
   const { t } = useI18n();
   const { user } = useAuthUser();
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
-  const demoMode = isDemo();
+  const demoMode = useDemoMode();
+  const stripePromise = useMemo(
+    () => (STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null),
+    [STRIPE_PUBLISHABLE_KEY],
+  );
 
   const handleCheckout = async (plan: PlanConfig) => {
     if (!user) {
       window.location.assign("/auth?next=/plans");
       return;
     }
-    if (!demoGuard("")) {
+    if (demoMode) {
+      toast({
+        title: "Demo is read-only",
+        description: "Sign up to purchase a plan.",
+      });
       return;
     }
     if (!plan.priceId) {
@@ -58,39 +71,76 @@ export default function Plans() {
       return;
     }
 
-    const normalizedPlan = (() => {
-      switch (plan.plan) {
-        case "one":
-        case "extra":
-          return "one" as const;
-        case "pro_monthly":
-          return "monthly" as const;
-        default:
-          return "yearly" as const;
-      }
-    })();
+    if (!STRIPE_PUBLISHABLE_KEY) {
+      toast({
+        title: "Checkout unavailable",
+        description: "Stripe key missing. Contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!FUNCTIONS_ORIGIN) {
+      toast({
+        title: "Checkout unavailable",
+        description: "Billing endpoint not configured.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      const { url } = await billingCheckout(normalizedPlan);
-      window.location.href = url;
-    } catch (err: any) {
-      if (err?.code === "demo_blocked") {
+      const stripe = stripePromise ? await stripePromise : null;
+      if (!stripe) {
+        throw new Error("Stripe unavailable");
+      }
+      const token = await user.getIdToken();
+      const response = await fetch(`${FUNCTIONS_ORIGIN}/billing/create-checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ priceId: plan.priceId, mode: plan.mode }),
+      });
+
+      let payload: any = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        console.error("checkout_session_error", payload);
+        const message = typeof payload?.error === "string" && payload.error
+          ? payload.error
+          : `Checkout unavailable (status ${response.status})`;
         toast({
-          title: "Demo is read-only",
-          description: "Sign up to purchase a plan.",
+          title: "Checkout unavailable",
+          description: message,
+          variant: "destructive",
         });
         return;
       }
-      const status = typeof err?.status === "number" ? err.status : null;
-      const code = typeof err?.message === "string" ? err.message : undefined;
-      const description =
-        code === "unauthenticated" || status === 401
-          ? "Sign in to purchase a plan."
-          : status === 500
-          ? "Billing temporarily unavailable; try again later."
-          : `We couldn't open checkout. Please try again.${import.meta.env.DEV && status ? ` (status ${status})` : ""}`;
+
+      const sessionId = typeof payload?.sessionId === "string" ? payload.sessionId : null;
+      if (!sessionId) {
+        console.error("checkout_session_invalid", payload);
+        throw new Error("Invalid checkout session response");
+      }
+
+      const result = await stripe.redirectToCheckout({ sessionId });
+      if (result.error) {
+        throw new Error(result.error.message || "Stripe redirect failed");
+      }
+    } catch (err: any) {
+      console.error("checkout_error", err);
+      const description = typeof err?.message === "string" && err.message.length
+        ? err.message
+        : "We couldn't open checkout. Please try again.";
       toast({
         title: "Checkout unavailable",
         description,
@@ -110,8 +160,8 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "one" as const,
-      priceId: PRICE_IDS.ONE_TIME_STARTER,
-      envKey: "VITE_PRICE_STARTER",
+      priceId: PRICE_ID_ONE,
+      envKey: "VITE_PRICE_ONE",
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",
@@ -127,7 +177,7 @@ export default function Plans() {
       period: "first month, then $24.99/mo",
       credits: "3 scans/month + Coach + Nutrition",
       plan: "pro_monthly" as const,
-      priceId: PRICE_IDS.PRO_MONTHLY,
+      priceId: PRICE_ID_MONTHLY,
       envKey: "VITE_PRICE_MONTHLY",
       mode: "subscription" as const,
       features: [
@@ -148,7 +198,7 @@ export default function Plans() {
       period: "per year",
       credits: "3 scans/month + Everything included",
       plan: "elite_annual" as const,
-      priceId: PRICE_IDS.ELITE_ANNUAL,
+      priceId: PRICE_ID_YEARLY,
       envKey: "VITE_PRICE_YEARLY",
       mode: "subscription" as const,
       popular: true,
@@ -174,7 +224,7 @@ export default function Plans() {
       period: "one-time",
       credits: "1 scan credit",
       plan: "extra" as const,
-      priceId: PRICE_IDS.EXTRA_ONE_TIME,
+      priceId: PRICE_ID_EXTRA,
       envKey: "VITE_PRICE_EXTRA",
       mode: "payment" as const,
       features: ["Additional scan credit", "For existing subscribers", "Same detailed analysis"],
@@ -267,11 +317,16 @@ export default function Plans() {
                     onClick={() => handleCheckout(plan)}
                     disabled={pendingPlan === plan.plan}
                   >
-                    {pendingPlan === plan.plan
-                      ? "Opening checkout…"
-                      : plan.mode === "subscription"
-                      ? t('plans.subscribe')
-                      : t('plans.buyNow')}
+                    {pendingPlan === plan.plan ? (
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Opening checkout…
+                      </span>
+                    ) : plan.mode === "subscription" ? (
+                      t('plans.subscribe')
+                    ) : (
+                      t('plans.buyNow')
+                    )}
                   </Button>
                   {demoMode && (
                     <p className="text-xs text-muted-foreground text-center">Sign up to purchase. Demo is read-only.</p>

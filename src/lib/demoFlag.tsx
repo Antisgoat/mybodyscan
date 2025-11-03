@@ -1,8 +1,7 @@
 import React from "react";
-import { clearDemoFlag, isDemo as isDemoAuthFlag, setDemoFlag } from "./demo";
+import { DEMO_KEY, disableDemo as clearDemoKey, enableDemo as setDemoKey, isDemo as isDemoFlag } from "./demo";
 
-export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
-export const DEMO_SESSION_KEY = "mbs:demo";
+export const DEMO_SESSION_KEY = "mbs.demo.session";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
   "/",
@@ -31,91 +30,68 @@ export const DEMO_ALLOWED_PATHS = [
 
 export type DemoAllowedPath = (typeof DEMO_ALLOWED_PATHS)[number];
 
-function hostIsLocalOrLovable(): boolean {
-  if (typeof window === "undefined") return false;
-  const h = window.location.hostname || "";
-  return h.includes("localhost") || h.includes("127.0.0.1") || h.includes("lovable");
+function storage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 function persistSessionFlag(): void {
-  if (typeof window === "undefined") return;
+  const store = storage();
+  if (!store) return;
   try {
-    window.sessionStorage.setItem(DEMO_SESSION_KEY, "1");
+    store.setItem(DEMO_SESSION_KEY, "1");
   } catch {
-    /* ignore */
+    // ignore persistence failures
   }
 }
 
 function clearSessionFlag(): void {
-  if (typeof window === "undefined") return;
+  const store = storage();
+  if (!store) return;
   try {
-    window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+    store.removeItem(DEMO_SESSION_KEY);
   } catch {
-    /* ignore */
+    // ignore persistence failures
   }
 }
 
 function hasSessionFlag(): boolean {
-  if (typeof window === "undefined") return false;
+  const store = storage();
+  if (!store) return false;
   try {
-    return window.sessionStorage.getItem(DEMO_SESSION_KEY) === "1";
+    return store.getItem(DEMO_SESSION_KEY) === "1";
   } catch {
     return false;
   }
 }
 
-function queryEnablesDemo(): boolean {
-  if (typeof window === "undefined") return false;
-  const params = new URLSearchParams(window.location.search);
-  const value = params.get(DEMO_QUERY_PARAM);
-  const enabled = value === "1" || value === "true";
-  if (enabled) {
-    persistSessionFlag();
-  }
-  return enabled;
-}
-
-/**
- * Single source of truth for demo mode.
- * True when:
- * - VITE_DEMO_MODE === 'true', or
- * - URL has ?demo=1, or
- * - Host includes localhost/127.0.0.1/lovable
- */
 export function isDemo(): boolean {
-  if (isDemoAuthFlag()) return true;
-  if (DEMO_MODE) return true;
-  if (queryEnablesDemo()) return true;
-  if (hasSessionFlag()) return true;
-  return hostIsLocalOrLovable();
-}
-
-// Back-compat for existing imports
-export function isDemoActive(): boolean {
-  if (isDemo()) return true;
+  if (isDemoFlag()) return true;
   return hasSessionFlag();
 }
 
-export function enableDemo() {
-  if (typeof window === "undefined") return;
-  setDemoFlag();
+export function isDemoActive(): boolean {
+  return isDemo();
+}
+
+export function enableDemo(): void {
+  setDemoKey();
   persistSessionFlag();
 }
 
-export function disableDemo() {
-  if (typeof window === "undefined") return;
+export function disableDemo(): void {
   clearSessionFlag();
-  clearDemoFlag();
+  clearDemoKey();
 }
 
 type LocationLike = { pathname: string; search: string };
 
-export function isDemoMode(user: { uid?: string } | null | undefined, currentLocation: LocationLike): boolean {
-  if (isDemo()) return true;
-  if (!user && (isPathAllowedInDemo(currentLocation.pathname) || currentLocation.search.includes(`${DEMO_QUERY_PARAM}=`))) {
-    return true;
-  }
-  return isDemoActive();
+export function isDemoMode(_user: { uid?: string } | null | undefined, _currentLocation: LocationLike): boolean {
+  return isDemo();
 }
 
 export function isPathAllowedInDemo(pathname: string): boolean {
@@ -131,19 +107,12 @@ export function isPathAllowedInDemo(pathname: string): boolean {
   });
 }
 
-/** Throws when in demo mode to block writes */
 export function assertReadOnly(action: string): void {
   if (isDemo()) {
     throw new Error(`Read-only demo: ${action} disabled`);
   }
 }
 
-/**
- * DemoGuard: disables/hints write buttons in demo.
- * - If not demo, renders children unchanged
- * - If demo and a single React element child is provided, clones it with disabled+title
- * - Otherwise wraps children in a <div> with a subtle notice
- */
 export const DemoGuard: React.FC<{ children: React.ReactNode; note?: string }> = ({ children, note }) => {
   if (!isDemo()) return <>{children}</>;
   const notice = note || "Read-only demo";
@@ -161,3 +130,14 @@ export const DemoGuard: React.FC<{ children: React.ReactNode; note?: string }> =
     </div>
   );
 };
+
+export function notifyDemoChange(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("mbs:demo", { detail: { enabled } }));
+  } catch {
+    // ignore
+  }
+}
+
+export { DEMO_KEY };

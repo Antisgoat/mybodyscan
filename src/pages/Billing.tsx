@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, getAuth } from "firebase/auth";
 import { doc, getFirestore, onSnapshot } from "firebase/firestore";
+import { loadStripe } from "@stripe/stripe-js";
 import { billingCheckout, createCustomerPortal } from "@/lib/api";
 
 export default function Billing() {
@@ -8,6 +9,10 @@ export default function Billing() {
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const stripePromise = useMemo(() => {
+    const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
+    return key ? loadStripe(key) : null;
+  }, []);
 
   useEffect(() => {
     const auth = getAuth();
@@ -61,8 +66,20 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await billingCheckout("one");
-              window.location.href = r.url;
+              const { sessionId, url } = await billingCheckout("one");
+              const stripe = stripePromise ? await stripePromise : null;
+              if (stripe && sessionId) {
+                const result = await stripe.redirectToCheckout({ sessionId });
+                if (result.error) {
+                  throw new Error(result.error.message || "Stripe redirect failed");
+                }
+                return;
+              }
+              if (url) {
+                window.location.href = url;
+                return;
+              }
+              throw new Error("Checkout unavailable");
             })
           }
         >
@@ -74,8 +91,20 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await billingCheckout("monthly");
-              window.location.href = r.url;
+              const { sessionId, url } = await billingCheckout("monthly");
+              const stripe = stripePromise ? await stripePromise : null;
+              if (stripe && sessionId) {
+                const result = await stripe.redirectToCheckout({ sessionId });
+                if (result.error) {
+                  throw new Error(result.error.message || "Stripe redirect failed");
+                }
+                return;
+              }
+              if (url) {
+                window.location.href = url;
+                return;
+              }
+              throw new Error("Checkout unavailable");
             })
           }
         >
@@ -87,8 +116,20 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await billingCheckout("yearly");
-              window.location.href = r.url;
+              const { sessionId, url } = await billingCheckout("yearly");
+              const stripe = stripePromise ? await stripePromise : null;
+              if (stripe && sessionId) {
+                const result = await stripe.redirectToCheckout({ sessionId });
+                if (result.error) {
+                  throw new Error(result.error.message || "Stripe redirect failed");
+                }
+                return;
+              }
+              if (url) {
+                window.location.href = url;
+                return;
+              }
+              throw new Error("Checkout unavailable");
             })
           }
         >

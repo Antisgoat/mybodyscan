@@ -5,6 +5,7 @@ const publishableKey: string =
 const commitSha: string = env.VITE_COMMIT_SHA || env.COMMIT_SHA || "";
 const fallbackVersion: string = env.VITE_APP_VERSION || "";
 const buildTimeEnv: string = env.VITE_BUILD_TIME || env.BUILD_TIME || "";
+const functionsOriginEnv: string = env.VITE_FUNCTIONS_ORIGIN || env.FUNCTIONS_ORIGIN || "";
 const functionsBaseEnv: string = env.VITE_FUNCTIONS_BASE_URL || env.FUNCTIONS_BASE_URL || "";
 const functionsRegion: string = env.VITE_FUNCTIONS_REGION || env.FUNCTIONS_REGION || "us-central1";
 const projectId: string = env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || "";
@@ -32,6 +33,10 @@ export function describeStripeEnvironment(): "test" | "live" | "custom" | "missi
 
 export function fnUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
+  const origin = functionsOriginEnv.trim().replace(/\/?$/, "");
+  if (origin) {
+    return `${origin}${normalized}`;
+  }
   const base = functionsBaseEnv.trim().replace(/\/?$/, "");
   if (base) {
     return `${base}${normalized}`;

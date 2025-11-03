@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import CreditsBadge from "./CreditsBadge";
 import BillingButtons from "./BillingButtons";
+import { useNavigate } from "react-router-dom";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
-import { isDemo, startDemo, leaveDemo, enterDemo } from "@/lib/demo";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { enableDemo as enableDemoMode, disableDemo as disableDemoMode } from "@/lib/demoFlag";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
@@ -188,7 +190,8 @@ type DevAppCheckInfo = {
 function AppHeaderComponent({ className }: AppHeaderProps) {
   const { user, claims, refresh } = useClaims();
   const { credits, unlimited: creditsUnlimited } = useCredits();
-  const demo = isDemo();
+  const demo = useDemoMode();
+  const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const [devToolsOpen, setDevToolsOpen] = useState(false);
   const [appCheckInfo, setAppCheckInfo] = useState<DevAppCheckInfo>({ status: "idle" });
@@ -240,17 +243,8 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
     if (pending) return;
     setPending(true);
     try {
-      const result = await startDemo();
-      if (!result.ok) {
-        const message = "message" in result ? result.message : undefined;
-        toast({
-          title: "Demo preview unavailable",
-          description: message ?? exploreError,
-          variant: "destructive",
-        });
-        return;
-      }
-      enterDemo();
+      enableDemoMode();
+      navigate("/", { replace: true });
     } catch (error) {
       toast(
         buildErrorToast(error, {
@@ -340,7 +334,10 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           {demo && (
             <button
               type="button"
-              onClick={() => leaveDemo()}
+              onClick={() => {
+                disableDemoMode();
+                navigate("/auth", { replace: true });
+              }}
               style={demoBtn}
               aria-label="Leave demo"
             >

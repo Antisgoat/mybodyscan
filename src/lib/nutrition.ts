@@ -1,3 +1,4 @@
+import { sanitizeFoodItem as normalizeNutritionItem } from "@/features/nutrition/sanitize";
 import { USDA_API_KEY, OFF_ENABLED } from "./flags";
 import { nutritionSearch as requestNutritionSearch, nutritionBarcodeLookup as requestNutritionBarcode } from "./api";
 import { netError } from "./net";
@@ -31,7 +32,7 @@ export type FoodItem = {
   source: "usda" | "off";
 };
 
-export function sanitizeFoodItem(q: string): string {
+export function sanitizeSearchTerm(q: string): string {
   return q.trim().replace(/\s+/g, " ").slice(0, 80);
 }
 
@@ -263,9 +264,15 @@ function normalizeFoodItem(raw: any): FoodItem {
     ? String(idSource)
     : `food-${Math.random().toString(36).slice(2, 10)}`;
 
-  const nameRaw = typeof raw?.name === "string" ? raw.name : raw?.description;
-  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
-  const brand = typeof raw?.brand === "string" ? raw.brand.trim() : undefined;
+  const normalized = normalizeNutritionItem(raw) ?? {};
+  const name = typeof normalized.name === "string" && normalized.name.trim().length
+    ? normalized.name.trim()
+    : typeof raw?.name === "string"
+    ? raw.name.trim()
+    : typeof raw?.description === "string"
+    ? raw.description.trim()
+    : "";
+  const brand = normalized.brand ? normalized.brand : typeof raw?.brand === "string" ? raw.brand.trim() : undefined;
   const sourceRaw = typeof raw?.source === "string" ? raw.source.toLowerCase() : "";
   const source: FoodItem["source"] = sourceRaw === "off" || sourceRaw === "open food facts" ? "off" : "usda";
 
@@ -273,10 +280,10 @@ function normalizeFoodItem(raw: any): FoodItem {
     id,
     name,
     brand,
-    calories: Number.isFinite(Number(raw?.calories)) ? Number(raw.calories) : undefined,
-    protein: Number.isFinite(Number(raw?.protein)) ? Number(raw.protein) : undefined,
-    carbs: Number.isFinite(Number(raw?.carbs)) ? Number(raw.carbs) : undefined,
-    fat: Number.isFinite(Number(raw?.fat)) ? Number(raw.fat) : undefined,
+    calories: normalized.kcal ?? (Number.isFinite(Number(raw?.calories)) ? Number(raw.calories) : undefined),
+    protein: normalized.protein_g ?? (Number.isFinite(Number(raw?.protein)) ? Number(raw.protein) : undefined),
+    carbs: normalized.carbs_g ?? (Number.isFinite(Number(raw?.carbs)) ? Number(raw.carbs) : undefined),
+    fat: normalized.fat_g ?? (Number.isFinite(Number(raw?.fat)) ? Number(raw.fat) : undefined),
     source,
   };
 }

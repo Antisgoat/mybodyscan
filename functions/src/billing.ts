@@ -1,100 +1,192 @@
-import * as functions from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
+import express from "express";
 import Stripe from "stripe";
+import { getAuth } from "./firebase.js";
+import { cors, publicBaseUrl, requireAuthWithClaims } from "./http.js";
 
-import { uidFromBearer } from "./util/auth.js";
+const stripeSecret =
+  process.env.STRIPE_SECRET_KEY ||
+  process.env.STRIPE_SECRET ||
+  process.env.STRIPE_API_KEY ||
+  "";
 
-const corsOrigins = [
-  "https://mybodyscanapp.com",
-  "https://www.mybodyscanapp.com",
-  "https://mybodyscan-f3daf.web.app",
-  "https://mybodyscan-f3daf.firebaseapp.com",
-];
-const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "";
-const stripe = stripeSecret ? new Stripe(stripeSecret, { apiVersion: "2024-06-20" }) : null;
+const stripe = stripeSecret
+  ? new Stripe(stripeSecret, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion })
+  : null;
 
-const PRICE_ONE = process.env.PRICE_ONE || process.env.VITE_PRICE_ONE || process.env.STRIPE_PRICE_SCAN || "";
-const PRICE_MONTHLY =
-  process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY || process.env.STRIPE_PRICE_SUB_MONTHLY || "";
-const PRICE_YEARLY =
-  process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY || process.env.STRIPE_PRICE_SUB_ANNUAL || "";
-const PROMO = process.env.STRIPE_MONTHLY_PROMO_CODE || "";
+const PRICE_ONE = process.env.PRICE_ONE || process.env.VITE_PRICE_ONE || "";
+const PRICE_MONTHLY = process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY || "";
+const PRICE_YEARLY = process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY || "";
+const PRICE_EXTRA = process.env.PRICE_EXTRA || process.env.VITE_PRICE_EXTRA || "";
+const PROMO_CODE = process.env.STRIPE_MONTHLY_PROMO_CODE || "";
 const BASE_URL = process.env.APP_BASE_URL || process.env.VITE_APP_BASE_URL || "https://mybodyscanapp.com";
 
-type CheckoutPlan = "one" | "monthly" | "yearly";
+type PriceConfig = {
+  id: string;
+  plan: "one" | "monthly" | "yearly" | "extra";
+  mode: "payment" | "subscription";
+};
 
-function resolvePlan(raw: unknown): CheckoutPlan | null {
-  if (!raw || typeof raw !== "object") return null;
-  const payload = raw as { plan?: string; kind?: string };
-  const plan = String(payload.plan ?? payload.kind ?? "").trim();
-  if (plan === "one" || plan === "monthly" || plan === "yearly") {
-    return plan;
-  }
-  if (plan === "scan") return "one";
-  if (plan === "sub_monthly") return "monthly";
-  if (plan === "sub_annual") return "yearly";
-  return null;
+const priceConfigs: PriceConfig[] = [
+  PRICE_ONE
+    ? { id: PRICE_ONE, plan: "one", mode: "payment" }
+    : null,
+  PRICE_MONTHLY
+    ? { id: PRICE_MONTHLY, plan: "monthly", mode: "subscription" }
+    : null,
+  PRICE_YEARLY
+    ? { id: PRICE_YEARLY, plan: "yearly", mode: "subscription" }
+    : null,
+  PRICE_EXTRA
+    ? { id: PRICE_EXTRA, plan: "extra", mode: "payment" }
+    : null,
+].filter((config): config is PriceConfig => Boolean(config?.id));
+
+const allowedPrices = new Set(priceConfigs.map((config) => config.id));
+
+function resolvePriceConfig(priceId: string): PriceConfig | null {
+  return priceConfigs.find((config) => config.id === priceId) ?? null;
 }
 
-export const createCheckout = functions.onRequest({ region: "us-central1", cors: corsOrigins }, async (req, res) => {
+async function ensureCustomer(uid: string, email?: string | null) {
+  if (!stripe) throw new Error("stripe_unconfigured");
+  const query = `metadata['uid']:'${uid}'`;
+  const existing = await stripe.customers.search({ query, limit: 1 });
+  let customer = existing.data[0];
+  if (!customer) {
+    customer = await stripe.customers.create({ metadata: { uid }, email: email || undefined });
+  } else {
+    const metadata = customer.metadata || {};
+    if (metadata.uid !== uid) {
+      metadata.uid = uid;
+    }
+    const needsEmail = email && customer.email !== email;
+    if (needsEmail || metadata.uid !== customer.metadata?.uid) {
+      await stripe.customers.update(customer.id, { metadata, email: needsEmail ? email : customer.email || undefined });
+    }
+  }
+  return customer;
+}
+
+function resolvePriceMode(priceId: string): "payment" | "subscription" {
+  if (priceId === PRICE_ONE) return "payment";
+  if (priceId === PRICE_MONTHLY || priceId === PRICE_YEARLY) return "subscription";
+  return "payment";
+}
+
+function formatError(error: any) {
+  const status = typeof error?.statusCode === "number" ? error.statusCode : undefined;
+  const type = error?.type || error?.raw?.type;
+  const code = error?.code || error?.raw?.code;
+  return { status, type, code, message: error?.message || "checkout_failed" };
+}
+
+async function hasActiveSubscription(customerId: string): Promise<boolean> {
+  if (!stripe) return false;
+  const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+  return subs.data.length > 0;
+}
+
+export const billingRouter = express.Router();
+
+billingRouter.use(cors);
+billingRouter.use(express.json());
+
+billingRouter.post("/create-checkout-session", async (req, res) => {
   if (!stripe) {
-    logger.error("createCheckout.missing_stripe_secret");
-    res.status(501).json({ error: "stripe_unconfigured" });
+    res.status(501).json({ error: "payments_disabled" });
     return;
   }
-
-  if (req.method !== "POST") {
-    res.status(405).send("Method not allowed");
-    return;
-  }
-
   try {
-    const plan = resolvePlan(req.body);
-    if (!plan) {
-      res.status(400).json({ error: "invalid_plan" });
+    const { priceId, mode } = req.body ?? {};
+    const normalizedPrice = typeof priceId === "string" ? priceId.trim() : "";
+    if (!normalizedPrice || !allowedPrices.has(normalizedPrice)) {
+      res.status(400).json({ error: "invalid_price" });
       return;
     }
 
-    const uid = await uidFromBearer(req);
-    if (!uid) {
-      res.status(401).json({ error: "unauthenticated" });
+    const priceConfig = resolvePriceConfig(normalizedPrice);
+    if (!priceConfig) {
+      res.status(400).json({ error: "unconfigured_price" });
       return;
     }
 
-    let mode: Stripe.Checkout.SessionCreateParams.Mode;
-    let priceId: string | undefined;
-    if (plan === "one") {
-      mode = "payment";
-      priceId = PRICE_ONE;
-    } else if (plan === "monthly") {
-      mode = "subscription";
-      priceId = PRICE_MONTHLY;
-    } else {
-      mode = "subscription";
-      priceId = PRICE_YEARLY;
+    const { uid, claims } = await requireAuthWithClaims(req);
+    const emailClaim = typeof claims?.email === "string" ? claims.email : undefined;
+    const auth = getAuth();
+    let email = emailClaim;
+    if (!email) {
+      try {
+        const record = await auth.getUser(uid);
+        email = record.email || undefined;
+      } catch {
+        email = undefined;
+      }
     }
 
-    if (!priceId) {
-      res.status(500).json({ error: "price_missing" });
-      return;
-    }
+    const customer = await ensureCustomer(uid, email);
 
+    const inferredMode =
+      mode === "subscription" || mode === "payment" ? mode : priceConfig.mode ?? resolvePriceMode(normalizedPrice);
     const params: Stripe.Checkout.SessionCreateParams = {
-      mode,
-      success_url: `${BASE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${BASE_URL}/plans`,
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { uid, plan },
+      mode: inferredMode,
+      success_url: `${BASE_URL.replace(/\/$/, "")}/plans?status=success`,
+      cancel_url: `${BASE_URL.replace(/\/$/, "")}/plans?status=cancel`,
+      line_items: [{ price: normalizedPrice, quantity: 1 }],
+      customer: customer.id,
+      allow_promotion_codes: false,
+      metadata: {
+        uid,
+        email: email || "",
+        priceId: normalizedPrice,
+        plan: priceConfig.plan,
+      },
     };
 
-    if (plan === "monthly" && PROMO) {
-      params.discounts = [{ promotion_code: PROMO }];
+    if (inferredMode === "subscription" && normalizedPrice === PRICE_MONTHLY && PROMO_CODE) {
+      const active = await hasActiveSubscription(customer.id);
+      if (!active) {
+        params.discounts = [{ promotion_code: PROMO_CODE }];
+      }
     }
 
     const session = await stripe.checkout.sessions.create(params);
-    res.json({ url: session.url });
-  } catch (error: any) {
-    logger.error("createCheckout.error", error);
-    res.status(500).json({ error: "checkout_failed" });
+    res.json({ sessionId: session.id, url: session.url ?? null });
+  } catch (error) {
+    const info = formatError(error);
+    console.error("create_checkout_session_error", info);
+    const status = info.status && info.status >= 400 && info.status < 600 ? info.status : 400;
+    res.status(status).json({ error: info.message, code: info.code || null });
+  }
+});
+
+billingRouter.post("/portal", async (req, res) => {
+  if (!stripe) {
+    res.status(501).json({ error: "payments_disabled" });
+    return;
+  }
+  try {
+    const { uid, claims } = await requireAuthWithClaims(req);
+    const emailClaim = typeof claims?.email === "string" ? claims.email : undefined;
+    const auth = getAuth();
+    let email = emailClaim;
+    if (!email) {
+      try {
+        const record = await auth.getUser(uid);
+        email = record.email || undefined;
+      } catch {
+        email = undefined;
+      }
+    }
+    const customer = await ensureCustomer(uid, email);
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: customer.id,
+      return_url: `${publicBaseUrl(req)}/plans`,
+    });
+    res.json({ url: portal.url });
+  } catch (error) {
+    const info = formatError(error);
+    console.error("billing_portal_error", info);
+    const status = info.status && info.status >= 400 && info.status < 600 ? info.status : 400;
+    res.status(status).json({ error: info.message, code: info.code || null });
   }
 });

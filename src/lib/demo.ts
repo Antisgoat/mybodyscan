@@ -1,145 +1,51 @@
-export const DEMO_KEY = "mbs:demo";
-const DEMO_FLAG_KEY = DEMO_KEY;
+const STORAGE_KEY = 'mbs.demo';
 
-export type DemoResult = { ok: true } | { ok: false; code?: string; message?: string };
-
-function setLocalStorageFlag(): void {
-  if (typeof window === "undefined") return;
+function safeLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
   try {
-    window.localStorage.setItem(DEMO_FLAG_KEY, "1");
+    return window.localStorage;
   } catch {
-    /* empty */
+    return null;
   }
 }
 
-export function setDemoFlag(): void {
-  setLocalStorageFlag();
-}
-
-function clearLocalStorageFlag(): void {
-  if (typeof window === "undefined") return;
+function broadcastDemoChange(enabled: boolean) {
+  if (typeof window === 'undefined') return;
   try {
-    window.localStorage.removeItem(DEMO_FLAG_KEY);
+    window.dispatchEvent(
+      new CustomEvent('mbs:demo-change', { detail: { enabled } }),
+    );
   } catch {
-    /* empty */
+    // ignore
   }
 }
 
-export function clearDemoFlag(): void {
-  clearLocalStorageFlag();
-}
+export const DEMO_KEY = 'mbs.demo';
 
-function queryIndicatesDemo(): boolean {
-  if (typeof window === "undefined") return false;
+export const isDemo = (): boolean => {
+  const storage = safeLocalStorage();
+  if (!storage) return false;
+  return storage.getItem(STORAGE_KEY) === '1';
+};
+
+export const enableDemo = (): void => {
+  const storage = safeLocalStorage();
+  if (!storage) return;
   try {
-    const params = new URLSearchParams(window.location.search);
-    const value = params.get("demo");
-    return value === "1";
+    storage.setItem(STORAGE_KEY, '1');
+    broadcastDemoChange(true);
   } catch {
-    return false;
+    // ignore persistence errors
   }
-}
+};
 
-export function isDemo(): boolean {
-  if (queryIndicatesDemo()) return true;
+export const disableDemo = (): void => {
+  const storage = safeLocalStorage();
+  if (!storage) return;
   try {
-    if (typeof window !== "undefined" && window.localStorage.getItem(DEMO_FLAG_KEY) === "1") {
-      return true;
-    }
+    storage.removeItem(STORAGE_KEY);
+    broadcastDemoChange(false);
   } catch {
-    /* empty */
+    // ignore persistence errors
   }
-  return false;
-}
-
-/** One-tap demo start: persist demo flag locally so routes unlock. */
-export async function startDemo(): Promise<DemoResult> {
-  if (isDemo()) return { ok: true };
-  try {
-    setLocalStorageFlag();
-    return { ok: true };
-  } catch (err: any) {
-    const code = err && typeof err === "object" && "code" in err ? String(err.code) : undefined;
-    return { ok: false, code, message: "Demo preview could not start. Please try again." };
-  }
-}
-
-export function enterDemo(): void {
-  setLocalStorageFlag();
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DEMO_FLAG_KEY, "1");
-      try {
-        window.sessionStorage.setItem(DEMO_FLAG_KEY, "1");
-      } catch {
-        /* ignore */
-      }
-      window.location.assign("/home");
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-export function leaveDemo(): void {
-  clearLocalStorageFlag();
-  if (typeof window !== "undefined") {
-    try {
-      window.sessionStorage.removeItem(DEMO_FLAG_KEY);
-    } catch {
-      /* ignore */
-    }
-    window.location.assign("/auth");
-  }
-}
-
-/** Error used to signal a demo write block. */
-export class DemoWriteError extends Error {
-  code = "demo/read-only";
-  constructor(message = "Demo is read-only.") {
-    super(message);
-    this.name = "DemoWriteError";
-  }
-}
-
-/** Throw if demo mode is active (to be called at the top of write helpers). */
-export function assertWritableOrThrow(): void {
-  if (isDemo()) throw new DemoWriteError();
-}
-
-export function assertWritable(action?: string): void {
-  try {
-    assertWritableOrThrow();
-  } catch (error) {
-    if (error instanceof DemoWriteError) {
-      notifyDemoBlocked(action);
-    }
-    throw error;
-  }
-}
-
-/** Convenience wrapper for write functions. */
-export async function guardWrite<T>(fn: () => Promise<T>): Promise<T> {
-  assertWritable();
-  return await fn();
-}
-
-/** Optional: lightweight toast/event for host app to listen and show a banner. */
-export function notifyDemoBlocked(action?: string): void {
-  try {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("mbs:toast", {
-          detail: {
-            level: "info",
-            message: action ? `Demo is read-only. ${action} disabled.` : "Demo is read-only.",
-          },
-        }),
-      );
-    }
-  } catch {
-    /* empty */
-  }
-}
-
-export { DEMO_FLAG_KEY };
+};

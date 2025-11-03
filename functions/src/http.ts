@@ -1,7 +1,29 @@
-import type { Request } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
 import { getAppCheckMode, getHostBaseUrl, type AppCheckMode } from "./lib/env.js";
+
+const ALLOW = [
+  "https://mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+];
+
+export const cors = (req: Request, res: Response, next: NextFunction) => {
+  const origin = req.get("Origin") || req.get("origin");
+  if (origin && ALLOW.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  next();
+};
 
 function getAuthHeader(req: Request): string | null {
   return req.get("authorization") || req.get("Authorization") || null;

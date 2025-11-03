@@ -9,6 +9,20 @@ import { isDemo } from "./demo";
 import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
 import { authedJsonPost } from "./authedFetch";
 
+const PRICE_IDS = {
+  one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
+  monthly: (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim(),
+  yearly: (import.meta.env.VITE_PRICE_YEARLY ?? "").trim(),
+  extra: (import.meta.env.VITE_PRICE_EXTRA ?? "").trim(),
+} as const;
+
+const CHECKOUT_MODES: Record<"one" | "monthly" | "yearly" | "extra", "payment" | "subscription"> = {
+  one: "payment",
+  monthly: "subscription",
+  yearly: "subscription",
+  extra: "payment",
+};
+
 function showDemoPreviewToast(description?: string) {
   toast({ title: "Demo preview — sign up to use this feature.", description });
 }
@@ -27,7 +41,9 @@ async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
   return { auth, user };
 }
 
-export async function billingCheckout(plan: "one" | "monthly" | "yearly"): Promise<{ url: string }> {
+export async function billingCheckout(
+  plan: "one" | "monthly" | "yearly" | "extra",
+): Promise<{ sessionId: string; url: string | null }> {
   if (!plan) {
     throw new Error("invalid_plan");
   }
@@ -36,18 +52,60 @@ export async function billingCheckout(plan: "one" | "monthly" | "yearly"): Promi
     error.code = "demo_blocked";
     throw error;
   }
-  await requireAuthContext();
-  const payload = await authedJsonPost<{ url?: string }>("/api/billing/checkout", { plan });
-  if (!payload || typeof payload.url !== "string") {
-    const error: any = new Error("checkout_failed");
-    error.code = "checkout_failed";
+  const priceId = PRICE_IDS[plan];
+  if (!priceId) {
+    const error: any = new Error("plan_unconfigured");
+    error.code = "plan_unconfigured";
     throw error;
   }
-  return { url: payload.url };
+
+  const { user } = await getAuthContext();
+  if (!user) {
+    const error: any = new Error("auth_required");
+    error.code = "auth_required";
+    throw error;
+  }
+
+  const token = await user.getIdToken();
+  const url = fnUrl("/billing/create-checkout-session");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ priceId, mode: CHECKOUT_MODES[plan] }),
+  });
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    console.error("billing_checkout_error", payload);
+    const message = typeof payload?.error === "string" ? payload.error : `checkout_status_${response.status}`;
+    const error: any = new Error(message);
+    error.status = response.status;
+    error.body = payload;
+    throw error;
+  }
+
+  const sessionId = typeof payload?.sessionId === "string" ? payload.sessionId : "";
+  if (!sessionId) {
+    console.error("billing_checkout_missing_session", payload);
+    const error: any = new Error("checkout_session_missing");
+    error.code = "checkout_session_missing";
+    throw error;
+  }
+
+  return { sessionId, url: typeof payload?.url === "string" ? payload.url : null };
 }
 
 export function nutritionFnUrl(params?: Record<string, string>) {
-  const base = fnUrl("/nutritionSearch");
+  const base = fnUrl("/nutrition/search");
   if (!base) return "";
   const url = new URL(base);
   if (params) {
@@ -60,7 +118,8 @@ export function nutritionFnUrl(params?: Record<string, string>) {
 
 type NutritionSearchResponse = {
   results?: unknown[];
-  source?: string;
+  items?: unknown[];
+  source?: string | null;
   message?: string;
 };
 
@@ -104,17 +163,45 @@ export async function nutritionSearch(
     } satisfies NutritionSearchResponse;
   }
 
-  if (!firebaseAuth.currentUser) {
-    const authError: any = new Error("auth_required");
-    authError.code = "auth_required";
-    throw authError;
+  const endpoint = fnUrl("/nutrition/search");
+  const url = new URL(endpoint);
+  url.searchParams.set("q", trimmed);
+
+  const headers = new Headers({ Accept: "application/json" });
+  const user = firebaseAuth.currentUser;
+  if (user) {
+    try {
+      const token = await user.getIdToken();
+      headers.set("Authorization", `Bearer ${token}`);
+    } catch (error) {
+      console.warn("nutrition_search_token_failed", error);
+    }
   }
 
-  const payload = await authedJsonPost<NutritionSearchResponse>(
-    "/api/nutrition/search",
-    { q: trimmed },
-    init?.signal ? { signal: init.signal } : undefined,
-  );
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    signal: init?.signal,
+    headers,
+  });
+
+  let payload: NutritionSearchResponse | null = null;
+  try {
+    payload = (await response.json()) as NutritionSearchResponse;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    console.error("nutrition_search_http_error", payload);
+    const error: any = new Error(typeof payload?.error === "string" ? payload.error : `status_${response.status}`);
+    error.status = response.status;
+    error.body = payload;
+    throw error;
+  }
+
+  if (payload?.items && !payload.results) {
+    payload.results = payload.items;
+  }
 
   return payload ?? { results: [] };
 }
@@ -131,36 +218,26 @@ export async function nutritionBarcodeLookup(
     showDemoPreviewToast("Sample barcode matches are shown in demo mode.");
     return mockBarcodeLookup(trimmed);
   }
-  const url = `/api/nutrition/barcode?code=${encodeURIComponent(trimmed)}`;
+  const endpoint = fnUrl("/nutrition/search");
+  const url = new URL(endpoint);
+  url.searchParams.set("barcode", trimmed);
+
   const headers = new Headers(init?.headers ?? undefined);
-  if (!headers.has("Accept")) {
-    headers.set("Accept", "application/json");
-  }
-  const idTokenPromise: Promise<string | null> = headers.has("Authorization")
-    ? Promise.resolve<string | null>(null)
-    : (async () => {
-        const { user } = await getAuthContext();
-        return user ? user.getIdToken() : null;
-      })();
-  await ensureAppCheck();
-  const [idToken, appCheckHeaders] = await Promise.all([idTokenPromise, getAppCheckHeader()]);
-  if (idToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${idToken}`);
-  }
-  if (appCheckHeaders["X-Firebase-AppCheck"]) {
-    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
+  headers.set("Accept", "application/json");
+
+  const user = firebaseAuth.currentUser;
+  if (user && !headers.has("Authorization")) {
+    try {
+      const token = await user.getIdToken();
+      headers.set("Authorization", `Bearer ${token}`);
+    } catch (error) {
+      console.warn("nutrition_barcode_token_failed", error);
+    }
   }
 
-  if (!headers.has("Authorization")) {
-    const authError: any = new Error("auth_required");
-    authError.code = "auth_required";
-    throw authError;
-  }
-
-  const response = await fetch(url, {
+  const response = await fetch(url.toString(), {
     ...init,
     headers,
-    credentials: "include",
     method: "GET",
   });
 
@@ -172,10 +249,15 @@ export async function nutritionBarcodeLookup(
   }
 
   if (!response.ok) {
-    const err: any = new Error(`rewrite_status_${response.status}`);
+    console.error("nutrition_barcode_http_error", payload);
+    const err: any = new Error(typeof payload?.error === "string" ? payload.error : `status_${response.status}`);
     err.status = response.status;
     err.body = payload;
     throw err;
+  }
+
+  if (payload?.items && !payload.results) {
+    payload.results = payload.items;
   }
 
   return payload ?? {};
@@ -186,19 +268,43 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
   if (!trimmed) {
     throw new Error("message_required");
   }
-  if (isDemo()) {
-    const error: any = new Error("demo_blocked");
-    error.code = "demo_blocked";
+
+  const url = fnUrl("/coach/chat");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const user = firebaseAuth.currentUser;
+  if (!user && !isDemo()) {
+    const authError: any = new Error("auth_required");
+    authError.code = "auth_required";
+    throw authError;
+  }
+  if (user) {
+    const token = await user.getIdToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ question: trimmed, demo: isDemo() }),
+    signal: options.signal,
+  });
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    console.error("coach_send_http_error", payload);
+    const error: any = new Error(typeof payload?.error === "string" ? payload.error : "coach_send_failed");
+    error.status = response.status;
+    error.code = payload?.error ?? error.message;
     throw error;
   }
 
-  await requireAuthContext();
-  const payload = await authedJsonPost<{ reply?: string }>(
-    "/api/coach/chat",
-    { message: trimmed },
-    options.signal ? { signal: options.signal } : undefined,
-  );
-  const reply = typeof payload?.reply === "string" ? payload.reply.trim() : "";
+  const reply = typeof payload?.answer === "string" ? payload.answer.trim() : "";
   if (!reply) {
     throw new Error("coach_send_failed");
   }
@@ -534,7 +640,7 @@ export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual"
 export async function createCustomerPortal() {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await fetch("/api/createCustomerPortal", {
+  const response = await fetch(fnUrl("/billing/portal"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useCredits } from "@/hooks/useCredits";
@@ -640,16 +641,32 @@ export default function Scan() {
           )}
 
           <div className="space-y-3">
-            <Button
-              className="w-full h-12 text-base"
-              disabled={disableAnalyze}
-              onClick={handleAnalyze}
-              title={demo ? "Demo mode: sign in to save" : undefined}
-              data-testid="scan-submit"
-            >
-              {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-              {demo && !user ? "Demo preview" : submitting ? "Analyzing…" : "Analyze"}
-            </Button>
+            {demo && !user ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full h-12 text-base"
+                    disabled
+                    onClick={handleAnalyze}
+                    data-testid="scan-submit"
+                  >
+                    {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                    {submitting ? "Analyzing…" : "Analyze"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sign up to run scans</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                className="w-full h-12 text-base"
+                disabled={disableAnalyze}
+                onClick={handleAnalyze}
+                data-testid="scan-submit"
+              >
+                {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                {submitting ? "Analyzing…" : "Analyze"}
+              </Button>
+            )}
             <div className="text-xs text-center text-muted-foreground">
               Credits: {creditsDisplay}
             </div>
