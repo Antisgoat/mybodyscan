@@ -46,4 +46,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  optimizeDeps: {
+    include: ["@zxing/browser", "@zxing/library"],
+  },
 }));

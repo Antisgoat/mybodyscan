@@ -1,5 +1,5 @@
-import { auth } from "@/lib/firebase";
-import { disableDemoEverywhere, enableDemoLocal, isDemoEffective } from "@/lib/demoState";
+import { isDemo as getDemoState } from "@/state/demo";
+import { setDemo } from "@/state/demo";
 
 export const DEMO_KEY = "mbs.demo";
 
@@ -8,21 +8,20 @@ function broadcastDemoChange(enabled: boolean) {
   try {
     window.dispatchEvent(new CustomEvent("mbs:demo-change", { detail: { enabled } }));
   } catch {
-    /* noop */
+    // ignore
   }
 }
 
 export const isDemo = (): boolean => {
-  const authed = Boolean(auth.currentUser);
-  return isDemoEffective(authed);
+  return getDemoState();
 };
 
 export const enableDemo = (): void => {
-  enableDemoLocal();
+  setDemo(true);
   broadcastDemoChange(true);
 };
 
 export const disableDemo = (): void => {
-  disableDemoEverywhere();
+  setDemo(false);
   broadcastDemoChange(false);
 };

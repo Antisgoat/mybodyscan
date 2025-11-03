@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
 import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
 import { consumeAuthRedirect } from "@/lib/auth";
 
 export default function Login() {
-  const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -92,13 +91,9 @@ export default function Login() {
         </div>
       )}
 
-      <button
-        className="mb-3 w-full rounded border p-2"
-        disabled={busy}
-        onClick={() => navigate("/demo")}
-      >
-        Browse the demo
-      </button>
+      <Link className="mb-3 block w-full rounded border p-2 text-center" to="/demo">
+        Browse demo
+      </Link>
 
       {msg && <p className="mt-2 text-sm text-red-600">{msg}</p>}
       <p className="mt-4 text-xs text-gray-500">By continuing you agree to our Terms and Privacy Policy.</p>

@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { loadStripe } from "@stripe/stripe-js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +12,11 @@ import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { apiFetch } from "@/lib/apiFetch";
 import { useCredits } from "@/hooks/useCredits";
+import { startCheckout } from "@/lib/checkout";
+import { call } from "@/lib/callable";
+import { apiFetch } from "@/lib/apiFetch";
 
-const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
 const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
 const PRICE_ID_MONTHLY = (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim();
 const PRICE_ID_YEARLY = (import.meta.env.VITE_PRICE_YEARLY ?? "").trim();
@@ -47,19 +47,17 @@ export default function Plans() {
   const { refresh: refreshCredits } = useCredits();
   const [refreshingCredits, setRefreshingCredits] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const stripePromise = useMemo(
-    () => (STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null),
-    [STRIPE_PUBLISHABLE_KEY],
-  );
-  const success = searchParams.get("success") === "1";
-  const canceled = searchParams.get("canceled") === "1";
-  const canBuy = Boolean(user) && !demoMode;
+  const status = searchParams.get("status");
+  const success = searchParams.get("success") === "1" || status === "success";
+  const canceled = searchParams.get("canceled") === "1" || status === "cancel";
+  const canBuy = Boolean(user);
   const signUpHref = "/auth?next=/plans";
 
   const dismissCheckoutState = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete("success");
     next.delete("canceled");
+    next.delete("status");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -96,13 +94,6 @@ export default function Plans() {
       window.location.assign("/auth?next=/plans");
       return;
     }
-    if (demoMode) {
-      toast({
-        title: "Demo is read-only",
-        description: "Sign up to purchase a plan.",
-      });
-      return;
-    }
     if (!plan.priceId) {
       const description = plan.envKey
         ? `This plan is not configured yet. Set ${plan.envKey} before enabling checkout.`
@@ -115,47 +106,28 @@ export default function Plans() {
       return;
     }
 
-    if (!STRIPE_PUBLISHABLE_KEY) {
-      toast({
-        title: "Checkout unavailable",
-        description: "Stripe key missing. Contact support.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      const stripe = stripePromise ? await stripePromise : null;
-      if (!stripe) {
-        throw new Error("Stripe unavailable");
-      }
-      const payload = await apiFetch("/billing/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({ priceId: plan.priceId, mode: plan.mode }),
-      });
-
-      const sessionId = typeof (payload as any)?.sessionId === "string" ? (payload as any).sessionId : null;
-      if (!sessionId) {
-        console.error("checkout_session_invalid", payload);
-        throw new Error("Invalid checkout session response");
-      }
-
-      const result = await stripe.redirectToCheckout({ sessionId });
-      if (result.error) {
-        throw new Error(result.error.message || "Stripe redirect failed");
-      }
+      await startCheckout(plan.priceId, plan.mode);
     } catch (err: any) {
       console.error("checkout_error", err);
-      const description = typeof err?.message === "string" && err.message.length
-        ? err.message
-        : "We couldn't open checkout. Please try again.";
+      const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);
+      const description = errMessage || "We couldn't open checkout. Please try again.";
       toast({
         title: "Checkout unavailable",
         description,
         variant: "destructive",
       });
+      try {
+        await call("telemetryLog", {
+          fn: "checkout",
+          code: err?.code || "client_error",
+          message: errMessage,
+        });
+      } catch (telemetryError) {
+        console.warn("telemetry_log_failed", telemetryError);
+      }
     } finally {
       setPendingPlan(null);
     }
@@ -353,7 +325,7 @@ export default function Plans() {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() => handleCheckout(plan)}
-                    disabled={pendingPlan === plan.plan || !canBuy || !plan.priceId || !STRIPE_PUBLISHABLE_KEY}
+                    disabled={pendingPlan === plan.plan || !canBuy || !plan.priceId}
                   >
                     {pendingPlan === plan.plan ? (
                       <span className="inline-flex items-center justify-center gap-2">

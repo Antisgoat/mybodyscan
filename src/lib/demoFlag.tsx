@@ -1,5 +1,6 @@
 import React from "react";
-import { DEMO_KEY, disableDemo as clearDemoKey, enableDemo as setDemoKey, isDemo as isDemoFlag } from "./demo";
+import { setDemo } from "@/state/demo";
+import { isDemo as getDemoState } from "@/state/demo";
 
 export const DEMO_SESSION_KEY = "mbs.demo.session";
 export const DEMO_QUERY_PARAM = "demo";
@@ -21,7 +22,7 @@ export const DEMO_ALLOWED_PATHS = [
   "/results/:scanId",
   "/results/:id",
   "/report",
-  "/barcode",
+  "/report/:scanId",
   "/plans",
   "/system/check",
   "/dev/audit",
@@ -30,48 +31,8 @@ export const DEMO_ALLOWED_PATHS = [
 
 export type DemoAllowedPath = (typeof DEMO_ALLOWED_PATHS)[number];
 
-function storage(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function persistSessionFlag(): void {
-  const store = storage();
-  if (!store) return;
-  try {
-    store.setItem(DEMO_SESSION_KEY, "1");
-  } catch {
-    // ignore persistence failures
-  }
-}
-
-function clearSessionFlag(): void {
-  const store = storage();
-  if (!store) return;
-  try {
-    store.removeItem(DEMO_SESSION_KEY);
-  } catch {
-    // ignore persistence failures
-  }
-}
-
-function hasSessionFlag(): boolean {
-  const store = storage();
-  if (!store) return false;
-  try {
-    return store.getItem(DEMO_SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function isDemo(): boolean {
-  if (isDemoFlag()) return true;
-  return hasSessionFlag();
+  return getDemoState();
 }
 
 export function isDemoActive(): boolean {
@@ -79,13 +40,11 @@ export function isDemoActive(): boolean {
 }
 
 export function enableDemo(): void {
-  setDemoKey();
-  persistSessionFlag();
+  setDemo(true);
 }
 
 export function disableDemo(): void {
-  clearSessionFlag();
-  clearDemoKey();
+  setDemo(false);
 }
 
 type LocationLike = { pathname: string; search: string };
@@ -140,4 +99,4 @@ export function notifyDemoChange(enabled: boolean) {
   }
 }
 
-export { DEMO_KEY };
+export { DEMO_SESSION_KEY as DEMO_KEY };

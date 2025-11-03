@@ -18,7 +18,7 @@ import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
-import { disableDemoEverywhere, enableDemoLocal } from "@/lib/demoState";
+import { disableDemoEverywhere } from "@/lib/demoState";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
 
@@ -271,13 +271,12 @@ const Auth = () => {
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">
-                <button
-                  type="button"
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                  onClick={() => { enableDemoLocal(); window.location.assign("/home"); }}
+                <a
+                  className="block w-full rounded-lg border px-3 py-2 text-center text-sm"
+                  href="/demo"
                 >
                   Browse the demo (no signup)
-                </button>
+                </a>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Preview the UI with sample data. Sign up to save your progress.
                 </p>
