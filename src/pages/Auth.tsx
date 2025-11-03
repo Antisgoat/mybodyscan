@@ -18,7 +18,7 @@ import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
-import { disableDemo, enableDemo, isDemo } from "@/lib/demo";
+import { disableDemoEverywhere, enableDemoLocal } from "@/lib/demoState";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
 
@@ -43,9 +43,7 @@ const Auth = () => {
 
   useEffect(() => {
     if (!user) return;
-    if (isDemo()) {
-      disableDemo();
-    }
+    disableDemoEverywhere();
     const defaultTarget = (location.state as any)?.from || "/home";
     if (location.pathname !== defaultTarget) {
       navigate(defaultTarget, { replace: true });
@@ -152,17 +150,6 @@ const Auth = () => {
     },
     [],
   );
-
-  const onBrowseDemo = () => {
-    if (!demoEnabled || user) return;
-    try {
-      localStorage.setItem("mbs.demo", "1");
-    } catch {
-      // ignore storage errors
-    }
-    enableDemo();
-    window.location.assign("/home");
-  };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -280,21 +267,18 @@ const Auth = () => {
           />
           <div className="mt-6">
             {demoEnabled && !user && (
-              <>
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                    onClick={onBrowseDemo}
-                    aria-label="Browse the demo"
-                  >
-                    Browse demo (no account)
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground text-center mt-2">
-                  Explore curated sample data. Sign up to unlock scanning, nutrition logging, and AI coaching.
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  onClick={() => { enableDemoLocal(); window.location.assign("/home"); }}
+                >
+                  Browse the demo (no signup)
+                </button>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Preview the UI with sample data. Sign up to save your progress.
                 </p>
-              </>
+              </div>
             )}
             <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
               <a href="/privacy" className="underline hover:no-underline">Privacy</a>

@@ -26,6 +26,7 @@ import {
   describePortalError,
 } from "@/lib/payments";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
+import { apiFetch } from "@/lib/apiFetch";
 import { resolveUatAccess, useProbe, type ProbeExecutionResult, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
@@ -445,27 +446,35 @@ const UATPage = () => {
   const coachWithAppCheckProbe = useProbe<Record<string, unknown>>("Coach with App Check", pushLog);
   const nutritionSearchProbe = useProbe<Record<string, unknown>>("Nutrition search", pushLog);
 
+  const runApi = useCallback(async (path: string, init?: RequestInit) => {
+    try {
+      const data = await apiFetch(path, init);
+      return { ok: true, status: 200, data };
+    } catch (error: any) {
+      const message = error?.message || "error";
+      const match = /HTTP\s+(\d+)/i.exec(message);
+      const status = match ? Number(match[1]) : 500;
+      return { ok: false, status, data: { error: message } };
+    }
+  }, []);
+
   const makeAuthedFetch = useCallback(
     async (input: RequestInfo, init?: RequestInit, options?: { forceAppCheck?: boolean }) => {
-      const headers = await authHeaders();
-      const config: RequestInit = {
-        credentials: "include",
-        ...init,
-        headers: {
-          ...(init?.headers || {}),
-          ...headers,
-        },
-      };
+      const path = typeof input === "string" ? input : String(input);
       if (options?.forceAppCheck && hasAppCheck()) {
         await ensureAppCheck();
-        const appCheckHeaders = await getAppCheckHeader(true);
-        if (appCheckHeaders["X-Firebase-AppCheck"]) {
-          (config.headers as Record<string, string>)["X-Firebase-AppCheck"] = appCheckHeaders["X-Firebase-AppCheck"];
-        }
+        await getAppCheckHeader(true);
       }
-      return fetch(input, config);
+      const result = await runApi(path, init);
+      return {
+        ok: result.ok,
+        status: result.status,
+        async json() {
+          return result.data;
+        },
+      } as Response;
     },
-    [authHeaders],
+    [runApi],
   );
 
   const handleCoachNoAppCheck = useCallback(async () => {
@@ -543,32 +552,25 @@ const UATPage = () => {
 
   const handleScanStart = useCallback(async () => {
     await scanStartProbe.run(async () => {
-      const headers = await authHeaders();
-      const appCheckHeaders = hasAppCheck() ? await getAppCheckHeader(true) : {};
-      const response = await fetch("/api/scan/start", {
+      const result = await runApi("/scan/start", {
         method: "POST",
-        headers: {
-          ...headers,
-          ...appCheckHeaders,
-        },
-        credentials: "include",
         body: JSON.stringify({ source: "uat" }),
       });
-      const json = await response.json().catch(() => ({}));
-      const ok = response.ok && typeof json?.scanId === "string" && json.scanId.length > 0;
+      const json = result.data as Record<string, unknown>;
+      const ok = result.ok && typeof json?.scanId === "string" && json.scanId.length > 0;
       if (ok) {
-        setScanSession({ scanId: json.scanId, uploadUrls: json.uploadUrls ?? {} });
+        setScanSession({ scanId: json.scanId as string, uploadUrls: (json.uploadUrls as Record<string, string>) ?? {} });
       }
       return {
         ok,
         status: ok ? "pass" : "fail",
-        code: json?.code ?? null,
-        message: ok ? "Scan session created" : json?.error || "Scan start failed",
+        code: (json?.code as string | null) ?? null,
+        message: ok ? "Scan session created" : (json?.error as string) || "Scan start failed",
         data: json,
-        httpStatus: response.status,
+        httpStatus: result.status,
       };
     });
-  }, [authHeaders, scanStartProbe]);
+  }, [runApi, scanStartProbe]);
 
   const handleScanUpload = useCallback(async () => {
     await scanUploadProbe.run(async () => {
@@ -603,60 +605,48 @@ const UATPage = () => {
       if (!scanSession) {
         throw Object.assign(new Error("missing_session"), { code: "missing_session" });
       }
-      const headers = await authHeaders();
-      const appCheckHeaders = hasAppCheck() ? await getAppCheckHeader(true) : {};
       const idempotencyKey = `uat-${scanSession.scanId}`;
-      const response = await fetch("/api/scan/submit", {
+      const result = await runApi("/scan/submit", {
         method: "POST",
-        headers: {
-          ...headers,
-          ...appCheckHeaders,
-        },
         body: JSON.stringify({ scanId: scanSession.scanId, idempotencyKey, mode: "uat" }),
-        credentials: "include",
       });
-      const json = await response.json().catch(() => ({}));
-      const ok = response.ok || json?.code === "missing_photos";
+      const json = result.data as Record<string, unknown>;
+      const ok = result.ok || json?.code === "missing_photos";
       return {
         ok,
         status: ok ? "pass" : "fail",
-        code: json?.code ?? null,
-        message: ok ? (json?.code === "missing_photos" ? "Submit guarded (missing photos)" : "Scan submitted") : json?.error || "Scan submit failed",
+        code: (json?.code as string | null) ?? null,
+        message: ok
+          ? (json?.code === "missing_photos" ? "Submit guarded (missing photos)" : "Scan submitted")
+          : (json?.error as string) || "Scan submit failed",
         data: json,
-        httpStatus: response.status,
+        httpStatus: result.status,
       };
     });
-  }, [authHeaders, scanSession, scanSubmitProbe]);
+  }, [runApi, scanSession, scanSubmitProbe]);
 
   const handleScanDuplicate = useCallback(async () => {
     await scanDuplicateProbe.run(async () => {
       if (!scanSession) {
         throw Object.assign(new Error("missing_session"), { code: "missing_session" });
       }
-      const headers = await authHeaders();
-      const appCheckHeaders = hasAppCheck() ? await getAppCheckHeader(true) : {};
       const idempotencyKey = `uat-${scanSession.scanId}`;
-      const response = await fetch("/api/scan/submit", {
+      const result = await runApi("/scan/submit", {
         method: "POST",
-        headers: {
-          ...headers,
-          ...appCheckHeaders,
-        },
         body: JSON.stringify({ scanId: scanSession.scanId, idempotencyKey, mode: "uat" }),
-        credentials: "include",
       });
-      const json = await response.json().catch(() => ({}));
+      const json = result.data as Record<string, unknown>;
       const ok = json?.code === "duplicate_submit";
       return {
         ok,
         status: ok ? "pass" : "fail",
-        code: json?.code ?? null,
-        message: ok ? "Duplicate submit blocked" : json?.error || "Duplicate protection failed",
+        code: (json?.code as string | null) ?? null,
+        message: ok ? "Duplicate submit blocked" : (json?.error as string) || "Duplicate protection failed",
         data: json,
-        httpStatus: response.status,
+        httpStatus: result.status,
       };
     });
-  }, [authHeaders, scanDuplicateProbe, scanSession]);
+  }, [runApi, scanDuplicateProbe, scanSession]);
 
   const coachReplyProbe = useProbe<Record<string, unknown>>("Coach reply", pushLog);
   const nutritionItemsProbe = useProbe<Record<string, unknown>>("Nutrition data", pushLog);

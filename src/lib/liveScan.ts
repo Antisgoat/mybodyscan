@@ -1,5 +1,5 @@
 import { auth as firebaseAuth, db } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
+import { apiFetch } from "@/lib/apiFetch";
 import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
 
 export type PoseKey = "front" | "back" | "left" | "right";
@@ -61,60 +61,11 @@ interface SubmitPayload {
   idempotencyKey?: string;
 }
 
-async function authedRequest(path: string, init: RequestInit = {}): Promise<Response> {
-  const user = firebaseAuth.currentUser;
-  if (!user) {
-    const error = new Error("auth_required");
-    (error as any).code = "auth_required";
-    throw error;
-  }
-  await ensureAppCheck();
-  const [idToken, appCheckHeaders] = await Promise.all([
-    user.getIdToken(),
-    getAppCheckHeader(),
-  ]);
-
-  const headers = new Headers(init.headers || {});
-  if (!headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  headers.set("Authorization", `Bearer ${idToken}`);
-  if (appCheckHeaders["X-Firebase-AppCheck"]) {
-    headers.set("X-Firebase-AppCheck", appCheckHeaders["X-Firebase-AppCheck"]);
-  }
-
-  return fetch(path, { ...init, headers });
-}
-
-async function parseJsonResponse(response: Response) {
-  const text = await response.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    return { raw: text };
-  }
-}
-
-function buildError(status: number, data: any): Error {
-  const message = data?.error || data?.reason || `request_failed_${status}`;
-  const error = new Error(message);
-  (error as any).status = status;
-  (error as any).details = data;
-  const code = typeof data?.code === "string" && data.code.trim().length ? data.code : message;
-  (error as any).code = code;
-  return error;
-}
-
 export async function startLiveScan(): Promise<ScanStartResponse> {
-  const response = await authedRequest("/api/scan/start", {
+  const data = await apiFetch("/scan/start", {
     method: "POST",
     body: JSON.stringify({}),
   });
-  const data = await parseJsonResponse(response);
-  if (!response.ok) {
-    throw buildError(response.status, data);
-  }
   return data as ScanStartResponse;
 }
 
@@ -223,14 +174,10 @@ export async function uploadScanImages(
 }
 
 export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResultResponse> {
-  const response = await authedRequest("/api/scan/submit", {
+  const data = await apiFetch("/scan/submit", {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  const data = await parseJsonResponse(response);
-  if (!response.ok) {
-    throw buildError(response.status, data);
-  }
   return data as ScanResultResponse;
 }
 

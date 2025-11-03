@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthUser } from "@/lib/auth";
-import { DEMO_KEY, isDemo as readDemo } from "@/lib/demo";
-import { disableDemo as disableDemoMode } from "@/lib/demoFlag";
+import { DEMO_KEYS, disableDemoEverywhere, isDemoEffective, isDemoLocal } from "@/lib/demoState";
 
 interface DemoModeContextValue {
   demo: boolean;
@@ -11,23 +10,26 @@ const DemoModeContext = createContext<DemoModeContextValue>({ demo: false });
 
 export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuthUser();
-  const [demo, setDemo] = useState<boolean>(() => readDemo());
+  const authed = !!user;
+  const authedRef = useRef(authed);
+  const [demo, setDemo] = useState<boolean>(() => isDemoEffective(authed));
 
   useEffect(() => {
-    if (user && demo) {
-      disableDemoMode();
-      setDemo(false);
+    authedRef.current = authed;
+    if (authed) {
+      disableDemoEverywhere();
     }
-  }, [user, demo]);
+    setDemo(isDemoEffective(authed));
+  }, [authed]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== DEMO_KEY) return;
-      setDemo(readDemo());
+      if (event.key && !DEMO_KEYS.includes(event.key)) return;
+      setDemo(isDemoEffective(authedRef.current));
     };
     const handleChange = () => {
-      setDemo(readDemo());
+      setDemo(isDemoEffective(authedRef.current));
     };
     window.addEventListener("storage", handleStorage);
     window.addEventListener("mbs:demo-change", handleChange as EventListener);
@@ -38,10 +40,10 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setDemo(readDemo());
+    if (!authed) {
+      setDemo(isDemoLocal());
     }
-  }, [user]);
+  }, [authed]);
 
   const value = useMemo(() => ({ demo }), [demo]);
 

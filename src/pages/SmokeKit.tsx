@@ -16,6 +16,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { nutritionSearch } from "@/lib/api";
+import { apiFetch } from "@/lib/apiFetch";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 
 const PRICE_LABELS: Record<string, string> = {
@@ -436,26 +437,21 @@ export default function SmokeKit() {
     }
     setScanStart({ status: "running" });
     try {
-      const headers = await authedHeaders();
-      const appCheck = await appCheckHeaders(true);
-      const merged = { ...headers, ...appCheck };
-      const response = await fetch("/api/scan/start", {
+      const json = await apiFetch("/scan/start", {
         method: "POST",
-        headers: merged,
-        credentials: "include",
         body: JSON.stringify({ smoke: true }),
       });
-      const json = await response.json().catch(() => ({}));
       const scanId = typeof json?.scanId === "string" ? json.scanId : undefined;
+      const ok = Boolean(scanId);
       setScanStart({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
+        status: ok ? "success" : "error",
+        httpStatus: ok ? 200 : undefined,
         payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
+        error: ok ? undefined : "missing_scan_id",
         code: typeof json?.code === "string" ? json.code : undefined,
         scanId,
       });
-      if (!response.ok) {
+      if (!ok) {
         setScanSubmit({ status: "idle" });
       }
     } catch (error: any) {
@@ -476,21 +472,15 @@ export default function SmokeKit() {
     }
     setScanSubmit({ status: "running" });
     try {
-      const headers = await authedHeaders();
-      const appCheck = await appCheckHeaders(true);
-      const merged = { ...headers, ...appCheck };
-      const response = await fetch("/api/scan/submit", {
+      const json = await apiFetch("/scan/submit", {
         method: "POST",
-        headers: merged,
-        credentials: "include",
         body: JSON.stringify({ scanId: scanStart.scanId, idempotencyKey: `smoke-${Date.now()}` }),
       });
-      const json = await response.json().catch(() => ({}));
       setScanSubmit({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
+        status: "success",
+        httpStatus: 200,
         payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
+        error: undefined,
         code: typeof json?.code === "string" ? json.code : undefined,
       });
     } catch (error: any) {
@@ -506,22 +496,17 @@ export default function SmokeKit() {
     }
     setCoachProbe({ status: "running" });
     try {
-      const headers = await authedHeaders();
-      const appCheck = await appCheckHeaders(true);
-      const merged = { ...headers, ...appCheck };
-      const response = await fetch("/api/coach/chat", {
+      const json = await apiFetch("/coach/chat", {
         method: "POST",
-        headers: merged,
-        credentials: "include",
         body: JSON.stringify({ message: "ping from smoke", text: "ping from smoke" }),
       });
-      const json = await response.json().catch(() => ({}));
       const reply = typeof json?.reply === "string" ? json.reply : undefined;
+      const ok = Boolean(reply);
       setCoachProbe({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
+        status: ok ? "success" : "error",
+        httpStatus: ok ? 200 : undefined,
         payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
+        error: ok ? undefined : (typeof json?.error === "string" ? json.error : undefined),
         code: typeof json?.code === "string" ? json.code : undefined,
         replySnippet: reply ? reply.slice(0, 120) : undefined,
         usedLLM: typeof json?.usedLLM === "boolean" ? json.usedLLM : undefined,
@@ -563,22 +548,17 @@ export default function SmokeKit() {
     }
     setBarcodeProbe({ status: "running" });
     try {
-      const headers = await authedHeaders(false);
-      const appCheck = await appCheckHeaders(true);
-      const merged = { Accept: "application/json", ...headers, ...appCheck };
       const code = "044000030785";
-      const response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code)}`, {
+      const json = await apiFetch(`/nutrition/barcode?code=${encodeURIComponent(code)}`, {
         method: "GET",
-        headers: merged,
-        credentials: "include",
       });
-      const json = await response.json().catch(() => ({}));
+      const ok = Boolean(json && typeof json === "object" && (json as any).item);
       setBarcodeProbe({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
+        status: ok ? "success" : "error",
+        httpStatus: ok ? 200 : undefined,
         payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
-        source: typeof json?.source === "string" ? json.source : undefined,
+        error: ok ? undefined : (typeof (json as any)?.error === "string" ? (json as any).error : undefined),
+        source: typeof (json as any)?.source === "string" ? (json as any).source : undefined,
       });
     } catch (error: any) {
       setBarcodeProbe({ status: "error", error: error?.message || "barcode_failed" });

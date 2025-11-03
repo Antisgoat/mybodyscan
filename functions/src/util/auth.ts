@@ -1,19 +1,18 @@
 import { getAuth } from "firebase-admin/auth";
 
-export async function uidFromBearer(req: { headers?: Record<string, unknown> }): Promise<string | null> {
-  const header = (req.headers?.authorization ?? req.headers?.Authorization ?? "") as string;
-  const match = /^Bearer\s+(.+)$/.exec(header);
-  if (!match) {
-    return null;
-  }
-  const token = match[1]?.trim();
-  if (!token) {
-    return null;
-  }
+export async function uidFromAuth(req: any): Promise<{ uid: string; email?: string } | null> {
+  const h = (req.headers?.authorization || "") as string;
+  const m = /^Bearer\s+(.+)$/.exec(h);
+  if (!m) return null;
   try {
-    const decoded = await getAuth().verifyIdToken(token);
-    return decoded.uid ?? null;
+    const dec = await getAuth().verifyIdToken(m[1]);
+    return { uid: dec.uid, email: (dec.email || "").toLowerCase() };
   } catch {
     return null;
   }
+}
+
+export async function uidFromBearer(req: any): Promise<string | null> {
+  const result = await uidFromAuth(req);
+  return result?.uid ?? null;
 }

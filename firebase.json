@@ -107,6 +107,13 @@
         }
       },
       {
+        "source": "/api/system/bootstrap",
+        "function": {
+          "functionId": "systemBootstrap",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/admin/**",
         "function": {
           "functionId": "adminGateway",

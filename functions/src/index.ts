@@ -7,7 +7,7 @@ import { billingRouter } from "./billing.js";
 import { coachRouter } from "./coach.js";
 import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { nutritionRouter } from "./nutrition.js";
-import { systemRouter } from "./system.js";
+import { systemRouter } from "./systemRouter.js";
 
 export { systemHealth } from "./systemHealth.js";
 export { coachChat } from "./coachChat.js";
@@ -27,6 +27,7 @@ export { uatHelper } from "./http/uat.js";
 export { refreshClaims } from "./claims.js";
 export { grantUnlimitedCredits } from "./claims.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
+export { systemBootstrap } from "./system.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
