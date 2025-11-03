@@ -31,6 +31,10 @@ export type FoodItem = {
   source: "usda" | "off";
 };
 
+export function sanitizeFoodItem(q: string): string {
+  return q.trim().replace(/\s+/g, " ").slice(0, 80);
+}
+
 export type SearchResult = {
   items: FoodItem[];
   status: string; // short user-friendly status ("Searching USDA…", "Trying Open Food Facts…", "No results", etc.)
@@ -251,6 +255,32 @@ function extractOffMacros(p: any): { calories?: number; protein?: number; fat?: 
 
 /* ------------------ Public API ------------------ */
 
+function normalizeFoodItem(raw: any): FoodItem {
+  const idSource = raw?.id ?? raw?.uid ?? raw?.fdcId ?? raw?.code;
+  const id = typeof idSource === "string" && idSource.trim().length
+    ? idSource.trim()
+    : typeof idSource === "number"
+    ? String(idSource)
+    : `food-${Math.random().toString(36).slice(2, 10)}`;
+
+  const nameRaw = typeof raw?.name === "string" ? raw.name : raw?.description;
+  const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+  const brand = typeof raw?.brand === "string" ? raw.brand.trim() : undefined;
+  const sourceRaw = typeof raw?.source === "string" ? raw.source.toLowerCase() : "";
+  const source: FoodItem["source"] = sourceRaw === "off" || sourceRaw === "open food facts" ? "off" : "usda";
+
+  return {
+    id,
+    name,
+    brand,
+    calories: Number.isFinite(Number(raw?.calories)) ? Number(raw.calories) : undefined,
+    protein: Number.isFinite(Number(raw?.protein)) ? Number(raw.protein) : undefined,
+    carbs: Number.isFinite(Number(raw?.carbs)) ? Number(raw.carbs) : undefined,
+    fat: Number.isFinite(Number(raw?.fat)) ? Number(raw.fat) : undefined,
+    source,
+  };
+}
+
 /** Search foods by free text via backend function. Cached 5m. */
 export async function searchFoods(q: string, options: RequestOptions = {}): Promise<SearchResult> {
   const cacheKey = `search:${q.toLowerCase()}`;
@@ -277,7 +307,9 @@ export async function searchFoods(q: string, options: RequestOptions = {}): Prom
   }
 
   const items = Array.isArray(payload?.results)
-    ? (payload!.results as unknown[]).map(sanitizeFoodItem)
+    ? (payload!.results as unknown[])
+        .map(normalizeFoodItem)
+        .filter((item): item is FoodItem => Boolean(item.name))
     : [];
 
   const statusMessage = payload?.message === "no_results"
@@ -321,7 +353,9 @@ export async function lookupBarcode(code: string, options: RequestOptions = {}):
   }
 
   const items = Array.isArray(payload?.results)
-    ? (payload!.results as unknown[]).map(sanitizeFoodItem)
+    ? (payload!.results as unknown[])
+        .map(normalizeFoodItem)
+        .filter((item): item is FoodItem => Boolean(item.name))
     : [];
 
   const statusMessage = payload?.message === "no_results"

@@ -1,4 +1,4 @@
-const DEMO_FLAG_KEY = "mbs_demo";
+const DEMO_FLAG_KEY = "mbs:demo";
 
 export type DemoResult = { ok: true } | { ok: false; code?: string; message?: string };
 

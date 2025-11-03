@@ -18,7 +18,7 @@ import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
-import { startDemo } from "@/lib/demo";
+import { setDemoFlag } from "@/lib/demo";
 import { useFlags } from "@/lib/flags";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
@@ -39,6 +39,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
   const { flags } = useFlags();
+  const demoEnabled = import.meta.env.VITE_DEMO_ENABLED === "true";
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
@@ -150,26 +151,20 @@ const Auth = () => {
     [],
   );
 
-  const onExploreDemo = async () => {
-    if (loading) return;
-
-    setLoading(true);
+  const onBrowseDemo = () => {
+    if (!demoEnabled) return;
     try {
-      const res = await startDemo();
-      if (res.ok === false) {
-        console.warn("Demo sign-in failed:", res.code || res.message);
-        return;
-      }
-      navigate(from, { replace: true });
-    } finally {
-      setLoading(false);
+      setDemoFlag();
+      navigate("/home", { replace: true });
+    } catch (error) {
+      console.warn("Failed to enable demo mode", error);
     }
   };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
       <Seo
-        title="Sign In ? MyBodyScan"
+        title="Sign In · MyBodyScan"
         description="Access your MyBodyScan account to start and review scans."
         canonical={canonical}
       />
@@ -177,7 +172,9 @@ const Auth = () => {
         <CardHeader>
           <div className="text-center">
             <CardTitle className="text-2xl mb-2">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
-            <CardDescription className="text-slate-600">Track body fat, weight and progress?private and secure.</CardDescription>
+            <CardDescription className="text-slate-600">
+              Track body fat, weight and progress — private and secure.
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -194,7 +191,7 @@ const Auth = () => {
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>Accurate body fat estimates from photos/video</span>
+                <span>Accurate body-fat estimates from photos</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -202,7 +199,7 @@ const Auth = () => {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>Private by default?your data, your control</span>
+                <span>Private by default — your data, your control</span>
               </div>
             </div>
           </div>
@@ -279,19 +276,13 @@ const Auth = () => {
             )}
           />
           <div className="mt-6">
-            {flags.enableDemo && (
+            {(demoEnabled || flags.enableDemo) && (
               <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={onExploreDemo}
-                  disabled={loading}
-                >
-                  ?? Explore demo (no sign-up)
+                <Button type="button" variant="secondary" className="w-full" onClick={onBrowseDemo}>
+                  Browse the demo
                 </Button>
                 <p className="text-xs text-muted-foreground text-center mt-2">
-                  Browse demo data. Create a free account to unlock scanning and save your progress.
+                  Explore curated sample data. Sign up to unlock scanning, nutrition logging, and AI coaching.
                 </p>
               </>
             )}

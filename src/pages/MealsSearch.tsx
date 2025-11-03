@@ -9,7 +9,7 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
+import { sanitizeFoodItem, searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import {
   saveFavorite,
@@ -275,7 +275,7 @@ export default function MealsSearch() {
   }, [authReady, uid]);
 
   useEffect(() => {
-    const term = debouncedQuery.trim();
+    const term = sanitizeFoodItem(debouncedQuery);
     if (!term) {
       abortRef.current?.abort();
       abortRef.current = null;

@@ -255,7 +255,7 @@ function normalizeServingOption(raw: any, index: number): ServingOption | null {
   };
 }
 
-function sanitizeFoodItem(raw: any): FoodItem {
+function normalizeFoodItem(raw: any): FoodItem {
   const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : null;
 
   const base = raw?.basePer100g ?? {};
@@ -401,7 +401,7 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
     if (!Array.isArray(payload?.results)) {
       return [];
     }
-    return payload.results.map(sanitizeFoodItem);
+    return payload.results.map(normalizeFoodItem);
   } finally {
     clearTimeout(timer);
     if (nutritionSearchController === controller) {
