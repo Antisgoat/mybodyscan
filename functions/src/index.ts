@@ -33,9 +33,9 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(allowCorsAndOptionalAppCheck);
-app.use(billingRouter);
-app.use(coachRouter);
-app.use(nutritionRouter);
-app.use(systemRouter);
+app.use("/api/billing", billingRouter);
+app.use("/api/coach", coachRouter);
+app.use("/api/nutrition", nutritionRouter);
+app.use("/api/system", systemRouter);
 
 export const api = onRequest({ region: "us-central1" }, app);

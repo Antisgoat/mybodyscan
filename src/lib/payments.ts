@@ -30,8 +30,8 @@ const PAYMENT_FUNCTION_URLS = {
 } as const;
 
 const HOSTING_ENDPOINTS = {
-  createCheckout: "/api/createCheckout",
-  createCustomerPortal: "/api/createCustomerPortal",
+  createCheckout: "/api/billing/create-checkout-session",
+  createCustomerPortal: "/api/billing/portal",
 } as const;
 
 const USE_HOSTING_SHIM = import.meta.env.VITE_USE_HOSTING_SHIM === "true";
@@ -221,7 +221,7 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
 export async function openCustomerPortal(options?: CheckoutOptions) {
   let result: { url?: string };
   try {
-    result = await apiFetch("/billing/customer-portal", { method: "POST" });
+    result = await apiFetch("/billing/portal", { method: "POST" });
   } catch (error) {
     normalizeError(error, "network_error");
   }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { sanitizeSearchTerm, searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
@@ -246,6 +248,9 @@ export default function MealsSearch() {
   const { user, authReady } = useAuthUser();
   const appCheckReady = true;
   const uid = authReady ? user?.uid ?? null : null;
+  const location = useLocation();
+  const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+  const readOnlyDemo = demo && !user;
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
@@ -416,6 +421,19 @@ export default function MealsSearch() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-meals">
       <Seo title="Food Search" description="Find foods from USDA and OpenFoodFacts" />
+      {readOnlyDemo && (
+        <div className="px-6">
+          <Alert variant="default" className="border-primary/40 bg-primary/5">
+            <AlertTitle>Demo preview</AlertTitle>
+            <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>Sign up to log meals, save favorites, and sync nutrition to your account.</span>
+              <Button asChild size="sm" variant="outline">
+                <a href={signUpHref}>Sign up to use this feature</a>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Search className="mx-auto h-10 w-10 text-primary" />

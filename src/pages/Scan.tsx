@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Camera, Image as ImageIcon, Loader2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -96,6 +96,7 @@ export default function Scan() {
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(() => readStoredIdempotencyKey());
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useUserProfile();
   const { user } = useAuthUser();
   const demo = useDemoMode();
@@ -431,6 +432,7 @@ export default function Scan() {
   };
 
   const disableAnalyze = !allPhotosSelected || submitting || (demo && !user);
+  const signupHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const selectSexValue = sex === "" ? undefined : sex;
 
   const initializing = false;
@@ -642,20 +644,25 @@ export default function Scan() {
 
           <div className="space-y-3">
             {demo && !user ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="w-full h-12 text-base"
-                    disabled
-                    onClick={handleAnalyze}
-                    data-testid="scan-submit"
-                  >
-                    {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                    {submitting ? "Analyzing…" : "Analyze"}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Sign up to run scans</TooltipContent>
-              </Tooltip>
+              <div className="space-y-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-full h-12 text-base"
+                      disabled
+                      onClick={handleAnalyze}
+                      data-testid="scan-submit"
+                    >
+                      {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                      {submitting ? "Analyzing…" : "Analyze"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Sign up to run scans</TooltipContent>
+                </Tooltip>
+                <Button asChild className="w-full" variant="outline">
+                  <a href={signupHref}>Sign up to use this feature</a>
+                </Button>
+              </div>
             ) : (
               <Button
                 className="w-full h-12 text-base"

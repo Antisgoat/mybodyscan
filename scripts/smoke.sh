@@ -23,9 +23,9 @@ if [[ -z "$FIREBASE_API_KEY" ]]; then
 fi
 
 BASE_URL="${BASE_URL:-https://mybodyscanapp.com}"
-COACH_URL="${BASE_URL}/coachChat"
-CHECKOUT_URL="${BASE_URL}/createCheckout"
-NUTRITION_URL="${BASE_URL}/nutritionSearch?q=chicken%20breast"
+COACH_URL="${BASE_URL}/api/coach/chat"
+CHECKOUT_URL="${BASE_URL}/api/billing/create-checkout-session"
+NUTRITION_URL="${BASE_URL}/api/nutrition/search?q=chicken%20breast"
 SYSTEM_URL="${BASE_URL}/systemHealth?clientKey=${FIREBASE_API_KEY}"
 
 PRICE_ID="${VITE_PRICE_STARTER:-}"
@@ -102,8 +102,8 @@ call_endpoint() {
       ;;
     createCheckout)
       if [[ "$status" == "200" ]]; then
-        local urlField=$(printf '%s' "$content" | node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync(0,'utf8'));console.log(d.url?1:0);")
-        if [[ "$urlField" == "1" ]]; then
+        local sessionField=$(printf '%s' "$content" | node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync(0,'utf8'));console.log(typeof d.sessionId==='string' && d.sessionId ? 1 : 0);")
+        if [[ "$sessionField" == "1" ]]; then
           return
         fi
       fi
@@ -131,7 +131,7 @@ call_endpoint() {
 
 call_endpoint "systemHealth" "GET" "$SYSTEM_URL"
 call_endpoint "nutritionSearch" "GET" "$NUTRITION_URL"
-call_endpoint "coachChat" "POST" "$COACH_URL" '{"message":"Diagnostics smoke test"}'
+call_endpoint "coachChat" "POST" "$COACH_URL" '{"question":"Diagnostics smoke test"}'
 
 if [[ -n "$PRICE_ID" ]]; then
   call_endpoint "createCheckout" "POST" "$CHECKOUT_URL" "{\"priceId\":\"${PRICE_ID}\"}"

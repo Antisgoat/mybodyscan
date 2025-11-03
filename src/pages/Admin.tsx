@@ -63,11 +63,11 @@ function maskStripeKey(): string {
 
 function AppCheckMatrix() {
   const rows = [
-    { path: "/api/scan/start", enforced: true },
-    { path: "/api/scan/submit", enforced: true },
-    { path: "/api/coach/chat", enforced: true },
-    { path: "/api/nutrition/search", enforced: true },
-    { path: "/api/nutrition/barcode", enforced: true },
+    { path: "/scan/start", enforced: true },
+    { path: "/scan/submit", enforced: true },
+    { path: "/coach/chat", enforced: true },
+    { path: "/nutrition/search", enforced: true },
+    { path: "/nutrition/barcode", enforced: true },
     { path: "/telemetry/log", enforced: false },
   ];
   return (

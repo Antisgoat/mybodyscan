@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -11,6 +11,7 @@ export function useCredits() {
   const [uid, setUid] = useState<string | null>(null);
   const [unlimited, setUnlimited] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   let projectId = "";
   try {
     projectId = getFirebaseConfig().projectId;
@@ -78,7 +79,11 @@ export function useCredits() {
       }
     );
     return () => unsub();
-  }, [uid]);
+  }, [uid, refreshTick]);
+
+  const refresh = useCallback(() => {
+    setRefreshTick((prev) => prev + 1);
+  }, []);
 
   if (unlimited) {
     return {
@@ -90,6 +95,7 @@ export function useCredits() {
       unlimited: true,
       remaining: Infinity,
       used: 0,
+      refresh,
     } as const;
   }
 
@@ -102,6 +108,7 @@ export function useCredits() {
     unlimited: false,
     remaining: credits,
     used: 0,
+    refresh,
   } as const;
 }
 

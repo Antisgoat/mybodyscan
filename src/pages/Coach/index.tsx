@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -51,6 +51,7 @@ function nextTargetFor(program: Program, lastWeek: number, lastDay: number) {
 export default function CoachOverview() {
   const { profile } = useUserProfile();
   const navigate = useNavigate();
+  const location = useLocation();
   const [hydrated, setHydrated] = useState(false);
   const [programEntries, setProgramEntries] = useState<CatalogEntry[]>([]);
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
@@ -63,6 +64,8 @@ export default function CoachOverview() {
   const uid = authReady ? user?.uid ?? null : null;
   const demo = useDemoMode();
   const { disabled: demoDisabled, title: demoTitle } = disabledIfDemo();
+  const readOnlyDemo = demo && !user;
+  const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 
   useEffect(() => {
     let isMounted = true;
@@ -233,6 +236,17 @@ export default function CoachOverview() {
       <ErrorBoundary title="Coach is unavailable" description="Retry to load your personalized plan.">
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
+          {readOnlyDemo && (
+            <Alert variant="default" className="border-primary/40 bg-primary/5">
+              <AlertTitle>Demo preview</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>Sign up to unlock personalized programs, save progress, and access full coach features.</span>
+                <Button asChild size="sm" variant="outline">
+                  <a href={signUpHref}>Sign up to use this feature</a>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
           {planExists === false && !demo ? (
             <Alert variant="default" data-testid="coach-plan-missing">
               <AlertTitle>No plan yet — create one</AlertTitle>

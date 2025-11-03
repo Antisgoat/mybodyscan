@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { apiFetch } from "@/lib/apiFetch";
+import { useCredits } from "@/hooks/useCredits";
 
 const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
 const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
@@ -42,10 +44,38 @@ export default function Plans() {
   const { user } = useAuthUser();
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const demoMode = useDemoMode();
+  const { refresh: refreshCredits } = useCredits();
+  const [refreshingCredits, setRefreshingCredits] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const stripePromise = useMemo(
     () => (STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null),
     [STRIPE_PUBLISHABLE_KEY],
   );
+  const success = searchParams.get("success") === "1";
+  const canBuy = Boolean(user) && !demoMode;
+  const signUpHref = "/auth?next=/plans";
+
+  const handleRefreshCredits = async () => {
+    if (!user) return;
+    setRefreshingCredits(true);
+    try {
+      try {
+        await apiFetch("/system/bootstrap", { method: "POST", body: JSON.stringify({}) });
+        await user.getIdToken(true).catch(() => undefined);
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn("plans_refresh_credits_failed", error);
+        }
+      }
+      refreshCredits();
+    } finally {
+      const next = new URLSearchParams(searchParams);
+      next.delete("success");
+      next.delete("canceled");
+      setSearchParams(next, { replace: true });
+      setRefreshingCredits(false);
+    }
+  };
 
   const handleCheckout = async (plan: PlanConfig) => {
     if (!user) {
@@ -219,6 +249,23 @@ export default function Plans() {
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <main className="max-w-md mx-auto p-6 space-y-6">
         <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
+        {success && (
+          <Alert className="border-primary/40 bg-primary/5">
+            <AlertTitle>Payment received</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>Credits will appear shortly after processing. Refresh once webhook processing completes.</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleRefreshCredits}
+                disabled={refreshingCredits}
+              >
+                {refreshingCredits ? "Refreshing…" : "Refresh credits"}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
@@ -281,7 +328,7 @@ export default function Plans() {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() => handleCheckout(plan)}
-                    disabled={pendingPlan === plan.plan}
+                    disabled={pendingPlan === plan.plan || !canBuy || !plan.priceId || !STRIPE_PUBLISHABLE_KEY}
                   >
                     {pendingPlan === plan.plan ? (
                       <span className="inline-flex items-center justify-center gap-2">
@@ -295,7 +342,12 @@ export default function Plans() {
                     )}
                   </Button>
                   {demoMode && (
-                    <p className="text-xs text-muted-foreground text-center">Sign up to purchase. Demo is read-only.</p>
+                    <a
+                      className="block text-xs text-center text-primary underline"
+                      href={signUpHref}
+                    >
+                      Sign up to use this feature
+                    </a>
                   )}
                   {!user && !demoMode && (
                     <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
