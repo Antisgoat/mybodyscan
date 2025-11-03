@@ -117,6 +117,41 @@ systemRouter.post("/bootstrap", async (req, res) => {
   }
 });
 
+systemRouter.get("/whoami", async (req, res) => {
+  const header = req.get("authorization") ?? "";
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  let uid: string | null = null;
+  let email: string | null = null;
+  let credits: number | null = null;
+  if (match) {
+    try {
+      const decoded = await getAuth().verifyIdToken(match[1]);
+      uid = decoded?.uid ?? null;
+      email = typeof decoded?.email === "string" ? decoded.email.toLowerCase() : null;
+      if (uid) {
+        try {
+          const snap = await db.doc(`users/${uid}`).get();
+          const available = snap.get("creditsAvailable");
+          const legacy = snap.get("credits");
+          const value = typeof available === "number" ? available : typeof legacy === "number" ? legacy : null;
+          credits = value != null && Number.isFinite(value) ? Number(value) : null;
+        } catch {
+          credits = null;
+        }
+      }
+    } catch {
+      uid = null;
+      email = null;
+      credits = null;
+    }
+  }
+
+  const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || null;
+  const appcheck = Boolean(req.get("x-firebase-appcheck"));
+
+  res.json({ uid, email, credits, appcheck, project });
+});
+
 systemRouter.get("/health", (_req, res) => {
   const secrets = {
     stripePublishable: Boolean(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PK),
@@ -136,5 +171,78 @@ systemRouter.get("/health", (_req, res) => {
       process.env.FUNCTIONS_EMULATOR ||
       null,
     secrets,
+    hasStripe: secrets.stripeSecret,
+    hasOpenAI: secrets.openai,
+    hasUSDA: secrets.usda,
+    prices: {
+      one: Boolean(process.env.PRICE_ONE || process.env.VITE_PRICE_ONE),
+      monthly: Boolean(process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY),
+      yearly: Boolean(process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY),
+    },
   });
+});
+
+systemRouter.post("/admin/grant-credits", async (req, res) => {
+  const header = req.get("authorization") ?? "";
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  if (!match) {
+    res.status(401).json({ error: "unauthenticated" });
+    return;
+  }
+
+  let decoded: { uid: string; email?: string } | null = null;
+  try {
+    decoded = await getAuth().verifyIdToken(match[1]);
+  } catch {
+    res.status(401).json({ error: "unauthenticated" });
+    return;
+  }
+
+  const email = decoded?.email ? decoded.email.toLowerCase() : "";
+  if (!email || !adminEmails.has(email)) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+
+  const rawAmount = Number(req.body?.amount ?? 0);
+  const amount = Number.isFinite(rawAmount) && rawAmount > 0 ? Math.floor(rawAmount) : 1;
+  const uid = decoded?.uid;
+  if (!uid) {
+    res.status(400).json({ error: "invalid_user" });
+    return;
+  }
+
+  const userRef = db.doc(`users/${uid}`);
+  const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const now = new Date();
+      const expires = new Date(now.getTime());
+      expires.setMonth(expires.getMonth() + (Number.isFinite(months) ? months : 24));
+
+      tx.set(userRef.collection("credits").doc(), {
+        amount,
+        reason: "admin-grant",
+        createdAt: now,
+        expiresAt: expires,
+        source: "admin",
+      });
+      tx.set(
+        userRef,
+        {
+          creditsAvailable: FieldValue.increment(amount),
+          credits: FieldValue.increment(amount),
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+    });
+  } catch (error: any) {
+    console.error("admin_grant_credits_failed", { message: error?.message });
+    res.status(500).json({ error: "grant_failed" });
+    return;
+  }
+
+  res.json({ ok: true, granted: amount });
 });

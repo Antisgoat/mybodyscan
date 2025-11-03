@@ -30,6 +30,7 @@ export default function ScanCapture() {
   const fileRefs = useRef<Partial<Record<CaptureView, File>>>({});
   const previewRef = useRef(previews);
   const { toast } = useToast();
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     setPreviews((prev) => {
@@ -132,7 +133,8 @@ export default function ScanCapture() {
   );
 
   const onAnalyze = () => {
-    if (!allCaptured) return;
+    if (!allCaptured || analyzing) return;
+    setAnalyzing(true);
     navigate("/scan/result");
   };
 
@@ -206,10 +208,20 @@ export default function ScanCapture() {
         </CardContent>
       </Card>
       <div className="flex justify-end">
-        <Button onClick={onAnalyze} disabled={!allCaptured}>
+        <Button onClick={onAnalyze} disabled={!allCaptured || analyzing}>
           Analyze
         </Button>
       </div>
+      {analyzing ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur">
+          <div className="w-full max-w-sm space-y-3 rounded-lg border bg-card p-6 text-center shadow-lg">
+            <h2 className="text-lg font-semibold">Analyzing (≈60s)</h2>
+            <p className="text-sm text-muted-foreground">
+              Do not close the app. We'll redirect once your scan is ready.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

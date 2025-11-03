@@ -63,7 +63,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   const { user } = useAuth();
   const location = useLocation();
   if (!user) {
-    return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+    const nextTarget = `${location.pathname}${location.search}`;
+    return <Navigate to={`/auth?next=${encodeURIComponent(nextTarget)}`} replace state={{ from: nextTarget }} />;
   }
   return <>{children}</>;
 };

@@ -101,6 +101,7 @@ const Nutrition = lazy(() => import("./pages/Nutrition"));
 const Diagnostics = lazy(() => import("./pages/Diagnostics"));
 const SmokeKit = lazy(() => import("./pages/SmokeKit"));
 const AdminConsole = lazy(() => import("./pages/Admin"));
+const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 
 const queryClient = new QueryClient();
 
@@ -660,6 +661,18 @@ const App = () => {
                   <PageSuspense>
                     <AdminConsole />
                   </PageSuspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/__admin/quick"
+              element={
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <PageSuspense>
+                      <AdminQuick />
+                    </PageSuspense>
+                  </AuthedLayout>
                 </ProtectedRoute>
               }
             />

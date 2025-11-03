@@ -9,6 +9,7 @@ import { signOutToAuth, useAuthUser } from "@/lib/auth";
 import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
+import { AppFooter } from "@/components/AppFooter";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -57,7 +58,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
   );
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex min-h-screen flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
@@ -171,10 +172,9 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6">
-          {children}
-        </div>
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">{children}</div>
       </main>
+      <AppFooter />
     </div>
   );
 }

@@ -3,11 +3,11 @@
     "public": "dist",
     "headers": [
       {
-        "source": "/index.html",
+        "source": "**/*.html",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "no-cache, max-age=0, must-revalidate"
+            "value": "no-store, max-age=0"
           }
         ]
       },
