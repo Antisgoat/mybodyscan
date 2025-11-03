@@ -1,140 +1,80 @@
-import express from "express";
-import type { UserRecord } from "firebase-admin/auth";
-import { FieldValue, getAuth, getFirestore } from "./firebase.js";
-import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
+import * as https from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { uidFromAuth } from "./util/auth.js";
 
-const ADMIN_BOOTSTRAP_DEFAULT = 50;
-
-function getAdminBootstrapCredits(): number {
-  const raw = process.env.ADMIN_BOOTSTRAP_CREDITS || process.env.ADMIN_BOOTSTRAP_CREDIT;
-  if (!raw) return ADMIN_BOOTSTRAP_DEFAULT;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : ADMIN_BOOTSTRAP_DEFAULT;
+const allow = [
+  "https://mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+];
+function cors(req: any, res: any) {
+  const origin = req.headers.origin || "";
+  if (allow.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary","Origin");
+    res.set("Access-Control-Allow-Credentials","true");
+    res.set("Access-Control-Allow-Headers","Content-Type,Authorization,X-Firebase-AppCheck");
+    res.set("Access-Control-Allow-Methods","POST,OPTIONS");
+  }
+  if (req.method === "OPTIONS") { res.status(204).end(); return true; }
+  return false;
 }
 
-function parseAdminEmails(): Set<string> {
-  const csv = process.env.ADMIN_EMAILS_CSV || process.env.ADMIN_EMAILS || "";
-  return new Set(
-    csv
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0),
-  );
-}
-
-const adminEmails = parseAdminEmails();
-const db = getFirestore();
-
-export const systemRouter = express.Router();
-
-systemRouter.use(allowCorsAndOptionalAppCheck);
-systemRouter.use(express.json());
-
-systemRouter.post("/bootstrap", async (req, res) => {
-  try {
-    const { uid, claims } = await requireAuthWithClaims(req);
-    const auth = getAuth();
-    const decodedEmail = typeof claims?.email === "string" ? claims.email : undefined;
-    let email = decodedEmail?.toLowerCase() || undefined;
-    let userRecord: UserRecord | null = null;
-    if (!email) {
-      try {
-        const record = await auth.getUser(uid);
-        email = record.email?.toLowerCase() || undefined;
-        userRecord = record;
-      } catch {
-        email = undefined;
-      }
+async function grantCredits(uid: string, amount: number, reason: string) {
+  const db = getFirestore();
+  const userRef = db.doc(`users/${uid}`);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    const now = new Date();
+    const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const exp = new Date(now.getTime()); exp.setMonth(exp.getMonth() + months);
+    if (!snap.exists) {
+      tx.set(userRef, { creditsAvailable: 0, createdAt: now, updatedAt: now }, { merge: true });
     }
-    const isAdminEmail = email ? adminEmails.has(email) : false;
+    const ledgerRef = userRef.collection("credits").doc();
+    tx.set(ledgerRef, { amount, reason, createdAt: now, expiresAt: exp, source: "bootstrap" });
+    tx.set(userRef, {
+      creditsAvailable: FieldValue.increment(amount),
+      credits: FieldValue.increment(amount), // legacy alias
+      updatedAt: now,
+    }, { merge: true });
+  });
+}
+
+export const systemBootstrap = https.onRequest({ region: "us-central1" }, async (req, res) => {
+  try {
+    if (cors(req, res)) return;
+    if (req.method !== "POST") { res.status(405).json({ error: "method_not_allowed" }); return; }
+
+    const auth = await uidFromAuth(req);
+    if (!auth) { res.status(401).json({ error: "unauthenticated" }); return; }
+
+    const adminCsv = (process.env.ADMIN_EMAILS_CSV || "").toLowerCase();
+    const emails = adminCsv.split(",").map(s => s.trim()).filter(Boolean);
+    const isAdminEmail = !!auth.email && emails.includes(auth.email!);
 
     let claimsUpdated = false;
     if (isAdminEmail) {
-      const record = userRecord ?? (await auth.getUser(uid));
-      userRecord = record;
-      const existingClaims = userRecord.customClaims || {};
-      if (existingClaims.admin !== true) {
-        await auth.setCustomUserClaims(uid, { ...existingClaims, admin: true });
+      const user = await getAuth().getUser(auth.uid);
+      const claims = user.customClaims || {};
+      if (!claims.admin) {
+        await getAuth().setCustomUserClaims(auth.uid, { ...claims, admin: true });
         claimsUpdated = true;
       }
-    }
-
-    const userRef = db.doc(`users/${uid}`);
-    const snap = await userRef.get();
-    const bootstrapCredits = getAdminBootstrapCredits();
-    let credits: number = 0;
-    const updates: Record<string, unknown> = {};
-    if (snap.exists) {
-      const data = snap.data() as Record<string, unknown>;
-      const storedCredits = typeof data?.credits === "number" ? data.credits : null;
-      if (storedCredits != null) {
-        credits = storedCredits;
-      }
-
-      if (isAdminEmail && (storedCredits == null || storedCredits < bootstrapCredits)) {
-        updates.credits = bootstrapCredits;
-        credits = bootstrapCredits;
-      } else if (!isAdminEmail && storedCredits == null) {
-        updates.credits = 0;
-        credits = 0;
-      }
-
-      if (!data?.createdAt) {
-        updates.createdAt = data?.createdAt ?? FieldValue.serverTimestamp();
-      }
-
-      if (email && data?.email !== email) {
-        updates.email = email;
-      }
-    } else {
-      updates.createdAt = FieldValue.serverTimestamp();
-      if (email) {
-        updates.email = email;
-      }
-      if (isAdminEmail) {
-        updates.credits = bootstrapCredits;
-        credits = bootstrapCredits;
-      } else {
-        updates.credits = 0;
-        credits = 0;
+      const min = Number(process.env.ADMIN_BOOTSTRAP_CREDITS || 50);
+      const db = getFirestore();
+      const u = await db.doc(`users/${auth.uid}`).get();
+      const current = Number(u.get("creditsAvailable") || u.get("credits") || 0);
+      if (current < min) {
+        await grantCredits(auth.uid, min - current, "admin-bootstrap");
       }
     }
 
-    if (Object.keys(updates).length > 0) {
-      await userRef.set(updates, { merge: true });
-    }
-
-    res.json({ ok: true, admin: isAdminEmail, credits, claimsUpdated });
-  } catch (error: any) {
-    if (error?.code === "unauthenticated") {
-      res.status(401).json({ error: "unauthenticated" });
-      return;
-    }
-    console.error("system_bootstrap_error", {
-      message: error?.message,
-    });
+    res.json({ ok: true, admin: isAdminEmail, claimsUpdated });
+  } catch (e) {
+    logger.error("systemBootstrap error", e);
     res.status(500).json({ error: "bootstrap_failed" });
   }
-});
-
-systemRouter.get("/health", (_req, res) => {
-  const secrets = {
-    stripePublishable: Boolean(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PK),
-    stripeSecret: Boolean(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET),
-    stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_SIGNING_SECRET),
-    openai: Boolean(process.env.OPENAI_API_KEY),
-    usda: Boolean(process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY),
-    offUserAgent: Boolean(process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT),
-    adminEmails: adminEmails.size > 0,
-  } as const;
-
-  res.json({
-    ok: true,
-    version:
-      process.env.GIT_COMMIT ||
-      process.env.K_REVISION ||
-      process.env.FUNCTIONS_EMULATOR ||
-      null,
-    secrets,
-  });
 });

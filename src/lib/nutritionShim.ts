@@ -1,4 +1,5 @@
 import { fetchFoods } from "@/lib/api";
+import { apiFetch } from "@/lib/apiFetch";
 import { fnUrl } from "@/lib/env";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import type {
@@ -329,20 +330,25 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   ]);
   const headers = new Headers({ Accept: "application/json" });
   if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
-  let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
-    method: "GET",
-    headers,
-    credentials: "include",
-  });
-  if (!response.ok && response.status !== 404) {
+  let payload: any = null;
+  try {
+    payload = await apiFetch(`/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+      method: "GET",
+      headers,
+    });
+  } catch (error: any) {
     // Fallback to direct function URL if configured
     const fallback = await callFunctions(`/nutritionBarcode?code=${encodeURIComponent(code.trim())}`);
-    if (fallback) response = fallback;
+    if (!fallback || !fallback.ok) {
+      return null;
+    }
+    const data = await fallback.json().catch(() => null);
+    payload = data ?? null;
   }
-  if (!response.ok) {
+  if (!payload) {
     return null;
   }
-  const data = await response.json();
+  const data = typeof payload === "object" && payload ? (payload as Record<string, unknown>) : {};
   if (!data?.item) {
     return null;
   }

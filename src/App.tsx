@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
+import { getAuth } from "firebase/auth";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
@@ -81,6 +82,8 @@ import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
+import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
+import { disableDemoEverywhere } from "@/lib/demoState";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
 
@@ -112,6 +115,16 @@ const withPublicLayout = (content: ReactNode, fallback?: ReactNode) => (
 );
 
 const App = () => {
+  useAuthBootstrap();
+
+  useEffect(() => {
+    const auth = getAuth();
+    const off = auth.onAuthStateChanged((u) => {
+      if (u) disableDemoEverywhere();
+    });
+    return () => off();
+  }, []);
+
   useEffect(() => {
     // Auth persistence is now handled in main.tsx
     if (typeof window !== "undefined") console.log("[init] App mounted");

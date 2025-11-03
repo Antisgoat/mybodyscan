@@ -1,13 +1,7 @@
-export const DEMO_KEY = "mbs.demo";
+import { auth } from "@/lib/firebase";
+import { disableDemoEverywhere, enableDemoLocal, isDemoEffective } from "@/lib/demoState";
 
-function getStorage(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
+export const DEMO_KEY = "mbs.demo";
 
 function broadcastDemoChange(enabled: boolean) {
   if (typeof window === "undefined") return;
@@ -19,33 +13,16 @@ function broadcastDemoChange(enabled: boolean) {
 }
 
 export const isDemo = (): boolean => {
-  const storage = getStorage();
-  if (!storage) return false;
-  try {
-    return storage.getItem(DEMO_KEY) === "1";
-  } catch {
-    return false;
-  }
+  const authed = Boolean(auth.currentUser);
+  return isDemoEffective(authed);
 };
 
 export const enableDemo = (): void => {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(DEMO_KEY, "1");
-    broadcastDemoChange(true);
-  } catch {
-    /* ignore */
-  }
+  enableDemoLocal();
+  broadcastDemoChange(true);
 };
 
 export const disableDemo = (): void => {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.removeItem(DEMO_KEY);
-    broadcastDemoChange(false);
-  } catch {
-    /* ignore */
-  }
+  disableDemoEverywhere();
+  broadcastDemoChange(false);
 };
