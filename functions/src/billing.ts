@@ -1,7 +1,7 @@
 import express from "express";
 import Stripe from "stripe";
 import { getAuth } from "./firebase.js";
-import { cors, publicBaseUrl, requireAuthWithClaims } from "./http.js";
+import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
 
 const stripeSecret =
   process.env.STRIPE_SECRET_KEY ||
@@ -18,7 +18,7 @@ const PRICE_MONTHLY = process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHL
 const PRICE_YEARLY = process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY || "";
 const PRICE_EXTRA = process.env.PRICE_EXTRA || process.env.VITE_PRICE_EXTRA || "";
 const PROMO_CODE = process.env.STRIPE_MONTHLY_PROMO_CODE || "";
-const BASE_URL = process.env.APP_BASE_URL || process.env.VITE_APP_BASE_URL || "https://mybodyscanapp.com";
+const BASE_URL = process.env.BASE_URL || process.env.APP_BASE_URL || process.env.VITE_APP_BASE_URL || "https://mybodyscanapp.com";
 
 type PriceConfig = {
   id: string;
@@ -88,7 +88,7 @@ async function hasActiveSubscription(customerId: string): Promise<boolean> {
 
 export const billingRouter = express.Router();
 
-billingRouter.use(cors);
+billingRouter.use(allowCorsAndOptionalAppCheck);
 billingRouter.use(express.json());
 
 billingRouter.post("/create-checkout-session", async (req, res) => {
@@ -150,7 +150,7 @@ billingRouter.post("/create-checkout-session", async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create(params);
-    res.json({ sessionId: session.id, url: session.url ?? null });
+    res.json({ sessionId: session.id });
   } catch (error) {
     const info = formatError(error);
     console.error("create_checkout_session_error", info);

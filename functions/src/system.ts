@@ -1,7 +1,7 @@
 import express from "express";
 import type { UserRecord } from "firebase-admin/auth";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
-import { cors, requireAuthWithClaims } from "./http.js";
+import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
 
 const ADMIN_BOOTSTRAP_DEFAULT = 50;
 
@@ -27,7 +27,7 @@ const db = getFirestore();
 
 export const systemRouter = express.Router();
 
-systemRouter.use(cors);
+systemRouter.use(allowCorsAndOptionalAppCheck);
 systemRouter.use(express.json());
 
 systemRouter.post("/bootstrap", async (req, res) => {
@@ -71,7 +71,7 @@ systemRouter.post("/bootstrap", async (req, res) => {
         credits = storedCredits;
       }
 
-      if (isAdminEmail && (storedCredits == null || storedCredits < 1)) {
+      if (isAdminEmail && (storedCredits == null || storedCredits < bootstrapCredits)) {
         updates.credits = bootstrapCredits;
         credits = bootstrapCredits;
       } else if (!isAdminEmail && storedCredits == null) {

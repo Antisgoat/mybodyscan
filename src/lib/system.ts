@@ -1,6 +1,6 @@
+import { apiFetch } from "@/lib/api";
+import { fnUrl } from "@/lib/env";
 import { auth } from "@/lib/firebase";
-
-const FUNCTIONS_ORIGIN = (import.meta.env.VITE_FUNCTIONS_ORIGIN ?? "").trim().replace(/\/$/, "");
 
 type BootstrapResponse = {
   ok: boolean;
@@ -11,13 +11,14 @@ type BootstrapResponse = {
 
 export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
   const user = auth.currentUser;
-  if (!user || !FUNCTIONS_ORIGIN) return null;
+  if (!user) return null;
 
   const token = await user.getIdToken();
-  const response = await fetch(`${FUNCTIONS_ORIGIN}/system/bootstrap`, {
+  const endpoint = fnUrl("/system/bootstrap");
+  if (!endpoint) return null;
+  const response = await apiFetch(endpoint, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
   });
@@ -31,9 +32,10 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 }
 
 export async function fetchSystemHealth(): Promise<any | null> {
-  if (!FUNCTIONS_ORIGIN) return null;
+  const endpoint = fnUrl("/system/health");
+  if (!endpoint) return null;
   try {
-    const response = await fetch(`${FUNCTIONS_ORIGIN}/system/health`);
+    const response = await apiFetch(endpoint);
     if (!response.ok) return null;
     return await response.json();
   } catch (error) {

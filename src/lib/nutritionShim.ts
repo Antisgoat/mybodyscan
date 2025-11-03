@@ -1,7 +1,6 @@
-import { fetchFoods } from "@/lib/api";
+import { apiFetch, fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
 import type {
   FoodItem,
   MacroBreakdown,
@@ -305,12 +304,8 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    return await fetch(url, {
+    return await apiFetch(url, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
-      },
       signal: controller.signal,
     }).finally(() => clearTimeout(timer));
   } catch (error) {
@@ -329,12 +324,9 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   const [idToken] = await Promise.all([
     firebaseAuth.currentUser ? firebaseAuth.currentUser.getIdToken() : Promise.resolve<string | null>(null),
   ]);
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (idToken) headers.Authorization = `Bearer ${idToken}`;
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckHeader();
-  if (appCheckHeaders["X-Firebase-AppCheck"]) headers["X-Firebase-AppCheck"] = appCheckHeaders["X-Firebase-AppCheck"];
-  let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+  const headers = new Headers({ Accept: "application/json" });
+  if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
+  let response = await apiFetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
     method: "GET",
     headers,
   });

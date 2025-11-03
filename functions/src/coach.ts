@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
-import { cors } from "./http.js";
+import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 
 const db = getFirestore();
@@ -47,7 +47,7 @@ async function optionalUser(req: express.Request) {
 
 export const coachRouter = express.Router();
 
-coachRouter.use(cors);
+coachRouter.use(allowCorsAndOptionalAppCheck);
 coachRouter.use(express.json());
 
 coachRouter.post("/chat", async (req, res) => {

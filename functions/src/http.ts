@@ -9,19 +9,14 @@ const ALLOW = [
   "https://mybodyscan-f3daf.firebaseapp.com",
 ];
 
-export const cors = (req: Request, res: Response, next: NextFunction) => {
-  const origin = req.get("Origin") || req.get("origin");
-  if (origin && ALLOW.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
+export const allowCorsAndOptionalAppCheck = (req: Request, res: Response, next: NextFunction) => {
+  const origin = req.get("Origin");
+  if (origin && ALLOW.includes(origin)) res.header("Access-Control-Allow-Origin", origin);
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  if (req.method === "OPTIONS") return res.status(204).end();
   next();
 };
 
