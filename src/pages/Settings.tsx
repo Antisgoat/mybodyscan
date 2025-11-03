@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { signOutAll } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { supportMailto } from "@/lib/support";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { copyDiagnostics } from "@/lib/diagnostics";
 import { isDemoActive } from "@/lib/demoFlag";
 import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink, CreditCard } from "lucide-react";
@@ -60,6 +60,12 @@ const Settings = () => {
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
   const stripeEnvironment = describeStripeEnvironment();
   const showBuildInfo = import.meta.env.DEV;
+  const buildCommit = (import.meta.env.VITE_COMMIT_SHA ? String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7) : buildHash) || "dev";
+  const buildTime = import.meta.env.VITE_BUILD_TIME
+    ? String(import.meta.env.VITE_BUILD_TIME)
+    : buildTimestamp
+    ? new Date(buildTimestamp).toLocaleString()
+    : "";
   const environmentBadgeLabel =
     stripeEnvironment === "live"
       ? "LIVE"
@@ -524,8 +530,15 @@ const Settings = () => {
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <Link to="/system/check" className="flex items-center gap-2">
+                  System check
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </Button>
             </div>
             <div className="rounded bg-muted p-3 text-xs text-muted-foreground space-y-1">
+              <div>Version: {buildCommit}{buildTime ? ` • ${buildTime}` : ""}</div>
               <div>Stripe mode: {stripeEnvironment === "live" ? "Live" : stripeEnvironment === "test" ? "Test" : stripeEnvironment === "custom" ? "Custom key" : "Missing"}</div>
               <div>Publishable key suffix: {publishableKeySuffix || "n/a"}</div>
               {showBuildInfo ? (

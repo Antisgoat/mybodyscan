@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lookupBarcode, searchFoods, type FoodItem, type SearchResult } from "@/lib/nutrition";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { withTimeout } from "@/lib/request";
+import { getCache, setCache } from "@/lib/cache";
+import { isDemoEffective } from "@/lib/demoState";
+import { useAuthUser } from "@/lib/auth";
 
 type Props = {
   className?: string;
@@ -12,6 +16,7 @@ export default function NutritionSearch(props: Props) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [items, setItems] = useState<FoodItem[]>([]);
+  const { user } = useAuthUser();
   const inputId = "nutrition-search-input";
   const abortRef = useRef<AbortController | null>(null);
   const debouncedQuery = useDebouncedValue(q, 350);
@@ -65,11 +70,53 @@ export default function NutritionSearch(props: Props) {
 
     (async () => {
       try {
+        const demo = isDemoEffective(Boolean(user));
+        if (demo && !isBarcodeTerm) {
+          const demoItems: FoodItem[] = [
+            {
+              id: "demo:chicken",
+              name: "Grilled chicken breast (100g)",
+              brand: "Sample",
+              calories: 165,
+              protein: 31,
+              fat: 3.6,
+              carbs: 0,
+              source: "usda",
+            },
+            {
+              id: "demo:rice",
+              name: "Brown rice (100g cooked)",
+              brand: "Sample",
+              calories: 111,
+              protein: 2.6,
+              fat: 0.9,
+              carbs: 23,
+              source: "usda",
+            },
+          ];
+          setStatus("Demo results");
+          setItems(demoItems);
+          return;
+        }
+
         const executor = isBarcodeTerm ? lookupBarcode : searchFoods;
-        const res: SearchResult = await executor(searchTerm, { signal: controller.signal });
+        const cacheKey = !isBarcodeTerm ? `nut:${searchTerm.toLowerCase()}` : null;
+        if (cacheKey) {
+          const cached = getCache<SearchResult>(cacheKey);
+          if (cached) {
+            setStatus(cached.status || "Cached result");
+            setItems(Array.isArray(cached.items) ? cached.items : []);
+            return;
+          }
+        }
+
+        const res: SearchResult = await withTimeout(executor(searchTerm, { signal: controller.signal }), 8_000);
         if (controller.signal.aborted) return;
         setStatus(res.status || "Done.");
         setItems(Array.isArray(res.items) ? res.items : []);
+        if (cacheKey) {
+          setCache(cacheKey, res);
+        }
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
         if ((error as { code?: string } | undefined)?.code === "auth_required") {
@@ -77,7 +124,8 @@ export default function NutritionSearch(props: Props) {
           setItems([]);
           return;
         }
-        setStatus("Search failed. Please try again.");
+        const message = error instanceof Error && error.message === "timeout" ? "Search timed out." : "Search failed. Please try again.";
+        setStatus(message);
         setItems([]);
       } finally {
         if (!controller.signal.aborted) {

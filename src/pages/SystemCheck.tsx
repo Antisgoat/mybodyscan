@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { OAuthProvider } from "firebase/auth";
+import { OAuthProvider, getAuth } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
 
@@ -36,9 +36,56 @@ export default function SystemCheck() {
   const [error, setError] = useState<string | null>(null);
   const [healthJson, setHealthJson] = useState<string>("");
   const [appleLikelyEnabled, setAppleLikelyEnabled] = useState<boolean | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
   const [sdkProviderConstructible, setSdkProviderConstructible] = useState<boolean>(false);
   const [spaCheckResult, setSpaCheckResult] = useState<null | { ok: boolean; status: number }>(null);
   const [spaCheckLoading, setSpaCheckLoading] = useState(false);
+  const [snapshot, setSnapshot] = useState<{
+    env: Record<string, unknown>;
+    whoami: Record<string, unknown> | null;
+    credits: number | null;
+    appcheckSeen: boolean;
+    error: string | null;
+  }>({ env: {}, whoami: null, credits: null, appcheckSeen: false, error: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    const auth = getAuth();
+    const env = {
+      PROJECT_ID: (import.meta as any)?.env?.VITE_FIREBASE_PROJECT_ID ?? "",
+      APP_BASE_URL: (import.meta as any)?.env?.VITE_APP_BASE_URL ?? "",
+      STRIPE_MODE: (import.meta as any)?.env?.VITE_STRIPE_MODE ?? "",
+      APPCHECK: Boolean((import.meta as any)?.env?.VITE_APPCHECK_SITE_KEY),
+      BUILD_TIME: (import.meta as any)?.env?.VITE_BUILD_TIME ?? "",
+      COMMIT: (import.meta as any)?.env?.VITE_COMMIT_SHA ?? "",
+    };
+    setSnapshot((current) => ({ ...current, env }));
+
+    void (async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const response = await fetch("/api/system/whoami", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        if (cancelled) return;
+        setSnapshot({
+          env,
+          whoami: payload,
+          credits: typeof payload?.credits === "number" ? (payload.credits as number) : null,
+          appcheckSeen: Boolean(payload?.appcheck),
+          error: null,
+        });
+      } catch (err: any) {
+        if (cancelled) return;
+        setSnapshot({ env, whoami: null, credits: null, appcheckSeen: false, error: err?.message ?? "Failed" });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +259,31 @@ export default function SystemCheck() {
           </div>
         ) : null}
         <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Snapshot</CardTitle>
+              <CardDescription>Environment hints and current user context.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Environment</p>
+                <pre className="mt-2 max-h-48 overflow-auto rounded border bg-muted p-3 text-[11px] leading-relaxed">
+{JSON.stringify(snapshot.env, null, 2)}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Whoami</p>
+                <pre className="mt-2 max-h-48 overflow-auto rounded border bg-muted p-3 text-[11px] leading-relaxed">
+{JSON.stringify(snapshot.whoami ?? {}, null, 2)}
+                </pre>
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col items-start gap-1 text-xs text-muted-foreground">
+              <span>App Check header seen: {String(snapshot.appcheckSeen)}</span>
+              <span>Credits available: {snapshot.credits ?? "unknown"}</span>
+              {snapshot.error ? <span className="text-destructive">{snapshot.error}</span> : null}
+            </CardFooter>
+          </Card>
           {/* Health probe */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">

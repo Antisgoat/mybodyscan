@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -52,8 +52,16 @@ export default function Plans() {
     [STRIPE_PUBLISHABLE_KEY],
   );
   const success = searchParams.get("success") === "1";
+  const canceled = searchParams.get("canceled") === "1";
   const canBuy = Boolean(user) && !demoMode;
   const signUpHref = "/auth?next=/plans";
+
+  const dismissCheckoutState = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("success");
+    next.delete("canceled");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleRefreshCredits = async () => {
     if (!user) return;
@@ -69,11 +77,17 @@ export default function Plans() {
       }
       refreshCredits();
     } finally {
-      const next = new URLSearchParams(searchParams);
-      next.delete("success");
-      next.delete("canceled");
-      setSearchParams(next, { replace: true });
+      dismissCheckoutState();
       setRefreshingCredits(false);
+    }
+  };
+
+  const handleRetryCheckout = () => {
+    dismissCheckoutState();
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      window.scrollTo(0, 0);
     }
   };
 
@@ -249,6 +263,17 @@ export default function Plans() {
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <main className="max-w-md mx-auto p-6 space-y-6">
         <Seo title="Plans - MyBodyScan" description="Choose your scanning plan" />
+        {canceled && (
+          <Alert variant="destructive" className="border-destructive/40 bg-destructive/5">
+            <AlertTitle>Checkout canceled</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>We didn't charge your card. Start checkout again when you're ready.</span>
+              <Button type="button" size="sm" variant="outline" onClick={handleRetryCheckout}>
+                Try checkout again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         {success && (
           <Alert className="border-primary/40 bg-primary/5">
             <AlertTitle>Payment received</AlertTitle>

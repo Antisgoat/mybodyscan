@@ -43,6 +43,9 @@ export default function Footer() {
             <Link to="/terms" className="hover:text-foreground transition-colors">
               Terms
             </Link>
+            <Link to="/system/check" className="hover:text-foreground transition-colors">
+              System check
+            </Link>
             <Link to="/legal/disclaimer" className="hover:text-foreground transition-colors">
               Health & Safety
             </Link>

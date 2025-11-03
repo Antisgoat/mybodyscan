@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -29,9 +29,11 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 const Auth = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from || "/home";
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const nextParam = searchParams.get("next");
+  const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,11 +46,10 @@ const Auth = () => {
   useEffect(() => {
     if (!user) return;
     disableDemoEverywhere();
-    const defaultTarget = (location.state as any)?.from || "/home";
     if (location.pathname !== defaultTarget) {
-      navigate(defaultTarget, { replace: true });
+      window.location.replace(defaultTarget);
     }
-  }, [user, navigate, location.pathname, location.state]);
+  }, [user, location.pathname, defaultTarget]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();
@@ -62,9 +63,11 @@ const Auth = () => {
       if (!cancelled && result) {
         const target = consumeAuthRedirect();
         if (target) {
-          navigate(target, { replace: true });
+          window.location.replace(target);
           return;
         }
+        window.location.replace(defaultTarget);
+        return;
       }
 
       const error = await consumeAuthRedirectError();
@@ -92,7 +95,7 @@ const Auth = () => {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [defaultTarget]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +110,7 @@ const Auth = () => {
       } else {
         await createAccountEmail(email, password);
       }
-      navigate(from, { replace: true });
+      window.location.replace(defaultTarget);
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
       const fallback = mode === "signin" ? "Email sign-in failed." : "Account creation failed.";
@@ -123,23 +126,23 @@ const Auth = () => {
 
   const handleSocialBefore = useCallback(
     (_provider: SocialProvider) => {
-      rememberAuthRedirect(from);
+      rememberAuthRedirect(defaultTarget);
     },
-    [from],
+    [defaultTarget],
   );
 
   const handleSocialSuccess = useCallback(
     (_provider: SocialProvider) => {
       const target = consumeAuthRedirect();
       if (target) {
-        navigate(target, { replace: true });
+        window.location.replace(target);
         return;
       }
       if (auth.currentUser) {
-        navigate(from, { replace: true });
+        window.location.replace(defaultTarget);
       }
     },
-    [from, navigate],
+    [defaultTarget],
   );
 
   const handleSocialError = useCallback(

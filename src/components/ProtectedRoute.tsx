@@ -27,13 +27,10 @@ function ProtectedRouteInner({ children }: { children: ReactNode }) {
       return <>{children}</>;
     }
 
-    return (
-      <Navigate
-        to={demo ? "/welcome" : "/login"}
-        replace
-        state={{ from: `${location.pathname}${location.search}` }}
-      />
-    );
+    const nextTarget = `${location.pathname}${location.search}`;
+    const destination = demo ? "/welcome" : `/login?next=${encodeURIComponent(nextTarget)}`;
+
+    return <Navigate to={destination} replace state={{ from: nextTarget }} />;
   }
 
   return <>{children}</>;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
 import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
@@ -8,6 +8,9 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const nextParam = searchParams.get("next");
+  const defaultTarget = nextParam || from || "/";
 
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
@@ -15,8 +18,9 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   const finish = () => {
-    const target = consumeAuthRedirect() ?? from ?? "/";
-    navigate(target, { replace: true });
+    const stored = consumeAuthRedirect();
+    const target = stored ?? defaultTarget;
+    window.location.replace(target);
   };
 
   async function wrap<T>(fn: () => Promise<T>, options?: { autoFinish?: boolean }) {
