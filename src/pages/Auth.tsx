@@ -18,8 +18,7 @@ import { auth, firebaseReady } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
 import { toast } from "@/lib/toast";
-import { setDemoFlag } from "@/lib/demo";
-import { useFlags } from "@/lib/flags";
+import { enterDemo } from "@/lib/demo";
 import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
 import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
 
@@ -38,7 +37,6 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
-  const { flags } = useFlags();
   const demoEnabled = import.meta.env.VITE_DEMO_ENABLED === "true";
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
@@ -153,12 +151,7 @@ const Auth = () => {
 
   const onBrowseDemo = () => {
     if (!demoEnabled) return;
-    try {
-      setDemoFlag();
-      navigate("/home", { replace: true });
-    } catch (error) {
-      console.warn("Failed to enable demo mode", error);
-    }
+    enterDemo();
   };
 
   return (
@@ -276,11 +269,18 @@ const Auth = () => {
             )}
           />
           <div className="mt-6">
-            {(demoEnabled || flags.enableDemo) && (
+            {demoEnabled && (
               <>
-                <Button type="button" variant="secondary" className="w-full" onClick={onBrowseDemo}>
-                  Browse the demo
-                </Button>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                    onClick={onBrowseDemo}
+                    aria-label="Browse the demo"
+                  >
+                    Browse the demo (no signup)
+                  </button>
+                </div>
                 <p className="text-xs text-muted-foreground text-center mt-2">
                   Explore curated sample data. Sign up to unlock scanning, nutrition logging, and AI coaching.
                 </p>

@@ -31,6 +31,41 @@ async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
   return { auth, user };
 }
 
+export async function billingCheckout(plan: "one" | "monthly" | "yearly"): Promise<{ url: string }> {
+  if (!plan) {
+    throw new Error("invalid_plan");
+  }
+  const { user } = await requireAuthContext();
+  const token = await user.getIdToken();
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckHeader();
+  const response = await fetch("/api/billing/checkout", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(appCheckHeaders || {}),
+    },
+    body: JSON.stringify({ plan }),
+    credentials: "include",
+  });
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || !payload || typeof payload.url !== "string") {
+    const error: any = new Error(typeof payload?.error === "string" ? payload.error : `checkout_failed_${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return { url: payload.url };
+}
+
 export function nutritionFnUrl(params?: Record<string, string>) {
   const base = fnUrl("/nutritionSearch");
   if (!base) return "";
@@ -228,6 +263,19 @@ export async function coachChat(payload: { message: string }, options: { signal?
     removeListener?.();
     coachChatInFlight.delete(user.uid);
   }
+}
+
+export async function coachSend(message: string, options: { signal?: AbortSignal } = {}): Promise<string> {
+  const trimmed = message.trim();
+  if (!trimmed) {
+    throw new Error("message_required");
+  }
+  const response = await coachChat({ message: trimmed }, options);
+  const reply = typeof response?.reply === "string" ? response.reply : null;
+  if (!reply) {
+    throw new Error("coach_send_failed");
+  }
+  return reply;
 }
 
 const NUTRITION_SEARCH_TIMEOUT_MS = 6000;

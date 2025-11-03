@@ -1,26 +1,51 @@
-const DEMO_FLAG_KEY = "mbs:demo";
+export const DEMO_KEY = "mbs:demo";
+const DEMO_FLAG_KEY = DEMO_KEY;
 
 export type DemoResult = { ok: true } | { ok: false; code?: string; message?: string };
 
-export function setDemoFlag(): void {
+function setLocalStorageFlag(): void {
+  if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(DEMO_FLAG_KEY, "1");
+    window.localStorage.setItem(DEMO_FLAG_KEY, "1");
+  } catch {
+    /* empty */
+  }
+}
+
+export function setDemoFlag(): void {
+  setLocalStorageFlag();
+}
+
+function clearLocalStorageFlag(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DEMO_FLAG_KEY);
   } catch {
     /* empty */
   }
 }
 
 export function clearDemoFlag(): void {
+  clearLocalStorageFlag();
+}
+
+function queryIndicatesDemo(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    localStorage.removeItem(DEMO_FLAG_KEY);
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get("demo");
+    return value === "1";
   } catch {
-    /* empty */
+    return false;
   }
 }
 
 export function isDemo(): boolean {
+  if (queryIndicatesDemo()) return true;
   try {
-    if (typeof window !== "undefined" && localStorage.getItem(DEMO_FLAG_KEY) === "1") return true;
+    if (typeof window !== "undefined" && window.localStorage.getItem(DEMO_FLAG_KEY) === "1") {
+      return true;
+    }
   } catch {
     /* empty */
   }
@@ -31,11 +56,40 @@ export function isDemo(): boolean {
 export async function startDemo(): Promise<DemoResult> {
   if (isDemo()) return { ok: true };
   try {
-    setDemoFlag();
+    setLocalStorageFlag();
     return { ok: true };
   } catch (err: any) {
     const code = err && typeof err === "object" && "code" in err ? String(err.code) : undefined;
     return { ok: false, code, message: "Demo preview could not start. Please try again." };
+  }
+}
+
+export function enterDemo(): void {
+  setLocalStorageFlag();
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DEMO_FLAG_KEY, "1");
+      try {
+        window.sessionStorage.setItem(DEMO_FLAG_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      window.location.assign("/home");
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function leaveDemo(): void {
+  clearLocalStorageFlag();
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.removeItem(DEMO_FLAG_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.assign("/auth");
   }
 }
 

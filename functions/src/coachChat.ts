@@ -1,223 +1,164 @@
-import { randomUUID } from "node:crypto";
-import type { Request, Response } from "express";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, type Request } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
 
-import { Timestamp, getAuth, getFirestore } from "./firebase.js";
-import { formatCoachReply } from "./coachUtils.js";
-import { ensureRateLimit } from "./http/_middleware.js";
-import { openAiSecretParam } from "./openai/keys.js";
+import { getAuth, getFirestore, FieldValue } from "./firebase.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
-import { chatOnce, OpenAIClientError } from "./openai/client.js";
-import { HttpError, send } from "./util/http.js";
-import { withCors } from "./middleware/cors.js";
-import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { chain } from "./middleware/chain.js";
 
+const ALLOWED_ORIGINS = [
+  "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+];
+
+const openaiKey = process.env.OPENAI_API_KEY || "";
 const db = getFirestore();
-const MAX_TEXT_LENGTH = 800;
-const MIN_TEXT_LENGTH = 1;
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const OPENAI_TIMEOUT_MS = 8000;
 
-type AuthDetails = {
-  uid: string | null;
-};
+async function requireUid(req: Request): Promise<string> {
+  const header = (req.headers["authorization"] || req.headers["Authorization"]) as string | undefined;
+  if (!header || !header.startsWith("Bearer ")) {
+    throw new Error("unauthenticated");
+  }
+  const token = header.slice(7).trim();
+  if (!token) {
+    throw new Error("unauthenticated");
+  }
+  const decoded = await getAuth().verifyIdToken(token);
+  if (!decoded?.uid) {
+    throw new Error("unauthenticated");
+  }
+  return decoded.uid;
+}
 
-function normalizeBody(body: unknown): Record<string, unknown> {
-  if (!body) {
-    return {};
-  }
-  if (typeof body === "object") {
-    return body as Record<string, unknown>;
-  }
+function normalizeMessage(body: unknown): string {
+  if (!body) return "";
   if (typeof body === "string") {
     try {
       const parsed = JSON.parse(body);
-      if (parsed && typeof parsed === "object") {
-        return parsed as Record<string, unknown>;
-      }
+      return normalizeMessage(parsed);
     } catch {
-      // ignore parse errors
+      return body.trim();
     }
   }
-  return {};
-}
-
-function sanitizeMessage(raw: unknown): string {
-  if (typeof raw !== "string") {
-    throw new HttpError(400, "invalid_request", "message_required");
-  }
-  const trimmed = raw.trim();
-  if (trimmed.length < MIN_TEXT_LENGTH) {
-    throw new HttpError(400, "invalid_request", "message_too_short");
-  }
-  if (trimmed.length > MAX_TEXT_LENGTH) {
-    throw new HttpError(400, "invalid_request", "message_too_long");
-  }
-  return trimmed;
-}
-
-function resolveMessage(payload: Record<string, unknown>): string {
-  const candidate = payload.message ?? payload.text;
-  return sanitizeMessage(candidate);
-}
-
-function extractBearerToken(req: Request): string {
-  const header = req.get("authorization") || req.get("Authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
-    throw new HttpError(401, "unauthorized", "missing_bearer");
-  }
-  const token = match[1]?.trim();
-  if (!token) {
-    throw new HttpError(401, "unauthorized", "missing_bearer");
-  }
-  return token;
-}
-
-async function verifyAuthorization(req: Request): Promise<AuthDetails> {
-  const token = extractBearerToken(req);
-
-  try {
-    const decoded = await getAuth().verifyIdToken(token);
-    return { uid: decoded.uid ?? null };
-  } catch (error) {
-    const message = (error as { message?: string })?.message ?? String(error);
-    const code = (error as { code?: string })?.code ?? "";
-    if (
-      code === "app/no-app" ||
-      code === "app/invalid-credential" ||
-      message.includes("credential") ||
-      message.includes("initializeApp")
-    ) {
-      console.warn("no_admin_verify", { reason: message || code || "unknown" });
-      return { uid: null };
+  if (typeof body === "object") {
+    const payload = body as Record<string, unknown>;
+    const message = payload.message ?? payload.text;
+    if (typeof message === "string") {
+      return message.trim();
     }
-
-    console.warn("coach_chat.auth_failed", { message });
-    throw new HttpError(401, "unauthorized", "invalid_token");
   }
+  return "";
 }
 
-async function storeMessage(uid: string, text: string, response: string): Promise<void> {
-  const colRef = db.collection(coachChatCollectionPath(uid));
-  const docRef = await colRef.add({
+async function storeMessage(uid: string, text: string, reply: string): Promise<void> {
+  const path = coachChatCollectionPath(uid);
+  const collection = db.collection(path);
+  const docRef = await collection.add({
     text,
-    response,
-    createdAt: Timestamp.now(),
+    response: reply,
+    createdAt: FieldValue.serverTimestamp(),
     usedLLM: true,
   });
 
-  const snapshot = await colRef.orderBy("createdAt", "desc").offset(10).get();
-  const deletions = snapshot.docs.filter((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.id !== docRef.id);
-  await Promise.allSettled(
-    deletions.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.ref.delete().catch(() => undefined)),
-  );
+  try {
+    const snapshot = await collection.orderBy("createdAt", "desc").offset(10).get();
+    const removals = snapshot.docs.filter(
+      (doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.id !== docRef.id,
+    );
+    await Promise.all(
+      removals.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.ref.delete().catch(() => undefined)),
+    );
+  } catch (error) {
+    logger.warn("coachChat.cleanup_failed", error as Error);
+  }
 }
 
-function handleError(res: Response, error: unknown, uid: string | null, requestId: string, started: number): void {
-  const ms = Date.now() - started;
-  if (error instanceof HttpError) {
-    console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
-    const payload: Record<string, unknown> = { error: error.code };
-    if (error.message && error.message !== error.code) {
-      payload.reason = error.message;
-    }
-    send(res, error.status, payload);
-    return;
+async function generateReply(message: string, uid: string): Promise<string> {
+  if (!openaiKey) {
+    throw new Error("coach_unconfigured");
   }
-
-  if (error instanceof OpenAIClientError) {
-    const payload: Record<string, unknown> = { error: error.code };
-    if (error.code === "openai_missing_key") {
-      payload.error = "openai_disabled";
-    } else if (typeof error.message === "string" && error.message.includes("timeout")) {
-      payload.error = "upstream_unavailable";
-    }
-    console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: error.code, ms, err: error.message });
-    send(res, error.code === "openai_missing_key" ? 501 : error.status, payload);
-    return;
-  }
-
-  const message = error instanceof Error ? error.message : String(error);
-  console.warn({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "openai_failed", ms, err: message });
-  const payload: Record<string, unknown> = { error: "upstream_unavailable" };
-  if (message) {
-    payload.reason = message;
-  }
-  send(res, 502, payload);
-}
-
-async function handleCoachChat(req: Request, res: Response): Promise<void> {
-  if (req.method === "OPTIONS") {
-    send(res, 204, null);
-    return;
-  }
-
-  const startedAt = Date.now();
-  const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
-  let uid: string | null = null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
-    if (req.method !== "POST") {
-      throw new HttpError(405, "method_not_allowed");
-    }
-
-    const auth = await verifyAuthorization(req);
-    uid = auth.uid;
-
-    const payload = normalizeBody(req.body);
-    const message = resolveMessage(payload);
-
-    const limitResult = await ensureRateLimit({
-      key: "coach_chat",
-      identifier: uid ?? "anonymous",
-      limit: 8,
-      windowSeconds: 60,
+    const response = await fetch(OPENAI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.4,
+        user: uid,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are MyBodyScan's AI Coach. Provide concise, encouraging guidance grounded in safe fitness and nutrition best practices. Avoid medical advice and flag injuries to seek professional care.",
+          },
+          { role: "user", content: message },
+        ],
+      }),
+      signal: controller.signal,
     });
 
-    if (!limitResult.allowed) {
-      console.warn({
-        fn: "coachChat",
-        requestId,
-        uid: uid ?? "anonymous",
-        code: "rate_limited",
-        ms: Date.now() - startedAt,
-        err: "limit_reached",
-      });
-      send(res, 429, {
-        error: "rate_limited",
-        retryAfter: limitResult.retryAfterSeconds ?? null,
-      });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      logger.warn("coachChat.openai_non_ok", { status: response.status, body: text.slice(0, 120) });
+      throw new Error("coach_upstream_error");
+    }
+
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const reply = data?.choices?.[0]?.message?.content?.trim();
+    if (!reply) {
+      throw new Error("coach_empty_reply");
+    }
+    return reply;
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw new Error("coach_timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export const coachChat = onRequest({ region: "us-central1", cors: ALLOWED_ORIGINS }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method not allowed");
+    return;
+  }
+
+  try {
+    const uid = await requireUid(req);
+    const message = normalizeMessage(req.body);
+    if (!message) {
+      res.status(400).json({ error: "bad_request" });
       return;
     }
 
-    const replyText = await chatOnce(message, { userId: uid ?? undefined, requestId });
-    const formatted = formatCoachReply(replyText);
+    const reply = await generateReply(message, uid);
+    await storeMessage(uid, message, reply);
 
-    if (uid) {
-      try {
-        await storeMessage(uid, message, formatted);
-      } catch (error) {
-        console.warn({
-          fn: "coachChat",
-          requestId,
-          uid,
-          code: "store_failed",
-          ms: Date.now() - startedAt,
-          err: error instanceof Error ? error.message : String(error),
-        });
-      }
+    res.json({ reply });
+  } catch (error: any) {
+    if (error?.message === "unauthenticated") {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
     }
-
-    console.info({ fn: "coachChat", requestId, uid: uid ?? "anonymous", code: "ok", ms: Date.now() - startedAt });
-    send(res, 200, { message: formatted });
-  } catch (error) {
-    handleError(res, error, uid, requestId, startedAt);
+    if (error?.message === "coach_unconfigured") {
+      res.status(503).json({ error: "TEMP_UNAVAILABLE" });
+      return;
+    }
+    if (error?.message === "coach_timeout") {
+      res.status(503).json({ error: "TEMP_UNAVAILABLE" });
+      return;
+    }
+    logger.error("coachChat.error", error);
+    res.status(503).json({ error: "TEMP_UNAVAILABLE" });
   }
-}
-
-export const coachChat = onRequest(
-  { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
-  (req: Request, res: Response) =>
-    chain(withCors, appCheckSoft)(req, res, () => void handleCoachChat(req, res)),
-);
-
+});
