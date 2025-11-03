@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { httpsCallable } from "firebase/functions";
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { auth, functions, db, firebaseReady } from "@/lib/firebase";
+import { auth, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import { PRICE_IDS, getPaymentFunctionUrl, getPaymentHostingPath, isHostingShimEnabled } from "@/lib/payments";
@@ -18,6 +17,7 @@ import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { nutritionSearch } from "@/lib/api";
 import { apiFetch } from "@/lib/apiFetch";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
+import { call } from "@/lib/callable";
 
 const PRICE_LABELS: Record<string, string> = {
   [PRICE_IDS.ONE_TIME_STARTER]: "ONE_TIME_STARTER",
@@ -173,7 +173,12 @@ export default function SmokeKit() {
   const allowAccess = useMemo(() => {
     if (import.meta.env.DEV) return true;
     if (!claims) return false;
-    return Boolean(claims?.staff === true || claims?.dev === true || claims?.unlimitedCredits === true);
+    return Boolean(
+      claims?.staff === true ||
+        claims?.dev === true ||
+        claims?.unlimited === true ||
+        claims?.unlimitedCredits === true,
+    );
   }, [claims]);
 
   const showDevHelpers = import.meta.env.DEV || claims?.staff === true;
@@ -210,15 +215,20 @@ export default function SmokeKit() {
     }
     setClaimsState({ status: "running" });
     try {
-      const callable = httpsCallable(functions, "refreshClaims");
-      const response = await callable({});
-      const data = (response?.data || {}) as { updated?: boolean; unlimitedCredits?: boolean };
+      const response = await call("refreshClaims", {});
+      const data = (response?.data || {}) as { ok?: boolean; claims?: { unlimited?: boolean; unlimitedCredits?: boolean } };
       const refreshed = await refreshClaimsHook(true);
+      const updated = Boolean(data.claims && Object.keys(data.claims).length);
+      const unlimitedClaim =
+        data.claims?.unlimited === true ||
+        data.claims?.unlimitedCredits === true ||
+        refreshed?.unlimited === true ||
+        refreshed?.unlimitedCredits === true;
       setClaimsState({
         status: "success",
-        message: data.updated ? "Claims updated" : "Claims already up to date",
-        unlimited: data.unlimitedCredits ?? (refreshed?.unlimitedCredits === true),
-        updated: data.updated,
+        message: updated ? "Claims updated" : "Claims already up to date",
+        unlimited: unlimitedClaim,
+        updated,
       });
     } catch (error: any) {
       setClaimsState({ status: "error", error: error?.code || error?.message || "claim_error" });

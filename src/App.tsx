@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
-import { getAuth } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
@@ -65,6 +65,7 @@ import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
 import PolicyGate from "./components/PolicyGate";
 import { DemoModeProvider } from "./components/DemoModeProvider";
+import { useDemoWireup } from "./hooks/useDemo";
 import MealsSearch from "./pages/MealsSearch";
 import BarcodeScan from "./pages/BarcodeScan";
 import MealsHistory from "./pages/MealsHistory";
@@ -83,7 +84,8 @@ import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
-import { disableDemoEverywhere } from "@/lib/demoState";
+import { auth } from "@/lib/firebase";
+import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
 
@@ -115,15 +117,25 @@ const withPublicLayout = (content: ReactNode, fallback?: ReactNode) => (
   </PageSuspense>
 );
 
+const DemoWireup = () => {
+  useDemoWireup();
+  return null;
+};
+
 const App = () => {
   useAuthBootstrap();
 
   useEffect(() => {
-    const auth = getAuth();
-    const off = auth.onAuthStateChanged((u) => {
-      if (u) disableDemoEverywhere();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          await refreshClaimsAndAdminBoost();
+        } catch (error) {
+          console.warn("claims_refresh_failed", error);
+        }
+      }
     });
-    return () => off();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -151,6 +163,7 @@ const App = () => {
             <NetBanner />
             <BrowserRouter>
               <DemoModeProvider>
+                <DemoWireup />
                 <OnboardingRedirectMBS>
                   <div id="main-content" role="main">
                     <Suspense fallback={null}>

@@ -14,105 +14,84 @@ import {
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
-type FirebaseConfig = {
-  apiKey: string;
-  authDomain?: string;
-  projectId: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-  appId?: string;
-  measurementId?: string;
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? env.VITE_FIREBASE_API_KEY ?? "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? env.VITE_FIREBASE_AUTH_DOMAIN ?? undefined,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? env.VITE_FIREBASE_PROJECT_ID ?? "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? env.VITE_FIREBASE_STORAGE_BUCKET ?? undefined,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? undefined,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? env.VITE_FIREBASE_APP_ID ?? undefined,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? env.VITE_FIREBASE_MEASUREMENT_ID ?? undefined,
 };
 
-const firebaseConfig: FirebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || "",
-  projectId: env.VITE_FIREBASE_PROJECT_ID || "",
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || undefined,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || undefined,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || undefined,
-  appId: env.VITE_FIREBASE_APP_ID || undefined,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || undefined,
-};
+type FirebaseConfig = typeof firebaseConfig;
 
-let appInstance: FirebaseApp | null = null;
-let authInstance: Auth | null = null;
-let persistenceReady: Promise<void> = Promise.resolve();
-let firestoreInstance: Firestore | null = null;
-let functionsInstance: Functions | null = null;
-let storageInstance: FirebaseStorage | null = null;
-let loggedInfo = false;
+const appInstance: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig as FirebaseConfig);
 
-export function initFirebase(): { app: FirebaseApp; auth: Auth } {
-  if (!appInstance) {
-    const existing = getApps();
-    if (existing.length > 0) {
-      appInstance = existing[0]!;
-    } else {
-      if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        console.warn("[firebase] Missing Firebase config: apiKey or projectId");
-      }
-      appInstance = initializeApp(firebaseConfig as any);
-    }
+// Enable App Check debug token for QA if provided
+const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN;
+if (debugToken) {
+  try {
+    (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+  } catch {
+    // ignore
   }
-
-  if (!authInstance) {
-    authInstance = getAuth(appInstance);
-    persistenceReady = setPersistence(authInstance, browserLocalPersistence).catch(() => {
-      /* non-fatal */
-    });
-  }
-
-  return { app: appInstance!, auth: authInstance! };
 }
 
-const { app: firebaseApp, auth } = initFirebase();
+try {
+  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
+  if (siteKey && siteKey !== "__DISABLE__") {
+    initializeAppCheck(appInstance, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } else {
+    console.warn(
+      "AppCheck site key missing or disabled; running without App Check (server enforcement should remain optional).",
+    );
+  }
+} catch (error) {
+  console.warn("AppCheck init failed", error);
+}
 
-export const app = firebaseApp;
+export const app = appInstance;
 
-const firestoreSingleton = getFirestore(firebaseApp);
-const functionsSingleton = getFunctions(firebaseApp, "us-central1");
-const storageSingleton = getStorage(firebaseApp);
+export const auth: Auth = getAuth(appInstance);
+let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
 
-firestoreInstance = firestoreSingleton;
-functionsInstance = functionsSingleton;
-storageInstance = storageSingleton;
+const firestoreSingleton: Firestore = getFirestore(appInstance);
+const functionsRegion = import.meta.env.VITE_FIREBASE_REGION ?? env.VITE_FIREBASE_REGION ?? "us-central1";
+const functionsSingleton: Functions = getFunctions(appInstance, functionsRegion);
+const storageSingleton: FirebaseStorage = getStorage(appInstance);
 
 export const db: Firestore = firestoreSingleton;
 export const functions: Functions = functionsSingleton;
 export const storage: FirebaseStorage = storageSingleton;
 
 export async function firebaseReady(): Promise<void> {
-  await persistenceReady.catch(() => {});
+  await persistenceReady.catch(() => undefined);
 }
 
 export function getFirebaseApp(): FirebaseApp {
-  return initFirebase().app;
+  return appInstance;
 }
 
 export function getFirebaseAuth(): Auth {
-  return initFirebase().auth;
+  return auth;
 }
 
 export function getFirebaseFirestore(): Firestore {
-  if (!firestoreInstance) {
-    firestoreInstance = getFirestore(initFirebase().app);
-  }
-  return firestoreInstance;
+  return firestoreSingleton;
 }
 
 export function getFirebaseFunctions(): Functions {
-  if (!functionsInstance) {
-    functionsInstance = getFunctions(initFirebase().app, "us-central1");
-  }
-  return functionsInstance;
+  return functionsSingleton;
 }
 
 export function getFirebaseStorage(): FirebaseStorage {
-  if (!storageInstance) {
-    storageInstance = getStorage(initFirebase().app);
-  }
-  return storageInstance;
+  return storageSingleton;
 }
 
 export function getFirebaseConfig() {
@@ -121,12 +100,31 @@ export function getFirebaseConfig() {
 
 export const firebaseApiKey = firebaseConfig.apiKey;
 
+let loggedInfo = false;
 export function logFirebaseRuntimeInfo(): void {
   if (!import.meta.env?.DEV || loggedInfo) return;
   const { projectId: pid, authDomain } = firebaseConfig;
   console.info(`[firebase] project=${pid} authDomain=${authDomain}`);
   loggedInfo = true;
 }
+
+const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
+  if (value == null) return fallback;
+  const normalized = value.toString().trim().toLowerCase();
+  if (!normalized) return fallback;
+  if (["false", "0", "off", "no"].includes(normalized)) return false;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  return fallback;
+};
+
+export const providerFlags = {
+  google: parseFlag(import.meta.env.VITE_ENABLE_GOOGLE ?? env.VITE_ENABLE_GOOGLE, true),
+  apple: parseFlag(import.meta.env.VITE_ENABLE_APPLE ?? env.VITE_ENABLE_APPLE, true),
+  email: parseFlag(import.meta.env.VITE_ENABLE_EMAIL ?? env.VITE_ENABLE_EMAIL, true),
+  demo: parseFlag(import.meta.env.VITE_ENABLE_DEMO ?? env.VITE_ENABLE_DEMO, true),
+};
+
+export const envFlags = providerFlags;
 
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
@@ -142,23 +140,3 @@ export async function signInWithApple() {
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
 }
-
-const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
-  if (value == null) return fallback;
-  const normalized = value.toString().trim().toLowerCase();
-  if (!normalized) return fallback;
-  if (["false", "0", "off", "no"].includes(normalized)) return false;
-  if (["true", "1", "yes", "on"].includes(normalized)) return true;
-  return fallback;
-};
-
-export const providerFlags = {
-  google: parseFlag(env.VITE_ENABLE_GOOGLE, true),
-  apple: parseFlag(env.VITE_ENABLE_APPLE, true),
-  email: parseFlag(env.VITE_ENABLE_EMAIL, true),
-  demo: parseFlag(env.VITE_ENABLE_DEMO, true),
-};
-
-export const envFlags = providerFlags;
-
-export { auth, firebaseApp, firebaseConfig };

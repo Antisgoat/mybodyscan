@@ -16,7 +16,8 @@ export default function CreditsBadge(props: Props) {
     if (loading) return "—";
     if (!user) return "—";
     const dev = claims?.dev === true;
-    const unlimited = dev || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity;
+    const unlimitedClaim = claims?.unlimited === true || claims?.unlimitedCredits === true;
+    const unlimited = dev || unlimitedClaim || creditsUnlimited || credits === Infinity;
     if (unlimited) return "∞";
     const n = Number.isFinite(credits) ? Math.max(0, Math.floor(Number(credits))) : 0;
     return String(n);
@@ -24,7 +25,7 @@ export default function CreditsBadge(props: Props) {
 
   const title = (() => {
     if (!user) return "Not signed in";
-    if (claims?.dev === true || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity) {
+    if (claims?.dev === true || claims?.unlimited === true || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity) {
       return "Unlimited credits";
     }
     return "Available credits";

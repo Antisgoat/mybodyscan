@@ -294,7 +294,7 @@ const Settings = () => {
       const claims = await refreshClaimsHook(true);
 
       let description: string | undefined;
-      if (claims?.unlimitedCredits === true) {
+      if (claims?.unlimited === true || claims?.unlimitedCredits === true) {
         description = "Unlimited credits active.";
       } else if (typeof claims?.credits === "number" && Number.isFinite(claims.credits)) {
         description = `Credits remaining: ${claims.credits}`;

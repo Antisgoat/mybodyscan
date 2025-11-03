@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
-import { sanitizeSearchTerm, searchFoods, type FoodItem as SearchFoodItem } from "@/lib/nutrition";
+import type { FoodItem as SearchFoodItem } from "@/lib/nutrition";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import {
   saveFavorite,
@@ -27,6 +27,9 @@ import { useAuthUser } from "@/lib/auth";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";
+import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
+import { call } from "@/lib/callable";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -81,33 +84,62 @@ function findCupServing(servings: ServingOption[]): ServingOption | undefined {
   return servings.find((option) => option.label.toLowerCase().includes("cup"));
 }
 
-function adaptSearchItem(raw: SearchFoodItem): FoodItem {
+function adaptSearchItem(raw: any): FoodItem {
+  const calories = Number(raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? 0) || 0;
+  const protein = Number(raw?.protein ?? raw?.protein_g ?? 0) || 0;
+  const carbs = Number(raw?.carbs ?? raw?.carbs_g ?? 0) || 0;
+  const fat = Number(raw?.fat ?? raw?.fat_g ?? 0) || 0;
+  const sourceRaw = typeof raw?.source === "string" ? raw.source : undefined;
+  const source = sourceRaw
+    ? sourceRaw
+    : raw?.provider === "OFF"
+      ? "Open Food Facts"
+      : "USDA";
+
   const basePer100g = {
-    kcal: raw.calories ?? 0,
-    protein: raw.protein ?? 0,
-    carbs: raw.carbs ?? 0,
-    fat: raw.fat ?? 0,
+    kcal: calories,
+    protein,
+    carbs,
+    fat,
   };
+
   const perServing = {
-    kcal: raw.calories ?? null,
-    protein_g: raw.protein ?? null,
-    carbs_g: raw.carbs ?? null,
-    fat_g: raw.fat ?? null,
+    kcal: calories || null,
+    protein_g: protein || null,
+    carbs_g: carbs || null,
+    fat_g: fat || null,
   };
+
+  const servings: ServingOption[] = [
+    {
+      id: "100g",
+      label: "100 g",
+      grams: 100,
+      isDefault: true,
+    },
+  ];
+
+  if (typeof raw?.serving === "string" && raw.serving.trim().length) {
+    servings.push({
+      id: "serving",
+      label: raw.serving.trim(),
+      grams: Number(raw.servingGrams ?? 0) || 0,
+      isDefault: false,
+    });
+  }
+
+  const fallbackId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `food-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   return {
-    id: raw.id,
-    name: raw.name,
-    brand: raw.brand ?? null,
-    source: raw.source === "usda" ? "USDA" : "Open Food Facts",
+    id: raw?.id ?? fallbackId,
+    name: raw?.name ?? "Unknown food",
+    brand: raw?.brand ?? raw?.brandOwner ?? raw?.brands ?? null,
+    source,
     basePer100g,
-    servings: [
-      {
-        id: "100g",
-        label: "100 g",
-        grams: 100,
-        isDefault: true,
-      },
-    ],
+    servings,
     serving: { qty: 1, unit: "serving", text: "1 serving" },
     per_serving: perServing,
     per_100g: perServing,
@@ -261,7 +293,7 @@ export default function MealsSearch() {
   const [logging, setLogging] = useState(false);
   const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
-  const abortRef = useRef<AbortController | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
 
   useEffect(() => {
@@ -280,10 +312,17 @@ export default function MealsSearch() {
   }, [authReady, uid]);
 
   useEffect(() => {
-    const term = sanitizeSearchTerm(debouncedQuery);
+    if (demo) {
+      setLoading(false);
+      setResults([]);
+      setPrimarySource(null);
+      setStatus("Search is disabled in demo. Sign in to use.");
+      setSearchWarning("Search is disabled in demo. Sign in to use.");
+      return;
+    }
+
+    const term = sanitizeFoodItem(debouncedQuery);
     if (!term) {
-      abortRef.current?.abort();
-      abortRef.current = null;
       setResults([]);
       setPrimarySource(null);
       setLoading(false);
@@ -292,53 +331,114 @@ export default function MealsSearch() {
       return;
     }
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+    let cancelled = false;
     setLoading(true);
     setSearchWarning(null);
     setStatus("Searching…");
 
     (async () => {
       try {
-        const result = await searchFoods(term, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        setStatus(result.status || "Done.");
-        const items = (result.items ?? []).map(adaptSearchItem);
+        const response = await call("nutritionSearch", { q: term });
+        if (cancelled) return;
+        const payload = (response?.data || {}) as { items?: any[] };
+        const items = (payload.items ?? []).map(adaptSearchItem);
         setResults(items);
-        setPrimarySource(items.length ? items[0]!.source : null);
-        setSearchWarning(null);
-      } catch (error) {
-        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
-        console.error("nutrition_search_error", error);
+        setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts" | null) : null);
+        setStatus(items.length ? `Found ${items.length} item${items.length === 1 ? "" : "s"}` : "No matches found.");
+        setSearchWarning(items.length ? null : "No foods matched. Try a different term.");
+      } catch (error: any) {
+        if (cancelled) return;
+        console.error("nutritionSearch error", error);
         toast(
           buildErrorToast(error, {
-            fallback: { title: "Search failed", description: "Try another food", variant: "destructive" },
+            fallback: { title: "Search failed", description: "Food database temporarily busy; try again.", variant: "destructive" },
           }),
         );
         setResults([]);
         setPrimarySource(null);
-        setStatus("Database busy; try again.");
-        setSearchWarning("Database busy; try again.");
+        const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
+        const message = errMessage || "Food database temporarily busy; try again.";
+        setStatus(message);
+        setSearchWarning(message);
+        try {
+          await call("telemetryLog", {
+            fn: "nutritionSearch",
+            code: error?.code || "client_error",
+            message: errMessage,
+          });
+        } catch (telemetryError) {
+          console.warn("telemetry_log_failed", telemetryError);
+        }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setLoading(false);
         }
       }
     })();
 
     return () => {
-      controller.abort();
+      cancelled = true;
     };
-  }, [debouncedQuery, toast]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
+  }, [debouncedQuery, demo, toast]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
     setRecents(next);
     storeRecents(next);
+  };
+
+  const handleBarcodeSuccess = async (code: string) => {
+    setScannerOpen(false);
+    const normalized = sanitizeFoodItem(code);
+    if (!normalized) {
+      setStatus("Invalid barcode");
+      setSearchWarning("Invalid barcode");
+      return;
+    }
+    setLoading(true);
+    setStatus(`Looking up barcode ${normalized}…`);
+    setSearchWarning(null);
+    try {
+      const response = await call("nutritionBarcode", { upc: normalized });
+      const item = (response?.data as any)?.item;
+      if (item) {
+        const adapted = adaptSearchItem(item);
+        setResults(adapted ? [adapted] : []);
+        setPrimarySource(adapted?.source === "Open Food Facts" ? "Open Food Facts" : "USDA");
+        setStatus(adapted ? "Barcode match found" : "No product data returned.");
+        setSearchWarning(adapted ? null : "No product data returned.");
+      } else {
+        setResults([]);
+        setPrimarySource(null);
+        setStatus("Product not found");
+        setSearchWarning("Product not found");
+      }
+    } catch (error: any) {
+      console.error("nutritionBarcode error", error);
+      const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
+      const message = errMessage || "Scan failed. Try again.";
+      setResults([]);
+      setPrimarySource(null);
+      setStatus(message);
+      setSearchWarning(message);
+      try {
+        await call("telemetryLog", {
+          fn: "nutritionBarcode",
+          code: error?.code || "client_error",
+          message: errMessage,
+        });
+      } catch (telemetryError) {
+        console.warn("telemetry_log_failed", telemetryError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBarcodeError = (message: string) => {
+    setScannerOpen(false);
+    setStatus(message);
+    setSearchWarning(message);
   };
 
   const toggleFavorite = async (item: FoodItem) => {
@@ -448,14 +548,32 @@ export default function MealsSearch() {
             placeholder="Search chicken breast, oatmeal, whey…"
             className="flex-1"
             data-testid="nutrition-search"
+            disabled={demo}
+            title={demo ? "Search is disabled in demo" : undefined}
           />
-          <Button type="button" variant="outline" asChild>
-            <a href="/barcode">
-              <Barcode className="mr-1 h-4 w-4" />
-              Scan
-            </a>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setScannerOpen(true)}
+            disabled={demo || loading}
+            title={demo ? "Scan is disabled in demo" : undefined}
+          >
+            <Barcode className="mr-1 h-4 w-4" />
+            Scan
           </Button>
         </form>
+        {demo && (
+          <p className="text-xs text-muted-foreground">Search is disabled in demo. Sign in to use.</p>
+        )}
+
+        <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Scan a barcode</DialogTitle>
+            </DialogHeader>
+            <BarcodeScanner onResult={handleBarcodeSuccess} onError={handleBarcodeError} />
+          </DialogContent>
+        </Dialog>
 
         {favorites.length > 0 && (
           <Card>

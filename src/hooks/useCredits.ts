@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, db, functions as firebaseFunctions, getFirebaseConfig } from "@/lib/firebase";
+import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
+import { call } from "@/lib/callable";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -34,8 +34,7 @@ export function useCredits() {
           if (refreshAttemptRef.current !== u.uid) {
             refreshAttemptRef.current = u.uid;
             try {
-              const refresh = httpsCallable(firebaseFunctions, "refreshClaims");
-              await refresh();
+              await call("refreshClaims");
               token = await u.getIdTokenResult(true);
             } catch (refreshError) {
               if (import.meta.env.DEV) {
@@ -43,7 +42,7 @@ export function useCredits() {
               }
             }
           }
-          const hasUnlimited = token.claims.unlimitedCredits === true;
+          const hasUnlimited = token.claims.unlimitedCredits === true || token.claims.unlimited === true;
           setUnlimited(hasUnlimited);
         }
       },
@@ -92,7 +91,7 @@ export function useCredits() {
       error,
       uid,
       projectId,
-      unlimited: true,
+    unlimited: true,
       remaining: Infinity,
       used: 0,
       refresh,

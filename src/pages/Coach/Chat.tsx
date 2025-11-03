@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { httpsCallable } from "firebase/functions";
 import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { BottomNav } from "@/components/BottomNav";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
@@ -12,11 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { functions } from "@/lib/firebase";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { coachSend } from "@/lib/api";
+import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -87,8 +85,6 @@ export default function CoachChatPage() {
   const [coachError, setCoachError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const pendingRef = useRef(false);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
 
@@ -120,8 +116,6 @@ export default function CoachChatPage() {
       // ignore
     }
   }, [recognizer]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -178,7 +172,7 @@ export default function CoachChatPage() {
   const showPlanMissing = !demo && !plan;
 
   const handleSend = async () => {
-    if (pendingRef.current || pending) {
+    if (pending) {
       return;
     }
     if (!demo && !demoGuard("coach chat")) {
@@ -209,14 +203,11 @@ export default function CoachChatPage() {
       return;
     }
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    pendingRef.current = true;
     setPending(true);
     setCoachError(null);
     try {
-      const answer = await coachSend(sanitized, { signal: controller.signal });
+      const response = await call("coachChat", { message: sanitized });
+      const answer = (response?.data as any)?.text ?? "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -224,54 +215,25 @@ export default function CoachChatPage() {
         response: answer,
         createdAt: new Date(),
         usedLLM: true,
-      };
+      } satisfies ChatMessage;
       setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
-      console.error("coach_send_error", error);
-      if (error?.name === "AbortError") {
-        setCoachError(null);
-      } else if (error?.code === "demo_blocked") {
-        toast({
-          title: "Demo is read-only",
-          description: "Sign up to chat with the coach.",
+      console.error("coachChat error", error);
+      const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
+      const message = errMessage || "Coach unavailable";
+      setCoachError(message);
+      try {
+        await call("telemetryLog", {
+          fn: "coachChat",
+          code: error?.code || "client_error",
+          message: errMessage,
         });
-        setCoachError(null);
-      } else if (error?.code === "coach_chat_in_flight") {
-        setCoachError("Coach is already processing another message. Please wait.");
-      } else {
-        const status = typeof error?.status === "number" ? error.status : null;
-        const errorCode = typeof error?.message === "string" ? error.message : typeof error?.code === "string" ? error.code : null;
-
-        if (errorCode === "coach_unconfigured") {
-          const message = import.meta.env.DEV
-            ? "Coach not available (code=coach_unconfigured)."
-            : "Coach not available.";
-          setCoachError(message);
-        } else if (errorCode === "coach_timeout") {
-          setCoachError("Coach timed out. Please try again in a few seconds.");
-        } else if (errorCode === "coach_unavailable") {
-          setCoachError("Coach is temporarily unavailable; please try again soon.");
-        } else if (status !== null && status >= 400 && status < 500) {
-          const message = errorCode || `Request failed (${status})`;
-          setCoachError(message);
-        } else {
-          toast(
-            buildErrorToast(error, {
-              fallback: { title: "Message failed", description: "Try again shortly.", variant: "destructive" },
-            }),
-          );
-        }
+      } catch (telemetryError) {
+        console.warn("telemetry_log_failed", telemetryError);
       }
     } finally {
-      pendingRef.current = false;
-      abortRef.current = null;
       setPending(false);
     }
-  };
-
-  const handleCancelSend = () => {
-    if (!pendingRef.current) return;
-    abortRef.current?.abort();
   };
 
   const regeneratePlan = async () => {
@@ -285,8 +247,7 @@ export default function CoachChatPage() {
     }
     setRegenerating(true);
     try {
-      const callable = httpsCallable(functions, "generatePlan");
-      await callable({});
+      await call("generatePlan", {});
       toast({ title: "Weekly plan updated", description: "Your coach plan was regenerated." });
     } catch (error) {
       toast(
@@ -398,19 +359,9 @@ export default function CoachChatPage() {
                       {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
                     </Button>
                     {pending ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={handleCancelSend}
-                          disabled={!pending}
-                          data-testid="coach-cancel-button"
-                        >
-                          Cancel
-                        </Button>
-                        <Button disabled data-testid="coach-send-button">
-                          Sending...
-                        </Button>
-                      </>
+                      <Button disabled data-testid="coach-send-button">
+                        Sending...
+                      </Button>
                     ) : readOnlyDemo ? (
                       <Button asChild data-testid="coach-send-button">
                         <a href={signUpHref}>Sign up to chat</a>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { bootstrapSystem } from "@/lib/system";
+import { call } from "./callable";
 
 export type UserClaims = {
   dev?: boolean;
@@ -23,6 +24,37 @@ async function readClaims(u: User | null, force: boolean): Promise<UserClaims> {
   } catch {
     return null;
   }
+}
+
+export async function refreshClaimsAndAdminBoost() {
+  try {
+    await call("refreshClaims");
+  } catch (error) {
+    console.warn("refreshClaims failed", error);
+  }
+
+  await auth.currentUser?.getIdToken(true);
+
+  const info = await auth.currentUser?.getIdTokenResult();
+  const isAdmin = !!info?.claims?.admin;
+  const isUnlimited = !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
+
+  const email = auth.currentUser?.email || "";
+  if (!isUnlimited && email.toLowerCase() === "developer@adlrlabs.com") {
+    try {
+      await call("grantUnlimitedCredits");
+    } catch (error) {
+      console.warn("grantUnlimitedCredits failed", error);
+    }
+    try {
+      await call("refreshClaims");
+    } catch (error) {
+      console.warn("refreshClaims retry failed", error);
+    }
+    await auth.currentUser?.getIdToken(true);
+  }
+
+  return { admin: isAdmin, unlimited: isUnlimited } as any;
 }
 
 /** Refresh claims on the current user. Force defaults to true for compatibility. */
