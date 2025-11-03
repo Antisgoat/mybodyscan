@@ -2,12 +2,22 @@ import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
+import { ensureAppCheck } from "@/lib/appCheck";
+import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import type { Auth, User } from "firebase/auth";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
 import { isDemo } from "./demo";
 import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
 import { authedJsonPost } from "./authedFetch";
+
+export async function apiFetch(path: string, init: RequestInit = {}) {
+  const token = await ensureAppCheck();
+  const headers = new Headers(init.headers ?? undefined);
+  if (token) headers.set("X-Firebase-AppCheck", token);
+  headers.set("Content-Type", headers.get("Content-Type") || "application/json");
+  const credentials = init.credentials ?? "include";
+  return fetch(path, { ...init, headers, credentials });
+}
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -68,10 +78,9 @@ export async function billingCheckout(
 
   const token = await user.getIdToken();
   const url = fnUrl("/billing/create-checkout-session");
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ priceId, mode: CHECKOUT_MODES[plan] }),
@@ -178,7 +187,7 @@ export async function nutritionSearch(
     }
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await apiFetch(url.toString(), {
     method: "GET",
     signal: init?.signal,
     headers,
@@ -201,6 +210,16 @@ export async function nutritionSearch(
 
   if (payload?.items && !payload.results) {
     payload.results = payload.items;
+  }
+
+  if (Array.isArray(payload?.results)) {
+    payload.results = payload.results
+      .map((item) => {
+        const sanitized = sanitizeFoodItem(item);
+        if (!sanitized) return null;
+        return { ...item, ...sanitized };
+      })
+      .filter((item): item is Record<string, unknown> => Boolean(item));
   }
 
   return payload ?? { results: [] };
@@ -235,7 +254,7 @@ export async function nutritionBarcodeLookup(
     }
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await apiFetch(url.toString(), {
     ...init,
     headers,
     method: "GET",
@@ -260,6 +279,16 @@ export async function nutritionBarcodeLookup(
     payload.results = payload.items;
   }
 
+  if (Array.isArray(payload?.results)) {
+    payload.results = payload.results
+      .map((item) => {
+        const sanitized = sanitizeFoodItem(item);
+        if (!sanitized) return null;
+        return { ...item, ...sanitized };
+      })
+      .filter((item): item is Record<string, unknown> => Boolean(item));
+  }
+
   return payload ?? {};
 }
 
@@ -282,7 +311,7 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify({ question: trimmed, demo: isDemo() }),
@@ -461,11 +490,11 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
           authError.code = "auth_required";
           throw authError;
         }
-        const fallbackAppCheck = await getAppCheckHeader();
-        if (fallbackAppCheck["X-Firebase-AppCheck"]) {
-          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheck["X-Firebase-AppCheck"]);
+        const fallbackAppCheckToken = await ensureAppCheck();
+        if (fallbackAppCheckToken) {
+          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
         }
-        const response = await fetch(fallbackBase, {
+        const response = await apiFetch(fallbackBase, {
           method: "GET",
           signal: controller.signal,
           headers: fallbackHeaders,
@@ -491,8 +520,6 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
   }
 }
 
-const APP_CHECK_PATH_PREFIXES = ["/api/scan", "/api/coach", "/api/nutrition"] as const;
-
 async function authedFetch(path: string, init?: RequestInit) {
   const url = fnUrl(path);
   if (!url) {
@@ -501,20 +528,16 @@ async function authedFetch(path: string, init?: RequestInit) {
   }
   const { user } = await requireAuthContext();
   const t = await user.getIdToken();
-  const needsAppCheck = APP_CHECK_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
-  let appCheckHeaders: Record<string, string> = {};
-  if (needsAppCheck) {
-    await ensureAppCheck();
-    appCheckHeaders = await getAppCheckHeader();
+  const headers = new Headers(init?.headers ?? undefined);
+  headers.set("Content-Type", headers.get("Content-Type") || "application/json");
+  headers.set("Authorization", `Bearer ${t}`);
+  const appCheckToken = await ensureAppCheck();
+  if (appCheckToken) {
+    headers.set("X-Firebase-AppCheck", appCheckToken);
   }
-  return fetch(url, {
+  return apiFetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${t}`,
-      ...appCheckHeaders,
-      ...(init?.headers || {}),
-    },
+    headers,
   });
 }
 
@@ -526,16 +549,10 @@ export async function startScan(params?: Record<string, unknown>) {
   }
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckHeader();
-  const response = await fetch("/api/scan/start", {
+  const response = await apiFetch("/api/scan/start", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-      ...(appCheckHeaders["X-Firebase-AppCheck"]
-        ? { "X-Firebase-AppCheck": appCheckHeaders["X-Firebase-AppCheck"] }
-        : {}),
     },
     body: JSON.stringify(params ?? {}),
   });
@@ -621,10 +638,9 @@ export async function refundIfNoResult(scanId: string) {
 export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await fetch("/api/createCheckout", {
+  const response = await apiFetch("/api/createCheckout", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ kind, credits }),
@@ -640,10 +656,9 @@ export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual"
 export async function createCustomerPortal() {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await fetch(fnUrl("/billing/portal"), {
+  const response = await apiFetch(fnUrl("/billing/portal"), {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({}),

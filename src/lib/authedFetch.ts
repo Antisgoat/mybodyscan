@@ -1,42 +1,23 @@
 import { getAuth } from "firebase/auth";
-import { ensureAppCheck, getAppCheckHeader } from "@/lib/appCheck";
+import { apiFetch } from "@/lib/api";
 
 export type AuthedJsonOptions = {
   signal?: AbortSignal;
 };
 
-async function resolveAppCheckToken(): Promise<string | null> {
-  try {
-    await ensureAppCheck();
-    const header = await getAppCheckHeader();
-    const token = header?.["X-Firebase-AppCheck"];
-    return typeof token === "string" && token.length > 0 ? token : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function authedJsonPost<T>(path: string, body: unknown, options: AuthedJsonOptions = {}): Promise<T> {
   const auth = getAuth();
   const user = auth.currentUser;
   const idToken = user ? await user.getIdToken() : null;
-  const appCheckToken = await resolveAppCheckToken();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers = new Headers({ "Content-Type": "application/json" });
   if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
-  if (appCheckToken) {
-    headers["X-Firebase-AppCheck"] = appCheckToken;
+    headers.set("Authorization", `Bearer ${idToken}`);
   }
 
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     method: "POST",
     headers,
     body: JSON.stringify(body ?? {}),
-    credentials: "include",
     signal: options.signal,
   });
 

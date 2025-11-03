@@ -12,9 +12,10 @@ import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
+import { apiFetch } from "@/lib/api";
+import { fnUrl } from "@/lib/env";
 
 const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
-const FUNCTIONS_ORIGIN = (import.meta.env.VITE_FUNCTIONS_ORIGIN ?? "").trim().replace(/\/$/, "");
 const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
 const PRICE_ID_MONTHLY = (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim();
 const PRICE_ID_YEARLY = (import.meta.env.VITE_PRICE_YEARLY ?? "").trim();
@@ -80,15 +81,6 @@ export default function Plans() {
       return;
     }
 
-    if (!FUNCTIONS_ORIGIN) {
-      toast({
-        title: "Checkout unavailable",
-        description: "Billing endpoint not configured.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
@@ -97,10 +89,9 @@ export default function Plans() {
         throw new Error("Stripe unavailable");
       }
       const token = await user.getIdToken();
-      const response = await fetch(`${FUNCTIONS_ORIGIN}/billing/create-checkout-session`, {
+      const response = await apiFetch(fnUrl("/billing/create-checkout-session"), {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ priceId: plan.priceId, mode: plan.mode }),

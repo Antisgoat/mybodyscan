@@ -1,7 +1,7 @@
-const STORAGE_KEY = 'mbs.demo';
+export const DEMO_KEY = "mbs.demo";
 
-function safeLocalStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
+function getStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
   try {
     return window.localStorage;
   } catch {
@@ -10,42 +10,42 @@ function safeLocalStorage(): Storage | null {
 }
 
 function broadcastDemoChange(enabled: boolean) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
-    window.dispatchEvent(
-      new CustomEvent('mbs:demo-change', { detail: { enabled } }),
-    );
+    window.dispatchEvent(new CustomEvent("mbs:demo-change", { detail: { enabled } }));
   } catch {
-    // ignore
+    /* noop */
   }
 }
 
-export const DEMO_KEY = 'mbs.demo';
-
 export const isDemo = (): boolean => {
-  const storage = safeLocalStorage();
+  const storage = getStorage();
   if (!storage) return false;
-  return storage.getItem(STORAGE_KEY) === '1';
+  try {
+    return storage.getItem(DEMO_KEY) === "1";
+  } catch {
+    return false;
+  }
 };
 
 export const enableDemo = (): void => {
-  const storage = safeLocalStorage();
+  const storage = getStorage();
   if (!storage) return;
   try {
-    storage.setItem(STORAGE_KEY, '1');
+    storage.setItem(DEMO_KEY, "1");
     broadcastDemoChange(true);
   } catch {
-    // ignore persistence errors
+    /* ignore */
   }
 };
 
 export const disableDemo = (): void => {
-  const storage = safeLocalStorage();
+  const storage = getStorage();
   if (!storage) return;
   try {
-    storage.removeItem(STORAGE_KEY);
+    storage.removeItem(DEMO_KEY);
     broadcastDemoChange(false);
   } catch {
-    // ignore persistence errors
+    /* ignore */
   }
 };

@@ -13,7 +13,7 @@ function ProtectedRouteInner({ children }: { children: ReactNode }) {
   const { user, authReady } = useAuthUser();
   const location = useLocation();
   const demoContext = useDemoMode();
-  const demo = demoContext || isDemo();
+  const demo = !user && (demoContext || isDemo());
   const allowDemo = demo && isPathAllowedInDemo(location.pathname);
 
   if (!authReady) {

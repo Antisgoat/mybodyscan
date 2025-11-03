@@ -5,6 +5,7 @@ import express from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { billingRouter } from "./billing.js";
 import { coachRouter } from "./coach.js";
+import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { nutritionRouter } from "./nutrition.js";
 import { systemRouter } from "./system.js";
 
@@ -30,6 +31,7 @@ export { deleteMyAccount, exportMyData } from "./account.js";
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
+app.use(allowCorsAndOptionalAppCheck);
 app.use(billingRouter);
 app.use(coachRouter);
 app.use(nutritionRouter);

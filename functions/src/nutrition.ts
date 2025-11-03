@@ -5,7 +5,7 @@ import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { cors, requireAuth, verifyAppCheckStrict } from "./http.js";
+import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckStrict } from "./http.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -508,7 +508,7 @@ function dedupe(items: ApiNutritionItem[]): ApiNutritionItem[] {
 
 export const nutritionRouter = express.Router();
 
-nutritionRouter.use(cors);
+nutritionRouter.use(allowCorsAndOptionalAppCheck);
 
 nutritionRouter.get("/nutrition/search", async (req, res) => {
   const query = typeof req.query.q === "string" ? req.query.q.trim() : "";

@@ -1,4 +1,13 @@
+import { auth } from "./firebase";
 import { isDemo } from "./demo";
+
+function isReadOnlyDemo(): boolean {
+  const user = auth.currentUser;
+  if (user && !user.isAnonymous) {
+    return false;
+  }
+  return isDemo();
+}
 
 function notify(feature: string) {
   const message = feature
@@ -43,7 +52,7 @@ function notify(feature: string) {
 }
 
 export function demoGuard(feature: string): boolean {
-  if (!isDemo()) return true;
+  if (!isReadOnlyDemo()) return true;
   notify(feature);
   return false;
 }
@@ -55,7 +64,7 @@ export function assertNotDemoWrite() {
 }
 
 export function disabledIfDemo(): { disabled: boolean; title?: string } {
-  return isDemo()
+  return isReadOnlyDemo()
     ? { disabled: true, title: "Read-only demo mode" }
     : { disabled: false };
 }
