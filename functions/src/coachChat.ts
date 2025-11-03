@@ -6,15 +6,37 @@ import { getFirestore, FieldValue } from "./firebase.js";
 import { coachChatCollectionPath } from "./lib/paths.js";
 import { uidFromBearer } from "./util/auth.js";
 
-const corsOrigins = [
+const allowOrigins = [
   "https://mybodyscanapp.com",
-  "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  "https://www.mybodyscanapp.com",
 ];
+
+function cors(req: functions.Request, res: functions.Response): boolean {
+  const origin = req.headers.origin || "";
+  if (allowOrigins.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Credentials", "true");
+    res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
+    res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  }
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 const db = getFirestore();
 const OPENAI_TIMEOUT_MS = 8000;
+
+function softAppCheck(req: functions.Request) {
+  if (!req.get || !req.get("X-Firebase-AppCheck")) {
+    logger.warn("appcheck_missing", { path: req.path });
+  }
+}
 
 function normalizeMessage(body: unknown): string {
   if (!body) return "";
@@ -94,10 +116,12 @@ async function createReply(message: string, uid: string): Promise<string> {
   }
 }
 
-export const coachChat = functions.onRequest({ region: "us-central1", cors: corsOrigins }, async (req, res) => {
+export const coachChat = functions.onRequest({ region: "us-central1" }, async (req, res) => {
+  if (cors(req, res)) return;
+  softAppCheck(req);
   try {
     if (req.method !== "POST") {
-      res.status(405).send("Method not allowed");
+      res.status(405).json({ error: "method_not_allowed" });
       return;
     }
 

@@ -5,34 +5,40 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { lookupBarcode } from "@/lib/nutrition";
-import type { FoodItem as SearchFoodItem } from "@/lib/nutrition";
+import { nutritionBarcode } from "@/lib/api";
+import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import type { FoodItem } from "@/lib/nutrition/types";
 import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 
-const SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.2.11/dist/quagga.min.js";
-
-function adaptFoodItem(raw: SearchFoodItem): FoodItem {
+function buildFoodItemFromSanitized(
+  code: string,
+  raw: any,
+  normalized: ReturnType<typeof sanitizeFoodItem>,
+): FoodItem {
   const basePer100g = {
-    kcal: raw.calories ?? 0,
-    protein: raw.protein ?? 0,
-    carbs: raw.carbs ?? 0,
-    fat: raw.fat ?? 0,
+    kcal: normalized?.kcal ?? 0,
+    protein: normalized?.protein_g ?? 0,
+    carbs: normalized?.carbs_g ?? 0,
+    fat: normalized?.fat_g ?? 0,
   };
   const perServing = {
-    kcal: raw.calories ?? null,
-    protein_g: raw.protein ?? null,
-    carbs_g: raw.carbs ?? null,
-    fat_g: raw.fat ?? null,
+    kcal: normalized?.kcal ?? null,
+    protein_g: normalized?.protein_g ?? null,
+    carbs_g: normalized?.carbs_g ?? null,
+    fat_g: normalized?.fat_g ?? null,
   };
+  const rawId = typeof raw?.id === "string" ? raw.id.trim() : "";
+  const rawCode = typeof raw?.code === "string" ? raw.code.trim() : "";
+  const id = rawId || rawCode || `barcode:${code}`;
+  const source = typeof raw?.source === "string" && raw.source.trim().length ? raw.source : "Barcode";
   return {
-    id: raw.id,
-    name: raw.name,
-    brand: raw.brand ?? null,
-    source: raw.source === "usda" ? "USDA" : "Open Food Facts",
+    id,
+    name: normalized?.name || `Barcode ${code}`,
+    brand: normalized?.brand || null,
+    source,
     basePer100g,
     servings: [
       {
@@ -50,9 +56,12 @@ function adaptFoodItem(raw: SearchFoodItem): FoodItem {
 }
 
 export default function BarcodeScan() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const frameRef = useRef<number>();
+  const zxingControlsRef = useRef<{ stop?: () => void } | null>(null);
+  const scanningRef = useRef(false);
   const [manualCode, setManualCode] = useState("");
-  const [quaggaReady, setQuaggaReady] = useState(false);
   const [running, setRunning] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
@@ -61,104 +70,168 @@ export default function BarcodeScan() {
   const [loadingItem, setLoadingItem] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [processing, setProcessing] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
 
   const defaultCountry = useMemo(
     () => defaultCountryFromLocale(typeof navigator !== "undefined" ? navigator.language : undefined),
     [],
   );
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if ((window as any).Quagga) {
-      setQuaggaReady(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = SCRIPT_SRC;
-    script.async = true;
-    script.onload = () => setQuaggaReady(true);
-    script.onerror = () => toast({ title: "Scanner unavailable", description: "Unable to load barcode library." });
-    document.body.appendChild(script);
-    return () => {
-      script.remove();
-    };
-  }, []);
+  const fetchItem = useCallback(
+    async (code: string) => {
+      setLoadingItem(true);
+      setItem(null);
+      setStatus("Looking up…");
+      try {
+        const raw = await nutritionBarcode(code);
+        const list = Array.isArray((raw as any)?.items)
+          ? (raw as any).items
+          : Array.isArray(raw)
+          ? (raw as any[])
+          : [];
+        const normalized = list
+          .map((entry: any) => ({ raw: entry, normalized: sanitizeFoodItem(entry) }))
+          .filter((entry): entry is { raw: any; normalized: ReturnType<typeof sanitizeFoodItem> } => Boolean(entry.normalized));
+        if (!normalized.length) {
+          setStatus("No match found.");
+          toast({ title: "No match", description: "Try manual entry or search." });
+          return;
+        }
+        const { raw: rawItem, normalized: normalizedItem } = normalized[0];
+        const food = buildFoodItemFromSanitized(code, rawItem, normalizedItem);
+        setItem(food);
+        setStatus(typeof rawItem?.message === "string" ? rawItem.message : "Lookup complete");
+      } catch (error: any) {
+        toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
+        setStatus("Lookup failed. Try again.");
+      } finally {
+        setLoadingItem(false);
+      }
+    },
+    [toast],
+  );
 
-  const teardown = useCallback(() => {
-    const Quagga = (window as any).Quagga;
-    if (Quagga?.stop) {
-      Quagga.stop();
+  const stopScanner = useCallback(() => {
+    scanningRef.current = false;
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = undefined;
+    }
+    if (zxingControlsRef.current) {
+      try {
+        zxingControlsRef.current.stop?.();
+      } catch {}
+      zxingControlsRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
     }
     setRunning(false);
     setTorchOn(false);
     setTorchAvailable(false);
   }, []);
 
-  const onDetected = useCallback(
-    async (data: any) => {
-      const code = data?.codeResult?.code;
+  const handleDetected = useCallback(
+    (code: string) => {
       if (!code) return;
       setDetectedCode(code);
-      teardown();
-      await fetchItem(code);
+      stopScanner();
+      void fetchItem(code);
     },
-    [teardown],
+    [fetchItem, stopScanner],
   );
 
-  const startScanner = useCallback(() => {
-    const Quagga = (window as any).Quagga;
-    if (!Quagga || !containerRef.current) {
-      toast({ title: "Scanner not ready", description: "Library not loaded" });
-      return;
+  const startWithBarcodeDetector = useCallback(async () => {
+    const Detector = (window as any).BarcodeDetector;
+    if (!Detector) throw new Error("detector_unavailable");
+    const detector = new Detector({ formats: ["ean_13", "ean_8", "upc_a", "code_128", "code_39"] });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    streamRef.current = stream;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
     }
-    Quagga.init(
-      {
-        inputStream: {
-          name: "Live",
-          type: "LiveStream",
-          target: containerRef.current,
-          constraints: {
-            facingMode: "environment",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        },
-        decoder: {
-          readers: ["ean_reader", "upc_reader", "upc_e_reader", "code_128_reader"],
-        },
-        locate: true,
-      },
-      (err: Error | null) => {
-        if (err) {
-          console.error("quagga_init_error", err);
-          toast({ title: "Camera unavailable", description: "Check permissions or try manual entry." });
-          return;
-        }
-        Quagga.start();
-        setRunning(true);
-        Quagga.onDetected(onDetected);
-        const track = Quagga.CameraAccess?.getActiveTrack?.();
-        if (track && track.getCapabilities) {
-          const caps = track.getCapabilities();
-          if ((caps as any).torch) {
-            setTorchAvailable(true);
+    setRunning(true);
+    scanningRef.current = true;
+    const track = stream.getVideoTracks()[0];
+    if (track?.getCapabilities) {
+      const caps = track.getCapabilities() as any;
+      setTorchAvailable(Boolean(caps?.torch));
+    } else {
+      setTorchAvailable(false);
+    }
+
+    const scan = async () => {
+      if (!scanningRef.current || !videoRef.current) return;
+      try {
+        const results = await detector.detect(videoRef.current);
+        if (Array.isArray(results) && results.length) {
+          const code = results[0]?.rawValue;
+          if (code) {
+            handleDetected(code);
+            return;
           }
         }
-      },
-    );
-  }, [onDetected]);
+      } catch (error) {
+        console.error("barcode_detect_error", error);
+      }
+      frameRef.current = requestAnimationFrame(scan);
+    };
 
-  const stopScanner = () => {
-    const Quagga = (window as any).Quagga;
-    if (Quagga?.offDetected) {
-      Quagga.offDetected(onDetected);
+    frameRef.current = requestAnimationFrame(scan);
+  }, [handleDetected]);
+
+  const startWithZxing = useCallback(async () => {
+    const mod = await import("@zxing/browser");
+    const reader = new mod.BrowserMultiFormatReader();
+    const controls = await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err, ctrl) => {
+      if (result) {
+        handleDetected(result.getText());
+        ctrl?.stop?.();
+      } else if (err && !(err instanceof mod.NotFoundException)) {
+        console.error("zxing_scan_error", err);
+      }
+    });
+    zxingControlsRef.current = controls;
+    streamRef.current = (controls as any)?.stream ?? streamRef.current;
+    setTorchAvailable(false);
+    setRunning(true);
+    scanningRef.current = true;
+  }, [handleDetected]);
+
+  const startScanner = useCallback(async () => {
+    setScannerError(null);
+    setDetectedCode(null);
+    stopScanner();
+    try {
+      if ("BarcodeDetector" in window) {
+        await startWithBarcodeDetector();
+        return;
+      }
+      try {
+        await import("barcode-detector-polyfill");
+      } catch (error) {
+        console.warn("barcode_polyfill_failed", error);
+      }
+      if ("BarcodeDetector" in window) {
+        await startWithBarcodeDetector();
+        return;
+      }
+      await startWithZxing();
+    } catch (error) {
+      console.error("scanner_start_failed", error);
+      setScannerError("Scanner unavailable — use manual code");
+      stopScanner();
     }
-    teardown();
-  };
+  }, [startWithBarcodeDetector, startWithZxing, stopScanner]);
 
   const toggleTorch = async () => {
-    const Quagga = (window as any).Quagga;
-    const track = Quagga?.CameraAccess?.getActiveTrack?.();
+    const track = streamRef.current?.getVideoTracks()?.[0];
     if (!track?.applyConstraints) return;
     try {
       await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
@@ -166,26 +239,6 @@ export default function BarcodeScan() {
     } catch (error) {
       console.error("torch_toggle_error", error);
       toast({ title: "Torch unsupported", description: "Use additional light if needed." });
-    }
-  };
-
-  const fetchItem = async (code: string) => {
-    setLoadingItem(true);
-    setItem(null);
-    setStatus("Looking up…");
-    try {
-      const result = await lookupBarcode(code);
-      setStatus(result.status);
-      const found = result.items[0] ? adaptFoodItem(result.items[0]) : null;
-      setItem(found);
-      if (!found) {
-        toast({ title: "No match", description: "Try manual entry or search." });
-      }
-    } catch (error: any) {
-      toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
-      setStatus("Lookup failed. Try again.");
-    } finally {
-      setLoadingItem(false);
     }
   };
 
@@ -212,8 +265,7 @@ export default function BarcodeScan() {
     return () => {
       stopScanner();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopScanner]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6 pb-20 md:pb-10">
@@ -231,7 +283,7 @@ export default function BarcodeScan() {
             <Camera className="h-4 w-4" /> Live scanner
           </CardTitle>
           <div className="flex gap-2">
-            <Button size="sm" variant={running ? "outline" : "default"} onClick={running ? stopScanner : startScanner} disabled={!quaggaReady}>
+            <Button size="sm" variant={running ? "outline" : "default"} onClick={running ? stopScanner : startScanner}>
               {running ? (
                 <>
                   <Square className="mr-1 h-4 w-4" /> Stop
@@ -248,11 +300,16 @@ export default function BarcodeScan() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div ref={containerRef} className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
+          <div className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
+            <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
             <div className="pointer-events-none absolute inset-0 border-2 border-white/40" />
           </div>
           <p className="text-xs text-muted-foreground">
-            {running ? "Scanning…" : quaggaReady ? "Tap start to begin scanning" : "Loading scanner…"}
+            {running
+              ? "Scanning…"
+              : scannerError
+              ? scannerError
+              : "Tap start to begin scanning"}
             {detectedCode ? ` • Last detected: ${detectedCode}` : ""}
           </p>
         </CardContent>
@@ -265,9 +322,10 @@ export default function BarcodeScan() {
         <CardContent className="space-y-2">
           <form onSubmit={handleManual} className="flex gap-2">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="manual-code">Barcode</Label>
+              <Label htmlFor="manual-code">Enter barcode manually</Label>
               <Input
                 id="manual-code"
+                inputMode="numeric"
                 value={manualCode}
                 onChange={(event) => setManualCode(event.target.value)}
                 placeholder={`Enter UPC (${defaultCountry})`}

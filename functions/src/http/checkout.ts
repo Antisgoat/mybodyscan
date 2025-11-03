@@ -8,6 +8,34 @@ import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretKeyParam,
 
 const db = getFirestore();
 
+const allowOrigins = [
+  "https://mybodyscanapp.com",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+];
+
+function cors(req: Request, res: Response): boolean {
+  const origin = req.headers.origin || "";
+  if (allowOrigins.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Credentials", "true");
+    res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
+    res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  }
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
+
+function softAppCheck(req: Request) {
+  if (!req.get || !req.get("X-Firebase-AppCheck")) {
+    console.warn("appcheck_missing", { path: req.path });
+  }
+}
+
 function logInfo(event: string, payload: Record<string, unknown> = {}): void {
   console.info({ event, ...payload });
 }
@@ -413,6 +441,8 @@ function sendPaymentsDisabled(svc: "checkout" | "portal", res: Response, meta: E
 }
 
 async function handleCreateCheckout(req: Request, res: Response) {
+  if (cors(req, res)) return;
+  softAppCheck(req);
   const { allowedOrigin, ended } = applyCors(req, res);
   if (ended) return;
 
@@ -568,7 +598,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
     });
     logOutcome("checkout", true, { uid, priceId, mode, customerId, requestId });
 
-    res.json({ url: session.url });
+    res.json({ url: session.url, sessionId: session.id });
   } catch (error) {
     logWarn("payments.checkout.session_failed", {
       uid,
@@ -589,6 +619,8 @@ async function handleCreateCheckout(req: Request, res: Response) {
 }
 
 async function handleCustomerPortal(req: Request, res: Response) {
+  if (cors(req, res)) return;
+  softAppCheck(req);
   const { allowedOrigin, ended } = applyCors(req, res);
   if (ended) return;
 

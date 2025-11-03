@@ -12,8 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { apiFetch } from "@/lib/api";
-import { fnUrl } from "@/lib/env";
+import { apiFetch } from "@/lib/apiFetch";
 
 const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
 const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
@@ -88,36 +87,12 @@ export default function Plans() {
       if (!stripe) {
         throw new Error("Stripe unavailable");
       }
-      const token = await user.getIdToken();
-      const response = await apiFetch(fnUrl("/billing/create-checkout-session"), {
+      const payload = await apiFetch("/billing/create-checkout-session", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({ priceId: plan.priceId, mode: plan.mode }),
       });
 
-      let payload: any = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = null;
-      }
-
-      if (!response.ok) {
-        console.error("checkout_session_error", payload);
-        const message = typeof payload?.error === "string" && payload.error
-          ? payload.error
-          : `Checkout unavailable (status ${response.status})`;
-        toast({
-          title: "Checkout unavailable",
-          description: message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const sessionId = typeof payload?.sessionId === "string" ? payload.sessionId : null;
+      const sessionId = typeof (payload as any)?.sessionId === "string" ? (payload as any).sessionId : null;
       if (!sessionId) {
         console.error("checkout_session_invalid", payload);
         throw new Error("Invalid checkout session response");

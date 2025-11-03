@@ -1,7 +1,7 @@
 export function sanitizeFoodItem(x: any) {
   if (!x) return null;
-  const name = String(x.name || x.description || x.product_name || "").trim();
-  const brand = String(x.brand || x.brandOwner || x.brands || "").split(",")[0]?.trim();
+  const name = String(x.name || x.description || x.product_name || '').trim();
+  const brand = String(x.brand || x.brandOwner || x.brands || '').split(',')[0].trim();
   const kcal = Number(x.calories ?? x.energy_kcal ?? x.nf_calories ?? x.kcal) || 0;
   const protein_g = Number(x.protein_g ?? x.protein ?? x.proteins_100g) || 0;
   const carbs_g = Number(x.carbs_g ?? x.carbohydrates ?? x.carbohydrates_100g) || 0;
