@@ -5,19 +5,11 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import type { Auth, User } from "firebase/auth";
+import { apiFetch } from "./apiFetch";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
 import { isDemo } from "./demo";
 import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
 import { authedJsonPost } from "./authedFetch";
-
-export async function apiFetch(path: string, init: RequestInit = {}) {
-  const token = await ensureAppCheck();
-  const headers = new Headers(init.headers ?? undefined);
-  if (token) headers.set("X-Firebase-AppCheck", token);
-  headers.set("Content-Type", headers.get("Content-Type") || "application/json");
-  const credentials = init.credentials ?? "include";
-  return fetch(path, { ...init, headers, credentials });
-}
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -76,29 +68,14 @@ export async function billingCheckout(
     throw error;
   }
 
-  const token = await user.getIdToken();
-  const url = fnUrl("/billing/create-checkout-session");
-  const response = await apiFetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ priceId, mode: CHECKOUT_MODES[plan] }),
-  });
-
-  let payload: any = null;
+  let payload: any;
   try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    console.error("billing_checkout_error", payload);
-    const message = typeof payload?.error === "string" ? payload.error : `checkout_status_${response.status}`;
-    const error: any = new Error(message);
-    error.status = response.status;
-    error.body = payload;
+    payload = await apiFetch("/billing/create-checkout-session", {
+      method: "POST",
+      body: JSON.stringify({ priceId, mode: CHECKOUT_MODES[plan] }),
+    });
+  } catch (error) {
+    console.error("billing_checkout_error", error);
     throw error;
   }
 
@@ -172,39 +149,20 @@ export async function nutritionSearch(
     } satisfies NutritionSearchResponse;
   }
 
-  const endpoint = fnUrl("/nutrition/search");
-  const url = new URL(endpoint);
-  url.searchParams.set("q", trimmed);
+  const headers = new Headers(init?.headers ?? undefined);
+  headers.set("Accept", "application/json");
 
-  const headers = new Headers({ Accept: "application/json" });
-  const user = firebaseAuth.currentUser;
-  if (user) {
-    try {
-      const token = await user.getIdToken();
-      headers.set("Authorization", `Bearer ${token}`);
-    } catch (error) {
-      console.warn("nutrition_search_token_failed", error);
-    }
-  }
-
-  const response = await apiFetch(url.toString(), {
-    method: "GET",
-    signal: init?.signal,
-    headers,
-  });
+  const query = new URLSearchParams({ q: trimmed }).toString();
 
   let payload: NutritionSearchResponse | null = null;
   try {
-    payload = (await response.json()) as NutritionSearchResponse;
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    console.error("nutrition_search_http_error", payload);
-    const error: any = new Error(typeof payload?.error === "string" ? payload.error : `status_${response.status}`);
-    error.status = response.status;
-    error.body = payload;
+    payload = (await apiFetch(`/nutrition/search?${query}`, {
+      method: "GET",
+      signal: init?.signal,
+      headers,
+    })) as NutritionSearchResponse;
+  } catch (error) {
+    console.error("nutrition_search_http_error", error);
     throw error;
   }
 
@@ -237,42 +195,21 @@ export async function nutritionBarcodeLookup(
     showDemoPreviewToast("Sample barcode matches are shown in demo mode.");
     return mockBarcodeLookup(trimmed);
   }
-  const endpoint = fnUrl("/nutrition/search");
-  const url = new URL(endpoint);
-  url.searchParams.set("barcode", trimmed);
-
   const headers = new Headers(init?.headers ?? undefined);
   headers.set("Accept", "application/json");
 
-  const user = firebaseAuth.currentUser;
-  if (user && !headers.has("Authorization")) {
-    try {
-      const token = await user.getIdToken();
-      headers.set("Authorization", `Bearer ${token}`);
-    } catch (error) {
-      console.warn("nutrition_barcode_token_failed", error);
-    }
-  }
-
-  const response = await apiFetch(url.toString(), {
-    ...init,
-    headers,
-    method: "GET",
-  });
+  const query = new URLSearchParams({ code: trimmed }).toString();
 
   let payload: NutritionSearchResponse | null = null;
   try {
-    payload = (await response.json()) as NutritionSearchResponse;
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    console.error("nutrition_barcode_http_error", payload);
-    const err: any = new Error(typeof payload?.error === "string" ? payload.error : `status_${response.status}`);
-    err.status = response.status;
-    err.body = payload;
-    throw err;
+    payload = (await apiFetch(`/nutrition/barcode?${query}`, {
+      ...init,
+      headers,
+      method: "GET",
+    })) as NutritionSearchResponse;
+  } catch (error) {
+    console.error("nutrition_barcode_http_error", error);
+    throw error;
   }
 
   if (payload?.items && !payload.results) {
@@ -298,38 +235,22 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
     throw new Error("message_required");
   }
 
-  const url = fnUrl("/coach/chat");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
   const user = firebaseAuth.currentUser;
   if (!user && !isDemo()) {
     const authError: any = new Error("auth_required");
     authError.code = "auth_required";
     throw authError;
   }
-  if (user) {
-    const token = await user.getIdToken();
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = await apiFetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ question: trimmed, demo: isDemo() }),
-    signal: options.signal,
-  });
 
   let payload: any = null;
   try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    console.error("coach_send_http_error", payload);
-    const error: any = new Error(typeof payload?.error === "string" ? payload.error : "coach_send_failed");
-    error.status = response.status;
-    error.code = payload?.error ?? error.message;
+    payload = await apiFetch("/coach/chat", {
+      method: "POST",
+      body: JSON.stringify({ question: trimmed, demo: isDemo() }),
+      signal: options.signal,
+    });
+  } catch (error) {
+    console.error("coach_send_http_error", error);
     throw error;
   }
 
@@ -494,10 +415,11 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
         if (fallbackAppCheckToken) {
           fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
         }
-        const response = await apiFetch(fallbackBase, {
+        const response = await fetch(fallbackBase, {
           method: "GET",
           signal: controller.signal,
           headers: fallbackHeaders,
+          credentials: "include",
         });
         if (!response.ok) {
           const fallbackError: any = new Error(`fn_status_${response.status}`);
@@ -535,9 +457,10 @@ async function authedFetch(path: string, init?: RequestInit) {
   if (appCheckToken) {
     headers.set("X-Firebase-AppCheck", appCheckToken);
   }
-  return apiFetch(url, {
+  return fetch(url, {
     ...init,
     headers,
+    credentials: "include",
   });
 }
 
@@ -549,18 +472,24 @@ export async function startScan(params?: Record<string, unknown>) {
   }
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await apiFetch("/api/scan/start", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(params ?? {}),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "scan_start_failed");
+  try {
+    const payload = (await apiFetch("/api/scan/start", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(params ?? {}),
+    })) as { scanId?: string };
+    if (typeof payload?.scanId !== "string") {
+      throw new Error("scan_start_failed");
+    }
+    return { scanId: payload.scanId };
+  } catch (error: any) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error("scan_start_failed");
   }
-  return (await response.json()) as { scanId: string };
 }
 
 export async function openStripeCheckout(priceId: string) {
@@ -638,36 +567,32 @@ export async function refundIfNoResult(scanId: string) {
 export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await apiFetch("/api/createCheckout", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ kind, credits }),
-  });
-  if (!response.ok) {
-    const payload = await handleJsonResponse(response);
-    const message = (payload as { error?: string })?.error || `HTTP ${response.status}`;
-    throw new Error(message);
+  try {
+    return (await apiFetch("/api/createCheckout", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ kind, credits }),
+    })) as { url: string; id: string };
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("checkout_failed");
   }
-  return (await response.json()) as { url: string; id: string };
 }
 
 export async function createCustomerPortal() {
   const { user } = await requireAuthContext();
   const token = await user.getIdToken();
-  const response = await apiFetch(fnUrl("/billing/portal"), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({}),
-  });
-  if (!response.ok) {
-    const payload = await handleJsonResponse(response);
-    const message = (payload as { error?: string })?.error || `HTTP ${response.status}`;
-    throw new Error(message);
+  try {
+    return (await apiFetch("/billing/customer-portal", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    })) as { url: string };
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("portal_failed");
   }
-  return (await response.json()) as { url: string };
 }
 export { authedFetch };

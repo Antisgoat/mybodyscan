@@ -16,6 +16,9 @@ export const allowCorsAndOptionalAppCheck = (req: Request, res: Response, next: 
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  if (!req.get("X-Firebase-AppCheck")) {
+    console.warn("appcheck_missing", { path: req.path || req.url });
+  }
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
 };

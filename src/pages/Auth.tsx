@@ -37,7 +37,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
-  const demoEnabled = String(import.meta.env.VITE_DEMO_ENABLED ?? "false").toLowerCase() === "true";
+  const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
+  const demoEnabled = demoEnv !== "false";
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
@@ -154,8 +155,13 @@ const Auth = () => {
 
   const onBrowseDemo = () => {
     if (!demoEnabled || user) return;
+    try {
+      localStorage.setItem("mbs.demo", "1");
+    } catch {
+      // ignore storage errors
+    }
     enableDemo();
-    navigate("/", { replace: true });
+    window.location.assign("/home");
   };
 
   return (
@@ -282,7 +288,7 @@ const Auth = () => {
                     onClick={onBrowseDemo}
                     aria-label="Browse the demo"
                   >
-                    Continue without account (Demo)
+                    Browse demo (no account)
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground text-center mt-2">

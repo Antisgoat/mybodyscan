@@ -1,4 +1,4 @@
-import { apiFetch, fetchFoods } from "@/lib/api";
+import { fetchFoods } from "@/lib/api";
 import { fnUrl } from "@/lib/env";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import type {
@@ -304,10 +304,13 @@ async function callFunctions(path: string, init?: RequestInit): Promise<Response
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    return await apiFetch(url, {
+    const response = await fetch(url, {
       ...init,
       signal: controller.signal,
-    }).finally(() => clearTimeout(timer));
+      credentials: "include",
+    });
+    clearTimeout(timer);
+    return response;
   } catch (error) {
     clearTimeout(timer);
     throw error;
@@ -326,9 +329,10 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   ]);
   const headers = new Headers({ Accept: "application/json" });
   if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
-  let response = await apiFetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+  let response = await fetch(`/api/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
     method: "GET",
     headers,
+    credentials: "include",
   });
   if (!response.ok && response.status !== 404) {
     // Fallback to direct function URL if configured

@@ -15,6 +15,8 @@ import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
 import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
+import { nutritionSearch } from "@/lib/api";
+import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 
 const PRICE_LABELS: Record<string, string> = {
   [PRICE_IDS.ONE_TIME_STARTER]: "ONE_TIME_STARTER",
@@ -537,23 +539,16 @@ export default function SmokeKit() {
     }
     setNutritionSearchProbe({ status: "running" });
     try {
-      const headers = await authedHeaders(false);
-      const appCheck = await appCheckHeaders(true);
-      const merged = { Accept: "application/json", ...headers, ...appCheck };
-      const response = await fetch(`/api/nutrition/search?q=${encodeURIComponent("chicken breast")}`, {
-        method: "GET",
-        headers: merged,
-        credentials: "include",
-      });
-      const json = await response.json().catch(() => ({}));
-      const items = Array.isArray(json?.items) ? json.items : [];
+      const raw = await nutritionSearch("chicken breast");
+      const items = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+      const sanitized = items.map(sanitizeFoodItem).filter(Boolean);
       setNutritionSearchProbe({
-        status: response.ok ? "success" : "error",
-        httpStatus: response.status,
-        payload: json,
-        error: typeof json?.error === "string" ? json.error : undefined,
-        count: items.length,
-        source: typeof json?.primarySource === "string" ? json.primarySource : undefined,
+        status: sanitized.length > 0 ? "success" : "error",
+        httpStatus: sanitized.length > 0 ? 200 : 500,
+        payload: raw,
+        error: typeof raw?.error === "string" ? raw.error : undefined,
+        count: sanitized.length,
+        source: typeof raw?.primarySource === "string" ? raw.primarySource : undefined,
       });
     } catch (error: any) {
       setNutritionSearchProbe({ status: "error", error: error?.message || "nutrition_search_failed" });
