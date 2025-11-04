@@ -14,7 +14,12 @@ import {
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  getToken as getAppCheckToken,
+  type AppCheck,
+} from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? env.VITE_FIREBASE_API_KEY ?? "",
@@ -30,30 +35,40 @@ type FirebaseConfig = typeof firebaseConfig;
 
 const appInstance: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig as FirebaseConfig);
 
-// Enable App Check debug token for QA if provided
-const debugToken = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN;
-if (debugToken) {
-  try {
-    (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
-  } catch {
-    // ignore
-  }
-}
+let appCheckInstance: AppCheck | null = null;
 
-try {
+export function ensureAppCheck(app: FirebaseApp = appInstance): AppCheck | null {
+  if (appCheckInstance) return appCheckInstance;
+  (globalThis as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || undefined;
   const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
-  if (siteKey && siteKey !== "__DISABLE__") {
-    initializeAppCheck(appInstance, {
+  if (!siteKey || siteKey === "__DISABLE__") {
+    console.warn("[AppCheck] VITE_APPCHECK_SITE_KEY not set — callables may be rejected.");
+    return null;
+  }
+  try {
+    appCheckInstance = initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(siteKey),
       isTokenAutoRefreshEnabled: true,
     });
-  } else {
-    console.warn(
-      "AppCheck site key missing or disabled; running without App Check (server enforcement should remain optional).",
-    );
+  } catch (error) {
+    console.warn("[AppCheck] initialization failed", error);
+    appCheckInstance = null;
   }
-} catch (error) {
-  console.warn("AppCheck init failed", error);
+  return appCheckInstance;
+}
+
+export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
+  try {
+    ensureAppCheck();
+    if (!appCheckInstance) return {};
+    const { token } = await getAppCheckToken(appCheckInstance, forceRefresh);
+    return token ? { "X-Firebase-AppCheck": token } : {};
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("[AppCheck] token fetch failed", error);
+    }
+    return {};
+  }
 }
 
 export const app = appInstance;

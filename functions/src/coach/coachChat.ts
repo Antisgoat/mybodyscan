@@ -24,7 +24,7 @@ export const coachChat = onCallWithOptionalAppCheck(async (req) => {
       temperature: 0.4,
     });
     const text = chat.choices?.[0]?.message?.content ?? "No answer.";
-    return { text };
+    return { reply: text };
   } catch (error: any) {
     logger.error("coachChat error", error);
     throw new HttpsError("unknown", error?.message || "Coach unavailable.");

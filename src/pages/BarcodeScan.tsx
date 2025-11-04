@@ -187,24 +187,33 @@ export default function BarcodeScan() {
   }, [handleDetected]);
 
   const startWithZxing = useCallback(async () => {
-    const mod = await import("@zxing/browser");
-    const reader = new mod.BrowserMultiFormatReader();
-    const controls = await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err, ctrl) => {
-      if (result) {
-        handleDetected(result.getText());
-        ctrl?.stop?.();
-      } else if (err && !(err instanceof mod.NotFoundException)) {
-        console.error("zxing_scan_error", err);
-      }
-    });
-    zxingControlsRef.current = controls;
-    streamRef.current = (controls as any)?.stream ?? streamRef.current;
-    setTorchAvailable(false);
-    setRunning(true);
-    scanningRef.current = true;
+    try {
+      const mod = await import("@zxing/browser");
+      const reader = new mod.BrowserMultiFormatReader();
+      const controls = await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err, ctrl) => {
+        if (result) {
+          handleDetected(result.getText());
+          ctrl?.stop?.();
+        } else if (err && !(err instanceof mod.NotFoundException)) {
+          console.error("zxing_scan_error", err);
+        }
+      });
+      zxingControlsRef.current = controls;
+      streamRef.current = (controls as any)?.stream ?? streamRef.current;
+      setTorchAvailable(false);
+      setRunning(true);
+      scanningRef.current = true;
+    } catch (error) {
+      console.error("zxing_loader_error", error);
+      throw Object.assign(new Error("zxing_load_failed"), { cause: error });
+    }
   }, [handleDetected]);
 
   const startScanner = useCallback(async () => {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setScannerError("Camera not available in this browser; enter code manually.");
+      return;
+    }
     setScannerError(null);
     setDetectedCode(null);
     stopScanner();
@@ -223,9 +232,13 @@ export default function BarcodeScan() {
         return;
       }
       await startWithZxing();
-    } catch (error) {
+    } catch (error: any) {
       console.error("scanner_start_failed", error);
-      setScannerError("Scanner unavailable — use manual code");
+      const message =
+        error?.message === "zxing_load_failed"
+          ? "Unable to load barcode library. Enter code manually."
+          : "Scanner unavailable — use manual code";
+      setScannerError(message);
       stopScanner();
     }
   }, [startWithBarcodeDetector, startWithZxing, stopScanner]);

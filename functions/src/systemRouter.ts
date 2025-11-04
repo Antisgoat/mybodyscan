@@ -153,9 +153,17 @@ systemRouter.get("/whoami", async (req, res) => {
 });
 
 systemRouter.get("/health", (_req, res) => {
+  const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || "").trim();
+  const stripeSecret = (process.env.STRIPE_SECRET || "").trim();
+  const stripeSecretSource = stripeSecretKey ? "STRIPE_SECRET_KEY" : stripeSecret ? "STRIPE_SECRET" : null;
+  const stripePublishable = (process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PK || "").trim();
+  const appCheckSiteKey = (process.env.VITE_APPCHECK_SITE_KEY || "").trim();
+  const stripePublishablePresent = Boolean(stripePublishable);
+  const appCheckSiteKeyPresent = Boolean(appCheckSiteKey);
+
   const secrets = {
-    stripePublishable: Boolean(process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PK),
-    stripeSecret: Boolean(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET),
+    stripePublishable: stripePublishablePresent,
+    stripeSecret: Boolean(stripeSecretKey || stripeSecret),
     stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_SIGNING_SECRET),
     openai: Boolean(process.env.OPENAI_API_KEY),
     usda: Boolean(process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY),
@@ -179,6 +187,9 @@ systemRouter.get("/health", (_req, res) => {
       monthly: Boolean(process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY),
       yearly: Boolean(process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY),
     },
+    stripeSecretSource,
+    stripePublishablePresent,
+    appCheckSiteKeyPresent,
   });
 });
 

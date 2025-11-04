@@ -83,7 +83,7 @@ coachRouter.post("/chat", async (req, res) => {
         console.warn("coach_log_failed", { requestId, message: (logError as Error)?.message });
       }
     }
-    res.json({ answer });
+    res.json({ reply: answer });
   } catch (error) {
     if (error instanceof OpenAIClientError) {
       const status = [400, 401, 429].includes(error.status) ? error.status : 500;

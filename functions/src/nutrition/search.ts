@@ -1,20 +1,27 @@
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";
+import { sanitizeFoodItem } from "./sanitize.js";
 
-const USDA_KEY = process.env.USDA_API_KEY!;
-const OFF_UA = process.env.OFF_USER_AGENT || "MyBodyScan/1.0 (contact: support@mybodyscanapp.com)";
+const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
+const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
+
+function formatSanitized(value: unknown): string {
+  const sanitized = sanitizeFoodItem(typeof value === "string" ? value : "");
+  if (!sanitized) return "";
+  return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
+}
 
 function normalize(items: any[]) {
   return items.map((item) => ({
     id: item.id || item.fdcId || item.code || item._id || "",
-    name: item.name || item.description || item.product_name || "",
-    brand: item.brand || item.brandOwner || item.brands || "",
+    name: formatSanitized(item.name || item.description || item.product_name || "") || "Unknown",
+    brand: formatSanitized(item.brand || item.brandOwner || item.brands || ""),
     kcal: item.kcal ?? item.calories ?? item.energyKcal ?? item.nutrients?.kcal ?? null,
     protein: item.protein ?? item.nutrients?.protein ?? null,
     carbs: item.carbs ?? item.nutrients?.carbohydrates ?? null,
     fat: item.fat ?? item.nutrients?.fat ?? null,
-    serving: item.serving ?? item.servingSize || "",
+    serving: formatSanitized(item.serving ?? item.servingSize ?? ""),
     source:
       typeof item.source === "string"
         ? item.source
@@ -25,28 +32,33 @@ function normalize(items: any[]) {
 }
 
 export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
-  const q = String(req.data?.q || "").trim();
-  if (!q) throw new HttpsError("invalid-argument", "q required");
+  const raw = String(req.data?.q ?? "");
+  const q = sanitizeFoodItem(raw);
+  if (!q) {
+    return { items: [] };
+  }
 
   try {
-    const usda = await fetch(
-      `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_KEY}&query=${encodeURIComponent(q)}&pageSize=20`,
-    );
-    if (usda.ok) {
-      const json: any = await usda.json();
-      if (Array.isArray(json?.foods) && json.foods.length) {
-        const items = json.foods.map((food: any) => ({
-          id: food.fdcId,
-          name: food.description,
-          brand: food.brandOwner || "",
-          kcal: food.labelNutrients?.calories?.value ?? null,
-          protein: food.labelNutrients?.protein?.value ?? null,
-          carbs: food.labelNutrients?.carbohydrates?.value ?? null,
-          fat: food.labelNutrients?.fat?.value ?? null,
-          serving: "",
-          source: "USDA",
-        }));
-        return { items };
+    if (USDA_KEY) {
+      const usda = await fetch(
+        `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_KEY}&query=${encodeURIComponent(q)}&pageSize=20`,
+      );
+      if (usda.ok) {
+        const json: any = await usda.json();
+        if (Array.isArray(json?.foods) && json.foods.length) {
+          const items = json.foods.map((food: any) => ({
+            id: food.fdcId,
+            name: food.description,
+            brand: food.brandOwner || "",
+            kcal: food.labelNutrients?.calories?.value ?? null,
+            protein: food.labelNutrients?.protein?.value ?? null,
+            carbs: food.labelNutrients?.carbohydrates?.value ?? null,
+            fat: food.labelNutrients?.fat?.value ?? null,
+            serving: "",
+            source: "USDA",
+          }));
+          return { items: normalize(items) };
+        }
       }
     }
   } catch (error) {

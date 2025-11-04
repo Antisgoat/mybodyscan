@@ -71,7 +71,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
               <img src="/logo.svg" alt="MyBodyScan" className="w-6 h-6" />
               MyBodyScan
             </button>
-            {demoMode ? (
+            {readOnlyDemo ? (
               <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                 Demo
               </span>
@@ -151,7 +151,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             </div>
           </div>
         </div>
-        {demoMode ? (
+        {readOnlyDemo ? (
           <div className="border-t bg-amber-50 text-amber-900 text-xs">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
               <span>Demo preview — read-only experience.</span>
