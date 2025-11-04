@@ -327,6 +327,18 @@ scripts/setup-eventarc.sh
 firebase deploy --only functions:processQueuedScan
 ```
 
+## CI Deploy Setup
+
+- PR previews succeed even without credentials (skipped).
+- To enable deploys, add repo secret **FIREBASE_SERVICE_ACCOUNT** (raw JSON or base64) or **FIREBASE_TOKEN**.
+- Minimal roles for the service account:
+  * Firebase Hosting Admin
+  * Cloud Functions Admin
+  * Cloud Build Editor
+  * Service Account User
+  * Artifact Registry Writer
+- Forked PRs never deploy (skipped by design).
+
 ## Deployment
 
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:
