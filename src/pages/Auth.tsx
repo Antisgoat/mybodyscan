@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 const Auth = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const from = (location.state as any)?.from || "/home";
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const nextParam = searchParams.get("next");
@@ -271,12 +272,14 @@ const Auth = () => {
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">
-                <a
-                  className="block w-full rounded-lg border px-3 py-2 text-center text-sm"
-                  href="/demo"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-center"
+                  onClick={() => navigate("/demo")}
                 >
-                  Browse the demo (no signup)
-                </a>
+                  Browse demo
+                </Button>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Preview the UI with sample data. Sign up to save your progress.
                 </p>

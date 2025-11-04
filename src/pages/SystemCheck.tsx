@@ -21,6 +21,9 @@ type HealthResponse = {
   host: string | null;
   timestamp: string;
   authProviders?: ProviderStatus | { unknown: true };
+  stripeSecretSource?: "STRIPE_SECRET_KEY" | "STRIPE_SECRET" | null;
+  stripePublishablePresent?: boolean;
+  appCheckSiteKeyPresent?: boolean;
 };
 
 function formatHost(host: string | null | undefined) {
@@ -319,6 +322,16 @@ export default function SystemCheck() {
                   ? "Stripe secret detected. Checkout endpoints are live."
                   : "Missing Stripe secret. Checkout will respond with HTTP 501 (payments_disabled)."}
               </p>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">Secret source:</span>{" "}
+                  {status?.stripeSecretSource ?? "Not detected"}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">Publishable key:</span>{" "}
+                  {status?.stripePublishablePresent ? "Present" : "Missing"}
+                </div>
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -348,6 +361,10 @@ export default function SystemCheck() {
                       ? "Soft enforcement: requests log warnings but are allowed."
                       : "Strict enforcement: invalid App Check tokens receive HTTP 403."
                   : "Checking…"}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">VITE_APPCHECK_SITE_KEY:</span>{" "}
+                {status?.appCheckSiteKeyPresent ? "Present" : "Missing"}
               </p>
             </CardContent>
           </Card>

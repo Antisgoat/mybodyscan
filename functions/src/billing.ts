@@ -3,13 +3,10 @@ import Stripe from "stripe";
 import { getAuth } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
 
-const stripeSecret =
-  process.env.STRIPE_SECRET_KEY ||
-  process.env.STRIPE_SECRET ||
-  process.env.STRIPE_API_KEY ||
-  "";
+const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "";
+export const hasStripe = Boolean(stripeSecret);
 
-const stripe = stripeSecret
+const stripe = hasStripe
   ? new Stripe(stripeSecret, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion })
   : null;
 

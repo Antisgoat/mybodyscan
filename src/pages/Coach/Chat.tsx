@@ -207,7 +207,7 @@ export default function CoachChatPage() {
     setCoachError(null);
     try {
       const response = await call("coachChat", { message: sanitized });
-      const answer = (response?.data as any)?.text ?? "No answer.";
+      const answer = (response?.data as any)?.reply ?? "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -220,8 +220,15 @@ export default function CoachChatPage() {
     } catch (error: any) {
       console.error("coachChat error", error);
       const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
-      const message = errMessage || "Coach unavailable";
+      const code = typeof error?.code === "string" ? error.code : undefined;
+      const isAppCheck = code === "app_check_required";
+      const message = isAppCheck
+        ? "Verifying your session. Please refresh if it persists."
+        : errMessage || "Coach unavailable";
       setCoachError(message);
+      if (isAppCheck) {
+        toast({ title: "Coach unavailable", description: message, variant: "destructive" });
+      }
       try {
         await call("telemetryLog", {
           fn: "coachChat",

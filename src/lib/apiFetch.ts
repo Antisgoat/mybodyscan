@@ -1,14 +1,5 @@
-import { getAuth } from 'firebase/auth';
-
-// App Check is optional at runtime; attach if present, don't crash if absent
-async function maybeAppCheck(): Promise<string|undefined> {
-  try {
-    const mod: any = await import('firebase/app-check');
-    const { getToken } = mod;
-    const t = await getToken(undefined as any, false);
-    return t?.token;
-  } catch { return undefined; }
-}
+import { getAuth } from "firebase/auth";
+import { getAppCheckHeader } from "@/lib/firebase";
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {});
@@ -23,19 +14,25 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
       headers.set('Authorization', `Bearer ${id}`);
     }
   } catch {}
-  // Attach App Check token if available (soft)
-  try {
-    const ac = await maybeAppCheck();
-    if (ac) headers.set('X-Firebase-AppCheck', ac);
-  } catch {}
-
   const url = path.startsWith('/api') ? path : `/api${path}`;
+  if (url.startsWith('/api')) {
+    const appCheckHeader = await getAppCheckHeader();
+    for (const [key, value] of Object.entries(appCheckHeader)) {
+      if (value) {
+        headers.set(key, value);
+      }
+    }
+  }
   const res = await fetch(url, { ...init, headers, credentials: 'include' });
   const ct = res.headers.get('Content-Type') || '';
   const body = ct.includes('application/json') ? await res.json().catch(() => ({})) : await res.text().catch(()=>'');
   if (!res.ok) {
-    const msg = typeof body === 'string' ? body : (body?.error || `HTTP ${res.status}`);
-    throw new Error(msg);
+    const msg = typeof body === 'string' ? body : body?.error || `HTTP ${res.status}`;
+    const error = new Error(msg);
+    if (body && typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string') {
+      (error as Error & { code?: string }).code = body.code;
+    }
+    throw error;
   }
   return body;
 }

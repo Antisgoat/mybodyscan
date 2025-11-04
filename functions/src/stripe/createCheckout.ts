@@ -1,9 +1,8 @@
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" });
+import { stripe } from "./common.js";
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://mybodyscanapp.com";
 
 export const createCheckout = onCallWithOptionalAppCheck(async (req) => {

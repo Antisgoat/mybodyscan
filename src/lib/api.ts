@@ -254,7 +254,7 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
     throw error;
   }
 
-  const reply = typeof payload?.answer === "string" ? payload.answer.trim() : "";
+  const reply = typeof payload?.reply === "string" ? payload.reply.trim() : "";
   if (!reply) {
     throw new Error("coach_send_failed");
   }

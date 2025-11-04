@@ -114,11 +114,13 @@ export default function Plans() {
       console.error("checkout_error", err);
       const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);
       const description = errMessage || "We couldn't open checkout. Please try again.";
-      toast({
-        title: "Checkout unavailable",
-        description,
-        variant: "destructive",
-      });
+      if (!err?.handled) {
+        toast({
+          title: "Checkout unavailable",
+          description,
+          variant: "destructive",
+        });
+      }
       try {
         await call("telemetryLog", {
           fn: "checkout",

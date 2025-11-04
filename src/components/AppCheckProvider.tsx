@@ -1,11 +1,23 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { ensureAppCheck } from "@/lib/firebase";
 
 interface AppCheckContextValue { isAppCheckReady: boolean; error: Error | null }
 
 const AppCheckContext = createContext<AppCheckContextValue>({ isAppCheckReady: true, error: null });
 
 export function AppCheckProvider({ children }: { children: ReactNode }) {
-  return <AppCheckContext.Provider value={{ isAppCheckReady: true, error: null }}>{children}</AppCheckContext.Provider>;
+  const [state, setState] = useState<AppCheckContextValue>({ isAppCheckReady: true, error: null });
+
+  useEffect(() => {
+    try {
+      ensureAppCheck();
+      setState({ isAppCheckReady: true, error: null });
+    } catch (error) {
+      setState({ isAppCheckReady: true, error: error instanceof Error ? error : new Error(String(error)) });
+    }
+  }, []);
+
+  return <AppCheckContext.Provider value={state}>{children}</AppCheckContext.Provider>;
 }
 
 export function useAppCheckContext(): AppCheckContextValue {
