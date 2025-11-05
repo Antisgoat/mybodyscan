@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { nutritionBarcode } from "@/lib/api";
-import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
+import { backend } from "@/lib/backendBridge";
+import { sanitizeFoodItem as sanitizeFoodRecord } from "@/features/nutrition/sanitize";
+import { sanitizeFoodItem as sanitizeFoodQuery } from "@/lib/nutrition/sanitize";
 import type { FoodItem } from "@/lib/nutrition/types";
 import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
@@ -16,7 +17,7 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 function buildFoodItemFromSanitized(
   code: string,
   raw: any,
-  normalized: ReturnType<typeof sanitizeFoodItem>,
+  normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>,
 ): FoodItem {
   const basePer100g = {
     kcal: normalized?.kcal ?? 0,
@@ -83,22 +84,28 @@ export default function BarcodeScan() {
       setItem(null);
       setStatus("Looking up…");
       try {
-        const raw = await nutritionBarcode(code);
-        const list = Array.isArray((raw as any)?.items)
-          ? (raw as any).items
-          : Array.isArray(raw)
-          ? (raw as any[])
-          : [];
+        const normalizedCode = sanitizeFoodQuery(code);
+        if (!normalizedCode) {
+          setStatus("Invalid barcode");
+          toast({ title: "Invalid barcode", description: "Enter a valid UPC/EAN." });
+          return;
+        }
+        setStatus(`Looking up barcode ${normalizedCode}…`);
+        const { item, items } = await backend.nutritionBarcode({ upc: normalizedCode });
+        const list = items ?? (item ? [item] : []);
         const normalized = list
-          .map((entry: any) => ({ raw: entry, normalized: sanitizeFoodItem(entry) }))
-          .filter((entry): entry is { raw: any; normalized: ReturnType<typeof sanitizeFoodItem> } => Boolean(entry.normalized));
+          .map((entry: any) => ({ raw: entry, normalized: sanitizeFoodRecord(entry) }))
+          .filter(
+            (entry): entry is { raw: any; normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>> } =>
+              Boolean(entry.normalized),
+          );
         if (!normalized.length) {
           setStatus("No match found.");
           toast({ title: "No match", description: "Try manual entry or search." });
           return;
         }
         const { raw: rawItem, normalized: normalizedItem } = normalized[0];
-        const food = buildFoodItemFromSanitized(code, rawItem, normalizedItem);
+        const food = buildFoodItemFromSanitized(normalizedCode, rawItem, normalizedItem);
         setItem(food);
         setStatus(typeof rawItem?.message === "string" ? rawItem.message : "Lookup complete");
       } catch (error: any) {

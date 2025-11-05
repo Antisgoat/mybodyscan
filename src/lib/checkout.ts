@@ -1,7 +1,6 @@
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
-import { FirebaseError } from "firebase/app";
 import { toast } from "@/hooks/use-toast";
-import { call } from "./callable";
+import { backend } from "@/lib/backendBridge";
 
 type CheckoutError = Error & { handled?: boolean; code?: string };
 
@@ -13,10 +12,10 @@ function ensurePublishableKey(): string {
   if (!key) {
     toast({
       title: "Checkout unavailable",
-      description: "Checkout unavailable — missing publishable key",
+      description: "Checkout unavailable — publishable key is missing.",
       variant: "destructive",
     });
-    const error: CheckoutError = new Error("Checkout unavailable — missing publishable key");
+    const error: CheckoutError = new Error("Checkout unavailable — publishable key is missing.");
     error.handled = true;
     error.code = "checkout_publishable_missing";
     throw error;
@@ -34,10 +33,10 @@ async function getStripeInstance(): Promise<Stripe> {
   if (!stripe) {
     toast({
       title: "Checkout unavailable",
-      description: "Checkout unavailable — Stripe failed to load.",
+      description: "Checkout unavailable — Stripe.js failed to load.",
       variant: "destructive",
     });
-    const error: CheckoutError = new Error("Checkout unavailable — Stripe failed to load.");
+    const error: CheckoutError = new Error("Checkout unavailable — Stripe.js failed to load.");
     error.handled = true;
     error.code = "stripe_load_failed";
     throw error;
@@ -47,23 +46,22 @@ async function getStripeInstance(): Promise<Stripe> {
 
 export async function startCheckout(priceId: string, mode: "payment" | "subscription") {
   try {
-    ensurePublishableKey();
-    const promoCode = priceId === import.meta.env.VITE_PRICE_MONTHLY ? "MBSINTRO10" : undefined;
-    const { data }: { data: { sessionId?: string } } = await call("createCheckout", { priceId, mode, promoCode });
-    const sessionId = typeof data?.sessionId === "string" ? data.sessionId : "";
+    const stripe = await getStripeInstance();
+    const promoCode =
+      mode === "subscription" && priceId === import.meta.env.VITE_PRICE_MONTHLY ? "MBSINTRO10" : undefined;
+    const { sessionId } = await backend.createCheckout({ priceId, mode, promoCode });
     if (!sessionId) {
       toast({
         title: "Checkout unavailable",
-        description: "Checkout unavailable — missing checkout session.",
+        description: "Checkout unavailable — no session returned.",
         variant: "destructive",
       });
-      const error: CheckoutError = new Error("Checkout unavailable — missing checkout session.");
+      const error: CheckoutError = new Error("Checkout unavailable — no session returned.");
       error.handled = true;
       error.code = "checkout_session_missing";
       throw error;
     }
 
-    const stripe = await getStripeInstance();
     const { error } = await stripe.redirectToCheckout({ sessionId });
     if (error) {
       toast({
@@ -80,18 +78,11 @@ export async function startCheckout(priceId: string, mode: "payment" | "subscrip
     if (err?.handled) {
       throw err;
     }
-    const firebaseErr = err instanceof FirebaseError ? err : null;
-    if (firebaseErr?.code === "app_check_required" || err?.code === "app_check_required") {
-      toast({
-        title: "Checkout unavailable",
-        description: "Verifying your session. Please refresh and try again.",
-        variant: "destructive",
-      });
-      const wrapped: CheckoutError = new Error("Verifying your session. Please refresh and try again.");
-      wrapped.handled = true;
-      wrapped.code = "app_check_required";
-      throw wrapped;
-    }
+    toast({
+      title: "Checkout unavailable",
+      description: err?.message || "Verifying your session. Please refresh and try again.",
+      variant: "destructive",
+    });
     throw err;
   }
 }

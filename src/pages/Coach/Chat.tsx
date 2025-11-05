@@ -14,6 +14,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
+import { backend } from "@/lib/backendBridge";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -206,8 +207,8 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const response = await call("coachChat", { message: sanitized });
-      const answer = (response?.data as any)?.reply ?? "No answer.";
+      const { reply } = await backend.coachChat({ message: sanitized });
+      const answer = reply ?? "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -223,7 +224,7 @@ export default function CoachChatPage() {
       const code = typeof error?.code === "string" ? error.code : undefined;
       const isAppCheck = code === "app_check_required";
       const message = isAppCheck
-        ? "Verifying your session. Please refresh if it persists."
+        ? "Verifying your session — refresh and try again."
         : errMessage || "Coach unavailable";
       setCoachError(message);
       if (isAppCheck) {

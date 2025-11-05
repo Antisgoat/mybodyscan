@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OAuthProvider, getAuth } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
+import { ensureAppCheck } from "@/lib/firebase";
 
 type ProviderStatus = {
   google: boolean;
@@ -34,6 +35,10 @@ function formatHost(host: string | null | undefined) {
 }
 
 export default function SystemCheck() {
+  useEffect(() => {
+    ensureAppCheck();
+  }, []);
+
   const [status, setStatus] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +189,10 @@ export default function SystemCheck() {
     };
   }, [status?.authProviders]);
 
+  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ? "present" : "missing";
+  const appCheckSiteKey = import.meta.env.VITE_APPCHECK_SITE_KEY ? "present" : "missing";
+  const callableFallback = "enabled (auto HTTP fallback on app_check_required)";
+
   const openAiBadge = status
     ? status.openaiKeyPresent
       ? "Configured"
@@ -279,6 +288,20 @@ export default function SystemCheck() {
                 <pre className="mt-2 max-h-48 overflow-auto rounded border bg-muted p-3 text-[11px] leading-relaxed">
 {JSON.stringify(snapshot.whoami ?? {}, null, 2)}
                 </pre>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Readiness</p>
+                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>
+                    Stripe publishable key: <strong>{stripePublishableKey}</strong>
+                  </li>
+                  <li>
+                    App Check site key: <strong>{appCheckSiteKey}</strong>
+                  </li>
+                  <li>
+                    Callable fallback: <strong>{callableFallback}</strong>
+                  </li>
+                </ul>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col items-start gap-1 text-xs text-muted-foreground">

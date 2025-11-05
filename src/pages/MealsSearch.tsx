@@ -28,6 +28,7 @@ import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
+import { backend } from "@/lib/backendBridge";
 import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 
@@ -338,14 +339,13 @@ export default function MealsSearch() {
 
     (async () => {
       try {
-        const response = await call("nutritionSearch", { q: term });
+        const { items } = await backend.nutritionSearch({ q: term });
         if (cancelled) return;
-        const payload = (response?.data || {}) as { items?: any[] };
-        const items = (payload.items ?? []).map(adaptSearchItem);
-        setResults(items);
-        setPrimarySource(items.length ? (items[0]!.source as "USDA" | "Open Food Facts" | null) : null);
-        setStatus(items.length ? `Found ${items.length} item${items.length === 1 ? "" : "s"}` : "No matches found.");
-        setSearchWarning(items.length ? null : "No foods matched. Try a different term.");
+        const mapped = (items ?? []).map(adaptSearchItem);
+        setResults(mapped);
+        setPrimarySource(mapped.length ? (mapped[0]!.source as "USDA" | "Open Food Facts" | null) : null);
+        setStatus(mapped.length ? `Found ${mapped.length} item${mapped.length === 1 ? "" : "s"}` : "No matches found.");
+        setSearchWarning(mapped.length ? null : "No foods matched. Try a different term.");
       } catch (error: any) {
         if (cancelled) return;
         console.error("nutritionSearch error", error);
@@ -399,14 +399,14 @@ export default function MealsSearch() {
     setStatus(`Looking up barcode ${normalized}…`);
     setSearchWarning(null);
     try {
-      const response = await call("nutritionBarcode", { upc: normalized });
-      const item = (response?.data as any)?.item;
-      if (item) {
-        const adapted = adaptSearchItem(item);
-        setResults(adapted ? [adapted] : []);
-        setPrimarySource(adapted?.source === "Open Food Facts" ? "Open Food Facts" : "USDA");
-        setStatus(adapted ? "Barcode match found" : "No product data returned.");
-        setSearchWarning(adapted ? null : "No product data returned.");
+      const { item, items } = await backend.nutritionBarcode({ upc: normalized });
+      const list = items ?? (item ? [item] : []);
+      const adaptedList = list.map(adaptSearchItem).filter(Boolean) as FoodItem[];
+      if (adaptedList.length) {
+        setResults(adaptedList);
+        setPrimarySource(adaptedList[0]?.source === "Open Food Facts" ? "Open Food Facts" : "USDA");
+        setStatus(adaptedList.length > 1 ? `Found ${adaptedList.length} matches` : "Barcode match found");
+        setSearchWarning(null);
       } else {
         setResults([]);
         setPrimarySource(null);
