@@ -1,11 +1,11 @@
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { log } from "./logger";
 import { FirebaseError } from "firebase/app";
-import { auth as firebaseAuth, db, functions } from "./firebase";
+import { auth as firebaseAuth, db } from "./firebase";
+import { call } from "./callable";
 
 export async function getRemainingCredits(uid: string): Promise<number> {
   const now = new Date();
@@ -39,8 +39,9 @@ export async function consumeOneCredit(): Promise<number> {
   const user = firebaseAuth.currentUser;
   if (!user) throw new Error("Not signed in");
   try {
-    const fn = httpsCallable(functions, "useCredit");
-    const result = await fn({ reason: "scan" });
+    const result = await call<{ reason: string }, { ok?: boolean; remaining?: number }>("useCredit", {
+      reason: "scan",
+    });
     const payload = result.data as { ok?: boolean; remaining?: number };
     if (!payload?.ok) {
       log("warn", "useCredit:no_credits");

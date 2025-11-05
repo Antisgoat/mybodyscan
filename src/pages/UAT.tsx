@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleAuthProvider } from "firebase/auth";
 import { Copy, ExternalLink, RefreshCw, RotateCcw, Send } from "lucide-react";
-import { httpsCallable } from "firebase/functions";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +12,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth, functions } from "@/lib/firebase";
+import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,
@@ -30,6 +29,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { resolveUatAccess, useProbe, type ProbeExecutionResult, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
+import { call } from "@/lib/callable";
 
 type JsonValue = unknown;
 
@@ -343,8 +343,10 @@ const UATPage = () => {
       const email = "developer@adlrlabs.com";
       try {
         await firebaseReady();
-        const callable = httpsCallable(functions, "grantUnlimitedCredits");
-        const response = await callable({ email });
+        const response = await call<{ email: string }, Record<string, unknown> | null>(
+          "grantUnlimitedCredits",
+          { email },
+        );
         const payload = response?.data;
         const data = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
         await refreshClaims(true);

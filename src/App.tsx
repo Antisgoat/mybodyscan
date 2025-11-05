@@ -88,6 +88,7 @@ import { auth } from "@/lib/firebase";
 import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
+import { disableDemoEverywhere } from "./state/demo";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -128,6 +129,7 @@ const App = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        disableDemoEverywhere();
         try {
           await refreshClaimsAndAdminBoost();
         } catch (error) {

@@ -17,7 +17,7 @@ import { getStorage, type FirebaseStorage } from "firebase/storage";
 import {
   initializeAppCheck,
   ReCaptchaV3Provider,
-  getToken as getAppCheckToken,
+  getToken as fetchAppCheckToken,
   type AppCheck,
 } from "firebase/app-check";
 
@@ -36,9 +36,15 @@ type FirebaseConfig = typeof firebaseConfig;
 const appInstance: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig as FirebaseConfig);
 
 let appCheckInstance: AppCheck | null = null;
+let appCheckInitialized = false;
+let loggedAppCheckWarning = false;
 
 export function ensureAppCheck(app: FirebaseApp = appInstance): AppCheck | null {
+  if (typeof window === "undefined") return null;
   if (appCheckInstance) return appCheckInstance;
+  if (appCheckInitialized) return appCheckInstance;
+  appCheckInitialized = true;
+
   (globalThis as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || undefined;
   const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
   if (!siteKey || siteKey === "__DISABLE__") {
@@ -57,18 +63,28 @@ export function ensureAppCheck(app: FirebaseApp = appInstance): AppCheck | null 
   return appCheckInstance;
 }
 
-export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
+export async function getAppCheckTokenSafe(forceRefresh = false): Promise<string | undefined> {
+  const instance = ensureAppCheck();
+  if (!instance) return undefined;
   try {
-    ensureAppCheck();
-    if (!appCheckInstance) return {};
-    const { token } = await getAppCheckToken(appCheckInstance, forceRefresh);
-    return token ? { "X-Firebase-AppCheck": token } : {};
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[AppCheck] token fetch failed", error);
+    const { token } = await fetchAppCheckToken(instance, forceRefresh);
+    if (!token && !loggedAppCheckWarning) {
+      console.warn("App Check token missing; proceeding in soft mode");
+      loggedAppCheckWarning = true;
     }
-    return {};
+    return token || undefined;
+  } catch (error) {
+    if (!loggedAppCheckWarning) {
+      console.warn("App Check token missing; proceeding in soft mode", error);
+      loggedAppCheckWarning = true;
+    }
+    return undefined;
   }
+}
+
+export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
+  const token = await getAppCheckTokenSafe(forceRefresh);
+  return token ? { "X-Firebase-AppCheck": token } : {};
 }
 
 export const app = appInstance;

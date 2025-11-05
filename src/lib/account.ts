@@ -1,6 +1,5 @@
-import { httpsCallable } from "firebase/functions";
-
-import { firebaseReady, getFirebaseFunctions } from "@/lib/firebase";
+import { firebaseReady } from "@/lib/firebase";
+import { call } from "@/lib/callable";
 
 export type ExportImage = { name: string; url: string; expiresAt: string };
 
@@ -20,8 +19,7 @@ export type ExportIndex = {
 
 export async function requestAccountDeletion(): Promise<void> {
   await firebaseReady();
-  const callable = httpsCallable(getFirebaseFunctions(), "deleteMyAccount");
-  const result = await callable({});
+  const result = await call("deleteMyAccount", {});
   const data = result.data as { ok?: boolean };
   if (!data?.ok) {
     throw new Error("delete_failed");
@@ -30,8 +28,7 @@ export async function requestAccountDeletion(): Promise<void> {
 
 export async function requestExportIndex(): Promise<ExportIndex> {
   await firebaseReady();
-  const callable = httpsCallable(getFirebaseFunctions(), "exportMyData");
-  const result = await callable({});
+  const result = await call("exportMyData", {});
   const data = result.data as ExportIndex;
   if (!data?.ok) {
     throw new Error("export_failed");

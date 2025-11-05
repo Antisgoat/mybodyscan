@@ -1,8 +1,7 @@
 import React from "react";
-import { setDemo } from "@/state/demo";
-import { isDemo as getDemoState } from "@/state/demo";
+import { disableDemo as disableStoreDemo, enableDemo as enableStoreDemo, get } from "@/state/demo";
 
-export const DEMO_SESSION_KEY = "mbs.demo.session";
+export const DEMO_SESSION_KEY = "mbs_demo";
 export const DEMO_QUERY_PARAM = "demo";
 export const DEMO_ALLOWED_PATHS = [
   "/",
@@ -32,7 +31,7 @@ export const DEMO_ALLOWED_PATHS = [
 export type DemoAllowedPath = (typeof DEMO_ALLOWED_PATHS)[number];
 
 export function isDemo(): boolean {
-  return getDemoState();
+  return get().demo;
 }
 
 export function isDemoActive(): boolean {
@@ -40,11 +39,11 @@ export function isDemoActive(): boolean {
 }
 
 export function enableDemo(): void {
-  setDemo(true);
+  enableStoreDemo();
 }
 
 export function disableDemo(): void {
-  setDemo(false);
+  disableStoreDemo();
 }
 
 type LocationLike = { pathname: string; search: string };

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../lib/firebase";
-import { setDemo } from "../state/demo";
+import { disableDemo, disableDemoEverywhere, enableDemo } from "../state/demo";
 
 export function useDemoWireup() {
   const location = useLocation();
@@ -10,16 +10,35 @@ export function useDemoWireup() {
   const [authUser, setAuthUser] = useState<User | null>(auth.currentUser);
 
   useEffect(() => {
-    const hasDemoQuery = location.search.includes("demo");
-    const active = !authUser && (location.pathname.startsWith("/demo") || hasDemoQuery);
-    setDemo(active);
+    if (authUser) {
+      return;
+    }
+    const params = new URLSearchParams(location.search || "");
+    const hasDemoQuery = params.get("demo") === "1";
+    const onDemoRoute = location.pathname.startsWith("/demo");
+    if (hasDemoQuery || onDemoRoute) {
+      enableDemo();
+      return;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = window.sessionStorage.getItem("mbs_demo");
+        if (stored === "1" || stored === "true") {
+          enableDemo();
+          return;
+        }
+      } catch {
+        // ignore storage read errors
+      }
+    }
+    disableDemo();
   }, [location.pathname, location.search, authUser]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       if (user) {
-        setDemo(false);
+        disableDemoEverywhere(navigate);
       }
     });
     return unsubscribe;
@@ -27,9 +46,6 @@ export function useDemoWireup() {
 
   useEffect(() => {
     if (!authUser) return;
-    setDemo(false);
-    if (location.search.includes("demo")) {
-      navigate({ pathname: location.pathname, search: "" }, { replace: true });
-    }
-  }, [authUser, location.pathname, location.search, navigate]);
+    disableDemoEverywhere(navigate);
+  }, [authUser, navigate]);
 }

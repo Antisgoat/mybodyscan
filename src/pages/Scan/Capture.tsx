@@ -182,8 +182,7 @@ export default function ScanCapture() {
                       }}
                       id={`capture-${view}`}
                       type="file"
-                      accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                      capture="environment"
+                      accept="image/*"
                       className="hidden"
                       onChange={handleFileChange(view)}
                     />

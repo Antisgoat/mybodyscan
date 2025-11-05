@@ -1,4 +1,4 @@
-import { ensureAppCheck as ensureFirebaseAppCheck, getAppCheckHeader as getHeader } from "./firebase";
+import { ensureAppCheck as ensureFirebaseAppCheck, getAppCheckTokenSafe } from "./firebase";
 
 const SITE_KEY = import.meta.env.VITE_APPCHECK_SITE_KEY || "";
 
@@ -7,13 +7,11 @@ export function hasAppCheck(): boolean {
 }
 
 export async function ensureAppCheck(forceRefresh = false): Promise<string | undefined> {
-  const instance = ensureFirebaseAppCheck();
-  if (!instance) return undefined;
-  const header = await getHeader(forceRefresh);
-  return header["X-Firebase-AppCheck"];
+  ensureFirebaseAppCheck();
+  return getAppCheckTokenSafe(forceRefresh);
 }
 
 export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
-  const header = await getHeader(forceRefresh);
-  return header;
+  const token = await getAppCheckTokenSafe(forceRefresh);
+  return token ? { "X-Firebase-AppCheck": token } : {};
 }

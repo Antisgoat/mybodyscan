@@ -1,31 +1,20 @@
-import { isDemo as getDemoState, setDemo } from "@/state/demo";
+import { disableDemoEverywhere as disableDemoAll, enableDemo, get } from "@/state/demo";
 
-export const DEMO_KEYS = ["mbs.demo", "mbs:demo", "mbs_demo", "demo"] as const;
+export const DEMO_KEYS = ["mbs_demo"] as const;
 
 export function isDemoLocal(): boolean {
-  return getDemoState();
+  return get().demo;
 }
 
 export function enableDemoLocal() {
-  setDemo(true);
+  enableDemo();
 }
 
-export function disableDemoEverywhere() {
-  setDemo(false);
-  if (typeof window !== "undefined") {
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.has("demo")) {
-        url.searchParams.delete("demo");
-        window.history.replaceState({}, "", url.toString());
-      }
-    } catch {
-      // ignore URL cleanup failures
-    }
-  }
+export function disableDemoEverywhere(): void {
+  disableDemoAll();
 }
 
 export function isDemoEffective(authed: boolean): boolean {
   if (authed) return false;
-  return getDemoState();
+  return get().demo;
 }

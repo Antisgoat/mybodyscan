@@ -2,13 +2,21 @@ import express from "express";
 import Stripe from "stripe";
 import { getAuth } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
+import { getStripeSecret } from "./stripe/common.js";
 
-const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "";
-export const hasStripe = Boolean(stripeSecret);
+let stripe: Stripe | null = null;
+let stripeConfigured = false;
 
-const stripe = hasStripe
-  ? new Stripe(stripeSecret, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion })
-  : null;
+try {
+  const secret = getStripeSecret();
+  stripe = new Stripe(secret, { apiVersion: "2023-10-16" as Stripe.LatestApiVersion });
+  stripeConfigured = true;
+} catch {
+  stripe = null;
+  stripeConfigured = false;
+}
+
+export const hasStripe = stripeConfigured;
 
 const PRICE_ONE = process.env.PRICE_ONE || process.env.VITE_PRICE_ONE || "";
 const PRICE_MONTHLY = process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY || "";
