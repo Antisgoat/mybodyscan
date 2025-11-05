@@ -1,3 +1,10 @@
-export function sanitizeFoodItem(q: string) {
-  return (q ?? "").toString().trim().replace(/\s+/g, " ").slice(0, 80);
+export function sanitizeFoodItem(q: string): string {
+  if (!q) return "";
+  return q
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 64);
 }

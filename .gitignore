@@ -35,3 +35,8 @@ dist-ssr
 *.sw?
 .firebase/
 functions/lib/
+# Local env files
+.env*
+!.env.example
+!.env.sample
+!.env.schema
