@@ -1,6 +1,6 @@
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { toast } from "@/hooks/use-toast";
-import { backend } from "@/lib/backendBridge";
+import { call } from "@/lib/callable";
 
 type CheckoutError = Error & { handled?: boolean; code?: string };
 
@@ -44,12 +44,20 @@ async function getStripeInstance(): Promise<Stripe> {
   return stripe;
 }
 
-export async function startCheckout(priceId: string, mode: "payment" | "subscription") {
+export async function startCheckout(
+  priceId: string,
+  mode: "payment" | "subscription",
+  couponCode?: string,
+) {
   try {
     const stripe = await getStripeInstance();
-    const promoCode =
-      mode === "subscription" && priceId === import.meta.env.VITE_PRICE_MONTHLY ? "MBSINTRO10" : undefined;
-    const { sessionId } = await backend.createCheckout({ priceId, mode, promoCode });
+    const payload = {
+      priceId,
+      mode,
+      promoCode: couponCode?.trim() ? couponCode.trim() : undefined,
+    };
+    const response = await call<typeof payload, { sessionId?: string }>("createCheckout", payload);
+    const sessionId = response?.data?.sessionId;
     if (!sessionId) {
       toast({
         title: "Checkout unavailable",

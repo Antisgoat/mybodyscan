@@ -1,5 +1,7 @@
 import { getAuth } from "firebase/auth";
-import { getAppCheckHeader } from "@/lib/firebase";
+import { getAppCheckTokenSafe } from "@/lib/firebase";
+
+let loggedAppCheckWarning = false;
 
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {});
@@ -16,11 +18,12 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   } catch {}
   const url = path.startsWith('/api') ? path : `/api${path}`;
   if (url.startsWith('/api')) {
-    const appCheckHeader = await getAppCheckHeader();
-    for (const [key, value] of Object.entries(appCheckHeader)) {
-      if (value) {
-        headers.set(key, value);
-      }
+    const token = await getAppCheckTokenSafe();
+    if (token) {
+      headers.set('X-Firebase-AppCheck', token);
+    } else if (!loggedAppCheckWarning) {
+      console.warn('App Check token missing; proceeding in soft mode');
+      loggedAppCheckWarning = true;
     }
   }
   const res = await fetch(url, { ...init, headers, credentials: 'include' });

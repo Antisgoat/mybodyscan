@@ -19,13 +19,12 @@ import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink, 
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { auth, db, functions as firebaseFunctions } from "@/lib/firebase";
+import { auth, db, getAppCheckTokenSafe } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
 import { DemoBanner } from "@/components/DemoBanner";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
-import { httpsCallable } from "firebase/functions";
 import { useCredits } from "@/hooks/useCredits";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { buildHash, buildTimestamp, publishableKeySuffix, describeStripeEnvironment } from "@/lib/env";
@@ -34,6 +33,9 @@ import { describePortalError, openCustomerPortal } from "@/lib/payments";
 import { openExternal } from "@/lib/links";
 import { useClaims } from "@/lib/claims";
 import { buildErrorToast } from "@/lib/errorToasts";
+import { call } from "@/lib/callable";
+import { useAuthUser } from "@/lib/auth";
+import { useDemoMode } from "@/components/DemoModeProvider";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -55,6 +57,10 @@ const Settings = () => {
   const [openingPortal, setOpeningPortal] = useState(false);
   const { credits, unlimited, loading: creditsLoading } = useCredits();
   const { refresh: refreshClaimsHook } = useClaims();
+  const { user } = useAuthUser();
+  const demoMode = useDemoMode();
+  const [appCheckStatus, setAppCheckStatus] = useState<"checking" | "present" | "absent">("checking");
+  const stripePublishablePresent = Boolean((import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim());
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
@@ -90,6 +96,31 @@ const Settings = () => {
       setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
     }
   }, [profile?.weight_kg]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setAppCheckStatus("checking");
+      return () => {
+        active = false;
+      };
+    }
+    (async () => {
+      try {
+        const token = await getAppCheckTokenSafe();
+        if (active) {
+          setAppCheckStatus(token ? "present" : "absent");
+        }
+      } catch {
+        if (active) {
+          setAppCheckStatus("absent");
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   const handleSaveMetrics = async () => {
     if (!auth.currentUser) {
@@ -288,8 +319,7 @@ const Settings = () => {
 
     try {
       setRefreshingClaims(true);
-      const callable = httpsCallable(firebaseFunctions, "refreshClaims");
-      await callable({});
+      await call("refreshClaims", {});
 
       const claims = await refreshClaimsHook(true);
 
@@ -359,8 +389,44 @@ const Settings = () => {
             <DemoWriteButton onClick={handleSaveMetrics} disabled={savingMetrics} className="w-full">
               {savingMetrics ? "Saving..." : "Save weight"}
             </DemoWriteButton>
+        </CardContent>
+      </Card>
+
+      {user ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Diagnostics</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>App Check</span>
+              <Badge variant={appCheckStatus === "present" ? "default" : "secondary"} className="uppercase tracking-wide">
+                {appCheckStatus === "checking"
+                  ? "Checking"
+                  : appCheckStatus === "present"
+                    ? "Token present"
+                    : "Token missing"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Demo mode</span>
+              <Badge variant={demoMode ? "secondary" : "outline"} className="uppercase tracking-wide">
+                {demoMode ? "ON" : "OFF"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Auth email</span>
+              <span className="font-medium text-foreground">{user.email || "(none)"}</span>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Stripe publishable key</span>
+              <Badge variant={stripePublishablePresent ? "default" : "destructive"} className="uppercase tracking-wide">
+                {stripePublishablePresent ? "Present" : "Missing"}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
+      ) : null}
 
         {/* Notifications */}
         <SectionCard title={t('settings.notifications')}>

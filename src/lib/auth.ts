@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { httpsCallable } from "firebase/functions";
-import { auth as firebaseAuth, functions } from "@/lib/firebase";
+import { auth as firebaseAuth } from "@/lib/firebase";
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -12,6 +11,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
+import { call } from "@/lib/callable";
 
 async function ensureFirebaseAuth(): Promise<Auth> {
   return firebaseAuth;
@@ -75,7 +75,7 @@ export function useAuthUser() {
         }
 
         try {
-          await httpsCallable(functions, "refreshClaims")({});
+          await call("refreshClaims", {});
         } catch (err) {
           if (import.meta.env.DEV) {
             console.warn("[auth] refreshClaims callable failed", err);

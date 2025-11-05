@@ -207,8 +207,8 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const { reply } = await backend.coachChat({ message: sanitized });
-      const answer = reply ?? "No answer.";
+      const { text } = await backend.coachChat({ message: sanitized });
+      const answer = text ?? "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,

@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
 import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
 import { consumeAuthRedirect } from "@/lib/auth";
+import { disableDemoEverywhere } from "@/state/demo";
 
 export default function Login() {
   const location = useLocation();
@@ -19,7 +20,19 @@ export default function Login() {
   const finish = () => {
     const stored = consumeAuthRedirect();
     const target = stored ?? defaultTarget;
-    window.location.replace(target);
+    disableDemoEverywhere();
+    let sanitized = target;
+    try {
+      const url = new URL(target, window.location.origin);
+      url.searchParams.delete("demo");
+      sanitized = `${url.pathname}${url.search}${url.hash}` || "/";
+    } catch {
+      if (typeof target === "string" && target.includes("demo=")) {
+        const [path] = target.split("?");
+        sanitized = path || "/";
+      }
+    }
+    window.location.replace(sanitized);
   };
 
   async function wrap<T>(fn: () => Promise<T>, options?: { autoFinish?: boolean }) {

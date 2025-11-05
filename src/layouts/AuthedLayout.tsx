@@ -10,6 +10,7 @@ import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { AppFooter } from "@/components/AppFooter";
+import { isDemoAllowed } from "@/state/demo";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -32,7 +33,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const demoMode = useDemoMode();
   const { user } = useAuthUser();
-  const readOnlyDemo = demoMode && !user;
+  const readOnlyDemo = demoMode && isDemoAllowed(user);
 
   const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 

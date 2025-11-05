@@ -1,5 +1,5 @@
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/lib/firebase";
+import { functions, getAppCheckTokenSafe } from "@/lib/firebase";
 import { apiFetch } from "@/lib/apiFetch";
 
 type FallbackSpec = {
@@ -9,6 +9,8 @@ type FallbackSpec = {
   mapHttpToClient: (r: any) => any;
   mapRequestToHttp?: (payload: unknown) => Record<string, unknown> | undefined;
 };
+
+let loggedCallableWarning = false;
 
 function isAppCheckLikeError(err: any): boolean {
   const code = err?.code || err?.error?.status || "";
@@ -25,8 +27,14 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
   payload?: TReq,
 ): Promise<TRes> {
   try {
+    const token = await getAppCheckTokenSafe();
+    if (!token && !loggedCallableWarning) {
+      console.warn("App Check token missing; proceeding in soft mode");
+      loggedCallableWarning = true;
+    }
     const fn = httpsCallable<TReq, TRes>(functions, spec.callableName);
-    const { data } = await fn(payload as TReq);
+    const options = token ? ({ appCheckToken: token } as any) : undefined;
+    const { data } = await fn(payload as TReq, options);
     return data as TRes;
   } catch (err: any) {
     if (!isAppCheckLikeError(err)) throw err;
@@ -73,12 +81,12 @@ export const backend = {
   },
 
   async coachChat(input: { message: string }) {
-    return callWithHttpFallback<typeof input, { reply: string }>(
+    return callWithHttpFallback<typeof input, { text: string }>(
       {
         callableName: "coachChat",
         httpPath: "/api/coach/chat",
         method: "POST",
-        mapHttpToClient: (json: any) => ({ reply: json?.reply ?? json?.answer ?? "" }),
+        mapHttpToClient: (json: any) => ({ text: json?.text ?? json?.answer ?? json?.reply ?? "" }),
       },
       input,
     );

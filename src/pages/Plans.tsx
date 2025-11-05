@@ -50,7 +50,6 @@ export default function Plans() {
   const status = searchParams.get("status");
   const success = searchParams.get("success") === "1" || status === "success";
   const canceled = searchParams.get("canceled") === "1" || status === "cancel";
-  const canBuy = Boolean(user);
   const signUpHref = "/auth?next=/plans";
 
   const dismissCheckoutState = useCallback(() => {
@@ -109,7 +108,9 @@ export default function Plans() {
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      await startCheckout(plan.priceId, plan.mode);
+      const promo =
+        plan.mode === "subscription" && plan.priceId === PRICE_ID_MONTHLY ? "MBSINTRO10" : undefined;
+      await startCheckout(plan.priceId, plan.mode, promo);
     } catch (err: any) {
       console.error("checkout_error", err);
       const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);
@@ -327,7 +328,7 @@ export default function Plans() {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() => handleCheckout(plan)}
-                    disabled={pendingPlan === plan.plan || !canBuy || !plan.priceId}
+                    disabled={pendingPlan === plan.plan || !plan.priceId}
                   >
                     {pendingPlan === plan.plan ? (
                       <span className="inline-flex items-center justify-center gap-2">

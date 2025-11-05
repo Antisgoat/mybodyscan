@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
-import { hasStripe, assertStripeConfigured, getStripeSecret, getStripeSigningSecret } from "./lib/env.js";
+import { hasStripe, assertStripeConfigured, getStripeSigningSecret } from "./lib/env.js";
+import { getStripeSecret } from "./stripe/common.js";
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
   if (!hasStripe()) return res.status(501).json({ error: "payments_disabled" });
@@ -8,7 +9,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
 
   const { default: Stripe } = await import("stripe");
   const signingSecret = getStripeSigningSecret() as string;
-  const stripe = new Stripe(getStripeSecret() as string, { apiVersion: "2023-10-16" as any });
+  const stripe = new Stripe(getStripeSecret(), { apiVersion: "2023-10-16" as any });
 
   try {
     const sig = req.headers["stripe-signature"] as string;

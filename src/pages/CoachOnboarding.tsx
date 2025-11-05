@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@/lib/units";
-import { app } from "@/lib/firebase";
-import { getFunctions, httpsCallable } from "firebase/functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,9 +31,6 @@ const CoachOnboarding = () => {
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   async function finish() {
-    const functions = getFunctions(app);
-    const save = httpsCallable(functions, "saveOnboarding");
-    const compute = httpsCallable(functions, "computePlan");
     const payload: any = { ...form };
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
@@ -44,8 +39,8 @@ const CoachOnboarding = () => {
     payload.height_ft = ft;
     payload.height_in = inch;
     payload.weight_lb = kgToLb(weightKg);
-    await save(payload);
-    const { data } = await compute({});
+    await call("saveOnboarding", payload);
+    const { data } = await call("computePlan", {});
     setPlan(data);
     setStep(4);
   }
@@ -359,3 +354,4 @@ const CoachOnboarding = () => {
 
 export default CoachOnboarding;
 
+import { call } from "@/lib/callable";

@@ -1,13 +1,19 @@
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";
-import { sanitizeFoodItem } from "./sanitize.js";
-
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
+const sanitize = (s: unknown): string => {
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/[^\w\s./-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 function formatSanitized(value: unknown): string {
-  const sanitized = sanitizeFoodItem(typeof value === "string" ? value : "");
+  const sanitized = sanitize(value);
   if (!sanitized) return "";
   return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
 }
@@ -17,7 +23,7 @@ function normalize(items: any[]) {
     id: item.id || item.fdcId || item.code || item._id || "",
     name: formatSanitized(item.name || item.description || item.product_name || "") || "Unknown",
     brand: formatSanitized(item.brand || item.brandOwner || item.brands || ""),
-    kcal: item.kcal ?? item.calories ?? item.energyKcal ?? item.nutrients?.kcal ?? null,
+    calories: item.calories ?? item.kcal ?? item.energyKcal ?? item.nutrients?.kcal ?? null,
     protein: item.protein ?? item.nutrients?.protein ?? null,
     carbs: item.carbs ?? item.nutrients?.carbohydrates ?? null,
     fat: item.fat ?? item.nutrients?.fat ?? null,
@@ -32,8 +38,8 @@ function normalize(items: any[]) {
 }
 
 export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
-  const raw = String(req.data?.q ?? "");
-  const q = sanitizeFoodItem(raw);
+  const rawQuery = req.data?.q ?? req.data?.query ?? "";
+  const q = sanitize(rawQuery);
   if (!q) {
     return { items: [] };
   }
@@ -50,7 +56,7 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
             id: food.fdcId,
             name: food.description,
             brand: food.brandOwner || "",
-            kcal: food.labelNutrients?.calories?.value ?? null,
+            calories: food.labelNutrients?.calories?.value ?? null,
             protein: food.labelNutrients?.protein?.value ?? null,
             carbs: food.labelNutrients?.carbohydrates?.value ?? null,
             fat: food.labelNutrients?.fat?.value ?? null,
@@ -76,7 +82,7 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
       id: product._id || product.code,
       name: product.product_name || product.brands_tags?.[0] || "Unknown",
       brand: product.brands || "",
-      kcal: product.nutriments?.["energy-kcal_100g"] ?? null,
+      calories: product.nutriments?.["energy-kcal_100g"] ?? null,
       protein: product.nutriments?.["proteins_100g"] ?? null,
       carbs: product.nutriments?.["carbohydrates_100g"] ?? null,
       fat: product.nutriments?.["fat_100g"] ?? null,

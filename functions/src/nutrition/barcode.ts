@@ -1,13 +1,19 @@
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";
-import { sanitizeFoodItem } from "./sanitize.js";
-
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
+const sanitize = (s: unknown): string => {
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/[^\w\s./-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 function formatSanitized(value: unknown): string {
-  const sanitized = sanitizeFoodItem(typeof value === "string" ? value : "");
+  const sanitized = sanitize(value);
   if (!sanitized) return "";
   return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
 }

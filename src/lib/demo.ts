@@ -1,5 +1,4 @@
-import { isDemo as getDemoState } from "@/state/demo";
-import { setDemo } from "@/state/demo";
+import { disableDemo as disableStoreDemo, enableDemo as enableStoreDemo, get } from "@/state/demo";
 
 export const DEMO_KEY = "mbs.demo";
 
@@ -13,15 +12,15 @@ function broadcastDemoChange(enabled: boolean) {
 }
 
 export const isDemo = (): boolean => {
-  return getDemoState();
+  return get().demo;
 };
 
 export const enableDemo = (): void => {
-  setDemo(true);
+  enableStoreDemo();
   broadcastDemoChange(true);
 };
 
 export const disableDemo = (): void => {
-  setDemo(false);
+  disableStoreDemo();
   broadcastDemoChange(false);
 };

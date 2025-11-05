@@ -508,8 +508,7 @@ export default function Scan() {
                         <input
                           id={inputId}
                           type="file"
-                          accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                          capture="environment"
+                          accept="image/*"
                           className="hidden"
                           onChange={(event) => handleFileChange(key, event)}
                         />
