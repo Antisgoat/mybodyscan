@@ -19,7 +19,7 @@ let stripeInstance: Stripe | null = null;
 
 export function getStripeClient(): Stripe {
   if (!stripeInstance) {
-    stripeInstance = new Stripe(getStripeSecret(), { apiVersion: "2023-10-16" });
+    stripeInstance = new Stripe(getStripeSecret(), { apiVersion: "2024-06-20" });
   }
   return stripeInstance;
 }

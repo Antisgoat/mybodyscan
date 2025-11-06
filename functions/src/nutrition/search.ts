@@ -1,19 +1,19 @@
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";
+
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
-const sanitize = (s: unknown): string => {
-  return String(s ?? "")
-    .toLowerCase()
-    .replace(/[^\w\s./-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-};
+function sanitize(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+}
 
 function formatSanitized(value: unknown): string {
-  const sanitized = sanitize(value);
+  const sanitized = sanitize(value)
+    .toLowerCase()
+    .replace(/[^\w\s./-]+/g, " ")
+    .trim();
   if (!sanitized) return "";
   return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
 }
@@ -27,7 +27,7 @@ function normalize(items: any[]) {
     protein: item.protein ?? item.nutrients?.protein ?? null,
     carbs: item.carbs ?? item.nutrients?.carbohydrates ?? null,
     fat: item.fat ?? item.nutrients?.fat ?? null,
-    serving: formatSanitized(item.serving ?? item.servingSize ?? ""),
+    serving: formatSanitized(item.serving ?? (item.servingSize ?? "")),
     source:
       typeof item.source === "string"
         ? item.source

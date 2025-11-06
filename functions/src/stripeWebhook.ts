@@ -52,7 +52,11 @@ async function uidFromCustomer(customerId: string): Promise<string> {
   if (!customerId) return "";
   const customer = await stripe.customers.retrieve(customerId);
   if (Array.isArray(customer)) return "";
-  return (customer.metadata?.uid as string) || "";
+  if ("deleted" in customer && customer.deleted) {
+    return "";
+  }
+  const activeCustomer = customer as Stripe.Customer;
+  return (activeCustomer.metadata?.uid as string) || "";
 }
 
 async function recordLedgerDeposit(

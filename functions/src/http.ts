@@ -1,4 +1,5 @@
-import type { NextFunction, Request, Response } from "express";
+import expressModule from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
 import { getAppCheckMode, getHostBaseUrl, type AppCheckMode } from "./lib/env.js";
@@ -9,13 +10,19 @@ const ALLOW = [
   "https://mybodyscan-f3daf.firebaseapp.com",
 ];
 
-export const allowCorsAndOptionalAppCheck = (req: Request, res: Response, next: NextFunction) => {
+const express = expressModule as any;
+
+export const allowCorsAndOptionalAppCheck: RequestHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const origin = req.get("Origin");
-  if (origin && ALLOW.includes(origin)) res.header("Access-Control-Allow-Origin", origin);
-  res.header("Vary", "Origin");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  if (origin && ALLOW.includes(origin)) res.set("Access-Control-Allow-Origin", origin);
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Credentials", "true");
+  res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
+  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (!req.get("X-Firebase-AppCheck")) {
     console.warn("appcheck_missing", { path: req.path || req.url });
   }

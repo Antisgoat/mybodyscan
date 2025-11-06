@@ -1,4 +1,5 @@
-import express from "express";
+import expressModule from "express";
+import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { getAuth } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
@@ -9,12 +10,14 @@ let stripeConfigured = false;
 
 try {
   const secret = getStripeSecret();
-  stripe = new Stripe(secret, { apiVersion: "2023-10-16" as Stripe.LatestApiVersion });
+  stripe = new Stripe(secret, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion });
   stripeConfigured = true;
 } catch {
   stripe = null;
   stripeConfigured = false;
 }
+
+const express = expressModule as any;
 
 export const hasStripe = stripeConfigured;
 
@@ -96,7 +99,7 @@ export const billingRouter = express.Router();
 billingRouter.use(allowCorsAndOptionalAppCheck);
 billingRouter.use(express.json());
 
-billingRouter.post("/create-checkout-session", async (req, res) => {
+billingRouter.post("/create-checkout-session", async (req: Request, res: Response) => {
   if (!stripe) {
     res.status(501).json({ error: "payments_disabled" });
     return;
@@ -164,7 +167,7 @@ billingRouter.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-async function handlePortal(req: express.Request, res: express.Response) {
+async function handlePortal(req: Request, res: Response) {
   if (!stripe) {
     res.status(501).json({ error: "payments_disabled" });
     return;

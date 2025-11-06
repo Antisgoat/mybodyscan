@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import express from "express";
+import expressModule from "express";
+import type { Request, Response } from "express";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 
+const express = expressModule as any;
 const db = getFirestore();
 
 async function appendMessage(uid: string, text: string, response: string, demo: boolean): Promise<void> {
@@ -25,7 +27,7 @@ async function appendMessage(uid: string, text: string, response: string, demo: 
   }
 }
 
-async function optionalUser(req: express.Request) {
+async function optionalUser(req: Request) {
   const header = req.get("Authorization") || req.get("authorization") || "";
   if (!header.startsWith("Bearer ")) {
     return null;
@@ -50,7 +52,7 @@ export const coachRouter = express.Router();
 coachRouter.use(allowCorsAndOptionalAppCheck);
 coachRouter.use(express.json());
 
-coachRouter.post("/chat", async (req, res) => {
+coachRouter.post("/chat", async (req: Request, res: Response) => {
   const questionRaw = req.body?.question;
   const question = typeof questionRaw === "string" ? questionRaw.trim() : "";
   if (!question) {
