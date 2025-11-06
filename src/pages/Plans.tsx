@@ -88,6 +88,9 @@ export default function Plans() {
     }
   };
 
+  const authed = Boolean(user);
+  const canBuy = authed;
+
   const handleCheckout = async (plan: PlanConfig) => {
     if (!user) {
       window.location.assign("/auth?next=/plans");
@@ -269,7 +272,7 @@ export default function Plans() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
-          {demoMode && (
+          {demoMode && !authed && (
             <p className="text-xs text-muted-foreground mt-2">
               Demo Mode — sign in to purchase.
             </p>
@@ -328,7 +331,7 @@ export default function Plans() {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() => handleCheckout(plan)}
-                    disabled={pendingPlan === plan.plan || !plan.priceId}
+                    disabled={!canBuy || pendingPlan === plan.plan || !plan.priceId}
                   >
                     {pendingPlan === plan.plan ? (
                       <span className="inline-flex items-center justify-center gap-2">
@@ -341,16 +344,13 @@ export default function Plans() {
                       t('plans.buyNow')
                     )}
                   </Button>
-                  {demoMode && (
-                    <a
-                      className="block text-xs text-center text-primary underline"
-                      href={signUpHref}
-                    >
-                      Sign up to use this feature
-                    </a>
-                  )}
-                  {!user && !demoMode && (
-                    <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
+                  {!authed && (
+                    <>
+                      <a className="block text-xs text-center text-primary underline" href={signUpHref}>
+                        Sign in to use this feature
+                      </a>
+                      <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
+                    </>
                   )}
                 </div>
               </CardContent>

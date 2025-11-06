@@ -6,6 +6,7 @@ import { OAuthProvider, getAuth } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
 import { ensureAppCheck } from "@/lib/firebase";
+import { isCallableHttpFallbackActive, subscribeCallableHttpFallback } from "@/lib/backendBridge";
 
 type ProviderStatus = {
   google: boolean;
@@ -35,8 +36,18 @@ function formatHost(host: string | null | undefined) {
 }
 
 export default function SystemCheck() {
+  const [fallbackInfo, setFallbackInfo] = useState<{ httpFallback: boolean }>(() => ({
+    httpFallback: isCallableHttpFallbackActive(),
+  }));
+
   useEffect(() => {
     ensureAppCheck();
+  }, []);
+
+  useEffect(() => {
+    return subscribeCallableHttpFallback((active) => {
+      setFallbackInfo({ httpFallback: active });
+    });
   }, []);
 
   const [status, setStatus] = useState<HealthResponse | null>(null);
@@ -191,7 +202,14 @@ export default function SystemCheck() {
 
   const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ? "present" : "missing";
   const appCheckSiteKey = import.meta.env.VITE_APPCHECK_SITE_KEY ? "present" : "missing";
-  const callableFallback = "enabled (auto HTTP fallback on app_check_required)";
+  const callableFallback = fallbackInfo.httpFallback ? "active" : "inactive";
+  const stripeSecretStatus = status
+    ? status.stripeSecretPresent
+      ? "present (masked)"
+      : "missing"
+    : loading
+    ? "checking…"
+    : "unknown";
 
   const openAiBadge = status
     ? status.openaiKeyPresent
@@ -271,6 +289,28 @@ export default function SystemCheck() {
           </div>
         ) : null}
         <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>System health signals</CardTitle>
+              <CardDescription>Critical launch configuration status.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div>
+                  Stripe publishable key (env): <strong className="text-foreground">{stripePublishableKey}</strong>
+                </div>
+                <div>
+                  App Check site key (env): <strong className="text-foreground">{appCheckSiteKey}</strong>
+                </div>
+                <div>
+                  Stripe secret key: <strong className="text-foreground">{stripeSecretStatus}</strong>
+                </div>
+                <div>
+                  Callable→HTTP fallback: <strong className="text-foreground">{callableFallback}</strong>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Snapshot</CardTitle>

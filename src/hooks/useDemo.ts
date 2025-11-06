@@ -1,18 +1,50 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "../lib/firebase";
-import { disableDemo, disableDemoEverywhere, enableDemo } from "../state/demo";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { disableDemo, enableDemo, setDemo } from "@/state/demo";
+
+function clearStoredDemoFlags() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem("mbs.demo");
+    window.localStorage.removeItem("mbs:demo");
+    window.localStorage.removeItem("mbs_demo");
+  } catch {}
+  try {
+    window.sessionStorage.removeItem("mbs.demo");
+    window.sessionStorage.removeItem("mbs:demo");
+    window.sessionStorage.removeItem("mbs_demo");
+  } catch {}
+}
 
 export function useDemoWireup() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [authUser, setAuthUser] = useState<User | null>(auth.currentUser);
+  const [authed, setAuthed] = useState<boolean>(Boolean(auth.currentUser));
 
   useEffect(() => {
-    if (authUser) {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setAuthed(Boolean(user));
+      try {
+        clearStoredDemoFlags();
+        setDemo(false);
+        if (user) {
+          if (location.search.includes("demo=")) {
+            navigate({ pathname: location.pathname, search: "" }, { replace: true });
+          }
+        }
+      } catch {}
+    });
+    return () => unsubscribe();
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (authed) {
+      setDemo(false);
       return;
     }
+
     const params = new URLSearchParams(location.search || "");
     const hasDemoQuery = params.get("demo") === "1";
     const onDemoRoute = location.pathname.startsWith("/demo");
@@ -20,6 +52,7 @@ export function useDemoWireup() {
       enableDemo();
       return;
     }
+
     if (typeof window !== "undefined") {
       try {
         const stored = window.sessionStorage.getItem("mbs_demo");
@@ -31,21 +64,7 @@ export function useDemoWireup() {
         // ignore storage read errors
       }
     }
+
     disableDemo();
-  }, [location.pathname, location.search, authUser]);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthUser(user);
-      if (user) {
-        disableDemoEverywhere(navigate);
-      }
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!authUser) return;
-    disableDemoEverywhere(navigate);
-  }, [authUser, navigate]);
+  }, [authed, location.pathname, location.search]);
 }

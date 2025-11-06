@@ -511,9 +511,64 @@ export const nutritionRouter = express.Router();
 
 nutritionRouter.use(allowCorsAndOptionalAppCheck);
 
-nutritionRouter.get("/nutrition/search", async (req: Request, res: Response) => {
-  const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  const barcode = typeof req.query.barcode === "string" ? req.query.barcode.trim() : "";
+async function executeSearch(query: string, barcode: string) {
+  let results: ApiNutritionItem[] = [];
+  let primarySource: "usda" | "off" | "barcode" | null = null;
+
+  if (query) {
+    try {
+      results = await searchUsda(query);
+      if (results.length > 0) {
+        primarySource = "usda";
+      }
+    } catch (error) {
+      console.warn("usda_search_failed", { message: (error as Error)?.message });
+    }
+  }
+
+  if (results.length === 0) {
+    try {
+      if (barcode) {
+        results = await lookupBarcode(barcode);
+        if (results.length > 0) {
+          primarySource = "barcode";
+        }
+      }
+      if (results.length === 0 && query) {
+        results = await searchOff(query);
+        if (results.length > 0) {
+          primarySource = "off";
+        }
+      }
+    } catch (error) {
+      console.warn("off_search_failed", { message: (error as Error)?.message });
+    }
+  }
+
+  if (results.length === 0 && barcode) {
+    try {
+      const barcodeFallback = await lookupBarcode(barcode);
+      results = barcodeFallback;
+      if (results.length > 0) {
+        primarySource = "barcode";
+      }
+    } catch (error) {
+      console.warn("off_barcode_failed", { message: (error as Error)?.message });
+    }
+  }
+
+  const normalized = dedupe(results).slice(0, 25);
+  const message = normalized.length === 0 ? "no_results" : "ok";
+  return { normalized, primarySource, message };
+}
+
+function parseQuery(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+nutritionRouter.get("/search", async (req: Request, res: Response) => {
+  const query = parseQuery(req.query.q);
+  const barcode = parseQuery(req.query.barcode);
 
   if (!query && !barcode) {
     res.status(400).json({ error: "missing_query" });
@@ -521,54 +576,28 @@ nutritionRouter.get("/nutrition/search", async (req: Request, res: Response) => 
   }
 
   try {
-    let results: ApiNutritionItem[] = [];
-    let primarySource: "usda" | "off" | "barcode" | null = null;
+    const { normalized, primarySource, message } = await executeSearch(query, barcode);
+    res.json({ items: normalized, results: normalized, source: primarySource, message });
+  } catch (error) {
+    console.error("nutrition_search_error", {
+      message: (error as Error)?.message,
+    });
+    res.status(502).json({ error: "nutrition_unavailable" });
+  }
+});
 
-    if (query) {
-      try {
-        results = await searchUsda(query);
-        if (results.length > 0) {
-          primarySource = "usda";
-        }
-      } catch (error) {
-        console.warn("usda_search_failed", { message: (error as Error)?.message });
-      }
-    }
+nutritionRouter.post("/search", async (req: Request, res: Response) => {
+  const query = parseQuery(req.body?.q);
+  const barcode = parseQuery(req.body?.barcode);
 
-    if (results.length === 0) {
-      try {
-        if (barcode) {
-          results = await lookupBarcode(barcode);
-          if (results.length > 0) {
-            primarySource = "barcode";
-          }
-        }
-        if (results.length === 0 && query) {
-          results = await searchOff(query);
-          if (results.length > 0) {
-            primarySource = "off";
-          }
-        }
-      } catch (error) {
-        console.warn("off_search_failed", { message: (error as Error)?.message });
-      }
-    }
+  if (!query && !barcode) {
+    res.status(400).json({ error: "missing_query" });
+    return;
+  }
 
-    if (results.length === 0 && barcode) {
-      try {
-        const barcodeFallback = await lookupBarcode(barcode);
-        results = barcodeFallback;
-        if (results.length > 0) {
-          primarySource = "barcode";
-        }
-      } catch (error) {
-        console.warn("off_barcode_failed", { message: (error as Error)?.message });
-      }
-    }
-
-    const normalized = dedupe(results).slice(0, 25);
-    const message = normalized.length === 0 ? "no_results" : "ok";
-    res.json({ results: normalized, source: primarySource, message });
+  try {
+    const { normalized, primarySource, message } = await executeSearch(query, barcode);
+    res.json({ items: normalized, results: normalized, source: primarySource, message });
   } catch (error) {
     console.error("nutrition_search_error", {
       message: (error as Error)?.message,

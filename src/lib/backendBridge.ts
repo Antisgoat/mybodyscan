@@ -11,6 +11,18 @@ type FallbackSpec = {
 };
 
 let loggedCallableWarning = false;
+let callableHttpFallbackActive = false;
+const fallbackListeners = new Set<(active: boolean) => void>();
+
+function notifyFallbackListeners() {
+  for (const listener of fallbackListeners) {
+    try {
+      listener(callableHttpFallbackActive);
+    } catch (error) {
+      console.warn("backend_fallback_listener_error", error);
+    }
+  }
+}
 
 function isAppCheckLikeError(err: any): boolean {
   const code = err?.code || err?.error?.status || "";
@@ -38,6 +50,8 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
     return data as TRes;
   } catch (err: any) {
     if (!isAppCheckLikeError(err)) throw err;
+    callableHttpFallbackActive = true;
+    notifyFallbackListeners();
     const method = spec.method || "POST";
     const httpPayload = spec.mapRequestToHttp ? spec.mapRequestToHttp(payload) : payload;
     const init: RequestInit = {
@@ -58,9 +72,27 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
         path = `${path}${path.includes("?") ? "&" : "?"}${qs}`;
       }
     }
-    const json = await apiFetch(path, init);
-    return spec.mapHttpToClient(json);
+    try {
+      const json = await apiFetch(path, init);
+      return spec.mapHttpToClient(json);
+    } catch (httpError) {
+      const error = httpError instanceof Error ? httpError : new Error(String(httpError));
+      (error as Error & { httpFallbackAttempted?: boolean }).httpFallbackAttempted = true;
+      throw error;
+    }
   }
+}
+
+export function isCallableHttpFallbackActive() {
+  return callableHttpFallbackActive;
+}
+
+export function subscribeCallableHttpFallback(listener: (active: boolean) => void) {
+  fallbackListeners.add(listener);
+  listener(callableHttpFallbackActive);
+  return () => {
+    fallbackListeners.delete(listener);
+  };
 }
 
 export const backend = {
