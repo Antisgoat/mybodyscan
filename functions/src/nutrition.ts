@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
-import express from "express";
-import { HttpsError, onRequest } from "firebase-functions/v2/https";
+import expressModule from "express";
 import type { Request, Response } from "express";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
@@ -13,6 +13,7 @@ import type {
   NutritionItemSnapshot,
 } from "./types.js";
 
+const express = expressModule as any;
 const db = getFirestore();
 
 function round(value: number, decimals = 0) {
@@ -510,7 +511,7 @@ export const nutritionRouter = express.Router();
 
 nutritionRouter.use(allowCorsAndOptionalAppCheck);
 
-nutritionRouter.get("/nutrition/search", async (req, res) => {
+nutritionRouter.get("/nutrition/search", async (req: Request, res: Response) => {
   const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const barcode = typeof req.query.barcode === "string" ? req.query.barcode.trim() : "";
 

@@ -14,6 +14,16 @@ import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 
+async function loadZXing() {
+  try {
+    const mod = await import("@zxing/browser");
+    return mod;
+  } catch (error) {
+    console.warn("zxing_import_failed", error);
+    return null;
+  }
+}
+
 function buildFoodItemFromSanitized(
   code: string,
   raw: any,
@@ -72,6 +82,9 @@ export default function BarcodeScan() {
   const [status, setStatus] = useState<string>("");
   const [processing, setProcessing] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
+  const [scannerUnavailable, setScannerUnavailable] = useState(false);
+
+  const unavailableMessage = "Scanner unavailable — use manual barcode entry below.";
 
   const defaultCountry = useMemo(
     () => defaultCountryFromLocale(typeof navigator !== "undefined" ? navigator.language : undefined),
@@ -194,8 +207,13 @@ export default function BarcodeScan() {
   }, [handleDetected]);
 
   const startWithZxing = useCallback(async () => {
+    const mod = await loadZXing();
+    if (!mod) {
+      setScannerUnavailable(true);
+      setScannerError(unavailableMessage);
+      return false;
+    }
     try {
-      const mod = await import("@zxing/browser");
       const reader = new mod.BrowserMultiFormatReader();
       const controls = await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err, ctrl) => {
         if (result) {
@@ -210,17 +228,22 @@ export default function BarcodeScan() {
       setTorchAvailable(false);
       setRunning(true);
       scanningRef.current = true;
+      return true;
     } catch (error) {
       console.error("zxing_loader_error", error);
-      throw Object.assign(new Error("zxing_load_failed"), { cause: error });
+      setScannerError("Unable to start ZXing scanner. Enter code manually.");
+      setScannerUnavailable(true);
+      return false;
     }
-  }, [handleDetected]);
+  }, [handleDetected, unavailableMessage]);
 
   const startScanner = useCallback(async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      setScannerError("Camera not available in this browser; enter code manually.");
+      setScannerUnavailable(true);
+      setScannerError(unavailableMessage);
       return;
     }
+    setScannerUnavailable(false);
     setScannerError(null);
     setDetectedCode(null);
     stopScanner();
@@ -238,17 +261,17 @@ export default function BarcodeScan() {
         await startWithBarcodeDetector();
         return;
       }
-      await startWithZxing();
+      const started = await startWithZxing();
+      if (!started) {
+        stopScanner();
+      }
     } catch (error: any) {
       console.error("scanner_start_failed", error);
-      const message =
-        error?.message === "zxing_load_failed"
-          ? "Unable to load barcode library. Enter code manually."
-          : "Scanner unavailable — use manual code";
-      setScannerError(message);
+      setScannerUnavailable(true);
+      setScannerError(unavailableMessage);
       stopScanner();
     }
-  }, [startWithBarcodeDetector, startWithZxing, stopScanner]);
+  }, [startWithBarcodeDetector, startWithZxing, stopScanner, unavailableMessage]);
 
   const toggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()?.[0];
@@ -282,10 +305,16 @@ export default function BarcodeScan() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setScannerUnavailable(true);
+        setScannerError(unavailableMessage);
+      }
+    }
     return () => {
       stopScanner();
     };
-  }, [stopScanner]);
+  }, [stopScanner, unavailableMessage]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6 pb-20 md:pb-10">
@@ -329,6 +358,8 @@ export default function BarcodeScan() {
               ? "Scanning…"
               : scannerError
               ? scannerError
+              : scannerUnavailable
+              ? unavailableMessage
               : "Tap start to begin scanning"}
             {detectedCode ? ` • Last detected: ${detectedCode}` : ""}
           </p>

@@ -1,5 +1,5 @@
-import express from "express";
-import type { UserRecord } from "firebase-admin/auth";
+import expressModule from "express";
+import type { Request, Response } from "express";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
 
@@ -23,6 +23,7 @@ function parseAdminEmails(): Set<string> {
 }
 
 const adminEmails = parseAdminEmails();
+const express = expressModule as any;
 const db = getFirestore();
 
 export const systemRouter = express.Router();
@@ -30,13 +31,13 @@ export const systemRouter = express.Router();
 systemRouter.use(allowCorsAndOptionalAppCheck);
 systemRouter.use(express.json());
 
-systemRouter.post("/bootstrap", async (req, res) => {
+systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
   try {
     const { uid, claims } = await requireAuthWithClaims(req);
     const auth = getAuth();
     const decodedEmail = typeof claims?.email === "string" ? claims.email : undefined;
     let email = decodedEmail?.toLowerCase() || undefined;
-    let userRecord: UserRecord | null = null;
+    let userRecord: { customClaims?: Record<string, unknown>; email?: string | null } | null = null;
     if (!email) {
       try {
         const record = await auth.getUser(uid);
@@ -117,7 +118,7 @@ systemRouter.post("/bootstrap", async (req, res) => {
   }
 });
 
-systemRouter.get("/whoami", async (req, res) => {
+systemRouter.get("/whoami", async (req: Request, res: Response) => {
   const header = req.get("authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   let uid: string | null = null;
@@ -152,7 +153,7 @@ systemRouter.get("/whoami", async (req, res) => {
   res.json({ uid, email, credits, appcheck, project });
 });
 
-systemRouter.get("/health", (_req, res) => {
+systemRouter.get("/health", (_req: Request, res: Response) => {
   const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || "").trim();
   const stripeSecret = (process.env.STRIPE_SECRET || "").trim();
   const stripeSecretSource = stripeSecretKey ? "STRIPE_SECRET_KEY" : stripeSecret ? "STRIPE_SECRET" : null;
@@ -193,7 +194,7 @@ systemRouter.get("/health", (_req, res) => {
   });
 });
 
-systemRouter.post("/admin/grant-credits", async (req, res) => {
+systemRouter.post("/admin/grant-credits", async (req: Request, res: Response) => {
   const header = req.get("authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
   if (!match) {

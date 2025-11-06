@@ -1,7 +1,8 @@
 // IMPORTANT: use .js suffixes so Node ESM can resolve compiled files at runtime.
 // Export only Cloud Function handlers - no middleware/util exports, no wildcard exports
 
-import express from "express";
+import expressModule from "express";
+import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { billingRouter } from "./billing.js";
 import { coachRouter } from "./coach.js";
@@ -30,6 +31,7 @@ export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { systemBootstrap } from "./system.js";
 
+const express = expressModule as any;
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
