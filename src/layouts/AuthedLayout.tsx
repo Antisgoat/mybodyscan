@@ -10,7 +10,7 @@ import CreditsBadge from "@/components/CreditsBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { AppFooter } from "@/components/AppFooter";
-import { isDemoAllowed } from "@/state/demo";
+import { isDemoAllowed, setDemo } from "@/state/demo";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -28,12 +28,28 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
   { to: "/settings", label: "Settings", feature: "account" },
 ];
 
+function clearDemoAndReload() {
+  try {
+    window.localStorage.removeItem("mbs.demo");
+    window.localStorage.removeItem("mbs:demo");
+    window.localStorage.removeItem("mbs_demo");
+  } catch {}
+  try {
+    window.sessionStorage.removeItem("mbs.demo");
+    window.sessionStorage.removeItem("mbs:demo");
+    window.sessionStorage.removeItem("mbs_demo");
+  } catch {}
+  setDemo(false);
+  window.location.href = "/home";
+}
+
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const demoMode = useDemoMode();
   const { user } = useAuthUser();
-  const readOnlyDemo = demoMode && isDemoAllowed(user);
+  const isAuthed = Boolean(user);
+  const showDemo = !isAuthed && demoMode && isDemoAllowed(user);
 
   const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
 
@@ -72,7 +88,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
               <img src="/logo.svg" alt="MyBodyScan" className="w-6 h-6" />
               MyBodyScan
             </button>
-            {readOnlyDemo ? (
+            {showDemo ? (
               <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                 Demo
               </span>
@@ -105,6 +121,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/settings")}>
                     Settings
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={clearDemoAndReload}>Clear demo & reload</DropdownMenuItem>
                   <DropdownMenuItem onClick={signOutToAuth}>
                     Sign out
                   </DropdownMenuItem>
@@ -139,6 +156,15 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                       <button
                         className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"
                         onClick={() => {
+                          clearDemoAndReload();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        Clear demo & reload
+                      </button>
+                      <button
+                        className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"
+                        onClick={() => {
                           signOutToAuth();
                           setMobileMenuOpen(false);
                         }}
@@ -152,12 +178,12 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             </div>
           </div>
         </div>
-        {readOnlyDemo ? (
+        {showDemo ? (
           <div className="border-t bg-amber-50 text-amber-900 text-xs">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
               <span>Demo preview — read-only experience.</span>
               <div className="flex items-center gap-3">
-                {readOnlyDemo ? (
+                {showDemo ? (
                   <Link to="/plans" className="underline-offset-4 hover:underline font-medium">
                     Sign up to save progress
                   </Link>

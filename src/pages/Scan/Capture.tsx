@@ -13,6 +13,8 @@ import {
 import { MIN_IMAGE_DIMENSION, isAllowedImageType, readImageDimensions } from "@/lib/imageValidation";
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_PROCESSED_BYTES = 1_000_000;
+const TARGET_MAX_DIMENSION = 1200;
 
 const CAPTURE_HINTS: Record<CaptureView, string> = {
   Front: "Face forward, arms relaxed at your sides.",
@@ -21,11 +23,69 @@ const CAPTURE_HINTS: Record<CaptureView, string> = {
   Right: "Right profile, mirror the left side pose.",
 };
 
+function loadImageElement(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function processPhoto(file: File): Promise<File> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageElement(objectUrl);
+    const maxDim = Math.max(image.width, image.height);
+    const scale = maxDim > TARGET_MAX_DIMENSION ? TARGET_MAX_DIMENSION / maxDim : 1;
+    const targetWidth = Math.max(1, Math.round(image.width * scale));
+    const targetHeight = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) {
+      throw new Error("canvas_unavailable");
+    }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const toBlob = (quality: number) =>
+      new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
+      });
+
+    let quality = 0.92;
+    let blob = await toBlob(quality);
+    while (blob && blob.size > MAX_PROCESSED_BYTES && quality > 0.55) {
+      quality -= 0.05;
+      blob = await toBlob(quality);
+    }
+
+    if (!blob) {
+      throw new Error("image_processing_failed");
+    }
+
+    if (blob.size > MAX_PROCESSED_BYTES) {
+      const error = new Error("processed_too_large");
+      (error as Error & { code?: string }).code = "processed_too_large";
+      throw error;
+    }
+
+    const nameWithoutExt = file.name.replace(/\.[^.]+$/, "");
+    const processedName = `${nameWithoutExt || "capture"}.jpg`;
+    return new File([blob], processedName, { type: "image/jpeg" });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export default function ScanCapture() {
   const navigate = useNavigate();
   const { mode, files } = useScanCaptureStore();
   const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
-  const inputRefs = useRef<Partial<Record<CaptureView, HTMLInputElement | null>>>({});
   const [previews, setPreviews] = useState<Partial<Record<CaptureView, string>>>({});
   const fileRefs = useRef<Partial<Record<CaptureView, File>>>({});
   const previewRef = useRef(previews);
@@ -82,7 +142,7 @@ export default function ScanCapture() {
     };
   }, []);
 
-  const handleFileChange = (view: CaptureView) => (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (view: CaptureView) => async (event: ChangeEvent<HTMLInputElement>) => {
     const inputEl = event.target;
     const file = inputEl.files?.[0] ?? null;
     inputEl.value = "";
@@ -101,26 +161,35 @@ export default function ScanCapture() {
       return;
     }
 
-    void (async () => {
-      try {
-        const { width, height } = await readImageDimensions(file);
-        if (Math.min(width, height) < MIN_IMAGE_DIMENSION) {
-          toast({
-            title: "Photo too small",
-            description: `Photos must be at least ${MIN_IMAGE_DIMENSION}px on the shortest side.`,
-            variant: "destructive",
-          });
-          return;
-        }
-        setCaptureFile(view, file);
-      } catch {
+    try {
+      const { width, height } = await readImageDimensions(file);
+      if (Math.min(width, height) < MIN_IMAGE_DIMENSION) {
         toast({
-          title: "Photo unreadable",
-          description: "Select a different photo and try again.",
+          title: "Photo too small",
+          description: `Photos must be at least ${MIN_IMAGE_DIMENSION}px on the shortest side.`,
           variant: "destructive",
         });
+        return;
       }
-    })();
+
+      const processed = await processPhoto(file);
+      setCaptureFile(view, processed);
+    } catch (error: any) {
+      const code = error?.code || error?.message;
+      if (code === "processed_too_large") {
+        toast({
+          title: "Photo too large",
+          description: "Processed photo still exceeds 1 MB. Choose a smaller image.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Photo unreadable",
+        description: "Select a different photo and try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemove = (view: CaptureView) => {
@@ -176,29 +245,36 @@ export default function ScanCapture() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <input
-                      ref={(node) => {
-                        inputRefs.current[view] = node;
-                      }}
-                      id={`capture-${view}`}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFileChange(view)}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => inputRefs.current[view]?.click()}
-                    >
-                      {file ? "Retake" : "Upload"}
-                    </Button>
-                    {file ? (
-                      <Button variant="ghost" size="sm" type="button" onClick={() => handleRemove(view)}>
-                        Remove
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={handleFileChange(view)}
+                          />
+                          {file ? "Retake photo" : "Take photo"}
+                        </label>
                       </Button>
-                    ) : null}
+                      <Button asChild variant="secondary" size="sm">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFileChange(view)}
+                          />
+                          {file ? "Replace from library" : "Choose from library"}
+                        </label>
+                      </Button>
+                      {file ? (
+                        <Button variant="ghost" size="sm" type="button" onClick={() => handleRemove(view)}>
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </li>
               );

@@ -1,30 +1,42 @@
-import { onCallWithOptionalAppCheck } from "../util/callable.js";
-import { getAuth } from "firebase-admin/auth";
 import { getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { onCallWithOptionalAppCheck } from "../util/callable.js";
 
 if (!getApps().length) {
   initializeApp();
 }
 
-const adminEmails = (process.env.ADMIN_EMAILS_CSV || "")
-  .split(",")
-  .map((entry) => entry.trim().toLowerCase())
-  .filter(Boolean);
+const fallbackAdmins = ["developer@adlrlabs.com", "developer@adlerlabs.com"];
+
+function parseAdminEmails() {
+  const raw = String(process.env.ADMIN_EMAILS_CSV || "");
+  const entries = raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set([...entries, ...fallbackAdmins]));
+}
 
 export const refreshClaims = onCallWithOptionalAppCheck(async (req) => {
   const uid = req.auth?.uid;
-  const email = (req.auth?.token?.email || "").toLowerCase();
+  const email = String(req.auth?.token?.email || "").trim().toLowerCase();
   if (!uid) return { ok: false };
 
+  const adminEmails = parseAdminEmails();
+  const isAdmin = Boolean(email) && adminEmails.includes(email);
+
   const customClaims: Record<string, any> = {};
-  if (email && adminEmails.includes(email)) {
+  if (isAdmin) {
     customClaims.admin = true;
     customClaims.unlimited = true;
   }
 
   if (Object.keys(customClaims).length) {
-    await getAuth().setCustomUserClaims(uid, customClaims);
+    const auth = getAuth();
+    const user = await auth.getUser(uid);
+    const mergedClaims = { ...(user.customClaims || {}), ...customClaims };
+    await auth.setCustomUserClaims(uid, mergedClaims);
   }
 
-  return { ok: true, claims: customClaims };
+  return { ok: true, admin: isAdmin, claims: customClaims };
 });
