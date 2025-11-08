@@ -152,11 +152,11 @@ export async function nutritionSearch(
   const headers = new Headers(init?.headers ?? undefined);
   headers.set("Accept", "application/json");
 
-  const query = new URLSearchParams({ q: trimmed }).toString();
+  const qs = new URLSearchParams({ q: trimmed }).toString();
 
   let payload: NutritionSearchResponse | null = null;
   try {
-    payload = (await apiFetchJson(`/nutrition/search?${query}`, {
+    payload = (await apiFetchJson(`/nutrition/search?${qs}`, {
       method: "GET",
       signal: init?.signal,
       headers,

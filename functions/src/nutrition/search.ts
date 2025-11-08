@@ -5,39 +5,45 @@ import fetch from "node-fetch";
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
-const baseSanitize = (s: unknown) =>
+const sanitize = (s: unknown) =>
   String(s ?? "")
     .toLowerCase()
-    .replace(/[^a-z0-9 \-._]/g, " ")
+    .replace(/[^a-z0-9 .\-_/]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);
 
-const sanitize = (s: unknown) => baseSanitize(s);
-
 function formatSanitized(value: unknown): string {
-  const sanitized = baseSanitize(value);
+  const sanitized = sanitize(value);
   if (!sanitized) return "";
   return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
 }
 
 function normalize(items: any[]) {
-  return items.map((item) => ({
-    id: item.id || item.fdcId || item.code || item._id || "",
-    name: formatSanitized(item.name || item.description || item.product_name || "") || "Unknown",
-    brand: formatSanitized(item.brand || item.brandOwner || item.brands || ""),
-    calories: item.calories ?? item.kcal ?? item.energyKcal ?? item.nutrients?.kcal ?? null,
-    protein: item.protein ?? item.nutrients?.protein ?? null,
-    carbs: item.carbs ?? item.nutrients?.carbohydrates ?? null,
-    fat: item.fat ?? item.nutrients?.fat ?? null,
-    serving: formatSanitized(item.serving ?? (item.servingSize ?? "")),
-    source:
-      typeof item.source === "string"
-        ? item.source
-        : item.provider === "OFF"
-          ? "Open Food Facts"
-          : "USDA",
-  }));
+  return items.map((raw) => {
+    const item = {
+      id: raw?.id || raw?.fdcId || raw?.code || raw?._id || "",
+      name: raw?.name || raw?.description || raw?.product_name || "",
+      brand: raw?.brand || raw?.brandOwner || raw?.brands || "",
+      calories: raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? raw?.nutrients?.kcal ?? null,
+      protein: raw?.protein ?? raw?.nutrients?.protein ?? null,
+      carbs: raw?.carbs ?? raw?.nutrients?.carbohydrates ?? null,
+      fat: raw?.fat ?? raw?.nutrients?.fat ?? null,
+      serving: raw?.serving ?? (raw?.servingSize ?? ""),
+      source:
+        typeof raw?.source === "string"
+          ? raw.source
+          : raw?.provider === "OFF"
+            ? "Open Food Facts"
+            : "USDA",
+    };
+    return {
+      ...item,
+      name: formatSanitized(item.name) || "Unknown",
+      brand: formatSanitized(item.brand),
+      serving: formatSanitized(item.serving),
+    };
+  });
 }
 
 export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
@@ -65,7 +71,8 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
             serving: "",
             source: "USDA",
           }));
-          return { items: normalize(items) };
+          const normalized = normalize(items);
+          return { items: normalized };
         }
       }
     }
@@ -92,7 +99,8 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
       provider: "OFF",
       source: "Open Food Facts",
     }));
-    return { items: normalize(items) };
+    const normalized = normalize(items);
+    return { items: normalized };
   } catch (error: any) {
     throw new HttpsError("unknown", error?.message || "Nutrition service unavailable");
   }

@@ -154,44 +154,7 @@ systemRouter.get("/whoami", async (req: Request, res: Response) => {
 });
 
 systemRouter.get("/health", (_req: Request, res: Response) => {
-  const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || "").trim();
-  const stripeSecret = (process.env.STRIPE_SECRET || "").trim();
-  const stripeSecretSource = stripeSecretKey ? "STRIPE_SECRET_KEY" : stripeSecret ? "STRIPE_SECRET" : null;
-  const stripePublishable = (process.env.STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PK || "").trim();
-  const appCheckSiteKey = (process.env.VITE_APPCHECK_SITE_KEY || "").trim();
-  const stripePublishablePresent = Boolean(stripePublishable);
-  const appCheckSiteKeyPresent = Boolean(appCheckSiteKey);
-
-  const secrets = {
-    stripePublishable: stripePublishablePresent,
-    stripeSecret: Boolean(stripeSecretKey || stripeSecret),
-    stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_SIGNING_SECRET),
-    openai: Boolean(process.env.OPENAI_API_KEY),
-    usda: Boolean(process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY),
-    offUserAgent: Boolean(process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT),
-    adminEmails: adminEmails.size > 0,
-  } as const;
-
-  res.json({
-    ok: true,
-    version:
-      process.env.GIT_COMMIT ||
-      process.env.K_REVISION ||
-      process.env.FUNCTIONS_EMULATOR ||
-      null,
-    secrets,
-    hasStripe: secrets.stripeSecret,
-    hasOpenAI: secrets.openai,
-    hasUSDA: secrets.usda,
-    prices: {
-      one: Boolean(process.env.PRICE_ONE || process.env.VITE_PRICE_ONE),
-      monthly: Boolean(process.env.PRICE_MONTHLY || process.env.VITE_PRICE_MONTHLY),
-      yearly: Boolean(process.env.PRICE_YEARLY || process.env.VITE_PRICE_YEARLY),
-    },
-    stripeSecretSource,
-    stripePublishablePresent,
-    appCheckSiteKeyPresent,
-  });
+  res.status(200).json({ ok: true, ts: Date.now() });
 });
 
 systemRouter.post("/admin/grant-credits", async (req: Request, res: Response) => {
