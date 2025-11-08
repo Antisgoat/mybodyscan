@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OAuthProvider, getAuth } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
-import { ensureAppCheck } from "@/lib/firebase";
+import { ensureAppCheck } from "@/lib/appcheck";
 import { isCallableHttpFallbackActive, subscribeCallableHttpFallback } from "@/lib/backendBridge";
 
 type ProviderStatus = {
@@ -66,6 +66,8 @@ export default function SystemCheck() {
     appcheckSeen: boolean;
     error: string | null;
   }>({ env: {}, whoami: null, credits: null, appcheckSeen: false, error: null });
+  const hasSiteKey = Boolean(import.meta.env.VITE_APPCHECK_SITE_KEY);
+  const hasStripePk = Boolean(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
   useEffect(() => {
     let cancelled = false;
@@ -542,6 +544,16 @@ export default function SystemCheck() {
             </CardContent>
           </Card>
         </div>
+        <section className="mt-6 text-sm space-y-1">
+          <div>
+            App Check site key: <b>{hasSiteKey ? "present" : "missing (soft mode)"}</b>
+          </div>
+          <div>
+            Stripe publishable key: <b>{hasStripePk ? "present" : "missing"}</b>
+          </div>
+          <div>Coach path: callable w/ REST fallback</div>
+          <div>Nutrition path: callable w/ REST fallback</div>
+        </section>
       </div>
     </div>
   );

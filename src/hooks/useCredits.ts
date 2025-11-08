@@ -36,6 +36,7 @@ export function useCredits() {
             try {
               await call("refreshClaims");
               token = await u.getIdTokenResult(true);
+              setRefreshTick((prev) => prev + 1);
             } catch (refreshError) {
               if (import.meta.env.DEV) {
                 console.warn("[credits] refreshClaims failed", refreshError);

@@ -1,16 +1,15 @@
 import expressModule from "express";
 import type { Request, Response } from "express";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { getAuth } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
-import { getStripeSecret } from "./stripe/common.js";
+import { getStripe } from "./stripe/common.js";
 
-let stripe: Stripe | null = null;
+let stripe: ReturnType<typeof getStripe> | null = null;
 let stripeConfigured = false;
 
 try {
-  const secret = getStripeSecret();
-  stripe = new Stripe(secret, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion });
+  stripe = getStripe();
   stripeConfigured = true;
 } catch {
   stripe = null;

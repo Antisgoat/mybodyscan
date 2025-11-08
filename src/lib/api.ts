@@ -2,10 +2,10 @@ import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { ensureAppCheck } from "@/lib/appCheck";
+import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appcheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import type { Auth, User } from "firebase/auth";
-import { apiFetch } from "./apiFetch";
+import { apiFetchJson } from "./apiFetch";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
 import { isDemo } from "./demo";
 import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
@@ -70,7 +70,7 @@ export async function billingCheckout(
 
   let payload: any;
   try {
-    payload = await apiFetch("/billing/create-checkout-session", {
+    payload = await apiFetchJson("/billing/create-checkout-session", {
       method: "POST",
       body: JSON.stringify({ priceId, mode: CHECKOUT_MODES[plan] }),
     });
@@ -156,7 +156,7 @@ export async function nutritionSearch(
 
   let payload: NutritionSearchResponse | null = null;
   try {
-    payload = (await apiFetch(`/nutrition/search?${query}`, {
+    payload = (await apiFetchJson(`/nutrition/search?${query}`, {
       method: "GET",
       signal: init?.signal,
       headers,
@@ -202,7 +202,7 @@ export async function nutritionBarcodeLookup(
 
   let payload: NutritionSearchResponse | null = null;
   try {
-    payload = (await apiFetch(`/nutrition/barcode?${query}`, {
+    payload = (await apiFetchJson(`/nutrition/barcode?${query}`, {
       ...init,
       headers,
       method: "GET",
@@ -244,7 +244,7 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
 
   let payload: any = null;
   try {
-    payload = await apiFetch("/coach/chat", {
+    payload = await apiFetchJson("/coach/chat", {
       method: "POST",
       body: JSON.stringify({ question: trimmed, demo: isDemo() }),
       signal: options.signal,
@@ -411,10 +411,11 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
           authError.code = "auth_required";
           throw authError;
         }
-        const fallbackAppCheckToken = await ensureAppCheck();
-        if (fallbackAppCheckToken) {
-          fallbackHeaders.set("X-Firebase-AppCheck", fallbackAppCheckToken);
-        }
+        await ensureAppCheck();
+        const fallbackAppCheckHeaders = await getAppCheckTokenHeader();
+        Object.entries(fallbackAppCheckHeaders).forEach(([key, value]) => {
+          fallbackHeaders.set(key, value);
+        });
         const response = await fetch(fallbackBase, {
           method: "GET",
           signal: controller.signal,
@@ -453,10 +454,11 @@ async function authedFetch(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers ?? undefined);
   headers.set("Content-Type", headers.get("Content-Type") || "application/json");
   headers.set("Authorization", `Bearer ${t}`);
-  const appCheckToken = await ensureAppCheck();
-  if (appCheckToken) {
-    headers.set("X-Firebase-AppCheck", appCheckToken);
-  }
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckTokenHeader();
+  Object.entries(appCheckHeaders).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
   return fetch(url, {
     ...init,
     headers,
@@ -471,7 +473,7 @@ export async function startScan(params?: Record<string, unknown>) {
     return { scanId: mock.scanId };
   }
   try {
-    const payload = (await apiFetch("/scan/start", {
+    const payload = (await apiFetchJson("/scan/start", {
       method: "POST",
       body: JSON.stringify(params ?? {}),
     })) as { scanId?: string };
@@ -562,7 +564,7 @@ export async function refundIfNoResult(scanId: string) {
 export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
   await requireAuthContext();
   try {
-    return (await apiFetch("/api/createCheckout", {
+    return (await apiFetchJson("/api/createCheckout", {
       method: "POST",
       body: JSON.stringify({ kind, credits }),
     })) as { url: string; id: string };
@@ -574,7 +576,7 @@ export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual"
 export async function createCustomerPortal() {
   await requireAuthContext();
   try {
-    return (await apiFetch("/billing/portal", {
+    return (await apiFetchJson("/billing/portal", {
       method: "POST",
       body: JSON.stringify({}),
     })) as { url: string };

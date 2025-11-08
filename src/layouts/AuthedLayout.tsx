@@ -28,7 +28,7 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
   { to: "/settings", label: "Settings", feature: "account" },
 ];
 
-function clearDemoAndReload() {
+function exitDemo() {
   try {
     window.localStorage.removeItem("mbs.demo");
     window.localStorage.removeItem("mbs:demo");
@@ -121,7 +121,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/settings")}>
                     Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={clearDemoAndReload}>Clear demo & reload</DropdownMenuItem>
+                  <DropdownMenuItem onClick={exitDemo}>Exit demo</DropdownMenuItem>
                   <DropdownMenuItem onClick={signOutToAuth}>
                     Sign out
                   </DropdownMenuItem>
@@ -156,11 +156,11 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                       <button
                         className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"
                         onClick={() => {
-                          clearDemoAndReload();
+                          exitDemo();
                           setMobileMenuOpen(false);
                         }}
                       >
-                        Clear demo & reload
+                        Exit demo
                       </button>
                       <button
                         className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"

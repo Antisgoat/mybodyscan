@@ -1,5 +1,5 @@
 import { fetchFoods } from "@/lib/api";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { fnUrl } from "@/lib/env";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import type {
@@ -332,7 +332,7 @@ export async function lookupBarcode(code: string): Promise<NormalizedItem | null
   if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
   let payload: any = null;
   try {
-    payload = await apiFetch(`/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
+    payload = await apiFetchJson(`/nutrition/barcode?code=${encodeURIComponent(code.trim())}`, {
       method: "GET",
       headers,
     });

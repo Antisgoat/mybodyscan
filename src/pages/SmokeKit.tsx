@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { auth, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
-import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
+import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appcheck";
 import { PRICE_IDS, getPaymentFunctionUrl, getPaymentHostingPath, isHostingShimEnabled } from "@/lib/payments";
 import { BUILD } from "@/lib/buildInfo";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
@@ -15,7 +15,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { nutritionSearch } from "@/lib/api";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import { call } from "@/lib/callable";
 
@@ -447,7 +447,7 @@ export default function SmokeKit() {
     }
     setScanStart({ status: "running" });
     try {
-      const json = await apiFetch("/scan/start", {
+      const json = await apiFetchJson("/scan/start", {
         method: "POST",
         body: JSON.stringify({ smoke: true }),
       });
@@ -482,7 +482,7 @@ export default function SmokeKit() {
     }
     setScanSubmit({ status: "running" });
     try {
-      const json = await apiFetch("/scan/submit", {
+      const json = await apiFetchJson("/scan/submit", {
         method: "POST",
         body: JSON.stringify({ scanId: scanStart.scanId, idempotencyKey: `smoke-${Date.now()}` }),
       });
@@ -506,7 +506,7 @@ export default function SmokeKit() {
     }
     setCoachProbe({ status: "running" });
     try {
-      const json = await apiFetch("/coach/chat", {
+      const json = await apiFetchJson("/coach/chat", {
         method: "POST",
         body: JSON.stringify({ message: "ping from smoke", text: "ping from smoke" }),
       });
@@ -559,7 +559,7 @@ export default function SmokeKit() {
     setBarcodeProbe({ status: "running" });
     try {
       const code = "044000030785";
-      const json = await apiFetch(`/nutrition/barcode?code=${encodeURIComponent(code)}`, {
+      const json = await apiFetchJson(`/nutrition/barcode?code=${encodeURIComponent(code)}`, {
         method: "GET",
       });
       const ok = Boolean(json && typeof json === "object" && (json as any).item);

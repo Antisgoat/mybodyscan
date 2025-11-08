@@ -15,7 +15,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { useCredits } from "@/hooks/useCredits";
 import { startCheckout } from "@/lib/checkout";
 import { call } from "@/lib/callable";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 
 const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
 const PRICE_ID_MONTHLY = (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim();
@@ -65,7 +65,7 @@ export default function Plans() {
     setRefreshingCredits(true);
     try {
       try {
-        await apiFetch("/system/bootstrap", { method: "POST", body: JSON.stringify({}) });
+        await apiFetchJson("/system/bootstrap", { method: "POST", body: JSON.stringify({}) });
         await user.getIdToken(true).catch(() => undefined);
       } catch (error) {
         if (import.meta.env.DEV) {

@@ -29,6 +29,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { backend } from "@/lib/backendBridge";
+import { nutritionSearchClient } from "@/lib/nutritionApi";
 import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 
@@ -339,7 +340,7 @@ export default function MealsSearch() {
 
     (async () => {
       try {
-        const { items } = await backend.nutritionSearch({ q: term });
+        const items = await nutritionSearchClient(term);
         if (cancelled) return;
         const mapped = (items ?? []).map(adaptSearchItem);
         setResults(mapped);
