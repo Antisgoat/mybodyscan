@@ -1,5 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { stripe, setSubscriptionStatus } from "./stripe/common.js";
+import { getStripe, setSubscriptionStatus } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import { FieldValue, getFirestore } from "./firebase.js";
@@ -48,7 +48,7 @@ const priceToPlan = new Map<string, PlanInfo>(
   ].filter((entry): entry is [string, PlanInfo] => Boolean(entry?.[0])),
 );
 
-async function uidFromCustomer(customerId: string): Promise<string> {
+async function uidFromCustomer(stripe: Stripe, customerId: string): Promise<string> {
   if (!customerId) return "";
   const customer = await stripe.customers.retrieve(customerId);
   if (Array.isArray(customer)) return "";
@@ -110,6 +110,14 @@ export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req
     return res.status(400).send("Missing body");
   }
 
+  let stripe: Stripe;
+  try {
+    stripe = getStripe();
+  } catch (error: any) {
+    logger.error("Stripe unavailable for webhook", { err: error?.message });
+    return res.status(501).send("unconfigured");
+  }
+
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, secret);
@@ -144,7 +152,7 @@ export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req
         const priceId = (line?.price?.id as string) || "";
         const planInfo = priceToPlan.get(priceId);
         const customerId = (invoice.customer as string) || "";
-        const uid = await uidFromCustomer(customerId);
+        const uid = await uidFromCustomer(stripe, customerId);
         if (uid) {
           const productRef = line?.price?.product;
           const product = typeof productRef === "string" ? productRef : undefined;
@@ -171,7 +179,7 @@ export const stripeWebhook = onRequest({ cors: true, rawBody: true }, async (req
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = (sub.customer as string) || "";
-        const uid = await uidFromCustomer(customerId);
+        const uid = await uidFromCustomer(stripe, customerId);
         if (uid) {
           await setSubscriptionStatus(uid, "canceled");
           logger.info("Subscription canceled", { uid, sub: sub.id });

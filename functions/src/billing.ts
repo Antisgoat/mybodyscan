@@ -5,15 +5,14 @@ import { getAuth } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, publicBaseUrl, requireAuthWithClaims } from "./http.js";
 import { getStripe } from "./stripe/common.js";
 
-let stripe: ReturnType<typeof getStripe> | null = null;
-let stripeConfigured = false;
+const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET);
 
-try {
-  stripe = getStripe();
-  stripeConfigured = true;
-} catch {
-  stripe = null;
-  stripeConfigured = false;
+function resolveStripe(): Stripe | null {
+  try {
+    return getStripe();
+  } catch {
+    return null;
+  }
 }
 
 const express = expressModule as any;
@@ -54,8 +53,7 @@ function resolvePriceConfig(priceId: string): PriceConfig | null {
   return priceConfigs.find((config) => config.id === priceId) ?? null;
 }
 
-async function ensureCustomer(uid: string, email?: string | null) {
-  if (!stripe) throw new Error("stripe_unconfigured");
+async function ensureCustomer(stripe: Stripe, uid: string, email?: string | null) {
   const query = `metadata['uid']:'${uid}'`;
   const existing = await stripe.customers.search({ query, limit: 1 });
   let customer = existing.data[0];
@@ -87,8 +85,7 @@ function formatError(error: any) {
   return { status, type, code, message: error?.message || "checkout_failed" };
 }
 
-async function hasActiveSubscription(customerId: string): Promise<boolean> {
-  if (!stripe) return false;
+async function hasActiveSubscription(stripe: Stripe, customerId: string): Promise<boolean> {
   const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
   return subs.data.length > 0;
 }
@@ -99,6 +96,7 @@ billingRouter.use(allowCorsAndOptionalAppCheck);
 billingRouter.use(express.json());
 
 billingRouter.post("/create-checkout-session", async (req: Request, res: Response) => {
+  const stripe = resolveStripe();
   if (!stripe) {
     res.status(501).json({ error: "payments_disabled" });
     return;
@@ -130,7 +128,7 @@ billingRouter.post("/create-checkout-session", async (req: Request, res: Respons
       }
     }
 
-    const customer = await ensureCustomer(uid, email);
+    const customer = await ensureCustomer(stripe, uid, email);
 
     const inferredMode =
       mode === "subscription" || mode === "payment" ? mode : priceConfig.mode ?? resolvePriceMode(normalizedPrice);
@@ -150,7 +148,7 @@ billingRouter.post("/create-checkout-session", async (req: Request, res: Respons
     };
 
     if (inferredMode === "subscription" && normalizedPrice === PRICE_MONTHLY && PROMO_CODE) {
-      const active = await hasActiveSubscription(customer.id);
+      const active = await hasActiveSubscription(stripe, customer.id);
       if (!active) {
         params.discounts = [{ promotion_code: PROMO_CODE }];
       }
@@ -167,6 +165,7 @@ billingRouter.post("/create-checkout-session", async (req: Request, res: Respons
 });
 
 async function handlePortal(req: Request, res: Response) {
+  const stripe = resolveStripe();
   if (!stripe) {
     res.status(501).json({ error: "payments_disabled" });
     return;
@@ -184,7 +183,7 @@ async function handlePortal(req: Request, res: Response) {
         email = undefined;
       }
     }
-    const customer = await ensureCustomer(uid, email);
+    const customer = await ensureCustomer(stripe, uid, email);
     const portal = await stripe.billingPortal.sessions.create({
       customer: customer.id,
       return_url: `${publicBaseUrl(req)}/plans`,

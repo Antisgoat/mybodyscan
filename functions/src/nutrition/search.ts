@@ -5,9 +5,7 @@ import fetch from "node-fetch";
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
-function sanitize(value: unknown): string {
-  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
-}
+const sanitize = (s: unknown) => String(s ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
 
 function formatSanitized(value: unknown): string {
   const sanitized = sanitize(value)
