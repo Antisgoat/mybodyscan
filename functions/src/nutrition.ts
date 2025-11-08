@@ -571,7 +571,7 @@ nutritionRouter.get("/search", async (req: Request, res: Response) => {
   const barcode = parseQuery(req.query.barcode);
 
   if (!query && !barcode) {
-    res.status(400).json({ error: "missing_query" });
+    res.json({ items: [], results: [], source: null, message: "no_query" });
     return;
   }
 
@@ -591,7 +591,7 @@ nutritionRouter.post("/search", async (req: Request, res: Response) => {
   const barcode = parseQuery(req.body?.barcode);
 
   if (!query && !barcode) {
-    res.status(400).json({ error: "missing_query" });
+    res.json({ items: [], results: [], source: null, message: "no_query" });
     return;
   }
 

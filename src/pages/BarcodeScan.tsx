@@ -18,7 +18,7 @@ async function loadZXing() {
   try {
     return await import("@zxing/browser");
   } catch (error) {
-    console.warn("ZXing import failed", error);
+    console.warn("ZXING import failed", error);
     return null as any;
   }
 }
