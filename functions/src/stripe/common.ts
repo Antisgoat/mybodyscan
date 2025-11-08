@@ -7,24 +7,28 @@ import { initializeApp, getApps } from "firebase-admin/app";
 
 if (!getApps().length) initializeApp();
 
-export function getStripeSecret(): string {
-  const secret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!secret) {
-    throw new Error("STRIPE_SECRET_KEY not configured");
-  }
-  return secret;
-}
-
 let stripeInstance: Stripe | null = null;
 
-export function getStripeClient(): Stripe {
+export function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY missing");
+  }
   if (!stripeInstance) {
-    stripeInstance = new Stripe(getStripeSecret(), { apiVersion: "2024-06-20" });
+    stripeInstance = new Stripe(key, { apiVersion: "2024-06-20" });
   }
   return stripeInstance;
 }
 
-export const stripe = getStripeClient();
+export function getStripeSecret(): string {
+  const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY missing");
+  }
+  return key;
+}
+
+export const stripe = getStripe();
 
 export function requireStripe(): void {
   try {

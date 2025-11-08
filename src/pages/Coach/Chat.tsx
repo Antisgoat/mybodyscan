@@ -14,7 +14,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { backend } from "@/lib/backendBridge";
+import { coachAsk } from "@/lib/coachClient";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -207,8 +207,8 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const { text } = await backend.coachChat({ message: sanitized });
-      const answer = text ?? "No answer.";
+      const answerText = await coachAsk(sanitized);
+      const answer = answerText || "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -222,14 +222,9 @@ export default function CoachChatPage() {
       console.error("coachChat error", error);
       const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
       const code = typeof error?.code === "string" ? error.code : undefined;
-      const isAppCheck = code === "app_check_required";
-      const message = isAppCheck
-        ? "Verifying your session — refresh and try again."
-        : errMessage || "Coach unavailable";
+      const message = errMessage || "Coach unavailable";
       setCoachError(message);
-      if (isAppCheck) {
-        toast({ title: "Coach unavailable", description: message, variant: "destructive" });
-      }
+      toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       try {
         await call("telemetryLog", {
           fn: "coachChat",

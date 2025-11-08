@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { auth } from "@/lib/firebase";
 
 type BootstrapResponse = {
@@ -14,7 +14,7 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 
   const token = await user.getIdToken();
   try {
-    return (await apiFetch("/system/bootstrap", {
+    return (await apiFetchJson("/system/bootstrap", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -28,7 +28,7 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 
 export async function fetchSystemHealth(): Promise<any | null> {
   try {
-    return await apiFetch("/system/health");
+    return await apiFetchJson("/system/health");
   } catch (error) {
     console.warn("system_health_unavailable", error);
     return null;

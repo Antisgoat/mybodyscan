@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { useClaims } from "@/lib/claims";
 
 export default function AdminQuick() {
@@ -27,7 +27,7 @@ export default function AdminQuick() {
     setLoading(true);
     setMessage(null);
     try {
-      await apiFetch("/system/admin/grant-credits", {
+      await apiFetchJson("/system/admin/grant-credits", {
         method: "POST",
         body: JSON.stringify({ amount }),
       });

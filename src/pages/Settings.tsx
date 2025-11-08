@@ -19,7 +19,8 @@ import { Download, Trash2, Loader2, RefreshCcw, LifeBuoy, Shield, ExternalLink, 
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { auth, db, getAppCheckTokenSafe } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appcheck";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
@@ -107,9 +108,10 @@ const Settings = () => {
     }
     (async () => {
       try {
-        const token = await getAppCheckTokenSafe();
+        await ensureAppCheck();
+        const headers = await getAppCheckTokenHeader();
         if (active) {
-          setAppCheckStatus(token ? "present" : "absent");
+          setAppCheckStatus(Object.keys(headers).length > 0 ? "present" : "absent");
         }
       } catch {
         if (active) {

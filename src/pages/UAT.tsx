@@ -24,8 +24,8 @@ import {
   describeCheckoutError,
   describePortalError,
 } from "@/lib/payments";
-import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
-import { apiFetch } from "@/lib/apiFetch";
+import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appcheck";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { resolveUatAccess, useProbe, type ProbeExecutionResult, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
@@ -450,7 +450,7 @@ const UATPage = () => {
 
   const runApi = useCallback(async (path: string, init?: RequestInit) => {
     try {
-      const data = await apiFetch(path, init);
+      const data = await apiFetchJson(path, init);
       return { ok: true, status: 200, data };
     } catch (error: any) {
       const message = error?.message || "error";

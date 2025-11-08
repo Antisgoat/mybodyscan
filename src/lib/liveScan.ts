@@ -1,5 +1,5 @@
 import { auth as firebaseAuth, db } from "@/lib/firebase";
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
 
 export type PoseKey = "front" | "back" | "left" | "right";
@@ -62,7 +62,7 @@ interface SubmitPayload {
 }
 
 export async function startLiveScan(): Promise<ScanStartResponse> {
-  const data = await apiFetch("/scan/start", {
+  const data = await apiFetchJson("/scan/start", {
     method: "POST",
     body: JSON.stringify({}),
   });
@@ -174,7 +174,7 @@ export async function uploadScanImages(
 }
 
 export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResultResponse> {
-  const data = await apiFetch("/scan/submit", {
+  const data = await apiFetchJson("/scan/submit", {
     method: "POST",
     body: JSON.stringify(payload),
   });

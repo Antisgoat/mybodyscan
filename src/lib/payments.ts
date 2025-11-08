@@ -1,5 +1,5 @@
 import { loadStripe } from "@stripe/stripe-js";
-import { apiFetch } from "./apiFetch";
+import { apiFetchJson } from "./apiFetch";
 
 type ErrorPayload = { error: string; code?: string };
 
@@ -180,7 +180,7 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
 
   let result: { sessionId?: string; url?: string };
   try {
-    result = await apiFetch("/billing/create-checkout-session", {
+    result = await apiFetchJson("/billing/create-checkout-session", {
       method: "POST",
       body: JSON.stringify({ priceId: request.priceId, plan: request.plan }),
     });
@@ -221,7 +221,7 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
 export async function openCustomerPortal(options?: CheckoutOptions) {
   let result: { url?: string };
   try {
-    result = await apiFetch("/billing/portal", { method: "POST" });
+    result = await apiFetchJson("/billing/portal", { method: "POST" });
   } catch (error) {
     normalizeError(error, "network_error");
   }

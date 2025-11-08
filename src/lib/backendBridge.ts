@@ -1,5 +1,6 @@
 import { httpsCallable } from "firebase/functions";
-import { functions, getAppCheckTokenSafe } from "@/lib/firebase";
+import { functions } from "@/lib/firebase";
+import { ensureAppCheck } from "@/lib/appcheck";
 import { apiFetch } from "@/lib/apiFetch";
 
 type FallbackSpec = {
@@ -10,7 +11,6 @@ type FallbackSpec = {
   mapRequestToHttp?: (payload: unknown) => Record<string, unknown> | undefined;
 };
 
-let loggedCallableWarning = false;
 let callableHttpFallbackActive = false;
 const fallbackListeners = new Set<(active: boolean) => void>();
 
@@ -39,14 +39,9 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
   payload?: TReq,
 ): Promise<TRes> {
   try {
-    const token = await getAppCheckTokenSafe();
-    if (!token && !loggedCallableWarning) {
-      console.warn("App Check token missing; proceeding in soft mode");
-      loggedCallableWarning = true;
-    }
+    await ensureAppCheck();
     const fn = httpsCallable<TReq, TRes>(functions, spec.callableName);
-    const options = token ? ({ appCheckToken: token } as any) : undefined;
-    const { data } = await fn(payload as TReq, options);
+    const { data } = await fn(payload as TReq);
     return data as TRes;
   } catch (err: any) {
     if (!isAppCheckLikeError(err)) throw err;
@@ -73,8 +68,17 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
       }
     }
     try {
-      const json = await apiFetch(path, init);
-      return spec.mapHttpToClient(json);
+      const response = await apiFetch(path, init);
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        (error as Error & { httpStatus?: number }).httpStatus = response.status;
+        throw error;
+      }
+      const contentType = response.headers.get("Content-Type") || "";
+      const payloadJson = contentType.includes("application/json")
+        ? await response.json().catch(() => ({}))
+        : await response.text();
+      return spec.mapHttpToClient(payloadJson);
     } catch (httpError) {
       const error = httpError instanceof Error ? httpError : new Error(String(httpError));
       (error as Error & { httpFallbackAttempted?: boolean }).httpFallbackAttempted = true;

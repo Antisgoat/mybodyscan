@@ -41,7 +41,10 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthUser();
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
-  const demoEnabled = demoEnv !== "false";
+  const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
+  const onBrowseDemo = useCallback(() => {
+    navigate("/welcome?demo=1", { replace: false });
+  }, [navigate]);
   const canonical = typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
@@ -272,16 +275,11 @@ const Auth = () => {
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full justify-center"
-                  onClick={() => navigate("/demo")}
-                >
-                  Browse demo
+                <Button type="button" variant="outline" className="w-full" onClick={onBrowseDemo}>
+                  Just looking? Browse the demo
                 </Button>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Preview the UI with sample data. Sign up to save your progress.
+                  Preview the experience with sample data. Sign up to save your progress.
                 </p>
               </div>
             )}
