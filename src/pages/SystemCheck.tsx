@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OAuthProvider, getAuth } from "firebase/auth";
 import { isIOSWeb } from "@/lib/isIOSWeb";
 import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
-import { ensureAppCheck } from "@/lib/appcheck";
+import { ensureAppCheck } from "@/lib/appCheck";
 import { isCallableHttpFallbackActive, subscribeCallableHttpFallback } from "@/lib/backendBridge";
 
 type ProviderStatus = {

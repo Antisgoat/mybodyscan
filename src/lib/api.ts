@@ -2,7 +2,7 @@ import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appcheck";
+import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import type { Auth, User } from "firebase/auth";
 import { apiFetchJson } from "./apiFetch";

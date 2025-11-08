@@ -1,6 +1,6 @@
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase";
-import { ensureAppCheck } from "@/lib/appcheck";
+import { ensureAppCheck } from "@/lib/appCheck";
 import { apiFetch } from "@/lib/apiFetch";
 
 type FallbackSpec = {

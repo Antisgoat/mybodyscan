@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { auth, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
-import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appcheck";
+import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import { PRICE_IDS, getPaymentFunctionUrl, getPaymentHostingPath, isHostingShimEnabled } from "@/lib/payments";
 import { BUILD } from "@/lib/buildInfo";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
