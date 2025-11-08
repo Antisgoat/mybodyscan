@@ -83,7 +83,7 @@ export default function BarcodeScan() {
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [scannerUnavailable, setScannerUnavailable] = useState(false);
 
-  const unavailableMessage = "Scanner unavailable — use manual barcode entry below.";
+  const unavailableMessage = "Scanner unavailable — enter barcode manually.";
   const insecureMessage = "Camera not available — enter barcode manually.";
 
   const defaultCountry = useMemo(
