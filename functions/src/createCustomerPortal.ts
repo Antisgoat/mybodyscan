@@ -1,10 +1,11 @@
-import { appJson, requireStripe, requireUidFromAuthHeader, stripe } from "./stripe/common.js";
+import { appJson, requireStripe, requireUidFromAuthHeader, getStripe } from "./stripe/common.js";
 
 export const createCustomerPortal = appJson(async (req, res) => {
   requireStripe();
   if (req.method !== "POST") return res.status(405).send(JSON.stringify({ error: "method_not_allowed" }));
   const uid = await requireUidFromAuthHeader(req);
 
+  const stripe = getStripe();
   const search = await stripe.customers.search({ query: `metadata['uid']:'${uid}'` });
   let customer = search.data[0];
   if (!customer) {

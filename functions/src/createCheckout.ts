@@ -1,4 +1,4 @@
-import { appJson, requireStripe, requireUidFromAuthHeader, stripe } from "./stripe/common.js";
+import { appJson, requireStripe, requireUidFromAuthHeader, getStripe } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
 
 export const legacyCreateCheckout = appJson(async (req, res) => {
@@ -18,6 +18,7 @@ export const legacyCreateCheckout = appJson(async (req, res) => {
   const uid = await requireUidFromAuthHeader(req);
   const { kind, credits = 1 } = (req.body || {}) as { kind: "scan" | "sub_monthly" | "sub_annual"; credits?: number };
 
+  const stripe = getStripe();
   const search = await stripe.customers.search({ query: `metadata['uid']:'${uid}'` });
   let customer = search.data[0];
   if (!customer) {
@@ -66,5 +67,5 @@ export const legacyCreateCheckout = appJson(async (req, res) => {
   });
 
   logger.info("Created checkout", { uid, kind, session: session.id });
-  res.send(JSON.stringify({ url: session.url, id: session.id }));
+  res.send(JSON.stringify({ sessionId: session.id }));
 });

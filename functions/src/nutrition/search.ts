@@ -5,13 +5,18 @@ import fetch from "node-fetch";
 const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
-const sanitize = (s: unknown) => String(s ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+const baseSanitize = (s: unknown) =>
+  String(s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 \-._]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+
+const sanitize = (s: unknown) => baseSanitize(s);
 
 function formatSanitized(value: unknown): string {
-  const sanitized = sanitize(value)
-    .toLowerCase()
-    .replace(/[^\w\s./-]+/g, " ")
-    .trim();
+  const sanitized = baseSanitize(value);
   if (!sanitized) return "";
   return sanitized.replace(/\b([a-z])/g, (char) => char.toUpperCase());
 }
@@ -36,8 +41,7 @@ function normalize(items: any[]) {
 }
 
 export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
-  const rawQuery = req.data?.q ?? req.data?.query ?? "";
-  const q = sanitize(rawQuery);
+  const q = sanitize(req.data?.q ?? req.data?.query ?? "");
   if (!q) {
     return { items: [] };
   }
