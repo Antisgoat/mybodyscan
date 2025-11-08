@@ -1,5 +1,5 @@
 import { getAuth } from "firebase/auth";
-import { getAppCheckTokenHeader } from "@/lib/appcheck";
+import { getAppCheckTokenHeader } from "@/lib/appCheck";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;

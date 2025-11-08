@@ -9,7 +9,7 @@ import { enableDemo as enableDemoMode, disableDemo as disableDemoMode } from "@/
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
-import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appcheck";
+import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 
 export type AppHeaderProps = {
   className?: string;

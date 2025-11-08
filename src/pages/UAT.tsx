@@ -24,7 +24,7 @@ import {
   describeCheckoutError,
   describePortalError,
 } from "@/lib/payments";
-import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appcheck";
+import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { resolveUatAccess, useProbe, type ProbeExecutionResult, type UatProbeState, type UatLogEntry, toJsonText } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";

@@ -20,7 +20,7 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appcheck";
+import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";

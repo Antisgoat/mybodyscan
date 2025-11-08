@@ -1,6 +1,6 @@
 import { httpsCallable } from "firebase/functions";
 import { functions } from "./firebase";
-import { ensureAppCheck } from "./appcheck";
+import { ensureAppCheck } from "./appCheck";
 
 export async function call<TReq = unknown, TRes = unknown>(name: string, data?: TReq) {
   await ensureAppCheck();
