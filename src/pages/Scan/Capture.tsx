@@ -251,7 +251,6 @@ export default function ScanCapture() {
                           <input
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             className="hidden"
                             onChange={handleFileChange(view)}
                           />

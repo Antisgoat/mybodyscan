@@ -7,17 +7,18 @@ import { initializeApp, getApps } from "firebase-admin/app";
 
 if (!getApps().length) initializeApp();
 
-let stripeInstance: Stripe | null = null;
+let _stripe: Stripe | null = null;
 
 export function getStripe(): Stripe {
+  if (_stripe) {
+    return _stripe;
+  }
   const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
   if (!key) {
     throw new Error("STRIPE_SECRET_KEY missing");
   }
-  if (!stripeInstance) {
-    stripeInstance = new Stripe(key, { apiVersion: "2024-06-20" });
-  }
-  return stripeInstance;
+  _stripe = new Stripe(key, { apiVersion: "2024-06-20" });
+  return _stripe;
 }
 
 export function getStripeSecret(): string {
@@ -27,8 +28,6 @@ export function getStripeSecret(): string {
   }
   return key;
 }
-
-export const stripe = getStripe();
 
 export function requireStripe(): void {
   try {

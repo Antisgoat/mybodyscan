@@ -16,11 +16,10 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 
 async function loadZXing() {
   try {
-    const mod = await import("@zxing/browser");
-    return mod;
+    return await import("@zxing/browser");
   } catch (error) {
-    console.warn("zxing_import_failed", error);
-    return null;
+    console.warn("ZXing import failed", error);
+    return null as any;
   }
 }
 
@@ -85,6 +84,7 @@ export default function BarcodeScan() {
   const [scannerUnavailable, setScannerUnavailable] = useState(false);
 
   const unavailableMessage = "Scanner unavailable — use manual barcode entry below.";
+  const insecureMessage = "Camera not available — enter barcode manually.";
 
   const defaultCountry = useMemo(
     () => defaultCountryFromLocale(typeof navigator !== "undefined" ? navigator.language : undefined),
@@ -240,7 +240,7 @@ export default function BarcodeScan() {
   const startScanner = useCallback(async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setScannerUnavailable(true);
-      setScannerError(unavailableMessage);
+      setScannerError(insecureMessage);
       return;
     }
     setScannerUnavailable(false);
@@ -248,15 +248,6 @@ export default function BarcodeScan() {
     setDetectedCode(null);
     stopScanner();
     try {
-      if ("BarcodeDetector" in window) {
-        await startWithBarcodeDetector();
-        return;
-      }
-      try {
-        await import("barcode-detector-polyfill");
-      } catch (error) {
-        console.warn("barcode_polyfill_failed", error);
-      }
       if ("BarcodeDetector" in window) {
         await startWithBarcodeDetector();
         return;
@@ -271,7 +262,7 @@ export default function BarcodeScan() {
       setScannerError(unavailableMessage);
       stopScanner();
     }
-  }, [startWithBarcodeDetector, startWithZxing, stopScanner, unavailableMessage]);
+  }, [insecureMessage, startWithBarcodeDetector, startWithZxing, stopScanner, unavailableMessage]);
 
   const toggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()?.[0];
@@ -308,13 +299,13 @@ export default function BarcodeScan() {
     if (typeof window !== "undefined") {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
         setScannerUnavailable(true);
-        setScannerError(unavailableMessage);
+        setScannerError(insecureMessage);
       }
     }
     return () => {
       stopScanner();
     };
-  }, [stopScanner, unavailableMessage]);
+  }, [insecureMessage, stopScanner, unavailableMessage]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6 pb-20 md:pb-10">

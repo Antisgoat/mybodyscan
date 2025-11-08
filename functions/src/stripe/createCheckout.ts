@@ -2,7 +2,7 @@ import type Stripe from "stripe";
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { stripe } from "./common.js";
+import { getStripe } from "./common.js";
 const APP_BASE_URL = process.env.APP_BASE_URL || "https://mybodyscanapp.com";
 
 export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
@@ -27,6 +27,7 @@ export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
   }
 
   try {
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create(params);
     return { sessionId: session.id };
   } catch (error: any) {
