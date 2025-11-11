@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
 
@@ -9,10 +10,12 @@ export default function NutritionSearch() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<FoodItem[] | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   async function onSubmit(e?: FormEvent) {
     e?.preventDefault();
     setError(null);
+    setResults(null);
     if (!q.trim()) {
       setHasSearched(false);
       return;
@@ -30,6 +33,13 @@ export default function NutritionSearch() {
     }
   }
 
+  function onDetectedFromScanner(code: string) {
+    setQ(code);
+    setTimeout(() => {
+      void onSubmit();
+    }, 50);
+  }
+
   return (
     <div className="space-y-3">
       <form onSubmit={onSubmit} className="flex gap-2">
@@ -38,7 +48,7 @@ export default function NutritionSearch() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search foods (e.g., chicken breast, oatmeal)..."
+          placeholder="Search foods (e.g., chicken breast, oatmeal or barcode)…"
           className="w-full rounded-md border px-3 py-2 text-sm"
           disabled={authLoading || busy}
         />
@@ -49,6 +59,14 @@ export default function NutritionSearch() {
           className="rounded-md border px-3 py-2 text-sm"
         >
           {busy ? "Searching…" : "Search"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setScanOpen(true)}
+          className="rounded-md border px-3 py-2 text-sm"
+          aria-label="Scan barcode"
+        >
+          Scan
         </button>
       </form>
 
@@ -96,6 +114,12 @@ export default function NutritionSearch() {
           ))}
         </ul>
       )}
+
+      <BarcodeScannerSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetected={onDetectedFromScanner}
+      />
     </div>
   );
 }
