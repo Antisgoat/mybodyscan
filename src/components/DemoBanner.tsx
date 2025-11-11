@@ -1,14 +1,20 @@
-import { useDemoMode } from "@/components/DemoModeProvider";
-import { useAuthUser } from "@/lib/auth";
+import { isDemoActive } from "@/lib/demo";
+import { useAuthUser } from "@/lib/useAuthUser";
 
-export function DemoBanner() {
-  const demoMode = useDemoMode();
-  const { user } = useAuthUser();
+export default function DemoBanner() {
+  const { user, loading } = useAuthUser();
+  if (loading) return null; // avoid flash during auth init
+  if (!isDemoActive(user)) return null; // hide for authed users or when demo disabled
 
-  if (!demoMode || !!user) return null;
   return (
-    <div className="w-full bg-amber-50 text-amber-800 text-sm px-3 py-2 rounded-md border border-amber-200 mb-3">
-      Demo preview — browse the experience without saving data. <strong>Sign up to save your progress.</strong>
+    <div
+      role="status"
+      data-testid="demo-banner"
+      className="bg-amber-50 border border-amber-300 text-amber-900 px-3 py-2 text-sm"
+    >
+      Demo lets you browse; sign up to save your progress.
     </div>
   );
 }
+
+export { DemoBanner };
