@@ -1,60 +1,14 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { toast } from "@/hooks/use-toast";
-import { isDemoActive } from "./demoFlag";
-import { track } from "./analytics";
-import { log } from "./logger";
-import { FirebaseError } from "firebase/app";
-import { auth as firebaseAuth, db } from "./firebase";
-import { call } from "./callable";
+import type { UserProfile } from "./useUserProfile";
 
-export async function getRemainingCredits(uid: string): Promise<number> {
-  const now = new Date();
-  const creditsQuery = query(
-    collection(db, "users", uid, "credits"),
-    where("consumedAt", "==", null)
-  );
-  const snap = await getDocs(creditsQuery);
-  return snap.docs.filter((doc) => {
-    const data = doc.data() as { expiresAt?: { toDate?: () => Date } };
-    const expiresAt = data.expiresAt?.toDate?.();
-    if (!expiresAt) return true;
-    return expiresAt.getTime() > now.getTime();
-  }).length;
+export function isAdmin(profile: UserProfile | null | undefined): boolean {
+  if (!profile) return false;
+  if (profile.unlimitedCredits === true) return true;
+  return (profile.role || "").toLowerCase() === "admin";
 }
 
-export async function consumeOneCredit(): Promise<number> {
-  if (isDemoActive()) {
-    track("demo_block", { action: "scan" });
-    try {
-      toast({
-        title: "Sign up to use this feature",
-        description: "Create a free account to start scanning.",
-      });
-    } catch {
-      // ignore toast failures in non-UI contexts
-    }
-    window.location.assign("/auth");
-    throw new Error("demo-blocked");
-  }
-  const user = firebaseAuth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  try {
-    const result = await call<{ reason: string }, { ok?: boolean; remaining?: number }>("useCredit", {
-      reason: "scan",
-    });
-    const payload = result.data as { ok?: boolean; remaining?: number };
-    if (!payload?.ok) {
-      log("warn", "useCredit:no_credits");
-      throw new Error("No credits available");
-    }
-    log("info", "useCredit:success", { remaining: payload.remaining });
-    return payload.remaining ?? 0;
-  } catch (err: any) {
-    if (err instanceof FirebaseError && err.code === "functions/failed-precondition") {
-      log("warn", "useCredit:no_credits");
-      throw new Error("No credits available");
-    }
-    log("warn", "useCredit:error", { message: err?.message });
-    throw err;
-  }
+export function formatCredits(profile: UserProfile | null | undefined): string | null {
+  if (!profile) return null;
+  if (isAdmin(profile)) return "Unlimited";
+  const n = typeof profile.credits === "number" && isFinite(profile.credits) ? profile.credits : 0;
+  return `${n} ${n === 1 ? "credit" : "credits"}`;
 }
