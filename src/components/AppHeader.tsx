@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import CreditsBadge from "./CreditsBadge";
+import CreditBadge from "./CreditBadge";
 import BillingButtons from "./BillingButtons";
 import { useNavigate } from "react-router-dom";
 import { useClaims } from "@/lib/claims";
@@ -304,7 +304,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
             </a>
           )}
 
-          <CreditsBadge />
+          <CreditBadge />
           <BillingButtons />
 
           {showDevTools && (
