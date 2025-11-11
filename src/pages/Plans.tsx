@@ -13,13 +13,14 @@ import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useCredits } from "@/hooks/useCredits";
-import { startCheckout } from "@/lib/checkout";
+import { PRICE_IDS } from "@/config/prices";
+import { startCheckout } from "@/lib/api/billing";
 import { call } from "@/lib/callable";
 import { apiFetchJson } from "@/lib/apiFetch";
 
-const PRICE_ID_ONE = (import.meta.env.VITE_PRICE_ONE ?? "").trim();
-const PRICE_ID_MONTHLY = (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim();
-const PRICE_ID_YEARLY = (import.meta.env.VITE_PRICE_YEARLY ?? "").trim();
+const PRICE_ID_ONE = PRICE_IDS.single;
+const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
+const PRICE_ID_YEARLY = PRICE_IDS.yearly;
 const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
 
 type PlanConfig = {
@@ -111,9 +112,11 @@ export default function Plans() {
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      const promo =
-        plan.mode === "subscription" && plan.priceId === PRICE_ID_MONTHLY ? "MBSINTRO10" : undefined;
-      await startCheckout(plan.priceId, plan.mode, promo);
+      const url = await startCheckout(plan.priceId, plan.mode);
+      if (!url) {
+        throw new Error("checkout_url_missing");
+      }
+      window.location.assign(url.toString());
     } catch (err: any) {
       console.error("checkout_error", err);
       const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);
@@ -149,7 +152,7 @@ export default function Plans() {
       credits: "1 scan credit",
       plan: "one" as const,
       priceId: PRICE_ID_ONE,
-      envKey: "VITE_PRICE_ONE",
+      envKey: "VITE_PRICE_SINGLE",
       mode: "payment" as const,
       features: ["1 body composition scan", "Detailed analysis", "Progress tracking"],
       description: "Perfect for trying out MyBodyScan",

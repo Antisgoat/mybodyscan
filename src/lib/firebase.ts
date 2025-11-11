@@ -101,6 +101,8 @@ export const db: Firestore = firestoreSingleton;
 export const functions: Functions = functionsSingleton;
 export const storage: FirebaseStorage = storageSingleton;
 
+export const appCheck = ensureAppCheck();
+
 export async function firebaseReady(): Promise<void> {
   await persistenceReady.catch(() => undefined);
 }
