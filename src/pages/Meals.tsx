@@ -34,6 +34,7 @@ import {
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
+import NutritionSearch from "@/features/meals/NutritionSearch";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -308,6 +309,8 @@ export default function Meals() {
           <h1 className="text-3xl font-semibold text-foreground">Today's Meals</h1>
           <p className="text-sm text-muted-foreground">Log foods from search, barcode, favorites, and templates. Macros shown in kcal and US units.</p>
         </div>
+
+        <NutritionSearch />
 
         <Card>
           <CardHeader>
