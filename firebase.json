@@ -65,6 +65,13 @@
     ],
     "rewrites": [
       {
+        "source": "/api/account/delete",
+        "function": {
+          "functionId": "deleteAccount",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/**",
         "function": {
           "functionId": "api",

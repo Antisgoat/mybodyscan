@@ -22,6 +22,7 @@ import Processing from "./pages/Processing";
 import Results from "./pages/Results";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
+import SettingsAccountPrivacyPage from "@/pages/SettingsAccountPrivacy";
 import SystemCheckPage from "./pages/SystemCheck";
 import NotFound from "./pages/NotFound";
 import { AppCheckProvider } from "./components/AppCheckProvider";
@@ -543,11 +544,25 @@ const App = () => {
             <Route
               path="/settings"
               element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
                         <Settings />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/settings/account"
+              element={
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <SettingsAccountPrivacyPage />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>

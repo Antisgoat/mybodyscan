@@ -30,6 +30,7 @@ export { refreshClaims } from "./auth/refreshClaims.js";
 export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { systemBootstrap } from "./system.js";
+export { deleteAccount } from "./http/deleteAccount.js";
 
 const express = expressModule as any;
 const app = express();
