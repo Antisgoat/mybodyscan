@@ -22,6 +22,7 @@ import Processing from "./pages/Processing";
 import Results from "./pages/Results";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
+import SystemCheckPage from "./pages/SystemCheck";
 import NotFound from "./pages/NotFound";
 import { AppCheckProvider } from "./components/AppCheckProvider";
 import { LoadingOverlay } from "./components/LoadingOverlay";
@@ -93,7 +94,6 @@ import { disableDemoEverywhere } from "./state/demo";
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
 const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
-const SystemCheck = lazy(() => import("./pages/SystemCheck"));
 const DevAudit = lazy(() => import("./pages/DevAudit"));
 const Scan = lazy(() => import("./pages/Scan"));
 const Plans = lazy(() => import("./pages/Plans"));
@@ -555,6 +555,20 @@ const App = () => {
               }
             />
             <Route
+              path="/settings/system-check"
+              element={
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <SystemCheckPage />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
               path="/health"
               element={
                 <FeatureGate name="health" fallback={<Navigate to="/home" replace />}>
@@ -674,7 +688,6 @@ const App = () => {
             {/* Report routes */}
             <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
             <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/system/check" element={<PageSuspense><SystemCheck /></PageSuspense>} />
             <Route path="/dev/audit" element={<PageSuspense><DevAudit /></PageSuspense>} />
             <Route path="/diagnostics" element={<PageSuspense><Diagnostics /></PageSuspense>} />
             <Route path="/__diag" element={<PageSuspense><Diagnostics /></PageSuspense>} />

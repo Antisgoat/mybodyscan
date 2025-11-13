@@ -79,3 +79,29 @@ export function isInAppBrowser(): boolean {
 export function getCanonicalOAuthReturnUrl(): string {
   return `${DEFAULT_REDIRECT_HOST}/oauth/return`;
 }
+
+export function isNativeCapacitor(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return Boolean((window as any).Capacitor?.isNativePlatform?.());
+  } catch {
+    return false;
+  }
+}
+
+export function hasGetUserMedia(): boolean {
+  return Boolean(typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+export function isSecureContextOrLocal(): boolean {
+  if (typeof window === "undefined") return false;
+  if (typeof window.isSecureContext === "boolean" && window.isSecureContext) return true;
+  if (typeof window.location !== "undefined") {
+    return window.location.hostname === "localhost";
+  }
+  return false;
+}
+
+export function cameraReadyOnThisDevice(): boolean {
+  return isNativeCapacitor() || (isSecureContextOrLocal() && hasGetUserMedia());
+}

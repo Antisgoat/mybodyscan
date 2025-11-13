@@ -599,8 +599,8 @@ const Settings = () => {
                 </a>
               </Button>
               <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
-                <Link to="/system/check" className="flex items-center gap-2">
-                  System check
+                <Link to="/settings/system-check" className="flex items-center gap-2">
+                  System Check
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               </Button>
