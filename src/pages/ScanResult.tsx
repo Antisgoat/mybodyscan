@@ -1,314 +1,161 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { RefreshCcw } from "lucide-react";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { auth, db } from "@/lib/firebase";
-import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics, formatCentimetersAsInches } from "@/lib/scanDisplay";
-import { isDemo } from "@/lib/demoFlag";
-import { demoLatestScan, demoScanHistory, getDemoScanById } from "@/lib/demoDataset";
+import { useParams, useNavigate } from "react-router-dom";
+import { onSnapshot, updateDoc } from "firebase/firestore";
+import { scanDocRef, type ScanDoc, normalizeScanMetrics, statusOf } from "@/lib/scans";
+import { useAuthUser } from "@/lib/useAuthUser";
 
-interface ScanDocument {
-  id: string;
-  status: string;
-  charged?: boolean;
-  method?: "photo" | "photo+measure" | "bmi_fallback";
-  confidence?: number;
-  mode?: "2" | "4";
-  qc?: string[];
-  metrics?: {
-    bf_percent?: number | null;
-    bmi?: number | null;
-    weight_kg?: number | null;
-    weight_lb?: number | null;
-    method?: string | null;
-    confidence?: number | null;
-  };
-  analysis?: {
-    neck_cm?: number | null;
-    waist_cm?: number | null;
-    hip_cm?: number | null;
-  };
-  result?: {
-    bf_percent?: number | null;
-    bmi?: number | null;
-  };
-  completedAt?: { seconds: number } | null;
-  createdAt?: { seconds: number } | null;
-}
+export default function ScanResultPage() {
+  const { scanId = "" } = useParams();
+  const nav = useNavigate();
+  const { user, loading: authLoading } = useAuthUser();
 
-const methodCopy: Record<string, string> = {
-  photo: "Photo",
-  "photo+measure": "Photo + Tape",
-  bmi_fallback: "BMI Fallback",
-};
-
-const analysisFields = ["neck_cm", "waist_cm", "hip_cm"] as const;
-const analysisLabels: Record<(typeof analysisFields)[number], string> = {
-  neck_cm: "Neck",
-  waist_cm: "Waist",
-  hip_cm: "Hip",
-};
-
-function confidenceLabel(value?: number) {
-  if (value == null) return { label: "Unknown", tone: "secondary" } as const;
-  if (value >= 0.85) return { label: "High", tone: "default" } as const;
-  if (value >= 0.7) return { label: "Medium", tone: "outline" } as const;
-  return { label: "Low", tone: "secondary" } as const;
-}
-
-function formatDate(seconds?: number) {
-  if (!seconds) return "—";
-  try {
-    return new Date(seconds * 1000).toLocaleDateString();
-  } catch {
-    return "—";
-  }
-}
-
-export default function ScanResult() {
-  const { scanId } = useParams<{ scanId: string }>();
-  const [scan, setScan] = useState<ScanDocument | null>(null);
-  const [history, setHistory] = useState<ScanDocument[]>([]);
+  const [docState, setDocState] = useState<ScanDoc | null>(null);
   const [loading, setLoading] = useState(true);
-  const demoMode = isDemo();
-  const demoEntries = [...demoScanHistory, demoLatestScan] as unknown as ScanDocument[];
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (demoMode && (!user || !user.uid)) {
-      const target = (getDemoScanById(scanId ?? "") as unknown as ScanDocument | null) ?? (demoLatestScan as unknown as ScanDocument);
-      setScan(target);
-      setHistory(demoEntries.filter((entry) => entry.id !== target.id));
-      setLoading(false);
-      return;
-    }
+    if (!authLoading && !user) nav("/auth?next=" + encodeURIComponent(`/scans/${scanId}`));
+  }, [authLoading, user, nav, scanId]);
 
-    if (!user || !scanId) return;
-
-    const scanRef = doc(db, "users", user.uid, "scans", scanId);
-    const unsub = onSnapshot(scanRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setScan({ id: snapshot.id, ...(snapshot.data() as ScanDocument) });
-      }
+  useEffect(() => {
+    if (!scanId || !user) return;
+    const ref = scanDocRef(scanId);
+    const unsub = onSnapshot(ref, (snap) => {
+      const d = (snap.exists() ? ({ id: snap.id, ...snap.data() } as ScanDoc) : null);
+      setDocState(d);
+      if (d && typeof d.notes === "string") setNotes(d.notes);
       setLoading(false);
     });
-
-    const loadHistory = async () => {
-      const list: ScanDocument[] = [];
-      const histQuery = query(
-        collection(db, "users", user.uid, "scans"),
-        orderBy("completedAt", "desc"),
-        limit(8)
-      );
-      const histSnap = await getDocs(histQuery);
-      histSnap.forEach((docSnap) => {
-        if (docSnap.id === scanId) return;
-        const data = docSnap.data() as ScanDocument;
-        const normalized = extractScanMetrics(data);
-        if (data.charged && normalized.bodyFatPercent != null) {
-          list.push({ id: docSnap.id, ...data });
-        }
-      });
-      setHistory(list);
-    };
-
-    loadHistory().catch((error) => console.error("loadHistory", error));
     return () => unsub();
-  }, [scanId, demoMode]);
+  }, [scanId, user?.uid]);
 
-  const normalized = useMemo(() => (scan ? extractScanMetrics(scan) : null), [scan]);
-  const summary = useMemo(() => summarizeScanMetrics(normalized), [normalized]);
-  const confidenceChip = useMemo(
-    () => confidenceLabel(normalized?.confidence ?? scan?.confidence),
-    [normalized?.confidence, scan?.confidence]
-  );
+  const metrics = useMemo(() => normalizeScanMetrics(docState), [docState]);
+  const phase = useMemo(() => statusOf(docState), [docState]);
 
-  if (loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-      </main>
-    );
+  async function saveNotes() {
+    if (!scanId || !user) return;
+    try {
+      setSaving(true);
+      await updateDoc(scanDocRef(scanId), { notes: notes.slice(0, 4000) }); // client can update notes only
+      setSaveMsg("Saved");
+      setTimeout(() => setSaveMsg(null), 1500);
+    } catch (e: any) {
+      setSaveMsg("Failed to save notes");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (!scan) {
-    return (
-      <main className="mx-auto max-w-xl p-6 text-center">
-        <Seo title="Scan Result" />
-        <p className="text-lg font-medium">Scan not found</p>
-        <p className="text-sm text-muted-foreground">This scan may have been deleted.</p>
-      </main>
-    );
+  function shareResult() {
+    const title = "MyBodyScan result";
+    const text = metrics.bodyFatPct != null ? `Body fat: ${metrics.bodyFatPct}%` : "My latest scan";
+    const url = window.location.href;
+    if ((navigator as any).share) {
+      (navigator as any).share({ title, text, url }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url).then(() => setSaveMsg("Link copied"));
+    }
   }
-
-  const bfPercent = summary.bodyFatPercent;
-  const showResult = scan.charged && typeof bfPercent === "number";
-  const bmiText = summary.bmiText;
-  const weightText = summary.weightText;
-  const methodKey = normalized?.method ?? scan.method;
-  const methodBadge = methodKey ? methodCopy[methodKey] || methodKey : "Unknown";
-  const hasWeight = summary.weightLb != null;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6">
-      <Seo title="Scan Results – MyBodyScan" description="View your latest photo scan metrics." />
-      <NotMedicalAdviceBanner />
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">Scan Results</h1>
-        <p className="text-sm text-muted-foreground">Completed on {formatDate(scan.completedAt?.seconds)}</p>
+    <div className="mx-auto max-w-2xl p-4">
+      <header className="sticky top-0 z-40 -mx-4 mb-3 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
+        <button onClick={() => nav(-1)} className="rounded border px-2 py-1 text-xs">Back</button>
+        <h1 className="text-sm font-medium truncate">Scan Result</h1>
+        <div className="flex-1" />
+        <button onClick={shareResult} className="rounded border px-2 py-1 text-xs">Share</button>
       </header>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-3 text-2xl">
-              Result
-              <Badge variant="secondary">{methodBadge}</Badge>
-              <Badge variant={confidenceChip.tone as any}>Confidence: {confidenceChip.label}</Badge>
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Mode: {scan.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)"}</p>
+      {loading && (
+        <div className="space-y-4">
+          <div className="h-6 w-40 bg-black/10 animate-pulse rounded" />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="h-16 bg-black/10 animate-pulse rounded" />
+            <div className="h-16 bg-black/10 animate-pulse rounded" />
+            <div className="h-16 bg-black/10 animate-pulse rounded" />
           </div>
-          <Link to="/scan/tips" className="text-sm text-primary underline">
-            How to improve accuracy
-          </Link>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {scan.status !== "completed" && (
-            <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-              <RefreshCcw className="h-4 w-4" />
-              Processing — keep this tab open.
-            </div>
-          )}
-
-          {showResult ? (
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Body Fat</p>
-                <p className="text-3xl font-bold">{bfPercent?.toFixed(1)}%</p>
-                <p className="text-xs text-muted-foreground">Based on anthropometric estimation.</p>
-              </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Weight</p>
-                <p className="text-2xl font-semibold">{weightText}</p>
-                <p className="text-xs text-muted-foreground">
-                  {hasWeight ? "Latest reading from scan metrics." : "Add weight info to see this metric."}
-                </p>
-              </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
-                <p className="text-2xl font-semibold">{bmiText}</p>
-                <p className="text-xs text-muted-foreground">Shown when weight is provided.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              No numeric results yet. Complete a photo scan that passes quality gates to view body-fat %.
-            </div>
-          )}
-
-          {scan.analysis && (
-            <div className="grid gap-3 md:grid-cols-3">
-              {analysisFields.map((field) => {
-                const value = scan.analysis?.[field];
-                return (
-                  <div key={field} className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{analysisLabels[field]}</p>
-                    <p className="text-sm font-medium">
-                      {typeof value === "number" ? formatCentimetersAsInches(value) : "—"}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {scan.qc?.length ? (
-            <div className="rounded-lg border p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quality notes</p>
-              <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-                {scan.qc.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          <details className="rounded-lg border p-3 text-sm text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground">Accuracy tips</summary>
-            <p className="mt-2">
-              Bright, even lighting and a neutral background improve confidence. Keep arms slightly away from your torso and
-              stand on a marked spot about 8 ft from the camera.
-            </p>
-            <Link to="/scan/tips" className="mt-2 inline-flex text-xs font-medium text-primary underline">
-              View full tips
-            </Link>
-          </details>
-        </CardContent>
-      </Card>
-
-      {history.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Scans</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {history.map((entry) => {
-              const entryMetrics = extractScanMetrics(entry);
-              const entrySummary = summarizeScanMetrics(entryMetrics);
-              const conf = confidenceLabel(entryMetrics.confidence ?? entry.confidence);
-              const method =
-                methodCopy[(entryMetrics.method || entry.method || "") as string] ||
-                entryMetrics.method ||
-                entry.method ||
-                "Photo";
-              const bfValue = entrySummary.bodyFatPercent;
-              const bmiValue = entrySummary.bmiText;
-              const weightValue = entrySummary.weightText;
-              return (
-                <Link
-                  key={entry.id}
-                  to={`/results/${entry.id}`}
-                  className="flex items-center justify-between rounded-lg border p-3 transition hover:bg-muted"
-                >
-                  <div>
-                    <p className="font-medium">{formatDate(entry.completedAt?.seconds)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {method + " • " + (entry.mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">{bfValue != null ? `${bfValue.toFixed(1)}%` : "—"}</p>
-                      <p className="text-xs text-muted-foreground">{weightValue} • BMI {bmiValue}</p>
-                    </div>
-                    <Badge variant={conf.tone as any}>{conf.label}</Badge>
-                  </div>
-                </Link>
-              );
-            })}
-          </CardContent>
-        </Card>
+          <div className="h-24 bg-black/10 animate-pulse rounded" />
+        </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Need better results?</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Use consistent lighting, mark a standing distance, and wear fitted clothing. If you have a tape measure, add those
-            values during the scan for higher confidence.
-          </p>
-          <Link to="/scan/tips" className="mt-2 inline-block text-sm text-primary underline">
-            Review photo tips
-          </Link>
-        </CardContent>
-      </Card>
-    </main>
+      {!loading && !docState && (
+        <div className="text-sm text-red-700">Scan not found.</div>
+      )}
+
+      {!loading && docState && (
+        <div className="space-y-4">
+          {/* Status / Phase */}
+          {phase !== "completed" && phase !== "error" && (
+            <div className="rounded border p-3">
+              <p className="text-sm">
+                {phase === "queued" && "Your scan is queued. This usually starts in a moment."}
+                {phase === "processing" && "Processing your scan… this can take up to a minute on mobile networks."}
+                {phase === "unknown" && "Preparing results…"}
+              </p>
+              <div className="mt-2 h-2 w-1/2 bg-black/10 animate-pulse" />
+            </div>
+          )}
+
+          {phase === "error" && (
+            <div className="rounded border p-3">
+              <p className="text-sm text-red-700">We couldn’t complete this scan.</p>
+              {docState.error && <p className="text-xs text-red-700/90 mt-1">{docState.error}</p>}
+              <button onClick={() => nav("/scan")} className="mt-2 rounded border px-3 py-2 text-sm">Try again</button>
+            </div>
+          )}
+
+          {/* Metrics */}
+          {(phase === "completed" || metrics.bodyFatPct != null || metrics.weightLb != null || metrics.bmi != null) && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-medium">Metrics</h2>
+              <div className="grid grid-cols-3 gap-2">
+                <MetricCard label="Body Fat" value={metrics.bodyFatPct != null ? `${metrics.bodyFatPct}%` : "—"} highlight />
+                <MetricCard label="Weight" value={metrics.weightLb != null ? `${metrics.weightLb} lb` : "—"} />
+                <MetricCard label="BMI" value={metrics.bmi != null ? `${metrics.bmi}` : "—"} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                MyBodyScan provides wellness information only and is <strong>not a medical device</strong>. Consult a clinician for medical advice.
+              </p>
+            </section>
+          )}
+
+          {/* Notes */}
+          <section className="space-y-2">
+            <h2 className="text-sm font-medium">Notes</h2>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="How did this scan feel? Any recent changes in training, sleep, or nutrition?"
+              className="w-full rounded border p-2 text-sm"
+              rows={4}
+            />
+            <div className="flex items-center gap-2">
+              <button onClick={saveNotes} disabled={saving} className="rounded border px-3 py-2 text-sm">
+                {saving ? "Saving…" : "Save Notes"}
+              </button>
+              {saveMsg && <span className="text-xs text-muted-foreground">{saveMsg}</span>}
+            </div>
+          </section>
+
+          {/* Actions */}
+          <section className="flex items-center gap-2">
+            <button onClick={() => nav("/scan")} className="rounded border px-3 py-2 text-sm">Rescan</button>
+            <button onClick={() => nav("/history")} className="rounded border px-3 py-2 text-sm">History</button>
+            <button onClick={() => nav("/coach/tracker")} className="rounded border px-3 py-2 text-sm">Tracker</button>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`rounded border p-3 ${highlight ? "bg-emerald-50 border-emerald-200" : ""}`}>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold">{value}</div>
+    </div>
   );
 }

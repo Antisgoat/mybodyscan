@@ -490,6 +490,15 @@ const App = () => {
                 </AuthedLayout>
               </ProtectedRoute>
             } />
+            <Route path="/scans/:scanId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <ScanResult />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Results */}
             <Route path="/results/:scanId" element={
               <ProtectedRoute>
