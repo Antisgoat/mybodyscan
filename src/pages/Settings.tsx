@@ -494,6 +494,9 @@ const Settings = () => {
               Download your history or permanently remove your account. These tools affect only your MyBodyScan data.
             </p>
             <div className="grid gap-2">
+              <a href="/settings/account" className="inline-flex items-center justify-center rounded border px-3 py-2 text-sm">
+                Account &amp; Privacy
+              </a>
               <Button
                 variant="outline"
                 onClick={handleExportData}
