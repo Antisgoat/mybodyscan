@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { getIdToken } from "firebase/auth";
-import { getToken as getAppCheckToken, type AppCheckTokenResult } from "firebase/app-check";
-import { appCheck } from "@/lib/firebase";
+import { apiFetch } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { BUILD } from "@/lib/build";
 import { cameraReadyOnThisDevice, hasGetUserMedia, isSecureContextOrLocal, isNativeCapacitor } from "@/lib/platform";
@@ -19,20 +17,8 @@ export default function SystemCheckPage() {
     setError(null);
     setHealth(null);
     try {
-      const idToken = user ? await getIdToken(user, false) : "";
-      const appCheckInstance = appCheck;
-      const ac: AppCheckTokenResult | null = appCheckInstance
-        ? await getAppCheckToken(appCheckInstance, false).catch(() => null)
-        : null;
-      const res = await fetch("/api/system/health", {
-        headers: {
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-          ...(ac?.token ? { "X-Firebase-AppCheck": ac.token } : {})
-        }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      setHealth(data);
+      const data = await apiFetch<Record<string, any>>("/api/system/health", { method: "GET" });
+      setHealth(data || {});
     } catch (e: any) {
       setError(e?.message || "Health check failed");
     } finally {
