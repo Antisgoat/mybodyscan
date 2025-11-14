@@ -1,4 +1,7 @@
-import { apiPost } from "@/lib/http";
+import { apiFetchWithFallback } from "@/lib/http";
+import { preferRewriteUrl } from "@/lib/api/urls";
+
 export async function askCoach(message: string) {
-  return apiPost("/api/coach/chat", { message });
+  const url = preferRewriteUrl("coachChat");
+  return apiFetchWithFallback("coachChat", url, { method: "POST", body: { message } });
 }

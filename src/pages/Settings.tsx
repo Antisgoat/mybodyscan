@@ -607,6 +607,12 @@ const Settings = () => {
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               </Button>
+              <Button variant="ghost" asChild className="justify-start gap-2 text-left text-sm">
+                <a href="/settings/system-check-pro" className="flex items-center gap-2">
+                  System Check Pro
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </Button>
             </div>
             <div className="rounded bg-muted p-3 text-xs text-muted-foreground space-y-1">
               <div>Version: {buildCommit}{buildTime ? ` • ${buildTime}` : ""}</div>
