@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import { appCheckSoft } from "./http/appCheckSoft.js";
 import OpenAI from "openai";
 
 import { getFirestore, FieldValue } from "./firebase.js";
@@ -31,12 +32,6 @@ function cors(req: functions.Request, res: functions.Response): boolean {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 const db = getFirestore();
 const OPENAI_TIMEOUT_MS = 8000;
-
-function softAppCheck(req: functions.Request) {
-  if (!req.get || !req.get("X-Firebase-AppCheck")) {
-    logger.warn("appcheck_missing", { path: req.path });
-  }
-}
 
 function normalizeMessage(body: unknown): string {
   if (!body) return "";
@@ -118,7 +113,7 @@ async function createReply(message: string, uid: string): Promise<string> {
 
 export const coachChat = functions.onRequest({ region: "us-central1" }, async (req, res) => {
   if (cors(req, res)) return;
-  softAppCheck(req);
+  await appCheckSoft(req);
   try {
     if (req.method !== "POST") {
       res.status(405).json({ error: "method_not_allowed" });

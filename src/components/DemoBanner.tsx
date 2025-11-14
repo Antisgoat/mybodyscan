@@ -4,7 +4,7 @@ import { useAuthUser } from "@/lib/useAuthUser";
 export default function DemoBanner() {
   const { user, loading } = useAuthUser();
   if (loading) return null; // avoid flash during auth init
-  if (!isDemoActive(user)) return null; // hide for authed users or when demo disabled
+  if (!isDemoActive()) return null; // hide for authed users or when demo disabled
 
   return (
     <div
