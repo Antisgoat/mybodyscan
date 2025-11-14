@@ -14,7 +14,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { coachAsk } from "@/lib/coachClient";
+import { askCoach } from "@/lib/api/coach";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -207,8 +207,15 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const answerText = await coachAsk(sanitized);
-      const answer = answerText || "No answer.";
+      const response = await askCoach(sanitized);
+      const answer =
+        typeof response?.reply === "string" && response.reply
+          ? response.reply
+          : typeof response?.text === "string" && response.text
+            ? response.text
+            : typeof response?.answer === "string"
+              ? response.answer
+              : "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,

@@ -8,6 +8,9 @@ import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { firebaseReady, logFirebaseRuntimeInfo } from "./lib/firebase";
 import { handleAuthRedirectOnce } from "./lib/authRedirect";
 import { initTelemetry } from "./lib/telemetry";
+import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
+
+(globalThis as any).sanitizeFoodItem = (globalThis as any).sanitizeFoodItem || sanitizeFoodItem;
 
 handleAuthRedirectOnce();
 

@@ -1,4 +1,5 @@
 import { apiPost } from "@/lib/http";
+import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 
 export type FoodItem = {
   id?: string;
@@ -17,109 +18,24 @@ export type FoodItem = {
 
 /** Heuristic normalizer so UI is resilient to upstream sources */
 export function normalizeFoodItem(x: any): FoodItem {
-  const nutrients = x?.nutrients ?? x?.nutriments ?? null;
-  const name =
-    x?.name ??
-    x?.description ??
-    x?.foodName ??
-    x?.food?.description ??
-    x?.product_name ??
-    "Unknown item";
-
-  const brand =
-    x?.brand ??
-    x?.brandName ??
-    x?.brand_name ??
-    x?.owner_brand_name ??
-    x?.manufacturer ??
-    null;
-
-  // Calories (kcal)
-  const kcal =
-    numberOrNull(x?.calories) ??
-    numberOrNull(x?.kcal) ??
-    numberOrNull(x?.energyKcal) ??
-    numberOrNull(nutrients?.energyKcal) ??
-    numberOrNull(nutrients?.energy_kcal) ??
-    numberOrNull(nutrients?.energy) ??
-    (typeof nutrients?.energy === "object" ? numberOrNull(nutrients?.energy?.value) : null) ??
-    numberOrNull(nutrients?.calories) ??
-    (x?.nf_calories !== undefined ? numberOrNull(x?.nf_calories) : null);
-
-  // Macros (grams)
-  const protein =
-    numberOrNull(x?.protein) ??
-    numberOrNull(x?.protein_g) ??
-    numberOrNull(nutrients?.protein) ??
-    numberOrNull(nutrients?.proteins) ??
-    numberOrNull(nutrients?.protein_g) ??
-    (typeof nutrients?.protein === "object" ? numberOrNull(nutrients?.protein?.value) : null) ??
-    (x?.nf_protein !== undefined ? numberOrNull(x?.nf_protein) : null);
-
-  const carbs =
-    numberOrNull(x?.carbs) ??
-    numberOrNull(x?.carbohydrates) ??
-    numberOrNull(x?.carbohydrates_total_g) ??
-    numberOrNull(nutrients?.carbohydrates) ??
-    numberOrNull(nutrients?.carbs) ??
-    numberOrNull(nutrients?.carbohydrates_total_g) ??
-    numberOrNull(nutrients?.carbohydrates_available) ??
-    (typeof nutrients?.carbohydrates === "object" ? numberOrNull(nutrients?.carbohydrates?.value) : null) ??
-    (x?.nf_total_carbohydrate !== undefined ? numberOrNull(x?.nf_total_carbohydrate) : null);
-
-  const fat =
-    numberOrNull(x?.fat) ??
-    numberOrNull(x?.fat_g) ??
-    numberOrNull(nutrients?.fat) ??
-    numberOrNull(nutrients?.fat_total) ??
-    numberOrNull(nutrients?.fat_g) ??
-    numberOrNull(nutrients?.lipid) ??
-    (typeof nutrients?.fat === "object" ? numberOrNull(nutrients?.fat?.value) : null) ??
-    (x?.nf_total_fat !== undefined ? numberOrNull(x?.nf_total_fat) : null);
-
-  const servingSize =
-    numberOrNull(x?.servingSize) ??
-    numberOrNull(x?.serving_size) ??
-    numberOrNull(x?.serving_size_g) ??
-    numberOrNull(x?.serving_weight_grams) ??
-    numberOrNull(x?.serving_quantity) ??
-    numberOrNull(x?.quantity);
-
-  const servingUnit =
-    x?.servingUnit ??
-    x?.serving_unit ??
-    x?.serving_size_unit ??
-    x?.servingSizeUnit ??
-    null;
-
-  const source =
-    x?.source ??
-    x?.dataSource ??
-    (x?.fdcId ? "USDA" : x?.code ? "OFF" : null);
-
-  const barcode = x?.barcode ?? x?.code ?? null;
-  const id = x?.id ?? x?.fdcId ?? barcode ?? x?._id ?? x?.foodId ?? undefined;
-
+  const base = sanitizeFoodItem(x);
+  const sourceRaw = typeof x?.source === "string" ? x.source : x?.provider;
+  const source = typeof sourceRaw === "string" && sourceRaw.length ? sourceRaw : null;
+  const barcode = typeof x?.barcode === "string" ? x.barcode : typeof x?.code === "string" ? x.code : null;
   return {
-    id,
-    name: String(name || "Unknown item"),
-    brand: brand ? String(brand) : null,
-    calories: kcal,
-    protein,
-    carbs,
-    fat,
-    servingSize,
-    servingUnit: servingUnit ? String(servingUnit) : null,
-    source: source ? String(source) : null,
-    barcode: barcode ? String(barcode) : null,
-    raw: x
+    id: base.id,
+    name: base.name,
+    brand: base.brand ?? null,
+    calories: base.calories ?? null,
+    protein: base.protein ?? null,
+    carbs: base.carbs ?? null,
+    fat: base.fat ?? null,
+    servingSize: base.serving ?? null,
+    servingUnit: base.unit ?? null,
+    source: source,
+    barcode,
+    raw: x,
   };
-}
-
-function numberOrNull(v: any): number | null {
-  if (v === null || v === undefined) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 export async function nutritionSearch(q: string): Promise<FoodItem[]> {

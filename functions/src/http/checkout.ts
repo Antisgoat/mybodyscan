@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
 import { requireAuth } from "../http.js";
 import { getAppOrigin, getPriceAllowlist, getStripeSecret, stripeSecretKeyParam, stripeSecretParam } from "../lib/config.js";
+import { appCheckSoft } from "./appCheckSoft.js";
 
 const db = getFirestore();
 
@@ -28,12 +29,6 @@ function cors(req: Request, res: Response): boolean {
     return true;
   }
   return false;
-}
-
-function softAppCheck(req: Request) {
-  if (!req.get || !req.get("X-Firebase-AppCheck")) {
-    console.warn("appcheck_missing", { path: req.path });
-  }
 }
 
 function logInfo(event: string, payload: Record<string, unknown> = {}): void {
@@ -442,7 +437,7 @@ function sendPaymentsDisabled(svc: "checkout" | "portal", res: Response, meta: E
 
 async function handleCreateCheckout(req: Request, res: Response) {
   if (cors(req, res)) return;
-  softAppCheck(req);
+  await appCheckSoft(req);
   const { allowedOrigin, ended } = applyCors(req, res);
   if (ended) return;
 
@@ -620,7 +615,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
 
 async function handleCustomerPortal(req: Request, res: Response) {
   if (cors(req, res)) return;
-  softAppCheck(req);
+  await appCheckSoft(req);
   const { allowedOrigin, ended } = applyCors(req, res);
   if (ended) return;
 

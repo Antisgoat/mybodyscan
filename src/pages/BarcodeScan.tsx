@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { backend } from "@/lib/backendBridge";
 import { sanitizeFoodItem as sanitizeFoodRecord } from "@/features/nutrition/sanitize";
-import { sanitizeFoodItem as sanitizeFoodQuery } from "@/lib/nutrition/sanitize";
+import { sanitizeNutritionQuery } from "@/lib/nutrition/sanitizeQuery";
 import type { FoodItem } from "@/lib/nutrition/types";
 import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
@@ -97,7 +97,7 @@ export default function BarcodeScan() {
       setItem(null);
       setStatus("Looking up…");
       try {
-        const normalizedCode = sanitizeFoodQuery(code);
+        const normalizedCode = sanitizeNutritionQuery(code);
         if (!normalizedCode) {
           setStatus("Invalid barcode");
           toast({ title: "Invalid barcode", description: "Enter a valid UPC/EAN." });

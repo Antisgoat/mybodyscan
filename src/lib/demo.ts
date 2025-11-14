@@ -1,40 +1,23 @@
-import type { User } from "firebase/auth";
-import { disableDemo as disableStoreDemo, enableDemo as enableStoreDemo, get } from "@/state/demo";
+import { auth } from "@/lib/firebase";
 
-export function isDemoEnabledEnv(): boolean {
-  const val = String(import.meta.env.VITE_DEMO_MODE ?? "").trim().toLowerCase();
-  return val === "true" || val === "1" || val === "yes";
+/** Returns true only for unauthenticated demo browsing. Signed-in users are never in demo. */
+export function isDemoActive(): boolean {
+  const flag = String((import.meta as any)?.env?.VITE_DEMO_MODE ?? "false").toLowerCase() === "true";
+  const authed = !!auth.currentUser;
+  return flag && !authed;
 }
 
-/**
- * Demo is considered "active" only if the environment enables it AND there is no signed-in user.
- * As soon as a user signs in, demo must be OFF (banner hidden).
- */
-export function isDemoActive(user: User | null): boolean {
-  return isDemoEnabledEnv() && !user;
+export class DemoWriteError extends Error {
+  constructor(message = "Demo mode is read-only") { super(message); this.name = "DemoWriteError"; }
 }
 
-export const DEMO_KEY = "mbs.demo";
+/** Optional toast/log hook; safe no-op by default. */
+export function notifyDemoBlocked(_msg?: string): void { /* no-op */ }
 
-function broadcastDemoChange(enabled: boolean) {
-  if (typeof window === "undefined") return;
-  try {
-    window.dispatchEvent(new CustomEvent("mbs:demo-change", { detail: { enabled } }));
-  } catch {
-    // ignore
+/** Gate writes only if visitor is in unauthenticated demo mode. */
+export function assertWritable(): void {
+  if (isDemoActive()) {
+    try { notifyDemoBlocked("Writes are disabled in Demo."); } catch {}
+    throw new DemoWriteError();
   }
 }
-
-export const isDemo = (): boolean => {
-  return get().demo;
-};
-
-export const enableDemo = (): void => {
-  enableStoreDemo();
-  broadcastDemoChange(true);
-};
-
-export const disableDemo = (): void => {
-  disableStoreDemo();
-  broadcastDemoChange(false);
-};

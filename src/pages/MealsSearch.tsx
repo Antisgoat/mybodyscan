@@ -27,7 +27,7 @@ import { useAuthUser } from "@/lib/auth";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";
-import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
+import { sanitizeNutritionQuery } from "@/lib/nutrition/sanitizeQuery";
 import { backend } from "@/lib/backendBridge";
 import { nutritionSearchClient } from "@/lib/nutritionApi";
 import { call } from "@/lib/callable";
@@ -323,7 +323,7 @@ export default function MealsSearch() {
       return;
     }
 
-    const term = sanitizeFoodItem(debouncedQuery);
+    const term = sanitizeNutritionQuery(debouncedQuery);
     if (!term) {
       setResults([]);
       setPrimarySource(null);
@@ -390,7 +390,7 @@ export default function MealsSearch() {
 
   const handleBarcodeSuccess = async (code: string) => {
     setScannerOpen(false);
-    const normalized = sanitizeFoodItem(code);
+    const normalized = sanitizeNutritionQuery(code);
     if (!normalized) {
       setStatus("Invalid barcode");
       setSearchWarning("Invalid barcode");

@@ -26,7 +26,7 @@ async function getAuthHeaders() {
   const u = auth.currentUser;
   const [idToken, ac] = await Promise.all([
     u ? getIdToken(u, /*forceRefresh*/ false).catch(() => "") : Promise.resolve(""),
-    getAppCheckToken(appCheck, false).catch(() => null),
+    appCheck ? getAppCheckToken(appCheck, false).catch(() => null) : Promise.resolve(null),
   ]);
   const h: Record<string, string> = {};
   if (idToken) h.Authorization = `Bearer ${idToken}`;
