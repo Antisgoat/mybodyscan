@@ -1,26 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
-import {
-  createAccountEmail,
-  rememberAuthRedirect,
-  consumeAuthRedirect,
-  sendReset,
-  useAuthUser,
-} from "@/lib/auth";
-import { auth, firebaseReady } from "@/lib/firebase";
+import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
-import { emailPasswordSignIn, describeAuthErrorAsync, type NormalizedAuthError } from "@/lib/login";
+import { emailPasswordSignIn } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
-import { consumeAuthRedirectError, consumeAuthRedirectResult, type FriendlyFirebaseError } from "@/lib/authRedirect";
-import { SocialButtons, type SocialProvider } from "@/auth/components/SocialButtons";
+import { signInWithGoogle, signInWithApple, consumeNext } from "@/lib/auth/providers";
+
+const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
+const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -59,48 +54,6 @@ const Auth = () => {
     warnIfDomainUnauthorized();
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await firebaseReady();
-      const result = await consumeAuthRedirectResult();
-      if (!cancelled && result) {
-        const target = consumeAuthRedirect();
-        if (target) {
-          window.location.replace(target);
-          return;
-        }
-        window.location.replace(defaultTarget);
-        return;
-      }
-
-      const error = await consumeAuthRedirectError();
-      if (!cancelled && error) {
-        consumeAuthRedirect();
-        const friendly = error as FriendlyFirebaseError;
-        const friendlyMessage = friendly.friendlyMessage ?? null;
-        const friendlyCode = friendly.friendlyCode ?? error.code;
-        if (friendlyMessage) {
-          notify({ title: "Sign in failed", description: formatError(friendlyMessage, friendlyCode) });
-        } else {
-          try {
-            const mapped = await describeAuthErrorAsync(auth, error);
-            notify({ title: "Sign in failed", description: formatError(mapped.message, mapped.code ?? friendlyCode) });
-          } catch (err) {
-            if (import.meta.env.DEV) {
-              console.warn("[auth] Unable to map redirect error", err);
-            }
-            const fallback = error.message || "Sign in failed";
-            notify({ title: "Sign in failed", description: formatError(fallback, friendlyCode) });
-          }
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [defaultTarget]);
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -124,39 +77,39 @@ const Auth = () => {
     }
   };
 
-  const handleSocialBusyChange = useCallback((busy: boolean) => {
-    setLoading(busy);
-  }, []);
-
-  const handleSocialBefore = useCallback(
-    (_provider: SocialProvider) => {
-      rememberAuthRedirect(defaultTarget);
-    },
-    [defaultTarget],
-  );
-
-  const handleSocialSuccess = useCallback(
-    (_provider: SocialProvider) => {
-      const target = consumeAuthRedirect();
-      if (target) {
-        window.location.replace(target);
-        return;
-      }
+  const handleGoogleSignIn = useCallback(async () => {
+    setLoading(true);
+    try {
+      await signInWithGoogle(defaultTarget);
       if (auth.currentUser) {
-        window.location.replace(defaultTarget);
+        const target = consumeNext();
+        window.location.replace(target);
       }
-    },
-    [defaultTarget],
-  );
+    } catch (error: unknown) {
+      const normalized = normalizeFirebaseError(error);
+      const fallback = normalized.message ?? "Google sign-in failed.";
+      toast(formatError(fallback, normalized.code), "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [defaultTarget]);
 
-  const handleSocialError = useCallback(
-    (_provider: SocialProvider, error: NormalizedAuthError) => {
-      consumeAuthRedirect();
-      const message = formatError(error.message, error.code);
-      toast(message, "error");
-    },
-    [],
-  );
+  const handleAppleSignIn = useCallback(async () => {
+    setLoading(true);
+    try {
+      await signInWithApple(defaultTarget);
+      if (auth.currentUser) {
+        const target = consumeNext();
+        window.location.replace(target);
+      }
+    } catch (error: unknown) {
+      const normalized = normalizeFirebaseError(error);
+      const fallback = normalized.message ?? "Apple sign-in failed.";
+      toast(formatError(fallback, normalized.code), "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [defaultTarget]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -224,54 +177,32 @@ const Auth = () => {
               }}>Forgot password?</Button>
             </div>
           </form>
-          <SocialButtons
-            loading={loading}
-            className="space-y-3"
-            onBusyChange={handleSocialBusyChange}
-            onBeforeSignIn={handleSocialBefore}
-            onSignInSuccess={handleSocialSuccess}
-            onSignInError={handleSocialError}
-            renderApple={({ loading, disabled, onClick }) => {
-              const appleButton = (
-                <Button
-                  variant="secondary"
-                  onClick={onClick}
-                  disabled={disabled}
-                  className="w-full h-11 inline-flex items-center justify-center gap-2"
-                  aria-label="Continue with Apple"
-                  data-testid="auth-apple-button"
-                >
-                  <AppleIcon />
-                  {loading ? "Continuing…" : "Continue with Apple"}
-                </Button>
-              );
-
-              if (loading) {
-                return (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="w-full inline-flex">{appleButton}</span>
-                    </TooltipTrigger>
-                    <TooltipContent>Finishing previous sign-in?</TooltipContent>
-                  </Tooltip>
-                );
-              }
-
-              return appleButton;
-            }}
-            renderGoogle={({ loading, disabled, onClick }) => (
-              <Button
-                variant="secondary"
-                onClick={onClick}
-                disabled={disabled}
-                className="w-full h-11 inline-flex items-center justify-center gap-2"
-                data-testid="auth-google-button"
-                aria-label="Continue with Google"
+          <div className="space-y-3">
+            {ENABLE_GOOGLE && (
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring"
+                data-testid="btn-google"
               >
-                {loading ? "Continuing…" : "Continue with Google"}
-              </Button>
+                Continue with Google
+              </button>
             )}
-          />
+            {ENABLE_APPLE && (
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={loading}
+                className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring inline-flex items-center justify-center gap-2"
+                data-testid="btn-apple"
+                aria-label="Continue with Apple"
+              >
+                <AppleIcon />
+                Continue with Apple
+              </button>
+            )}
+          </div>
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">

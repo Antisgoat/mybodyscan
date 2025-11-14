@@ -52,7 +52,15 @@ export default function SystemCheckPage() {
     ["Camera Ready", String(cameraReadyOnThisDevice())],
     ["Build Time", BUILD.time || "(unset)"],
     ["Build SHA", BUILD.sha || "(unset)"],
-    ["Mode", BUILD.mode]
+    ["Mode", BUILD.mode],
+    [
+      "Google Sign-In Enabled",
+      String((import.meta.env.VITE_ENABLE_GOOGLE ?? "true").toString().toLowerCase() !== "false"),
+    ],
+    [
+      "Apple Sign-In Enabled",
+      String((import.meta.env.VITE_ENABLE_APPLE ?? "true").toString().toLowerCase() !== "false"),
+    ],
   ];
 
   return (
