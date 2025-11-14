@@ -108,7 +108,7 @@ export const backend = {
     return callWithHttpFallback<typeof input, { sessionId: string }>(
       {
         callableName: "createCheckout",
-        httpPath: "/api/billing/create-checkout-session",
+        httpPath: "/api/createCheckout",
         method: "POST",
         mapHttpToClient: (json: any) => ({ sessionId: json?.sessionId || json?.id }),
       },

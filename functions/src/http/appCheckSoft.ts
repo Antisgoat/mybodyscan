@@ -1,12 +1,7 @@
-import { getAppCheck } from "firebase-admin/app-check";
 import { logger } from "firebase-functions";
-
+import { getAppCheck } from "firebase-admin/app-check";
 export async function appCheckSoft(req: any): Promise<void> {
-  const token = String(req.header?.("X-Firebase-AppCheck") || req.headers?.["x-firebase-appcheck"] || "");
-  if (!token) { logger.warn("appcheck_missing_soft"); return; }
-  try {
-    await getAppCheck().verifyToken(token);
-  } catch (e: any) {
-    logger.warn("appcheck_invalid_soft", { msg: e?.message });
-  }
+  const t = String(req.get?.("X-Firebase-AppCheck") || req.headers?.["x-firebase-app-check"] || "");
+  if (!t) { logger.warn("appcheck_missing"); return; }
+  try { await getAppCheck().verifyToken(t); } catch (e: any) { logger.warn("appcheck_invalid", { err: e?.message }); }
 }

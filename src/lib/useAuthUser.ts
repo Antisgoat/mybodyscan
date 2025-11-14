@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase"; // use the existing initialized export
-import { apiPost } from "@/lib/http";
+import { apiGet } from "@/lib/http";
 
 export function useAuthUser() {
   const [user, setUser] = useState<User | null>(typeof auth !== "undefined" ? auth.currentUser : null);
@@ -11,7 +11,9 @@ export function useAuthUser() {
   useEffect(() => {
     async function afterLogin(u: User) {
       try {
-        await apiPost("/api/admin/refresh-claims", {});
+        await apiGet("/api/system/bootstrap", { expectJson: false });
+      } catch {}
+      try {
         await u.getIdToken(true);
       } catch {}
     }

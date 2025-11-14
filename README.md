@@ -405,3 +405,14 @@ After deploying this PR, validate end-to-end:
   - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
 - Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
 - Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)
+## Reliable deploy (prod)
+- Build with stamp: `VITE_BUILD_TIME` + `VITE_BUILD_SHA`.
+- Deploy functions first (if changed), then hosting:
+
+```
+npm --prefix functions run build && firebase deploy --only functions --project mybodyscan-f3daf
+VITE_BUILD_TIME=$(date -u +%FT%TZ) VITE_BUILD_SHA=$(git rev-parse --short HEAD) npm run build
+firebase deploy --only hosting --project mybodyscan-f3daf
+```
+
+- `firebase.json` serves `index.html` with `Cache-Control: no-store` to prevent stale bundles.

@@ -1,23 +1,18 @@
 import { auth } from "@/lib/firebase";
 
-/** Returns true only for unauthenticated demo browsing. Signed-in users are never in demo. */
 export function isDemoActive(): boolean {
   const flag = String((import.meta as any)?.env?.VITE_DEMO_MODE ?? "false").toLowerCase() === "true";
-  const authed = !!auth.currentUser;
-  return flag && !authed;
+  const u = auth.currentUser;
+  // Demo browsing ONLY when not signed in. Signed-in (including admin) is never demo.
+  return flag && !u;
 }
 
 export class DemoWriteError extends Error {
   constructor(message = "Demo mode is read-only") { super(message); this.name = "DemoWriteError"; }
 }
+export function notifyDemoBlocked(_msg?: string): void { /* optional toast hook */ }
 
-/** Optional toast/log hook; safe no-op by default. */
-export function notifyDemoBlocked(_msg?: string): void { /* no-op */ }
-
-/** Gate writes only if visitor is in unauthenticated demo mode. */
+/** Call before any write; throws only for unauthenticated demo visitors. */
 export function assertWritable(): void {
-  if (isDemoActive()) {
-    try { notifyDemoBlocked("Writes are disabled in Demo."); } catch {}
-    throw new DemoWriteError();
-  }
+  if (isDemoActive()) { try { notifyDemoBlocked("Writes disabled in Demo."); } catch {} throw new DemoWriteError(); }
 }

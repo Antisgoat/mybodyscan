@@ -1,6 +1,7 @@
 import React from "react";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
+import { useUserClaims } from "@/lib/useUserClaims";
 
 type Props = {
   className?: string;
@@ -10,22 +11,51 @@ export default function CreditsBadge(props: Props) {
   const { className } = props;
   const { user, claims, loading: claimsLoading, refresh } = useClaims();
   const { credits, loading: creditsLoading, unlimited: creditsUnlimited } = useCredits();
+  const directClaims = useUserClaims();
   const loading = claimsLoading || creditsLoading;
 
   const text = (() => {
     if (loading) return "—";
     if (!user) return "—";
+    if (
+      directClaims?.admin === true ||
+      directClaims?.unlimited === true ||
+      (typeof directClaims?.role === "string" && directClaims.role.toLowerCase() === "admin")
+    ) {
+      return "Unlimited";
+    }
     const dev = claims?.dev === true;
     const unlimitedClaim = claims?.unlimited === true || claims?.unlimitedCredits === true;
-    const unlimited = dev || unlimitedClaim || creditsUnlimited || credits === Infinity;
-    if (unlimited) return "∞";
+    const unlimited =
+      dev ||
+      unlimitedClaim ||
+      creditsUnlimited ||
+      credits === Infinity ||
+      directClaims?.unlimited === true ||
+      directClaims?.unlimitedCredits === true;
+    if (unlimited) return "Unlimited";
     const n = Number.isFinite(credits) ? Math.max(0, Math.floor(Number(credits))) : 0;
     return String(n);
   })();
 
   const title = (() => {
     if (!user) return "Not signed in";
-    if (claims?.dev === true || claims?.unlimited === true || claims?.unlimitedCredits === true || creditsUnlimited || credits === Infinity) {
+    if (
+      directClaims?.admin === true ||
+      directClaims?.unlimited === true ||
+      (typeof directClaims?.role === "string" && directClaims.role.toLowerCase() === "admin")
+    ) {
+      return "Unlimited credits";
+    }
+    if (
+      claims?.dev === true ||
+      claims?.unlimited === true ||
+      claims?.unlimitedCredits === true ||
+      creditsUnlimited ||
+      credits === Infinity ||
+      directClaims?.unlimited === true ||
+      directClaims?.unlimitedCredits === true
+    ) {
       return "Unlimited credits";
     }
     return "Available credits";

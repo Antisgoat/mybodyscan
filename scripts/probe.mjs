@@ -7,7 +7,7 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 15000);
 const ENDPOINTS = [
   {
     name: 'systemHealth',
-    path: '/systemHealth',
+    path: '/api/system/health',
     method: 'GET',
   },
   {
@@ -23,7 +23,7 @@ const ENDPOINTS = [
   },
   {
     name: 'createCheckout',
-    path: '/api/billing/create-checkout-session',
+    path: '/api/createCheckout',
     method: 'POST',
     body: { priceId: process.env.TEST_PRICE_ID || 'price_xxx' },
   },

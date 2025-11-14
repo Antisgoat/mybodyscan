@@ -1,48 +1,41 @@
 import { initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
 import { app } from "@/lib/firebase";
 
-const siteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || (import.meta as any).env?.VITE_APPCHECK_SITE_KEY || "";
-const debugToken = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
-
-if (typeof self !== "undefined" && debugToken) {
-  // @ts-ignore debug token assignment
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+const siteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || "";
+const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
+if (debug && typeof self !== "undefined") {
+  // @ts-ignore allow debug override
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = debug;
 }
 
 let instance: AppCheck | null = null;
 let initialized = false;
 
-function initAppCheck(): AppCheck | null {
+function init(): AppCheck | null {
   if (typeof window === "undefined") return null;
   if (instance) return instance;
   if (initialized) return instance;
   initialized = true;
-
-  if (!siteKey && !debugToken) {
-    return null;
-  }
-
-  const key = siteKey || "unused-key";
   instance = initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(key),
+    provider: new ReCaptchaV3Provider(siteKey || "unused"),
     isTokenAutoRefreshEnabled: true,
   });
   return instance;
 }
 
-export const appCheck = initAppCheck();
+export const appCheck = init();
 
 export function hasAppCheck(): boolean {
-  return Boolean(siteKey || debugToken);
+  return Boolean(siteKey || debug);
 }
 
 export async function ensureAppCheck(): Promise<void> {
-  initAppCheck();
+  init();
 }
 
 export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Record<string, string>> {
   try {
-    const inst = initAppCheck();
+    const inst = init();
     if (!inst) return {};
     const { token } = await getToken(inst, forceRefresh);
     return token ? { "X-Firebase-AppCheck": token } : {};
