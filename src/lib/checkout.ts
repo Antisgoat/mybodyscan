@@ -23,7 +23,7 @@ export async function startCheckout(priceId: string, mode: "payment" | "subscrip
     sessionId = response?.data?.sessionId || "";
   } catch (error) {
     try {
-      const resp = await apiFetch("/api/billing/create-checkout-session", {
+      const resp = await apiFetch("/api/createCheckout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId, mode, promoCode }),

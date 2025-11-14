@@ -576,7 +576,7 @@ export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual"
 export async function createCustomerPortal() {
   await requireAuthContext();
   try {
-    return (await apiFetchJson("/billing/portal", {
+    return (await apiFetchJson("/api/createCustomerPortal", {
       method: "POST",
       body: JSON.stringify({}),
     })) as { url: string };

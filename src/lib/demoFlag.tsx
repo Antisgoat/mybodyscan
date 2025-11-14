@@ -1,5 +1,6 @@
 import React from "react";
 import { disableDemo as disableStoreDemo, enableDemo as enableStoreDemo, get } from "@/state/demo";
+import { isDemoActive as envDemoActive } from "./demo";
 
 export const DEMO_SESSION_KEY = "mbs_demo";
 export const DEMO_QUERY_PARAM = "demo";
@@ -35,7 +36,7 @@ export function isDemo(): boolean {
 }
 
 export function isDemoActive(): boolean {
-  return isDemo();
+  return isDemo() && envDemoActive();
 }
 
 export function enableDemo(): void {

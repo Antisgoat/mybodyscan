@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { auth, appCheck } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { appCheck } from "@/lib/appCheck";
 import {
   getIdToken,
   EmailAuthProvider,

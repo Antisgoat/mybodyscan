@@ -24,7 +24,7 @@ fi
 
 BASE_URL="${BASE_URL:-https://mybodyscanapp.com}"
 COACH_URL="${BASE_URL}/api/coach/chat"
-CHECKOUT_URL="${BASE_URL}/api/billing/create-checkout-session"
+CHECKOUT_URL="${BASE_URL}/api/createCheckout"
 NUTRITION_URL="${BASE_URL}/api/nutrition/search?q=chicken%20breast"
 SYSTEM_URL="${BASE_URL}/systemHealth?clientKey=${FIREBASE_API_KEY}"
 

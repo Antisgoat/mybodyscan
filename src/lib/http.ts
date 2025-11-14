@@ -1,4 +1,5 @@
-import { auth, appCheck } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { appCheck } from "@/lib/appCheck";
 import { getIdToken } from "firebase/auth";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 

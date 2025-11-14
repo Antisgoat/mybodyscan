@@ -3,6 +3,15 @@
     "public": "dist",
     "headers": [
       {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
         "source": "**/*.html",
         "headers": [
           {
@@ -64,6 +73,48 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/api/createCheckout",
+        "function": {
+          "functionId": "createCheckout",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/createCustomerPortal",
+        "function": {
+          "functionId": "createCustomerPortal",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/coach/chat",
+        "function": {
+          "functionId": "coachChat",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/nutrition/search",
+        "function": {
+          "functionId": "nutritionSearch",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/system/bootstrap",
+        "function": {
+          "functionId": "systemBootstrap",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/system/health",
+        "function": {
+          "functionId": "systemHealth",
+          "region": "us-central1"
+        }
+      },
       {
         "source": "/api/account/delete",
         "function": {
