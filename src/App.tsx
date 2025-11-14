@@ -41,6 +41,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCanceled from "./pages/CheckoutCanceled";
 import OAuthReturn from "./pages/OAuthReturn";
 import Login from "./pages/Login";
+import AuthCallbackPage from "@/pages/AuthCallback";
 import ScanNew from "./pages/ScanNew";
 import ScanStart from "./pages/Scan/Start";
 import ScanCapture from "./pages/Scan/Capture";
@@ -202,6 +203,7 @@ const App = () => {
                 <Auth />
               </Suspense>
             } />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="/oauth/return" element={<OAuthReturn />} />
             <Route path="/login" element={<Login />} />
             {/* Protected app */}
