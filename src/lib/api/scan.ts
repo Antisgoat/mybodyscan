@@ -52,3 +52,25 @@ export function scanDocRef(scanId: string) {
   // Per data model, scans live under users/{uid}/scans/{scanId}
   return doc(db, "users", uid, "scans", scanId);
 }
+
+export async function deleteScanApi(scanId: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  const [idToken, ac] = await Promise.all([
+    user.getIdToken(/*forceRefresh*/ true).catch(() => ""),
+    getAppCheckToken(appCheck, false).catch(() => null),
+  ]);
+  const res = await fetch("/api/scan/delete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      ...(ac?.token ? { "X-Firebase-AppCheck": ac.token } : {}),
+    },
+    body: JSON.stringify({ scanId }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(t || `Delete failed (${res.status})`);
+  }
+}

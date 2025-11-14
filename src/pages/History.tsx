@@ -1,173 +1,114 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
-import { Seo } from "@/components/Seo";
-import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
-import { auth, db } from "@/lib/firebase";
-import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { extractScanMetrics } from "@/lib/scans";
-import { summarizeScanMetrics } from "@/lib/scanDisplay";
-import { isDemo } from "@/lib/demoFlag";
-import { demoLatestScan, demoScanHistory } from "@/lib/demoDataset";
+import { useEffect, useState } from "react";
+import { listenLatest, loadMore, type ScanItem } from "@/features/history/useScansPage";
+import { normalizeScanMetrics } from "@/lib/scans";
+import { getFrontThumbUrl } from "@/lib/scanMedia";
+import { useNavigate } from "react-router-dom";
+import { deleteScanApi } from "@/lib/api/scan";
 
-interface ScanHistoryEntry {
-  id: string;
-  completedAt?: { seconds: number } | null;
-  status?: string;
-  charged?: boolean;
-  method?: "photo" | "photo+measure" | "bmi_fallback";
-  confidence?: number;
-  mode?: "2" | "4";
-  metrics?: {
-    bf_percent?: number | null;
-    bmi?: number | null;
-    weight_kg?: number | null;
-    weight_lb?: number | null;
-    method?: string | null;
-    confidence?: number | null;
-  };
-  result?: {
-    bf_percent?: number | null;
-    bmi?: number | null;
-  };
-}
-
-const methodCopy: Record<string, string> = {
-  photo: "Photo",
-  "photo+measure": "Photo + Tape",
-  bmi_fallback: "BMI Fallback",
-};
-
-const DEMO_HISTORY_LIST = [...demoScanHistory, demoLatestScan] as unknown as ScanHistoryEntry[];
-
-function confidenceLabel(value?: number) {
-  if (value == null) return { label: "Unknown", tone: "secondary" } as const;
-  if (value >= 0.85) return { label: "High", tone: "default" } as const;
-  if (value >= 0.7) return { label: "Medium", tone: "outline" } as const;
-  return { label: "Low", tone: "secondary" } as const;
-}
-
-function formatDate(seconds?: number) {
-  if (!seconds) return "—";
-  try {
-    return new Date(seconds * 1000).toLocaleDateString();
-  } catch {
-    return "—";
-  }
-}
-
-function modeLabel(mode?: "2" | "4") {
-  return mode === "4" ? "Precise (4 photos)" : "Quick (2 photos)";
-}
-
-export default function History() {
-  const [entries, setEntries] = useState<ScanHistoryEntry[]>(() => (isDemo() ? DEMO_HISTORY_LIST : []));
+export default function HistoryPage() {
+  const nav = useNavigate();
+  const [items, setItems] = useState<ScanItem[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
+  const [busyDelete, setBusyDelete] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      if (isDemo()) {
-        setEntries(DEMO_HISTORY_LIST);
-      }
-      return;
-    }
-    const ref = collection(db, "users", user.uid, "scans");
-    const q = query(ref, orderBy("completedAt", "desc"), limit(25));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list: ScanHistoryEntry[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data() as ScanHistoryEntry;
-        const metrics = extractScanMetrics(data);
-        if (!data.charged || metrics.bodyFatPercent == null) return;
-        list.push({ id: doc.id, ...data });
-      });
-      setEntries(list);
-    });
+    const unsub = listenLatest(setItems);
     return () => unsub();
   }, []);
 
-  const recent = useMemo(
-    () =>
-      entries.filter((entry) => {
-        const metrics = extractScanMetrics(entry);
-        return entry.charged && metrics.bodyFatPercent != null;
-      }),
-    [entries]
-  );
+  useEffect(() => {
+    // Lazy-fetch thumbnails for newly visible items
+    items.forEach((it) => {
+      if (thumbs[it.id] === undefined) {
+        getFrontThumbUrl(it.id).then((url) => setThumbs((t) => ({ ...t, [it.id]: url })));
+      }
+    });
+  }, [items]); // eslint-disable-line
+
+  function toggle(id: string) {
+    setSelected((sel) => {
+      if (sel.includes(id)) return sel.filter((x) => x !== id);
+      if (sel.length >= 2) return [sel[1], id]; // keep at most 2
+      return [...sel, id];
+    });
+  }
+
+  async function onDelete(id: string) {
+    if (!confirm("Delete this scan? This cannot be undone.")) return;
+    setBusyDelete(id);
+    try { await deleteScanApi(id); } finally { setBusyDelete(null); }
+  }
+
+  const lastId = items.at(-1)?.id;
+  async function onLoadMore() {
+    if (!lastId) return;
+    setLoadingMore(true);
+    try {
+      const next = await loadMore(lastId);
+      setItems((cur) => [...cur, ...next]);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="History – MyBodyScan" description="Review your photo scan history." />
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-6">
-        <NotMedicalAdviceBanner />
-        <DemoBanner />
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold">History</h1>
-          <p className="text-sm text-muted-foreground">Track previous photo scans and revisit your body-fat estimates.</p>
-        </header>
+    <div className="mx-auto max-w-2xl p-4">
+      <h1 className="text-lg font-semibold">History</h1>
+      {items.length === 0 && <p className="text-sm text-muted-foreground mt-2">No scans yet.</p>}
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {items.map((it) => {
+          const m = normalizeScanMetrics(it as any);
+          const sel = selected.includes(it.id);
+          return (
+            <li key={it.id} className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}>
+              <button className="block w-full text-left" onClick={() => toggle(it.id)}>
+                <div className="aspect-[3/4] bg-black/5 overflow-hidden">
+                  {thumbs[it.id] ? (
+                    <img src={thumbs[it.id]!} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full animate-pulse" />
+                  )}
+                </div>
+                <div className="p-2">
+                  <div className="text-xs text-muted-foreground truncate">
+                    {new Date(it.createdAt?.toMillis?.() ?? Date.now()).toLocaleString()}
+                  </div>
+                  <div className="text-sm font-medium">
+                    {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {m.weightLb != null ? `${m.weightLb} lb` : "—"}
+                  </div>
+                </div>
+              </button>
+              <div className="flex items-center justify-between px-2 pb-2">
+                <button onClick={() => nav(`/scans/${it.id}`)} className="text-[11px] underline">Open</button>
+                <button onClick={() => onDelete(it.id)} className="text-[11px] text-red-700 underline" disabled={busyDelete === it.id}>
+                  {busyDelete === it.id ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
-        {recent.length === 0 ? (
-          <Card>
-            <CardContent className="py-6 text-center text-sm text-muted-foreground">
-              Complete a scan to see it listed here.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {recent.map((entry) => {
-              const metrics = extractScanMetrics(entry);
-              const summary = summarizeScanMetrics(metrics);
-              const confidence = confidenceLabel(metrics.confidence ?? entry.confidence);
-              const method =
-                methodCopy[(metrics.method || entry.method || "") as string] ||
-                metrics.method ||
-                entry.method ||
-                "Photo";
-              const bfPercent = summary.bodyFatPercent;
-              const bmiText = summary.bmiText;
-              const weightText = summary.weightText;
-              return (
-                <Link
-                  key={entry.id}
-                  to={`/results/${entry.id}`}
-                  className="block rounded-lg border transition hover:border-primary"
-                >
-                  <Card>
-                    <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{formatDate(entry.completedAt?.seconds)}</CardTitle>
-                        <p className="text-xs text-muted-foreground">{modeLabel(entry.mode)}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge>{method}</Badge>
-                        <Badge variant={confidence.tone as any}>{confidence.label}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Body Fat</p>
-                        <p className="text-lg font-semibold">{bfPercent != null ? `${bfPercent.toFixed(1)}%` : "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Weight</p>
-                        <p className="text-lg font-semibold">{weightText}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">BMI</p>
-                        <p className="text-lg font-semibold">{bmiText}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </main>
-      <BottomNav />
+      {lastId && (
+        <div className="mt-3">
+          <button onClick={onLoadMore} disabled={loadingMore} className="rounded border px-3 py-2 text-sm w-full">
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
+
+      {/* Sticky compare bar */}
+      <div className="fixed inset-x-0 bottom-3 flex justify-center">
+        <button
+          disabled={selected.length !== 2}
+          onClick={() => nav(`/scans/compare/${selected[0]}/${selected[1]}`)}
+          className="rounded-full border bg-white px-4 py-2 text-sm shadow disabled:opacity-50"
+        >
+          Compare ({selected.length}/2)
+        </button>
+      </div>
     </div>
   );
 }

@@ -20,7 +20,7 @@ import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
-import History from "./pages/History";
+import HistoryPage from "./pages/History";
 import Settings from "./pages/Settings";
 import SettingsAccountPrivacyPage from "@/pages/SettingsAccountPrivacy";
 import SystemCheckPage from "./pages/SystemCheck";
@@ -102,6 +102,7 @@ const Plans = lazy(() => import("./pages/Plans"));
 const Coach = lazy(() => import("./pages/Coach"));
 const Meals = lazy(() => import("./pages/Meals"));
 const ScanResult = lazy(() => import("./pages/ScanResult"));
+const ScanComparePage = lazy(() => import("./pages/ScanCompare"));
 const Nutrition = lazy(() => import("./pages/Nutrition"));
 const Diagnostics = lazy(() => import("./pages/Diagnostics"));
 const SmokeKit = lazy(() => import("./pages/SmokeKit"));
@@ -502,6 +503,15 @@ const App = () => {
                 </AuthedLayout>
               </ProtectedRoute>
             } />
+            <Route path="/scans/compare/:leftId/:rightId" element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <ScanComparePage />
+                  </Suspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            } />
             {/* Results */}
             <Route path="/results/:scanId" element={
               <ProtectedRoute>
@@ -520,7 +530,7 @@ const App = () => {
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
-                        <History />
+                        <HistoryPage />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>

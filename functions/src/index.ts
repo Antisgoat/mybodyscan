@@ -43,3 +43,4 @@ app.use("/api/nutrition", nutritionRouter);
 app.use("/api/system", systemRouter);
 
 export const api = onRequest({ region: "us-central1" }, app);
+export { deleteScan } from "./http/deleteScan.js";
