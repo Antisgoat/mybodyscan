@@ -74,16 +74,9 @@
     ],
     "rewrites": [
       {
-        "source": "/api/createCheckout",
+        "source": "/api/system/health",
         "function": {
-          "functionId": "createCheckout",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/createCustomerPortal",
-        "function": {
-          "functionId": "createCustomerPortal",
+          "functionId": "systemHealth",
           "region": "us-central1"
         }
       },
@@ -102,16 +95,23 @@
         }
       },
       {
-        "source": "/api/system/bootstrap",
+        "source": "/api/createCheckout",
         "function": {
-          "functionId": "systemBootstrap",
+          "functionId": "createCheckout",
           "region": "us-central1"
         }
       },
       {
-        "source": "/api/system/health",
+        "source": "/api/createCustomerPortal",
         "function": {
-          "functionId": "systemHealth",
+          "functionId": "createCustomerPortal",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/system/bootstrap",
+        "function": {
+          "functionId": "systemBootstrap",
           "region": "us-central1"
         }
       },

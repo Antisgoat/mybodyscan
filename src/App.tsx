@@ -24,6 +24,7 @@ import HistoryPage from "./pages/History";
 import Settings from "./pages/Settings";
 import SettingsAccountPrivacyPage from "@/pages/SettingsAccountPrivacy";
 import SystemCheckPage from "./pages/SystemCheck";
+import SystemCheckPro from "./pages/SystemCheckPro";
 import NotFound from "./pages/NotFound";
 import { AppCheckProvider } from "./components/AppCheckProvider";
 import { LoadingOverlay } from "./components/LoadingOverlay";
@@ -584,11 +585,25 @@ const App = () => {
             <Route
               path="/settings/system-check"
               element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
                     <AuthedLayout>
                       <RouteBoundary>
                         <SystemCheckPage />
+                      </RouteBoundary>
+                    </AuthedLayout>
+                  </ProtectedRoute>
+                </FeatureGate>
+              }
+            />
+            <Route
+              path="/settings/system-check-pro"
+              element={
+                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
+                  <ProtectedRoute>
+                    <AuthedLayout>
+                      <RouteBoundary>
+                        <SystemCheckPro />
                       </RouteBoundary>
                     </AuthedLayout>
                   </ProtectedRoute>

@@ -2,6 +2,9 @@ import { auth } from "@/lib/firebase";
 import { appCheck } from "@/lib/appCheck";
 import { getIdToken } from "firebase/auth";
 import { getToken as getAppCheckToken } from "firebase/app-check";
+import { fallbackDirectUrl, noteWorkingUrl, looksLikeHtml } from "@/lib/api/urls";
+
+export type FallbackKey = "systemHealth" | "coachChat" | "nutritionSearch" | "createCheckout" | "createCustomerPortal";
 
 export type ApiOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -69,14 +72,35 @@ export async function apiFetch<T = any>(url: string, opts: ApiOptions = {}): Pro
       const res = await fetch(url, { method, headers: merged, body: payload, signal: ctrl.signal });
       clearTimeout(t);
 
-      // Try parse JSON if requested
+      const contentType = res.headers.get("content-type") || "";
+      let preview: string | null = null;
+      if (expectJson && (contentType.includes("text/html") || contentType.includes("text/plain") || !contentType)) {
+        try {
+          const clone = res.clone();
+          preview = await clone.text();
+          if (preview && looksLikeHtml(preview, contentType)) {
+            throw new ApiError("Received HTML instead of JSON", res.status || 0, undefined, { raw: preview, contentType });
+          }
+        } catch (err) {
+          if (err instanceof ApiError) {
+            throw err;
+          }
+        }
+      }
+
       const parseJson = async () => {
-        try { return await res.json(); } catch { return null; }
+        try {
+          return await res.clone().json();
+        } catch {
+          if (preview != null) return { raw: preview, contentType };
+          return null;
+        }
       };
 
       if (!res.ok) {
         const data = expectJson ? await parseJson() : null;
-        const msg = (data?.error?.message || data?.message || `${res.status} ${res.statusText}`).toString();
+        const htmlRaw = typeof data?.raw === "string" ? data.raw : preview;
+        const msg = (data?.error?.message || data?.message || (htmlRaw && looksLikeHtml(htmlRaw, contentType) ? "HTML response" : `${res.status} ${res.statusText}`)).toString();
         const code = (data?.error?.code || data?.code || undefined);
         // Retry on typical transient errors:
         if ([429, 502, 503, 504].includes(res.status) && attempt < retries) {
@@ -111,3 +135,27 @@ export async function apiFetch<T = any>(url: string, opts: ApiOptions = {}): Pro
 // Convenience wrappers
 export const apiGet  = <T=any>(u: string, o: ApiOptions = {}) => apiFetch<T>(u, { ...o, method: "GET" });
 export const apiPost = <T=any>(u: string, body?: any, o: ApiOptions = {}) => apiFetch<T>(u, { ...o, method: "POST", body });
+
+export async function apiFetchWithFallback<T = any>(key: FallbackKey, url: string, opts: ApiOptions = {}): Promise<T> {
+  try {
+    const data = await apiFetch<T>(url, opts);
+    noteWorkingUrl(key, url);
+    return data;
+  } catch (error) {
+    const err = error as ApiError | (Error & { status?: number; data?: any });
+    const raw = typeof err?.data?.raw === "string" ? err.data.raw : undefined;
+    const contentType = typeof err?.data?.contentType === "string" ? err.data.contentType : undefined;
+    const msg = String(err?.message || "");
+    const htmlish = (raw ? looksLikeHtml(raw, contentType) : false) || looksLikeHtml(msg, contentType);
+    const status = (err as ApiError)?.status ?? (typeof err?.status === "number" ? err.status : 0);
+
+    if (!htmlish && status > 0 && status < 500) {
+      throw err;
+    }
+
+    const direct = fallbackDirectUrl(key);
+    const data = await apiFetch<T>(direct, opts);
+    noteWorkingUrl(key, direct);
+    return data;
+  }
+}
