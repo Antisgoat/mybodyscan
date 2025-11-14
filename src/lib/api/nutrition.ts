@@ -1,6 +1,4 @@
-import { getIdToken } from "firebase/auth";
-import { getToken as getAppCheckToken } from "firebase/app-check";
-import { auth, appCheck } from "@/lib/firebase";
+import { apiPost } from "@/lib/http";
 
 export type FoodItem = {
   id?: string;
@@ -125,28 +123,7 @@ function numberOrNull(v: any): number | null {
 }
 
 export async function nutritionSearch(q: string): Promise<FoodItem[]> {
-  const user = auth.currentUser;
-  const idToken = user ? await getIdToken(user, false) : "";
-  const ac = await getAppCheckToken(appCheck, false).catch(() => null);
-
-  const res = await fetch("/api/nutrition/search", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-      ...(ac?.token ? { "X-Firebase-AppCheck": ac.token } : {}),
-    },
-    body: JSON.stringify({ q }),
-  });
-
-  // Expect JSON array or an object containing an array (items/results/data)
-  let data: any = null;
-  try { data = await res.json(); } catch { /* ignore */ }
-
-  if (!res.ok || !data) {
-    const msg = (data && (data.error || data.message)) || `HTTP ${res.status}`;
-    throw new Error(`nutritionSearch failed: ${msg}`);
-  }
+  const data: any = await apiPost("/api/nutrition/search", { q });
 
   const arr = Array.isArray(data) ? data
     : Array.isArray(data.items) ? data.items
