@@ -13,11 +13,11 @@ export type Env = {
   VITE_APPCHECK_DEBUG_TOKEN?: string;
 };
 
-const raw = ((import.meta as any)?.env ?? {}) as Record<string, unknown>;
+const e = ((import.meta as any)?.env ?? {}) as Record<string, unknown>;
 
-export const ENV = new Proxy(raw, {
+export const ENV = new Proxy(e, {
   get(_, key: string) {
-    const value = raw[key];
+    const value = e[key];
     if (typeof value === "string") return value;
     if (typeof value === "number" || typeof value === "boolean") return String(value);
     return "";
@@ -25,7 +25,7 @@ export const ENV = new Proxy(raw, {
 }) as unknown as Env;
 
 function readEnv(key: string): string {
-  const fromImport = raw[key];
+  const fromImport = e[key];
   if (typeof fromImport === "string") return fromImport;
   if (typeof fromImport === "number" || typeof fromImport === "boolean") return String(fromImport);
   if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {

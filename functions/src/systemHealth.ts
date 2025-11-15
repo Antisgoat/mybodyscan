@@ -1,6 +1,8 @@
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 
+import { appCheckSoft } from "./http/appCheckSoft.js";
+
 import { getAppCheckMode, getEnvBool } from "./lib/env.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import {
@@ -40,7 +42,8 @@ export const systemHealth = onRequest(
       usdaFdcApiKeyParam,
     ],
   },
-  (req, res) => {
+  async (req, res) => {
+    await appCheckSoft(req);
     const openaiKeyPresent =
       !!process.env.OPENAI_API_KEY || secretPresent(openAiSecretParam) || envPresent(process.env.OPENAI_API_KEY);
 
