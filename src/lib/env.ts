@@ -1,18 +1,61 @@
-const env = (import.meta as any)?.env ?? {};
+export type Env = {
+  VITE_FIREBASE_API_KEY: string;
+  VITE_FIREBASE_AUTH_DOMAIN: string;
+  VITE_FIREBASE_PROJECT_ID: string;
+  VITE_FIREBASE_STORAGE_BUCKET?: string;
+  VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+  VITE_FIREBASE_APP_ID?: string;
+  VITE_FIREBASE_MEASUREMENT_ID?: string;
+  VITE_DEMO_MODE?: string;
+  VITE_ENABLE_GOOGLE?: string;
+  VITE_ENABLE_APPLE?: string;
+  VITE_RECAPTCHA_SITE_KEY?: string;
+  VITE_APPCHECK_DEBUG_TOKEN?: string;
+};
 
-const publishableKey: string =
-  env.VITE_STRIPE_PK || env.VITE_STRIPE_PUBLISHABLE_KEY || "";
-const commitSha: string = env.VITE_COMMIT_SHA || env.COMMIT_SHA || "";
-const fallbackVersion: string = env.VITE_APP_VERSION || "";
-const buildTimeEnv: string = env.VITE_BUILD_TIME || env.BUILD_TIME || "";
-const functionsOriginEnv: string = env.VITE_FUNCTIONS_ORIGIN || env.FUNCTIONS_ORIGIN || "";
-const functionsBaseEnv: string = env.VITE_FUNCTIONS_BASE_URL || env.FUNCTIONS_BASE_URL || "";
-const functionsRegion: string = env.VITE_FUNCTIONS_REGION || env.FUNCTIONS_REGION || "us-central1";
-const projectId: string = env.VITE_FIREBASE_PROJECT_ID || env.FIREBASE_PROJECT_ID || "";
+const raw = ((import.meta as any)?.env ?? {}) as Record<string, unknown>;
+
+export const ENV = new Proxy(raw, {
+  get(_, key: string) {
+    const value = raw[key];
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    return "";
+  },
+}) as unknown as Env;
+
+function readEnv(key: string): string {
+  const fromImport = raw[key];
+  if (typeof fromImport === "string") return fromImport;
+  if (typeof fromImport === "number" || typeof fromImport === "boolean") return String(fromImport);
+  if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+    return process.env[key] as string;
+  }
+  return "";
+}
+
+export function assertEnv(): void {
+  const required = ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID"];
+  const missing = required.filter((key) => !readEnv(key).trim());
+  const isProd = Boolean((import.meta as any)?.env?.PROD);
+  if (missing.length && isProd) {
+    console.error("Missing required env:", missing.join(", "));
+  }
+}
+
+const publishableKey = readEnv("VITE_STRIPE_PK") || readEnv("VITE_STRIPE_PUBLISHABLE_KEY");
+const commitSha = readEnv("VITE_BUILD_SHA") || readEnv("VITE_COMMIT_SHA") || readEnv("COMMIT_SHA");
+const fallbackVersion = readEnv("VITE_APP_VERSION");
+const buildTimeEnv = readEnv("VITE_BUILD_TIME") || readEnv("BUILD_TIME");
+const functionsOriginEnv = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("FUNCTIONS_ORIGIN");
+const functionsBaseEnv = readEnv("VITE_FUNCTIONS_BASE_URL") || readEnv("FUNCTIONS_BASE_URL");
+const functionsRegionEnv = readEnv("VITE_FUNCTIONS_REGION") || readEnv("FUNCTIONS_REGION") || "us-central1";
+const projectIdEnv = (ENV.VITE_FIREBASE_PROJECT_ID || readEnv("FIREBASE_PROJECT_ID")).trim();
+
+const trim = (value: string) => value.trim();
 
 export const isStripeTest = publishableKey.startsWith("pk_test_");
 export const isStripeLive = publishableKey.startsWith("pk_live_");
-
 export const publishableKeySuffix = publishableKey ? publishableKey.slice(-6) : "";
 
 export const buildHash =
@@ -33,16 +76,20 @@ export function describeStripeEnvironment(): "test" | "live" | "custom" | "missi
 
 export function fnUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  const origin = functionsOriginEnv.trim().replace(/\/?$/, "");
+  const origin = trim(functionsOriginEnv).replace(/\/?$/, "");
   if (origin) {
     return `${origin}${normalized}`;
   }
-  const base = functionsBaseEnv.trim().replace(/\/?$/, "");
+  const base = trim(functionsBaseEnv).replace(/\/?$/, "");
   if (base) {
     return `${base}${normalized}`;
   }
-  if (projectId) {
-    return `https://${functionsRegion}-${projectId}.cloudfunctions.net${normalized}`;
+  if (projectIdEnv) {
+    return `https://${functionsRegionEnv}-${projectIdEnv}.cloudfunctions.net${normalized}`;
   }
   return normalized;
 }
+
+export const functionsRegion = functionsRegionEnv;
+export const functionsOrigin = trim(functionsOriginEnv);
+export const functionsBaseUrl = trim(functionsBaseEnv);
