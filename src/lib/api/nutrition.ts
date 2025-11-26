@@ -1,13 +1,13 @@
 import { apiFetchWithFallback } from "@/lib/http";
 import { sanitizeFoodItem, type FoodItem } from "@/lib/nutrition/sanitize";
-import { preferRewriteUrl } from "@/lib/api/urls";
+import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 
 export function normalizeFoodItem(x: any): FoodItem {
   return sanitizeFoodItem(x);
 }
 
 export async function nutritionSearch(q: string): Promise<FoodItem[]> {
-  const url = preferRewriteUrl("nutritionSearch");
+  const url = resolveFunctionUrl("VITE_NUTRITION_URL", "nutritionSearch");
   const data: any = await apiFetchWithFallback("nutritionSearch", url, { method: "POST", body: { q } });
 
   const arr = Array.isArray(data) ? data

@@ -11,6 +11,8 @@ import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 
+// Legacy shim: some older code may still reference global sanitizeFoodItem.
+// This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
 (globalThis as any).sanitizeFoodItem = (globalThis as any).sanitizeFoodItem || sanitizeFoodItem;
 
 assertEnv();
