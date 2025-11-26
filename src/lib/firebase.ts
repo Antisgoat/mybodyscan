@@ -23,17 +23,48 @@ import {
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? env.VITE_FIREBASE_API_KEY ?? "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? env.VITE_FIREBASE_AUTH_DOMAIN ?? undefined,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? env.VITE_FIREBASE_PROJECT_ID ?? "",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? env.VITE_FIREBASE_STORAGE_BUCKET ?? undefined,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? env.VITE_FIREBASE_APP_ID ?? undefined,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? env.VITE_FIREBASE_APP_ID ?? "",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? env.VITE_FIREBASE_MEASUREMENT_ID ?? undefined,
 };
 
 type FirebaseConfig = typeof firebaseConfig;
 
-const appInstance: FirebaseApp = getApps()[0] ?? initializeApp(firebaseConfig as FirebaseConfig);
+const requiredKeys: (keyof FirebaseConfig)[] = ["apiKey", "authDomain", "projectId", "appId"];
+const missingConfigKeys = requiredKeys.filter((key) => !String(firebaseConfig[key] ?? "").trim());
+const hasRequiredFirebaseConfig = missingConfigKeys.length === 0;
+
+const sanitizedConfig: FirebaseConfig = {
+  ...firebaseConfig,
+  apiKey: firebaseConfig.apiKey || "missing-api-key",
+  authDomain: firebaseConfig.authDomain || "missing-auth-domain",
+  projectId: firebaseConfig.projectId || "missing-project",
+  appId: firebaseConfig.appId || "missing-app-id",
+};
+
+if (!hasRequiredFirebaseConfig && typeof console !== "undefined") {
+  console.warn("[firebase] Missing config keys:", missingConfigKeys.join(", "));
+}
+
+let firebaseInitError: Error | null = null;
+let appInstance: FirebaseApp;
+
+try {
+  appInstance = getApps()[0] ?? initializeApp(sanitizedConfig as FirebaseConfig);
+} catch (error) {
+  firebaseInitError = (error instanceof Error ? error : new Error(String(error))) ?? null;
+  console.error("[firebase] init failed", firebaseInitError);
+  // As a fallback, ensure we still return a singleton app to avoid crashes elsewhere.
+  const fallback = getApps()[0];
+  appInstance = fallback ?? initializeApp(sanitizedConfig as FirebaseConfig);
+}
+
+export const firebaseConfigMissingKeys = missingConfigKeys;
+export const hasFirebaseConfig = () => hasRequiredFirebaseConfig && !firebaseInitError;
+export const getFirebaseInitError = () => firebaseInitError;
 
 let appCheckInstance: AppCheck | null = null;
 let appCheckInitialized = false;

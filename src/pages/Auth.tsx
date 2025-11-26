@@ -7,12 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import {
+  auth,
+  firebaseConfigMissingKeys,
+  getFirebaseInitError,
+  hasFirebaseConfig,
+} from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
-import { emailPasswordSignIn } from "@/lib/login";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
-import { signInWithGoogle, signInWithApple, consumeNext } from "@/lib/auth/providers";
+import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "firebase/auth";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -34,9 +38,27 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const { user } = useAuthUser();
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
   const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
+  const firebaseIssue = useMemo(() => {
+    const initErr = getFirebaseInitError();
+    if (initErr) return initErr.message;
+    if (!hasFirebaseConfig()) {
+      const missing = firebaseConfigMissingKeys.join(", ") || "unknown";
+      return `Firebase config missing: ${missing}`;
+    }
+    return null;
+  }, []);
+  const canSubmit = !firebaseIssue;
+  const googleProvider = useMemo(() => new GoogleAuthProvider(), []);
+  const appleProvider = useMemo(() => {
+    const provider = new OAuthProvider("apple.com");
+    provider.addScope("email");
+    provider.addScope("name");
+    return provider;
+  }, []);
   const onBrowseDemo = useCallback(() => {
     navigate("/welcome?demo=1", { replace: false });
   }, [navigate]);
@@ -56,14 +78,15 @@ const Auth = () => {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (firebaseIssue) {
+      setAuthError(firebaseIssue);
+      return;
+    }
     setLoading(true);
     try {
+      setAuthError(null);
       if (mode === "signin") {
-        const result = await emailPasswordSignIn(email, password);
-        if (result.ok === false) {
-          toast(formatError(result.message, result.code), "error");
-          return;
-        }
+        await signInWithEmailAndPassword(auth, email, password);
       } else {
         await createAccountEmail(email, password);
       }
@@ -71,45 +94,53 @@ const Auth = () => {
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
       const fallback = mode === "signin" ? "Email sign-in failed." : "Account creation failed.";
-      toast(formatError(normalized.message ?? fallback, normalized.code), "error");
+      const message = formatError(normalized.message ?? fallback, normalized.code);
+      setAuthError(message);
+      toast(message, "error");
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignIn = useCallback(async () => {
+    if (firebaseIssue) {
+      setAuthError(firebaseIssue);
+      return;
+    }
+    setAuthError(null);
     setLoading(true);
     try {
-      await signInWithGoogle(defaultTarget);
-      if (auth.currentUser) {
-        const target = consumeNext();
-        window.location.replace(target);
-      }
+      await signInWithPopup(auth, googleProvider);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Google sign-in failed.";
-      toast(formatError(fallback, normalized.code), "error");
+      const message = formatError(fallback, normalized.code);
+      setAuthError(message);
+      toast(message, "error");
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [firebaseIssue, googleProvider]);
 
   const handleAppleSignIn = useCallback(async () => {
+    if (firebaseIssue) {
+      setAuthError(firebaseIssue);
+      return;
+    }
+    setAuthError(null);
     setLoading(true);
     try {
-      await signInWithApple(defaultTarget);
-      if (auth.currentUser) {
-        const target = consumeNext();
-        window.location.replace(target);
-      }
+      await signInWithRedirect(auth, appleProvider);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Apple sign-in failed.";
-      toast(formatError(fallback, normalized.code), "error");
+      const message = formatError(fallback, normalized.code);
+      setAuthError(message);
+      toast(message, "error");
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [appleProvider, firebaseIssue]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -128,6 +159,11 @@ const Auth = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {(authError || firebaseIssue) && (
+            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {authError || firebaseIssue}
+            </div>
+          )}
           <div className="flex justify-center gap-2 mb-4">
             <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
               Sign in
@@ -164,7 +200,7 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading}>
+              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || !canSubmit}>
                 {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
               </Button>
               <Button type="button" variant="link" onClick={async () => {
@@ -182,7 +218,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={loading}
+                disabled={loading || !canSubmit}
                 className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring"
                 data-testid="btn-google"
               >
@@ -193,7 +229,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={handleAppleSignIn}
-                disabled={loading}
+                disabled={loading || !canSubmit}
                 className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring inline-flex items-center justify-center gap-2"
                 data-testid="btn-apple"
                 aria-label="Continue with Apple"
@@ -219,6 +255,17 @@ const Auth = () => {
               <span>?</span>
               <a href="/terms" className="underline hover:no-underline">Terms</a>
             </div>
+            {(import.meta.env.DEV || user?.email === "developer@adlrlabs.com") && (
+              <div className="mt-6 rounded-lg border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground space-y-1">
+                <div className="font-semibold text-xs text-foreground">Debug info</div>
+                <div>Project ID: {import.meta.env.VITE_FIREBASE_PROJECT_ID || "(missing)"}</div>
+                <div>
+                  Current user: {auth?.currentUser?.email || "(none)"} · UID: {auth?.currentUser?.uid || "-"}
+                </div>
+                <div>Missing config: {firebaseConfigMissingKeys.length ? firebaseConfigMissingKeys.join(", ") : "none"}</div>
+                <div>Last auth error: {authError || firebaseIssue || "none"}</div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
