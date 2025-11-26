@@ -24,3 +24,6 @@ export function assertWritable(): void {
     throw new DemoWriteError();
   }
 }
+
+// Backwards-compat alias for older callers (see demoGuard.ts).
+export const isDemo = isDemoActive;
