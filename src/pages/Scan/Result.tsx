@@ -22,7 +22,6 @@ import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { consumeOneCredit } from "@/lib/credits";
 import { auth, db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { collection, doc, serverTimestamp } from "firebase/firestore";
@@ -38,9 +37,6 @@ const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Left: "left",
   Right: "right",
 };
-
-type CreditStatus = "idle" | "pending" | "consumed" | "error";
-type CreditError = "no-credits" | "general" | null;
 
 type PhotoMetadata = {
   name: string;
@@ -112,8 +108,6 @@ export default function ScanFlowResult() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [lastWeight] = useState<number | null>(() => getLastWeight());
-  const [creditStatus, setCreditStatus] = useState<CreditStatus>("idle");
-  const [creditError, setCreditError] = useState<CreditError>(null);
   const [saving, setSaving] = useState(false);
   const [savedScanId, setSavedScanId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -361,39 +355,9 @@ export default function ScanFlowResult() {
     thumbnailDataUrl,
   ]);
 
-  useEffect(() => {
-    if (!payload) {
-      if (creditStatus !== "idle") {
-        setCreditStatus("idle");
-        setCreditError(null);
-      }
-      return;
-    }
-    if (creditStatus !== "idle") {
-      return;
-    }
-    let cancelled = false;
-    setCreditStatus("pending");
-    setCreditError(null);
-    consumeOneCredit()
-      .then(() => {
-        if (cancelled) return;
-        setCreditStatus("consumed");
-      })
-      .catch((error: any) => {
-        if (cancelled) return;
-        setCreditStatus("error");
-        setCreditError(error?.message === "No credits available" ? "no-credits" : "general");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [payload, creditStatus]);
-
   const payloadSignature = useMemo(() => (payload ? JSON.stringify(payload) : null), [payload]);
 
   useEffect(() => {
-    if (creditStatus !== "consumed") return;
     if (!payload || !payloadSignature) return;
     if (payloadSignature === lastSavedSignature && savedScanId) return;
     const user = auth.currentUser;
@@ -435,16 +399,9 @@ export default function ScanFlowResult() {
     return () => {
       cancelled = true;
     };
-  }, [creditStatus, payload, payloadSignature, savedScanId, lastSavedSignature]);
+  }, [payload, payloadSignature, savedScanId, lastSavedSignature]);
 
   const estimateStatus = useMemo(() => {
-    if (creditStatus === "pending") return "Confirming scan credit…";
-    if (creditStatus === "error") {
-      if (creditError === "no-credits") {
-        return "No credits available. Add credits to continue.";
-      }
-      return "Could not confirm scan credit.";
-    }
     if (analysisError) return analysisError;
     if (analyzing) return "Analyzing photos…";
     if (saving) return "Saving scan result…";
@@ -461,15 +418,10 @@ export default function ScanFlowResult() {
     heightIn,
     sex,
     bodyFatValue,
-    creditStatus,
-    creditError,
     saving,
     saveError,
     savedScanId,
   ]);
-
-  const creditBlocked = creditStatus === "error";
-  const noCredits = creditError === "no-credits";
 
   return (
     <div className="space-y-6">
@@ -478,44 +430,11 @@ export default function ScanFlowResult() {
         <h1 className="text-3xl font-semibold">Preview Result</h1>
         <p className="text-muted-foreground">{estimateStatus}</p>
       </div>
-      {creditBlocked ? (
-        <Card className="border-dashed">
-          <CardContent className="space-y-4 py-6 text-center">
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold">
-                {noCredits ? "Add credits to finish" : "Unable to reserve a credit"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {noCredits
-                  ? "You need at least one scan credit before we can analyze your latest photos."
-                  : "We couldn't confirm a scan credit. Try again in a moment."}
-              </p>
-            </div>
-            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-              {noCredits ? (
-                <Button asChild size="lg">
-                  <Link to="/plans">View plans</Link>
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => {
-                  setCreditStatus("idle");
-                  setCreditError(null);
-                }}
-              >
-                Retry credit check
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Estimated body metrics</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Estimated body metrics</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <div className="space-y-3 rounded-lg border p-4">
             <div>
               <p className="text-sm text-muted-foreground">Estimated Body Fat</p>
@@ -574,10 +493,9 @@ export default function ScanFlowResult() {
               })}
             </ul>
           </div>
-          </CardContent>
-        </Card>
-      )}
-      {!creditBlocked && savedScanId ? (
+        </CardContent>
+      </Card>
+      {savedScanId ? (
         <Card className="border border-dashed">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
