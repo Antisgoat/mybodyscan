@@ -4,7 +4,13 @@ import { getIdToken } from "firebase/auth";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import { fallbackDirectUrl, noteWorkingUrl, looksLikeHtml } from "@/lib/api/urls";
 
-export type FallbackKey = "systemHealth" | "coachChat" | "nutritionSearch" | "createCheckout" | "createCustomerPortal";
+export type FallbackKey =
+  | "systemHealth"
+  | "coachChat"
+  | "nutritionSearch"
+  | "createCheckout"
+  | "createCustomerPortal"
+  | "deleteAccount";
 
 export type ApiOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
