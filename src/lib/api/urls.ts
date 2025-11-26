@@ -1,5 +1,4 @@
-const PROJECT = (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
-const REGION = "us-central1";
+import { DEFAULT_FN_BASE } from "@/lib/api/functionsBase";
 
 type Key =
   | "systemHealth"
@@ -19,12 +18,12 @@ const REWRITE_PATH: Record<Key, string> = {
 };
 
 const DIRECT_FN: Record<Key, string> = {
-  systemHealth:        `https://${REGION}-${PROJECT}.cloudfunctions.net/systemHealth`,
-  coachChat:           `https://${REGION}-${PROJECT}.cloudfunctions.net/coachChat`,
-  nutritionSearch:     `https://${REGION}-${PROJECT}.cloudfunctions.net/nutritionSearch`,
-  createCheckout:      `https://${REGION}-${PROJECT}.cloudfunctions.net/createCheckout`,
-  createCustomerPortal:`https://${REGION}-${PROJECT}.cloudfunctions.net/createCustomerPortal`,
-  deleteAccount:       `https://${REGION}-${PROJECT}.cloudfunctions.net/deleteAccount`,
+  systemHealth:        `${DEFAULT_FN_BASE}/systemHealth`,
+  coachChat:           `${DEFAULT_FN_BASE}/coachChat`,
+  nutritionSearch:     `${DEFAULT_FN_BASE}/nutritionSearch`,
+  createCheckout:      `${DEFAULT_FN_BASE}/createCheckout`,
+  createCustomerPortal:`${DEFAULT_FN_BASE}/createCustomerPortal`,
+  deleteAccount:       `${DEFAULT_FN_BASE}/deleteAccount`,
 };
 
 function storage(): Storage | null {

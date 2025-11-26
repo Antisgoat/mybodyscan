@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import { appCheck } from "@/lib/appCheck";
-import { preferRewriteUrl } from "@/lib/api/urls";
-import { apiFetchWithFallback } from "@/lib/http";
+import { resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
 
-type Check = { name: string; urlKey: "systemHealth" | "coachChat" | "nutritionSearch"; method?: "GET" | "POST"; body?: any };
+type Check = { name: string; path: string; method?: "GET" | "POST"; body?: any };
+
+const API_BASE = resolveFunctionUrl("VITE_API_BASE_URL", "api").replace(/\/$/, "");
 
 const TESTS: Check[] = [
-  { name: "System Health", urlKey: "systemHealth", method: "GET" },
-  { name: "Coach Chat", urlKey: "coachChat", method: "POST", body: { message: "hello" } },
-  { name: "Nutrition", urlKey: "nutritionSearch", method: "POST", body: { q: "chicken" } },
+  { name: "System Health", path: `${API_BASE}/system/health`, method: "GET" },
+  { name: "Coach Chat", path: `${API_BASE}/coach/chat`, method: "POST", body: { question: "hello" } },
+  { name: "Nutrition", path: `${API_BASE}/nutrition/search`, method: "POST", body: { q: "chicken" } },
 ];
 
 export default function SystemCheckPro() {
@@ -32,8 +34,7 @@ export default function SystemCheckPro() {
     const next: { name: string; ok: boolean; status?: number; error?: string }[] = [];
     for (const test of TESTS) {
       try {
-        const url = preferRewriteUrl(test.urlKey);
-        await apiFetchWithFallback<any>(test.urlKey, url, { method: test.method || "GET", body: test.body });
+        await apiFetch<any>(test.path, { method: test.method || "GET", body: test.body });
         next.push({ name: test.name, ok: true, status: 200 });
       } catch (error: any) {
         next.push({

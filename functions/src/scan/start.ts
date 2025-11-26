@@ -74,6 +74,9 @@ async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
 }
 
 async function handleStart(req: Request, res: any) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+  if (req.method === "OPTIONS") { res.status(204).end(); return; }
   if (req.method !== "POST") {
     res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
     return;

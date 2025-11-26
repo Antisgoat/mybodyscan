@@ -6,6 +6,25 @@ export function isWeb(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+export function isNative(): boolean {
+  try {
+    const anyWin = globalThis as any;
+    const cap = anyWin.Capacitor;
+    if (!cap || typeof cap !== "object") return false;
+    // Capacitor v3+ exposes isNativePlatform; older versions expose getPlatform()
+    if (typeof cap.isNativePlatform === "function") {
+      return !!cap.isNativePlatform();
+    }
+    if (typeof cap.getPlatform === "function") {
+      const p = cap.getPlatform();
+      return p === "ios" || p === "android";
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function getUserAgent(): string {
   if (!isWeb() || typeof navigator === "undefined") return "";
   return navigator.userAgent || "";
@@ -86,6 +105,26 @@ export function isNativeCapacitor(): boolean {
     return Boolean((window as any).Capacitor?.isNativePlatform?.());
   } catch {
     return false;
+  }
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  const anyWin = globalThis as any;
+  try {
+    const cap = anyWin.Capacitor;
+    if (cap) {
+      // Try Capacitor Browser plugin if present
+      const Browser = cap.Plugins?.Browser || cap.Browser;
+      if (Browser && typeof Browser.open === "function") {
+        await Browser.open({ url });
+        return;
+      }
+    }
+  } catch {
+    // fall through to web
+  }
+  if (typeof window !== "undefined" && url) {
+    window.location.href = url;
   }
 }
 

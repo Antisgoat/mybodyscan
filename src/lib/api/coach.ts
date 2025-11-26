@@ -1,7 +1,11 @@
-import { apiFetchWithFallback } from "@/lib/http";
+import { apiFetch } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 
+function apiBase(): string {
+  return resolveFunctionUrl("VITE_API_BASE_URL", "api");
+}
+
 export async function askCoach(message: string) {
-  const url = resolveFunctionUrl("VITE_COACH_URL", "coachChat");
-  return apiFetchWithFallback("coachChat", url, { method: "POST", body: { message } });
+  const url = `${apiBase().replace(/\/$/, "")}/coach/chat`;
+  return apiFetch<{ reply?: string; error?: string }>(url, { method: "POST", body: { question: message } });
 }

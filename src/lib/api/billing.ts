@@ -1,17 +1,22 @@
-import { apiFetchWithFallback } from "@/lib/http";
+import { apiFetch } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 
 export type CheckoutMode = "payment" | "subscription";
 
-export async function startCheckout(priceId: string, mode: CheckoutMode = "subscription"): Promise<URL | null> {
-  const endpoint = resolveFunctionUrl("VITE_CHECKOUT_URL", "createCheckout");
-  const data = await apiFetchWithFallback<{ url?: string }>("createCheckout", endpoint, { method: "POST", body: { priceId, mode } });
-  const url = data?.url;
-  if (typeof url !== "string" || !url.startsWith("http")) return null;
+function apiBase(): string {
+  return resolveFunctionUrl("VITE_API_BASE_URL", "api");
+}
 
-  try {
-    return new URL(url);
-  } catch {
-    return null;
-  }
+export async function startCheckout(
+  priceId: string,
+  mode: CheckoutMode = "subscription",
+): Promise<{ sessionId: string | null; url: string | null }> {
+  const endpoint = `${apiBase().replace(/\/$/, "")}/billing/create-checkout-session`;
+  const data = await apiFetch<{ sessionId?: string; url?: string }>(endpoint, {
+    method: "POST",
+    body: { priceId, mode },
+  });
+  const sessionId = typeof data?.sessionId === "string" ? data.sessionId : null;
+  const url = typeof data?.url === "string" ? data.url : null;
+  return { sessionId, url };
 }

@@ -2,7 +2,23 @@ import React, { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, getAuth } from "firebase/auth";
 import { doc, getFirestore, onSnapshot } from "firebase/firestore";
 import { loadStripe } from "@stripe/stripe-js";
-import { billingCheckout, createCustomerPortal } from "@/lib/api";
+import { startCheckout } from "@/lib/api/billing";
+import { createCustomerPortalSession } from "@/lib/api/portal";
+import { openExternalUrl } from "@/lib/platform";
+
+const PRICE_IDS = {
+  one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
+  monthly: (import.meta.env.VITE_PRICE_MONTHLY ?? "").trim(),
+  yearly: (import.meta.env.VITE_PRICE_YEARLY ?? "").trim(),
+  extra: (import.meta.env.VITE_PRICE_EXTRA ?? "").trim(),
+} as const;
+
+const MODES: Record<keyof typeof PRICE_IDS, "payment" | "subscription"> = {
+  one: "payment",
+  monthly: "subscription",
+  yearly: "subscription",
+  extra: "payment",
+};
 
 export default function Billing() {
   const [uid, setUid] = useState<string | null>(null);
@@ -66,7 +82,9 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const { sessionId, url } = await billingCheckout("one");
+              const priceId = PRICE_IDS.one;
+              if (!priceId) throw new Error("Plan unavailable");
+              const { sessionId, url } = await startCheckout(priceId, MODES.one);
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
@@ -76,7 +94,7 @@ export default function Billing() {
                 return;
               }
               if (url) {
-                window.location.href = url;
+                await openExternalUrl(url);
                 return;
               }
               throw new Error("Checkout unavailable");
@@ -91,7 +109,9 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const { sessionId, url } = await billingCheckout("monthly");
+              const priceId = PRICE_IDS.monthly;
+              if (!priceId) throw new Error("Plan unavailable");
+              const { sessionId, url } = await startCheckout(priceId, MODES.monthly);
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
@@ -101,7 +121,7 @@ export default function Billing() {
                 return;
               }
               if (url) {
-                window.location.href = url;
+                await openExternalUrl(url);
                 return;
               }
               throw new Error("Checkout unavailable");
@@ -116,7 +136,9 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const { sessionId, url } = await billingCheckout("yearly");
+              const priceId = PRICE_IDS.yearly;
+              if (!priceId) throw new Error("Plan unavailable");
+              const { sessionId, url } = await startCheckout(priceId, MODES.yearly);
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
@@ -126,7 +148,7 @@ export default function Billing() {
                 return;
               }
               if (url) {
-                window.location.href = url;
+                await openExternalUrl(url);
                 return;
               }
               throw new Error("Checkout unavailable");
@@ -141,8 +163,8 @@ export default function Billing() {
           disabled={busy || !uid}
           onClick={() =>
             go(async () => {
-              const r = await createCustomerPortal();
-              window.location.href = r.url;
+              const url = await createCustomerPortalSession();
+              await openExternalUrl(url);
             })
           }
         >
