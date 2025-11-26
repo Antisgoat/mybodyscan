@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ScanCapture from "@/features/scan/ScanCapture"; // from Prompt #6
-import { uploadScanBlobs, type Pose } from "@/features/scan/upload";
-import { startScanCallable, triggerScanProcessing, scanDocRef } from "@/lib/api/scan";
+import { startScanSession, uploadScanBlobs, submitScan, scanDocRef, type Pose } from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -24,18 +23,19 @@ export default function ScanPage() {
     setErrMsg(null);
     try {
       setPhase("upload");
-      const { scanId } = await startScanCallable();
+      const { scanId, uploadUrls } = await startScanSession();
       setScanId(scanId);
 
       await uploadScanBlobs({
         scanId,
+        uploadUrls,
         blobs: payload,
         onProgress: ({ pose, percent }) =>
           setProgress((p) => ({ ...p, [pose]: Math.max(0, Math.min(100, Math.round(percent))) })),
       });
 
       setPhase("processing");
-      await triggerScanProcessing(scanId);
+      await submitScan(scanId);
 
       // Live status via Firestore
       const unsub = onSnapshot(scanDocRef(scanId), (snap) => {

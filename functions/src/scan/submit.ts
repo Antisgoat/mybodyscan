@@ -317,6 +317,9 @@ export const submitScan = onRequest(
   async (req, res) => {
     let scanRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> | null = null;
     try {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+      if (req.method === "OPTIONS") { res.status(204).end(); return; }
       if (req.method !== "POST") {
         res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
         return;
