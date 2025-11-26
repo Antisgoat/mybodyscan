@@ -1,18 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { auth } from "@/lib/firebase";
-import { appCheck } from "@/lib/appCheck";
-import {
-  getIdToken,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  reauthenticateWithPopup,
-  GoogleAuthProvider,
-  signOut,
-  type User,
-} from "firebase/auth";
-import { getToken as getAppCheckToken } from "firebase/app-check";
+import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup, GoogleAuthProvider, signOut, type User } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import { apiFetchWithFallback } from "@/lib/http";
+import { preferRewriteUrl } from "@/lib/api/urls";
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -53,25 +45,16 @@ export default function SettingsAccountPrivacyPage() {
     try {
       await ensureRecentLogin(user);
 
-      const idToken = await getIdToken(user, true);
-      const ac = appCheck ? await getAppCheckToken(appCheck, false).catch(() => null) : null;
-
-      const res = await fetch("/api/account/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-          ...(ac?.token ? { "X-Firebase-AppCheck": ac.token } : {}),
-        },
-        body: JSON.stringify({}),
-      });
-
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        if (j?.error === "reauth_required") {
-          throw new Error("Please re-authenticate and try again.");
-        }
-        throw new Error(j?.error || `HTTP ${res.status}`);
+      const data = await apiFetchWithFallback<{ ok?: boolean; error?: string }>(
+        "deleteAccount",
+        preferRewriteUrl("deleteAccount"),
+        { method: "POST", body: {} }
+      );
+      if (data?.error === "reauth_required") {
+        throw new Error("Please re-authenticate and try again.");
+      }
+      if (!data?.ok) {
+        throw new Error(data?.error || "Could not delete account");
       }
 
       setMsg("Account deleted.");

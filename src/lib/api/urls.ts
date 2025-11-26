@@ -1,7 +1,13 @@
 const PROJECT = (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "mybodyscan-f3daf";
 const REGION = "us-central1";
 
-type Key = "systemHealth" | "coachChat" | "nutritionSearch" | "createCheckout" | "createCustomerPortal";
+type Key =
+  | "systemHealth"
+  | "coachChat"
+  | "nutritionSearch"
+  | "createCheckout"
+  | "createCustomerPortal"
+  | "deleteAccount";
 
 const REWRITE_PATH: Record<Key, string> = {
   systemHealth: "/api/system/health",
@@ -9,6 +15,7 @@ const REWRITE_PATH: Record<Key, string> = {
   nutritionSearch: "/api/nutrition/search",
   createCheckout: "/api/createCheckout",
   createCustomerPortal: "/api/createCustomerPortal",
+  deleteAccount: "/api/account/delete",
 };
 
 const DIRECT_FN: Record<Key, string> = {
@@ -17,6 +24,7 @@ const DIRECT_FN: Record<Key, string> = {
   nutritionSearch:     `https://${REGION}-${PROJECT}.cloudfunctions.net/nutritionSearch`,
   createCheckout:      `https://${REGION}-${PROJECT}.cloudfunctions.net/createCheckout`,
   createCustomerPortal:`https://${REGION}-${PROJECT}.cloudfunctions.net/createCustomerPortal`,
+  deleteAccount:       `https://${REGION}-${PROJECT}.cloudfunctions.net/deleteAccount`,
 };
 
 function storage(): Storage | null {
