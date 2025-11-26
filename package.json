@@ -42,7 +42,10 @@
     "smoke:fn": "bash ops/smoke-fn.sh",
     "smoke:fns": "bash ops/smoke-fn.sh",
     "smoke:idtk": "bash ops/idtk-smoke.sh",
-    "probe": "node scripts/probe.mjs"
+    "probe": "node scripts/probe.mjs",
+    "audit:graph": "node scripts/audit-graph.mjs > reports/import-graph.json",
+    "audit:report": "node scripts/generate-audit-report.mjs",
+    "audit:all": "npm run audit:report"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",
