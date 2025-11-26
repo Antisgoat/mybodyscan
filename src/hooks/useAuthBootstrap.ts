@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { disableDemoEverywhere } from '@/lib/demoState';
 import { apiFetchJson } from '@/lib/apiFetch';
+import { auth } from '@/lib/firebase';
 
 export function useAuthBootstrap() {
   const ran = useRef(false);
   useEffect(() => {
-    const auth = getAuth();
     const un = onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       // 1) Force exit ANY lingering demo state on login

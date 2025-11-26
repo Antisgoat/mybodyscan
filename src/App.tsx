@@ -196,6 +196,8 @@ const App = () => {
             <Route path="/legal/privacy" element={withPublicLayout(<LegalPrivacy />)} />
             <Route path="/legal/terms" element={withPublicLayout(<LegalTerms />)} />
             <Route path="/legal/refund" element={withPublicLayout(<LegalRefund />)} />
+            <Route path="/system-check" element={<PageSuspense><SystemCheckPage /></PageSuspense>} />
+            <Route path="/system-check-pro" element={<PageSuspense><SystemCheckPro /></PageSuspense>} />
             {/* Checkout result pages (public) */}
             <Route path="/checkout/success" element={withPublicLayout(<CheckoutSuccess />)} />
             <Route path="/checkout/canceled" element={withPublicLayout(<CheckoutCanceled />)} />

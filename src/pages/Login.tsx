@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { auth, googleProvider, appleProvider, providerFlags } from "@/lib/firebase";
-import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
+import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth";
 import { disableDemoEverywhere } from "@/state/demo";
+import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function Login() {
   const location = useLocation();
@@ -35,6 +36,20 @@ export default function Login() {
     window.location.replace(sanitized);
   };
 
+  useEffect(() => {
+    if (auth.currentUser) {
+      finish();
+      return undefined;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) finish();
+    });
+
+    return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function wrap<T>(fn: () => Promise<T>, options?: { autoFinish?: boolean }) {
     const { autoFinish = true } = options ?? {};
     setBusy(true);
@@ -43,8 +58,9 @@ export default function Login() {
       await fn();
       if (autoFinish) finish();
     } catch (e: any) {
-      const message = typeof e?.message === "string" && e.message.length ? e.message : null;
-      setMsg(message ?? "Sign-in failed");
+      const normalized = normalizeFirebaseError(e);
+      const message = normalized.message || "Sign-in failed";
+      setMsg(message);
     } finally {
       setBusy(false);
     }
@@ -58,7 +74,7 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithPopup(auth, googleProvider))}
+          onClick={() => wrap(() => signInWithGoogle(defaultTarget))}
         >
           Continue with Google
         </button>
@@ -68,7 +84,7 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithRedirect(auth, appleProvider), { autoFinish: false })}
+          onClick={() => wrap(() => signInWithApple(defaultTarget), { autoFinish: false })}
         >
           Continue with Apple
         </button>
@@ -97,7 +113,7 @@ export default function Login() {
           <button
             className="w-full rounded border p-2"
             disabled={busy}
-            onClick={() => wrap(() => signInWithEmailAndPassword(auth, email, pass))}
+            onClick={() => wrap(() => signInWithEmail(email, pass))}
           >
             Continue with Email
           </button>
@@ -112,4 +128,16 @@ export default function Login() {
       <p className="mt-4 text-xs text-gray-500">By continuing you agree to our Terms and Privacy Policy.</p>
     </div>
   );
+}
+
+function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
+  if (!err) return {};
+  if (typeof err === "string") return { message: err };
+  if (typeof err === "object") {
+    const record = err as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : undefined;
+    const code = typeof record.code === "string" ? record.code : undefined;
+    if (message || code) return { message, code };
+  }
+  return {};
 }
