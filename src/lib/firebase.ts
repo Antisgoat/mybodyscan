@@ -1,5 +1,5 @@
 import { env } from "@/env";
-import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
   getAuth,
@@ -11,6 +11,7 @@ import {
   signInWithRedirect,
   type Auth,
 } from "firebase/auth";
+import { getAnalytics, isSupported as isAnalyticsSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
@@ -22,55 +23,43 @@ import {
 } from "firebase/app-check";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? env.VITE_FIREBASE_API_KEY ?? "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? env.VITE_FIREBASE_PROJECT_ID ?? "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? env.VITE_FIREBASE_STORAGE_BUCKET ?? undefined,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? env.VITE_FIREBASE_APP_ID ?? "",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? env.VITE_FIREBASE_MEASUREMENT_ID ?? undefined,
+  apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
+  authDomain: "mybodyscan-f3daf.firebaseapp.com",
+  projectId: "mybodyscan-f3daf",
+  storageBucket: "mybodyscan-f3daf.firebasestorage.app",
+  messagingSenderId: "157018993008",
+  appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
+  measurementId: "G-TV8M3PY1X3",
 };
 
-type FirebaseConfig = typeof firebaseConfig;
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-const requiredKeys: (keyof FirebaseConfig)[] = ["apiKey", "authDomain", "projectId", "appId"];
-const missingConfigKeys = requiredKeys.filter((key) => !String(firebaseConfig[key] ?? "").trim());
-const hasRequiredFirebaseConfig = missingConfigKeys.length === 0;
+const auth: Auth = getAuth(app);
+let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
 
-const sanitizedConfig: FirebaseConfig = {
-  ...firebaseConfig,
-  apiKey: firebaseConfig.apiKey || "missing-api-key",
-  authDomain: firebaseConfig.authDomain || "missing-auth-domain",
-  projectId: firebaseConfig.projectId || "missing-project",
-  appId: firebaseConfig.appId || "missing-app-id",
-};
+const db: Firestore = getFirestore(app);
+const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
+const functions: Functions = getFunctions(app, functionsRegion);
+const storage: FirebaseStorage = getStorage(app);
 
-if (!hasRequiredFirebaseConfig && typeof console !== "undefined") {
-  console.warn("[firebase] Missing config keys:", missingConfigKeys.join(", "));
+let analytics: Analytics | null = null;
+if (typeof window !== "undefined") {
+  void isAnalyticsSupported()
+    .then((ok) => {
+      if (ok) {
+        analytics = getAnalytics(app);
+      }
+    })
+    .catch(() => {
+      // ignore analytics failures
+    });
 }
-
-let firebaseInitError: Error | null = null;
-let appInstance: FirebaseApp;
-
-try {
-  appInstance = getApps()[0] ?? initializeApp(sanitizedConfig as FirebaseConfig);
-} catch (error) {
-  firebaseInitError = (error instanceof Error ? error : new Error(String(error))) ?? null;
-  console.error("[firebase] init failed", firebaseInitError);
-  // As a fallback, ensure we still return a singleton app to avoid crashes elsewhere.
-  const fallback = getApps()[0];
-  appInstance = fallback ?? initializeApp(sanitizedConfig as FirebaseConfig);
-}
-
-export const firebaseConfigMissingKeys = missingConfigKeys;
-export const hasFirebaseConfig = () => hasRequiredFirebaseConfig && !firebaseInitError;
-export const getFirebaseInitError = () => firebaseInitError;
 
 let appCheckInstance: AppCheck | null = null;
 let appCheckInitialized = false;
 let loggedAppCheckWarning = false;
 
-export function ensureAppCheck(app: FirebaseApp = appInstance): AppCheck | null {
+export function ensureAppCheck(instance: FirebaseApp = app): AppCheck | null {
   if (typeof window === "undefined") return null;
   if (appCheckInstance) return appCheckInstance;
   if (appCheckInitialized) return appCheckInstance;
@@ -83,7 +72,7 @@ export function ensureAppCheck(app: FirebaseApp = appInstance): AppCheck | null 
     return null;
   }
   try {
-    appCheckInstance = initializeAppCheck(app, {
+    appCheckInstance = initializeAppCheck(instance, {
       provider: new ReCaptchaV3Provider(siteKey),
       isTokenAutoRefreshEnabled: true,
     });
@@ -118,20 +107,6 @@ export async function getAppCheckHeader(forceRefresh = false): Promise<Record<st
   return token ? { "X-Firebase-AppCheck": token } : {};
 }
 
-export const app = appInstance;
-
-export const auth: Auth = getAuth(appInstance);
-let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
-
-const firestoreSingleton: Firestore = getFirestore(appInstance);
-const functionsRegion = import.meta.env.VITE_FIREBASE_REGION ?? env.VITE_FIREBASE_REGION ?? "us-central1";
-const functionsSingleton: Functions = getFunctions(appInstance, functionsRegion);
-const storageSingleton: FirebaseStorage = getStorage(appInstance);
-
-export const db: Firestore = firestoreSingleton;
-export const functions: Functions = functionsSingleton;
-export const storage: FirebaseStorage = storageSingleton;
-
 export const appCheck = ensureAppCheck();
 
 export async function firebaseReady(): Promise<void> {
@@ -139,7 +114,7 @@ export async function firebaseReady(): Promise<void> {
 }
 
 export function getFirebaseApp(): FirebaseApp {
-  return appInstance;
+  return app;
 }
 
 export function getFirebaseAuth(): Auth {
@@ -147,15 +122,15 @@ export function getFirebaseAuth(): Auth {
 }
 
 export function getFirebaseFirestore(): Firestore {
-  return firestoreSingleton;
+  return db;
 }
 
 export function getFirebaseFunctions(): Functions {
-  return functionsSingleton;
+  return functions;
 }
 
 export function getFirebaseStorage(): FirebaseStorage {
-  return storageSingleton;
+  return storage;
 }
 
 export function getFirebaseConfig() {
@@ -204,3 +179,9 @@ export async function signInWithApple() {
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
 }
+
+export function initFirebase() {
+  return { app, auth, db, storage, functions, analytics };
+}
+
+export { app, auth, db, storage, functions, analytics };
