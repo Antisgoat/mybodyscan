@@ -66,6 +66,7 @@ export default function SystemCheckPro() {
         <div>
           User: {user?.email || "(signed out)"} · UID: {user?.uid || "-"}
         </div>
+        <div>Project ID: {import.meta.env.VITE_FIREBASE_PROJECT_ID || "(missing)"}</div>
         <div>App Check token present: {appCheckToken ? "yes" : "no"}</div>
         <div>Demo Active: {String(isDemoActive())}</div>
       </section>
