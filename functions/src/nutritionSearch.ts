@@ -527,7 +527,12 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
 
 function simplifyFoodItem(item: FoodItem): NormalizedFoodItem {
   const serving = typeof item?.serving?.qty === "number" ? item.serving.qty : null;
-  const perServing = item?.per_serving || {};
+  const perServing = (item?.per_serving || {}) as Partial<{
+    kcal: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+  }>;
   return {
     id: item.id,
     name: item.name,

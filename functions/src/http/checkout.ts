@@ -99,7 +99,7 @@ const PLAN_BY_PRICE = (() => {
   return map;
 })();
 
-type CheckoutMode = Stripe.Checkout.SessionCreateParams.Mode;
+type CheckoutMode = any;
 
 type ErrorMeta = {
   code?: string;
