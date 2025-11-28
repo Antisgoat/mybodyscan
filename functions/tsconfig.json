@@ -7,10 +7,10 @@
     "outDir": "lib",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "typeRoots": ["./src/typings"],
     "skipLibCheck": true,
     "noImplicitAny": false,
-    "strict": false,
-    "types": ["node"]
+    "strict": false
   },
   "include": ["src/**/*"]
 }

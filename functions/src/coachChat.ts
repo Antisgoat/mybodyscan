@@ -111,7 +111,7 @@ async function createReply(payload: { message: string; history: Array<{ role: "u
       user: uid,
       signal: controller.signal,
       max_tokens: 320,
-    });
+    } as any);
 
     const reply = response.choices?.[0]?.message?.content?.trim();
     if (!reply) {
