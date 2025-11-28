@@ -55,6 +55,19 @@ export interface FoodItem {
   raw?: unknown;
 }
 
+export interface NormalizedFoodItem {
+  id: string;
+  name: string;
+  brand?: string | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  serving?: number | null;
+  unit?: string | null;
+  source?: NutritionSource;
+}
+
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
@@ -475,21 +488,22 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
   return data.products.map((item: any) => fromOpenFoodFacts(item)).filter(Boolean) as FoodItem[];
 }
 
-function extractBearerToken(req: Request): string {
+function extractBearerToken(req: Request): string | null {
   const header = req.get("authorization") || req.get("Authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (!match) {
-    throw new HttpError(401, "unauthorized", "missing_bearer");
+    return null;
   }
   const token = match[1]?.trim();
   if (!token) {
-    throw new HttpError(401, "unauthorized", "missing_bearer");
+    return null;
   }
   return token;
 }
 
 async function verifyAuthorization(req: Request): Promise<{ uid: string | null }> {
   const token = extractBearerToken(req);
+  if (!token) return { uid: null };
   try {
     const decoded = await getAuth().verifyIdToken(token);
     return { uid: decoded.uid ?? null };
@@ -509,6 +523,23 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
     console.warn("nutrition_search.auth_failed", { message });
     throw new HttpError(401, "unauthorized", "invalid_token");
   }
+}
+
+function simplifyFoodItem(item: FoodItem): NormalizedFoodItem {
+  const serving = typeof item?.serving?.qty === "number" ? item.serving.qty : null;
+  const perServing = item?.per_serving || {};
+  return {
+    id: item.id,
+    name: item.name,
+    brand: item.brand ?? null,
+    calories: typeof perServing.kcal === "number" ? perServing.kcal : null,
+    protein: typeof perServing.protein_g === "number" ? perServing.protein_g : null,
+    carbs: typeof perServing.carbs_g === "number" ? perServing.carbs_g : null,
+    fat: typeof perServing.fat_g === "number" ? perServing.fat_g : null,
+    serving,
+    unit: serving ? "g" : null,
+    source: item.source,
+  };
 }
 
 type SourceResult = { items: FoodItem[]; error?: HttpError | null };
@@ -566,26 +597,26 @@ function handleError(res: Response, error: unknown): void {
 }
 
 async function handleNutritionSearch(req: Request, res: Response): Promise<void> {
-  if (req.method === "OPTIONS") {
-    send(res, 204, null);
-    return;
-  }
-
   try {
-    if (req.method !== "GET") {
-      res.setHeader("Allow", "GET,OPTIONS");
+    if (req.method === "OPTIONS") {
+      send(res, 204, null);
+      return;
+    }
+
+    if (req.method !== "GET" && req.method !== "POST") {
+      res.setHeader("Allow", "GET,POST,OPTIONS");
       throw new HttpError(405, "method_not_allowed");
     }
 
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
-    if (!uid) {
-      throw new HttpError(401, "unauthorized");
-    }
 
-    const query = String(req.query?.q ?? req.query?.query ?? "").trim();
-    if (!query) {
-      send(res, 200, { results: [], source: "USDA", message: "no_results" });
+    const query = req.method === "POST"
+      ? String((req.body as any)?.q ?? "").trim()
+      : String(req.query?.q ?? req.query?.query ?? "").trim();
+
+    if (!query || query.length < 2) {
+      send(res, 200, { items: [], source: "USDA" });
       return;
     }
 
@@ -607,28 +638,21 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
     const apiKey = getUsdaApiKey();
     const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
     const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
-    const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
 
-    const merged = [...usdaResult.items, ...offResult.items];
-    const preferredSource: "USDA" | "OFF" = usdaResult.items.length > 0
-      ? "USDA"
-      : offResult.items.length > 0
-        ? "OFF"
-        : apiKey
-          ? "USDA"
-          : "OFF";
+    let items = usdaResult.items;
+    let source: "USDA" | "OFF" = "USDA";
 
-    if (merged.length > 0) {
-      send(res, 200, { results: merged, source: preferredSource });
-      return;
+    if (!items.length) {
+      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
+      items = offResult.items;
+      source = items.length ? "OFF" : source;
+      if (!items.length && usdaResult.error && offResult.error) {
+        throw pickError([usdaResult.error, offResult.error]);
+      }
     }
 
-    const errors = [usdaResult.error, offResult.error].filter(Boolean) as HttpError[];
-    if (errors.length > 0) {
-      throw pickError(errors);
-    }
-
-    send(res, 200, { results: [], source: preferredSource, message: "no_results" });
+    const normalized = items.map(simplifyFoodItem);
+    send(res, 200, { items: normalized, source });
   } catch (error) {
     handleError(res, error);
   }

@@ -32,25 +32,31 @@ function cors(req: functions.Request, res: functions.Response): boolean {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
 const db = getFirestore();
 const OPENAI_TIMEOUT_MS = 8000;
+const MAX_HISTORY = 8;
+const MAX_MESSAGE_LENGTH = 1200;
 
-function normalizeMessage(body: unknown): string {
-  if (!body) return "";
-  if (typeof body === "string") {
-    try {
-      const parsed = JSON.parse(body);
-      return normalizeMessage(parsed);
-    } catch {
-      return body.trim();
-    }
+function normalizeMessage(body: unknown): { message: string; history: Array<{ role: "user" | "assistant"; content: string }>; profile?: Record<string, unknown> } {
+  if (!body || typeof body !== "object") {
+    return { message: "", history: [] };
   }
-  if (typeof body === "object") {
-    const payload = body as Record<string, unknown>;
-    const message = payload.message ?? payload.text;
-    if (typeof message === "string") {
-      return message.trim();
-    }
-  }
-  return "";
+  const payload = body as Record<string, unknown>;
+  const rawMessage = typeof payload.message === "string"
+    ? payload.message
+    : typeof payload.text === "string"
+      ? payload.text
+      : "";
+  const message = rawMessage.trim().slice(0, MAX_MESSAGE_LENGTH);
+
+  const history = Array.isArray(payload.history)
+    ? payload.history
+        .slice(-MAX_HISTORY)
+        .map((entry: any) => ({ role: entry?.role, content: typeof entry?.content === "string" ? entry.content.trim() : "" }))
+        .filter((entry) => (entry.role === "user" || entry.role === "assistant") && entry.content)
+    : [];
+
+  const profile = typeof payload.profile === "object" && payload.profile !== null ? (payload.profile as Record<string, unknown>) : undefined;
+
+  return { message, history, profile };
 }
 
 async function storeMessage(uid: string, text: string, reply: string): Promise<void> {
@@ -76,7 +82,7 @@ async function storeMessage(uid: string, text: string, reply: string): Promise<v
   }
 }
 
-async function createReply(message: string, uid: string): Promise<string> {
+async function createReply(payload: { message: string; history: Array<{ role: "user" | "assistant"; content: string }>; profile?: Record<string, unknown> }, uid: string): Promise<string> {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("coach_unconfigured");
   }
@@ -84,16 +90,27 @@ async function createReply(message: string, uid: string): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
+  const systemPrompt = [
+    "You are MyBodyScan's AI coach for fitness and nutrition.",
+    "Give concise, actionable advice and avoid medical diagnoses.",
+    "Consider the user's stated goals, recent scan results, or meals if mentioned.",
+    "Be supportive and practical. Keep responses to a few sentences.",
+  ].join(" \n");
+
+  const userContext = payload.profile ? `User profile: ${JSON.stringify(payload.profile).slice(0, 600)}` : "";
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.4,
       messages: [
-        { role: "system", content: "You are MyBodyScan's AI Coach. Be brief, specific, and safe." },
-        { role: "user", content: message },
+        { role: "system", content: systemPrompt },
+        ...payload.history.map((h) => ({ role: h.role, content: h.content })),
+        { role: "user", content: [payload.message, userContext].filter(Boolean).join("\n\n") },
       ],
       user: uid,
       signal: controller.signal,
+      max_tokens: 320,
     });
 
     const reply = response.choices?.[0]?.message?.content?.trim();
@@ -126,14 +143,14 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
       return;
     }
 
-    const message = normalizeMessage(req.body);
-    if (!message) {
+    const parsed = normalizeMessage(req.body);
+    if (!parsed.message) {
       res.status(400).json({ error: "bad_request" });
       return;
     }
 
-    const reply = await createReply(message, uid);
-    await storeMessage(uid, message, reply);
+    const reply = await createReply(parsed, uid);
+    await storeMessage(uid, parsed.message, reply);
 
     res.json({ reply });
   } catch (error: any) {
