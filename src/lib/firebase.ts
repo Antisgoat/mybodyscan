@@ -76,36 +76,9 @@ const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
 const functions: Functions = getFunctions(app, functionsRegion);
 const storage: FirebaseStorage = getStorage(app);
 
-// Emulator connections intentionally disabled for production stability.
-// If you need local emulators, re-enable this block in a separate dev-only branch.
-//
-// const useEmulators =
-//   (import.meta as any)?.env?.MODE === "development" &&
-//   String((import.meta as any)?.env?.VITE_USE_FIREBASE_EMULATORS ?? "false").toLowerCase() ===
-//     "true";
-//
-// if (useEmulators) {
-//   try {
-//    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-//   } catch (error) {
-//     console.warn("[firebase] failed to connect auth emulator", error);
-//   }
-//   try {
-//     connectFirestoreEmulator(db, "127.0.0.1", 8080);
-//   } catch (error) {
-//     console.warn("[firebase] failed to connect firestore emulator", error);
-//   }
-//   try {
-//     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-//   } catch (error) {
-//     console.warn("[firebase] failed to connect functions emulator", error);
-//   }
-//   try {
-//     connectStorageEmulator(storage, "127.0.0.1", 9199);
-//   } catch (error) {
-//     console.warn("[firebase] failed to connect storage emulator", error);
-//   }
-// }
+// Emulator connections are intentionally disabled for the production bundle.
+// To use local emulators for debugging, add connector calls in a dev-only branch
+// and ensure they never ship to production.
 
 if (import.meta.env.DEV) {
   console.info("[firebase] initialized", {
