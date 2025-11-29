@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,16 +43,8 @@ const Auth = () => {
   const { user } = useAuthUser();
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
   const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
-  const firebaseIssue = useMemo(() => {
-    const initErr = getFirebaseInitError();
-    if (initErr) return initErr.message;
-    if (!hasFirebaseConfig()) {
-      const missing = firebaseConfigMissingKeys.join(", ") || "unknown";
-      return `Firebase config missing: ${missing}`;
-    }
-    return null;
-  }, []);
-  const canSubmit = !firebaseIssue;
+  const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
+  const canSubmit = !firebaseInitError;
   const googleProvider = useMemo(() => new GoogleAuthProvider(), []);
   const appleProvider = useMemo(() => {
     const provider = new OAuthProvider("apple.com");
@@ -78,19 +71,35 @@ const Auth = () => {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (firebaseIssue) {
-      setAuthError(firebaseIssue);
+    if (firebaseInitError) {
+      setAuthError(firebaseInitError);
       return;
     }
     setLoading(true);
     try {
       setAuthError(null);
       if (mode === "signin") {
-        await signInWithEmailAndPassword(auth, email, password);
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          window.location.replace(defaultTarget);
+          return;
+        } catch (err: any) {
+          console.error("Email sign-in failed", err);
+          if (err?.code === "auth/network-request-failed") {
+            setAuthError(
+              "We couldn't reach Firebase Auth. This usually means a network or configuration issue. Please check your connection and try again; if it keeps happening, contact support."
+            );
+          } else if (err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found") {
+            setAuthError("Incorrect email or password. Please try again.");
+          } else {
+            setAuthError(err?.message || "Sign-in failed unexpectedly. Please try again.");
+          }
+          return;
+        }
       } else {
         await createAccountEmail(email, password);
+        window.location.replace(defaultTarget);
       }
-      window.location.replace(defaultTarget);
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
       const fallback = mode === "signin" ? "Email sign-in failed." : "Account creation failed.";
@@ -103,8 +112,8 @@ const Auth = () => {
   };
 
   const handleGoogleSignIn = useCallback(async () => {
-    if (firebaseIssue) {
-      setAuthError(firebaseIssue);
+    if (firebaseInitError) {
+      setAuthError(firebaseInitError);
       return;
     }
     setAuthError(null);
@@ -120,11 +129,11 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [firebaseIssue, googleProvider]);
+  }, [firebaseInitError, googleProvider]);
 
   const handleAppleSignIn = useCallback(async () => {
-    if (firebaseIssue) {
-      setAuthError(firebaseIssue);
+    if (firebaseInitError) {
+      setAuthError(firebaseInitError);
       return;
     }
     setAuthError(null);
@@ -140,7 +149,13 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [appleProvider, firebaseIssue]);
+  }, [appleProvider, firebaseInitError]);
+
+  const host = typeof window !== "undefined" ? window.location.hostname : "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
+  const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
+  const showDebugPanel =
+    import.meta.env.DEV || host.startsWith("localhost") || user?.email === "developer@adlrlabs.com";
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -159,9 +174,15 @@ const Auth = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {(authError || firebaseIssue) && (
+          {firebaseInitError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Configuration error</AlertTitle>
+              <AlertDescription>{firebaseInitError}</AlertDescription>
+            </Alert>
+          )}
+          {!firebaseInitError && authError && (
             <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              {authError || firebaseIssue}
+              {authError}
             </div>
           )}
           <div className="flex justify-center gap-2 mb-4">
@@ -203,7 +224,7 @@ const Auth = () => {
               <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || !canSubmit}>
                 {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
               </Button>
-              <Button type="button" variant="link" onClick={async () => {
+              <Button type="button" variant="link" disabled={loading || !canSubmit} onClick={async () => {
                 try {
                   await sendReset(email);
                   notify({ title: "Reset link sent", description: "Check your email for reset instructions." });
@@ -255,15 +276,18 @@ const Auth = () => {
               <span>?</span>
               <a href="/terms" className="underline hover:no-underline">Terms</a>
             </div>
-            {(import.meta.env.DEV || user?.email === "developer@adlrlabs.com") && (
+            {showDebugPanel && (
               <div className="mt-6 rounded-lg border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground space-y-1">
                 <div className="font-semibold text-xs text-foreground">Debug info</div>
-                <div>Project ID: {import.meta.env.VITE_FIREBASE_PROJECT_ID || "(missing)"}</div>
+                <div>Origin: {origin}</div>
+                <div>Project ID: {(authOptions.projectId as string) || "(unknown)"}</div>
+                <div>Auth domain: {(authOptions.authDomain as string) || "(unknown)"}</div>
+                <div>Has config: {String(hasFirebaseConfig)}</div>
+                <div>Missing config: {firebaseConfigMissingKeys.length ? firebaseConfigMissingKeys.join(", ") : "none"}</div>
                 <div>
                   Current user: {auth?.currentUser?.email || "(none)"} · UID: {auth?.currentUser?.uid || "-"}
                 </div>
-                <div>Missing config: {firebaseConfigMissingKeys.length ? firebaseConfigMissingKeys.join(", ") : "none"}</div>
-                <div>Last auth error: {authError || firebaseIssue || "none"}</div>
+                <div>Last auth error: {authError || firebaseInitError || "none"}</div>
               </div>
             )}
           </div>

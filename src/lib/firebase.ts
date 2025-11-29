@@ -2,6 +2,7 @@ import { env } from "@/env";
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   OAuthProvider,
@@ -12,9 +13,9 @@ import {
   type Auth,
 } from "firebase/auth";
 import { getAnalytics, isSupported as isAnalyticsSupported, type Analytics } from "firebase/analytics";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getFunctions, type Functions } from "firebase/functions";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 import {
   initializeAppCheck,
   ReCaptchaV3Provider,
@@ -22,7 +23,7 @@ import {
   type AppCheck,
 } from "firebase/app-check";
 
-const firebaseConfig = {
+const fallbackFirebaseConfig = {
   apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
   authDomain: "mybodyscan-f3daf.firebaseapp.com",
   projectId: "mybodyscan-f3daf",
@@ -31,6 +32,40 @@ const firebaseConfig = {
   appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
   measurementId: "G-TV8M3PY1X3",
 };
+
+function readEnv(key: string): string | undefined {
+  const v = (import.meta as any)?.env?.[key];
+  if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  return undefined;
+}
+
+const firebaseConfig = {
+  apiKey: readEnv("VITE_FIREBASE_API_KEY") ?? fallbackFirebaseConfig.apiKey,
+  authDomain: readEnv("VITE_FIREBASE_AUTH_DOMAIN") ?? fallbackFirebaseConfig.authDomain,
+  projectId: readEnv("VITE_FIREBASE_PROJECT_ID") ?? fallbackFirebaseConfig.projectId,
+  storageBucket:
+    readEnv("VITE_FIREBASE_STORAGE_BUCKET") ?? fallbackFirebaseConfig.storageBucket,
+  messagingSenderId:
+    readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") ?? fallbackFirebaseConfig.messagingSenderId,
+  appId: readEnv("VITE_FIREBASE_APP_ID") ?? fallbackFirebaseConfig.appId,
+  measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID") ?? fallbackFirebaseConfig.measurementId,
+};
+
+const requiredKeys = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"] as const;
+
+export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
+  (key) => !(firebaseConfig as any)?.[key]
+);
+
+export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;
+
+// Backwards-compatible helper used by Auth.tsx to show a clear config error
+export function getFirebaseInitError(): string | null {
+  if (!hasFirebaseConfig) {
+    return `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
+  }
+  return null;
+}
 
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
@@ -41,6 +76,34 @@ const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
 const functions: Functions = getFunctions(app, functionsRegion);
 const storage: FirebaseStorage = getStorage(app);
+
+const useEmulators =
+  (import.meta as any)?.env?.MODE === "development" &&
+  String((import.meta as any)?.env?.VITE_USE_FIREBASE_EMULATORS ?? "false").toLowerCase() ===
+    "true";
+
+if (useEmulators) {
+  try {
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  } catch (error) {
+    console.warn("[firebase] failed to connect auth emulator", error);
+  }
+  try {
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  } catch (error) {
+    console.warn("[firebase] failed to connect firestore emulator", error);
+  }
+  try {
+    connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  } catch (error) {
+    console.warn("[firebase] failed to connect functions emulator", error);
+  }
+  try {
+    connectStorageEmulator(storage, "127.0.0.1", 9199);
+  } catch (error) {
+    console.warn("[firebase] failed to connect storage emulator", error);
+  }
+}
 
 let analytics: Analytics | null = null;
 if (typeof window !== "undefined") {
