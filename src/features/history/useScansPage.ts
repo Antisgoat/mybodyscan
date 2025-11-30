@@ -1,5 +1,5 @@
-import { collection, getFirestore, limit, onSnapshot, orderBy, query, startAfter, getDocs } from "firebase/firestore";
-import { auth } from "@/lib/firebase";
+import { collection, limit, onSnapshot, orderBy, query, startAfter, getDocs } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 export type ScanItem = {
   id: string;
@@ -12,7 +12,6 @@ export type ScanItem = {
 export function scansColRef() {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("Not signed in");
-  const db = getFirestore();
   return collection(db, "users", uid, "scans");
 }
 
@@ -24,7 +23,6 @@ export function listenLatest(setter: (items: ScanItem[]) => void, pageSize = 20)
 
 export async function loadMore(afterId: string, pageSize = 20): Promise<ScanItem[]> {
   // Get the doc to page after, then fetch next page
-  const db = getFirestore();
   const uid = auth.currentUser?.uid!;
   const afterRef = query(collection(db, "users", uid, "scans"), orderBy("createdAt", "desc"));
   const first = await getDocs(afterRef);

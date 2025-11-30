@@ -1,5 +1,5 @@
-import { getAuth } from "firebase/auth";
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
+import { auth } from "@/lib/firebase";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;
@@ -16,7 +16,6 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   }
 
   try {
-    const auth = getAuth();
     if (auth.currentUser) {
       const token = await auth.currentUser.getIdToken();
       headers.set("Authorization", `Bearer ${token}`);

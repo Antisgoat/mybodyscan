@@ -1,5 +1,6 @@
 import { env } from "@/env";
-import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import type { FirebaseApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
   getAuth,
@@ -11,7 +12,7 @@ import {
   signInWithRedirect,
   type Auth,
 } from "firebase/auth";
-import { getAnalytics, isSupported as isAnalyticsSupported, type Analytics } from "firebase/analytics";
+import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
@@ -22,7 +23,9 @@ import {
   type AppCheck,
 } from "firebase/app-check";
 
-const fallbackFirebaseConfig = {
+// Static Firebase client config for the mybodyscan-f3daf project.
+// We intentionally do not override this with VITE_* env variables in production.
+const firebaseConfig = {
   apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
   authDomain: "mybodyscan-f3daf.firebaseapp.com",
   projectId: "mybodyscan-f3daf",
@@ -30,25 +33,7 @@ const fallbackFirebaseConfig = {
   messagingSenderId: "157018993008",
   appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
   measurementId: "G-TV8M3PY1X3",
-};
-
-function readEnv(key: string): string | undefined {
-  const v = (import.meta as any)?.env?.[key];
-  if (typeof v === "string" && v.trim().length > 0) return v.trim();
-  return undefined;
-}
-
-const firebaseConfig = {
-  apiKey: readEnv("VITE_FIREBASE_API_KEY") ?? fallbackFirebaseConfig.apiKey,
-  authDomain: readEnv("VITE_FIREBASE_AUTH_DOMAIN") ?? fallbackFirebaseConfig.authDomain,
-  projectId: readEnv("VITE_FIREBASE_PROJECT_ID") ?? fallbackFirebaseConfig.projectId,
-  storageBucket:
-    readEnv("VITE_FIREBASE_STORAGE_BUCKET") ?? fallbackFirebaseConfig.storageBucket,
-  messagingSenderId:
-    readEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") ?? fallbackFirebaseConfig.messagingSenderId,
-  appId: readEnv("VITE_FIREBASE_APP_ID") ?? fallbackFirebaseConfig.appId,
-  measurementId: readEnv("VITE_FIREBASE_MEASUREMENT_ID") ?? fallbackFirebaseConfig.measurementId,
-};
+} as const;
 
 const requiredKeys = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"] as const;
 
@@ -58,7 +43,6 @@ export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
 
 export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;
 
-// Backwards-compatible helper used by Auth.tsx to show a clear config error
 export function getFirebaseInitError(): string | null {
   if (!hasFirebaseConfig) {
     return `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
@@ -66,39 +50,48 @@ export function getFirebaseInitError(): string | null {
   return null;
 }
 
-const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-const auth: Auth = getAuth(app);
-let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
-
-const db: Firestore = getFirestore(app);
-const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-const functions: Functions = getFunctions(app, functionsRegion);
-const storage: FirebaseStorage = getStorage(app);
-
-// Emulator connections are intentionally disabled for the production bundle.
-// To use local emulators for debugging, add connector calls in a dev-only branch
-// and ensure they never ship to production.
-
-if (import.meta.env.DEV) {
-  console.info("[firebase] initialized", {
-    projectId: (firebaseConfig as any)?.projectId,
-    authDomain: (firebaseConfig as any)?.authDomain,
-    usingEmulators: false,
-  });
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
 
-let analytics: Analytics | null = null;
-if (typeof window !== "undefined") {
-  void isAnalyticsSupported()
-    .then((ok) => {
-      if (ok) {
-        analytics = getAnalytics(app);
-      }
-    })
-    .catch(() => {
-      // ignore analytics failures
-    });
+export const firebaseApp = app;
+export const auth: Auth = getAuth(app);
+let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+
+export const db: Firestore = getFirestore(app);
+const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
+export const functions: Functions = getFunctions(app, functionsRegion);
+export const storage: FirebaseStorage = getStorage(app);
+
+let analyticsInstance: Analytics | null = null;
+
+export async function getAnalyticsInstance(): Promise<Analytics | null> {
+  if (typeof window === "undefined") return null;
+  if (analyticsInstance) return analyticsInstance;
+  const supported = await isSupported();
+  if (!supported) return null;
+  analyticsInstance = getAnalytics(app);
+  return analyticsInstance;
+}
+
+// NOTE: Firebase emulators are intentionally disabled in the production bundle.
+// If you need them for local development, re-enable this block in a dev-only branch.
+// const useEmulators = import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === "true";
+// if (useEmulators) {
+//   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+// }
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  console.info("[firebase] initialized", {
+    origin: window.location.origin,
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
+    hasConfig: hasFirebaseConfig,
+    missingKeys: firebaseConfigMissingKeys,
+  });
 }
 
 let appCheckInstance: AppCheck | null = null;
@@ -227,7 +220,7 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export function initFirebase() {
-  return { app, auth, db, storage, functions, analytics };
+  return { app, auth, db, storage, functions, analytics: analyticsInstance };
 }
 
-export { app, auth, db, storage, functions, analytics };
+export { app, auth, db, storage, functions };

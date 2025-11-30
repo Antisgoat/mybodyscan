@@ -1,12 +1,11 @@
-import { getAuth } from "firebase/auth";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { auth } from "@/lib/firebase";
 
 export type AuthedJsonOptions = {
   signal?: AbortSignal;
 };
 
 export async function authedJsonPost<T>(path: string, body: unknown, options: AuthedJsonOptions = {}): Promise<T> {
-  const auth = getAuth();
   const user = auth.currentUser;
   const idToken = user ? await user.getIdToken() : null;
   const headers = new Headers({ "Content-Type": "application/json" });
