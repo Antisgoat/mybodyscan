@@ -74,8 +74,16 @@ async function handleStart(req: Request, res: any) {
     right: buildStoragePath(uid, scanId, "right"),
   };
 
-  const currentWeightKg = Number((req.body?.currentWeightKg ?? 0) || 0);
-  const goalWeightKg = Number((req.body?.goalWeightKg ?? 0) || 0);
+  const currentWeightKg = Number(req.body?.currentWeightKg);
+  const goalWeightKg = Number(req.body?.goalWeightKg);
+
+  if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
+    res.status(400).json({
+      code: "invalid_scan_request",
+      message: "Missing or invalid scan data.",
+    });
+    return;
+  }
 
   const doc: ScanDocument = {
     id: scanId,
@@ -90,8 +98,8 @@ async function handleStart(req: Request, res: any) {
       right: "",
     },
     input: {
-      currentWeightKg: Number.isFinite(currentWeightKg) ? currentWeightKg : 0,
-      goalWeightKg: Number.isFinite(goalWeightKg) ? goalWeightKg : 0,
+      currentWeightKg,
+      goalWeightKg,
     },
     estimate: null,
     workoutPlan: null,

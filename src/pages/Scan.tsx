@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { startScanSessionClient, submitScanClient } from "@/lib/api/scan";
+import { ApiError } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 
 interface PhotoInputs {
@@ -64,7 +65,13 @@ export default function ScanPage() {
       nav(`/scan/${start.scanId}`);
     } catch (err: any) {
       setStatus("idle");
-      setError(err?.message || "Could not start the scan.");
+      const apiError = err instanceof ApiError ? err : null;
+      const message = typeof apiError?.data?.message === "string"
+        ? apiError.data.message
+        : apiError?.code === "invalid_scan_request"
+          ? "Missing or invalid scan data."
+          : err?.message || "Could not start the scan.";
+      setError(message);
     }
   }
 

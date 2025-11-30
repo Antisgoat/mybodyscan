@@ -35,16 +35,18 @@ const OPENAI_TIMEOUT_MS = 8000;
 const MAX_HISTORY = 8;
 const MAX_MESSAGE_LENGTH = 1200;
 
-function normalizeMessage(body: unknown): { message: string; history: Array<{ role: "user" | "assistant"; content: string }>; profile?: Record<string, unknown> } {
+function normalizeMessage(body: unknown): { message: string; history: Array<{ role: "user" | "assistant"; content: string }>; profile?: Record<string, unknown>; mode?: string } {
   if (!body || typeof body !== "object") {
     return { message: "", history: [] };
   }
   const payload = body as Record<string, unknown>;
-  const rawMessage = typeof payload.message === "string"
-    ? payload.message
-    : typeof payload.text === "string"
-      ? payload.text
-      : "";
+  const rawMessage = typeof payload.prompt === "string"
+    ? payload.prompt
+    : typeof payload.message === "string"
+      ? payload.message
+      : typeof payload.text === "string"
+        ? payload.text
+        : "";
   const message = rawMessage.trim().slice(0, MAX_MESSAGE_LENGTH);
 
   const history = Array.isArray(payload.history)
@@ -56,7 +58,9 @@ function normalizeMessage(body: unknown): { message: string; history: Array<{ ro
 
   const profile = typeof payload.profile === "object" && payload.profile !== null ? (payload.profile as Record<string, unknown>) : undefined;
 
-  return { message, history, profile };
+  const mode = typeof payload.mode === "string" ? payload.mode : undefined;
+
+  return { message, history, profile, mode };
 }
 
 async function storeMessage(uid: string, text: string, reply: string): Promise<void> {
@@ -145,24 +149,34 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
 
     const parsed = normalizeMessage(req.body);
     if (!parsed.message) {
-      res.status(400).json({ error: "bad_request" });
+      res.status(400).json({ code: "invalid_prompt", message: "Please enter a question for the coach." });
       return;
     }
 
-    const reply = await createReply(parsed, uid);
-    await storeMessage(uid, parsed.message, reply);
+    try {
+      const reply = await createReply(parsed, uid);
+      await storeMessage(uid, parsed.message, reply);
 
-    res.json({ reply });
+      res.json({ reply });
+    } catch (error: any) {
+      if (error?.message === "coach_unconfigured" || error?.message === "coach_timeout") {
+        res.status(500).json({
+          code: "coach_internal_error",
+          message: "Coach is temporarily unavailable; please try again.",
+        });
+        return;
+      }
+      logger.error("coachChat error", error);
+      res.status(500).json({
+        code: "coach_internal_error",
+        message: "Coach is temporarily unavailable; please try again.",
+      });
+    }
   } catch (error: any) {
-    if (error?.message === "coach_unconfigured") {
-      res.status(503).json({ error: "TEMP_UNAVAILABLE" });
-      return;
-    }
-    if (error?.message === "coach_timeout") {
-      res.status(503).json({ error: "TEMP_UNAVAILABLE" });
-      return;
-    }
     logger.error("coachChat error", error);
-    res.status(503).json({ error: "TEMP_UNAVAILABLE" });
+    res.status(500).json({
+      code: "coach_internal_error",
+      message: "Coach is temporarily unavailable; please try again.",
+    });
   }
 });
