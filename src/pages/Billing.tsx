@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, getAuth } from "firebase/auth";
-import { doc, getFirestore, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { loadStripe } from "@stripe/stripe-js";
 import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
+import { auth, db } from "@/lib/firebase";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -31,8 +32,6 @@ export default function Billing() {
   }, []);
 
   useEffect(() => {
-    const auth = getAuth();
-    const db = getFirestore();
     let unsubscribeDoc: (() => void) | undefined;
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUid(user?.uid || null);

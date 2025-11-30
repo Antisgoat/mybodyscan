@@ -18,6 +18,7 @@ import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "firebase/auth";
+import type { FirebaseError } from "firebase/app";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -83,17 +84,52 @@ const Auth = () => {
           await signInWithEmailAndPassword(auth, email, password);
           window.location.replace(defaultTarget);
           return;
-        } catch (err: any) {
-          console.error("Email sign-in failed", err);
-          if (err?.code === "auth/network-request-failed") {
-            setAuthError(
-              "We couldn't reach Firebase Auth. This usually means a network or configuration issue. Please check your connection and try again; if it keeps happening, contact support."
-            );
-          } else if (err?.code === "auth/wrong-password" || err?.code === "auth/user-not-found") {
-            setAuthError("Incorrect email or password. Please try again.");
-          } else {
-            setAuthError(err?.message || "Sign-in failed unexpectedly. Please try again.");
+        } catch (err: unknown) {
+          const error = err as FirebaseError & { code?: string; message?: string };
+          const code = error?.code ?? "unknown";
+          const rawMessage = error?.message ?? "";
+
+          if (typeof window !== "undefined") {
+            console.error("[Auth] Email sign-in failed", {
+              code,
+              message: rawMessage,
+              origin: window.location.origin,
+            });
           }
+
+          let uiMessage = "Sign-in failed. Please try again.";
+
+          switch (code) {
+            case "auth/network-request-failed":
+              uiMessage =
+                "We couldn't reach Firebase Auth. This usually means a network or configuration issue. Please check your connection and try again; if it keeps happening, contact support.";
+              break;
+            case "auth/invalid-email":
+              uiMessage = "That email address is not valid.";
+              break;
+            case "auth/user-not-found":
+            case "auth/wrong-password":
+            case "auth/invalid-credential":
+              uiMessage = "Email or password is incorrect.";
+              break;
+            case "auth/too-many-requests":
+              uiMessage =
+                "Too many attempts. Please wait a bit and try again. If this continues, contact support.";
+              break;
+            case "auth/operation-not-allowed":
+              uiMessage =
+                "Email/password sign-in is currently disabled for this project. Please contact support or use another sign-in method.";
+              break;
+            default:
+              // keep default generic message
+              break;
+          }
+
+          const emailLower = email.trim().toLowerCase();
+          const isAdminDev = emailLower === "developer@adlrlabs.com";
+          const debugSuffix = isAdminDev ? ` [debug: ${code} — ${rawMessage}]` : "";
+
+          setAuthError(`${uiMessage}${debugSuffix}`);
           return;
         }
       } else {
@@ -124,6 +160,10 @@ const Auth = () => {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Google sign-in failed.";
       const message = formatError(fallback, normalized.code);
+      console.error("[Auth] Google sign-in failed", {
+        code: normalized.code,
+        message: normalized.message,
+      });
       setAuthError(message);
       toast(message, "error");
     } finally {
@@ -144,6 +184,10 @@ const Auth = () => {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Apple sign-in failed.";
       const message = formatError(fallback, normalized.code);
+      console.error("[Auth] Apple sign-in failed", {
+        code: normalized.code,
+        message: normalized.message,
+      });
       setAuthError(message);
       toast(message, "error");
     } finally {
