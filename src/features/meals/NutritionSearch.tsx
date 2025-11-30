@@ -32,14 +32,14 @@ export default function NutritionSearch() {
       const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
       const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
       const status = apiError?.status;
-      const fallback = "Food database temporarily unavailable; please try again later.";
+      const fallback = "Unable to load nutrition results right now.";
       const rawMessage = apiMessage || err?.message;
       let message = rawMessage && rawMessage !== "Bad Request" ? rawMessage : fallback;
       if (!apiMessage) {
-        if (code === "invalid_query") {
+        if (status === 400 && code === "invalid_query") {
           message = "Search query must not be empty.";
         } else if (status === 503 || code === "nutrition_backend_error") {
-          message = "Food database temporarily busy; try again later.";
+          message = "Food database temporarily unavailable; please try again later.";
         }
       }
       setError(message);
