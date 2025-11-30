@@ -66,7 +66,7 @@ async function handleStart(req: Request, res: any) {
 
   const { uid } = authContext;
   const scanId = randomUUID();
-  const now = Timestamp.now();
+  const now = Timestamp.now() as FirebaseFirestore.Timestamp;
   const storagePaths: Record<Pose, string> = {
     front: buildStoragePath(uid, scanId, "front"),
     back: buildStoragePath(uid, scanId, "back"),
