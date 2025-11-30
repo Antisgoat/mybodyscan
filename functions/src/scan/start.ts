@@ -1,64 +1,23 @@
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";
-import { getFirestore, getStorage } from "../firebase.js";
+import { Timestamp, getFirestore } from "../firebase.js";
 import { requireAuthWithClaims, verifyAppCheck } from "../http.js";
-import { isStaff } from "../claims.js";
 import { getAppCheckMode, type AppCheckMode } from "../lib/env.js";
 import { HttpError } from "../util/http.js";
 
 const db = getFirestore();
-const storage = getStorage();
-const UPLOAD_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes
 const POSES = ["front", "back", "left", "right"] as const;
 
 type Pose = (typeof POSES)[number];
 
 interface StartResponse {
   scanId: string;
-  uploadUrls: Record<Pose, string>;
-  expiresAt: string;
+  storagePaths: Record<Pose, string>;
 }
 
-async function hasFounderBypass(uid: string): Promise<boolean> {
-  try {
-    const snap = await db.doc(`users/${uid}`).get();
-    if (!snap.exists) return false;
-    const data = snap.data() as any;
-    return Boolean(data?.meta?.founder);
-  } catch (err) {
-    console.warn("scan_start_founder_lookup_error", { uid, message: (err as any)?.message });
-    return false;
-  }
-}
-
-async function hasAvailableCredits(uid: string): Promise<boolean> {
-  try {
-    const snap = await db.doc(`users/${uid}/private/credits`).get();
-    if (!snap.exists) return false;
-    const data = snap.data() as any;
-    const total = Number(data?.creditsSummary?.totalAvailable ?? 0);
-    return Number.isFinite(total) && total > 0;
-  } catch (err) {
-    console.warn("scan_start_credit_lookup_error", { uid, message: (err as any)?.message });
-    return false;
-  }
-}
-
-async function createSignedUploadUrl(path: string, expires: Date): Promise<string> {
-  const bucket = storage.bucket();
-  const file = bucket.file(path);
-  const [url] = await file.getSignedUrl({
-    version: "v4",
-    action: "write",
-    expires,
-    contentType: "image/jpeg",
-  });
-  return url;
-}
-
-function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
-  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
+function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
+  return `scans/${uid}/${scanId}/${pose}.jpg`;
 }
 
 async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
@@ -81,6 +40,7 @@ async function handleStart(req: Request, res: any) {
     res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
     return;
   }
+
   const appCheckMode = getAppCheckMode();
   try {
     await ensureAppCheck(req, appCheckMode);
@@ -103,62 +63,44 @@ async function handleStart(req: Request, res: any) {
     res.status(401).json({ error: "auth_required", code: "auth_required" });
     return;
   }
-  const { uid, claims } = authContext;
-  const staffBypass = await isStaff(uid);
-  const unlimitedCredits = claims?.unlimitedCredits === true;
 
-  if (staffBypass) {
-    console.info("scan_start_staff_bypass", { uid });
-  }
-  
-  if (unlimitedCredits) {
-    console.info("scan_start_unlimited_credits", { uid });
-  }
-
-  const [founder, hasCredits] = staffBypass || unlimitedCredits
-    ? [false, true]
-    : await Promise.all([
-        hasFounderBypass(uid),
-        hasAvailableCredits(uid),
-      ]);
-
-  if (!staffBypass && !unlimitedCredits && !founder && !hasCredits) {
-    console.warn("scan_start_no_credits", { uid });
-    res.status(402).json({ error: "no_credits", code: "no_credits" });
-    return;
-  }
-
+  const { uid } = authContext;
   const scanId = randomUUID();
-  const expiresAt = new Date(Date.now() + UPLOAD_EXPIRATION_MS);
-  const uploadUrls: Record<Pose, string> = {
-    front: "",
-    back: "",
-    left: "",
-    right: "",
+  const now = Timestamp.now();
+  const storagePaths: Record<Pose, string> = {
+    front: buildStoragePath(uid, scanId, "front"),
+    back: buildStoragePath(uid, scanId, "back"),
+    left: buildStoragePath(uid, scanId, "left"),
+    right: buildStoragePath(uid, scanId, "right"),
   };
 
-  try {
-    await Promise.all(
-      POSES.map(async (pose) => {
-        const path = buildUploadPath(uid, scanId, pose);
-        const url = await createSignedUploadUrl(path, expiresAt);
-        uploadUrls[pose] = url;
-      })
-    );
-  } catch (err) {
-    console.error("scan_start_signed_url_error", { uid, scanId, message: (err as any)?.message });
-    res.status(500).json({ error: "signing_failed", code: "signing_failed" });
-    return;
-  }
+  const currentWeightKg = Number((req.body?.currentWeightKg ?? 0) || 0);
+  const goalWeightKg = Number((req.body?.goalWeightKg ?? 0) || 0);
 
-  console.info("scan_start", { uid, scanId, expiresAt: expiresAt.toISOString() });
-
-  const payload: StartResponse = {
-    scanId,
-    uploadUrls,
-    expiresAt: expiresAt.toISOString(),
+  const doc: ScanDocument = {
+    id: scanId,
+    uid,
+    createdAt: now,
+    updatedAt: now,
+    status: "pending",
+    photoPaths: {
+      front: "",
+      back: "",
+      left: "",
+      right: "",
+    },
+    input: {
+      currentWeightKg: Number.isFinite(currentWeightKg) ? currentWeightKg : 0,
+      goalWeightKg: Number.isFinite(goalWeightKg) ? goalWeightKg : 0,
+    },
+    estimate: null,
+    workoutPlan: null,
+    nutritionPlan: null,
   };
 
+  await db.doc(`users/${uid}/scans/${scanId}`).set(doc);
+
+  const payload: StartResponse = { scanId, storagePaths };
   res.json(payload);
 }
 
@@ -171,6 +113,5 @@ export const startScanSession = onRequest(
       console.error("scan_start_unhandled", { message: err?.message });
       res.status(500).json({ error: "server_error", code: "server_error" });
     }
-  }
+  },
 );
-

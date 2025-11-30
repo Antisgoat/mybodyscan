@@ -1,144 +1,33 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import { FieldValue, getFirestore, getStorage, Timestamp } from "../firebase.js";
+import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
-import { consumeCredit } from "../credits.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import fetch from "node-fetch";
 
 const db = getFirestore();
 const storage = getStorage();
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
-const READ_URL_EXPIRATION_MS = 5 * 60 * 1000;
 const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
 
-type OpenAIChatChoice = { message?: { content?: string } };
-function extractOpenAIContent(data: any): string | undefined {
-  try {
-    const choices = (data?.choices ?? []) as OpenAIChatChoice[];
-    return choices[0]?.message?.content;
-  } catch {
-    return undefined;
-  }
-}
-
 type Pose = (typeof POSES)[number];
 
-type ConfidenceLevel = "low" | "medium" | "high";
-
-interface SubmitPayload {
+type SubmitPayload = {
   scanId: string;
-  weightLb?: number;
-  heightIn?: number;
-  age?: number;
-  sex?: "male" | "female";
-  idempotencyKey?: string;
-  imageUrls?: string[]; // optional direct URLs path
-}
+  photoPaths: Record<Pose, string>;
+  currentWeightKg: number;
+  goalWeightKg: number;
+};
 
-interface ParsedResult {
-  bfPercent: number;
-  low: number;
-  high: number;
-  confidence: ConfidenceLevel;
-  notes: string;
-}
-
-interface ImageMeta {
-  pose: Pose;
-  sizeBytes: number;
-  md5Hash?: string | null;
-  path: string;
-}
-
-interface StoredScan {
-  createdAt: Timestamp;
-  completedAt: Timestamp;
-  engine: string;
-  status: "complete";
-  inputs: Record<string, unknown>;
-  result: ParsedResult;
-  metadata: {
-    sessionId: string;
-    images: Array<Pick<ImageMeta, "pose" | "sizeBytes" | "md5Hash">>;
-  };
-}
-
-function buildUploadPath(uid: string, scanId: string, pose: Pose): string {
-  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
-}
+type OpenAIResult = {
+  estimate?: Partial<ScanEstimate>;
+  workoutPlan?: Partial<WorkoutPlan>;
+  nutritionPlan?: Partial<NutritionPlan>;
+};
 
 function clamp(value: number, min: number, max: number): number {
-  if (Number.isNaN(value)) return min;
+  if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(value, min), max);
-}
-
-function sanitizeNotes(notes: unknown): string {
-  if (typeof notes !== "string") return "Visual estimate only.";
-  const trimmed = notes.trim();
-  if (!trimmed) return "Visual estimate only.";
-  return trimmed.slice(0, 400);
-}
-
-function normalizeConfidence(raw: unknown): ConfidenceLevel {
-  if (raw === "high" || raw === "medium" || raw === "low") {
-    return raw;
-  }
-  const text = typeof raw === "string" ? raw.toLowerCase() : "";
-  if (text.includes("high")) return "high";
-  if (text.includes("medium")) return "medium";
-  if (text.includes("low")) return "low";
-  return "low";
-}
-
-function parseNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null) return undefined;
-  const num = Number(value);
-  if (!Number.isFinite(num)) return undefined;
-  return num;
-}
-
-function validatePayload(body: any): SubmitPayload | null {
-  if (!body || typeof body !== "object") return null;
-  const scanId = typeof body.scanId === "string" ? body.scanId.trim() : "";
-  if (!scanId || scanId.length > 128) return null;
-  const sex = body.sex === "male" || body.sex === "female" ? body.sex : undefined;
-  const weight = parseNumber(body.weightLb);
-  const height = parseNumber(body.heightIn);
-  const age = parseNumber(body.age);
-  const payload: SubmitPayload = { scanId };
-  if (weight && weight > 0 && weight < 2000) payload.weightLb = weight;
-  if (height && height > 0 && height < 120) payload.heightIn = height;
-  if (age && age > 0 && age < 130) payload.age = Math.round(age);
-  if (sex) payload.sex = sex;
-  if (typeof body.idempotencyKey === "string" && body.idempotencyKey.trim().length) {
-    payload.idempotencyKey = body.idempotencyKey.trim().slice(0, 128);
-  }
-  if (Array.isArray(body.imageUrls)) {
-    const urls = body.imageUrls
-      .map((u: unknown) => (typeof u === "string" ? u.trim() : ""))
-      .filter(Boolean);
-    if (urls.length) payload.imageUrls = urls.slice(0, 4);
-  }
-  return payload;
-}
-
-function toInputRecord(payload: SubmitPayload): Record<string, unknown> {
-  const record: Record<string, unknown> = {};
-  if (payload.weightLb != null) {
-    record.weightLb = Number(payload.weightLb.toFixed(1));
-  }
-  if (payload.heightIn != null) {
-    record.heightIn = Number(payload.heightIn.toFixed(1));
-  }
-  if (payload.age != null) {
-    record.age = payload.age;
-  }
-  if (payload.sex) {
-    record.sex = payload.sex;
-  }
-  return record;
 }
 
 function extractJson(text: string): any {
@@ -148,101 +37,132 @@ function extractJson(text: string): any {
     trimmed = fenced[1];
   } else if (trimmed.startsWith("```")) {
     const generic = trimmed.match(/```([\s\S]*?)```/);
-    if (generic) {
-      trimmed = generic[1];
+    if (generic) trimmed = generic[1];
+  }
+  return JSON.parse(trimmed.trim());
+}
+
+function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate {
+  const source = raw as any;
+  const bodyFatPercent = clamp(Number(raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat), 3, 60);
+  const bmiRaw = Number(source?.bmi);
+  const bmi = Number.isFinite(bmiRaw) && bmiRaw > 0 ? Number(bmiRaw.toFixed(1)) : null;
+  const notes = typeof source?.notes === "string" && source.notes.trim()
+    ? source.notes.trim().slice(0, 400)
+    : "Visual estimate only. Not medical advice.";
+  return {
+    bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
+    bmi,
+    notes,
+  };
+}
+
+function sanitizeWorkout(raw: Partial<WorkoutPlan> | undefined): WorkoutPlan {
+  const weeks = Array.isArray(raw?.weeks) ? raw.weeks : [];
+  return {
+    summary: typeof raw?.summary === "string" && raw.summary.trim() ? raw.summary.trim() : "Personalized training plan",
+    weeks: weeks.map((week, index) => ({
+      weekNumber: typeof (week as any)?.weekNumber === "number" ? (week as any).weekNumber : index + 1,
+      days: Array.isArray((week as any)?.days)
+        ? (week as any).days.map((day: any) => ({
+            day: typeof day?.day === "string" ? day.day : "Day",
+            focus: typeof day?.focus === "string" ? day.focus : "Full body",
+            exercises: Array.isArray(day?.exercises)
+              ? day.exercises.map((ex: any) => ({
+                  name: typeof ex?.name === "string" ? ex.name : "Exercise",
+                  sets: Number.isFinite(ex?.sets) ? Number(ex.sets) : 3,
+                  reps: typeof ex?.reps === "string" ? ex.reps : "8-12",
+                  notes: typeof ex?.notes === "string" ? ex.notes : undefined,
+                }))
+              : [],
+          }))
+        : [],
+    })),
+  };
+}
+
+function sanitizeNutrition(raw: Partial<NutritionPlan> | undefined): NutritionPlan {
+  const source = raw as any;
+  const calories = clamp(Number(raw?.caloriesPerDay ?? source?.calories_per_day), 1000, 6000);
+  const protein = Math.max(0, Number(raw?.proteinGrams ?? source?.protein_grams ?? 0));
+  const carbs = Math.max(0, Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0));
+  const fats = Math.max(0, Number(raw?.fatsGrams ?? source?.fats_grams ?? 0));
+  const sampleDayRaw = Array.isArray(raw?.sampleDay) ? raw?.sampleDay : [];
+  const sampleDay = sampleDayRaw.map((meal: any) => ({
+    mealName: typeof meal?.mealName === "string" ? meal.mealName : "Meal",
+    description: typeof meal?.description === "string" ? meal.description : "",
+    calories: Number.isFinite(meal?.calories) ? Number(meal.calories) : 0,
+    proteinGrams: Number.isFinite(meal?.proteinGrams) ? Number(meal.proteinGrams) : 0,
+    carbsGrams: Number.isFinite(meal?.carbsGrams) ? Number(meal.carbsGrams) : 0,
+    fatsGrams: Number.isFinite(meal?.fatsGrams) ? Number(meal.fatsGrams) : 0,
+  }));
+
+  return {
+    caloriesPerDay: Math.round(calories),
+    proteinGrams: Math.round(protein),
+    carbsGrams: Math.round(carbs),
+    fatsGrams: Math.round(fats),
+    sampleDay,
+  };
+}
+
+function parsePayload(body: any): SubmitPayload | null {
+  if (!body || typeof body !== "object") return null;
+  const scanId = typeof body.scanId === "string" ? body.scanId.trim() : "";
+  const photoPathsRaw = body.photoPaths && typeof body.photoPaths === "object" ? body.photoPaths : null;
+  if (!scanId || !photoPathsRaw) return null;
+  const photoPaths: Record<Pose, string> = {
+    front: typeof photoPathsRaw.front === "string" ? photoPathsRaw.front : "",
+    back: typeof photoPathsRaw.back === "string" ? photoPathsRaw.back : "",
+    left: typeof photoPathsRaw.left === "string" ? photoPathsRaw.left : "",
+    right: typeof photoPathsRaw.right === "string" ? photoPathsRaw.right : "",
+  };
+  if (!photoPaths.front || !photoPaths.back || !photoPaths.left || !photoPaths.right) return null;
+  const currentWeightKg = Number(body.currentWeightKg);
+  const goalWeightKg = Number(body.goalWeightKg);
+  if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) return null;
+  return { scanId, photoPaths, currentWeightKg, goalWeightKg };
+}
+
+async function buildImageInputs(paths: Record<Pose, string>): Promise<Array<{ pose: Pose; url: string }>> {
+  const bucket = storage.bucket();
+  const entries: Array<{ pose: Pose; url: string }> = [];
+  for (const pose of POSES) {
+    const path = paths[pose];
+    const file = bucket.file(path);
+    const [exists] = await file.exists();
+    if (!exists) {
+      throw new Error(`missing_photo_${pose}`);
     }
+    const [url] = await file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + 5 * 60 * 1000,
+    });
+    entries.push({ pose, url });
   }
-  trimmed = trimmed.trim();
-  return JSON.parse(trimmed);
+  return entries;
 }
 
-function parseOpenAiResponse(content: string): ParsedResult {
-  let parsed: any;
-  try {
-    parsed = extractJson(content);
-  } catch (err) {
-    console.error("scan_parse_json_error", { message: (err as any)?.message });
-    throw new Error("invalid_json");
-  }
-  const bf = clamp(Number(parsed?.bfPercent ?? parsed?.bodyFat ?? parsed?.body_fat), 3, 60);
-  const lowRaw = Number(parsed?.low ?? parsed?.lower ?? parsed?.min);
-  const highRaw = Number(parsed?.high ?? parsed?.upper ?? parsed?.max);
-  let low = clamp(lowRaw || bf - 2, 3, 60);
-  let high = clamp(highRaw || bf + 2, 3, 60);
-  if (low > high) {
-    const mid = low;
-    low = high;
-    high = mid;
-  }
-  const confidence = normalizeConfidence(parsed?.confidence);
-  const notesRaw = sanitizeNotes(parsed?.notes ?? parsed?.summary ?? "");
-  const lower = notesRaw.toLowerCase();
-  let normalized = notesRaw;
-  if (!lower.includes("estimate")) {
-    normalized = `${normalized}${normalized.endsWith(".") ? "" : "."} Estimate only.`;
-  }
-  if (!normalized.toLowerCase().includes("medical")) {
-    normalized = `${normalized.trim()} Not medical advice.`;
-  }
-  return {
-    bfPercent: Number(bf.toFixed(1)),
-    low: Number(low.toFixed(1)),
-    high: Number(high.toFixed(1)),
-    confidence,
-    notes: normalized.trim(),
-  };
-}
-
-async function toImageMeta(uid: string, scanId: string, pose: Pose): Promise<{ meta: ImageMeta; url: string }> {
-  const path = buildUploadPath(uid, scanId, pose);
-  const file = storage.bucket().file(path);
-  const [exists] = await file.exists();
-  if (!exists) {
-    throw new Error(`missing_${pose}`);
-  }
-  const [metadata] = await file.getMetadata();
-  const sizeBytes = Number(metadata.size ?? 0);
-  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_IMAGE_BYTES) {
-    throw new Error(`invalid_size_${pose}`);
-  }
-  const contentType = metadata.contentType || metadata.content_type || "";
-  if (typeof contentType !== "string" || !contentType.startsWith("image/")) {
-    throw new Error(`invalid_type_${pose}`);
-  }
-  const md5 = metadata.md5Hash ? Buffer.from(metadata.md5Hash, "base64").toString("hex") : null;
-  const expires = new Date(Date.now() + READ_URL_EXPIRATION_MS);
-  const [url] = await file.getSignedUrl({ version: "v4", action: "read", expires });
-  return {
-    meta: { pose, sizeBytes, md5Hash: md5, path },
-    url,
-  };
-}
-
-function buildUserContext(inputs: SubmitPayload): string {
-  const parts: string[] = [];
-  if (inputs.weightLb) parts.push(`Weight: ${inputs.weightLb.toFixed(1)} lb`);
-  if (inputs.heightIn) parts.push(`Height: ${inputs.heightIn.toFixed(1)} in`);
-  if (inputs.age) parts.push(`Age: ${inputs.age} years`);
-  if (inputs.sex) parts.push(`Sex: ${inputs.sex}`);
-  if (!parts.length) return "No additional numeric context provided.";
-  return parts.join("; ");
-}
-
-async function callOpenAi(
+async function callOpenAI(
   apiKey: string,
   images: Array<{ pose: Pose; url: string }>,
-  inputs: SubmitPayload
-): Promise<ParsedResult> {
-  const systemPrompt =
-    "You are a body-composition assistant. Estimate body fat percentage from photographs. Provide only the requested JSON.";
-  const context = buildUserContext(inputs);
+  input: { currentWeightKg: number; goalWeightKg: number; uid: string },
+): Promise<OpenAIResult> {
+  const systemPrompt = [
+    "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
+    "Return JSON only matching {\"estimate\": ScanEstimate, \"workoutPlan\": WorkoutPlan, \"nutritionPlan\": NutritionPlan}.",
+    "Use concise language and realistic programming for an intermediate trainee.",
+  ].join("\n");
+
   const userText = [
-    "Estimate the person's body fat percentage based on the attached front, back, left, and right photos.",
-    "Use visual cues and any provided context.",
-    "Respond with compact JSON matching: {\"bfPercent\": number, \"low\": number, \"high\": number, \"confidence\": \"low\"|\"medium\"|\"high\", \"notes\": string}.",
-    "Do not mention medical conditions. Notes must remind that this is an estimate, not medical advice.",
-    `Context: ${context}`,
-    "Return JSON only without markdown or additional commentary.",
+    `Current weight: ${input.currentWeightKg} kg`,
+    `Goal weight: ${input.goalWeightKg} kg`,
+    "Use the four photos (front, back, left, right) to inform the estimate and plans.",
+    "BMI can be null if unreliable. Notes must remind this is only an estimate.",
+    "Workout plan should span multiple weeks with daily splits.",
+    "Nutrition plan should include daily calories/macros and a sample day of meals.",
+    "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -253,63 +173,36 @@ async function callOpenAi(
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      temperature: 0.2,
-      max_tokens: 400,
+      temperature: 0.4,
+      max_tokens: 800,
       messages: [
         { role: "system", content: systemPrompt },
         {
           role: "user",
           content: [
             { type: "text", text: userText },
-            ...images.map(({ pose, url }) => ({
-              type: "image_url",
-              image_url: { url, detail: "high" },
-            })),
+            ...images.map(({ url }) => ({ type: "image_url", image_url: { url, detail: "high" } })),
           ],
         },
       ],
+      user: input.uid,
     }),
   });
 
   if (!response.ok) {
     const text = await response.text();
     console.error("scan_openai_error", { status: response.status, body: text.slice(0, 500) });
-    const error = new Error("openai_error");
-    (error as any).status = 502;
-    throw error;
+    throw new Error("openai_error");
   }
 
   const data: any = await response.json();
-  const content = extractOpenAIContent(data);
-  if (!content) {
-    console.error("scan_openai_missing_content", { data });
-    throw new Error("no_content");
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new Error("openai_no_content");
   }
 
-  return parseOpenAiResponse(content);
-}
-
-async function deleteUploads(paths: string[]) {
-  await Promise.allSettled(
-    paths.map(async (path) => {
-      try {
-        await storage.bucket().file(path).delete({ ignoreNotFound: true });
-      } catch (err) {
-        console.warn("scan_cleanup_error", { path, message: (err as any)?.message });
-      }
-    })
-  );
-}
-
-async function isFounder(uid: string): Promise<boolean> {
-  try {
-    const snap = await db.doc(`users/${uid}`).get();
-    if (!snap.exists) return false;
-    return Boolean((snap.data() as any)?.meta?.founder);
-  } catch (err) {
-    console.warn("scan_submit_founder_lookup_error", { uid, message: (err as any)?.message });
-    return false;
-  }
+  const parsed = extractJson(content) as OpenAIResult;
+  return parsed;
 }
 
 export const submitScan = onRequest(
@@ -324,6 +217,7 @@ export const submitScan = onRequest(
         res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
         return;
       }
+
       try {
         await verifyAppCheckStrict(req as Request);
       } catch (error: any) {
@@ -340,250 +234,84 @@ export const submitScan = onRequest(
         res.status(401).json({ error: "auth_required", code: "auth_required" });
         return;
       }
-      const { uid, claims } = authContext;
-      const unlimitedCredits = claims?.unlimitedCredits === true;
-      const payload = validatePayload((req.body as any) || {});
-      if (!payload) {
-        res.status(400).json({ error: "invalid_payload", code: "invalid_payload" });
-        return;
-      }
-      const idempotencyKey = payload.idempotencyKey || undefined;
-      const debitRef = db.doc(`users/${uid}/private/debits/${payload.scanId}`) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
 
       if (!hasOpenAI()) {
         res.status(503).json({ error: "openai_not_configured", code: "openai_not_configured" });
         return;
       }
-      const apiKey = getOpenAIKey() as string;
-      // Build images list: prefer direct imageUrls if provided, else infer from signed Storage read URLs
-      let imagePairs: Array<{ pose: Pose; url: string }> = [];
-      let imageMetaList: ImageMeta[] = [];
-      const poses: Pose[] = ["front", "back", "left", "right"];
-      if (payload.imageUrls && (payload.imageUrls.length === 2 || payload.imageUrls.length === 4)) {
-        // Map provided URLs to the first N poses
-        imagePairs = payload.imageUrls.map((url, index) => ({ pose: poses[index]!, url }));
-      } else {
-        // Read from Storage based on uploaded files
-        const metas: Array<{ meta: ImageMeta; url: string }> = [];
-        for (const pose of poses) {
-          try {
-            const item = await toImageMeta(uid, payload.scanId, pose);
-            metas.push(item);
-          } catch (err) {
-            // If strictly requiring 4, return error; allow 2-photo submissions if at least 2 found
-          }
-        }
-        if (metas.length < 2) {
-          res.status(400).json({ error: "bad_request", code: "missing_photos", message: "Missing required photos (need 2 or 4)." });
-          return;
-        }
-        imageMetaList = metas.map(({ meta }) => meta);
-        imagePairs = metas.map(({ meta, url }) => ({ pose: meta.pose, url }));
-      }
 
-      // Idempotency: record processing state early to avoid double credit
-      const idempRef = idempotencyKey
-        ? db.doc(`users/${uid}/private/idempotency/${payload.scanId}_${idempotencyKey}`)
-        : null;
-      scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
-      if (!scanRef) {
-        throw new Error("scan_reference_unavailable");
-      }
-
-      const inputRecord = toInputRecord(payload);
-
-      const processingUpdate: Record<string, unknown> = {
-        status: "processing",
-        updatedAt: Timestamp.now(),
-        inputs: inputRecord,
-      };
-      processingUpdate["metadata.sessionId"] = payload.scanId;
-      if (imageMetaList.length) {
-        processingUpdate["metadata.images"] = imageMetaList.map(({ pose, sizeBytes, md5Hash }) => ({
-          pose,
-          sizeBytes,
-          md5Hash: md5Hash ?? null,
-        }));
-      }
-
-      if (idempRef) {
-        const existing = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-          const snap = (await tx.get(idempRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-          if (snap.exists) return snap.data() as any;
-          tx.create(idempRef, { status: "processing", createdAt: Timestamp.now(), scanId: payload.scanId });
-          return null;
-        });
-        if (existing && existing.status === "complete") {
-          const doneSnap = await scanRef.get();
-          if (doneSnap.exists) {
-            const data = doneSnap.data() as any;
-            res.json({
-              id: payload.scanId,
-              duplicate: true,
-              code: "duplicate_submit",
-              ...data,
-            });
-            return;
-          }
-          res.status(409).json({ error: "duplicate_submit_missing", code: "duplicate_submit_missing" });
-          return;
-        }
-      }
-
-      await scanRef.set(processingUpdate, { merge: true }).catch((error: unknown) => {
-        console.warn("scan_processing_update_failed", { uid, scanId: payload.scanId, message: (error as any)?.message });
-      });
-
-      // Call OpenAI Vision
-      let parsed: ParsedResult;
-      try {
-        parsed = await callOpenAi(apiKey, imagePairs, payload);
-      } catch (err: any) {
-        // Do not consume credit on model error
-        res.status(typeof err?.status === "number" ? err.status : 502).json({
-          error: "scan_engine_unavailable",
-          code: "scan_engine_unavailable",
-          message: "Vision model temporarily unavailable. Try again shortly.",
-        });
-        await scanRef.set(
-          { status: "failed", updatedAt: Timestamp.now(), error: "scan_engine_unavailable" },
-          { merge: true }
-        ).catch(() => undefined);
-        if (idempRef) await idempRef.set({ status: "failed", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
+      const payload = parsePayload(req.body);
+      if (!payload) {
+        res.status(400).json({ error: "invalid_payload", code: "invalid_payload" });
         return;
       }
 
-      // Attempt to consume exactly one credit AFTER successful model call
-      let credit = { consumed: true, remaining: 0 };
-
-      if (unlimitedCredits) {
-        // Skip credit consumption for whitelisted users
-        console.info("scan_submit_unlimited_credits", { uid });
-        credit = { consumed: true, remaining: Infinity };
-      } else {
-        let debitGuard = { already: false, remaining: null as number | null };
-        try {
-          debitGuard = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-            const snap = (await tx.get(debitRef)) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-            if (snap.exists) {
-              const data = snap.data() as any;
-              if (data?.status === "complete") {
-                return {
-                  already: true,
-                  remaining: typeof data.remaining === "number" ? data.remaining : null,
-                };
-              }
-              if (data?.status === "pending") {
-                throw Object.assign(new Error("debit_in_progress"), { code: "debit_in_progress" });
-              }
-            }
-            tx.set(
-              debitRef,
-              {
-                status: "pending",
-                createdAt: Timestamp.now(),
-                idempotencyKey: idempotencyKey || null,
-              },
-              { merge: true }
-            );
-            return { already: false, remaining: null };
-          });
-        } catch (error: any) {
-          const code = (error?.code as string) || "unknown";
-          console.warn("scan_submit_debit_guard", { uid, code, message: error?.message });
-          res.status(409).json({ error: "scan_in_progress", code: "scan_in_progress" });
-          return;
-        }
-
-        if (debitGuard.already) {
-          credit = { consumed: true, remaining: debitGuard.remaining ?? 0 };
-        } else {
-          try {
-            credit = await consumeCredit(uid);
-            if (!credit.consumed) {
-              await debitRef.set(
-                {
-                  status: "failed",
-                  failedAt: Timestamp.now(),
-                  remaining: null,
-                },
-                { merge: true }
-              );
-              await scanRef
-                .set({ status: "failed", updatedAt: Timestamp.now(), error: "no_credits" }, { merge: true })
-                .catch(() => undefined);
-              if (idempRef) await idempRef.set({ status: "failed_credit", failedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-              res.status(402).json({ error: "no_credits", code: "no_credits" });
-              return;
-            }
-            await debitRef.set(
-              {
-                status: "complete",
-                completedAt: Timestamp.now(),
-                remaining: Number.isFinite(credit.remaining) ? credit.remaining : null,
-              },
-              { merge: true }
-            );
-          } catch (error) {
-            await debitRef.delete().catch(() => undefined);
-            throw error;
-          }
-        }
+      const { uid } = authContext;
+      scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
+      const snap = await scanRef.get();
+      if (!snap.exists) {
+        res.status(404).json({ error: "not_found", code: "not_found" });
+        return;
+      }
+      const existing = snap.data() as ScanDocument;
+      if (existing.uid && existing.uid !== uid) {
+        res.status(403).json({ error: "forbidden", code: "forbidden" });
+        return;
       }
 
-      // Persist scan result
-      const completedAt = Timestamp.now();
-      const remainingCredits = Number.isFinite(credit.remaining) ? credit.remaining : null;
-      const metadataImages = imageMetaList.length
-        ? imageMetaList.map(({ pose, sizeBytes, md5Hash }) => ({ pose, sizeBytes, md5Hash: md5Hash ?? null }))
-        : imagePairs.map((p) => ({ pose: p.pose, sizeBytes: 0, md5Hash: null }));
+      await scanRef.set({ status: "processing", updatedAt: Timestamp.now() }, { merge: true });
 
-      const stored: StoredScan = {
-        createdAt: completedAt,
-        completedAt,
-        engine: OPENAI_MODEL,
+      let aiResult: OpenAIResult;
+      try {
+        const images = await buildImageInputs(payload.photoPaths);
+        const apiKey = getOpenAIKey() as string;
+        aiResult = await callOpenAI(apiKey, images, { ...payload, uid });
+      } catch (error: any) {
+        console.error("scan_submit_openai_failed", { message: error?.message });
+        await scanRef.set({ status: "error", errorMessage: "Analysis failed", updatedAt: Timestamp.now() }, { merge: true });
+        res.status(502).json({ error: "scan_engine_unavailable", code: "scan_engine_unavailable" });
+        return;
+      }
+
+      let estimate: ScanEstimate | null = null;
+      let workoutPlan: WorkoutPlan | null = null;
+      let nutritionPlan: NutritionPlan | null = null;
+
+      try {
+        estimate = sanitizeEstimate(aiResult.estimate);
+        workoutPlan = sanitizeWorkout(aiResult.workoutPlan);
+        nutritionPlan = sanitizeNutrition(aiResult.nutritionPlan);
+      } catch (error: any) {
+        console.error("scan_submit_parse_failed", { message: error?.message });
+        await scanRef.set({ status: "error", errorMessage: "Could not parse analysis", updatedAt: Timestamp.now() }, { merge: true });
+        res.status(500).json({ error: "parse_error", code: "parse_error" });
+        return;
+      }
+
+      const update: Partial<ScanDocument> = {
         status: "complete",
-        inputs: inputRecord,
-        result: parsed,
-        metadata: {
-          sessionId: payload.scanId,
-          images: metadataImages,
+        updatedAt: Timestamp.now(),
+        photoPaths: payload.photoPaths,
+        input: {
+          currentWeightKg: payload.currentWeightKg,
+          goalWeightKg: payload.goalWeightKg,
         },
+        estimate,
+        workoutPlan,
+        nutritionPlan,
       };
 
-      const finalUpdate: Record<string, unknown> = {
-        ...stored,
-        updatedAt: completedAt,
-        creditsRemaining: remainingCredits,
-        charged: !unlimitedCredits,
-      };
-      finalUpdate["metadata.sessionId"] = payload.scanId;
-      finalUpdate["metadata.images"] = metadataImages;
+      await scanRef.set(update, { merge: true });
 
-      await scanRef.set(finalUpdate, { merge: true });
-      if (idempRef)
-        await idempRef.set({ status: "complete", completedAt: Timestamp.now() }, { merge: true }).catch(() => undefined);
-
-      res.json({
-        id: payload.scanId,
-        createdAt: completedAt.toMillis(),
-        completedAt: completedAt.toMillis(),
-        engine: OPENAI_MODEL,
-        status: "complete",
-        inputs: inputRecord,
-        result: parsed,
-        metadata: stored.metadata,
-        creditsRemaining: remainingCredits,
-        provider: "openai",
-      });
+      res.json({ status: "complete" });
     } catch (err: any) {
+      console.error("scan_submit_unhandled", { message: err?.message });
       if (scanRef) {
         await scanRef
-          .set({ status: "failed", updatedAt: Timestamp.now(), error: err?.message || "scan_failed" }, { merge: true })
+          .set({ status: "error", errorMessage: "Server error", updatedAt: Timestamp.now() }, { merge: true })
           .catch(() => undefined);
       }
-      res.status(500).json({ error: "scan_failed", code: "scan_failed", message: err?.message || "error" });
+      res.status(500).json({ error: "server_error", code: "server_error" });
     }
-  }
+  },
 );
-

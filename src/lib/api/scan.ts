@@ -1,15 +1,77 @@
-import { apiFetch, apiPost } from "@/lib/http";
+import { apiFetch } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
-import { auth, db } from "@/lib/firebase";
-import { doc } from "firebase/firestore";
-import { uploadScanImages, type PoseKey } from "@/lib/liveScan";
+import { auth, db, storage } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 
-export type Pose = PoseKey;
+export type ScanEstimate = {
+  bodyFatPercent: number;
+  bmi: number | null;
+  notes: string;
+};
+
+export type WorkoutPlan = {
+  summary: string;
+  weeks: {
+    weekNumber: number;
+    days: {
+      day: string;
+      focus: string;
+      exercises: {
+        name: string;
+        sets: number;
+        reps: string;
+        notes?: string;
+      }[];
+    }[];
+  }[];
+};
+
+export type NutritionPlan = {
+  caloriesPerDay: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatsGrams: number;
+  sampleDay: {
+    mealName: string;
+    description: string;
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  }[];
+};
+
+export type ScanDocument = {
+  id: string;
+  uid: string;
+  createdAt: Date;
+  updatedAt: Date;
+  status: "pending" | "processing" | "complete" | "error";
+  errorMessage?: string;
+  photoPaths: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+  };
+  input: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+  };
+  estimate: ScanEstimate | null;
+  workoutPlan: WorkoutPlan | null;
+  nutritionPlan: NutritionPlan | null;
+};
 
 export type StartScanResponse = {
   scanId: string;
-  uploadUrls: Record<Pose, string>;
-  expiresAt?: string;
+  storagePaths: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+  };
 };
 
 function startUrl(): string {
@@ -20,62 +82,78 @@ function submitUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_SUBMIT_URL", "submitScan");
 }
 
-function deleteUrl(): string {
-  return resolveFunctionUrl("VITE_DELETE_SCAN_URL", "deleteScan");
-}
-
-export async function startScanSession(): Promise<StartScanResponse> {
+export async function startScanSessionClient(params: {
+  currentWeightKg: number;
+  goalWeightKg: number;
+}): Promise<StartScanResponse> {
   const user = auth.currentUser;
   if (!user) throw new Error("Not signed in");
-  const data = await apiFetch<StartScanResponse>(startUrl(), { method: "POST" });
-  const scanId = typeof data?.scanId === "string" ? data.scanId : "";
-  if (!scanId) throw new Error("startScan did not return scanId");
-  const uploadUrls = data?.uploadUrls && typeof data.uploadUrls === "object" ? data.uploadUrls : {};
-  return { scanId, uploadUrls: uploadUrls as Record<Pose, string>, expiresAt: data?.expiresAt };
+  const data = await apiFetch<StartScanResponse>(startUrl(), {
+    method: "POST",
+    body: {
+      currentWeightKg: params.currentWeightKg,
+      goalWeightKg: params.goalWeightKg,
+    },
+  });
+  if (!data?.scanId) {
+    throw new Error("startScan did not return scanId");
+  }
+  return data;
 }
 
-export async function uploadScanBlobs(opts: {
-  scanId: string;
-  uploadUrls: Record<Pose, string>;
-  blobs: Record<Pose, Blob>;
-  onProgress?: (p: { pose: Pose; bytesTransferred: number; totalBytes: number; percent: number }) => void;
-}): Promise<void> {
-  const files: Record<PoseKey, File> = {} as Record<PoseKey, File>;
-  (Object.keys(opts.uploadUrls) as Pose[]).forEach((pose) => {
-    const blob = opts.blobs[pose];
-    if (!blob) {
-      throw new Error(`Missing ${pose} image`);
-    }
-    const type = blob.type || "image/jpeg";
-    files[pose] = blob instanceof File ? blob : new File([blob], `${pose}.jpg`, { type });
-  });
+async function uploadPhoto(path: string, file: File): Promise<void> {
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
+}
 
-  await uploadScanImages(opts.uploadUrls, files, {
-    onProgress: ({ pose, index, total }) => {
-      const percent = Math.max(0, Math.min(100, Math.round(((index + 1) / total) * 100)));
-      opts.onProgress?.({ pose, bytesTransferred: index + 1, totalBytes: total, percent });
+export async function submitScanClient(params: {
+  scanId: string;
+  storagePaths: { front: string; back: string; left: string; right: string };
+  photos: { front: File; back: File; left: File; right: File };
+  currentWeightKg: number;
+  goalWeightKg: number;
+}): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  const entries = Object.entries(params.storagePaths) as Array<[
+    keyof typeof params.storagePaths,
+    string
+  ]>;
+  for (const [pose, path] of entries) {
+    const file = params.photos[pose as keyof typeof params.photos];
+    if (!file) throw new Error(`Missing ${pose} photo`);
+    await uploadPhoto(path, file);
+  }
+
+  await apiFetch(submitUrl(), {
+    method: "POST",
+    body: {
+      scanId: params.scanId,
+      photoPaths: params.storagePaths,
+      currentWeightKg: params.currentWeightKg,
+      goalWeightKg: params.goalWeightKg,
     },
   });
 }
 
-export async function submitScan(scanId: string): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  await apiFetch(submitUrl(), { method: "POST", body: { scanId } });
-}
-
-export function scanDocRef(scanId: string) {
+export async function getScan(scanId: string): Promise<ScanDocument> {
   const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error("No user");
-  return doc(db, "users", uid, "scans", scanId);
+  if (!uid) throw new Error("Not signed in");
+  const ref = doc(db, "users", uid, "scans", scanId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Scan not found");
+  const data = snap.data() as any;
+  return {
+    id: snap.id,
+    uid,
+    createdAt: data.createdAt?.toDate?.() ?? new Date(),
+    updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+    status: data.status ?? "pending",
+    errorMessage: data.errorMessage,
+    photoPaths: data.photoPaths ?? { front: "", back: "", left: "", right: "" },
+    input: data.input ?? { currentWeightKg: 0, goalWeightKg: 0 },
+    estimate: data.estimate ?? null,
+    workoutPlan: data.workoutPlan ?? null,
+    nutritionPlan: data.nutritionPlan ?? null,
+  };
 }
-
-export async function deleteScanApi(scanId: string): Promise<void> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  await apiPost(deleteUrl(), { scanId });
-}
-
-// Legacy aliases for existing call sites
-export { startScanSession as startScanCallable };
-export { submitScan as triggerScanProcessing };

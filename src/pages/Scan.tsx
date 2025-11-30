@@ -1,121 +1,146 @@
 import { useEffect, useMemo, useState } from "react";
-import ScanCapture from "@/features/scan/ScanCapture"; // from Prompt #6
-import { startScanSession, uploadScanBlobs, submitScan, scanDocRef, type Pose } from "@/lib/api/scan";
-import { useAuthUser } from "@/lib/useAuthUser";
-import { onSnapshot } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { startScanSessionClient, submitScanClient } from "@/lib/api/scan";
+import { useAuthUser } from "@/lib/useAuthUser";
 
-type CaptureReady = Record<Pose, Blob>;
+interface PhotoInputs {
+  front: File | null;
+  back: File | null;
+  left: File | null;
+  right: File | null;
+}
 
 export default function ScanPage() {
   const { user, loading: authLoading } = useAuthUser();
   const nav = useNavigate();
-  const [phase, setPhase] = useState<"capture" | "upload" | "processing" | "done" | "error">("capture");
-  const [scanId, setScanId] = useState<string | null>(null);
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Record<Pose, number>>({ front: 0, back: 0, left: 0, right: 0 });
+  const [currentWeight, setCurrentWeight] = useState("");
+  const [goalWeight, setGoalWeight] = useState("");
+  const [photos, setPhotos] = useState<PhotoInputs>({ front: null, back: null, left: null, right: null });
+  const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
 
-  async function handleReady(payload: CaptureReady) {
-    setErrMsg(null);
+  const missingFields = useMemo(() => {
+    return !currentWeight || !goalWeight || !photos.front || !photos.back || !photos.left || !photos.right;
+  }, [currentWeight, goalWeight, photos]);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (missingFields) {
+      setError("Please add all four photos and enter your weights.");
+      return;
+    }
+
+    const currentWeightKg = Number(currentWeight);
+    const goalWeightKg = Number(goalWeight);
+    if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
+      setError("Please enter valid numbers for your weight goals.");
+      return;
+    }
+
     try {
-      setPhase("upload");
-      const { scanId, uploadUrls } = await startScanSession();
-      setScanId(scanId);
+      setStatus("starting");
+      const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
 
-      await uploadScanBlobs({
-        scanId,
-        uploadUrls,
-        blobs: payload,
-        onProgress: ({ pose, percent }) =>
-          setProgress((p) => ({ ...p, [pose]: Math.max(0, Math.min(100, Math.round(percent))) })),
+      setStatus("uploading");
+      await submitScanClient({
+        scanId: start.scanId,
+        storagePaths: start.storagePaths,
+        photos: {
+          front: photos.front!,
+          back: photos.back!,
+          left: photos.left!,
+          right: photos.right!,
+        },
+        currentWeightKg,
+        goalWeightKg,
       });
 
-      setPhase("processing");
-      await submitScan(scanId);
-
-      // Live status via Firestore
-      const unsub = onSnapshot(scanDocRef(scanId), (snap) => {
-        const data = snap.data() as any;
-        const status = (data?.status || "").toLowerCase();
-        if (status === "completed" || data?.results) {
-          unsub();
-          setPhase("done");
-        } else if (status === "error") {
-          unsub();
-          setErrMsg(data?.error || "Scan failed");
-          setPhase("error");
-        }
-      });
+      setStatus("analyzing");
+      nav(`/scan/${start.scanId}`);
     } catch (err: any) {
-      setErrMsg(err?.message || "Something went wrong");
-      setPhase("error");
+      setStatus("idle");
+      setError(err?.message || "Could not start the scan.");
     }
   }
 
-  const overall = useMemo(() => {
-    const vals = Object.values(progress);
-    const sum = vals.reduce((a, b) => a + (b || 0), 0);
-    return Math.round(sum / 4);
-  }, [progress]);
+  function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
+    const file = fileList?.[0] ?? null;
+    setPhotos((prev) => ({ ...prev, [pose]: file }));
+  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-4">
-      <h1 className="text-lg font-semibold">Scan</h1>
+    <div className="mx-auto max-w-2xl space-y-6 p-4">
+      <h1 className="text-xl font-semibold">AI Body Scan</h1>
+      <p className="text-sm text-muted-foreground">
+        Upload four photos and your current/goal weight. We&apos;ll analyze your body composition and build a personalized workout
+        and nutrition plan.
+      </p>
 
-      {phase === "capture" && <ScanCapture onReady={handleReady} />}
-
-      {phase === "upload" && (
-        <div className="space-y-3">
-          <p className="text-sm">Uploading your photos…</p>
-          <ul className="text-xs grid grid-cols-2 gap-2">
-            {(["front","back","left","right"] as Pose[]).map((pose) => (
-              <li key={pose} className="rounded border p-2">
-                <div className="flex items-center justify-between">
-                  <span className="capitalize">{pose}</span>
-                  <span>{progress[pose]}%</span>
-                </div>
-                <div className="mt-1 h-1 w-full bg-black/10">
-                  <div className="h-1" style={{ width: `${progress[pose]}%` }} />
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="text-xs text-muted-foreground">Overall: {overall}%</div>
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Current weight (kg)
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              min="0"
+              value={currentWeight}
+              onChange={(e) => setCurrentWeight(e.target.value)}
+              className="rounded border px-3 py-2 text-base"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Goal weight (kg)
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              min="0"
+              value={goalWeight}
+              onChange={(e) => setGoalWeight(e.target.value)}
+              className="rounded border px-3 py-2 text-base"
+            />
+          </label>
         </div>
-      )}
 
-      {phase === "processing" && (
-        <div className="space-y-2">
-          <p className="text-sm">Processing your scan… this may take up to a minute on mobile networks.</p>
-          <div className="animate-pulse h-2 w-1/2 bg-black/10" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(["front", "back", "left", "right"] as Array<keyof PhotoInputs>).map((pose) => (
+            <label key={pose} className="flex flex-col gap-2 rounded border p-3 text-sm font-medium capitalize">
+              {pose}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => onFileChange(pose, e.target.files)}
+                className="text-xs"
+              />
+              {photos[pose] ? (
+                <span className="text-xs text-muted-foreground">{photos[pose]?.name}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">Upload a clear {pose} photo</span>
+              )}
+            </label>
+          ))}
         </div>
-      )}
 
-      {phase === "done" && (
-        <div className="space-y-2">
-          <p className="text-sm">Scan complete.</p>
-          <button
-            className="rounded-md border px-3 py-2 text-sm"
-            onClick={() => nav(`/scans/${scanId}`)}
-          >
-            View Results
-          </button>
-        </div>
-      )}
+        {error && <p className="text-sm text-red-700">{error}</p>}
 
-      {phase === "error" && (
-        <div role="alert" className="space-y-2">
-          <p className="text-sm text-red-700">Could not complete your scan.</p>
-          {errMsg ? <p className="text-xs text-red-700/90">{errMsg}</p> : null}
-          <button className="rounded-md border px-3 py-2 text-sm" onClick={() => window.location.reload()}>
-            Try Again
-          </button>
-        </div>
-      )}
+        <button
+          type="submit"
+          disabled={missingFields || status !== "idle"}
+          className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+        >
+          {status === "starting" && "Starting scan…"}
+          {status === "uploading" && "Uploading photos…"}
+          {status === "analyzing" && "Analyzing your scan…"}
+          {status === "idle" && "Analyze scan"}
+        </button>
+      </form>
     </div>
   );
 }
