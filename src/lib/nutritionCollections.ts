@@ -31,41 +31,55 @@ function assertUid(): string {
 
 export function favoritesQuery(uid?: string) {
   const userId = uid ?? assertUid();
-  return query(collection(db, `users/${userId}/nutrition/favorites`), orderBy("updatedAt", "desc"));
+  return query(collection(db, `users/${userId}/nutritionFavorites`), orderBy("updatedAt", "desc"));
 }
 
 export function templatesQuery(uid?: string) {
   const userId = uid ?? assertUid();
-  return query(collection(db, `users/${userId}/nutrition/templates`), orderBy("updatedAt", "desc"));
+  return query(collection(db, `users/${userId}/nutritionTemplates`), orderBy("updatedAt", "desc"));
 }
 
 export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => void) {
   const uid = assertUid();
-  return onSnapshot(favoritesQuery(uid), (snap) => {
-    const list: FavoriteDocWithId[] = [];
-    snap.forEach((docSnap) => {
-      const data = docSnap.data() as FavoriteDoc;
-      list.push({ id: docSnap.id, ...data });
-    });
-    callback(list);
-  });
+  return onSnapshot(
+    favoritesQuery(uid),
+    (snap) => {
+      const list: FavoriteDocWithId[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as FavoriteDoc;
+        list.push({ id: docSnap.id, ...data });
+      });
+      callback(list);
+    },
+    (error) => {
+      console.warn("favorites_subscribe_error", error);
+      callback([]);
+    },
+  );
 }
 
 export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => void) {
   const uid = assertUid();
-  return onSnapshot(templatesQuery(uid), (snap) => {
-    const list: TemplateDocWithId[] = [];
-    snap.forEach((docSnap) => {
-      const data = docSnap.data() as TemplateDoc;
-      list.push({ id: docSnap.id, ...data });
-    });
-    callback(list);
-  });
+  return onSnapshot(
+    templatesQuery(uid),
+    (snap) => {
+      const list: TemplateDocWithId[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as TemplateDoc;
+        list.push({ id: docSnap.id, ...data });
+      });
+      callback(list);
+    },
+    (error) => {
+      console.warn("templates_subscribe_error", error);
+      callback([]);
+    },
+  );
 }
 
 export async function saveFavorite(item: FoodItem) {
   const uid = assertUid();
-  const ref = doc(db, `users/${uid}/nutrition/favorites/${item.id}`);
+  const ref = doc(db, `users/${uid}/nutritionFavorites/${item.id}`);
   const payload: FavoriteDoc = {
     name: item.name,
     brand: item.brand,
@@ -77,7 +91,7 @@ export async function saveFavorite(item: FoodItem) {
 
 export async function removeFavorite(id: string) {
   const uid = assertUid();
-  await deleteDoc(doc(db, `users/${uid}/nutrition/favorites/${id}`));
+  await deleteDoc(doc(db, `users/${uid}/nutritionFavorites/${id}`));
 }
 
 export interface FavoriteDocWithId extends FavoriteDoc {
@@ -95,7 +109,7 @@ export async function saveTemplate(id: string | null, name: string, items: Templ
     (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `template-${Math.random().toString(36).slice(2, 10)}`);
-  const ref = doc(db, `users/${uid}/nutrition/templates/${templateId}`);
+  const ref = doc(db, `users/${uid}/nutritionTemplates/${templateId}`);
   const payload: TemplateDoc = {
     name,
     items,
@@ -107,5 +121,5 @@ export async function saveTemplate(id: string | null, name: string, items: Templ
 
 export async function deleteTemplate(id: string) {
   const uid = assertUid();
-  await deleteDoc(doc(db, `users/${uid}/nutrition/templates/${id}`));
+  await deleteDoc(doc(db, `users/${uid}/nutritionTemplates/${id}`));
 }

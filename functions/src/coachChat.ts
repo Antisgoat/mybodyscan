@@ -136,7 +136,12 @@ async function createReply(payload: { message: string; history: Array<{ role: "u
 
 export const coachChat = functions.onRequest({ region: "us-central1" }, async (req, res) => {
   if (cors(req, res)) return;
-  await appCheckSoft(req);
+  try {
+    await appCheckSoft(req);
+  } catch (error) {
+    logger.warn("coachChat.appcheck_warning", error as Error);
+  }
+
   try {
     if (req.method !== "POST") {
       res.status(405).json({ code: "method_not_allowed", message: "Use POST to chat with the coach." });
@@ -151,7 +156,7 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
 
     const parsed = normalizeMessage(req.body);
     if (!parsed.message) {
-      res.status(400).json({ code: "invalid_prompt", message: "Please enter a question for the coach." });
+      res.status(400).json({ code: "invalid_message", message: "Coach prompt must not be empty." });
       return;
     }
 
@@ -161,17 +166,20 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
 
       res.json({ reply });
     } catch (error: any) {
-      logger.error("coachChat error", error);
-      res.status(500).json({
-        code: "coach_internal_error",
-        message: "Coach is temporarily unavailable; please try again.",
+      logger.error("coachChat backend error", {
+        messageLength: parsed.message.length,
+        error,
+      });
+      res.status(503).json({
+        code: "coach_backend_error",
+        message: "Coach is unavailable right now; please try again shortly.",
       });
     }
   } catch (error: any) {
     logger.error("coachChat error", error);
-    res.status(500).json({
-      code: "coach_internal_error",
-      message: "Coach is temporarily unavailable; please try again.",
+    res.status(503).json({
+      code: "coach_backend_error",
+      message: "Coach is unavailable right now; please try again shortly.",
     });
   }
 });

@@ -618,12 +618,22 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
 
-    const raw =
-      (req.body && ((req.body as any).query ?? (req.body as any).q ?? (req.body as any).term ?? (req.body as any).search)) ??
-      (req.query && (req.query.query ?? req.query.q ?? (req.query as any).term ?? (req.query as any).search)) ??
+    const rawTerm =
+      (req.body &&
+        ((req.body as any).query ??
+          (req.body as any).term ??
+          (req.body as any).search ??
+          (req.body as any).q ??
+          (req.body as any).text)) ??
+      (req.query &&
+        (req.query.query ??
+          req.query.q ??
+          (req.query as any).term ??
+          (req.query as any).search ??
+          (req.query as any).text)) ??
       "";
 
-    const query = String(raw).trim();
+    const query = rawTerm != null ? String(rawTerm).trim() : "";
 
     if (!query) {
       res.status(400).json({
