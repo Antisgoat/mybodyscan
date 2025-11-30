@@ -14,8 +14,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { askCoach } from "@/lib/api/coach";
-import { ApiError } from "@/lib/http";
+import { coachChatApi, type CoachChatPayload } from "@/lib/api/coach";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -208,15 +207,9 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const response = await askCoach(sanitized);
-      const answer =
-        typeof response?.reply === "string" && response.reply
-          ? response.reply
-          : typeof response?.text === "string" && response.text
-            ? response.text
-            : typeof response?.answer === "string"
-              ? response.answer
-              : "No answer.";
+      const payload: CoachChatPayload = { message: sanitized };
+      const response = await coachChatApi(payload);
+      const answer = typeof response?.reply === "string" && response.reply ? response.reply : "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -228,19 +221,15 @@ export default function CoachChatPage() {
       setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
       console.error("coachChat error", error);
-      const apiError = error instanceof ApiError ? error : null;
-      const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
-      const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
-      const status = apiError?.status;
-      const errMessage = typeof apiMessage === "string" && apiMessage
-        ? apiMessage
-        : typeof error?.message === "string"
+      const code = (error as any)?.code as string | undefined;
+      const errMessage =
+        typeof error?.message === "string" && error.message !== "Bad Request"
           ? error.message
-          : String(error);
-      const fallback = status === 400 || code === "invalid_message"
+          : "";
+      const fallback = code === "invalid_message"
         ? "Please enter a question for the coach."
         : "Coach is unavailable right now; please try again shortly.";
-      const message = apiMessage || (errMessage && errMessage !== "Bad Request" ? errMessage : fallback);
+      const message = errMessage || fallback;
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       try {

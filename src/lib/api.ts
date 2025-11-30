@@ -246,7 +246,7 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
   try {
     payload = await apiFetchJson("/coach/chat", {
       method: "POST",
-      body: JSON.stringify({ question: trimmed, demo: isDemo() }),
+      body: JSON.stringify({ message: trimmed, demo: isDemo() }),
       signal: options.signal,
     });
   } catch (error) {
