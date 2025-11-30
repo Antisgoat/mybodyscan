@@ -230,15 +230,16 @@ export default function CoachChatPage() {
       console.error("coachChat error", error);
       const apiError = error instanceof ApiError ? error : null;
       const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
-      const errMessage = typeof apiError?.data?.message === "string" && apiError.data.message
-        ? apiError.data.message
+      const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
+      const errMessage = typeof apiMessage === "string" && apiMessage
+        ? apiMessage
         : typeof error?.message === "string"
           ? error.message
           : String(error);
       const fallback = code === "invalid_prompt"
         ? "Please enter a question for the coach."
         : "Coach is temporarily unavailable; please try again.";
-      const message = errMessage || fallback;
+      const message = apiMessage || (errMessage && errMessage !== "Bad Request" ? errMessage : fallback);
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       try {

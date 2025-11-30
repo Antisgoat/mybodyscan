@@ -32,7 +32,9 @@ export default function NutritionSearch() {
       const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
       const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
       const status = apiError?.status;
-      let message = apiMessage || err?.message || "Search failed. Please try again.";
+      const fallback = "Food database temporarily unavailable; please try again later.";
+      const rawMessage = apiMessage || err?.message;
+      let message = rawMessage && rawMessage !== "Bad Request" ? rawMessage : fallback;
       if (!apiMessage) {
         if (code === "invalid_query") {
           message = "Search query must not be empty.";

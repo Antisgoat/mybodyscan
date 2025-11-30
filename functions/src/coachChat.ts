@@ -44,9 +44,11 @@ function normalizeMessage(body: unknown): { message: string; history: Array<{ ro
     ? payload.prompt
     : typeof payload.message === "string"
       ? payload.message
-      : typeof payload.text === "string"
-        ? payload.text
-        : "";
+      : typeof payload.question === "string"
+        ? payload.question
+        : typeof payload.text === "string"
+          ? payload.text
+          : "";
   const message = rawMessage.trim().slice(0, MAX_MESSAGE_LENGTH);
 
   const history = Array.isArray(payload.history)
@@ -137,13 +139,13 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
   await appCheckSoft(req);
   try {
     if (req.method !== "POST") {
-      res.status(405).json({ error: "method_not_allowed" });
+      res.status(405).json({ code: "method_not_allowed", message: "Use POST to chat with the coach." });
       return;
     }
 
     const uid = await uidFromBearer(req);
     if (!uid) {
-      res.status(401).json({ error: "unauthenticated" });
+      res.status(401).json({ code: "unauthenticated", message: "Sign in to chat with the coach." });
       return;
     }
 
@@ -159,13 +161,6 @@ export const coachChat = functions.onRequest({ region: "us-central1" }, async (r
 
       res.json({ reply });
     } catch (error: any) {
-      if (error?.message === "coach_unconfigured" || error?.message === "coach_timeout") {
-        res.status(500).json({
-          code: "coach_internal_error",
-          message: "Coach is temporarily unavailable; please try again.",
-        });
-        return;
-      }
       logger.error("coachChat error", error);
       res.status(500).json({
         code: "coach_internal_error",
