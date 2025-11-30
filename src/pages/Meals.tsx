@@ -101,6 +101,10 @@ export default function Meals() {
         const meals = Array.isArray(data.meals) ? data.meals : [];
         setLog({ totals, meals });
       })
+      .catch((error) => {
+        console.warn("meals.refreshLog", error);
+        setLog({ totals: { calories: 0 }, meals: [] });
+      })
       .finally(() => setLoading(false));
   }, [demo, todayISO]);
 

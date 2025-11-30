@@ -31,6 +31,7 @@ export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { systemBootstrap } from "./system.js";
 export { deleteAccount } from "./http/deleteAccount.js";
+export { getDailyLog, getNutritionHistory } from "./nutrition.js";
 
 const express = expressModule as any;
 const app = express();
