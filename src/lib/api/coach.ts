@@ -1,17 +1,23 @@
-import { apiPost } from "@/lib/http";
-import { resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { apiFetchJson } from "@/lib/apiFetch";
 
-function coachUrl(): string {
-  return resolveFunctionUrl("VITE_COACH_URL", "coachChat");
+export interface CoachChatResponse {
+  reply: string;
+  uid?: string | null;
 }
 
-export async function askCoach(
-  prompt: string,
-  extras?: { history?: Array<{ role: "user" | "assistant"; content: string }>; profile?: Record<string, unknown>; mode?: string },
-) {
-  const payload: Record<string, unknown> = { prompt, message: prompt };
-  if (extras?.history) payload.history = extras.history;
-  if (extras?.profile) payload.profile = extras.profile;
-  if (extras?.mode) payload.mode = extras.mode;
-  return apiPost<{ reply?: string; error?: string }>(coachUrl(), payload);
+export interface CoachChatPayload {
+  message: string;
+  goal?: string;
+  sex?: string;
+  age?: number;
+  currentWeightKg?: number;
+  targetWeightKg?: number;
+  heightCm?: number;
+}
+
+export async function coachChatApi(payload: CoachChatPayload): Promise<CoachChatResponse> {
+  return apiFetchJson<CoachChatResponse>("/coach/chat", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

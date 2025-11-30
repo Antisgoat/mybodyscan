@@ -11,7 +11,7 @@ import { nutritionRouter } from "./nutrition.js";
 import { systemRouter } from "./systemRouter.js";
 
 export { systemHealth } from "./systemHealth.js";
-export { coachChat } from "./coach/coachChat.js";
+export { coachChat } from "./coachChat.js";
 export { nutritionSearch } from "./nutrition/search.js";
 export { nutritionBarcode } from "./nutrition/barcode.js";
 export { startScanSession } from "./scan/start.js";

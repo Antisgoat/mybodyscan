@@ -567,8 +567,11 @@ function parseQuery(value: unknown) {
 }
 
 nutritionRouter.get("/search", async (req: Request, res: Response) => {
-  const query = parseQuery(req.query.q);
-  const barcode = parseQuery(req.query.barcode);
+  const query = parseQuery(
+    (req.query as any)?.q ?? (req.query as any)?.query ?? (req.query as any)?.term ?? (req.query as any)?.search ??
+      (req.query as any)?.text,
+  );
+  const barcode = parseQuery((req.query as any)?.barcode ?? (req.query as any)?.code);
 
   if (!query && !barcode) {
     res.json({ items: [], results: [], source: null, message: "no_query" });
@@ -587,8 +590,10 @@ nutritionRouter.get("/search", async (req: Request, res: Response) => {
 });
 
 nutritionRouter.post("/search", async (req: Request, res: Response) => {
-  const query = parseQuery(req.body?.q);
-  const barcode = parseQuery(req.body?.barcode);
+  const query = parseQuery(
+    req.body?.q ?? req.body?.query ?? req.body?.term ?? req.body?.search ?? req.body?.text,
+  );
+  const barcode = parseQuery(req.body?.barcode ?? req.body?.code);
 
   if (!query && !barcode) {
     res.json({ items: [], results: [], source: null, message: "no_query" });

@@ -612,36 +612,32 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
 
     if (req.method !== "GET" && req.method !== "POST") {
       res.setHeader("Allow", "GET,POST,OPTIONS");
-      throw new HttpError(405, "method_not_allowed");
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
     }
 
-    const auth = await verifyAuthorization(req);
-    const uid = auth.uid;
-
     const rawTerm =
-      (req.body &&
-        ((req.body as any).query ??
-          (req.body as any).term ??
-          (req.body as any).search ??
-          (req.body as any).q ??
-          (req.body as any).text)) ??
-      (req.query &&
-        (req.query.query ??
-          req.query.q ??
-          (req.query as any).term ??
-          (req.query as any).search ??
-          (req.query as any).text)) ??
+      (req.body as any)?.query ??
+      (req.body as any)?.term ??
+      (req.body as any)?.search ??
+      (req.body as any)?.q ??
+      (req.body as any)?.text ??
+      (req.query as any)?.q ??
+      (req.query as any)?.query ??
+      (req.query as any)?.term ??
+      (req.query as any)?.search ??
+      (req.query as any)?.text ??
       "";
 
     const query = rawTerm != null ? String(rawTerm).trim() : "";
 
     if (!query) {
-      res.status(400).json({
-        code: "invalid_query",
-        message: "Search query must not be empty.",
-      });
+      res.status(200).json({ items: [] });
       return;
     }
+
+    const auth = await verifyAuthorization(req);
+    const uid = auth.uid;
 
     const rateLimit = await ensureRateLimit({
       key: "nutrition_search",
@@ -680,6 +676,8 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
     handleError(res, error);
   }
 }
+
+export { handleNutritionSearch as nutritionSearchHandler };
 
 export const nutritionSearch = onRequest(
   { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
