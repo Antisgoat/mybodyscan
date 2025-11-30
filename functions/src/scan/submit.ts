@@ -11,6 +11,9 @@ const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
 const OPENAI_TIMEOUT_MS = 12000;
 
+const serverTimestamp = (): FirebaseFirestore.Timestamp =>
+  Timestamp.now() as FirebaseFirestore.Timestamp;
+
 const openai = new OpenAI({ apiKey: getOpenAIKey() ?? "" });
 
 type Pose = (typeof POSES)[number];
@@ -283,7 +286,7 @@ export const submitScan = onRequest(
         return;
       }
 
-      await scanRef.set({ status: "processing", updatedAt: Timestamp.now() }, { merge: true });
+      await scanRef.set({ status: "processing", updatedAt: serverTimestamp() }, { merge: true });
 
       let analysis: ParsedAnalysis;
       try {
@@ -298,14 +301,14 @@ export const submitScan = onRequest(
           invalidScan(res, "Missing or invalid scan data.");
           return;
         }
-        await scanRef.set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: Timestamp.now() }, { merge: true });
+        await scanRef.set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: serverTimestamp() }, { merge: true });
         res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });
         return;
       }
 
       const update: Partial<ScanDocument> = {
         status: "complete",
-        updatedAt: Timestamp.now(),
+        updatedAt: serverTimestamp(),
         photoPaths: payload.photoPaths,
         input: {
           currentWeightKg: payload.currentWeightKg,
@@ -328,7 +331,7 @@ export const submitScan = onRequest(
       console.error("scan_submit_unhandled", { message: err?.message, stack: err?.stack });
       if (scanRef) {
         await scanRef
-          .set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: Timestamp.now() }, { merge: true })
+          .set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: serverTimestamp() }, { merge: true })
           .catch(() => undefined);
       }
       res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });

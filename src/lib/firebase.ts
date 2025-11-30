@@ -223,4 +223,3 @@ export function initFirebase() {
   return { app, auth, db, storage, functions, analytics: analyticsInstance };
 }
 
-export { app, auth, db, storage, functions };
