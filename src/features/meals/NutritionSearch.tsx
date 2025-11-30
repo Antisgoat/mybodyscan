@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
+import { ApiError } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 
 export default function NutritionSearch() {
@@ -27,7 +28,19 @@ export default function NutritionSearch() {
       const items = await nutritionSearch(q.trim());
       setResults(items);
     } catch (err: any) {
-      setError(err?.message || "Search failed. Please try again.");
+      const apiError = err instanceof ApiError ? err : null;
+      const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
+      const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
+      const status = apiError?.status;
+      let message = apiMessage || err?.message || "Search failed. Please try again.";
+      if (!apiMessage) {
+        if (code === "invalid_query") {
+          message = "Search query must not be empty.";
+        } else if (status === 503 || code === "nutrition_backend_error") {
+          message = "Food database temporarily busy; try again later.";
+        }
+      }
+      setError(message);
     } finally {
       setBusy(false);
     }

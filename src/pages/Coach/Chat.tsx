@@ -15,6 +15,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
 import { askCoach } from "@/lib/api/coach";
+import { ApiError } from "@/lib/http";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -227,9 +228,17 @@ export default function CoachChatPage() {
       setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
       console.error("coachChat error", error);
-      const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
-      const code = typeof error?.code === "string" ? error.code : undefined;
-      const message = errMessage || "Coach unavailable";
+      const apiError = error instanceof ApiError ? error : null;
+      const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
+      const errMessage = typeof apiError?.data?.message === "string" && apiError.data.message
+        ? apiError.data.message
+        : typeof error?.message === "string"
+          ? error.message
+          : String(error);
+      const fallback = code === "invalid_prompt"
+        ? "Please enter a question for the coach."
+        : "Coach is temporarily unavailable; please try again.";
+      const message = errMessage || fallback;
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       try {

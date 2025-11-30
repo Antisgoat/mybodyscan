@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ApiError } from "@/lib/http";
 import { getScan, type ScanDocument } from "@/lib/api/scan";
 
 const REFRESH_INTERVAL_MS = 7000;
@@ -28,7 +29,13 @@ export default function ScanResultPage() {
         }
       } catch (err: any) {
         if (!cancelled) {
-          setError(err?.message || "Unable to load scan");
+          const apiError = err instanceof ApiError ? err : null;
+          const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
+          let message = typeof apiError?.data?.message === "string" ? apiError.data.message : err?.message || "Unable to load scan";
+          if (!apiError?.data?.message && apiError?.status === 500 && code === "scan_internal_error") {
+            message = "Could not complete your scan. Please try again later.";
+          }
+          setError(message);
           setLoading(false);
         }
       }

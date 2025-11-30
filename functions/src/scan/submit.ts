@@ -1,14 +1,17 @@
 import { onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
+import OpenAI from "openai";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
-import fetch from "node-fetch";
 
 const db = getFirestore();
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
+const OPENAI_TIMEOUT_MS = 12000;
+
+const openai = new OpenAI({ apiKey: getOpenAIKey() ?? "" });
 
 type Pose = (typeof POSES)[number];
 
@@ -25,21 +28,24 @@ type OpenAIResult = {
   nutritionPlan?: Partial<NutritionPlan>;
 };
 
+type ParsedAnalysis = {
+  estimate: ScanEstimate;
+  workoutPlan: WorkoutPlan;
+  nutritionPlan: NutritionPlan;
+};
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(value, min), max);
 }
 
 function extractJson(text: string): any {
-  let trimmed = text.trim();
-  const fenced = trimmed.match(/```json([\s\S]*?)```/i);
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```json([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/);
   if (fenced) {
-    trimmed = fenced[1];
-  } else if (trimmed.startsWith("```")) {
-    const generic = trimmed.match(/```([\s\S]*?)```/);
-    if (generic) trimmed = generic[1];
+    return JSON.parse(fenced[1]?.trim() ?? "{}");
   }
-  return JSON.parse(trimmed.trim());
+  return JSON.parse(trimmed);
 }
 
 function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate {
@@ -110,6 +116,8 @@ function parsePayload(body: any): SubmitPayload | null {
   if (!body || typeof body !== "object") return null;
   const scanId = typeof body.scanId === "string" ? body.scanId.trim() : "";
   const photoPathsRaw = body.photoPaths && typeof body.photoPaths === "object" ? body.photoPaths : null;
+  const currentWeightKg = Number(body.currentWeightKg);
+  const goalWeightKg = Number(body.goalWeightKg);
   if (!scanId || !photoPathsRaw) return null;
   const photoPaths: Record<Pose, string> = {
     front: typeof photoPathsRaw.front === "string" ? photoPathsRaw.front : "",
@@ -118,8 +126,6 @@ function parsePayload(body: any): SubmitPayload | null {
     right: typeof photoPathsRaw.right === "string" ? photoPathsRaw.right : "",
   };
   if (!photoPaths.front || !photoPaths.back || !photoPaths.left || !photoPaths.right) return null;
-  const currentWeightKg = Number(body.currentWeightKg);
-  const goalWeightKg = Number(body.goalWeightKg);
   if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) return null;
   return { scanId, photoPaths, currentWeightKg, goalWeightKg };
 }
@@ -144,11 +150,21 @@ async function buildImageInputs(paths: Record<Pose, string>): Promise<Array<{ po
   return entries;
 }
 
+function normalizeContent(content: any): string {
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => (typeof part?.text === "string" ? part.text : typeof part?.content === "string" ? part.content : ""))
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
 async function callOpenAI(
-  apiKey: string,
   images: Array<{ pose: Pose; url: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
-): Promise<OpenAIResult> {
+): Promise<string> {
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
     "Return JSON only matching {\"estimate\": ScanEstimate, \"workoutPlan\": WorkoutPlan, \"nutritionPlan\": NutritionPlan}.",
@@ -165,16 +181,14 @@ async function callOpenAI(
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+
+  try {
+    const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       temperature: 0.4,
-      max_tokens: 800,
+      max_tokens: 900,
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -186,23 +200,33 @@ async function callOpenAI(
         },
       ],
       user: input.uid,
-    }),
-  });
+      signal: controller.signal as any,
+    } as any);
 
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("scan_openai_error", { status: response.status, body: text.slice(0, 500) });
-    throw new Error("openai_error");
+    const content = normalizeContent(response.choices?.[0]?.message?.content);
+    if (!content) {
+      throw new Error("openai_no_content");
+    }
+    return content;
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  const data: any = await response.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    throw new Error("openai_no_content");
+function parseAnalysis(content: string): ParsedAnalysis {
+  try {
+    const raw = extractJson(content) as OpenAIResult;
+    const estimate = sanitizeEstimate(raw.estimate);
+    const workoutPlan = sanitizeWorkout(raw.workoutPlan);
+    const nutritionPlan = sanitizeNutrition(raw.nutritionPlan);
+    return { estimate, workoutPlan, nutritionPlan };
+  } catch (error) {
+    throw new Error(`openai_parse_failed:${(error as Error)?.message ?? "unknown"}`);
   }
+}
 
-  const parsed = extractJson(content) as OpenAIResult;
-  return parsed;
+function invalidScan(res: any, message = "Missing or invalid scan data.") {
+  res.status(400).json({ code: "invalid_scan_request", message });
 }
 
 export const submitScan = onRequest(
@@ -214,7 +238,7 @@ export const submitScan = onRequest(
       res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
       if (req.method === "OPTIONS") { res.status(204).end(); return; }
       if (req.method !== "POST") {
-        res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
+        res.status(405).json({ code: "method_not_allowed", message: "Method not allowed" });
         return;
       }
 
@@ -222,7 +246,7 @@ export const submitScan = onRequest(
         await verifyAppCheckStrict(req as Request);
       } catch (error: any) {
         console.warn("scan_submit_appcheck_failed", { message: error?.message });
-        res.status(401).json({ error: "app_check_unavailable", code: "app_check_unavailable" });
+        res.status(401).json({ code: "app_check_unavailable", message: "App Check token missing or invalid." });
         return;
       }
 
@@ -231,18 +255,18 @@ export const submitScan = onRequest(
         authContext = await requireAuthWithClaims(req as Request);
       } catch (error: any) {
         console.warn("scan_submit_auth_failed", { message: error?.message });
-        res.status(401).json({ error: "auth_required", code: "auth_required" });
+        res.status(401).json({ code: "auth_required", message: "Authentication required." });
         return;
       }
 
       if (!hasOpenAI()) {
-        res.status(503).json({ error: "openai_not_configured", code: "openai_not_configured" });
+        res.status(503).json({ code: "openai_not_configured", message: "Scan engine not configured." });
         return;
       }
 
       const payload = parsePayload(req.body);
       if (!payload) {
-        res.status(400).json({ error: "invalid_payload", code: "invalid_payload" });
+        invalidScan(res);
         return;
       }
 
@@ -250,41 +274,32 @@ export const submitScan = onRequest(
       scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
       const snap = await scanRef.get();
       if (!snap.exists) {
-        res.status(404).json({ error: "not_found", code: "not_found" });
+        res.status(404).json({ code: "not_found", message: "Scan not found." });
         return;
       }
       const existing = snap.data() as ScanDocument;
       if (existing.uid && existing.uid !== uid) {
-        res.status(403).json({ error: "forbidden", code: "forbidden" });
+        res.status(403).json({ code: "forbidden", message: "Scan does not belong to this user." });
         return;
       }
 
       await scanRef.set({ status: "processing", updatedAt: Timestamp.now() }, { merge: true });
 
-      let aiResult: OpenAIResult;
+      let analysis: ParsedAnalysis;
       try {
         const images = await buildImageInputs(payload.photoPaths);
-        const apiKey = getOpenAIKey() as string;
-        aiResult = await callOpenAI(apiKey, images, { ...payload, uid });
+        const content = await callOpenAI(images, { ...payload, uid });
+        analysis = parseAnalysis(content);
       } catch (error: any) {
-        console.error("scan_submit_openai_failed", { message: error?.message });
-        await scanRef.set({ status: "error", errorMessage: "Analysis failed", updatedAt: Timestamp.now() }, { merge: true });
-        res.status(502).json({ error: "scan_engine_unavailable", code: "scan_engine_unavailable" });
-        return;
-      }
-
-      let estimate: ScanEstimate | null = null;
-      let workoutPlan: WorkoutPlan | null = null;
-      let nutritionPlan: NutritionPlan | null = null;
-
-      try {
-        estimate = sanitizeEstimate(aiResult.estimate);
-        workoutPlan = sanitizeWorkout(aiResult.workoutPlan);
-        nutritionPlan = sanitizeNutrition(aiResult.nutritionPlan);
-      } catch (error: any) {
-        console.error("scan_submit_parse_failed", { message: error?.message });
-        await scanRef.set({ status: "error", errorMessage: "Could not parse analysis", updatedAt: Timestamp.now() }, { merge: true });
-        res.status(500).json({ error: "parse_error", code: "parse_error" });
+        const message = error?.message ?? "Unknown";
+        console.error("scan_submit_processing_failed", { message, stack: error?.stack });
+        const isClientIssue = typeof message === "string" && message.startsWith("missing_photo_");
+        if (isClientIssue) {
+          invalidScan(res, "Missing or invalid scan data.");
+          return;
+        }
+        await scanRef.set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: Timestamp.now() }, { merge: true });
+        res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });
         return;
       }
 
@@ -296,22 +311,27 @@ export const submitScan = onRequest(
           currentWeightKg: payload.currentWeightKg,
           goalWeightKg: payload.goalWeightKg,
         },
-        estimate,
-        workoutPlan,
-        nutritionPlan,
+        estimate: analysis.estimate,
+        workoutPlan: analysis.workoutPlan,
+        nutritionPlan: analysis.nutritionPlan,
       };
 
       await scanRef.set(update, { merge: true });
 
-      res.json({ status: "complete" });
+      res.json({
+        scanId: payload.scanId,
+        estimate: analysis.estimate,
+        workoutPlan: analysis.workoutPlan,
+        nutritionPlan: analysis.nutritionPlan,
+      });
     } catch (err: any) {
-      console.error("scan_submit_unhandled", { message: err?.message });
+      console.error("scan_submit_unhandled", { message: err?.message, stack: err?.stack });
       if (scanRef) {
         await scanRef
-          .set({ status: "error", errorMessage: "Server error", updatedAt: Timestamp.now() }, { merge: true })
+          .set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: Timestamp.now() }, { merge: true })
           .catch(() => undefined);
       }
-      res.status(500).json({ error: "server_error", code: "server_error" });
+      res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });
     }
   },
 );

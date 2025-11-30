@@ -8,7 +8,7 @@ export function normalizeFoodItem(x: any): FoodItem {
 
 export async function nutritionSearch(q: string): Promise<FoodItem[]> {
   const url = resolveFunctionUrl("VITE_NUTRITION_URL", "nutritionSearch");
-  const data: any = await apiPost(url, { q });
+  const data: any = await apiPost(url, { query: q });
 
   const arr = Array.isArray(data) ? data
     : Array.isArray(data.items) ? data.items

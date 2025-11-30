@@ -585,20 +585,22 @@ function pickError(errors: HttpError[]): HttpError {
 
 function handleError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {
-    const payload: Record<string, unknown> = { error: error.code };
-    if (error.code === "upstream_timeout") {
-      payload.error = "upstream_unavailable";
+    if (error.status === 429) {
+      res.status(429).json({ code: "rate_limited", message: "Too many requests. Please slow down." });
+      return;
     }
-    if (error.message && error.message !== error.code) {
-      payload.reason = error.message;
-    }
-    const status = error.code === "upstream_timeout" ? 502 : error.status;
-    send(res, status, payload);
+    res.status(503).json({
+      code: "nutrition_backend_error",
+      message: "Food database temporarily unavailable; please try again.",
+    });
     return;
   }
 
   console.error("nutrition_search_unhandled", { message: describeError(error) });
-  send(res, 502, { error: "upstream_unavailable" });
+  res.status(503).json({
+    code: "nutrition_backend_error",
+    message: "Food database temporarily unavailable; please try again.",
+  });
 }
 
 async function handleNutritionSearch(req: Request, res: Response): Promise<void> {
@@ -616,12 +618,17 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
 
-    const query = req.method === "POST"
-      ? String((req.body as any)?.q ?? "").trim()
-      : String(req.query?.q ?? req.query?.query ?? "").trim();
+    const query = (
+      (req.body as any)?.query ?? (req.body as any)?.q ?? req.query?.q ?? req.query?.query ?? ""
+    )
+      .toString()
+      .trim();
 
-    if (!query || query.length < 2) {
-      send(res, 200, { items: [], source: "USDA" });
+    if (!query) {
+      res.status(400).json({
+        code: "invalid_query",
+        message: "Search query must not be empty.",
+      });
       return;
     }
 
