@@ -1,5 +1,5 @@
 import { initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
-import { app } from "@/lib/firebase";
+import { firebaseApp } from "@/lib/firebase";
 
 const siteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || "";
 const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
@@ -16,7 +16,7 @@ function init(): AppCheck | null {
   if (instance) return instance;
   if (initialized) return instance;
   initialized = true;
-  instance = initializeAppCheck(app, {
+  instance = initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaV3Provider(siteKey || "unused"),
     isTokenAutoRefreshEnabled: true,
   });
