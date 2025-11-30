@@ -1,161 +1,182 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { onSnapshot, updateDoc } from "firebase/firestore";
-import { scanDocRef, type ScanDoc, normalizeScanMetrics, statusOf } from "@/lib/scans";
-import { useAuthUser } from "@/lib/useAuthUser";
+import { useNavigate, useParams } from "react-router-dom";
+import { getScan, type ScanDocument } from "@/lib/api/scan";
+
+const REFRESH_INTERVAL_MS = 7000;
 
 export default function ScanResultPage() {
   const { scanId = "" } = useParams();
   const nav = useNavigate();
-  const { user, loading: authLoading } = useAuthUser();
-
-  const [docState, setDocState] = useState<ScanDoc | null>(null);
+  const [scan, setScan] = useState<ScanDocument | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const needsRefresh = useMemo(() => {
+    if (!scan) return false;
+    return scan.status === "pending" || scan.status === "processing";
+  }, [scan]);
 
   useEffect(() => {
-    if (!authLoading && !user) nav("/auth?next=" + encodeURIComponent(`/scans/${scanId}`));
-  }, [authLoading, user, nav, scanId]);
-
-  useEffect(() => {
-    if (!scanId || !user) return;
-    const ref = scanDocRef(scanId);
-    const unsub = onSnapshot(ref, (snap) => {
-      const d = (snap.exists() ? ({ id: snap.id, ...snap.data() } as ScanDoc) : null);
-      setDocState(d);
-      if (d && typeof d.notes === "string") setNotes(d.notes);
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [scanId, user?.uid]);
-
-  const metrics = useMemo(() => normalizeScanMetrics(docState), [docState]);
-  const phase = useMemo(() => statusOf(docState), [docState]);
-
-  async function saveNotes() {
-    if (!scanId || !user) return;
-    try {
-      setSaving(true);
-      await updateDoc(scanDocRef(scanId), { notes: notes.slice(0, 4000) }); // client can update notes only
-      setSaveMsg("Saved");
-      setTimeout(() => setSaveMsg(null), 1500);
-    } catch (e: any) {
-      setSaveMsg("Failed to save notes");
-    } finally {
-      setSaving(false);
+    let cancelled = false;
+    async function fetchScan() {
+      try {
+        const data = await getScan(scanId);
+        if (!cancelled) {
+          setScan(data);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || "Unable to load scan");
+          setLoading(false);
+        }
+      }
     }
+
+    fetchScan();
+    if (needsRefresh) {
+      const id = setInterval(fetchScan, REFRESH_INTERVAL_MS);
+      return () => {
+        cancelled = true;
+        clearInterval(id);
+      };
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [scanId, needsRefresh]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-3 p-4">
+        <div className="h-6 w-40 animate-pulse rounded bg-black/10" />
+        <div className="h-4 w-64 animate-pulse rounded bg-black/10" />
+      </div>
+    );
   }
 
-  function shareResult() {
-    const title = "MyBodyScan result";
-    const text = metrics.bodyFatPct != null ? `Body fat: ${metrics.bodyFatPct}%` : "My latest scan";
-    const url = window.location.href;
-    if ((navigator as any).share) {
-      (navigator as any).share({ title, text, url }).catch(() => {});
-    } else {
-      navigator.clipboard?.writeText(url).then(() => setSaveMsg("Link copied"));
-    }
+  if (error || !scan) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-3 p-4">
+        <p className="text-sm text-red-700">{error || "Scan not found."}</p>
+        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Back to Scan</button>
+      </div>
+    );
+  }
+
+  if (scan.status === "error") {
+    return (
+      <div className="mx-auto max-w-3xl space-y-3 p-4">
+        <p className="text-sm text-red-700">We couldn&apos;t complete this scan.</p>
+        {scan.errorMessage && <p className="text-xs text-red-700/90">{scan.errorMessage}</p>}
+        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Try again</button>
+      </div>
+    );
+  }
+
+  if (scan.status === "pending" || scan.status === "processing") {
+    return (
+      <div className="mx-auto max-w-3xl space-y-3 p-4">
+        <p className="text-sm">Analyzing your photos…</p>
+        <div className="h-2 w-1/2 animate-pulse bg-black/10" />
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
-      <header className="sticky top-0 z-40 -mx-4 mb-3 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
-        <button onClick={() => nav(-1)} className="rounded border px-2 py-1 text-xs">Back</button>
-        <h1 className="text-sm font-medium truncate">Scan Result</h1>
-        <div className="flex-1" />
-        <button onClick={shareResult} className="rounded border px-2 py-1 text-xs">Share</button>
+    <div className="mx-auto max-w-4xl space-y-6 p-4">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">Scan result</h1>
+        <p className="text-sm text-muted-foreground">
+          Generated on {scan.updatedAt.toLocaleString()} from your recent photos.
+        </p>
       </header>
 
-      {loading && (
-        <div className="space-y-4">
-          <div className="h-6 w-40 bg-black/10 animate-pulse rounded" />
-          <div className="grid grid-cols-3 gap-2">
-            <div className="h-16 bg-black/10 animate-pulse rounded" />
-            <div className="h-16 bg-black/10 animate-pulse rounded" />
-            <div className="h-16 bg-black/10 animate-pulse rounded" />
+      {scan.estimate && (
+        <section className="rounded-lg border p-4 shadow-sm">
+          <h2 className="text-lg font-semibold">Body composition</h2>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Metric label="Body fat" value={`${scan.estimate.bodyFatPercent.toFixed(1)}%`} />
+            <Metric label="BMI" value={scan.estimate.bmi != null ? scan.estimate.bmi.toFixed(1) : "—"} />
+            <Metric label="Goal" value={`${scan.input.goalWeightKg.toFixed(1)} kg`} />
           </div>
-          <div className="h-24 bg-black/10 animate-pulse rounded" />
-        </div>
+          <p className="mt-3 text-sm text-muted-foreground">{scan.estimate.notes}</p>
+        </section>
       )}
 
-      {!loading && !docState && (
-        <div className="text-sm text-red-700">Scan not found.</div>
-      )}
-
-      {!loading && docState && (
-        <div className="space-y-4">
-          {/* Status / Phase */}
-          {phase !== "completed" && phase !== "error" && (
-            <div className="rounded border p-3">
-              <p className="text-sm">
-                {phase === "queued" && "Your scan is queued. This usually starts in a moment."}
-                {phase === "processing" && "Processing your scan… this can take up to a minute on mobile networks."}
-                {phase === "unknown" && "Preparing results…"}
-              </p>
-              <div className="mt-2 h-2 w-1/2 bg-black/10 animate-pulse" />
-            </div>
-          )}
-
-          {phase === "error" && (
-            <div className="rounded border p-3">
-              <p className="text-sm text-red-700">We couldn’t complete this scan.</p>
-              {docState.error && <p className="text-xs text-red-700/90 mt-1">{docState.error}</p>}
-              <button onClick={() => nav("/scan")} className="mt-2 rounded border px-3 py-2 text-sm">Try again</button>
-            </div>
-          )}
-
-          {/* Metrics */}
-          {(phase === "completed" || metrics.bodyFatPct != null || metrics.weightLb != null || metrics.bmi != null) && (
-            <section className="space-y-2">
-              <h2 className="text-sm font-medium">Metrics</h2>
-              <div className="grid grid-cols-3 gap-2">
-                <MetricCard label="Body Fat" value={metrics.bodyFatPct != null ? `${metrics.bodyFatPct}%` : "—"} highlight />
-                <MetricCard label="Weight" value={metrics.weightLb != null ? `${metrics.weightLb} lb` : "—"} />
-                <MetricCard label="BMI" value={metrics.bmi != null ? `${metrics.bmi}` : "—"} />
+      {scan.workoutPlan && (
+        <section className="space-y-3 rounded-lg border p-4 shadow-sm">
+          <h2 className="text-lg font-semibold">Workout plan</h2>
+          <p className="text-sm text-muted-foreground">{scan.workoutPlan.summary}</p>
+          <div className="space-y-3">
+            {scan.workoutPlan.weeks.map((week) => (
+              <div key={week.weekNumber} className="rounded-md border p-3">
+                <h3 className="text-sm font-semibold">Week {week.weekNumber}</h3>
+                <div className="mt-2 space-y-2">
+                  {week.days.map((day) => (
+                    <div key={`${week.weekNumber}-${day.day}`} className="rounded border p-3">
+                      <div className="flex items-center justify-between text-sm font-medium">
+                        <span>{day.day}</span>
+                        <span className="text-muted-foreground">{day.focus}</span>
+                      </div>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {day.exercises.map((ex, idx) => (
+                          <li key={`${ex.name}-${idx}`} className="flex flex-col rounded bg-muted/40 p-2">
+                            <span className="font-semibold">{ex.name}</span>
+                            <span className="text-xs text-muted-foreground">{ex.sets} sets · {ex.reps}</span>
+                            {ex.notes && <span className="text-xs text-muted-foreground">{ex.notes}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                MyBodyScan provides wellness information only and is <strong>not a medical device</strong>. Consult a clinician for medical advice.
-              </p>
-            </section>
-          )}
-
-          {/* Notes */}
-          <section className="space-y-2">
-            <h2 className="text-sm font-medium">Notes</h2>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="How did this scan feel? Any recent changes in training, sleep, or nutrition?"
-              className="w-full rounded border p-2 text-sm"
-              rows={4}
-            />
-            <div className="flex items-center gap-2">
-              <button onClick={saveNotes} disabled={saving} className="rounded border px-3 py-2 text-sm">
-                {saving ? "Saving…" : "Save Notes"}
-              </button>
-              {saveMsg && <span className="text-xs text-muted-foreground">{saveMsg}</span>}
-            </div>
-          </section>
-
-          {/* Actions */}
-          <section className="flex items-center gap-2">
-            <button onClick={() => nav("/scan")} className="rounded border px-3 py-2 text-sm">Rescan</button>
-            <button onClick={() => nav("/history")} className="rounded border px-3 py-2 text-sm">History</button>
-            <button onClick={() => nav("/coach/tracker")} className="rounded border px-3 py-2 text-sm">Tracker</button>
-          </section>
-        </div>
+            ))}
+          </div>
+        </section>
       )}
+
+      {scan.nutritionPlan && (
+        <section className="space-y-3 rounded-lg border p-4 shadow-sm">
+          <h2 className="text-lg font-semibold">Nutrition plan</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Metric label="Calories" value={`${scan.nutritionPlan.caloriesPerDay} kcal`} />
+            <Metric label="Protein" value={`${scan.nutritionPlan.proteinGrams} g`} />
+            <Metric label="Carbs" value={`${scan.nutritionPlan.carbsGrams} g`} />
+            <Metric label="Fats" value={`${scan.nutritionPlan.fatsGrams} g`} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Sample day</h3>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {scan.nutritionPlan.sampleDay.map((meal, idx) => (
+                <div key={`${meal.mealName}-${idx}`} className="rounded border p-3">
+                  <div className="text-sm font-semibold">{meal.mealName}</div>
+                  <p className="text-sm text-muted-foreground">{meal.description}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {meal.calories} kcal · P {meal.proteinGrams}g · C {meal.carbsGrams}g · F {meal.fatsGrams}g
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="flex gap-3">
+        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>New scan</button>
+        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/history")}>History</button>
+      </div>
     </div>
   );
 }
 
-function MetricCard({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className={`rounded border p-3 ${highlight ? "bg-emerald-50 border-emerald-200" : ""}`}>
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
+    <div className="rounded-md border p-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
     </div>
   );
 }

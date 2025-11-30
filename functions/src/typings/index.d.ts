@@ -326,3 +326,64 @@ declare module '@google-cloud/storage' {
   const Storage: any;
   export default Storage;
 }
+
+// Shared scan-related interfaces
+interface ScanEstimate {
+  bodyFatPercent: number;
+  bmi: number | null;
+  notes: string;
+}
+
+interface WorkoutPlan {
+  summary: string;
+  weeks: {
+    weekNumber: number;
+    days: {
+      day: string;
+      focus: string;
+      exercises: {
+        name: string;
+        sets: number;
+        reps: string;
+        notes?: string;
+      }[];
+    }[];
+  }[];
+}
+
+interface NutritionPlan {
+  caloriesPerDay: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatsGrams: number;
+  sampleDay: {
+    mealName: string;
+    description: string;
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  }[];
+}
+
+interface ScanDocument {
+  id: string;
+  uid: string;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.Timestamp;
+  status: "pending" | "processing" | "complete" | "error";
+  errorMessage?: string;
+  photoPaths: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+  };
+  input: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+  };
+  estimate: ScanEstimate | null;
+  workoutPlan: WorkoutPlan | null;
+  nutritionPlan: NutritionPlan | null;
+}
