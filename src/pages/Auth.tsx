@@ -82,7 +82,6 @@ const Auth = () => {
       if (mode === "signin") {
         try {
           await signInWithEmailAndPassword(auth, email, password);
-          window.location.replace(defaultTarget);
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & { code?: string; message?: string };
@@ -101,11 +100,10 @@ const Auth = () => {
 
           switch (code) {
             case "auth/network-request-failed":
-              uiMessage =
-                "We couldn't reach Firebase Auth. This usually means a network or configuration issue. Please check your connection and try again; if it keeps happening, contact support.";
+              uiMessage = "Network error contacting Auth. Please check your connection and try again.";
               break;
             case "auth/invalid-email":
-              uiMessage = "That email address is not valid.";
+              uiMessage = "That email address looks invalid.";
               break;
             case "auth/user-not-found":
             case "auth/wrong-password":
@@ -113,28 +111,25 @@ const Auth = () => {
               uiMessage = "Email or password is incorrect.";
               break;
             case "auth/too-many-requests":
-              uiMessage =
-                "Too many attempts. Please wait a bit and try again. If this continues, contact support.";
+              uiMessage = "Too many attempts. Please wait a bit and try again.";
               break;
             case "auth/operation-not-allowed":
-              uiMessage =
-                "Email/password sign-in is currently disabled for this project. Please contact support or use another sign-in method.";
+              uiMessage = "Sign-in is not enabled for this project. Contact support.";
               break;
             default:
-              // keep default generic message
+              console.error("[Auth] Unhandled sign-in error", error);
               break;
           }
 
           const emailLower = email.trim().toLowerCase();
           const isAdminDev = emailLower === "developer@adlrlabs.com";
-          const debugSuffix = isAdminDev ? ` [debug: ${code} — ${rawMessage}]` : "";
+          const debugSuffix = isAdminDev ? ` [debug: ${code}]` : "";
 
           setAuthError(`${uiMessage}${debugSuffix}`);
           return;
         }
       } else {
         await createAccountEmail(email, password);
-        window.location.replace(defaultTarget);
       }
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
