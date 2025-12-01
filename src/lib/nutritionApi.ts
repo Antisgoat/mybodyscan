@@ -1,5 +1,6 @@
 import { searchNutrition } from "@/lib/api/nutrition";
 
 export async function nutritionSearchClient(query: string) {
-  return searchNutrition(query);
+  const result = await searchNutrition(query);
+  return result.items;
 }

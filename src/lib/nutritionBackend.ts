@@ -1,6 +1,7 @@
 import { kcalFromMacros } from "./nutritionMath";
 import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { auth as firebaseAuth } from "@/lib/firebase";
 
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
@@ -106,15 +107,25 @@ export async function getDailyLog(dateISO: string) {
   if (isDemo()) {
     return DEMO_NUTRITION_LOG;
   }
-  return callFn("/getDailyLog", { dateISO });
+  const params = new URLSearchParams();
+  if (dateISO) {
+    params.set("date", dateISO);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetchJson(`${"/nutrition/daily-log"}${suffix}`, { method: "GET" });
 }
 
 export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string): Promise<NutritionHistoryDay[]> {
   if (isDemo()) {
     return DEMO_NUTRITION_HISTORY.slice(0, range);
   }
-  const anchor = anchorDateISO || new Date().toISOString().slice(0, 10);
-  const response = await callFn("/getNutritionHistory", { range, anchorDateISO: anchor });
+  const params = new URLSearchParams();
+  params.set("days", String(range));
+  if (anchorDateISO) {
+    params.set("anchorDate", anchorDateISO);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const response = await apiFetchJson<{ days?: any[] }>(`/nutrition/history${suffix}`, { method: "GET" });
   const list = Array.isArray(response?.days) ? response.days : [];
   return list.map((day: any) => ({
     date: day.date,

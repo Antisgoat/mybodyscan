@@ -49,7 +49,7 @@
 - `users/{uid}/coachChat` – collection of chat transcripts with timestamps and `usedLLM` flag, pruned after 10 docs.【F:functions/src/coachChat.ts†L118-L210】
 - `users/{uid}/nutritionLogs/{day}` – documents with `meals[]`, calorie/macronutrient totals, and timestamps.【F:functions/src/nutrition.ts†L120-L205】
 - `users/{uid}/nutritionLogs/{day}/entries` – subcollection of meal log entries written from the meals search UI.【F:src/pages/MealsSearch.tsx†L324-L348】
-- `users/{uid}/nutrition/favorites` & `/nutrition/templates` – per-user saved foods/templates with server timestamps.【F:src/lib/nutritionCollections.ts†L24-L88】
+- `users/{uid}/nutritionFavorites` & `users/{uid}/nutritionTemplates` – per-user saved foods/templates with server timestamps.【F:src/lib/nutritionCollections.ts†L24-L88】
 - `users/{uid}/private/credits` – rolling credit buckets and summaries consumed/refunded during scan operations.【F:functions/src/credits.ts†L20-L123】
 - `users/{uid}/credits` – individual credit docs filtered client-side for remaining balance displays.【F:src/lib/credits.ts†L1-L16】
 - `users/{uid}/workoutPlans/{planId}` plus `/progress/{iso}` and `workoutPlans_meta` – workout plan storage, per-day completion arrays, and active-plan pointer.【F:functions/src/workouts.ts†L104-L213】【F:src/pages/Today.tsx†L80-L89】

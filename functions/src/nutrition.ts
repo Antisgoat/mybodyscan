@@ -6,6 +6,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckStrict } from "./http.js";
+import { nutritionSearchHandler } from "./nutritionSearch.js";
 import type {
   DailyLogDocument,
   MealRecord,
@@ -248,29 +249,31 @@ async function handleDeleteMeal(req: Request, res: Response) {
   res.json({ totals });
 }
 
-async function handleGetLog(req: Request, res: Response) {
+async function buildDailyLogResponse(req: Request) {
   const uid = await requireAuth(req);
-  const dateISO = (req.body?.dateISO as string) || (req.query?.dateISO as string);
-  if (!dateISO) {
-    throw new HttpsError("invalid-argument", "dateISO required");
-  }
+  const dateISO =
+    (req.body?.dateISO as string) || (req.query?.dateISO as string) || (req.query?.date as string) ||
+    new Date().toISOString().slice(0, 10);
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const day = normalizeDate(dateISO, tz);
   const log = await readDailyLog(uid, day);
   const { getEnv } = await import("./lib/env.js");
-  const response = {
-    ...log,
-    source: getEnv("USDA_API_KEY") ? "usda" : getEnv("OPENFOODFACTS_USER_AGENT") ? "openfoodfacts" : "unknown",
-  };
-  res.json(response);
+  const source = getEnv("USDA_API_KEY") ? "usda" : getEnv("OPENFOODFACTS_USER_AGENT") ? "openfoodfacts" : "unknown";
+  return { date: day, ...log, source };
 }
 
-async function handleGetHistory(req: Request, res: Response) {
+async function buildHistoryResponse(req: Request) {
   const uid = await requireAuth(req);
-  const rangeRaw = (req.body?.range as number | string | undefined) ?? (req.query?.range as string | undefined) ?? 30;
+  const rangeRaw =
+    (req.body?.range as number | string | undefined) ||
+    (req.query?.range as string | undefined) ||
+    (req.query?.days as string | undefined) ||
+    30;
   const range = Math.min(30, Math.max(1, Number(rangeRaw) || 30));
   const anchorIso =
-    (req.body?.anchorDateISO as string | undefined) || (req.query?.anchorDateISO as string | undefined) ||
+    (req.body?.anchorDateISO as string | undefined) ||
+    (req.query?.anchorDateISO as string | undefined) ||
+    (req.query?.anchorDate as string | undefined) ||
     new Date().toISOString().slice(0, 10);
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const normalizedAnchor = normalizeDate(anchorIso, tz);
@@ -303,7 +306,17 @@ async function handleGetHistory(req: Request, res: Response) {
   }
   const results = await Promise.all(tasks);
   results.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  res.json({ days: results });
+  return { days: results };
+}
+
+async function handleGetLog(req: Request, res: Response) {
+  const response = await buildDailyLogResponse(req);
+  res.json(response);
+}
+
+async function handleGetHistory(req: Request, res: Response) {
+  const response = await buildHistoryResponse(req);
+  res.json(response);
 }
 
 function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
@@ -327,6 +340,38 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
       }
     })
   );
+}
+
+function respondWithError(res: Response, err: any) {
+  const code = errorCode(err);
+  const status =
+    code === "unauthenticated"
+      ? 401
+      : code === "invalid-argument"
+      ? 400
+      : code === "not-found"
+      ? 404
+      : statusFromCode(code);
+  const message = err?.message || "error";
+  res.status(status).json({ code, message });
+}
+
+export async function getDailyLogHandler(req: Request, res: Response) {
+  try {
+    const response = await buildDailyLogResponse(req);
+    res.status(200).json(response);
+  } catch (err) {
+    respondWithError(res, err);
+  }
+}
+
+export async function getNutritionHistoryHandler(req: Request, res: Response) {
+  try {
+    const response = await buildHistoryResponse(req);
+    res.status(200).json(response);
+  } catch (err) {
+    respondWithError(res, err);
+  }
 }
 
 export const addFoodLog = withHandler(handleAddMeal);
@@ -566,47 +611,7 @@ function parseQuery(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-nutritionRouter.get("/search", async (req: Request, res: Response) => {
-  const query = parseQuery(
-    (req.query as any)?.q ?? (req.query as any)?.query ?? (req.query as any)?.term ?? (req.query as any)?.search ??
-      (req.query as any)?.text,
-  );
-  const barcode = parseQuery((req.query as any)?.barcode ?? (req.query as any)?.code);
-
-  if (!query && !barcode) {
-    res.json({ items: [], results: [], source: null, message: "no_query" });
-    return;
-  }
-
-  try {
-    const { normalized, primarySource, message } = await executeSearch(query, barcode);
-    res.json({ items: normalized, results: normalized, source: primarySource, message });
-  } catch (error) {
-    console.error("nutrition_search_error", {
-      message: (error as Error)?.message,
-    });
-    res.status(502).json({ error: "nutrition_unavailable" });
-  }
-});
-
-nutritionRouter.post("/search", async (req: Request, res: Response) => {
-  const query = parseQuery(
-    req.body?.q ?? req.body?.query ?? req.body?.term ?? req.body?.search ?? req.body?.text,
-  );
-  const barcode = parseQuery(req.body?.barcode ?? req.body?.code);
-
-  if (!query && !barcode) {
-    res.json({ items: [], results: [], source: null, message: "no_query" });
-    return;
-  }
-
-  try {
-    const { normalized, primarySource, message } = await executeSearch(query, barcode);
-    res.json({ items: normalized, results: normalized, source: primarySource, message });
-  } catch (error) {
-    console.error("nutrition_search_error", {
-      message: (error as Error)?.message,
-    });
-    res.status(502).json({ error: "nutrition_unavailable" });
-  }
-});
+nutritionRouter.get("/search", nutritionSearchHandler);
+nutritionRouter.post("/search", nutritionSearchHandler);
+nutritionRouter.get("/daily-log", getDailyLogHandler);
+nutritionRouter.get("/history", getNutritionHistoryHandler);
