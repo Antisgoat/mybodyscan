@@ -5,7 +5,7 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckStrict } from "./http.js";
+import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckSoft } from "./http.js";
 import { nutritionSearchHandler } from "./nutritionSearch.js";
 import type {
   DailyLogDocument,
@@ -321,10 +321,14 @@ async function handleGetHistory(req: Request, res: Response) {
 
 function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return onRequest(
-    { invoker: "public" },
+    { invoker: "public", appCheck: { enforcement: "UNENFORCED" } },
     withCors(async (req, res) => {
       try {
-        await verifyAppCheckStrict(req as any);
+        try {
+          await verifyAppCheckSoft(req as any);
+        } catch (err: any) {
+          console.warn("appcheck_soft_failure", { message: err?.message });
+        }
         await handler(req as unknown as Request, res as unknown as Response);
       } catch (err: any) {
         const code = errorCode(err);

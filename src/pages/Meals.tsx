@@ -135,6 +135,7 @@ export default function Meals() {
       return () => unsub?.();
     } catch (error) {
       console.warn("favorites_subscribe_error", error);
+      setFavorites([]);
       return undefined;
     }
   }, [demo]);
@@ -149,6 +150,7 @@ export default function Meals() {
       return () => unsub?.();
     } catch (error) {
       console.warn("templates_subscribe_error", error);
+      setTemplates([]);
       return undefined;
     }
   }, [demo]);

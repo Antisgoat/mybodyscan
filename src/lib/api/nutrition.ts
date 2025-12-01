@@ -1,10 +1,6 @@
 import { apiFetchJson } from "@/lib/apiFetch";
 import { sanitizeFoodItem, type FoodItem } from "@/lib/nutrition/sanitize";
 
-export interface NutritionSearchResult {
-  items: FoodItem[];
-}
-
 export interface DailyLogResponse {
   date: string;
   totals: any;
@@ -16,7 +12,7 @@ export interface NutritionHistoryResponse {
   days: { date: string; totals: DailyLogResponse["totals"] }[];
 }
 
-export async function searchNutrition(term: string): Promise<NutritionSearchResult> {
+export async function searchNutrition(term: string): Promise<FoodItem[]> {
   const trimmed = term.trim();
   const payload = await apiFetchJson<{ items?: unknown }>("/nutrition/search", {
     method: "POST",
@@ -25,7 +21,7 @@ export async function searchNutrition(term: string): Promise<NutritionSearchResu
 
   const items = (payload?.items ?? []) as any[];
   const normalized = Array.isArray(items) ? items.map(sanitizeFoodItem).filter(Boolean) : [];
-  return { items: normalized };
+  return normalized;
 }
 
 export async function fetchDailyLog(date?: string): Promise<DailyLogResponse> {

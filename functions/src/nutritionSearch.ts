@@ -680,7 +680,13 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
 export { handleNutritionSearch as nutritionSearchHandler };
 
 export const nutritionSearch = onRequest(
-  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
+  {
+    region: "us-central1",
+    secrets: [usdaApiKeyParam],
+    invoker: "public",
+    concurrency: 20,
+    appCheck: { enforcement: "UNENFORCED" },
+  },
   (req: Request, res: Response) =>
     chain(withCors, appCheckSoft)(req, res, () => void handleNutritionSearch(req, res)),
 );
