@@ -101,4 +101,7 @@ export async function coachChatHandler(req: Request, res: Response): Promise<voi
   }
 }
 
-export const coachChat = onRequest({ region: "us-central1" }, coachChatHandler);
+export const coachChat = onRequest(
+  { region: "us-central1", appCheck: { enforcement: "UNENFORCED" }, cors: true },
+  coachChatHandler,
+);
