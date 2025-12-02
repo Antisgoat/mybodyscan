@@ -1,5 +1,5 @@
 import { env } from "@/env";
-import type { FirebaseApp } from "firebase/app";
+import type { FirebaseApp, FirebaseOptions } from "firebase/app";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
@@ -23,54 +23,94 @@ import {
   type AppCheck,
 } from "firebase/app-check";
 
-// Static Firebase client config for the mybodyscan-f3daf project.
-// We intentionally do not override this with VITE_* env variables in production.
-const firebaseConfig = {
-  apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
-  authDomain: "mybodyscan-f3daf.firebaseapp.com",
-  projectId: "mybodyscan-f3daf",
-  storageBucket: "mybodyscan-f3daf.firebasestorage.app",
-  messagingSenderId: "157018993008",
-  appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
-  measurementId: "G-TV8M3PY1X3",
-} as const;
+type FirebaseRuntimeConfig = {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId?: string;
+  appId: string;
+  measurementId?: string;
+};
+
+const envConfig: FirebaseRuntimeConfig = {
+  apiKey: env.VITE_FIREBASE_API_KEY || (import.meta.env.VITE_FIREBASE_API_KEY as string) || "",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || "",
+  projectId: env.VITE_FIREBASE_PROJECT_ID || (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || "",
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || "",
+  messagingSenderId:
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+    (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) ||
+    "",
+  appId: env.VITE_FIREBASE_APP_ID || (import.meta.env.VITE_FIREBASE_APP_ID as string) || "",
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || "",
+};
+
+const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
+  typeof globalThis !== "undefined"
+    ? ((globalThis as any).__FIREBASE_CONFIG__ as Partial<FirebaseRuntimeConfig> | undefined)
+    : undefined;
+
+const firebaseConfig: FirebaseRuntimeConfig = {
+  ...envConfig,
+  ...(injectedConfig ?? {}),
+};
 
 const requiredKeys = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"] as const;
 
-export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
-  (key) => !(firebaseConfig as any)?.[key]
-);
+export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
+  const value = (firebaseConfig as any)?.[key];
+  return value === undefined || value === null || value === "";
+});
 
 export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;
 
+let firebaseInitError: string | null = null;
+
 export function getFirebaseInitError(): string | null {
+  return firebaseInitError || (hasFirebaseConfig ? null : `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`);
+}
+
+function initializeFirebaseApp(): FirebaseApp | null {
   if (!hasFirebaseConfig) {
-    return `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
+    firebaseInitError = `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
+    return null;
   }
-  return null;
+  try {
+    if (!getApps().length) {
+      return initializeApp(firebaseConfig as FirebaseOptions);
+    }
+    return getApp();
+  } catch (error) {
+    firebaseInitError = error instanceof Error ? error.message : String(error);
+    if (import.meta.env.DEV) {
+      console.warn("[firebase] initialization failed", error);
+    }
+    return null;
+  }
 }
 
-let app: FirebaseApp;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
+const app: FirebaseApp | null = initializeFirebaseApp();
 
-export const firebaseApp = app;
-export const auth: Auth = getAuth(app);
-let persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+export const firebaseApp = app as FirebaseApp;
+export const auth: Auth = app ? getAuth(app) : (null as unknown as Auth);
+let persistenceReady: Promise<void> = app
+  ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
+  : Promise.resolve();
 
-export const db: Firestore = getFirestore(app);
+export const db: Firestore = app ? getFirestore(app) : (null as unknown as Firestore);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-export const functions: Functions = getFunctions(app, functionsRegion);
-export const storage: FirebaseStorage = getStorage(app);
+export const functions: Functions = app
+  ? getFunctions(app, functionsRegion)
+  : (null as unknown as Functions);
+export const storage: FirebaseStorage = app ? getStorage(app) : (null as unknown as FirebaseStorage);
 
 let analyticsInstance: Analytics | null = null;
 
 export async function getAnalyticsInstance(): Promise<Analytics | null> {
   if (typeof window === "undefined") return null;
   if (analyticsInstance) return analyticsInstance;
+  if (!app) return null;
   const supported = await isSupported();
   if (!supported) return null;
   analyticsInstance = getAnalytics(app);
@@ -98,11 +138,19 @@ let appCheckInstance: AppCheck | null = null;
 let appCheckInitialized = false;
 let loggedAppCheckWarning = false;
 
-export function ensureAppCheck(instance: FirebaseApp = app): AppCheck | null {
+export function ensureAppCheck(instance: FirebaseApp | null = app): AppCheck | null {
   if (typeof window === "undefined") return null;
   if (appCheckInstance) return appCheckInstance;
   if (appCheckInitialized) return appCheckInstance;
   appCheckInitialized = true;
+
+  if (!instance) {
+    if (!loggedAppCheckWarning) {
+      console.warn("[AppCheck] Firebase app not initialized; skipping App Check.");
+      loggedAppCheckWarning = true;
+    }
+    return null;
+  }
 
   (globalThis as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || undefined;
   const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
@@ -152,7 +200,7 @@ export async function firebaseReady(): Promise<void> {
   await persistenceReady.catch(() => undefined);
 }
 
-export function getFirebaseApp(): FirebaseApp {
+export function getFirebaseApp(): FirebaseApp | null {
   return app;
 }
 
@@ -207,16 +255,27 @@ export const envFlags = providerFlags;
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
+function ensureAuthAvailable(): Auth {
+  if (!app) {
+    const reason = getFirebaseInitError() ?? "Firebase not initialized";
+    throw new Error(reason);
+  }
+  return auth;
+}
+
 export async function signInWithGoogle() {
-  return signInWithPopup(auth, googleProvider);
+  const instance = ensureAuthAvailable();
+  return signInWithPopup(instance, googleProvider);
 }
 
 export async function signInWithApple() {
-  return signInWithRedirect(auth, appleProvider);
+  const instance = ensureAuthAvailable();
+  return signInWithRedirect(instance, appleProvider);
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  return signInWithEmailAndPassword(auth, email, password);
+  const instance = ensureAuthAvailable();
+  return signInWithEmailAndPassword(instance, email, password);
 }
 
 export function initFirebase() {
