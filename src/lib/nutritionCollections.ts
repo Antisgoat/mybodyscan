@@ -29,14 +29,20 @@ function assertUid(): string {
   return uid;
 }
 
+function nutritionDoc(uid: string) {
+  return doc(db, "users", uid, "nutrition");
+}
+
 export function favoritesQuery(uid?: string) {
   const userId = uid ?? assertUid();
-  return query(collection(db, `users/${userId}/nutritionFavorites`), orderBy("updatedAt", "desc"));
+  const parent = nutritionDoc(userId);
+  return query(collection(parent, "favorites"), orderBy("updatedAt", "desc"));
 }
 
 export function templatesQuery(uid?: string) {
   const userId = uid ?? assertUid();
-  return query(collection(db, `users/${userId}/nutritionTemplates`), orderBy("updatedAt", "desc"));
+  const parent = nutritionDoc(userId);
+  return query(collection(parent, "templates"), orderBy("updatedAt", "desc"));
 }
 
 export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => void) {
@@ -79,7 +85,7 @@ export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => voi
 
 export async function saveFavorite(item: FoodItem) {
   const uid = assertUid();
-  const ref = doc(db, `users/${uid}/nutritionFavorites/${item.id}`);
+  const ref = doc(collection(nutritionDoc(uid), "favorites"), item.id);
   const payload: FavoriteDoc = {
     name: item.name,
     brand: item.brand,
@@ -91,7 +97,7 @@ export async function saveFavorite(item: FoodItem) {
 
 export async function removeFavorite(id: string) {
   const uid = assertUid();
-  await deleteDoc(doc(db, `users/${uid}/nutritionFavorites/${id}`));
+  await deleteDoc(doc(collection(nutritionDoc(uid), "favorites"), id));
 }
 
 export interface FavoriteDocWithId extends FavoriteDoc {
@@ -109,7 +115,7 @@ export async function saveTemplate(id: string | null, name: string, items: Templ
     (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `template-${Math.random().toString(36).slice(2, 10)}`);
-  const ref = doc(db, `users/${uid}/nutritionTemplates/${templateId}`);
+  const ref = doc(collection(nutritionDoc(uid), "templates"), templateId);
   const payload: TemplateDoc = {
     name,
     items,
@@ -121,5 +127,5 @@ export async function saveTemplate(id: string | null, name: string, items: Templ
 
 export async function deleteTemplate(id: string) {
   const uid = assertUid();
-  await deleteDoc(doc(db, `users/${uid}/nutritionTemplates/${id}`));
+  await deleteDoc(doc(collection(nutritionDoc(uid), "templates"), id));
 }
