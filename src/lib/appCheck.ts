@@ -26,10 +26,12 @@ function init(): AppCheck | null {
     return null;
   }
   initialized = true;
-  instance = initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaV3Provider(siteKey || "unused"),
-    isTokenAutoRefreshEnabled: true,
-  });
+  if (siteKey) {
+    instance = initializeAppCheck(firebaseApp, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
   return instance;
 }
 
@@ -49,7 +51,12 @@ export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Reco
     if (!inst) return {};
     const { token } = await getToken(inst, forceRefresh);
     return token ? { "X-Firebase-AppCheck": token } : {};
-  } catch {
+  } catch (error: any) {
+    const code = (error as any)?.code || (error as any)?.message;
+    if (code === "appCheck/recaptcha-error" || code === "appcheck/recaptcha-error") {
+      console.warn("appcheck_recaptcha_error_soft", error);
+      return {};
+    }
     return {};
   }
 }

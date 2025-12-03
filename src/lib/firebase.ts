@@ -180,8 +180,9 @@ export async function getAppCheckTokenSafe(forceRefresh = false): Promise<string
       loggedAppCheckWarning = true;
     }
     return token || undefined;
-  } catch (error) {
-    if (!loggedAppCheckWarning) {
+  } catch (error: any) {
+    const code = error?.code || error?.message;
+    if (!loggedAppCheckWarning || code === "appCheck/recaptcha-error" || code === "appcheck/recaptcha-error") {
       console.warn("App Check token missing; proceeding in soft mode", error);
       loggedAppCheckWarning = true;
     }
