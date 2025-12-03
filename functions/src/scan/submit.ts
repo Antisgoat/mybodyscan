@@ -355,8 +355,9 @@ export const submitScan = onRequest(
 
 function respondWithSubmitError(res: any, error: unknown, requestId: string): void {
   if (error instanceof HttpsError) {
-    const debugId = (error.details as any)?.debugId ?? requestId;
-    const reason = (error.details as any)?.reason;
+    const details = (error as { details?: any }).details || {};
+    const debugId = details?.debugId ?? requestId;
+    const reason = details?.reason;
     res.status(statusFromHttpsError(error)).json({
       code: error.code,
       message:

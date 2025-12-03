@@ -18,15 +18,17 @@ export interface CoachChatRequest {
   activityLevel?: string;
 }
 
+interface CoachChatMetadata {
+  recommendedSplit?: string;
+  caloriesPerDay?: number;
+  macros?: { protein: number; carbs: number; fat: number };
+}
+
 export interface CoachChatSuccessResponse {
   ok: true;
   replyText: string;
   planSummary?: string | null;
-  metadata?: {
-    recommendedSplit?: string;
-    caloriesPerDay?: number;
-    macros?: { protein: number; carbs: number; fat: number };
-  };
+  metadata?: CoachChatMetadata;
   debugId: string;
 }
 
@@ -106,15 +108,15 @@ function buildPrompt(input: CoachChatRequest): string {
   return lines.join("\n");
 }
 
-function parseMetadataLine(source: string): { replyText: string; metadata?: CoachChatResponse["metadata"] } {
+function parseMetadataLine(source: string): { replyText: string; metadata?: CoachChatMetadata } {
   const match = source.match(/(?:^|\n)METADATA:\s*(\{[\s\S]*\})\s*$/i);
   if (!match) {
     return { replyText: source.trim() };
   }
   const metadataRaw = match[1];
-  let metadata: CoachChatResponse["metadata"] | undefined;
+  let metadata: CoachChatMetadata | undefined;
   try {
-    const parsed = JSON.parse(metadataRaw) as CoachChatResponse["metadata"];
+    const parsed = JSON.parse(metadataRaw) as CoachChatMetadata;
     const protein = toNumber(parsed?.macros?.protein);
     const carbs = toNumber(parsed?.macros?.carbs);
     const fat = toNumber(parsed?.macros?.fat);
@@ -153,12 +155,16 @@ async function generateCoachResponse(payload: CoachChatRequest, context: Request
   };
 }
 
+function getHttpsErrorDetails(error: HttpsError): any {
+  return (error as { details?: any }).details;
+}
+
 function toHttpsError(error: unknown, debugId: string): HttpsError {
   const attachDetails = (details?: any) =>
     typeof details === "object" && details !== null ? { ...details, debugId } : { debugId };
 
   if (error instanceof HttpsError) {
-    return new HttpsError(error.code, error.message, attachDetails(error.details));
+    return new HttpsError(error.code, error.message, attachDetails(getHttpsErrorDetails(error)));
   }
   if (error instanceof OpenAIClientError) {
     if (error.code === "openai_missing_key") {
@@ -287,7 +293,8 @@ export async function coachChatHandler(req: Request, res: Response): Promise<voi
     res.status(200).json(response);
   } catch (error) {
     const mapped = toHttpsError(error, requestId);
-    const debugId = (mapped.details as any)?.debugId ?? requestId;
+    const mappedDetails = getHttpsErrorDetails(mapped) ?? {};
+    const debugId = mappedDetails?.debugId ?? requestId;
     res.status(httpStatusFromHttpsError(mapped)).json({
       ok: false,
       code: mapped.code,

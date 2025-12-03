@@ -37,7 +37,8 @@ export async function ensureSoftAppCheckFromCallable(
   request: CallableRequest<any>,
   ctx: SoftAppCheckContext,
 ): Promise<void> {
-  const token = (request.appCheck?.token || request.rawRequest?.get?.("x-firebase-appcheck") || "").trim();
+  const requestAny = request as CallableRequest<any> & { appCheck?: { token?: string } };
+  const token = (requestAny.appCheck?.token || request.rawRequest?.get?.("x-firebase-appcheck") || "").trim();
   const context = { ...ctx, source: "callable" as const };
   if (!token) {
     logger.warn("appcheck.soft.missing", buildContext(context));
