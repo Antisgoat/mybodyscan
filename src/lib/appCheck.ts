@@ -1,8 +1,9 @@
 import { initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
 import { firebaseApp } from "@/lib/firebase";
 
-const siteKey =
+const siteKeyRaw =
   (import.meta as any).env?.VITE_APPCHECK_SITE_KEY || (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || "";
+const siteKey = siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
 const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
 let warned = false;
 if (debug && typeof self !== "undefined") {

@@ -72,6 +72,7 @@ export type StartScanResponse = {
     left: string;
     right: string;
   };
+  debugId?: string;
 };
 
 function startUrl(): string {

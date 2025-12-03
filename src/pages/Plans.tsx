@@ -137,7 +137,8 @@ export default function Plans() {
     } catch (err: any) {
       console.error("checkout_error", err);
       const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);
-      const description = errMessage || "We couldn't open checkout. Please try again.";
+      const debugId = (err as { debugId?: string } | undefined)?.debugId;
+      const description = debugId ? `${errMessage || "We couldn't open checkout. Please try again."} (ref ${debugId.slice(0, 8)})` : errMessage || "We couldn't open checkout. Please try again.";
       if (!err?.handled) {
         toast({
           title: "Checkout unavailable",
@@ -150,6 +151,7 @@ export default function Plans() {
           fn: "checkout",
           code: err?.code || "client_error",
           message: errMessage,
+          debugId,
         });
       } catch (telemetryError) {
         console.warn("telemetry_log_failed", telemetryError);

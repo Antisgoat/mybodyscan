@@ -1,9 +1,11 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { randomUUID } from "node:crypto";
+import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import OpenAI from "openai";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
-import { requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
+import { requireAuthWithClaims } from "../http.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
+import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -231,60 +233,58 @@ function parseAnalysis(content: string): ParsedAnalysis {
   }
 }
 
-function invalidScan(res: any, message = "Missing or invalid scan data.", code = "invalid_scan_request") {
-  res.status(400).json({ code, message });
-}
-
 export const submitScan = onRequest(
   { invoker: "public", concurrency: 10, region: "us-central1" },
   async (req, res) => {
     let scanRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> | null = null;
+    const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+    res.set("X-Request-Id", requestId);
+
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+
     try {
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
-      if (req.method === "OPTIONS") { res.status(204).end(); return; }
       if (req.method !== "POST") {
-        res.status(405).json({ code: "method_not_allowed", message: "Method not allowed" });
-        return;
+        throw new HttpsError("unimplemented", "Method not allowed.", {
+          debugId: requestId,
+          reason: "method_not_allowed",
+        });
       }
 
-      try {
-        await verifyAppCheckStrict(req as Request);
-      } catch (error: any) {
-        console.warn("scan_submit_appcheck_failed", { message: error?.message });
-      }
-
-      let authContext: { uid: string; claims?: Record<string, unknown> };
-      try {
-        authContext = await requireAuthWithClaims(req as Request);
-      } catch (error: any) {
-        console.warn("scan_submit_auth_failed", { message: error?.message });
-        res.status(401).json({ code: "auth_required", message: "Authentication required." });
-        return;
-      }
+      const authContext = await requireAuthWithClaims(req as Request);
+      await ensureSoftAppCheckFromRequest(req as Request, { fn: "submitScan", uid: authContext.uid, requestId });
 
       if (!hasOpenAI()) {
-        res.status(503).json({ code: "openai_not_configured", message: "Scan engine not configured." });
-        return;
+        throw new HttpsError("failed-precondition", "Scan engine not configured.", {
+          debugId: requestId,
+          reason: "openai_not_configured",
+        });
       }
 
       const payload = parsePayload(req.body);
       if (!payload) {
-        invalidScan(res);
-        return;
+        throw new HttpsError("invalid-argument", "Missing or invalid scan data.", {
+          debugId: requestId,
+          reason: "invalid_scan_request",
+        });
       }
 
       const { uid } = authContext;
       scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
       const snap = await scanRef.get();
       if (!snap.exists) {
-        res.status(404).json({ code: "not_found", message: "Scan not found." });
-        return;
+        throw new HttpsError("not-found", "Scan not found.", { debugId: requestId, reason: "scan_not_found" });
       }
       const existing = snap.data() as ScanDocument;
       if (existing.uid && existing.uid !== uid) {
-        res.status(403).json({ code: "forbidden", message: "Scan does not belong to this user." });
-        return;
+        throw new HttpsError("permission-denied", "Scan does not belong to this user.", {
+          debugId: requestId,
+          reason: "scan_wrong_owner",
+        });
       }
 
       await scanRef.set({ status: "processing", updatedAt: serverTimestamp() }, { merge: true });
@@ -296,20 +296,24 @@ export const submitScan = onRequest(
         analysis = parseAnalysis(content);
       } catch (error: any) {
         const message = error?.message ?? "Unknown";
-        console.error("scan_submit_processing_failed", { message, stack: error?.stack, uid, scanId: payload.scanId });
-        const isClientIssue = typeof message === "string" && message.startsWith("missing_photo_");
-        const invalidPath = typeof message === "string" && message.startsWith("invalid_photo_path_");
-        if (isClientIssue) {
-          invalidScan(res, "We could not find your uploaded photos. Please re-upload and try again.", "missing_photos");
-          return;
+        console.error("scan_submit_processing_failed", { message, stack: error?.stack, uid, scanId: payload.scanId, requestId });
+        if (typeof message === "string" && message.startsWith("missing_photo_")) {
+          throw new HttpsError(
+            "failed-precondition",
+            "We could not find your uploaded photos. Please re-upload each angle and try again.",
+            { debugId: requestId, reason: "missing_photos" },
+          );
         }
-        if (invalidPath) {
-          invalidScan(res, "Invalid photo path supplied.", "invalid_photo_paths");
-          return;
+        if (typeof message === "string" && message.startsWith("invalid_photo_path_")) {
+          throw new HttpsError("invalid-argument", "Invalid photo path supplied.", {
+            debugId: requestId,
+            reason: "invalid_photo_paths",
+          });
         }
-        await scanRef.set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: serverTimestamp() }, { merge: true });
-        res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });
-        return;
+        throw new HttpsError("internal", "Unexpected error while processing scan.", {
+          debugId: requestId,
+          reason: "openai_processing_failed",
+        });
       }
 
       const update: Partial<ScanDocument> = {
@@ -327,22 +331,69 @@ export const submitScan = onRequest(
 
       await scanRef.set(update, { merge: true });
 
-      console.info("scan_submit_complete", { uid, scanId: payload.scanId });
+      console.info("scan_submit_complete", { uid, scanId: payload.scanId, requestId });
 
       res.json({
         scanId: payload.scanId,
         estimate: analysis.estimate,
         workoutPlan: analysis.workoutPlan,
         nutritionPlan: analysis.nutritionPlan,
+        debugId: requestId,
       });
-    } catch (err: any) {
-      console.error("scan_submit_unhandled", { message: err?.message, stack: err?.stack });
+    } catch (error) {
       if (scanRef) {
+        const errorMessage =
+          error instanceof HttpsError ? error.message : "Unexpected error while processing scan.";
         await scanRef
-          .set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: serverTimestamp() }, { merge: true })
+          .set({ status: "error", errorMessage, updatedAt: serverTimestamp() }, { merge: true })
           .catch(() => undefined);
       }
-      res.status(500).json({ code: "scan_internal_error", message: "Unexpected error while processing scan." });
+      respondWithSubmitError(res, error, requestId);
     }
   },
 );
+
+function respondWithSubmitError(res: any, error: unknown, requestId: string): void {
+  if (error instanceof HttpsError) {
+    const debugId = (error.details as any)?.debugId ?? requestId;
+    const reason = (error.details as any)?.reason;
+    res.status(statusFromHttpsError(error)).json({
+      code: error.code,
+      message:
+        error.code === "internal"
+          ? "Unexpected error while processing scan."
+          : error.message || "Unable to process scan.",
+      debugId,
+      reason,
+    });
+    return;
+  }
+  console.error("scan_submit_unhandled", { message: (error as Error)?.message, stack: (error as Error)?.stack, requestId });
+  res.status(500).json({
+    code: "scan_internal_error",
+    message: "Unexpected error while processing scan.",
+    debugId: requestId,
+    reason: "server_error",
+  });
+}
+
+function statusFromHttpsError(error: HttpsError): number {
+  const status = (error as any)?.httpErrorCode?.status;
+  if (typeof status === "number") {
+    return status;
+  }
+  switch (error.code) {
+    case "invalid-argument":
+      return 400;
+    case "failed-precondition":
+      return 412;
+    case "unauthenticated":
+      return 401;
+    case "permission-denied":
+      return 403;
+    case "not-found":
+      return 404;
+    default:
+      return 500;
+  }
+}

@@ -209,7 +209,7 @@ export default function CoachChatPage() {
     try {
       const payload: CoachChatRequest = { message: sanitized };
       const response = await coachChatApi(payload);
-      const answer = typeof response?.reply === "string" && response.reply ? response.reply : "No answer.";
+      const answer = typeof response?.replyText === "string" && response.replyText ? response.replyText : "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -222,14 +222,12 @@ export default function CoachChatPage() {
     } catch (error: any) {
       console.error("coachChat error", error);
       const code = (error as any)?.code as string | undefined;
-      const errMessage =
-        typeof error?.message === "string" && error.message !== "Bad Request"
-          ? error.message
-          : "";
+      const errMessage = typeof error?.message === "string" && error.message !== "Bad Request" ? error.message : "";
       const fallback = code === "invalid_message"
         ? "Please enter a question for the coach."
         : "Coach is unavailable right now; please try again shortly.";
-      const message = errMessage || fallback;
+      const debugId = (error as any)?.debugId;
+      const message = debugId ? `${errMessage || fallback} (ref ${debugId.slice(0, 8)})` : errMessage || fallback;
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       try {

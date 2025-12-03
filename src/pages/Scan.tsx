@@ -66,15 +66,47 @@ export default function ScanPage() {
     } catch (err: any) {
       setStatus("idle");
       const apiError = err instanceof ApiError ? err : null;
-      const code = apiError?.code || (apiError?.data as any)?.code;
-      const message = typeof apiError?.data?.message === "string"
-        ? apiError.data.message
-        : code === "missing_photos"
-          ? "We couldn't find your uploads. Please re-upload each photo and try again."
-          : code === "invalid_scan_request"
-            ? "Missing or invalid scan data."
-            : err?.message || "Could not start the scan.";
-      setError(message);
+      const data = (apiError?.data ?? {}) as { code?: string; message?: string; debugId?: string; reason?: string };
+      const code = apiError?.code || data.code;
+      const reason = data.reason || code;
+      let message: string | undefined;
+      if (typeof data.message === "string" && data.message.length) {
+        message = data.message;
+      } else {
+        switch (reason) {
+          case "invalid_scan_request":
+            message = "Please add all four photos and valid weights before submitting.";
+            break;
+          case "missing_photos":
+            message = "We couldn't find your uploaded photos. Please re-upload each pose and try again.";
+            break;
+          case "invalid_photo_paths":
+            message = "We ran into a problem with the uploaded files. Please restart the scan.";
+            break;
+          case "scan_not_found":
+            message = "This scan session expired. Start a new scan and upload your photos again.";
+            break;
+          case "scan_wrong_owner":
+            message = "This scan is linked to a different account.";
+            break;
+          case "openai_not_configured":
+            message = "Scans are temporarily unavailable. Please try again in a bit.";
+            break;
+          case "openai_processing_failed":
+            message = "Something went wrong while analyzing your scan. Please try again.";
+            break;
+          default:
+            if (code === "unauthenticated") {
+              message = "Please sign in again before running a scan.";
+            } else if (code === "permission-denied") {
+              message = "You don't have access to this scan.";
+            } else {
+              message = err?.message || "Could not complete your scan. Please try again.";
+            }
+        }
+      }
+      const debugId = data.debugId;
+      setError(debugId ? `${message} (ref ${debugId.slice(0, 8)})` : message);
     }
   }
 

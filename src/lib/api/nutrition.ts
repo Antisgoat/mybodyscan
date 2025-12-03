@@ -13,8 +13,8 @@ export type NutritionSearchRequest = {
 };
 
 export type NutritionSearchResponse =
-  | { status: "ok"; results: FoodItem[]; source?: string | null; message?: string | null }
-  | { status: "upstream_error"; results: FoodItem[]; message?: string | null };
+  | { status: "ok"; results: FoodItem[]; source?: string | null; message?: string | null; debugId?: string | null }
+  | { status: "upstream_error"; results: FoodItem[]; message?: string | null; debugId?: string | null };
 
 export interface DailyLogResponse {
   date: string;
@@ -29,6 +29,15 @@ export interface NutritionHistoryResponse {
 
 const nutritionSearchCallable = httpsCallable<NutritionSearchRequest, NutritionSearchResponse>(functions, "nutritionSearch");
 
+function extractDebugId(error: FirebaseError): string | undefined {
+  const serverResponse = error.customData?.serverResponse;
+  const details = (serverResponse as any)?.details;
+  if (details && typeof details === "object") {
+    return details.debugId || details?.details?.debugId;
+  }
+  return undefined;
+}
+
 function normalizeNutritionError(error: unknown): Error {
   if (error instanceof FirebaseError) {
     const code = error.code ?? "";
@@ -37,11 +46,12 @@ function normalizeNutritionError(error: unknown): Error {
       message = "Search query must not be empty.";
     } else if (code.includes("resource-exhausted")) {
       message = "You’re searching too quickly. Please slow down.";
-    } else if (code.includes("unavailable")) {
+    } else if (code.includes("unavailable") || code.includes("internal")) {
       message = "Food database temporarily unavailable; please try again later.";
     }
     const err = new Error(message);
-    (err as Error & { code?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).debugId = extractDebugId(error);
     return err;
   }
   if (error instanceof Error) return error;
@@ -76,6 +86,7 @@ export async function nutritionSearch(
         status: "upstream_error",
         results: normalized,
         message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
+        debugId: payload?.debugId ?? null,
       };
     }
 
@@ -84,6 +95,7 @@ export async function nutritionSearch(
       results: normalized,
       source: payload.source ?? null,
       message: payload.message ?? null,
+      debugId: payload.debugId ?? null,
     };
   } catch (error) {
     throw normalizeNutritionError(error);
