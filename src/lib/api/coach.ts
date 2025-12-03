@@ -1,8 +1,10 @@
-import { apiFetchJson } from "@/lib/apiFetch";
+import { call } from "@/lib/callable";
 
 export interface CoachChatResponse {
   reply: string;
   uid?: string | null;
+  error?: string;
+  message?: string;
 }
 
 export interface CoachChatPayload {
@@ -16,8 +18,8 @@ export interface CoachChatPayload {
 }
 
 export async function coachChatApi(payload: CoachChatPayload): Promise<CoachChatResponse> {
-  return apiFetchJson<CoachChatResponse>("/coach/chat", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const response = await call<CoachChatPayload, CoachChatResponse>("coachChat", payload);
+  const data = (response as any)?.data ?? response;
+  const reply = (data as any)?.reply ?? (data as any)?.text ?? "";
+  return { ...data, reply } as CoachChatResponse;
 }

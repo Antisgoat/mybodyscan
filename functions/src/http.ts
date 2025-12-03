@@ -28,7 +28,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = (
   res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (!req.get("X-Firebase-AppCheck")) {
-    console.warn("appcheck_missing", { path: req.path || req.url });
+    console.warn("appcheck_missing_soft", { path: req.path || req.url });
   }
   if (req.method === "OPTIONS") return res.status(204).end();
   next();
@@ -95,22 +95,15 @@ export async function verifyAppCheck(req: Request, mode: AppCheckMode = getAppCh
 
   const token = readAppCheckToken(req);
   if (!token) {
-    if (mode === "soft") {
-      console.warn("appcheck_missing", { path: req.path || req.url });
-      return;
-    }
-    throw new HttpsError("unauthenticated", "app_check_required");
+    console.warn("appcheck_missing_soft", { path: req.path || req.url });
+    return;
   }
 
   try {
     await verifyToken(token);
   } catch (err) {
-    if (mode === "soft") {
-      console.warn("appcheck_invalid", { path: req.path || req.url, message: (err as any)?.message });
-      return;
-    }
-    console.warn("appcheck_invalid", { path: req.path || req.url, message: (err as any)?.message });
-    throw new HttpsError("unauthenticated", "app_check_invalid");
+    console.warn("appcheck_invalid_soft", { path: req.path || req.url, message: (err as any)?.message });
+    return;
   }
 }
 

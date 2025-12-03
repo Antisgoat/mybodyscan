@@ -249,8 +249,6 @@ export const submitScan = onRequest(
         await verifyAppCheckStrict(req as Request);
       } catch (error: any) {
         console.warn("scan_submit_appcheck_failed", { message: error?.message });
-        res.status(401).json({ code: "app_check_unavailable", message: "App Check token missing or invalid." });
-        return;
       }
 
       let authContext: { uid: string; claims?: Record<string, unknown> };

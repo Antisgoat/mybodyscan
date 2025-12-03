@@ -98,7 +98,10 @@ function getUsdaApiKey(): string | undefined {
     // Secret not bound in this environment
   }
 
-  const envValue = getEnv("USDA_FDC_API_KEY")?.trim();
+  const envValue =
+    getEnv("USDA_FDC_API_KEY")?.trim() ||
+    getEnv("USDA_API_KEY")?.trim() ||
+    getEnv("VITE_USDA_API_KEY")?.trim();
   return envValue ? envValue : undefined;
 }
 
