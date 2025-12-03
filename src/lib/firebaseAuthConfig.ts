@@ -131,24 +131,21 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
 
   const url = `${AUTH_CONFIG_ENDPOINT}/projects/${encodeURIComponent(projectId)}/clientConfig?key=${encodeURIComponent(apiKey)}`;
 
-  cachedConfigPromise = fetch(url)
-    .then(async (res) => {
-      if (!res.ok) {
-        throw new Error(`Failed to load Firebase Auth client config (${res.status})`);
+  cachedConfigPromise = (async () => {
+    try {
+      const res = await fetch(url, { mode: "no-cors" });
+      if (!res || !res.ok) {
+        throw new Error(`Failed to load Firebase Auth client config (${res?.status ?? "opaque"})`);
       }
-      return res.json();
-    })
-    .then((payload) => {
+      const payload = await res.json();
       const authorizedDomains = parseAuthorizedDomains(payload);
       const providerIds = parseProviders(payload);
       return withEnvFallback({ authorizedDomains, providerIds });
-    })
-    .catch((err) => {
-      if (import.meta.env.DEV) {
-        console.warn("[auth] Unable to load Firebase Auth client config:", err);
-      }
+    } catch (err) {
+      console.warn("[probe] IdentityToolkit fetch error", err);
       return withEnvFallback({ authorizedDomains: [], providerIds: [] });
-    });
+    }
+  })();
 
   return cachedConfigPromise;
 }

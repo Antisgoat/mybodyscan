@@ -1,5 +1,5 @@
-import { searchNutrition } from "@/lib/api/nutrition";
+import { nutritionSearch } from "@/lib/api/nutrition";
 
 export async function nutritionSearchClient(query: string) {
-  return searchNutrition(query);
+  return nutritionSearch(query);
 }

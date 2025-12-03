@@ -336,13 +336,21 @@ export default function MealsSearch() {
     let cancelled = false;
     setLoading(true);
     setSearchWarning(null);
-    setStatus("Searching…");
+      setStatus("Searching…");
 
     (async () => {
       try {
-        const items = await nutritionSearchClient(term);
+        const response = await nutritionSearchClient(term);
         if (cancelled) return;
-        const mapped = (items ?? []).map(adaptSearchItem);
+        if (!response || response.status === "upstream_error") {
+          const message = response?.message ?? "Food database temporarily busy; try again.";
+          setResults([]);
+          setPrimarySource(null);
+          setStatus(message);
+          setSearchWarning(message);
+          return;
+        }
+        const mapped = (response.results ?? []).map(adaptSearchItem);
         setResults(mapped);
         setPrimarySource(mapped.length ? (mapped[0]!.source as "USDA" | "Open Food Facts" | null) : null);
         setStatus(mapped.length ? `Found ${mapped.length} item${mapped.length === 1 ? "" : "s"}` : "No matches found.");
