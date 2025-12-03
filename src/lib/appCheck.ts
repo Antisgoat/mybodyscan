@@ -26,17 +26,25 @@ function init(): AppCheck | null {
     return null;
   }
   initialized = true;
-  instance = initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaV3Provider(siteKey),
-    isTokenAutoRefreshEnabled: true,
-  });
+  try {
+    instance = initializeAppCheck(firebaseApp, {
+      provider: new ReCaptchaV3Provider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    if (!warned) {
+      console.warn("[AppCheck] init_failed_soft", error);
+      warned = true;
+    }
+    instance = null;
+  }
   return instance;
 }
 
 export const appCheck = init();
 
 export function hasAppCheck(): boolean {
-  return Boolean(siteKey || debug);
+  return Boolean(siteKey);
 }
 
 export async function ensureAppCheck(): Promise<void> {

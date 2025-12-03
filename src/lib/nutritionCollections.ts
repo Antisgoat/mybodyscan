@@ -33,12 +33,16 @@ export function userDoc(uid: string) {
   return doc(db, "users", uid);
 }
 
+export function userNutritionRoot(uid: string) {
+  return doc(db, "users", uid, "nutrition", "meta");
+}
+
 function favoritesCollection(uid: string) {
-  return collection(db, "users", uid, "nutritionFavorites");
+  return collection(userNutritionRoot(uid), "favorites");
 }
 
 function templatesCollection(uid: string) {
-  return collection(db, "users", uid, "nutritionTemplates");
+  return collection(userNutritionRoot(uid), "templates");
 }
 
 export function favoritesQuery(uid?: string) {

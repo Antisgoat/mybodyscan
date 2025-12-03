@@ -19,21 +19,19 @@ export function appCheckSoft(req: Request, res: Response, next: NextFunction) {
 
     const token = req.header("X-Firebase-AppCheck") || req.header("x-firebase-appcheck") || "";
     if (!token.trim()) {
-      if (mode === "soft") {
-        console.warn("appcheck_missing", { path: req.path || req.url });
-        return next();
-      }
-      return res.status(401).json({ error: "app_check_required" });
+      console.warn("appcheck_missing_soft", { path: req.path || req.url });
+      return next();
     }
 
     const origin = req.header("origin");
     if (allowed.length && origin && !allowed.includes(origin)) {
-      return res.status(403).json({ error: "origin_not_allowed" });
+      console.warn("appcheck_origin_blocked_soft", { origin });
+      return next();
     }
 
     return next();
-  } catch {
-    // Never crash; continue to next middleware to keep soft behavior truly soft
+  } catch (error) {
+    console.warn("appcheck_soft_middleware_error", { message: (error as any)?.message });
     return next();
   }
 }

@@ -1,5 +1,4 @@
-import { apiPost } from "@/lib/http";
-import { resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { call } from "@/lib/callable";
 
 export type CheckoutMode = "payment" | "subscription";
 
@@ -7,9 +6,12 @@ export async function startCheckout(
   priceId: string,
   mode: CheckoutMode = "subscription",
 ): Promise<{ sessionId: string | null; url: string | null }> {
-  const endpoint = resolveFunctionUrl("VITE_CHECKOUT_URL", "createCheckout");
-  const data = await apiPost<{ sessionId?: string; url?: string }>(endpoint, { priceId, mode });
-  const sessionId = typeof data?.sessionId === "string" ? data.sessionId : null;
-  const url = typeof data?.url === "string" ? data.url : null;
+  const response = await call<{ priceId: string; mode: CheckoutMode }, { sessionId?: string; url?: string }>(
+    "createCheckout",
+    { priceId, mode },
+  );
+  const data = response?.data ?? response;
+  const sessionId = typeof (data as any)?.sessionId === "string" ? (data as any).sessionId : null;
+  const url = typeof (data as any)?.url === "string" ? (data as any).url : null;
   return { sessionId, url };
 }

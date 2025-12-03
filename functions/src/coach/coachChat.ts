@@ -12,7 +12,7 @@ export const coachChat = onCallWithOptionalAppCheck(async (req) => {
 
   try {
     const chat = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_MODEL_ID || "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -27,6 +27,9 @@ export const coachChat = onCallWithOptionalAppCheck(async (req) => {
     return { text };
   } catch (error: any) {
     logger.error("coachChat error", error);
-    throw new HttpsError("unknown", error?.message || "Coach unavailable.");
+    return {
+      error: "coach_unavailable",
+      message: error?.message || "Coach unavailable.",
+    };
   }
 });

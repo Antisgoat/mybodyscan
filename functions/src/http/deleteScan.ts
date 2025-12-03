@@ -20,12 +20,10 @@ export const deleteScan = onRequest({ cors: true, timeoutSeconds: 540 }, async (
   const mode = (APP_CHECK_MODE.value() || "SOFT").toUpperCase();
   const acToken = String(req.headers["x-firebase-app-check"] || "");
   if (!acToken) {
-    if (mode === "HARD") return jsonError(res, 401, "app_check_required", "Missing App Check header");
-    logger.warn("appcheck_missing");
+    logger.warn("appcheck_missing_soft");
   } else {
     try { await getAppCheck().verifyToken(acToken); } catch (e:any) {
-      if (mode === "HARD") return jsonError(res, 401, "app_check_invalid", "Invalid App Check token");
-      logger.warn("appcheck_invalid", { err: String(e?.message || e) });
+      logger.warn("appcheck_invalid_soft", { err: String(e?.message || e) });
     }
   }
 

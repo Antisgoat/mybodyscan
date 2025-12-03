@@ -24,11 +24,7 @@ async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
   try {
     await verifyAppCheck(req, mode);
   } catch (error: any) {
-    if (error instanceof HttpsError) {
-      const code = error.message === "app_check_invalid" ? "app_check_invalid" : "app_check_required";
-      throw new HttpError(401, code);
-    }
-    throw error;
+    console.warn("scan_start_appcheck_failed", { mode, message: error?.message });
   }
 }
 
@@ -42,18 +38,7 @@ async function handleStart(req: Request, res: any) {
   }
 
   const appCheckMode = getAppCheckMode();
-  try {
-    await ensureAppCheck(req, appCheckMode);
-  } catch (error: any) {
-    if (error instanceof HttpError) {
-      console.warn("scan_start_appcheck_failed", { mode: appCheckMode, code: error.code });
-      res.status(error.status).json({ error: error.code, code: error.code });
-      return;
-    }
-    console.warn("scan_start_appcheck_failed", { mode: appCheckMode, message: error?.message });
-    res.status(401).json({ error: "app_check_required", code: "app_check_required" });
-    return;
-  }
+  await ensureAppCheck(req, appCheckMode);
 
   let authContext: { uid: string; claims?: Record<string, unknown> };
   try {
