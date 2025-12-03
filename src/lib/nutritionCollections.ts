@@ -29,20 +29,12 @@ function assertUid(): string {
   return uid;
 }
 
-export function userDoc(uid: string) {
-  return doc(db, "users", uid);
-}
-
-export function userNutritionRoot(uid: string) {
-  return doc(db, "users", uid, "nutrition", "meta");
-}
-
 function favoritesCollection(uid: string) {
-  return collection(userNutritionRoot(uid), "favorites");
+  return collection(db, "users", uid, "nutritionFavorites");
 }
 
 function templatesCollection(uid: string) {
-  return collection(userNutritionRoot(uid), "templates");
+  return collection(db, "users", uid, "nutritionTemplates");
 }
 
 export function favoritesQuery(uid?: string) {

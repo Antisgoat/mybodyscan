@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
-import { ApiError } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 
 export default function NutritionSearch() {
@@ -31,18 +30,17 @@ export default function NutritionSearch() {
         setError(response.message ?? "Food database temporarily unavailable; please try again later.");
       }
     } catch (err: any) {
-      const apiError = err instanceof ApiError ? err : null;
-      const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
-      const code = (apiError?.code || (apiError?.data as any)?.code) as string | undefined;
-      const status = apiError?.status;
-      const fallback = "Unable to load nutrition results right now.";
-      const rawMessage = apiMessage || err?.message;
-      let message = rawMessage && rawMessage !== "Bad Request" ? rawMessage : fallback;
-      if (!apiMessage) {
-        if (status === 400 && code === "invalid_query") {
+      const code = typeof err?.code === "string" ? err.code : undefined;
+      let message = typeof err?.message === "string" && err.message !== "Bad Request" ? err.message : null;
+      if (!message) {
+        if (code === "invalid-argument" || code === "invalid_query") {
           message = "Search query must not be empty.";
-        } else if (status === 503 || code === "nutrition_backend_error") {
+        } else if (code === "resource-exhausted") {
+          message = "You're searching too quickly. Please slow down.";
+        } else if (code === "unavailable" || code === "nutrition_backend_error") {
           message = "Food database temporarily unavailable; please try again later.";
+        } else {
+          message = "Unable to load nutrition results right now.";
         }
       }
       setError(message);

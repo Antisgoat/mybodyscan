@@ -1,14 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
-import { onRequest } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
 import { HttpError, send } from "./util/http.js";
-import { withCors } from "./middleware/cors.js";
-import { appCheckSoft } from "./middleware/appCheckSoft.js";
-import { chain } from "./middleware/chain.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -592,6 +589,109 @@ async function runSafe(
   }
 }
 
+type NormalizedSearchInput = {
+  query: string;
+  sourcePreference: "usda-first" | "off-first" | "combined";
+};
+
+type SearchContext = {
+  uid: string | null;
+  identifier: string;
+  requestId: string;
+};
+
+function asString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const first = value.find((item): item is string => typeof item === "string");
+    return first ?? "";
+  }
+  return "";
+}
+
+function normalizeSourcePreference(value: unknown): "usda-first" | "off-first" | "combined" {
+  const raw = asString(value).trim().toLowerCase();
+  if (raw === "off-first" || raw === "combined") {
+    return raw;
+  }
+  return "usda-first";
+}
+
+function normalizeSearchRecord(record: Record<string, unknown> | null | undefined): NormalizedSearchInput {
+  const data = record ?? {};
+  const rawTerm = asString(
+    data.query ??
+      (data as any).term ??
+      (data as any).search ??
+      (data as any).q ??
+      (data as any).text ??
+      "",
+  );
+  const query = rawTerm.trim();
+  return {
+    query,
+    sourcePreference: normalizeSourcePreference((data as any).sourcePreference),
+  };
+}
+
+async function runNutritionSearchCore(
+  input: NormalizedSearchInput,
+  context: SearchContext,
+): Promise<NutritionSearchResponse> {
+  const identifier = context.uid ?? context.identifier ?? "anonymous";
+  const rateLimit = await ensureRateLimit({
+    key: "nutrition_search",
+    identifier,
+    limit: 20,
+    windowSeconds: 60,
+  });
+
+  if (!rateLimit.allowed) {
+    throw new HttpError(429, "rate_limited", "Too many requests. Please slow down.");
+  }
+
+  const apiKey = getUsdaApiKey();
+  const errors: HttpError[] = [];
+
+  const usdaResult = await runSafe("USDA", () => searchUsda(input.query, apiKey), {
+    requestId: context.requestId,
+    uid: context.uid,
+  });
+  if (usdaResult.error) errors.push(usdaResult.error);
+
+  const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(input.query), {
+    requestId: context.requestId,
+    uid: context.uid,
+  });
+  if (offResult.error) errors.push(offResult.error);
+
+  let items: FoodItem[] = input.sourcePreference === "off-first" ? [] : usdaResult.items;
+  let source: NutritionSource | null = items.length ? "USDA" : null;
+
+  if (!items.length || input.sourcePreference !== "usda-first") {
+    if (offResult.items.length) {
+      if (input.sourcePreference === "combined" && items.length) {
+        items = [...items, ...offResult.items].slice(0, 40);
+        source = "USDA";
+      } else {
+        items = offResult.items;
+        source = offResult.items.length ? "Open Food Facts" : source;
+      }
+    } else if (!items.length) {
+      items = usdaResult.items;
+      source = items.length ? "USDA" : source;
+    }
+  }
+
+  if (!items.length && errors.length) {
+    const message = "Food database temporarily unavailable; please try again.";
+    return { status: "upstream_error", results: [], message };
+  }
+
+  const normalized = items.map(simplifyFoodItem);
+  return { status: "ok", results: normalized, source };
+}
+
 function handleError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {
     if (error.status === 429) {
@@ -623,84 +723,40 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "POST,OPTIONS");
+    if (req.method !== "POST" && req.method !== "GET") {
+      res.setHeader("Allow", "GET,POST,OPTIONS");
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
 
-    const body = (req.body && typeof req.body === "object" ? req.body : {}) as Partial<NutritionSearchRequest> &
-      Record<string, unknown>;
-    const rawTerm =
-      body.query ??
-      (body as any).term ??
-      (body as any).search ??
-      (body as any).q ??
-      (body as any).text ??
-      "";
+    const payload =
+      req.method === "GET"
+        ? normalizeSearchRecord(req.query as Record<string, unknown>)
+        : normalizeSearchRecord(
+            (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>,
+          );
 
-    const query = rawTerm != null ? String(rawTerm).trim() : "";
-
-    if (!query) {
-      res.status(400).json({ status: "upstream_error", results: [], code: "invalid_query", message: "Search query required" });
-      return;
-    }
-
-    const sourcePreference =
-      body.sourcePreference === "off-first" || body.sourcePreference === "combined" || body.sourcePreference === "usda-first"
-        ? body.sourcePreference
-        : "usda-first";
-
-    const auth = await verifyAuthorization(req);
-    const uid = auth.uid;
-
-    const rateLimit = await ensureRateLimit({
-      key: "nutrition_search",
-      identifier: uid ?? identifierFromRequest(req as any),
-      limit: 20,
-      windowSeconds: 60,
-    });
-
-    if (!rateLimit.allowed) {
-      send(res, 429, {
-        error: "rate_limited",
-        retryAfter: rateLimit.retryAfterSeconds ?? null,
+    if (!payload.query) {
+      res.status(400).json({
+        status: "upstream_error",
+        results: [],
+        code: "invalid_query",
+        message: "Search query required",
       });
       return;
     }
 
-    const apiKey = getUsdaApiKey();
+    if (!req.get("x-firebase-appcheck") && !req.get("X-Firebase-AppCheck")) {
+      console.warn("nutritionSearch.appcheck_missing_http", { path: req.path });
+    }
+
+    const auth = await verifyAuthorization(req);
+    const uid = auth.uid;
     const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
-    const errors: HttpError[] = [];
+    const identifier = uid ?? identifierFromRequest(req as Request);
 
-    const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
-    if (usdaResult.error) errors.push(usdaResult.error);
-
-    const shouldTryOffFirst = sourcePreference === "off-first";
-    let items = shouldTryOffFirst ? [] : usdaResult.items;
-    let source: NutritionSource | null = items.length ? "USDA" : null;
-
-    const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
-    if (offResult.error) errors.push(offResult.error);
-
-    if (!items.length || shouldTryOffFirst) {
-      if (offResult.items.length) {
-        items = offResult.items;
-        source = "Open Food Facts";
-      } else if (!items.length) {
-        items = usdaResult.items;
-        source = items.length ? "USDA" : source;
-      }
-    }
-
-    if (!items.length && errors.length) {
-      const message = "Food database temporarily unavailable; please try again.";
-      send(res, 200, { status: "upstream_error", results: [], message });
-      return;
-    }
-
-    const normalized = items.map(simplifyFoodItem);
-    send(res, 200, { status: "ok", results: normalized, source });
+    const response = await runNutritionSearchCore(payload, { uid, identifier, requestId });
+    send(res, 200, response);
   } catch (error) {
     handleError(res, error);
   }
@@ -708,14 +764,42 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
 
 export { handleNutritionSearch as nutritionSearchHandler };
 
-export const nutritionSearch = onRequest(
+export const nutritionSearch = onCall<NutritionSearchRequest>(
   {
     region: "us-central1",
     secrets: [usdaApiKeyParam],
-    invoker: "public",
-    concurrency: 20,
-    appCheck: { enforcement: "UNENFORCED" },
+    cors: true,
+    enforceAppCheck: false,
   },
-  (req: Request, res: Response) =>
-    chain(withCors, appCheckSoft)(req, res, () => void handleNutritionSearch(req, res)),
+  async (request) => {
+    const requestId = request.rawRequest?.get("x-request-id")?.trim() || randomUUID();
+    const hasApp = Boolean((request as any)?.app);
+    const hasAppCheckToken = Boolean((request as any)?.appCheck?.token);
+    if (!hasApp && !hasAppCheckToken) {
+      console.warn("nutritionSearch.appcheck_missing_callable", { requestId });
+    }
+
+    const normalized = normalizeSearchRecord(
+      (request.data && typeof request.data === "object" ? request.data : {}) as Record<string, unknown>,
+    );
+    if (!normalized.query) {
+      throw new HttpsError("invalid-argument", "Search query required");
+    }
+
+    try {
+      return await runNutritionSearchCore(normalized, {
+        uid: request.auth?.uid ?? null,
+        identifier: request.auth?.uid ?? identifierFromRequest(request.rawRequest as Request),
+        requestId,
+      });
+    } catch (error) {
+      if (error instanceof HttpError) {
+        if (error.status === 429) {
+          throw new HttpsError("resource-exhausted", "Too many nutrition searches. Please slow down.");
+        }
+        throw new HttpsError("unavailable", error.message || "Food database temporarily unavailable.");
+      }
+      throw new HttpsError("internal", "Food database temporarily unavailable.");
+    }
+  },
 );

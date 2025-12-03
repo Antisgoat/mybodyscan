@@ -4,6 +4,7 @@ import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
+import { nutritionSearch as nutritionSearchCallable } from "@/lib/api/nutrition";
 import type { Auth, User } from "firebase/auth";
 import { apiFetchJson } from "./apiFetch";
 import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
@@ -132,10 +133,7 @@ const DEMO_NUTRITION_RESULTS = [
   },
 ] satisfies Array<Record<string, unknown>>;
 
-export async function nutritionSearch(
-  query: string,
-  init?: RequestInit,
-): Promise<NutritionSearchResponse> {
+export async function nutritionSearch(query: string): Promise<NutritionSearchResponse> {
   const trimmed = query.trim();
   if (!trimmed) {
     return { results: [] };
@@ -148,39 +146,7 @@ export async function nutritionSearch(
       message: "demo_results",
     } satisfies NutritionSearchResponse;
   }
-
-  const headers = new Headers(init?.headers ?? undefined);
-  headers.set("Accept", "application/json");
-
-  const qs = new URLSearchParams({ q: trimmed }).toString();
-
-  let payload: NutritionSearchResponse | null = null;
-  try {
-    payload = (await apiFetchJson(`/nutrition/search?${qs}`, {
-      method: "GET",
-      signal: init?.signal,
-      headers,
-    })) as NutritionSearchResponse;
-  } catch (error) {
-    console.error("nutrition_search_http_error", error);
-    throw error;
-  }
-
-  if (payload?.items && !payload.results) {
-    payload.results = payload.items;
-  }
-
-  if (Array.isArray(payload?.results)) {
-    payload.results = payload.results
-      .map((item) => {
-        const sanitized = sanitizeFoodItem(item);
-        if (!sanitized) return null;
-        return { ...item, ...sanitized };
-      })
-      .filter((item): item is Record<string, unknown> => Boolean(item));
-  }
-
-  return payload ?? { results: [] };
+  return nutritionSearchCallable(trimmed);
 }
 
 export async function nutritionBarcodeLookup(

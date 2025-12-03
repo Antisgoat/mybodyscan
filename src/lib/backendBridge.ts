@@ -105,12 +105,15 @@ export const backend = {
     mode: "payment" | "subscription";
     promoCode?: string;
   }) {
-    return callWithHttpFallback<typeof input, { sessionId: string }>(
+    return callWithHttpFallback<typeof input, { sessionId?: string; url?: string }>(
       {
         callableName: "createCheckout",
         httpPath: "/api/createCheckout",
         method: "POST",
-        mapHttpToClient: (json: any) => ({ sessionId: json?.sessionId || json?.id }),
+        mapHttpToClient: (json: any) => ({
+          sessionId: json?.sessionId || json?.id || null,
+          url: json?.url ?? null,
+        }),
       },
       input,
     );

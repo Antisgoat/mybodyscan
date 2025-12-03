@@ -14,7 +14,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
-import { coachChatApi, type CoachChatPayload } from "@/lib/api/coach";
+import { coachChatApi, type CoachChatRequest } from "@/lib/api/coach";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
@@ -207,7 +207,7 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const payload: CoachChatPayload = { message: sanitized };
+      const payload: CoachChatRequest = { message: sanitized };
       const response = await coachChatApi(payload);
       const answer = typeof response?.reply === "string" && response.reply ? response.reply : "No answer.";
       setInput("");

@@ -133,11 +133,14 @@ function parsePayload(body: any): SubmitPayload | null {
   return { scanId, photoPaths, currentWeightKg, goalWeightKg };
 }
 
-async function buildImageInputs(paths: Record<Pose, string>): Promise<Array<{ pose: Pose; url: string }>> {
+async function buildImageInputs(uid: string, paths: Record<Pose, string>): Promise<Array<{ pose: Pose; url: string }>> {
   const bucket = storage.bucket();
   const entries: Array<{ pose: Pose; url: string }> = [];
   for (const pose of POSES) {
     const path = paths[pose];
+    if (!path || !path.startsWith(`user_uploads/${uid}/`)) {
+      throw new Error(`invalid_photo_path_${pose}`);
+    }
     const file = bucket.file(path);
     const [exists] = await file.exists();
     if (!exists) {
@@ -228,8 +231,8 @@ function parseAnalysis(content: string): ParsedAnalysis {
   }
 }
 
-function invalidScan(res: any, message = "Missing or invalid scan data.") {
-  res.status(400).json({ code: "invalid_scan_request", message });
+function invalidScan(res: any, message = "Missing or invalid scan data.", code = "invalid_scan_request") {
+  res.status(400).json({ code, message });
 }
 
 export const submitScan = onRequest(
@@ -288,15 +291,20 @@ export const submitScan = onRequest(
 
       let analysis: ParsedAnalysis;
       try {
-        const images = await buildImageInputs(payload.photoPaths);
+        const images = await buildImageInputs(uid, payload.photoPaths);
         const content = await callOpenAI(images, { ...payload, uid });
         analysis = parseAnalysis(content);
       } catch (error: any) {
         const message = error?.message ?? "Unknown";
-        console.error("scan_submit_processing_failed", { message, stack: error?.stack });
+        console.error("scan_submit_processing_failed", { message, stack: error?.stack, uid, scanId: payload.scanId });
         const isClientIssue = typeof message === "string" && message.startsWith("missing_photo_");
+        const invalidPath = typeof message === "string" && message.startsWith("invalid_photo_path_");
         if (isClientIssue) {
-          invalidScan(res, "Missing or invalid scan data.");
+          invalidScan(res, "We could not find your uploaded photos. Please re-upload and try again.", "missing_photos");
+          return;
+        }
+        if (invalidPath) {
+          invalidScan(res, "Invalid photo path supplied.", "invalid_photo_paths");
           return;
         }
         await scanRef.set({ status: "error", errorMessage: "Unexpected error while processing scan.", updatedAt: serverTimestamp() }, { merge: true });
@@ -318,6 +326,8 @@ export const submitScan = onRequest(
       };
 
       await scanRef.set(update, { merge: true });
+
+      console.info("scan_submit_complete", { uid, scanId: payload.scanId });
 
       res.json({
         scanId: payload.scanId,

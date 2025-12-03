@@ -66,11 +66,14 @@ export default function ScanPage() {
     } catch (err: any) {
       setStatus("idle");
       const apiError = err instanceof ApiError ? err : null;
+      const code = apiError?.code || (apiError?.data as any)?.code;
       const message = typeof apiError?.data?.message === "string"
         ? apiError.data.message
-        : apiError?.code === "invalid_scan_request"
-          ? "Missing or invalid scan data."
-          : err?.message || "Could not start the scan.";
+        : code === "missing_photos"
+          ? "We couldn't find your uploads. Please re-upload each photo and try again."
+          : code === "invalid_scan_request"
+            ? "Missing or invalid scan data."
+            : err?.message || "Could not start the scan.";
       setError(message);
     }
   }
