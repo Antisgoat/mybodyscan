@@ -45,13 +45,13 @@ export function probeFirebaseRuntime() {
       const resp = await fetch(url, { mode: "cors" });
       console.log("[probe] IdentityToolkit status:", resp.status);
       if (!resp.ok) {
-        console.warn(
-          "[probe] IdentityToolkit not reachable. If status is 404/CORS, the Web API key restrictions are blocking this origin:",
+        console.info(
+          "[probe] IdentityToolkit not reachable (non-blocking). If status is 404/CORS, Web API key restrictions may block",
           origin,
         );
       }
     } catch (error) {
-      console.warn("[probe] IdentityToolkit fetch error:", error);
+      console.info("[probe] IdentityToolkit fetch error (ignored)", error);
     }
   })();
 }
