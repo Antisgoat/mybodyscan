@@ -1,7 +1,9 @@
-import { preferRewriteUrl } from "@/lib/api/urls";
-import { apiFetchWithFallback } from "@/lib/http";
+import { FirebaseError } from "firebase/app";
+import { httpsCallable } from "firebase/functions";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { sanitizeFoodItem, type FoodItem } from "@/lib/nutrition/sanitize";
+import { ensureAppCheck } from "@/lib/appCheck";
+import { functions } from "@/lib/firebase";
 
 export type NutritionSearchRequest = {
   query: string;
@@ -25,11 +27,30 @@ export interface NutritionHistoryResponse {
   days: { date: string; totals: DailyLogResponse["totals"] }[];
 }
 
-const NUTRITION_SEARCH_URL = preferRewriteUrl("nutritionSearch");
+const nutritionSearchCallable = httpsCallable<NutritionSearchRequest, NutritionSearchResponse>(functions, "nutritionSearch");
+
+function normalizeNutritionError(error: unknown): Error {
+  if (error instanceof FirebaseError) {
+    const code = error.code ?? "";
+    let message = "Unable to load nutrition results right now.";
+    if (code.includes("invalid-argument")) {
+      message = "Search query must not be empty.";
+    } else if (code.includes("resource-exhausted")) {
+      message = "You’re searching too quickly. Please slow down.";
+    } else if (code.includes("unavailable")) {
+      message = "Food database temporarily unavailable; please try again later.";
+    }
+    const err = new Error(message);
+    (err as Error & { code?: string }).code = code || error.name;
+    return err;
+  }
+  if (error instanceof Error) return error;
+  return new Error("Unable to load nutrition results right now.");
+}
 
 export async function nutritionSearch(
   term: string,
-  init?: { page?: number; pageSize?: number; sourcePreference?: "usda-first" | "off-first" | "combined"; signal?: AbortSignal },
+  init?: { page?: number; pageSize?: number; sourcePreference?: "usda-first" | "off-first" | "combined" },
 ): Promise<NutritionSearchResponse> {
   const trimmed = term.trim();
   if (!trimmed) {
@@ -41,30 +62,32 @@ export async function nutritionSearch(
   if (init?.pageSize != null) body.pageSize = init.pageSize;
   if (init?.sourcePreference) body.sourcePreference = init.sourcePreference;
 
-  const payload = (await apiFetchWithFallback<NutritionSearchResponse>("nutritionSearch", NUTRITION_SEARCH_URL, {
-    method: "POST",
-    body,
-    signal: init?.signal,
-  })) as NutritionSearchResponse;
+  await ensureAppCheck();
 
-  const normalized = Array.isArray(payload?.results)
-    ? payload.results.map(sanitizeFoodItem).filter(Boolean)
-    : [];
+  try {
+    const result = await nutritionSearchCallable(body);
+    const payload = (result?.data ?? result) as NutritionSearchResponse;
+    const normalized = Array.isArray(payload?.results)
+      ? payload.results.map(sanitizeFoodItem).filter(Boolean)
+      : [];
 
-  if (!payload || payload.status === "upstream_error") {
+    if (!payload || payload.status === "upstream_error") {
+      return {
+        status: "upstream_error",
+        results: normalized,
+        message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
+      };
+    }
+
     return {
-      status: "upstream_error",
+      status: "ok",
       results: normalized,
-      message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
-    } satisfies NutritionSearchResponse;
+      source: payload.source ?? null,
+      message: payload.message ?? null,
+    };
+  } catch (error) {
+    throw normalizeNutritionError(error);
   }
-
-  return {
-    status: "ok",
-    results: normalized,
-    source: payload.source ?? null,
-    message: payload.message ?? null,
-  } satisfies NutritionSearchResponse;
 }
 
 export const searchNutrition = nutritionSearch;

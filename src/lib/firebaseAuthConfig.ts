@@ -143,6 +143,8 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
       return withEnvFallback({ authorizedDomains, providerIds });
     } catch (err) {
       console.warn("[probe] IdentityToolkit fetch error", err);
+      // NOTE: IdentityToolkit returns 404 when the current origin isn't in Firebase Auth's
+      // authorized domains list. This must be fixed in the Firebase console, not here.
       return withEnvFallback({ authorizedDomains: [], providerIds: [] });
     }
   })();

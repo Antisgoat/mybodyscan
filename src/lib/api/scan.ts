@@ -82,6 +82,10 @@ function submitUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_SUBMIT_URL", "submitScan");
 }
 
+function deleteUrl(): string {
+  return resolveFunctionUrl("VITE_SCAN_DELETE_URL", "deleteScan");
+}
+
 export async function startScanSessionClient(params: {
   currentWeightKg: number;
   goalWeightKg: number;
@@ -156,4 +160,32 @@ export async function getScan(scanId: string): Promise<ScanDocument> {
     workoutPlan: data.workoutPlan ?? null,
     nutritionPlan: data.nutritionPlan ?? null,
   };
+}
+
+type DeleteScanResponse =
+  | { ok: true; data?: { scanId?: string | null } }
+  | { ok: false; error?: { code?: string | null; message?: string | null } };
+
+export async function deleteScanApi(scanId: string): Promise<void> {
+  const trimmed = scanId.trim();
+  if (!trimmed) {
+    throw new Error("Missing scan id.");
+  }
+
+  const response = await apiFetch<DeleteScanResponse>(deleteUrl(), {
+    method: "POST",
+    body: { scanId: trimmed },
+  });
+
+  if (!response) {
+    throw new Error("Unable to delete scan. Please try again.");
+  }
+
+  if ("ok" in response && !response.ok) {
+    const message =
+      response.error?.message && response.error.message !== "Bad Request"
+        ? response.error.message
+        : "Unable to delete scan. Please try again.";
+    throw new Error(message);
+  }
 }

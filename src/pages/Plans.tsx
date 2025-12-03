@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
 import { useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
 const PRICE_ID_YEARLY = PRICE_IDS.yearly;
 const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
+const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
+const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
 
 type PlanConfig = {
   name: string;
@@ -112,11 +115,25 @@ export default function Plans() {
     setPendingPlan(plan.plan);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
-      const url = await startCheckout(plan.priceId, plan.mode);
-      if (!url) {
-        throw new Error("checkout_url_missing");
+      const { sessionId, url } = await startCheckout(plan.priceId, plan.mode);
+
+      if (sessionId && stripePromise) {
+        const stripe = await stripePromise;
+        if (stripe) {
+          const { error } = await stripe.redirectToCheckout({ sessionId });
+          if (error) {
+            throw new Error(error.message || "Stripe redirect failed.");
+          }
+          return;
+        }
       }
-      window.location.assign(url.toString());
+
+      if (url) {
+        window.location.assign(url);
+        return;
+      }
+
+      throw new Error("Checkout unavailable");
     } catch (err: any) {
       console.error("checkout_error", err);
       const errMessage = typeof err?.message === "string" && err.message.length ? err.message : String(err);

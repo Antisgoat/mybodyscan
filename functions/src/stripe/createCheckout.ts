@@ -29,9 +29,20 @@ export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create(params);
-    return { sessionId: session.id };
+    return { sessionId: session.id ?? null, url: session.url ?? null };
   } catch (error: any) {
-    logger.error("createCheckout failed", error);
-    throw new HttpsError("unknown", error?.message || "Billing unavailable.");
+    logger.error("createCheckout_failed", {
+      code: error?.code,
+      type: error?.type,
+      message: error?.message,
+    });
+    const code = typeof error?.code === "string" ? error.code : "";
+    if (code === "resource_missing" || code === "no_such_price") {
+      throw new HttpsError("invalid-argument", "Invalid plan configuration.");
+    }
+    if (error?.statusCode === 401 || error?.statusCode === 403) {
+      throw new HttpsError("failed-precondition", "Stripe configuration invalid.");
+    }
+    throw new HttpsError("unavailable", "Billing is temporarily unavailable.");
   }
 });

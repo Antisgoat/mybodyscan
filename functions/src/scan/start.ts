@@ -17,7 +17,7 @@ interface StartResponse {
 }
 
 function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
-  return `scans/${uid}/${scanId}/${pose}.jpg`;
+  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
 }
 
 async function ensureAppCheck(req: Request, mode: AppCheckMode): Promise<void> {
@@ -92,6 +92,8 @@ async function handleStart(req: Request, res: any) {
   };
 
   await db.doc(`users/${uid}/scans/${scanId}`).set(doc);
+
+  console.info("scan_start_created", { uid, scanId });
 
   const payload: StartResponse = { scanId, storagePaths };
   res.json(payload);
