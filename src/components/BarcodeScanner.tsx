@@ -22,10 +22,10 @@ export function BarcodeScanner({ onResult, onError }: Props) {
   }, []);
 
   const startNativeDetector = React.useCallback(async () => {
-    // @ts-ignore checking runtime availability
+    // @ts-expect-error -- BarcodeDetector is an experimental browser API
     if (!("BarcodeDetector" in window)) return false;
     try {
-      // @ts-ignore use native implementation
+      // @ts-expect-error -- BarcodeDetector may not exist in all browsers
       const detector = new window.BarcodeDetector({
         formats: ["ean_13", "upc_a", "upc_e", "ean_8", "code_128"],
       });

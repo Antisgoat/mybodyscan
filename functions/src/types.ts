@@ -1,13 +1,67 @@
 import type { Timestamp } from "firebase-admin/firestore";
 
+export interface ScanEstimate {
+  bodyFatPercent: number;
+  bmi: number | null;
+  notes: string;
+}
+
+export interface ScanWorkoutPlan {
+  summary: string;
+  weeks: {
+    weekNumber: number;
+    days: {
+      day: string;
+      focus: string;
+      exercises: {
+        name: string;
+        sets: number;
+        reps: string;
+        notes?: string;
+      }[];
+    }[];
+  }[];
+}
+
+export interface ScanNutritionPlan {
+  caloriesPerDay: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatsGrams: number;
+  sampleDay: {
+    mealName: string;
+    description: string;
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  }[];
+}
+
 export interface ScanDocument {
+  id: string;
+  uid: string;
   createdAt: Timestamp;
-  updatedAt?: Timestamp;
-  status: string;
+  updatedAt: Timestamp;
+  status: "pending" | "processing" | "complete" | "error";
+  errorMessage?: string;
+  photoPaths: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+  };
+  input: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+  };
+  estimate: ScanEstimate | null;
+  workoutPlan: ScanWorkoutPlan | null;
+  nutritionPlan: ScanNutritionPlan | null;
   legacyStatus?: string;
   statusV1?: string;
   files?: string[];
-  metrics?: Record<string, any>;
+  metrics?: Record<string, unknown>;
   usedFallback?: boolean;
 }
 
@@ -90,6 +144,6 @@ export interface WorkoutPlan {
   id?: string;
   active?: boolean;
   createdAt: Timestamp;
-  prefs?: Record<string, any>;
+  prefs?: Record<string, unknown>;
   days: WorkoutDay[];
 }

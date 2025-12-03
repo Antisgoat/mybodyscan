@@ -30,7 +30,8 @@ function storage(): Storage | null {
   try {
     if (typeof window === "undefined") return null;
     return window.localStorage;
-  } catch {
+  } catch (error) {
+    console.warn("api_urls.storage_unavailable", error);
     return null;
   }
 }
@@ -46,7 +47,11 @@ export function preferRewriteUrl(k: Key): string {
 
 export function noteWorkingUrl(k: Key, url: string) {
   const store = storage();
-  try { store?.setItem(cacheKey(k), url); } catch {}
+  try {
+    store?.setItem(cacheKey(k), url);
+  } catch (error) {
+    console.warn("api_urls.cache_failed", error);
+  }
 }
 
 export function fallbackDirectUrl(k: Key): string {

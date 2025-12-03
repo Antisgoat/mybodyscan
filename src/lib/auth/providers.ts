@@ -25,13 +25,22 @@ function preferRedirect(): boolean {
 }
 
 function storeNext(next?: string | null) {
-  try { localStorage.setItem("auth_next", next || "/home"); } catch {}
+  try {
+    localStorage.setItem("auth_next", next || "/home");
+  } catch (error) {
+    console.warn("auth.storeNext_failed", error);
+  }
 }
 export function consumeNext(): string {
   try {
     const n = localStorage.getItem("auth_next");
-    if (n) { localStorage.removeItem("auth_next"); return n; }
-  } catch {}
+    if (n) {
+      localStorage.removeItem("auth_next");
+      return n;
+    }
+  } catch (error) {
+    console.warn("auth.consumeNext_failed", error);
+  }
   return "/home";
 }
 

@@ -6,6 +6,7 @@ import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
+import type { ScanDocument } from "../types.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -236,7 +237,7 @@ function parseAnalysis(content: string): ParsedAnalysis {
 export const submitScan = onRequest(
   { invoker: "public", concurrency: 10, region: "us-central1" },
   async (req, res) => {
-    let scanRef: FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData> | null = null;
+    let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null = null;
     const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
@@ -274,8 +275,8 @@ export const submitScan = onRequest(
       }
 
       const { uid } = authContext;
-      scanRef = db.doc(`users/${uid}/scans/${payload.scanId}`);
-      const snap = await scanRef.get();
+      const docRef = db.doc(`users/${uid}/scans/${payload.scanId}`) as FirebaseFirestore.DocumentReference<ScanDocument>;
+      const snap = await docRef.get();
       if (!snap.exists) {
         throw new HttpsError("not-found", "Scan not found.", { debugId: requestId, reason: "scan_not_found" });
       }
@@ -286,6 +287,7 @@ export const submitScan = onRequest(
           reason: "scan_wrong_owner",
         });
       }
+      scanRef = docRef;
 
       await scanRef.set({ status: "processing", updatedAt: serverTimestamp() }, { merge: true });
 

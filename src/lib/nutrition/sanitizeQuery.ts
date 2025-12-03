@@ -3,7 +3,7 @@ export function sanitizeNutritionQuery(q: string): string {
   return q
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^a-z0-9\s\-]/g, " ")
+    .replace(/[^-a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 64);

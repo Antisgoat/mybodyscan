@@ -10,10 +10,12 @@ export default function ScanComparePage() {
   const [right, setRight] = useState<ScanDoc | null>(null);
 
   useEffect(() => {
-    if (leftId) return onSnapshot(scanDocRef(leftId), (s) => setLeft((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
+    if (!leftId) return undefined;
+    return onSnapshot(scanDocRef(leftId), (s) => setLeft((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
   }, [leftId]);
   useEffect(() => {
-    if (rightId) return onSnapshot(scanDocRef(rightId), (s) => setRight((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
+    if (!rightId) return undefined;
+    return onSnapshot(scanDocRef(rightId), (s) => setRight((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
   }, [rightId]);
 
   const L = useMemo(() => normalizeScanMetrics(left || undefined), [left]);
@@ -39,7 +41,13 @@ export default function ScanComparePage() {
   function share() {
     const url = window.location.href;
     const text = `MyBodyScan compare — BF ${L.bodyFatPct ?? "—"}% → ${R.bodyFatPct ?? "—"}%`;
-    (navigator as any).share?.({ title: "MyBodyScan", text, url }) || navigator.clipboard?.writeText(url);
+    if ((navigator as any).share) {
+      void (navigator as any).share({ title: "MyBodyScan", text, url });
+      return;
+    }
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(url);
+    }
   }
 
   return (

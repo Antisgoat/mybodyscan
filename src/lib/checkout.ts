@@ -32,7 +32,10 @@ export async function startCheckout(priceId: string, mode: "payment" | "subscrip
         const data = await resp.json().catch(() => ({}));
         sessionId = data?.sessionId || "";
       }
-    } catch {}
+    } catch (fallbackError) {
+      console.error("checkout.callable_failed", error);
+      console.error("checkout.http_failed", fallbackError);
+    }
   }
 
   if (!sessionId) {

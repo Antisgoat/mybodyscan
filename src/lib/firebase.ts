@@ -94,7 +94,7 @@ const app: FirebaseApp | null = initializeFirebaseApp();
 
 export const firebaseApp = app as FirebaseApp;
 export const auth: Auth = app ? getAuth(app) : (null as unknown as Auth);
-let persistenceReady: Promise<void> = app
+const persistenceReady: Promise<void> = app
   ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
   : Promise.resolve();
 

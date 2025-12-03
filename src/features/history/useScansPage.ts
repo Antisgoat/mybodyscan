@@ -23,7 +23,10 @@ export function listenLatest(setter: (items: ScanItem[]) => void, pageSize = 20)
 
 export async function loadMore(afterId: string, pageSize = 20): Promise<ScanItem[]> {
   // Get the doc to page after, then fetch next page
-  const uid = auth.currentUser?.uid!;
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    throw new Error("Not signed in");
+  }
   const afterRef = query(collection(db, "users", uid, "scans"), orderBy("createdAt", "desc"));
   const first = await getDocs(afterRef);
   const afterDoc = first.docs.find((d) => d.id === afterId);

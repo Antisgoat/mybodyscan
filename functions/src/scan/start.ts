@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
+import type { ScanDocument } from "../types.js";
 
 const db = getFirestore();
 const POSES = ["front", "back", "left", "right"] as const;

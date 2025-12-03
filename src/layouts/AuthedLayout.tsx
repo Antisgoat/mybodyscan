@@ -33,12 +33,16 @@ function exitDemo() {
     window.localStorage.removeItem("mbs.demo");
     window.localStorage.removeItem("mbs:demo");
     window.localStorage.removeItem("mbs_demo");
-  } catch {}
+  } catch (error) {
+    console.warn("demo.localStorage.clear_failed", error);
+  }
   try {
     window.sessionStorage.removeItem("mbs.demo");
     window.sessionStorage.removeItem("mbs:demo");
     window.sessionStorage.removeItem("mbs_demo");
-  } catch {}
+  } catch (error) {
+    console.warn("demo.sessionStorage.clear_failed", error);
+  }
   setDemo(false);
   window.location.href = "/home";
 }

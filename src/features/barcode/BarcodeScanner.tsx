@@ -33,7 +33,11 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
         stopRef.current = null;
         setScanning(false);
         // Best-effort haptic
-        try { (navigator as any).vibrate?.(60); } catch {}
+        try {
+          (navigator as any).vibrate?.(60);
+        } catch (error) {
+          console.debug("barcode_vibrate_failed", error);
+        }
         onDetected(code);
         onClose();
       });
