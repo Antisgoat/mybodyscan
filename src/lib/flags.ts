@@ -113,7 +113,12 @@ async function fetchPublicConfig(): Promise<void> {
         loaded: true,
       });
     } catch (err) {
-      console.warn("flags_fetch_failed", err);
+      const code = (err as any)?.code || (err as any)?.message;
+      if (code === "permission-denied") {
+        console.warn("flags_fetch_failed", "permission-denied");
+      } else {
+        console.warn("flags_fetch_failed", err);
+      }
       updateCache({ loaded: true });
     }
   })().finally(() => {

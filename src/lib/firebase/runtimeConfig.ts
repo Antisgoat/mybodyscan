@@ -1,3 +1,5 @@
+let warnedIdentityToolkit = false;
+
 export function probeFirebaseRuntime() {
   if (typeof window === "undefined") return;
 
@@ -33,25 +35,33 @@ export function probeFirebaseRuntime() {
   })();
 
   void (async () => {
-    const apiKey = await keyFromRuntime;
-    console.log("[probe] origin:", origin, "apiKey present:", Boolean(apiKey));
-    if (!apiKey) {
-      console.warn("[probe] No runtime apiKey. Check Hosting and /__/firebase/init.json.");
-      return;
-    }
-
-    const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/clientConfig?key=${apiKey}`;
     try {
-      const resp = await fetch(url, { mode: "cors" });
-      console.log("[probe] IdentityToolkit status:", resp.status);
-      if (!resp.ok) {
-        console.info(
-          "[probe] IdentityToolkit not reachable (non-blocking). If status is 404/CORS, Web API key restrictions may block",
-          origin,
-        );
+      const apiKey = await keyFromRuntime;
+      console.log("[probe] origin:", origin, "apiKey present:", Boolean(apiKey));
+      if (!apiKey) {
+        console.warn("[probe] No runtime apiKey. Check Hosting and /__/firebase/init.json.");
+        return;
+      }
+
+      const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/clientConfig?key=${apiKey}`;
+      const resp = await fetch(url, { mode: "no-cors" }).catch((error) => {
+        if (!warnedIdentityToolkit) {
+          console.warn("[probe] IdentityToolkit fetch error", error);
+          warnedIdentityToolkit = true;
+        }
+        return null as any;
+      });
+
+      if (!resp) return;
+      if (!resp.ok && !warnedIdentityToolkit) {
+        console.warn("[probe] IdentityToolkit fetch error", resp.status);
+        warnedIdentityToolkit = true;
       }
     } catch (error) {
-      console.info("[probe] IdentityToolkit fetch error (ignored)", error);
+      if (!warnedIdentityToolkit) {
+        console.warn("[probe] IdentityToolkit fetch error", error);
+        warnedIdentityToolkit = true;
+      }
     }
   })();
 }

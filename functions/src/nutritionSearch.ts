@@ -68,6 +68,17 @@ export interface NormalizedFoodItem {
   source?: NutritionSource;
 }
 
+export type NutritionSearchRequest = {
+  query: string;
+  page?: number;
+  pageSize?: number;
+  sourcePreference?: "usda-first" | "off-first" | "combined";
+};
+
+export type NutritionSearchResponse =
+  | { status: "ok"; results: NormalizedFoodItem[]; source?: NutritionSource | null; message?: string | null }
+  | { status: "upstream_error"; results: NormalizedFoodItem[]; message?: string | null };
+
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
 const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"];
@@ -578,15 +589,14 @@ async function runSafe(
   }
 }
 
-function pickError(errors: HttpError[]): HttpError {
-  const upstream4xx = errors.find((error) => error.code === "upstream_4xx");
-  return upstream4xx ?? errors[0] ?? new HttpError(502, "upstream_timeout");
-}
-
 function handleError(res: Response, error: unknown): void {
   if (error instanceof HttpError) {
     if (error.status === 429) {
       res.status(429).json({ code: "rate_limited", message: "Too many requests. Please slow down." });
+      return;
+    }
+    if (error.status === 401) {
+      res.status(401).json({ code: error.code || "unauthorized", message: error.message || "Unauthorized" });
       return;
     }
     res.status(503).json({
@@ -610,31 +620,33 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (req.method !== "GET" && req.method !== "POST") {
-      res.setHeader("Allow", "GET,POST,OPTIONS");
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST,OPTIONS");
       res.status(405).json({ error: "Method Not Allowed" });
       return;
     }
 
+    const body = (req.body && typeof req.body === "object" ? req.body : {}) as Partial<NutritionSearchRequest> &
+      Record<string, unknown>;
     const rawTerm =
-      (req.body as any)?.query ??
-      (req.body as any)?.term ??
-      (req.body as any)?.search ??
-      (req.body as any)?.q ??
-      (req.body as any)?.text ??
-      (req.query as any)?.q ??
-      (req.query as any)?.query ??
-      (req.query as any)?.term ??
-      (req.query as any)?.search ??
-      (req.query as any)?.text ??
+      body.query ??
+      (body as any).term ??
+      (body as any).search ??
+      (body as any).q ??
+      (body as any).text ??
       "";
 
     const query = rawTerm != null ? String(rawTerm).trim() : "";
 
     if (!query) {
-      res.status(200).json({ items: [] });
+      res.status(400).json({ status: "upstream_error", results: [], code: "invalid_query", message: "Search query required" });
       return;
     }
+
+    const sourcePreference =
+      body.sourcePreference === "off-first" || body.sourcePreference === "combined" || body.sourcePreference === "usda-first"
+        ? body.sourcePreference
+        : "usda-first";
 
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
@@ -656,22 +668,36 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
 
     const apiKey = getUsdaApiKey();
     const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+    const errors: HttpError[] = [];
+
     const usdaResult = await runSafe("USDA", () => searchUsda(query, apiKey), { requestId, uid });
+    if (usdaResult.error) errors.push(usdaResult.error);
 
-    let items = usdaResult.items;
-    let source: "USDA" | "OFF" = "USDA";
+    const shouldTryOffFirst = sourcePreference === "off-first";
+    let items = shouldTryOffFirst ? [] : usdaResult.items;
+    let source: NutritionSource | null = items.length ? "USDA" : null;
 
-    if (!items.length) {
-      const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
-      items = offResult.items;
-      source = items.length ? "OFF" : source;
-      if (!items.length && usdaResult.error && offResult.error) {
-        throw pickError([usdaResult.error, offResult.error]);
+    const offResult = await runSafe("Open Food Facts", () => searchOpenFoodFacts(query), { requestId, uid });
+    if (offResult.error) errors.push(offResult.error);
+
+    if (!items.length || shouldTryOffFirst) {
+      if (offResult.items.length) {
+        items = offResult.items;
+        source = "Open Food Facts";
+      } else if (!items.length) {
+        items = usdaResult.items;
+        source = items.length ? "USDA" : source;
       }
     }
 
+    if (!items.length && errors.length) {
+      const message = "Food database temporarily unavailable; please try again.";
+      send(res, 200, { status: "upstream_error", results: [], message });
+      return;
+    }
+
     const normalized = items.map(simplifyFoodItem);
-    send(res, 200, { items: normalized, source });
+    send(res, 200, { status: "ok", results: normalized, source });
   } catch (error) {
     handleError(res, error);
   }

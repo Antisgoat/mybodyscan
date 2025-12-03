@@ -29,6 +29,10 @@ function assertUid(): string {
   return uid;
 }
 
+export function userDoc(uid: string) {
+  return doc(db, "users", uid);
+}
+
 function favoritesCollection(uid: string) {
   return collection(db, "users", uid, "nutritionFavorites");
 }

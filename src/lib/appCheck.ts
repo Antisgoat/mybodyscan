@@ -17,21 +17,19 @@ function init(): AppCheck | null {
   if (typeof window === "undefined") return null;
   if (instance) return instance;
   if (initialized) return instance;
-  if (!siteKey && !debug) {
+  if (!siteKey) {
     if (!warned) {
-      console.warn("appcheck_skipped", "VITE_APPCHECK_SITE_KEY not set; continuing without App Check.");
+      console.warn("[AppCheck] site key not set, running without AppCheck");
       warned = true;
     }
     initialized = true;
     return null;
   }
   initialized = true;
-  if (siteKey) {
-    instance = initializeAppCheck(firebaseApp, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  }
+  instance = initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaV3Provider(siteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
   return instance;
 }
 

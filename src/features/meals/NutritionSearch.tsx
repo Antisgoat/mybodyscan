@@ -25,8 +25,11 @@ export default function NutritionSearch() {
     setHasSearched(true);
     setBusy(true);
     try {
-      const items = await nutritionSearch(q.trim());
-      setResults(items);
+      const response = await nutritionSearch(q.trim());
+      setResults(response.results ?? []);
+      if (response.status === "upstream_error") {
+        setError(response.message ?? "Food database temporarily unavailable; please try again later.");
+      }
     } catch (err: any) {
       const apiError = err instanceof ApiError ? err : null;
       const apiMessage = typeof apiError?.data?.message === "string" ? apiError.data.message : undefined;
