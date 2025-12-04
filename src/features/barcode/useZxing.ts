@@ -45,7 +45,11 @@ export async function startVideoScan(
   });
 
   const stop: StopFn = () => {
-    try { controls?.stop?.(); } catch {}
+    try {
+      controls?.stop?.();
+    } catch (error) {
+      console.warn("zxing_stop_failed", error);
+    }
     const tracks = (videoEl.srcObject as MediaStream | null)?.getTracks?.() ?? [];
     tracks.forEach(t => t.stop());
     videoEl.srcObject = null;

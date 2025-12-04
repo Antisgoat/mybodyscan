@@ -27,7 +27,8 @@ export default function NutritionSearch() {
       const response = await nutritionSearch(q.trim());
       setResults(response.results ?? []);
       if (response.status === "upstream_error") {
-        setError(response.message ?? "Food database temporarily unavailable; please try again later.");
+        const ref = response.debugId ? ` (ref ${response.debugId.slice(0, 8)})` : "";
+        setError(`${response.message ?? "Food database temporarily unavailable; please try again later."}${ref}`);
       }
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
@@ -43,7 +44,8 @@ export default function NutritionSearch() {
           message = "Unable to load nutrition results right now.";
         }
       }
-      setError(message);
+      const debugId = (err as { debugId?: string } | undefined)?.debugId;
+      setError(debugId ? `${message} (ref ${debugId.slice(0, 8)})` : message);
     } finally {
       setBusy(false);
     }

@@ -20,7 +20,9 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
       const token = await auth.currentUser.getIdToken();
       headers.set("Authorization", `Bearer ${token}`);
     }
-  } catch {}
+  } catch (error) {
+    console.warn("apiFetch.token_failed", error);
+  }
 
   const appCheckHeaders = await getAppCheckTokenHeader();
   Object.entries(appCheckHeaders).forEach(([key, value]) => {

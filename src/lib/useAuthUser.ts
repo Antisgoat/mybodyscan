@@ -12,10 +12,14 @@ export function useAuthUser() {
     async function afterLogin(u: User) {
       try {
         await apiGet("/api/system/bootstrap", { expectJson: false });
-      } catch {}
+      } catch (error) {
+        console.warn("auth.bootstrap_failed", error);
+      }
       try {
         await u.getIdToken(true);
-      } catch {}
+      } catch (error) {
+        console.warn("auth.refresh_token_failed", error);
+      }
     }
 
     const unsub = onAuthStateChanged(auth, (u) => {

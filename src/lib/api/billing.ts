@@ -5,12 +5,21 @@ import { functions } from "@/lib/firebase";
 
 export type CheckoutMode = "payment" | "subscription";
 
-type CheckoutCallableResponse = { sessionId?: string | null; url?: string | null };
+type CheckoutCallableResponse = { sessionId?: string | null; url?: string | null; debugId?: string | null };
 
 const createCheckoutCallable = httpsCallable<
   { priceId: string; mode: CheckoutMode; promoCode?: string },
   CheckoutCallableResponse
 >(functions, "createCheckout");
+
+function extractDebugId(error: FirebaseError): string | undefined {
+  const serverResponse = error.customData?.serverResponse;
+  const details = (serverResponse as any)?.details;
+  if (details && typeof details === "object") {
+    return details.debugId || details?.details?.debugId;
+  }
+  return undefined;
+}
 
 function normalizeCheckoutError(error: unknown): Error {
   if (error instanceof FirebaseError) {
@@ -28,7 +37,8 @@ function normalizeCheckoutError(error: unknown): Error {
       message = "Billing is temporarily unavailable. Please try again later.";
     }
     const err = new Error(message);
-    (err as Error & { code?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).debugId = extractDebugId(error);
     return err;
   }
   if (error instanceof Error) return error;
@@ -39,7 +49,7 @@ export async function startCheckout(
   priceId: string,
   mode: CheckoutMode = "subscription",
   promoCode?: string,
-): Promise<{ sessionId: string | null; url: string | null }> {
+): Promise<{ sessionId: string | null; url: string | null; debugId?: string | null }> {
   if (!priceId?.trim()) {
     throw new Error("Plan unavailable");
   }
@@ -49,7 +59,7 @@ export async function startCheckout(
     const data = (response?.data ?? response) as CheckoutCallableResponse;
     const sessionId = typeof data?.sessionId === "string" && data.sessionId ? data.sessionId : null;
     const url = typeof data?.url === "string" && data.url ? data.url : null;
-    return { sessionId, url };
+    return { sessionId, url, debugId: data?.debugId ?? null };
   } catch (error) {
     throw normalizeCheckoutError(error);
   }

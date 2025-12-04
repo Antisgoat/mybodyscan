@@ -5,6 +5,7 @@ import * as logger from "firebase-functions/logger";
 import { getAuth } from "./firebase.js";
 import { chatOnce, OpenAIClientError } from "./openai/client.js";
 import { identifierFromRequest } from "./http/_middleware.js";
+import { ensureSoftAppCheckFromCallable, ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 
 export interface CoachChatRequest {
   message: string;
@@ -17,15 +18,28 @@ export interface CoachChatRequest {
   activityLevel?: string;
 }
 
-export interface CoachChatResponse {
-  ok: boolean;
-  reply: string;
-  metadata?: {
-    recommendedSplit?: string;
-    caloriesPerDay?: number;
-    macros?: { protein: number; carbs: number; fat: number };
-  };
+interface CoachChatMetadata {
+  recommendedSplit?: string;
+  caloriesPerDay?: number;
+  macros?: { protein: number; carbs: number; fat: number };
 }
+
+export interface CoachChatSuccessResponse {
+  ok: true;
+  replyText: string;
+  planSummary?: string | null;
+  metadata?: CoachChatMetadata;
+  debugId: string;
+}
+
+export interface CoachChatErrorResponse {
+  ok: false;
+  code: string;
+  message: string;
+  debugId: string;
+}
+
+export type CoachChatResponse = CoachChatSuccessResponse | CoachChatErrorResponse;
 
 type RequestContext = {
   uid: string | null;
@@ -94,15 +108,15 @@ function buildPrompt(input: CoachChatRequest): string {
   return lines.join("\n");
 }
 
-function parseMetadataLine(source: string): { reply: string; metadata?: CoachChatResponse["metadata"] } {
+function parseMetadataLine(source: string): { replyText: string; metadata?: CoachChatMetadata } {
   const match = source.match(/(?:^|\n)METADATA:\s*(\{[\s\S]*\})\s*$/i);
   if (!match) {
-    return { reply: source.trim() };
+    return { replyText: source.trim() };
   }
   const metadataRaw = match[1];
-  let metadata: CoachChatResponse["metadata"] | undefined;
+  let metadata: CoachChatMetadata | undefined;
   try {
-    const parsed = JSON.parse(metadataRaw) as CoachChatResponse["metadata"];
+    const parsed = JSON.parse(metadataRaw) as CoachChatMetadata;
     const protein = toNumber(parsed?.macros?.protein);
     const carbs = toNumber(parsed?.macros?.carbs);
     const fat = toNumber(parsed?.macros?.fat);
@@ -121,34 +135,77 @@ function parseMetadataLine(source: string): { reply: string; metadata?: CoachCha
   } catch (error) {
     logger.warn("coachChat.metadata.parse_failed", { message: (error as Error)?.message });
   }
-  const reply = source.replace(match[0], "").trim();
-  return { reply: reply || source.trim(), metadata };
+  const replyText = source.replace(match[0], "").trim();
+  return { replyText: replyText || source.trim(), metadata };
 }
 
-async function generateCoachResponse(payload: CoachChatRequest, context: RequestContext): Promise<CoachChatResponse> {
+async function generateCoachResponse(payload: CoachChatRequest, context: RequestContext): Promise<CoachChatSuccessResponse> {
   const prompt = buildPrompt(payload);
   const answer = await chatOnce(prompt, {
     userId: context.uid ?? undefined,
     requestId: context.requestId,
   });
-  const { reply, metadata } = parseMetadataLine(answer);
+  const { replyText, metadata } = parseMetadataLine(answer);
   return {
     ok: true,
-    reply,
+    replyText,
+    planSummary: metadata?.recommendedSplit ?? null,
     metadata,
+    debugId: context.requestId,
   };
 }
 
-function toHttpsError(error: unknown): HttpsError {
-  if (error instanceof HttpsError) return error;
+function getHttpsErrorDetails(error: HttpsError): any {
+  return (error as { details?: any }).details;
+}
+
+function toHttpsError(error: unknown, debugId: string): HttpsError {
+  const attachDetails = (details?: any) =>
+    typeof details === "object" && details !== null ? { ...details, debugId } : { debugId };
+
+  if (error instanceof HttpsError) {
+    return new HttpsError(error.code, error.message, attachDetails(getHttpsErrorDetails(error)));
+  }
   if (error instanceof OpenAIClientError) {
     if (error.code === "openai_missing_key") {
-      return new HttpsError("failed-precondition", "Coach is not configured. Please try again later.");
+      return new HttpsError("failed-precondition", "Coach is not configured. Please try again later.", {
+        debugId,
+        reason: error.code,
+      });
     }
-    return new HttpsError("unavailable", "Coach is temporarily unavailable. Please try again.");
+    return new HttpsError("unavailable", "Coach is temporarily unavailable. Please try again.", {
+      debugId,
+      reason: error.code,
+    });
   }
   const message = error instanceof Error ? error.message : String(error);
-  return new HttpsError("internal", message || "Coach is temporarily unavailable.");
+  return new HttpsError("internal", "Coach is temporarily unavailable. Please try again.", {
+    debugId,
+    reason: message || "unknown_error",
+  });
+}
+
+function httpStatusFromHttpsError(error: HttpsError): number {
+  const status = (error as any)?.httpErrorCode?.status;
+  if (typeof status === "number") {
+    return status;
+  }
+  switch (error.code) {
+    case "invalid-argument":
+      return 400;
+    case "failed-precondition":
+      return 412;
+    case "resource-exhausted":
+      return 429;
+    case "unauthenticated":
+      return 401;
+    case "permission-denied":
+      return 403;
+    case "unavailable":
+      return 503;
+    default:
+      return 500;
+  }
 }
 
 async function resolveUidFromRequest(req: Request): Promise<string | null> {
@@ -165,10 +222,6 @@ async function resolveUidFromRequest(req: Request): Promise<string | null> {
   }
 }
 
-function warnMissingAppCheck(origin: "callable" | "http", requestId: string) {
-  logger.warn("coachChat.appcheck.missing", { origin, requestId });
-}
-
 export const coachChat = onCall<CoachChatRequest>(
   {
     region: "us-central1",
@@ -177,11 +230,11 @@ export const coachChat = onCall<CoachChatRequest>(
   },
   async (request) => {
     const requestId = request.rawRequest?.get("x-request-id")?.trim() || randomUUID();
-    const hasApp = Boolean((request as any)?.app);
-    const hasAppCheckToken = Boolean((request as any)?.appCheck?.token);
-    if (!hasApp && !hasAppCheckToken) {
-      warnMissingAppCheck("callable", requestId);
-    }
+    await ensureSoftAppCheckFromCallable(request, {
+      fn: "coachChat",
+      uid: request.auth?.uid ?? null,
+      requestId,
+    });
 
     const payload = normalizePayload(request.data);
     if (!payload.message) {
@@ -201,7 +254,7 @@ export const coachChat = onCall<CoachChatRequest>(
         uid: request.auth?.uid ?? null,
         message: (error as Error)?.message,
       });
-      throw toHttpsError(error);
+      throw toHttpsError(error, requestId);
     }
   },
 );
@@ -230,27 +283,23 @@ export async function coachChatHandler(req: Request, res: Response): Promise<voi
     return;
   }
 
-  if (!req.get("x-firebase-appcheck") && !req.get("X-Firebase-AppCheck")) {
-    warnMissingAppCheck("http", req.get("x-request-id") || randomUUID());
-  }
-
   const requestId = req.get("x-request-id")?.trim() || randomUUID();
   const identifier = identifierFromRequest(req);
   const uid = await resolveUidFromRequest(req);
+  await ensureSoftAppCheckFromRequest(req, { fn: "coachChat", uid, requestId });
 
   try {
     const response = await generateCoachResponse(payload, { uid, identifier, requestId });
     res.status(200).json(response);
   } catch (error) {
-    const mapped = toHttpsError(error);
-    const status =
-      mapped.code === "invalid-argument"
-        ? 400
-        : mapped.code === "failed-precondition"
-        ? 412
-        : mapped.code === "unavailable"
-        ? 503
-        : 500;
-    res.status(status).json({ code: mapped.code, message: mapped.message });
+    const mapped = toHttpsError(error, requestId);
+    const mappedDetails = getHttpsErrorDetails(mapped) ?? {};
+    const debugId = mappedDetails?.debugId ?? requestId;
+    res.status(httpStatusFromHttpsError(mapped)).json({
+      ok: false,
+      code: mapped.code,
+      message: mapped.message,
+      debugId,
+    });
   }
 }

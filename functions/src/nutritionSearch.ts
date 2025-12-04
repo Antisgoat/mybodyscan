@@ -5,6 +5,7 @@ import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
 import { getEnv } from "./lib/env.js";
+import { ensureSoftAppCheckFromCallable, ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { HttpError, send } from "./util/http.js";
 
 export type MacroBreakdown = {
@@ -73,8 +74,19 @@ export type NutritionSearchRequest = {
 };
 
 export type NutritionSearchResponse =
-  | { status: "ok"; results: NormalizedFoodItem[]; source?: NutritionSource | null; message?: string | null }
-  | { status: "upstream_error"; results: NormalizedFoodItem[]; message?: string | null };
+  | {
+      status: "ok";
+      results: NormalizedFoodItem[];
+      source?: NutritionSource | null;
+      message?: string | null;
+      debugId?: string;
+    }
+  | {
+      status: "upstream_error";
+      results: NormalizedFoodItem[];
+      message?: string | null;
+      debugId?: string;
+    };
 
 const USDA_SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
 const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
@@ -685,38 +697,53 @@ async function runNutritionSearchCore(
 
   if (!items.length && errors.length) {
     const message = "Food database temporarily unavailable; please try again.";
-    return { status: "upstream_error", results: [], message };
+    return { status: "upstream_error", results: [], message, debugId: context.requestId };
   }
 
   const normalized = items.map(simplifyFoodItem);
-  return { status: "ok", results: normalized, source };
+  return { status: "ok", results: normalized, source, debugId: context.requestId };
 }
 
-function handleError(res: Response, error: unknown): void {
+function handleError(res: Response, error: unknown, requestId: string): void {
   if (error instanceof HttpError) {
     if (error.status === 429) {
-      res.status(429).json({ code: "rate_limited", message: "Too many requests. Please slow down." });
+      res.status(429).json({
+        code: "rate_limited",
+        message: "Too many requests. Please slow down.",
+        debugId: requestId,
+        reason: "rate_limited",
+      });
       return;
     }
     if (error.status === 401) {
-      res.status(401).json({ code: error.code || "unauthorized", message: error.message || "Unauthorized" });
+      res.status(401).json({
+        code: error.code || "unauthorized",
+        message: error.message || "Unauthorized",
+        debugId: requestId,
+        reason: "unauthorized",
+      });
       return;
     }
     res.status(503).json({
       code: "nutrition_backend_error",
       message: "Food database temporarily unavailable; please try again.",
+      debugId: requestId,
+      reason: "upstream_unavailable",
     });
     return;
   }
 
-  console.error("nutrition_search_unhandled", { message: describeError(error) });
+  console.error("nutrition_search_unhandled", { message: describeError(error), requestId });
   res.status(503).json({
     code: "nutrition_backend_error",
     message: "Food database temporarily unavailable; please try again.",
+    debugId: requestId,
+    reason: "upstream_unavailable",
   });
 }
 
 async function handleNutritionSearch(req: Request, res: Response): Promise<void> {
+  const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
   try {
     if (req.method === "OPTIONS") {
       send(res, 204, null);
@@ -742,23 +769,21 @@ async function handleNutritionSearch(req: Request, res: Response): Promise<void>
         results: [],
         code: "invalid_query",
         message: "Search query required",
+        debugId: requestId,
+        reason: "invalid_query",
       });
       return;
     }
 
-    if (!req.get("x-firebase-appcheck") && !req.get("X-Firebase-AppCheck")) {
-      console.warn("nutritionSearch.appcheck_missing_http", { path: req.path });
-    }
-
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
-    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+    await ensureSoftAppCheckFromRequest(req, { fn: "nutritionSearch", uid, requestId });
     const identifier = uid ?? identifierFromRequest(req as Request);
 
     const response = await runNutritionSearchCore(payload, { uid, identifier, requestId });
     send(res, 200, response);
   } catch (error) {
-    handleError(res, error);
+    handleError(res, error, requestId);
   }
 }
 
@@ -773,17 +798,20 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
   },
   async (request) => {
     const requestId = request.rawRequest?.get("x-request-id")?.trim() || randomUUID();
-    const hasApp = Boolean((request as any)?.app);
-    const hasAppCheckToken = Boolean((request as any)?.appCheck?.token);
-    if (!hasApp && !hasAppCheckToken) {
-      console.warn("nutritionSearch.appcheck_missing_callable", { requestId });
-    }
+    await ensureSoftAppCheckFromCallable(request, {
+      fn: "nutritionSearch",
+      uid: request.auth?.uid ?? null,
+      requestId,
+    });
 
     const normalized = normalizeSearchRecord(
       (request.data && typeof request.data === "object" ? request.data : {}) as Record<string, unknown>,
     );
     if (!normalized.query) {
-      throw new HttpsError("invalid-argument", "Search query required");
+      throw new HttpsError("invalid-argument", "Search query required", {
+        debugId: requestId,
+        reason: "invalid_query",
+      });
     }
 
     try {
@@ -795,11 +823,17 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
     } catch (error) {
       if (error instanceof HttpError) {
         if (error.status === 429) {
-          throw new HttpsError("resource-exhausted", "Too many nutrition searches. Please slow down.");
+          throw new HttpsError("resource-exhausted", "Too many nutrition searches. Please slow down.", {
+            debugId: requestId,
+          });
         }
-        throw new HttpsError("unavailable", error.message || "Food database temporarily unavailable.");
+        throw new HttpsError("unavailable", error.message || "Food database temporarily unavailable.", {
+          debugId: requestId,
+        });
       }
-      throw new HttpsError("internal", "Food database temporarily unavailable.");
+      throw new HttpsError("internal", "Food database temporarily unavailable.", {
+        debugId: requestId,
+      });
     }
   },
 );

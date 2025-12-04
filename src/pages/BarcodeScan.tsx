@@ -140,7 +140,9 @@ export default function BarcodeScan() {
     if (zxingControlsRef.current) {
       try {
         zxingControlsRef.current.stop?.();
-      } catch {}
+      } catch (error) {
+        console.warn("barcode.zxing_stop_failed", error);
+      }
       zxingControlsRef.current = null;
     }
     if (streamRef.current) {

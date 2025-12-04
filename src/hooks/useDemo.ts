@@ -10,12 +10,16 @@ function clearStoredDemoFlags() {
     window.localStorage.removeItem("mbs.demo");
     window.localStorage.removeItem("mbs:demo");
     window.localStorage.removeItem("mbs_demo");
-  } catch {}
+  } catch (error) {
+    console.warn("demo.localStorage.clear_failed", error);
+  }
   try {
     window.sessionStorage.removeItem("mbs.demo");
     window.sessionStorage.removeItem("mbs:demo");
     window.sessionStorage.removeItem("mbs_demo");
-  } catch {}
+  } catch (error) {
+    console.warn("demo.sessionStorage.clear_failed", error);
+  }
 }
 
 export function useDemoWireup() {
@@ -34,7 +38,9 @@ export function useDemoWireup() {
             navigate({ pathname: location.pathname, search: "" }, { replace: true });
           }
         }
-      } catch {}
+      } catch (error) {
+        console.warn("demo_wipe_failed", error);
+      }
     });
     return () => unsubscribe();
   }, [location.pathname, location.search, navigate]);

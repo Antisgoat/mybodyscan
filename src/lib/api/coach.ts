@@ -15,16 +15,27 @@ export interface CoachChatRequest {
 }
 
 export interface CoachChatResponse {
-  ok: boolean;
-  reply: string;
+  ok: true;
+  replyText: string;
+  planSummary?: string | null;
   metadata?: {
     recommendedSplit?: string;
     caloriesPerDay?: number;
     macros?: { protein: number; carbs: number; fat: number };
   };
+  debugId?: string;
 }
 
 const callable = httpsCallable<CoachChatRequest, CoachChatResponse>(functions, "coachChat");
+
+function extractDebugId(error: FirebaseError): string | undefined {
+  const serverResponse = error.customData?.serverResponse;
+  const details = (serverResponse as any)?.details;
+  if (details && typeof details === "object") {
+    return details.debugId || details?.details?.debugId;
+  }
+  return undefined;
+}
 
 function normalizeError(error: unknown): Error {
   if (error instanceof FirebaseError) {
@@ -36,11 +47,12 @@ function normalizeError(error: unknown): Error {
       message = "You’ve hit the coach limit. Wait a moment before asking again.";
     } else if (code.includes("failed-precondition")) {
       message = "Coach is not fully configured. Please try again later.";
-    } else if (code.includes("unavailable")) {
+    } else if (code.includes("unavailable") || code.includes("internal")) {
       message = "Coach is unavailable right now; please try again shortly.";
     }
     const err = new Error(message);
-    (err as Error & { code?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).code = code || error.name;
+    (err as Error & { code?: string; debugId?: string }).debugId = extractDebugId(error);
     return err;
   }
 
@@ -53,14 +65,16 @@ export async function coachChatApi(payload: CoachChatRequest): Promise<CoachChat
   try {
     const result = await callable(payload);
     const data = (result?.data ?? result) as CoachChatResponse;
-    const reply = typeof data?.reply === "string" && data.reply.trim().length ? data.reply : "";
-    if (!reply) {
+    const replyText = typeof data?.replyText === "string" && data.replyText.trim().length ? data.replyText.trim() : "";
+    if (!replyText) {
       throw new Error("Coach did not send a reply. Please try again.");
     }
     return {
-      ok: data?.ok !== false,
-      reply,
+      ok: true,
+      replyText,
+      planSummary: data?.planSummary ?? data?.metadata?.recommendedSplit ?? null,
       metadata: data?.metadata,
+      debugId: data?.debugId,
     };
   } catch (error) {
     throw normalizeError(error);
