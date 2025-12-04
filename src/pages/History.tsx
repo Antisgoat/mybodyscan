@@ -4,9 +4,11 @@ import { normalizeScanMetrics } from "@/lib/scans";
 import { getFrontThumbUrl } from "@/lib/scanMedia";
 import { useNavigate } from "react-router-dom";
 import { deleteScanApi } from "@/lib/api/scan";
+import { useToast } from "@/hooks/use-toast";
 
 export default function HistoryPage() {
   const nav = useNavigate();
+  const { toast } = useToast();
   const [items, setItems] = useState<ScanItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
@@ -38,7 +40,29 @@ export default function HistoryPage() {
   async function onDelete(id: string) {
     if (!confirm("Delete this scan? This cannot be undone.")) return;
     setBusyDelete(id);
-    try { await deleteScanApi(id); } finally { setBusyDelete(null); }
+    try {
+      await deleteScanApi(id);
+      setItems((cur) => cur.filter((scan) => scan.id !== id));
+      setSelected((cur) => cur.filter((scanId) => scanId !== id));
+      setThumbs((cur) => {
+        const next = { ...cur };
+        delete next[id];
+        return next;
+      });
+      toast({
+        title: "Scan deleted",
+        description: "This scan has been removed from your history.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete scan. Please try again.";
+      toast({
+        title: "Delete failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setBusyDelete(null);
+    }
   }
 
   const lastId = items.at(-1)?.id;
