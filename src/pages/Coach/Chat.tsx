@@ -38,6 +38,7 @@ interface ChatMessage {
   response: string;
   createdAt: Date;
   usedLLM: boolean;
+  suggestions?: string[] | null;
 }
 
 const DEMO_CHAT_MESSAGES: ChatMessage[] = demoCoach.messages.map((msg, index) => {
@@ -153,14 +154,21 @@ export default function CoachChatPage() {
           response?: string;
           createdAt?: { toDate?: () => Date };
           usedLLM?: boolean;
+          suggestions?: unknown;
         };
         const created = data.createdAt?.toDate?.() ?? new Date();
+        const suggestions = Array.isArray(data.suggestions)
+          ? data.suggestions
+              .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+              .filter((entry) => entry.length > 0)
+          : undefined;
         return {
           id: doc.id,
           text: data.text ?? "",
           response: data.response ?? "",
           createdAt: created,
           usedLLM: Boolean(data.usedLLM),
+          suggestions,
         } satisfies ChatMessage;
       });
       setMessages(sortMessages(next));
@@ -217,6 +225,7 @@ export default function CoachChatPage() {
         response: answer,
         createdAt: new Date(),
         usedLLM: true,
+        suggestions: response.suggestions ?? undefined,
       } satisfies ChatMessage;
       setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
@@ -332,6 +341,18 @@ export default function CoachChatPage() {
                         <div className="rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground">
                           {message.response}
                         </div>
+                        {message.suggestions && message.suggestions.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {message.suggestions.map((suggestion, suggestionIndex) => (
+                              <span
+                                key={`${message.id}-suggestion-${suggestionIndex}`}
+                                className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                              >
+                                {suggestion}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
