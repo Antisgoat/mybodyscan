@@ -304,7 +304,7 @@ export default function MealsSearch() {
       return;
     }
     try {
-      const unsub = subscribeFavorites(setFavorites);
+      const unsub = subscribeFavorites(setFavorites, uid);
       return () => unsub?.();
     } catch (error) {
       console.warn("favorites_subscribe_error", error);
@@ -458,10 +458,10 @@ export default function MealsSearch() {
     try {
       const existing = favorites.find((fav) => fav.id === item.id);
       if (existing) {
-        await removeFavorite(existing.id);
+        await removeFavorite(existing.id, uid ?? undefined);
         toast({ title: "Removed from favorites", description: item.name });
       } else {
-        await saveFavorite(item);
+        await saveFavorite(item, uid ?? undefined);
         toast({ title: "Added to favorites", description: item.name });
       }
     } catch (error) {

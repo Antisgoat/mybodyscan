@@ -16,12 +16,6 @@ import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
-import {
-  initializeAppCheck,
-  ReCaptchaV3Provider,
-  getToken as fetchAppCheckToken,
-  type AppCheck,
-} from "firebase/app-check";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -55,6 +49,10 @@ const firebaseConfig: FirebaseRuntimeConfig = {
   ...envConfig,
   ...(injectedConfig ?? {}),
 };
+// NOTE: If https://mybodyscanapp.com (or any other production host) is not listed under
+// Firebase Console → Auth → Settings → Authorized domains, Firebase Auth's Identity Toolkit
+// endpoint will respond with a 404 and browsers will surface a CORS warning. This must be
+// resolved in console configuration, not client code.
 
 const requiredKeys = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"] as const;
 
@@ -133,69 +131,6 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     missingKeys: firebaseConfigMissingKeys,
   });
 }
-
-let appCheckInstance: AppCheck | null = null;
-let appCheckInitialized = false;
-let loggedAppCheckWarning = false;
-
-export function ensureAppCheck(instance: FirebaseApp | null = app): AppCheck | null {
-  if (typeof window === "undefined") return null;
-  if (appCheckInstance) return appCheckInstance;
-  if (appCheckInitialized) return appCheckInstance;
-  appCheckInitialized = true;
-
-  if (!instance) {
-    if (!loggedAppCheckWarning) {
-      console.warn("[AppCheck] Firebase app not initialized; skipping App Check.");
-      loggedAppCheckWarning = true;
-    }
-    return null;
-  }
-
-  (globalThis as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || undefined;
-  const siteKey = import.meta.env.VITE_APPCHECK_SITE_KEY;
-  if (!siteKey || siteKey === "__DISABLE__") {
-    console.warn("[AppCheck] VITE_APPCHECK_SITE_KEY not set — callables may be rejected.");
-    return null;
-  }
-  try {
-    appCheckInstance = initializeAppCheck(instance, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true,
-    });
-  } catch (error) {
-    console.warn("[AppCheck] initialization failed", error);
-    appCheckInstance = null;
-  }
-  return appCheckInstance;
-}
-
-export async function getAppCheckTokenSafe(forceRefresh = false): Promise<string | undefined> {
-  const instance = ensureAppCheck();
-  if (!instance) return undefined;
-  try {
-    const { token } = await fetchAppCheckToken(instance, forceRefresh);
-    if (!token && !loggedAppCheckWarning) {
-      console.warn("App Check token missing; proceeding in soft mode");
-      loggedAppCheckWarning = true;
-    }
-    return token || undefined;
-  } catch (error: any) {
-    const code = error?.code || error?.message;
-    if (!loggedAppCheckWarning || code === "appCheck/recaptcha-error" || code === "appcheck/recaptcha-error") {
-      console.warn("App Check token missing; proceeding in soft mode", error);
-      loggedAppCheckWarning = true;
-    }
-    return undefined;
-  }
-}
-
-export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
-  const token = await getAppCheckTokenSafe(forceRefresh);
-  return token ? { "X-Firebase-AppCheck": token } : {};
-}
-
-export const appCheck = ensureAppCheck();
 
 export async function firebaseReady(): Promise<void> {
   await persistenceReady.catch(() => undefined);

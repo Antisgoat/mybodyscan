@@ -1,24 +1,42 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { listenLatest, loadMore, type ScanItem } from "@/features/history/useScansPage";
 import { normalizeScanMetrics } from "@/lib/scans";
 import { getFrontThumbUrl } from "@/lib/scanMedia";
-import { useNavigate } from "react-router-dom";
 import { deleteScanApi } from "@/lib/api/scan";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthUser } from "@/lib/useAuthUser";
 
 export default function HistoryPage() {
   const nav = useNavigate();
   const { toast } = useToast();
+  const { user, authReady } = useAuthUser();
+  const uid = authReady ? user?.uid ?? null : null;
   const [items, setItems] = useState<ScanItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
   const [busyDelete, setBusyDelete] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = listenLatest(setItems);
-    return () => unsub();
-  }, []);
+    if (!uid) {
+      setItems([]);
+      setThumbs({});
+      setError(null);
+      return;
+    }
+    try {
+      const unsub = listenLatest(uid, setItems);
+      setError(null);
+      return () => unsub();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to load scans.";
+      setError(message);
+      return undefined;
+    }
+  }, [uid]);
 
   useEffect(() => {
     // Lazy-fetch thumbnails for newly visible items
@@ -38,6 +56,14 @@ export default function HistoryPage() {
   }
 
   async function onDelete(id: string) {
+    if (!uid) {
+      toast({
+        title: "Sign in required",
+        description: "Sign in to manage your scans.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!confirm("Delete this scan? This cannot be undone.")) return;
     setBusyDelete(id);
     try {
@@ -67,10 +93,10 @@ export default function HistoryPage() {
 
   const lastId = items.at(-1)?.id;
   async function onLoadMore() {
-    if (!lastId) return;
+    if (!lastId || !uid) return;
     setLoadingMore(true);
     try {
-      const next = await loadMore(lastId);
+      const next = await loadMore(uid, lastId);
       setItems((cur) => [...cur, ...next]);
     } finally {
       setLoadingMore(false);
@@ -80,6 +106,18 @@ export default function HistoryPage() {
   return (
     <div className="mx-auto max-w-2xl p-4">
       <h1 className="text-lg font-semibold">History</h1>
+      {authReady && !uid && (
+        <Alert className="mt-3 border-amber-200 bg-amber-50 text-amber-900">
+          <AlertTitle>Sign in to view scans</AlertTitle>
+          <AlertDescription>Log in to review your scan history, delete results, or compare progress.</AlertDescription>
+        </Alert>
+      )}
+      {error && (
+        <Alert className="mt-3 border-destructive/30 text-destructive">
+          <AlertTitle>Unable to load scans</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       {items.length === 0 && <p className="text-sm text-muted-foreground mt-2">No scans yet.</p>}
       <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((it) => {
