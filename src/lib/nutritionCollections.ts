@@ -29,26 +29,34 @@ function assertUid(): string {
   return uid;
 }
 
-function favoritesCollection(uid: string) {
-  return collection(db, "users", uid, "nutritionFavorites");
+function resolveUid(uid?: string): string {
+  if (uid && typeof uid === "string" && uid.trim().length) {
+    return uid;
+  }
+  return assertUid();
 }
 
-function templatesCollection(uid: string) {
-  return collection(db, "users", uid, "nutritionTemplates");
+function favoritesCollection(uid?: string) {
+  const userId = resolveUid(uid);
+  return collection(doc(db, "users", userId), "nutritionFavorites");
+}
+
+function templatesCollection(uid?: string) {
+  const userId = resolveUid(uid);
+  return collection(doc(db, "users", userId), "nutritionTemplates");
 }
 
 export function favoritesQuery(uid?: string) {
-  const userId = uid ?? assertUid();
+  const userId = resolveUid(uid);
   return query(favoritesCollection(userId), orderBy("updatedAt", "desc"));
 }
 
 export function templatesQuery(uid?: string) {
-  const userId = uid ?? assertUid();
+  const userId = resolveUid(uid);
   return query(templatesCollection(userId), orderBy("updatedAt", "desc"));
 }
 
-export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => void) {
-  const uid = assertUid();
+export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => void, uid?: string) {
   return onSnapshot(
     favoritesQuery(uid),
     (snap) => {
@@ -60,14 +68,13 @@ export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => voi
       callback(list);
     },
     (error) => {
-      console.warn("favorites_subscribe_error", error);
+      console.warn("favorites_subscribe_error", { code: (error as { code?: string })?.code, message: (error as Error)?.message });
       callback([]);
     },
   );
 }
 
-export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => void) {
-  const uid = assertUid();
+export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => void, uid?: string) {
   return onSnapshot(
     templatesQuery(uid),
     (snap) => {
@@ -79,14 +86,13 @@ export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => voi
       callback(list);
     },
     (error) => {
-      console.warn("templates_subscribe_error", error);
+      console.warn("templates_subscribe_error", { code: (error as { code?: string })?.code, message: (error as Error)?.message });
       callback([]);
     },
   );
 }
 
-export async function saveFavorite(item: FoodItem) {
-  const uid = assertUid();
+export async function saveFavorite(item: FoodItem, uid?: string) {
   const ref = doc(favoritesCollection(uid), item.id);
   const payload: FavoriteDoc = {
     name: item.name,
@@ -97,8 +103,7 @@ export async function saveFavorite(item: FoodItem) {
   await setDoc(ref, payload, { merge: true });
 }
 
-export async function removeFavorite(id: string) {
-  const uid = assertUid();
+export async function removeFavorite(id: string, uid?: string) {
   await deleteDoc(doc(favoritesCollection(uid), id));
 }
 
@@ -110,8 +115,7 @@ export interface TemplateDocWithId extends TemplateDoc {
   id: string;
 }
 
-export async function saveTemplate(id: string | null, name: string, items: TemplateItem[]) {
-  const uid = assertUid();
+export async function saveTemplate(id: string | null, name: string, items: TemplateItem[], uid?: string) {
   const templateId =
     id ??
     (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -127,7 +131,6 @@ export async function saveTemplate(id: string | null, name: string, items: Templ
   return templateId;
 }
 
-export async function deleteTemplate(id: string) {
-  const uid = assertUid();
+export async function deleteTemplate(id: string, uid?: string) {
   await deleteDoc(doc(templatesCollection(uid), id));
 }

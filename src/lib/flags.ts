@@ -66,6 +66,7 @@ const DEFAULT_FLAGS: RemoteFlagState = {
 let cache: RemoteFlagState = { ...DEFAULT_FLAGS };
 let fetchPromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
+let flagsPermissionWarned = false;
 
 function inferStripeMode(): "test" | "live" {
   const key = STRIPE_PUBLISHABLE_KEY || "";
@@ -115,7 +116,10 @@ async function fetchPublicConfig(): Promise<void> {
     } catch (err) {
       const code = (err as any)?.code || (err as any)?.message;
       if (code === "permission-denied") {
-        console.warn("flags_fetch_failed", "permission-denied");
+        if (!flagsPermissionWarned) {
+          console.warn("flags_fetch_failed", "permission-denied");
+          flagsPermissionWarned = true;
+        }
       } else {
         console.warn("flags_fetch_failed", err);
       }

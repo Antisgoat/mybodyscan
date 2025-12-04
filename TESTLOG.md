@@ -21,3 +21,14 @@ Manual checks for this PR
 - ✅ `npm run build`
 - ✅ `npm --prefix functions run build`
 - ⚠️ Manual auth/billing, meals, coach chat, scan, and history flows still need a signed-in staging pass (not runnable in this headless workspace); changes were validated via local callable/API reasoning only.
+
+## 2025-12-04 — history + meals hardening
+- ✅ `npm run build`
+- ✅ `npm --prefix functions run build`
+- ⚠️ Manual verification requires staging Firebase credentials; please run through the checklist below in a real environment:
+  - [ ] Login and session persistence across /home → /history
+  - [ ] Meals search “chicken” + add/remove favorites/templates
+  - [ ] Coach chat prompt succeeds or shows friendly error
+  - [ ] Scan flow: start → upload placeholders → result appears
+  - [ ] Scan history delete removes entry and toast appears
+  - [ ] Plans checkout opens Stripe session or URL fallback

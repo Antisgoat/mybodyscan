@@ -35,6 +35,7 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 import NutritionSearch from "@/features/meals/NutritionSearch";
+import { useAuthUser } from "@/lib/useAuthUser";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -69,6 +70,8 @@ function formatServingQuantity(value: number): string {
 
 export default function Meals() {
   const demo = useDemoMode();
+  const { user, authReady } = useAuthUser();
+  const uid = authReady ? user?.uid ?? null : null;
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
@@ -130,30 +133,38 @@ export default function Meals() {
       setFavorites(DEMO_FAVORITES);
       return;
     }
+    if (!uid) {
+      setFavorites([]);
+      return;
+    }
     try {
-      const unsub = subscribeFavorites(setFavorites);
+      const unsub = subscribeFavorites(setFavorites, uid);
       return () => unsub?.();
     } catch (error) {
       console.warn("favorites_subscribe_error", error);
       setFavorites([]);
       return undefined;
     }
-  }, [demo]);
+  }, [demo, uid]);
 
   useEffect(() => {
     if (demo) {
       setTemplates(DEMO_TEMPLATES);
       return;
     }
+    if (!uid) {
+      setTemplates([]);
+      return;
+    }
     try {
-      const unsub = subscribeTemplates(setTemplates);
+      const unsub = subscribeTemplates(setTemplates, uid);
       return () => unsub?.();
     } catch (error) {
       console.warn("templates_subscribe_error", error);
       setTemplates([]);
       return undefined;
     }
-  }, [demo]);
+  }, [demo, uid]);
 
   const updateRecents = useCallback(
     (item: FoodItem) => {
@@ -234,6 +245,10 @@ export default function Meals() {
       demoToast();
       return;
     }
+    if (!uid) {
+      toast({ title: "Sign in required", description: "Sign in to save templates.", variant: "destructive" });
+      return;
+    }
     const eligible = log.meals.filter((meal) => meal.item && meal.serving?.qty && meal.serving.unit);
     if (!eligible.length) {
       toast({ title: "No template items", description: "Log meals with nutrition data to save templates." });
@@ -247,7 +262,7 @@ export default function Meals() {
       unit: (meal.serving?.unit as ServingUnit) || "serving",
     }));
     try {
-      await saveTemplate(null, name, items);
+      await saveTemplate(null, name, items, uid ?? undefined);
       toast({ title: "Template saved", description: name });
     } catch (error: any) {
       toast({ title: "Unable to save", description: error?.message || "Try again", variant: "destructive" });
@@ -258,6 +273,10 @@ export default function Meals() {
     if (!template.items?.length) return;
     if (demo) {
       demoToast();
+      return;
+    }
+    if (!uid) {
+      toast({ title: "Sign in required", description: "Sign in to apply templates.", variant: "destructive" });
       return;
     }
     setProcessing(true);
@@ -286,8 +305,12 @@ export default function Meals() {
       demoToast();
       return;
     }
+    if (!uid) {
+      toast({ title: "Sign in required", description: "Sign in to manage templates.", variant: "destructive" });
+      return;
+    }
     try {
-      await deleteTemplate(id);
+      await deleteTemplate(id, uid ?? undefined);
       toast({ title: "Template removed" });
     } catch (error: any) {
       toast({ title: "Delete failed", description: error?.message || "Try again", variant: "destructive" });

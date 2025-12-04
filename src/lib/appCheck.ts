@@ -6,6 +6,7 @@ const siteKeyRaw =
 const siteKey = siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
 const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
 let warned = false;
+let recaptchaWarned = false;
 if (debug && typeof self !== "undefined") {
   // @ts-expect-error -- Firebase debug token is a global escape hatch for App Check
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = debug;
@@ -61,7 +62,10 @@ export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Reco
   } catch (error: any) {
     const code = (error as any)?.code || (error as any)?.message;
     if (code === "appCheck/recaptcha-error" || code === "appcheck/recaptcha-error") {
-      console.warn("appcheck_recaptcha_error_soft", error);
+      if (!recaptchaWarned) {
+        console.warn("appcheck_recaptcha_error_soft", error);
+        recaptchaWarned = true;
+      }
       return {};
     }
     return {};
