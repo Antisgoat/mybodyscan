@@ -1,6 +1,10 @@
 import { firebaseReady, getFirebaseConfig } from "@/lib/firebase";
 
 const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
+/**
+ * Firebase Auth only serves client config to origins present in the project's Authorized domains list.
+ * Keep https://mybodyscan-f3daf.web.app and https://mybodyscanapp.com published there or the fetch below will 404.
+ */
 
 export type FirebaseAuthClientConfig = {
   authorizedDomains: string[];

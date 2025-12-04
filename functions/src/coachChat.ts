@@ -24,22 +24,16 @@ interface CoachChatMetadata {
   macros?: { protein: number; carbs: number; fat: number };
 }
 
-export interface CoachChatSuccessResponse {
-  ok: true;
-  replyText: string;
-  planSummary?: string | null;
-  metadata?: CoachChatMetadata;
-  debugId: string;
+export interface CoachChatResponsePayload {
+  reply: string;
+  suggestions?: string[];
+  meta?: {
+    debugId: string;
+    metadata?: CoachChatMetadata;
+    model?: string;
+    tokens?: number;
+  };
 }
-
-export interface CoachChatErrorResponse {
-  ok: false;
-  code: string;
-  message: string;
-  debugId: string;
-}
-
-export type CoachChatResponse = CoachChatSuccessResponse | CoachChatErrorResponse;
 
 type RequestContext = {
   uid: string | null;
@@ -139,7 +133,22 @@ function parseMetadataLine(source: string): { replyText: string; metadata?: Coac
   return { replyText: replyText || source.trim(), metadata };
 }
 
-async function generateCoachResponse(payload: CoachChatRequest, context: RequestContext): Promise<CoachChatSuccessResponse> {
+function buildSuggestions(metadata?: CoachChatMetadata): string[] | undefined {
+  if (!metadata) return undefined;
+  const suggestions = new Set<string>();
+  if (metadata.recommendedSplit) {
+    suggestions.add("Regenerate weekly plan");
+  }
+  if (typeof metadata.caloriesPerDay === "number" && metadata.caloriesPerDay > 0) {
+    suggestions.add("Review nutrition targets");
+  }
+  if (metadata.macros && Object.values(metadata.macros).some((value) => typeof value === "number" && value > 0)) {
+    suggestions.add("Log meals to hit your macros");
+  }
+  return suggestions.size ? Array.from(suggestions) : undefined;
+}
+
+async function generateCoachResponse(payload: CoachChatRequest, context: RequestContext): Promise<CoachChatResponsePayload> {
   const prompt = buildPrompt(payload);
   const answer = await chatOnce(prompt, {
     userId: context.uid ?? undefined,
@@ -147,11 +156,13 @@ async function generateCoachResponse(payload: CoachChatRequest, context: Request
   });
   const { replyText, metadata } = parseMetadataLine(answer);
   return {
-    ok: true,
-    replyText,
-    planSummary: metadata?.recommendedSplit ?? null,
-    metadata,
-    debugId: context.requestId,
+    reply: replyText,
+    suggestions: buildSuggestions(metadata),
+    meta: {
+      debugId: context.requestId,
+      metadata,
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    },
   };
 }
 
@@ -296,7 +307,6 @@ export async function coachChatHandler(req: Request, res: Response): Promise<voi
     const mappedDetails = getHttpsErrorDetails(mapped) ?? {};
     const debugId = mappedDetails?.debugId ?? requestId;
     res.status(httpStatusFromHttpsError(mapped)).json({
-      ok: false,
       code: mapped.code,
       message: mapped.message,
       debugId,

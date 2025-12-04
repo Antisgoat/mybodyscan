@@ -14,19 +14,32 @@ export interface CoachChatRequest {
   activityLevel?: string;
 }
 
+export interface CoachChatMetadata {
+  recommendedSplit?: string;
+  caloriesPerDay?: number;
+  macros?: { protein: number; carbs: number; fat: number };
+}
+
 export interface CoachChatResponse {
-  ok: true;
   replyText: string;
   planSummary?: string | null;
-  metadata?: {
-    recommendedSplit?: string;
-    caloriesPerDay?: number;
-    macros?: { protein: number; carbs: number; fat: number };
-  };
+  metadata?: CoachChatMetadata;
+  suggestions?: string[];
   debugId?: string;
 }
 
-const callable = httpsCallable<CoachChatRequest, CoachChatResponse>(functions, "coachChat");
+type CoachChatCallableResponse = {
+  reply?: string;
+  suggestions?: unknown;
+  meta?: {
+    debugId?: string;
+    metadata?: CoachChatMetadata;
+    model?: string;
+    tokens?: number;
+  };
+};
+
+const callable = httpsCallable<CoachChatRequest, CoachChatCallableResponse>(functions, "coachChat");
 
 function extractDebugId(error: FirebaseError): string | undefined {
   const serverResponse = error.customData?.serverResponse;
@@ -60,21 +73,33 @@ function normalizeError(error: unknown): Error {
   return new Error("Coach is unavailable right now; please try again shortly.");
 }
 
+function normalizeSuggestions(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const cleaned = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+  return cleaned.length ? cleaned : undefined;
+}
+
 export async function coachChatApi(payload: CoachChatRequest): Promise<CoachChatResponse> {
   await ensureAppCheck();
   try {
     const result = await callable(payload);
-    const data = (result?.data ?? result) as CoachChatResponse;
-    const replyText = typeof data?.replyText === "string" && data.replyText.trim().length ? data.replyText.trim() : "";
+    const data = (result?.data ?? result) as CoachChatCallableResponse;
+    const replyText = typeof data?.reply === "string" && data.reply.trim().length ? data.reply.trim() : "";
     if (!replyText) {
       throw new Error("Coach did not send a reply. Please try again.");
     }
+    const metadata = data?.meta?.metadata;
+    const planSummary = metadata?.recommendedSplit ?? null;
+    const suggestions = normalizeSuggestions(data?.suggestions);
+    const debugId = data?.meta?.debugId;
     return {
-      ok: true,
       replyText,
-      planSummary: data?.planSummary ?? data?.metadata?.recommendedSplit ?? null,
-      metadata: data?.metadata,
-      debugId: data?.debugId,
+      planSummary,
+      metadata,
+      suggestions,
+      debugId,
     };
   } catch (error) {
     throw normalizeError(error);
