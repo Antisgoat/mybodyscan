@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
@@ -837,3 +837,7 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
     }
   },
 );
+
+export const nutritionSearchHttp = onRequest({ region: "us-central1" }, async (req, res) => {
+  await handleNutritionSearch(req as unknown as Request, res as unknown as Response);
+});

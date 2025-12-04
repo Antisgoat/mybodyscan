@@ -173,20 +173,25 @@ export async function deleteScanApi(scanId: string): Promise<void> {
     throw new Error("Missing scan id.");
   }
 
-  const response = await apiFetch<DeleteScanResponse>(deleteUrl(), {
-    method: "POST",
-    body: { scanId: trimmed },
-  });
+  try {
+    const response = await apiFetch<DeleteScanResponse>(deleteUrl(), {
+      method: "POST",
+      body: { scanId: trimmed },
+    });
 
-  if (!response) {
-    throw new Error("Unable to delete scan. Please try again.");
-  }
+    if (!response) {
+      throw new Error("Unable to delete scan. Please try again.");
+    }
 
-  if ("ok" in response && !response.ok) {
-    const message =
-      response.error?.message && response.error.message !== "Bad Request"
-        ? response.error.message
-        : "Unable to delete scan. Please try again.";
+    if ("ok" in response && !response.ok) {
+      const message =
+        response.error?.message && response.error.message !== "Bad Request"
+          ? response.error.message
+          : "Unable to delete scan. Please try again.";
+      throw new Error(message);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to delete scan. Please try again.";
     throw new Error(message);
   }
 }

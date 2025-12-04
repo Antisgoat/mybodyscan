@@ -12,7 +12,7 @@ import { systemRouter } from "./systemRouter.js";
 
 export { systemHealth } from "./systemHealth.js";
 export { coachChat } from "./coachChat.js";
-export { nutritionSearch } from "./nutritionSearch.js";
+export { nutritionSearch, nutritionSearchHttp } from "./nutritionSearch.js";
 export { nutritionBarcode } from "./nutrition/barcode.js";
 export { startScanSession } from "./scan/start.js";
 export { submitScan } from "./scan/submit.js";
