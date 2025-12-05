@@ -11,10 +11,16 @@ import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
 import {
   auth,
   firebaseConfigMissingKeys,
+  firebaseConfigWarningKeys,
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
+import {
+  getIdentityToolkitProbeStatus,
+  probeFirebaseRuntime,
+  type IdentityToolkitProbeStatus,
+} from "@/lib/firebase/runtimeConfig";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "firebase/auth";
@@ -41,6 +47,10 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
+  const [identityProbe, setIdentityProbe] = useState<IdentityToolkitProbeStatus | null>(() =>
+    getIdentityToolkitProbeStatus(),
+  );
   const { user } = useAuthUser();
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
   const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
@@ -68,6 +78,17 @@ const Auth = () => {
 
   useEffect(() => {
     warnIfDomainUnauthorized();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void probeFirebaseRuntime().then((result) => {
+      if (cancelled) return;
+      setIdentityProbe(result.identityToolkit);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -195,6 +216,31 @@ const Auth = () => {
   const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
   const showDebugPanel =
     import.meta.env.DEV || host.startsWith("localhost") || user?.email === "developer@adlrlabs.com";
+  const configStatus = useMemo(() => {
+    if (firebaseInitError) {
+      return { tone: "error" as const, message: firebaseInitError };
+    }
+
+    if (identityProbe && identityProbe.status !== "ok") {
+      return {
+        tone: "warning" as const,
+        message:
+          identityProbe.message ||
+          (identityProbe.status === "error"
+            ? "IdentityToolkit clientConfig probe failed."
+            : "IdentityToolkit clientConfig returned a warning (often a missing authorized domain)."),
+      };
+    }
+
+    if (firebaseConfigWarningKeys.length) {
+      return {
+        tone: "warning" as const,
+        message: `Optional Firebase keys missing: ${firebaseConfigWarningKeys.join(", ")}`,
+      };
+    }
+
+    return { tone: "ok" as const, message: "Firebase configuration detected." };
+  }, [firebaseConfigWarningKeys, firebaseInitError, identityProbe]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -213,6 +259,44 @@ const Auth = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {showDebugPanel && (
+            <div className="mb-2 flex justify-end">
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setConfigDetailsOpen((open) => !open)}
+              >
+                {configDetailsOpen ? "Hide config status" : "Show config status"}
+              </Button>
+            </div>
+          )}
+          {configDetailsOpen && showDebugPanel && (
+            <div
+              className={`mb-3 rounded-md border p-3 text-xs ${
+                configStatus.tone === "warning"
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : configStatus.tone === "ok"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                  : "border-muted bg-muted/30 text-muted-foreground"
+              }`}
+            >
+              <div className="font-semibold text-sm">
+                {configStatus.tone === "warning" ? "Config warning" : "Config status"}
+              </div>
+              <div className="mt-1">{configStatus.message}</div>
+              {identityProbe?.status === "warning" && (
+                <div className="mt-1 text-[11px] text-amber-800">
+                  IdentityToolkit clientConfig returned a warning (404/403). Login continues; add this origin to Firebase Auth
+                  authorized domains if needed.
+                </div>
+              )}
+              {identityProbe == null && (
+                <div className="mt-1 text-[11px] text-muted-foreground">Probing runtime configuration…</div>
+              )}
+            </div>
+          )}
           {firebaseInitError && (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Configuration error</AlertTitle>
@@ -323,6 +407,13 @@ const Auth = () => {
                 <div>Auth domain: {(authOptions.authDomain as string) || "(unknown)"}</div>
                 <div>Has config: {String(hasFirebaseConfig)}</div>
                 <div>Missing config: {firebaseConfigMissingKeys.length ? firebaseConfigMissingKeys.join(", ") : "none"}</div>
+                <div>
+                  Optional missing: {firebaseConfigWarningKeys.length ? firebaseConfigWarningKeys.join(", ") : "none"}
+                </div>
+                <div>
+                  IdentityToolkit probe: {identityProbe?.status || "pending"}
+                  {identityProbe?.statusCode ? ` (${identityProbe.statusCode})` : ""}
+                </div>
                 <div>
                   Current user: {auth?.currentUser?.email || "(none)"} · UID: {auth?.currentUser?.uid || "-"}
                 </div>

@@ -123,6 +123,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - Hosting rewrites send `/systemHealth` to the health-check function and `/api/nutrition/*` to authenticated nutrition handlers. Keep these rules ahead of the SPA catch-all.
 - `scripts/smoke.sh` is idempotent and requires `VITE_FIREBASE_API_KEY` plus configured `VITE_PRICE_*` envs. It creates a throwaway Firebase user, fetches an ID token, and probes `/systemHealth`, `/nutritionSearch`, `/coachChat`, and `/createCheckout` (accepts `200`, `501`, or `502` based on config).
 - Nutrition and barcode features now require a signed-in Firebase user; signed-out visitors see "Sign in to search foods and scan barcodes."
+- IdentityToolkit `clientConfig` probes may log a single warning (404/403) if the current origin is not in Firebase Auth authorized domains; sign-in still works, but add the domain in Console for production.
 
 ## Prod Diagnostics & Probes
 

@@ -1,4 +1,5 @@
 import { firebaseReady, getFirebaseConfig } from "@/lib/firebase";
+import type { IdentityToolkitProbeStatus } from "@/lib/firebase/runtimeConfig";
 
 const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
 /**
@@ -12,6 +13,8 @@ export type FirebaseAuthClientConfig = {
 };
 
 let cachedConfigPromise: Promise<FirebaseAuthClientConfig> | null = null;
+let lastClientConfigProbe: IdentityToolkitProbeStatus | null = null;
+let warned = false;
 
 function parseAuthorizedDomains(payload: any): string[] {
   if (!payload) return [];
@@ -110,6 +113,10 @@ function withEnvFallback(config: FirebaseAuthClientConfig): FirebaseAuthClientCo
   return config;
 }
 
+export function getLastFirebaseAuthClientProbe(): IdentityToolkitProbeStatus | null {
+  return lastClientConfigProbe;
+}
+
 export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClientConfig> {
   if (cachedConfigPromise) return cachedConfigPromise;
 
@@ -127,6 +134,10 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
   const projectId = runtimeConfig.projectId;
 
   if (!apiKey || !projectId) {
+    lastClientConfigProbe = {
+      status: "warning",
+      message: "Missing apiKey or projectId; IdentityToolkit clientConfig probe skipped",
+    };
     cachedConfigPromise = Promise.resolve(
       withEnvFallback({ authorizedDomains: [], providerIds: [] })
     );
@@ -137,16 +148,43 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
 
   cachedConfigPromise = (async () => {
     try {
-      const res = await fetch(url, { mode: "no-cors" });
-      if (!res || !res.ok) {
-        throw new Error(`Failed to load Firebase Auth client config (${res?.status ?? "opaque"})`);
+      const res = await fetch(url, { mode: "cors" });
+      if (!res) {
+        throw new Error("IdentityToolkit clientConfig returned an empty response");
       }
-      const payload = await res.json();
+      if (!res.ok) {
+        const status = res.status;
+        const reason =
+          status === 404
+            ? "clientConfig not provisioned for this origin"
+            : status === 403
+            ? "clientConfig blocked (403)"
+            : `clientConfig responded ${status}`;
+        lastClientConfigProbe = {
+          status: status === 404 || status === 403 ? "warning" : "error",
+          statusCode: status,
+          message: reason,
+        };
+        const logFn = status === 404 || status === 403 ? console.info : console.warn;
+        if (!warned) {
+          logFn("[probe] IdentityToolkit clientConfig", { status, reason });
+          warned = true;
+        }
+        return withEnvFallback({ authorizedDomains: [], providerIds: [] });
+      }
+      const payload = await res
+        .json()
+        .catch(() => ({ authorizedDomains: [], providerIds: [] } as FirebaseAuthClientConfig));
       const authorizedDomains = parseAuthorizedDomains(payload);
       const providerIds = parseProviders(payload);
+      lastClientConfigProbe = { status: "ok", statusCode: res.status };
       return withEnvFallback({ authorizedDomains, providerIds });
     } catch (err) {
-      console.warn("[probe] IdentityToolkit fetch error", err);
+      if (!warned) {
+        console.info("[probe] IdentityToolkit fetch error", err);
+        warned = true;
+      }
+      lastClientConfigProbe = { status: "warning", message: "IdentityToolkit clientConfig fetch failed" };
       // NOTE: IdentityToolkit returns 404 when the current origin isn't in Firebase Auth's
       // authorized domains list. This must be fixed in the Firebase console, not here.
       return withEnvFallback({ authorizedDomains: [], providerIds: [] });
