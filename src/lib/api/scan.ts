@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/http";
+import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -47,7 +47,7 @@ export type ScanDocument = {
   uid: string;
   createdAt: Date;
   updatedAt: Date;
-  status: "pending" | "processing" | "complete" | "error";
+  status: "pending" | "processing" | "complete" | "completed" | "failed" | "error";
   errorMessage?: string;
   photoPaths: {
     front: string;
@@ -62,6 +62,7 @@ export type ScanDocument = {
   estimate: ScanEstimate | null;
   workoutPlan: WorkoutPlan | null;
   nutritionPlan: NutritionPlan | null;
+  note?: string;
 };
 
 export type StartScanResponse = {
@@ -87,23 +88,95 @@ function deleteUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_DELETE_URL", "deleteScan");
 }
 
+export type ScanError = { code?: string; message: string; debugId?: string; status?: number };
+
+export type ScanApiResult<T> = { ok: true; data: T } | { ok: false; error: ScanError };
+
+function parseTimestamp(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (value && typeof (value as { toDate?: () => Date }).toDate === "function") {
+    try {
+      return (value as { toDate: () => Date }).toDate();
+    } catch (err) {
+      console.error("scan: failed to parse timestamp", err);
+    }
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date();
+}
+
+type FirestoreScan = Partial<ScanDocument> & Record<string, unknown>;
+
+function toScanDocument(id: string, uid: string, data: FirestoreScan): ScanDocument {
+  const fallbackPaths = data.photoPaths as ScanDocument["photoPaths"] | undefined;
+  const input = data.input as ScanDocument["input"] | undefined;
+  return {
+    id,
+    uid,
+    createdAt: parseTimestamp(data.createdAt),
+    updatedAt: parseTimestamp(data.updatedAt),
+    status: (data.status as ScanDocument["status"]) ?? "pending",
+    errorMessage: typeof data.errorMessage === "string" ? data.errorMessage : undefined,
+    photoPaths:
+      fallbackPaths ??
+      ({
+        front: "",
+        back: "",
+        left: "",
+        right: "",
+      } satisfies ScanDocument["photoPaths"]),
+    input:
+      input ??
+      ({
+        currentWeightKg: 0,
+        goalWeightKg: 0,
+      } satisfies ScanDocument["input"]),
+    estimate: (data.estimate as ScanEstimate | null) ?? null,
+    workoutPlan: (data.workoutPlan as WorkoutPlan | null) ?? null,
+    nutritionPlan: (data.nutritionPlan as NutritionPlan | null) ?? null,
+    note: typeof data.note === "string" ? data.note : undefined,
+  };
+}
+
+function buildScanError(err: unknown, fallbackMessage: string): ScanError {
+  if (err instanceof ApiError) {
+    const data = (err.data ?? {}) as { code?: string; message?: string; debugId?: string };
+    const message = typeof data.message === "string" && data.message.length ? data.message : fallbackMessage;
+    return { code: err.code ?? data.code, message, debugId: data.debugId, status: err.status };
+  }
+  if (err instanceof Error) return { message: err.message };
+  return { message: fallbackMessage };
+}
+
+export function deserializeScanDocument(id: string, uid: string, data: Record<string, unknown>): ScanDocument {
+  return toScanDocument(id, uid, data);
+}
+
 export async function startScanSessionClient(params: {
   currentWeightKg: number;
   goalWeightKg: number;
-}): Promise<StartScanResponse> {
+}): Promise<ScanApiResult<StartScanResponse>> {
   const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  const data = await apiFetch<StartScanResponse>(startUrl(), {
-    method: "POST",
-    body: {
-      currentWeightKg: params.currentWeightKg,
-      goalWeightKg: params.goalWeightKg,
-    },
-  });
-  if (!data?.scanId) {
-    throw new Error("startScan did not return scanId");
+  if (!user) return { ok: false, error: { message: "Please sign in before starting a scan." } };
+  try {
+    const data = await apiFetch<StartScanResponse>(startUrl(), {
+      method: "POST",
+      body: {
+        currentWeightKg: params.currentWeightKg,
+        goalWeightKg: params.goalWeightKg,
+      },
+    });
+    if (!data?.scanId) {
+      return { ok: false, error: { message: "We couldn't start your scan. Please try again." } };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    console.error("scan:start error", err);
+    return { ok: false, error: buildScanError(err, "Unable to start your scan right now.") };
   }
-  return data;
 }
 
 async function uploadPhoto(path: string, file: File): Promise<void> {
@@ -117,60 +190,60 @@ export async function submitScanClient(params: {
   photos: { front: File; back: File; left: File; right: File };
   currentWeightKg: number;
   goalWeightKg: number;
-}): Promise<void> {
+}): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  const entries = Object.entries(params.storagePaths) as Array<[
-    keyof typeof params.storagePaths,
-    string
-  ]>;
-  for (const [pose, path] of entries) {
-    const file = params.photos[pose as keyof typeof params.photos];
-    if (!file) throw new Error(`Missing ${pose} photo`);
-    await uploadPhoto(path, file);
-  }
+  if (!user) return { ok: false, error: { message: "Please sign in before submitting a scan." } };
+  try {
+    const entries = Object.entries(params.storagePaths) as Array<[
+      keyof typeof params.storagePaths,
+      string
+    ]>;
+    for (const [pose, path] of entries) {
+      const file = params.photos[pose as keyof typeof params.photos];
+      if (!file) return { ok: false, error: { message: `Missing ${pose} photo` } };
+      await uploadPhoto(path, file);
+    }
 
-  await apiFetch(submitUrl(), {
-    method: "POST",
-    body: {
-      scanId: params.scanId,
-      photoPaths: params.storagePaths,
-      currentWeightKg: params.currentWeightKg,
-      goalWeightKg: params.goalWeightKg,
-    },
-  });
+    await apiFetch(submitUrl(), {
+      method: "POST",
+      body: {
+        scanId: params.scanId,
+        photoPaths: params.storagePaths,
+        currentWeightKg: params.currentWeightKg,
+        goalWeightKg: params.goalWeightKg,
+      },
+    });
+    return { ok: true, data: undefined };
+  } catch (err) {
+    console.error("scan:submit error", err);
+    return { ok: false, error: buildScanError(err, "Could not upload your photos. Please try again.") };
+  }
 }
 
-export async function getScan(scanId: string): Promise<ScanDocument> {
+export async function getScan(scanId: string): Promise<ScanApiResult<ScanDocument>> {
   const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error("Not signed in");
-  const ref = doc(db, "users", uid, "scans", scanId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Scan not found");
-  const data = snap.data() as any;
-  return {
-    id: snap.id,
-    uid,
-    createdAt: data.createdAt?.toDate?.() ?? new Date(),
-    updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-    status: data.status ?? "pending",
-    errorMessage: data.errorMessage,
-    photoPaths: data.photoPaths ?? { front: "", back: "", left: "", right: "" },
-    input: data.input ?? { currentWeightKg: 0, goalWeightKg: 0 },
-    estimate: data.estimate ?? null,
-    workoutPlan: data.workoutPlan ?? null,
-    nutritionPlan: data.nutritionPlan ?? null,
-  };
+  if (!uid) return { ok: false, error: { message: "Please sign in to view this scan." } };
+  if (!scanId.trim()) return { ok: false, error: { message: "Missing scan id." } };
+  try {
+    const ref = doc(db, "users", uid, "scans", scanId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return { ok: false, error: { message: "Scan not found." } };
+    const data = snap.data() as Record<string, unknown>;
+    return { ok: true, data: toScanDocument(snap.id, uid, data) };
+  } catch (err) {
+    console.error("scan:get error", err);
+    return { ok: false, error: buildScanError(err, "Unable to load this scan right now.") };
+  }
 }
 
 type DeleteScanResponse =
   | { ok: true; data?: { scanId?: string | null } }
-  | { ok: false; error?: { code?: string | null; message?: string | null } };
+  | { ok: false; error?: { code?: string | null; message?: string | null; debugId?: string | null } };
 
-export async function deleteScanApi(scanId: string): Promise<void> {
+export async function deleteScanApi(scanId: string): Promise<ScanApiResult<void>> {
   const trimmed = scanId.trim();
   if (!trimmed) {
-    throw new Error("Missing scan id.");
+    return { ok: false, error: { message: "Missing scan id." } };
   }
 
   try {
@@ -180,7 +253,7 @@ export async function deleteScanApi(scanId: string): Promise<void> {
     });
 
     if (!response) {
-      throw new Error("Unable to delete scan. Please try again.");
+      return { ok: false, error: { message: "Unable to delete scan. Please try again." } };
     }
 
     if ("ok" in response && !response.ok) {
@@ -188,10 +261,15 @@ export async function deleteScanApi(scanId: string): Promise<void> {
         response.error?.message && response.error.message !== "Bad Request"
           ? response.error.message
           : "Unable to delete scan. Please try again.";
-      throw new Error(message);
+      return {
+        ok: false,
+        error: { message, code: response.error?.code ?? undefined, debugId: response.error?.debugId ?? undefined },
+      };
     }
+
+    return { ok: true, data: undefined };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to delete scan. Please try again.";
-    throw new Error(message);
+    console.error("scan:delete error", error);
+    return { ok: false, error: buildScanError(error, "Unable to delete scan. Please try again.") };
   }
 }

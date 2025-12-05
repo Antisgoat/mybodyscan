@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { startScanSessionClient, submitScanClient } from "@/lib/api/scan";
-import { ApiError } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 
 interface PhotoInputs {
@@ -42,72 +41,38 @@ export default function ScanPage() {
       setError("Please enter valid numbers for your weight goals.");
       return;
     }
-
-    try {
-      setStatus("starting");
-      const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
-
-      setStatus("uploading");
-      await submitScanClient({
-        scanId: start.scanId,
-        storagePaths: start.storagePaths,
-        photos: {
-          front: photos.front!,
-          back: photos.back!,
-          left: photos.left!,
-          right: photos.right!,
-        },
-        currentWeightKg,
-        goalWeightKg,
-      });
-
-      setStatus("analyzing");
-      nav(`/scan/${start.scanId}`);
-    } catch (err: any) {
+    setStatus("starting");
+    const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
+    if (!start.ok) {
+      const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
+      setError(start.error.message + debugSuffix);
       setStatus("idle");
-      const apiError = err instanceof ApiError ? err : null;
-      const data = (apiError?.data ?? {}) as { code?: string; message?: string; debugId?: string; reason?: string };
-      const code = apiError?.code || data.code;
-      const reason = data.reason || code;
-      let message: string | undefined;
-      if (typeof data.message === "string" && data.message.length) {
-        message = data.message;
-      } else {
-        switch (reason) {
-          case "invalid_scan_request":
-            message = "Please add all four photos and valid weights before submitting.";
-            break;
-          case "missing_photos":
-            message = "We couldn't find your uploaded photos. Please re-upload each pose and try again.";
-            break;
-          case "invalid_photo_paths":
-            message = "We ran into a problem with the uploaded files. Please restart the scan.";
-            break;
-          case "scan_not_found":
-            message = "This scan session expired. Start a new scan and upload your photos again.";
-            break;
-          case "scan_wrong_owner":
-            message = "This scan is linked to a different account.";
-            break;
-          case "openai_not_configured":
-            message = "Scans are temporarily unavailable. Please try again in a bit.";
-            break;
-          case "openai_processing_failed":
-            message = "Something went wrong while analyzing your scan. Please try again.";
-            break;
-          default:
-            if (code === "unauthenticated") {
-              message = "Please sign in again before running a scan.";
-            } else if (code === "permission-denied") {
-              message = "You don't have access to this scan.";
-            } else {
-              message = err?.message || "Could not complete your scan. Please try again.";
-            }
-        }
-      }
-      const debugId = data.debugId;
-      setError(debugId ? `${message} (ref ${debugId.slice(0, 8)})` : message);
+      return;
     }
+
+    setStatus("uploading");
+    const submit = await submitScanClient({
+      scanId: start.data.scanId,
+      storagePaths: start.data.storagePaths,
+      photos: {
+        front: photos.front!,
+        back: photos.back!,
+        left: photos.left!,
+        right: photos.right!,
+      },
+      currentWeightKg,
+      goalWeightKg,
+    });
+
+    if (!submit.ok) {
+      const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+      setError(submit.error.message + debugSuffix);
+      setStatus("idle");
+      return;
+    }
+
+    setStatus("analyzing");
+    nav(`/scan/${start.data.scanId}`);
   }
 
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
