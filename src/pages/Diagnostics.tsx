@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { auth, envFlags } from "../lib/firebase";
+
+import { auth, envFlags, onAuthStateChangedSafe } from "../lib/firebase";
 
 export default function Diagnostics() {
-  const [uid, setUid] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(() => auth?.currentUser?.uid ?? null);
   const [tokenLen, setTokenLen] = useState<number>(0);
   const [err, setErr] = useState<string | null>(null);
   const [health, setHealth] = useState<{
@@ -12,7 +13,7 @@ export default function Diagnostics() {
   } | null>(null);
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (u) => {
+    const unsub = onAuthStateChangedSafe(async (u) => {
       setUid(u?.uid || null);
       try {
         const t = u ? await u.getIdToken() : "";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+
+import { auth, onAuthStateChangedSafe } from "@/lib/firebase";
 import { disableDemo, enableDemo, setDemo } from "@/state/demo";
 
 function clearStoredDemoFlags() {
@@ -25,10 +25,10 @@ function clearStoredDemoFlags() {
 export function useDemoWireup() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState<boolean>(Boolean(auth.currentUser));
+  const [authed, setAuthed] = useState<boolean>(() => Boolean(auth?.currentUser));
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChangedSafe(async (user) => {
       setAuthed(Boolean(user));
       try {
         clearStoredDemoFlags();

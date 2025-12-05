@@ -113,7 +113,7 @@ export type ScanDoc = {
 };
 
 export function scanDocRef(scanId: string) {
-  const uid = auth.currentUser?.uid;
+  const uid = auth?.currentUser?.uid ?? null;
   if (!uid) throw new Error("No current user");
   return doc(db, "users", uid, "scans", scanId);
 }

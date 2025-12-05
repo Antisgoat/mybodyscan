@@ -58,6 +58,48 @@ function normalizeNutritionError(error: unknown): Error {
   return new Error("Unable to load nutrition results right now.");
 }
 
+function normalizePayload(payload: NutritionSearchResponse | null | undefined): NutritionSearchResponse {
+  const normalizedResults = Array.isArray(payload?.results)
+    ? payload.results.map(sanitizeFoodItem).filter(Boolean)
+    : [];
+
+  if (!payload || payload.status === "upstream_error") {
+    return {
+      status: "upstream_error",
+      results: normalizedResults,
+      message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
+      debugId: payload?.debugId ?? null,
+    };
+  }
+
+  return {
+    status: "ok",
+    results: normalizedResults,
+    source: payload.source ?? null,
+    message: payload.message ?? null,
+    debugId: payload.debugId ?? null,
+  };
+}
+
+function shouldUseHttpFallback(error: unknown): boolean {
+  if (!(error instanceof FirebaseError)) return false;
+  const code = error.code ?? "";
+  return (
+    code.includes("failed-precondition") ||
+    code.includes("permission-denied") ||
+    code.includes("unavailable") ||
+    code.includes("internal")
+  );
+}
+
+async function callHttpNutritionSearch(body: NutritionSearchRequest): Promise<NutritionSearchResponse> {
+  const payload = await apiFetchJson<NutritionSearchResponse>("/nutrition/search", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return normalizePayload(payload);
+}
+
 export async function nutritionSearch(
   term: string,
   init?: { page?: number; pageSize?: number; sourcePreference?: "usda-first" | "off-first" | "combined" },
@@ -77,28 +119,21 @@ export async function nutritionSearch(
   try {
     const result = await nutritionSearchCallable(body);
     const payload = (result?.data ?? result) as NutritionSearchResponse;
-    const normalized = Array.isArray(payload?.results)
-      ? payload.results.map(sanitizeFoodItem).filter(Boolean)
-      : [];
-
-    if (!payload || payload.status === "upstream_error") {
-      return {
-        status: "upstream_error",
-        results: normalized,
-        message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
-        debugId: payload?.debugId ?? null,
-      };
-    }
-
-    return {
-      status: "ok",
-      results: normalized,
-      source: payload.source ?? null,
-      message: payload.message ?? null,
-      debugId: payload.debugId ?? null,
-    };
+    return normalizePayload(payload);
   } catch (error) {
-    throw normalizeNutritionError(error);
+    const normalizedError = normalizeNutritionError(error);
+    if (shouldUseHttpFallback(error)) {
+      try {
+        console.warn("[nutrition] callable_failed_falling_back", {
+          code: (error as FirebaseError)?.code,
+          message: (error as FirebaseError)?.message,
+        });
+        return await callHttpNutritionSearch(body);
+      } catch (fallbackError) {
+        throw normalizeNutritionError(fallbackError);
+      }
+    }
+    throw normalizedError;
   }
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { onSnapshot, query, orderBy, limit, collection } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth as firebaseAuth, db } from '@/lib/firebase';
-import { isDemo } from '@/lib/demoFlag';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { User } from 'firebase/auth';
+
+import { auth, db, onAuthStateChangedSafe } from '@/lib/firebase';
 import { demoLatestScan } from '@/lib/demoDataset';
+import { isDemo } from '@/lib/demoFlag';
 
 type ScanData = {
   id: string;
@@ -25,10 +26,10 @@ export function useLatestScanForUser() {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => auth?.currentUser ?? null);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(firebaseAuth, (currentUser) => {
+    const unsubAuth = onAuthStateChangedSafe((currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
         if (isDemo()) {

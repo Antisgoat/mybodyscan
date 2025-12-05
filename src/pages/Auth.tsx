@@ -14,7 +14,7 @@ import {
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
-import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
+import { loadFirebaseAuthClientConfig, warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "firebase/auth";
@@ -41,6 +41,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [domainStatus, setDomainStatus] = useState<"unknown" | "ok" | "blocked">("unknown");
   const { user } = useAuthUser();
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
   const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
@@ -68,6 +69,37 @@ const Auth = () => {
 
   useEffect(() => {
     warnIfDomainUnauthorized();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (typeof window === "undefined") {
+      setDomainStatus("unknown");
+      return () => {
+        active = false;
+      };
+    }
+    loadFirebaseAuthClientConfig()
+      .then((config) => {
+        if (!active) return;
+        if (!config.authorizedDomains.length) {
+          setDomainStatus("unknown");
+          return;
+        }
+        const normalizedHost = window.location.hostname.toLowerCase();
+        const authorized = config.authorizedDomains.some((domain) => {
+          const trimmed = (domain || "").trim().toLowerCase();
+          if (!trimmed) return false;
+          return normalizedHost === trimmed || normalizedHost.endsWith(`.${trimmed}`);
+        });
+        setDomainStatus(authorized ? "ok" : "blocked");
+      })
+      .catch(() => {
+        if (active) setDomainStatus("unknown");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -217,6 +249,15 @@ const Auth = () => {
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Configuration error</AlertTitle>
               <AlertDescription>{firebaseInitError}</AlertDescription>
+            </Alert>
+          )}
+          {!firebaseInitError && domainStatus === "blocked" && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Domain not authorized</AlertTitle>
+              <AlertDescription>
+                {host || "This domain"} isn&apos;t listed under Firebase Auth → Authorized domains. Add it in the Firebase
+                Console and redeploy to enable sign-in here.
+              </AlertDescription>
             </Alert>
           )}
           {!firebaseInitError && authError && (

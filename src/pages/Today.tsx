@@ -67,7 +67,7 @@ export default function Today() {
           }
           return;
         }
-        const uid = auth.currentUser?.uid;
+        const uid = auth?.currentUser?.uid;
         if (!uid) {
           if (!cancelled) {
             setWorkout({ done: 0, total: plan.days[idx].exercises.length });

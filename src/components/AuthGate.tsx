@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { initFirebase } from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { type User } from "firebase/auth";
+
+import { auth, onAuthStateChangedSafe } from "@/lib/firebase";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const { auth } = initFirebase();
-  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [user, setUser] = useState<User | null | undefined>(() => auth?.currentUser ?? undefined);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (next) => {
+    const unsubscribe = onAuthStateChangedSafe((next) => {
       setUser(next);
     });
     return () => {
       unsubscribe();
     };
-  }, [auth]);
+  }, []);
 
   if (user === undefined) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;

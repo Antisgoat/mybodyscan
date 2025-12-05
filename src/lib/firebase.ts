@@ -6,6 +6,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   OAuthProvider,
+  onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -89,19 +90,21 @@ function initializeFirebaseApp(): FirebaseApp | null {
 }
 
 const app: FirebaseApp | null = initializeFirebaseApp();
+const authInstance: Auth | null = app ? getAuth(app) : null;
+const dbInstance: Firestore | null = app ? getFirestore(app) : null;
+const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
+const functionsInstance: Functions | null = app ? getFunctions(app, functionsRegion) : null;
+const storageInstance: FirebaseStorage | null = app ? getStorage(app) : null;
 
-export const firebaseApp = app as FirebaseApp;
-export const auth: Auth = app ? getAuth(app) : (null as unknown as Auth);
-const persistenceReady: Promise<void> = app
-  ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
+const persistenceReady: Promise<void> = authInstance
+  ? setPersistence(authInstance, browserLocalPersistence).catch(() => undefined)
   : Promise.resolve();
 
-export const db: Firestore = app ? getFirestore(app) : (null as unknown as Firestore);
-const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-export const functions: Functions = app
-  ? getFunctions(app, functionsRegion)
-  : (null as unknown as Functions);
-export const storage: FirebaseStorage = app ? getStorage(app) : (null as unknown as FirebaseStorage);
+export const firebaseApp: FirebaseApp | null = app;
+export const auth: Auth | null = authInstance;
+export const db: Firestore = (dbInstance ?? (null as unknown as Firestore));
+export const functions: Functions = (functionsInstance ?? (null as unknown as Functions));
+export const storage: FirebaseStorage = (storageInstance ?? (null as unknown as FirebaseStorage));
 
 let analyticsInstance: Analytics | null = null;
 
@@ -137,23 +140,23 @@ export async function firebaseReady(): Promise<void> {
 }
 
 export function getFirebaseApp(): FirebaseApp | null {
-  return app;
+  return firebaseApp;
 }
 
-export function getFirebaseAuth(): Auth {
-  return auth;
+export function getFirebaseAuth(): Auth | null {
+  return authInstance;
 }
 
-export function getFirebaseFirestore(): Firestore {
-  return db;
+export function getFirebaseFirestore(): Firestore | null {
+  return dbInstance;
 }
 
-export function getFirebaseFunctions(): Functions {
-  return functions;
+export function getFirebaseFunctions(): Functions | null {
+  return functionsInstance;
 }
 
-export function getFirebaseStorage(): FirebaseStorage {
-  return storage;
+export function getFirebaseStorage(): FirebaseStorage | null {
+  return storageInstance;
 }
 
 export function getFirebaseConfig() {
@@ -192,11 +195,11 @@ export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
 function ensureAuthAvailable(): Auth {
-  if (!app) {
-    const reason = getFirebaseInitError() ?? "Firebase not initialized";
+  if (!authInstance || !app) {
+    const reason = getFirebaseInitError() ?? "Firebase Auth is not available (misconfiguration)";
     throw new Error(reason);
   }
-  return auth;
+  return authInstance;
 }
 
 export async function signInWithGoogle() {
@@ -215,6 +218,46 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export function initFirebase() {
-  return { app, auth, db, storage, functions, analytics: analyticsInstance };
+  return {
+    app: firebaseApp,
+    auth: authInstance,
+    db: dbInstance,
+    storage: storageInstance,
+    functions: functionsInstance,
+    analytics: analyticsInstance,
+  };
 }
 
+type AuthObserver = Parameters<typeof onAuthStateChanged>[1];
+type AuthErrorFn = Parameters<typeof onAuthStateChanged>[2];
+type AuthCompletionFn = Parameters<typeof onAuthStateChanged>[3];
+
+export function onAuthStateChangedSafe(
+  nextOrObserver: AuthObserver,
+  error?: AuthErrorFn,
+  completed?: AuthCompletionFn
+): ReturnType<typeof onAuthStateChanged> {
+  if (!authInstance) {
+    const reason = getFirebaseInitError() ?? "Firebase Auth is not configured for this origin.";
+    if (import.meta.env.DEV) {
+      console.warn("[auth] Skipping onAuthStateChanged subscription:", reason);
+    }
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        if (typeof nextOrObserver === "function") {
+          nextOrObserver(null);
+          return;
+        }
+        nextOrObserver?.next?.(null);
+      } catch (err) {
+        console.warn("[auth] safe subscription callback failed", err);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }
+  return onAuthStateChanged(authInstance, nextOrObserver, error, completed);
+}

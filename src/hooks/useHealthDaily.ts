@@ -23,7 +23,7 @@ export function useHealthDaily() {
 
   async function syncDay(date: string): Promise<DailySummary> {
     const summary = await adapter.getDailySummary(date);
-    const uid = firebaseAuth.currentUser?.uid;
+    const uid = firebaseAuth?.currentUser?.uid ?? null;
     if (uid) {
       const ref = doc(db, "users", uid, "healthDaily", date);
       await setDoc(

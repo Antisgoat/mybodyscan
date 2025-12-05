@@ -2,7 +2,7 @@ import { auth } from "./firebase";
 import { isDemoActive } from "./demo";
 
 function isReadOnlyDemo(): boolean {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   // Any authenticated session bypasses read-only demo.
   if (user) return false;
 

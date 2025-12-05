@@ -106,7 +106,7 @@ export default function ProgramDetail() {
       demoToast();
       return;
     }
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) {
       toast({ title: "Sign in required", description: "Log in to save your training program." });
       return;

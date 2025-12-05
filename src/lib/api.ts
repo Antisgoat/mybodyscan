@@ -30,13 +30,13 @@ function showDemoPreviewToast(description?: string) {
   toast({ title: "Demo preview — sign up to use this feature.", description });
 }
 
-async function getAuthContext(): Promise<{ auth: Auth; user: User | null }> {
-  return { auth: firebaseAuth, user: firebaseAuth.currentUser };
+async function getAuthContext(): Promise<{ auth: Auth | null; user: User | null }> {
+  return { auth: firebaseAuth ?? null, user: firebaseAuth?.currentUser ?? null };
 }
 
 async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
   const { auth, user } = await getAuthContext();
-  if (!user) {
+  if (!auth || !user) {
     const error: any = new Error("auth_required");
     error.code = "auth_required";
     throw error;
@@ -201,7 +201,7 @@ export async function coachSend(message: string, options: { signal?: AbortSignal
     throw new Error("message_required");
   }
 
-  const user = firebaseAuth.currentUser;
+  const user = firebaseAuth?.currentUser ?? null;
   if (!user && !isDemo()) {
     const authError: any = new Error("auth_required");
     authError.code = "auth_required";

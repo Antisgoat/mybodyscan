@@ -6,7 +6,7 @@ export function isDemoActive(): boolean {
   if (!flag) return false;
 
   // Demo mode only applies when signed out and the local demo flag is set.
-  if (auth.currentUser) return false;
+  if (auth?.currentUser) return false;
 
   return Boolean(getDemoState().demo);
 }

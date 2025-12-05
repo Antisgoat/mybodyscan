@@ -1,5 +1,6 @@
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
 
@@ -45,6 +46,31 @@ function normalizeCheckoutError(error: unknown): Error {
   return new Error("We couldn't open checkout. Please try again.");
 }
 
+function normalizeCheckoutResponse(data: CheckoutCallableResponse | null | undefined) {
+  const sessionId = typeof data?.sessionId === "string" && data.sessionId ? data.sessionId : null;
+  const url = typeof data?.url === "string" && data.url ? data.url : null;
+  return { sessionId, url, debugId: data?.debugId ?? null };
+}
+
+function shouldUseHttpFallback(error: unknown): boolean {
+  if (!(error instanceof FirebaseError)) return false;
+  const code = error.code ?? "";
+  return (
+    code.includes("failed-precondition") ||
+    code.includes("permission-denied") ||
+    code.includes("unavailable") ||
+    code.includes("internal")
+  );
+}
+
+async function callHttpCheckout(priceId: string, mode: CheckoutMode, promoCode?: string) {
+  const payload = await apiFetchJson<CheckoutCallableResponse>("/createCheckout", {
+    method: "POST",
+    body: JSON.stringify({ priceId, mode, promoCode }),
+  });
+  return normalizeCheckoutResponse(payload);
+}
+
 export async function startCheckout(
   priceId: string,
   mode: CheckoutMode = "subscription",
@@ -57,10 +83,20 @@ export async function startCheckout(
   try {
     const response = await createCheckoutCallable({ priceId, mode, promoCode });
     const data = (response?.data ?? response) as CheckoutCallableResponse;
-    const sessionId = typeof data?.sessionId === "string" && data.sessionId ? data.sessionId : null;
-    const url = typeof data?.url === "string" && data.url ? data.url : null;
-    return { sessionId, url, debugId: data?.debugId ?? null };
+    return normalizeCheckoutResponse(data);
   } catch (error) {
-    throw normalizeCheckoutError(error);
+    const normalizedError = normalizeCheckoutError(error);
+    if (shouldUseHttpFallback(error)) {
+      try {
+        console.warn("[checkout] callable_failed_falling_back", {
+          code: (error as FirebaseError)?.code,
+          message: (error as FirebaseError)?.message,
+        });
+        return await callHttpCheckout(priceId, mode, promoCode);
+      } catch (fallbackError) {
+        throw normalizeCheckoutError(fallbackError);
+      }
+    }
+    throw normalizedError;
   }
 }

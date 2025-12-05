@@ -82,7 +82,7 @@ export default function Workouts() {
     if (!p || !Array.isArray(p.days)) return;
     const idx = p.days.findIndex((d: any) => d.day === todayName);
     if (idx < 0) return;
-    const uid = auth.currentUser?.uid;
+    const uid = auth?.currentUser?.uid;
     if (!uid) return;
     try {
       const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`));

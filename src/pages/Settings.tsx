@@ -125,7 +125,8 @@ const Settings = () => {
   }, [user]);
 
   const handleSaveMetrics = async () => {
-    if (!auth.currentUser) {
+    const currentUser = auth?.currentUser;
+    if (!currentUser) {
       toast({ title: "Sign in required", description: "Sign in to update your profile.", variant: "destructive" });
       navigate("/auth");
       return;
@@ -138,7 +139,7 @@ const Settings = () => {
     setSavingMetrics(true);
     try {
       const weightKg = Number(lbToKg(weightLb).toFixed(2));
-      const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
+      const profileRef = doc(db, "users", currentUser.uid, "coach", "profile");
       await setDoc(profileRef, { weight_kg: weightKg }, { merge: true });
       toast({ title: "Weight updated" });
     } catch (error) {
@@ -312,7 +313,7 @@ const Settings = () => {
   };
 
   const handleRefreshClaims = async () => {
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) {
       toast({ title: "Sign in required", description: "Sign in to refresh claims.", variant: "destructive" });
       navigate("/auth");

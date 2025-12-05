@@ -137,7 +137,7 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
 
   cachedConfigPromise = (async () => {
     try {
-      const res = await fetch(url, { mode: "no-cors" });
+      const res = await fetch(url, { mode: "cors" });
       if (!res || !res.ok) {
         throw new Error(`Failed to load Firebase Auth client config (${res?.status ?? "opaque"})`);
       }

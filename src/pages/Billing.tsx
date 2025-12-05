@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { loadStripe } from "@stripe/stripe-js";
+
 import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
+import { auth, db, onAuthStateChangedSafe } from "@/lib/firebase";
 import { openExternalUrl } from "@/lib/platform";
-import { auth, db } from "@/lib/firebase";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -22,7 +22,7 @@ const MODES: Record<keyof typeof PRICE_IDS, "payment" | "subscription"> = {
 };
 
 export default function Billing() {
-  const [uid, setUid] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(() => auth?.currentUser?.uid ?? null);
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export default function Billing() {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChangedSafe((user) => {
       setUid(user?.uid || null);
       if (unsubscribeDoc) {
         unsubscribeDoc();

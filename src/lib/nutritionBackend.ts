@@ -74,7 +74,7 @@ export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, 
 }
 
 async function callFn(path: string, body?: any, method = "POST") {
-  const user = firebaseAuth.currentUser;
+  const user = firebaseAuth?.currentUser ?? null;
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
   const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;

@@ -20,8 +20,17 @@ export function useCredits() {
   }
 
   useEffect(() => {
+    const instance = firebaseAuth;
+    if (!instance) {
+      setUid(null);
+      setCredits(0);
+      setUnlimited(false);
+      setLoading(false);
+      return () => {};
+    }
+
     const unsubscribe = onIdTokenChanged(
-      firebaseAuth,
+      instance,
       async (u) => {
         setUid(u?.uid ?? null);
         if (!u) {

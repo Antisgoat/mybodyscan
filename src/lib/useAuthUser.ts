@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase"; // use the existing initialized export
+
+import { auth, onAuthStateChangedSafe } from "@/lib/firebase";
 import { apiGet } from "@/lib/http";
 
 export function useAuthUser() {
-  const [user, setUser] = useState<User | null>(typeof auth !== "undefined" ? auth.currentUser : null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const initialUser = auth?.currentUser ?? null;
+  const [user, setUser] = useState<User | null>(initialUser);
+  const [loading, setLoading] = useState<boolean>(() => initialUser == null);
 
   useEffect(() => {
     async function afterLogin(u: User) {
@@ -22,7 +23,7 @@ export function useAuthUser() {
       }
     }
 
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChangedSafe((u) => {
       setUser(u ?? null);
       setLoading(false);
       if (u) {

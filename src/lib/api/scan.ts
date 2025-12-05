@@ -91,7 +91,7 @@ export async function startScanSessionClient(params: {
   currentWeightKg: number;
   goalWeightKg: number;
 }): Promise<StartScanResponse> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) throw new Error("Not signed in");
   const data = await apiFetch<StartScanResponse>(startUrl(), {
     method: "POST",
@@ -118,7 +118,7 @@ export async function submitScanClient(params: {
   currentWeightKg: number;
   goalWeightKg: number;
 }): Promise<void> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) throw new Error("Not signed in");
   const entries = Object.entries(params.storagePaths) as Array<[
     keyof typeof params.storagePaths,
@@ -142,7 +142,7 @@ export async function submitScanClient(params: {
 }
 
 export async function getScan(scanId: string): Promise<ScanDocument> {
-  const uid = auth.currentUser?.uid;
+  const uid = auth?.currentUser?.uid ?? null;
   if (!uid) throw new Error("Not signed in");
   const ref = doc(db, "users", uid, "scans", scanId);
   const snap = await getDoc(ref);

@@ -33,7 +33,7 @@ export class ApiError extends Error {
 }
 
 async function getAuthHeaders() {
-  const u = auth.currentUser;
+  const u = auth?.currentUser ?? null;
   const [idToken, ac] = await Promise.all([
     u ? getIdToken(u, /*forceRefresh*/ false).catch(() => "") : Promise.resolve(""),
     appCheck ? getAppCheckToken(appCheck, false).catch(() => null) : Promise.resolve(null),

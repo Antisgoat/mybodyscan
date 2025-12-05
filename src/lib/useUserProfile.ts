@@ -15,7 +15,7 @@ export function useUserProfile() {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const u: User | null = auth.currentUser;
+    const u: User | null = auth?.currentUser ?? null;
     if (!u) { setProfile(null); setLoading(false); return; }
     const ref = doc(db, "users", u.uid);
     const unsub = onSnapshot(ref, (snap) => {

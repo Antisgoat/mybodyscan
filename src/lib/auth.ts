@@ -1,42 +1,45 @@
 import { useEffect, useRef, useState } from "react";
-import { auth as firebaseAuth } from "@/lib/firebase";
 import {
   Auth,
   createUserWithEmailAndPassword,
   EmailAuthProvider,
   linkWithCredential,
-  onAuthStateChanged,
   sendPasswordResetEmail,
   signOut,
   updateProfile,
 } from "firebase/auth";
+
+import { auth as firebaseAuth, getFirebaseInitError, onAuthStateChangedSafe } from "@/lib/firebase";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { call } from "@/lib/callable";
 
 async function ensureFirebaseAuth(): Promise<Auth> {
+  if (!firebaseAuth) {
+    const reason = getFirebaseInitError() ?? "Firebase Auth is not available.";
+    throw new Error(reason);
+  }
   return firebaseAuth;
 }
 
 export function getCachedAuth(): Auth | null {
-  return firebaseAuth;
+  return firebaseAuth ?? null;
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<Auth["currentUser"] | null>(
-    () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
+  const [user, setUser] = useState<Auth["currentUser"] | null>(() =>
+    typeof window !== "undefined" ? firebaseAuth?.currentUser ?? null : null,
   );
-  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
+  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth?.currentUser);
   const processedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const auth = firebaseAuth;
-
-    if (!authReady && auth.currentUser) {
-      setUser(auth.currentUser);
+    const current = firebaseAuth?.currentUser ?? null;
+    if (!authReady && current) {
+      setUser(current);
       setAuthReady(true);
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+    const unsubscribe = onAuthStateChangedSafe((nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
 
@@ -136,15 +139,15 @@ export async function signOutToAuth(): Promise<void> {
 }
 
 export async function createAccountEmail(email: string, password: string, displayName?: string) {
-  const auth = await ensureFirebaseAuth();
-  const user = auth.currentUser;
+  const instance = await ensureFirebaseAuth();
+  const user = instance.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
   if (user?.isAnonymous) {
     const res = await linkWithCredential(user, cred);
     if (displayName) await updateProfile(res.user, { displayName });
     return res.user;
   }
-  const res = await createUserWithEmailAndPassword(auth, email, password);
+  const res = await createUserWithEmailAndPassword(instance, email, password);
   if (displayName) await updateProfile(res.user, { displayName });
   return res.user;
 }
