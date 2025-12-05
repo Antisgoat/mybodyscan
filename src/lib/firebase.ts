@@ -23,22 +23,32 @@ type FirebaseRuntimeConfig = {
   projectId: string;
   storageBucket?: string;
   messagingSenderId?: string;
-  appId: string;
+  appId?: string;
   measurementId?: string;
+};
+
+const FALLBACK_FIREBASE_CONFIG: FirebaseOptions = {
+  apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
+  authDomain: "mybodyscan-f3daf.firebaseapp.com",
+  projectId: "mybodyscan-f3daf",
+  storageBucket: "mybodyscan-f3daf.appspot.com",
+  messagingSenderId: "157018993008",
+  appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
+  measurementId: "G-TV8M3PY1X3",
 };
 
 const pickConfigValue = (
   ...candidates: Array<string | undefined | null | number | boolean>
-): string => {
+): string | undefined => {
   for (const candidate of candidates) {
     if (candidate === undefined || candidate === null) continue;
     const asString = String(candidate).trim();
     if (asString) return asString;
   }
-  return "";
+  return undefined;
 };
 
-const envConfig: FirebaseRuntimeConfig = {
+const envConfig: Partial<FirebaseRuntimeConfig> = {
   apiKey: pickConfigValue(env.VITE_FIREBASE_API_KEY, import.meta.env.VITE_FIREBASE_API_KEY),
   authDomain: pickConfigValue(env.VITE_FIREBASE_AUTH_DOMAIN, import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
   projectId: pickConfigValue(env.VITE_FIREBASE_PROJECT_ID, import.meta.env.VITE_FIREBASE_PROJECT_ID),
@@ -59,20 +69,31 @@ const envConfig: FirebaseRuntimeConfig = {
 
 const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
   typeof globalThis !== "undefined"
-    ? ((globalThis as any).__FIREBASE_CONFIG__ as Partial<FirebaseRuntimeConfig> | undefined)
+    ? ((
+        (globalThis as any).__FIREBASE_CONFIG__ ||
+        (globalThis as any).__FIREBASE_RUNTIME_CONFIG__
+      ) as Partial<FirebaseRuntimeConfig> | undefined)
     : undefined;
 
 const firebaseConfig: FirebaseRuntimeConfig = {
+  ...(FALLBACK_FIREBASE_CONFIG as FirebaseRuntimeConfig),
   ...envConfig,
   ...(injectedConfig ?? {}),
 };
+
+for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
+  const currentValue = (firebaseConfig as any)[key];
+  if (isMissing(currentValue) && !isMissing(fallbackValue)) {
+    (firebaseConfig as any)[key] = fallbackValue;
+  }
+}
 // NOTE: If https://mybodyscanapp.com (or any other production host) is not listed under
 // Firebase Console → Auth → Settings → Authorized domains, Firebase Auth's Identity Toolkit
 // endpoint will respond with a 404 and browsers will surface a CORS warning. This must be
 // resolved in console configuration, not client code.
 
-const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"] as const;
-const warningKeys = ["storageBucket"] as const;
+const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
+const warningKeys = ["appId", "storageBucket", "measurementId"] as const;
 
 const isMissing = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
 
@@ -87,6 +108,13 @@ export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
 });
 
 export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;
+
+if (firebaseConfigWarningKeys.length && typeof console !== "undefined") {
+  console.warn(
+    "[firebase] Optional config keys missing; continuing with defaults",
+    firebaseConfigWarningKeys,
+  );
+}
 
 let firebaseInitError: string | null = null;
 
