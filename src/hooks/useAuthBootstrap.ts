@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { disableDemoEverywhere } from '@/lib/demoState';
+
 import { apiFetchJson } from '@/lib/apiFetch';
-import { auth } from '@/lib/firebase';
+import { disableDemoEverywhere } from '@/lib/demoState';
+import { onAuthStateChangedSafe } from '@/lib/firebase';
 
 export function useAuthBootstrap() {
   const ranForUid = useRef<string | null>(null);
   useEffect(() => {
-    const un = onAuthStateChanged(auth, async (u) => {
+    const un = onAuthStateChangedSafe(async (u) => {
       if (!u) {
         ranForUid.current = null;
         return;

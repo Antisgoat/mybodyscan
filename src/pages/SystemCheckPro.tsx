@@ -17,7 +17,7 @@ const TESTS: Check[] = [
 ];
 
 export default function SystemCheckPro() {
-  const user = auth.currentUser;
+  const user = auth?.currentUser ?? null;
   const [appCheckToken, setAppCheckToken] = useState<string>("");
   const [rows, setRows] = useState<{ name: string; ok: boolean; status?: number; error?: string }[]>([]);
   const [running, setRunning] = useState(false);

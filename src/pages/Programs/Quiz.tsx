@@ -136,7 +136,7 @@ export default function ProgramsQuiz() {
 
   const handleStartRecommended = async () => {
     if (!topRecommendation) return;
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) {
       toast({ title: "Sign in required", description: "Log in to save your program." });
       return;

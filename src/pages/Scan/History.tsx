@@ -7,7 +7,7 @@ export default function ScanHistoryPage() {
   const [scans, setScans] = useState<ScanDocument[]>([]);
 
   useEffect(() => {
-    const user = auth.currentUser;
+    const user = auth?.currentUser ?? null;
     if (!user) return;
     const ref = collection(db, "users", user.uid, "scans");
     const q = query(ref, orderBy("createdAt", "desc"), limit(10));

@@ -32,3 +32,10 @@ Manual checks for this PR
   - [ ] Scan flow: start → upload placeholders → result appears
   - [ ] Scan history delete removes entry and toast appears
   - [ ] Plans checkout opens Stripe session or URL fallback
+
+## 2025-12-04 — auth bootstrap, meals/coach/checkout fallbacks
+- ✅ `npm run lint` (existing warnings only)
+- ✅ `npm run typecheck`
+- ✅ `npm run build`
+- ✅ `npm --prefix functions run build`
+- ⚠️ Manual verification still required on staging for auth on custom domain, meals search/logging, coach chat, checkout, scan flow/history, and demo fallbacks because headless workspace lacks project credentials.

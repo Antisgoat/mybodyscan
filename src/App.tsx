@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
@@ -88,7 +87,7 @@ import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
-import { auth } from "@/lib/firebase";
+import { onAuthStateChangedSafe } from "@/lib/firebase";
 import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
@@ -131,7 +130,7 @@ const App = () => {
   useAuthBootstrap();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChangedSafe(async (user) => {
       if (user) {
         disableDemoEverywhere();
         try {

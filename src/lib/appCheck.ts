@@ -27,6 +27,14 @@ function init(): AppCheck | null {
     initialized = true;
     return null;
   }
+  if (!firebaseApp) {
+    if (!warned) {
+      console.warn("[AppCheck] Firebase app unavailable, skipping App Check init");
+      warned = true;
+    }
+    initialized = true;
+    return null;
+  }
   initialized = true;
   try {
     instance = initializeAppCheck(firebaseApp, {

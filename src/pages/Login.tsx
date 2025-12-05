@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
+import { auth, onAuthStateChangedSafe, providerFlags, signInWithEmail } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth";
 import { disableDemoEverywhere } from "@/state/demo";
 import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
-import { onAuthStateChanged } from "firebase/auth";
 
 export default function Login() {
   const location = useLocation();
@@ -37,12 +36,12 @@ export default function Login() {
   };
 
   useEffect(() => {
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
       finish();
       return undefined;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChangedSafe((user) => {
       if (user) finish();
     });
 

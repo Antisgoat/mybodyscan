@@ -212,7 +212,7 @@ const UATPage = () => {
   const { toast } = useToast();
 
   const authHeaders = useCallback(async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       throw Object.assign(new Error("auth_required"), { code: "auth_required" });
     }

@@ -92,7 +92,7 @@ type ExportProbeState = {
 };
 
 async function authedHeaders(includeJson = true): Promise<Record<string, string>> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) throw new Error("auth_required");
   const headers: Record<string, string> = {};
   if (includeJson) headers["Content-Type"] = "application/json";
@@ -208,7 +208,7 @@ export default function SmokeKit() {
   }, []);
 
   async function handleRefreshClaims() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setClaimsState({ status: "error", error: "auth_required" });
       return;
@@ -251,7 +251,7 @@ export default function SmokeKit() {
   }
 
   async function probeRules() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setRulesProbe({ status: "error", error: "auth_required" });
       return;
@@ -294,7 +294,7 @@ export default function SmokeKit() {
   }
 
   async function probeExportData() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setExportProbe({ status: "error", error: "auth_required" });
       return;
@@ -326,7 +326,7 @@ export default function SmokeKit() {
   }
 
   async function probeCheckout(priceId: string) {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setCheckoutProbes((prev) => ({ ...prev, [priceId]: { status: "error", error: "auth_required" } }));
       return;
@@ -385,7 +385,7 @@ export default function SmokeKit() {
   }
 
   async function probePortal() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setPortalProbe({ status: "error", error: "auth_required" });
       return;
@@ -440,7 +440,7 @@ export default function SmokeKit() {
   }
 
   async function probeScanStart() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setScanStart({ status: "error", error: "auth_required" });
       return;
@@ -471,7 +471,7 @@ export default function SmokeKit() {
   }
 
   async function probeScanSubmit() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setScanSubmit({ status: "error", error: "auth_required" });
       return;
@@ -499,7 +499,7 @@ export default function SmokeKit() {
   }
 
   async function probeCoach() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setCoachProbe({ status: "error", error: "auth_required" });
       return;
@@ -527,7 +527,7 @@ export default function SmokeKit() {
   }
 
   async function probeNutritionSearch() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setNutritionSearchProbe({ status: "error", error: "auth_required" });
       return;
@@ -551,7 +551,7 @@ export default function SmokeKit() {
   }
 
   async function probeBarcode() {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser;
     if (!currentUser) {
       setBarcodeProbe({ status: "error", error: "auth_required" });
       return;

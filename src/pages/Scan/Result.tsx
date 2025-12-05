@@ -360,7 +360,7 @@ export default function ScanFlowResult() {
   useEffect(() => {
     if (!payload || !payloadSignature) return;
     if (payloadSignature === lastSavedSignature && savedScanId) return;
-    const user = auth.currentUser;
+    const user = auth?.currentUser ?? null;
     if (!user) return;
 
     const scansCollection = collection(db, "users", user.uid, "scans");

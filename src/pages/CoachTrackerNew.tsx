@@ -54,7 +54,7 @@ export default function CoachTrackerNew() {
   const { toast } = useToast();
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const uid = auth.currentUser?.uid;
+  const uid = auth?.currentUser?.uid ?? null;
 
   // Load daily log
   useEffect(() => {

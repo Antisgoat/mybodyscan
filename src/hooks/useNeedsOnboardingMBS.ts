@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth as firebaseAuth, db } from '../lib/firebase';
+
+import { db, onAuthStateChangedSafe } from "@/lib/firebase";
 
 export function useNeedsOnboardingMBS() {
   const [loading, setLoading] = useState(true);
   const [needs, setNeeds] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(firebaseAuth, async (u) => {
+    const unsub = onAuthStateChangedSafe(async (u) => {
       if (!u) { setNeeds(false); setLoading(false); return; }
       try {
         const snap = await getDoc(doc(db, `users/${u.uid}/meta/onboarding`));

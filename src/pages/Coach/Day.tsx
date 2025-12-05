@@ -221,7 +221,7 @@ export default function CoachDay() {
     let cancelled = false;
 
     async function loadTargets() {
-      const user = auth.currentUser;
+      const user = auth?.currentUser;
       if (!effectiveDay || !rawProgram || !user) {
         if (!cancelled) {
           setNextTargets([]);
@@ -327,7 +327,7 @@ export default function CoachDay() {
 
   const handleComplete = async () => {
     if (!day || !rawProgram) return;
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) {
       toast({ title: "Please sign in", description: "You need an account to log workouts." });
       return;

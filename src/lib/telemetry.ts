@@ -22,7 +22,7 @@ function buildKey(message?: string | null, stack?: string | null): string {
 
 async function getAuthToken(): Promise<string | undefined> {
   try {
-    const user = auth.currentUser;
+    const user = auth?.currentUser;
     if (!user) return undefined;
     return await user.getIdToken();
   } catch (error) {

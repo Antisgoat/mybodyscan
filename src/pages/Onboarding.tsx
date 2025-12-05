@@ -25,7 +25,7 @@ export default function Onboarding() {
   }
 
   async function finish() {
-    const uid = firebaseAuth.currentUser?.uid;
+    const uid = firebaseAuth?.currentUser?.uid ?? null;
     if (!uid) return;
     try {
       const timestamp = serverTimestamp();

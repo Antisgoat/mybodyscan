@@ -70,12 +70,13 @@ export default function CoachOnboardingNew() {
   };
 
   const handleComputePlan = async () => {
-    if (!auth.currentUser) return;
+    const currentUser = auth?.currentUser;
+    if (!currentUser) return;
     
     setComputing(true);
     try {
       // Save profile
-      const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
+      const profileRef = doc(db, "users", currentUser.uid, "coach", "profile");
       await setDoc(profileRef, data);
 
       // Compute plan

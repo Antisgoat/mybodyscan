@@ -4,8 +4,9 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { FirebaseInitError } from "./components/FirebaseInitError";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
-import { firebaseReady, logFirebaseRuntimeInfo } from "./lib/firebase";
+import { auth, firebaseReady, getFirebaseInitError, logFirebaseRuntimeInfo } from "./lib/firebase";
 import { handleAuthRedirectOnce } from "./lib/authRedirect";
 import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
@@ -38,20 +39,44 @@ if (typeof window !== "undefined") {
 }
 
 void (async () => {
-  await firebaseReady();
+  await firebaseReady().catch(() => undefined);
   logFirebaseRuntimeInfo();
 
   void probeFirebaseRuntime();
 
-  if (typeof window !== "undefined" && typeof document !== "undefined") {
-    ReactDOM.createRoot(document.getElementById("root")!).render(
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  const host = document.getElementById("root");
+  if (!host) {
+    throw new Error("Root container #root not found");
+  }
+
+  const root = ReactDOM.createRoot(host);
+  const initError = getFirebaseInitError();
+  const hasAuthInstance = Boolean(auth);
+
+  if (initError || !hasAuthInstance) {
+    root.render(
       <StrictMode>
         <AppErrorBoundary>
-          <Suspense fallback={null}>
-            <App />
-          </Suspense>
+          <FirebaseInitError
+            message={initError ?? "Firebase Auth is not available for this origin. Add this domain in Firebase Auth settings."}
+          />
         </AppErrorBoundary>
       </StrictMode>
     );
+    return;
   }
+
+  root.render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <Suspense fallback={null}>
+          <App />
+        </Suspense>
+      </AppErrorBoundary>
+    </StrictMode>
+  );
 })();

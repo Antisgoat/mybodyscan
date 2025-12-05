@@ -1,5 +1,6 @@
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
 
@@ -81,27 +82,62 @@ function normalizeSuggestions(value: unknown): string[] | undefined {
   return cleaned.length ? cleaned : undefined;
 }
 
+function normalizeResponse(data: CoachChatCallableResponse | null | undefined): CoachChatResponse {
+  const replyText = typeof data?.reply === "string" && data.reply.trim().length ? data.reply.trim() : "";
+  if (!replyText) {
+    throw new Error("Coach did not send a reply. Please try again.");
+  }
+  const metadata = data?.meta?.metadata;
+  const planSummary = metadata?.recommendedSplit ?? null;
+  const suggestions = normalizeSuggestions(data?.suggestions);
+  const debugId = data?.meta?.debugId;
+  return {
+    replyText,
+    planSummary,
+    metadata,
+    suggestions,
+    debugId,
+  };
+}
+
+function shouldUseHttpFallback(error: unknown): boolean {
+  if (!(error instanceof FirebaseError)) return false;
+  const code = error.code ?? "";
+  return (
+    code.includes("failed-precondition") ||
+    code.includes("permission-denied") ||
+    code.includes("unavailable") ||
+    code.includes("internal")
+  );
+}
+
+async function callHttpCoachChat(payload: CoachChatRequest): Promise<CoachChatResponse> {
+  const data = await apiFetchJson<CoachChatCallableResponse>("/coach/chat", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return normalizeResponse(data);
+}
+
 export async function coachChatApi(payload: CoachChatRequest): Promise<CoachChatResponse> {
   await ensureAppCheck();
   try {
     const result = await callable(payload);
     const data = (result?.data ?? result) as CoachChatCallableResponse;
-    const replyText = typeof data?.reply === "string" && data.reply.trim().length ? data.reply.trim() : "";
-    if (!replyText) {
-      throw new Error("Coach did not send a reply. Please try again.");
-    }
-    const metadata = data?.meta?.metadata;
-    const planSummary = metadata?.recommendedSplit ?? null;
-    const suggestions = normalizeSuggestions(data?.suggestions);
-    const debugId = data?.meta?.debugId;
-    return {
-      replyText,
-      planSummary,
-      metadata,
-      suggestions,
-      debugId,
-    };
+    return normalizeResponse(data);
   } catch (error) {
-    throw normalizeError(error);
+    const normalizedError = normalizeError(error);
+    if (shouldUseHttpFallback(error)) {
+      try {
+        console.warn("[coachChat] callable_failed_falling_back", {
+          code: (error as FirebaseError)?.code,
+          message: (error as FirebaseError)?.message,
+        });
+        return await callHttpCoachChat(payload);
+      } catch (fallbackError) {
+        throw normalizeError(fallbackError);
+      }
+    }
+    throw normalizedError;
   }
 }

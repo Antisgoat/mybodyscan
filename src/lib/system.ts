@@ -9,7 +9,7 @@ type BootstrapResponse = {
 };
 
 export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) return null;
 
   const token = await user.getIdToken();
