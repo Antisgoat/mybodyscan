@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { auth as firebaseAuth, getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -14,6 +14,11 @@ import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { call } from "@/lib/callable";
 
 async function ensureFirebaseAuth(): Promise<Auth> {
+  if (!firebaseAuth) {
+    const reason =
+      getFirebaseInitError() || (hasFirebaseConfig ? "Authentication unavailable" : "Firebase not configured");
+    throw new Error(reason);
+  }
   return firebaseAuth;
 }
 
@@ -22,14 +27,20 @@ export function getCachedAuth(): Auth | null {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<Auth["currentUser"] | null>(
-    () => (typeof window !== "undefined" ? firebaseAuth.currentUser : null),
+  const [user, setUser] = useState<Auth["currentUser"] | null>(() =>
+    typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null,
   );
-  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth.currentUser);
+  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth?.currentUser);
   const processedUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     const auth = firebaseAuth;
+
+    if (!auth) {
+      setAuthReady(true);
+      setUser(null);
+      return undefined;
+    }
 
     if (!authReady && auth.currentUser) {
       setUser(auth.currentUser);

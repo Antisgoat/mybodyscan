@@ -33,13 +33,13 @@ export async function refreshClaimsAndAdminBoost() {
     console.warn("refreshClaims failed", error);
   }
 
-  await auth.currentUser?.getIdToken(true);
+  await auth?.currentUser?.getIdToken(true);
 
-  const info = await auth.currentUser?.getIdTokenResult();
+  const info = await auth?.currentUser?.getIdTokenResult();
   const isAdmin = !!info?.claims?.admin;
   const isUnlimited = !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
 
-  const email = auth.currentUser?.email || "";
+  const email = auth?.currentUser?.email || "";
   if (!isUnlimited && email.toLowerCase() === "developer@adlrlabs.com") {
     try {
       await call("grantUnlimitedCredits");
@@ -59,7 +59,7 @@ export async function refreshClaimsAndAdminBoost() {
 
 /** Refresh claims on the current user. Force defaults to true for compatibility. */
 export async function fetchClaims(force = true): Promise<UserClaims> {
-  const u = auth.currentUser;
+  const u = auth?.currentUser ?? null;
   return await readClaims(u, force);
 }
 
@@ -70,14 +70,20 @@ export function useClaims(): {
   loading: boolean;
   refresh: (force?: boolean) => Promise<UserClaims>;
 } {
-  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [user, setUser] = useState<User | null>(auth?.currentUser ?? null);
   const [claims, setClaims] = useState<UserClaims>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const lastUidRef = useRef<string | null>(auth.currentUser?.uid ?? null);
+  const lastUidRef = useRef<string | null>(auth?.currentUser?.uid ?? null);
   const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
+    if (!auth) {
+      setLoading(false);
+      setUser(null);
+      return undefined;
+    }
+
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!alive) return;
       setUser(u);
@@ -123,7 +129,7 @@ export function useClaims(): {
 
   const refresh = useMemo(() => {
     return async (force = true) => {
-      const u = auth.currentUser;
+      const u = auth?.currentUser;
       setLoading(true);
       const c = await readClaims(u, force);
       if (force && u?.uid) {

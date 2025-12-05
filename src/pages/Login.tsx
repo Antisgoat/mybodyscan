@@ -37,6 +37,11 @@ export default function Login() {
   };
 
   useEffect(() => {
+    if (!auth) {
+      setMsg("Authentication unavailable. Please reload or try again later.");
+      return undefined;
+    }
+
     if (auth.currentUser) {
       finish();
       return undefined;

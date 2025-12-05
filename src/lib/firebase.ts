@@ -90,17 +90,15 @@ function initializeFirebaseApp(): FirebaseApp | null {
 
 const app: FirebaseApp | null = initializeFirebaseApp();
 
-export const firebaseApp = app as FirebaseApp;
-export const auth: Auth = app ? getAuth(app) : (null as unknown as Auth);
-const persistenceReady: Promise<void> = app
+export const firebaseApp: FirebaseApp | null = app;
+export const auth: Auth | null = app ? getAuth(app) : null;
+const persistenceReady: Promise<void> = app && auth
   ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
   : Promise.resolve();
 
 export const db: Firestore = app ? getFirestore(app) : (null as unknown as Firestore);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-export const functions: Functions = app
-  ? getFunctions(app, functionsRegion)
-  : (null as unknown as Functions);
+export const functions: Functions = app ? getFunctions(app, functionsRegion) : (null as unknown as Functions);
 export const storage: FirebaseStorage = app ? getStorage(app) : (null as unknown as FirebaseStorage);
 
 let analyticsInstance: Analytics | null = null;
@@ -140,19 +138,19 @@ export function getFirebaseApp(): FirebaseApp | null {
   return app;
 }
 
-export function getFirebaseAuth(): Auth {
+export function getFirebaseAuth(): Auth | null {
   return auth;
 }
 
-export function getFirebaseFirestore(): Firestore {
+export function getFirebaseFirestore(): Firestore | null {
   return db;
 }
 
-export function getFirebaseFunctions(): Functions {
+export function getFirebaseFunctions(): Functions | null {
   return functions;
 }
 
-export function getFirebaseStorage(): FirebaseStorage {
+export function getFirebaseStorage(): FirebaseStorage | null {
   return storage;
 }
 
@@ -192,8 +190,10 @@ export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
 function ensureAuthAvailable(): Auth {
-  if (!app) {
-    const reason = getFirebaseInitError() ?? "Firebase not initialized";
+  if (!auth || !app) {
+    const reason =
+      getFirebaseInitError() ??
+      (hasFirebaseConfig ? "Firebase auth unavailable" : "Firebase not initialized");
     throw new Error(reason);
   }
   return auth;

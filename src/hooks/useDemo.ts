@@ -25,9 +25,13 @@ function clearStoredDemoFlags() {
 export function useDemoWireup() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState<boolean>(Boolean(auth.currentUser));
+  const [authed, setAuthed] = useState<boolean>(Boolean(auth?.currentUser));
 
   useEffect(() => {
+    if (!auth) {
+      setAuthed(false);
+      return undefined;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthed(Boolean(user));
       try {

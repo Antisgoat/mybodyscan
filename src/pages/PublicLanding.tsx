@@ -10,7 +10,7 @@ const PublicLanding = () => {
   const navigate = useNavigate();
   const demoLink = "/demo";
   const handleLaunch = () => {
-    if (firebaseAuth.currentUser) navigate("/home");
+    if (firebaseAuth?.currentUser) navigate("/home");
     else navigate("/auth");
   };
 

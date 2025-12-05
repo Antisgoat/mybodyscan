@@ -7,6 +7,7 @@ import { auth } from '@/lib/firebase';
 export function useAuthBootstrap() {
   const ranForUid = useRef<string | null>(null);
   useEffect(() => {
+    if (!auth) return undefined;
     const un = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         ranForUid.current = null;

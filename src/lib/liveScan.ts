@@ -189,7 +189,7 @@ export function listenToScan(
   handler: (snapshot: ScanStatus | null) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const user = firebaseAuth.currentUser;
+  const user = firebaseAuth?.currentUser;
   if (!user) {
     throw new Error("auth_required");
   }

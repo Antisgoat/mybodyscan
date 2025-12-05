@@ -8,6 +8,18 @@ export function useNeedsOnboardingMBS() {
   const [needs, setNeeds] = useState(false);
 
   useEffect(() => {
+    if (!firebaseAuth) {
+      setNeeds(false);
+      setLoading(false);
+      return undefined;
+    }
+
+    if (!firebaseAuth || !db) {
+      setNeeds(false);
+      setLoading(false);
+      return undefined;
+    }
+
     const unsub = onAuthStateChanged(firebaseAuth, async (u) => {
       if (!u) { setNeeds(false); setLoading(false); return; }
       try {

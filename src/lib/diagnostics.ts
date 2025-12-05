@@ -1,7 +1,7 @@
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { getBreadcrumbs } from "./logger";
 export function buildDiagnostics(): string {
-  const u = firebaseAuth.currentUser;
+  const u = firebaseAuth?.currentUser;
   const info = {
     uid: u?.uid || "signed-out",
     email: u?.email || "",

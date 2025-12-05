@@ -28,6 +28,12 @@ export function useLatestScanForUser() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    if (!firebaseAuth) {
+      setLoading(false);
+      setError("auth_unavailable");
+      return undefined;
+    }
+
     const unsubAuth = onAuthStateChanged(firebaseAuth, (currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
@@ -56,6 +62,12 @@ export function useLatestScanForUser() {
 
     setLoading(true);
     setError(null);
+
+    if (!db) {
+      setError("firestore_unavailable");
+      setLoading(false);
+      return;
+    }
 
     const scansQuery = query(
       collection(db, "users", user.uid, "scans"),

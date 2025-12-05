@@ -16,6 +16,11 @@ Manual checks for this PR
   - Start a scan with placeholder weights, upload four test images (can be compressed placeholders), submit, and verify the history entry transitions out of “pending.”
   - Open `/plans`, click “Buy Now,” and confirm Stripe Checkout or the fallback URL opens without “Checkout unavailable.”
 
+# 2025-02-16 — Firebase auth stability hardening
+- ⚠️ `npm run build` (not run: node/npm unavailable in the execution environment)
+- ⚠️ `npm --prefix functions run build` (not run: node/npm unavailable in the execution environment)
+- ⚠️ Manual auth, meals, coach chat, scan, history, and checkout flows need verification on staging/production once a full runtime is available.
+
 ## 2025-12-04
 - ✅ `npm run lint`
 - ✅ `npm run build`

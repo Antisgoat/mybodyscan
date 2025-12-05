@@ -33,13 +33,18 @@ export default function Billing() {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
+    if (!auth) {
+      setUid(null);
+      setCredits(null);
+      return undefined;
+    }
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setUid(user?.uid || null);
       if (unsubscribeDoc) {
         unsubscribeDoc();
         unsubscribeDoc = undefined;
       }
-      if (user?.uid) {
+      if (user?.uid && db) {
         unsubscribeDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
           setCredits((snap.data()?.credits as number) ?? 0);
         });
