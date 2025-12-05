@@ -21,23 +21,40 @@ type FirebaseRuntimeConfig = {
   apiKey: string;
   authDomain: string;
   projectId: string;
-  storageBucket: string;
+  storageBucket?: string;
   messagingSenderId?: string;
   appId: string;
   measurementId?: string;
 };
 
+const pickConfigValue = (
+  ...candidates: Array<string | undefined | null | number | boolean>
+): string => {
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null) continue;
+    const asString = String(candidate).trim();
+    if (asString) return asString;
+  }
+  return "";
+};
+
 const envConfig: FirebaseRuntimeConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || (import.meta.env.VITE_FIREBASE_API_KEY as string) || "",
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || "",
-  projectId: env.VITE_FIREBASE_PROJECT_ID || (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || "",
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || "",
-  messagingSenderId:
-    env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) ||
-    "",
-  appId: env.VITE_FIREBASE_APP_ID || (import.meta.env.VITE_FIREBASE_APP_ID as string) || "",
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || "",
+  apiKey: pickConfigValue(env.VITE_FIREBASE_API_KEY, import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: pickConfigValue(env.VITE_FIREBASE_AUTH_DOMAIN, import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: pickConfigValue(env.VITE_FIREBASE_PROJECT_ID, import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket: pickConfigValue(
+    env.VITE_FIREBASE_STORAGE_BUCKET,
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  ),
+  messagingSenderId: pickConfigValue(
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  ),
+  appId: pickConfigValue(env.VITE_FIREBASE_APP_ID, import.meta.env.VITE_FIREBASE_APP_ID),
+  measurementId: pickConfigValue(
+    env.VITE_FIREBASE_MEASUREMENT_ID,
+    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  ),
 };
 
 const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
@@ -54,11 +71,19 @@ const firebaseConfig: FirebaseRuntimeConfig = {
 // endpoint will respond with a 404 and browsers will surface a CORS warning. This must be
 // resolved in console configuration, not client code.
 
-const requiredKeys = ["apiKey", "authDomain", "projectId", "storageBucket", "appId"] as const;
+const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"] as const;
+const warningKeys = ["storageBucket"] as const;
+
+const isMissing = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
 
 export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
   const value = (firebaseConfig as any)?.[key];
-  return value === undefined || value === null || value === "";
+  return isMissing(value);
+});
+
+export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
+  const value = (firebaseConfig as any)?.[key];
+  return isMissing(value);
 });
 
 export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;

@@ -10,6 +10,10 @@ Manual checks for this PR
 - App Check: missing token allowed in dev; server logs appcheck_soft_missing.
 - Checkout button in Plans: blocked in demo; otherwise opens URL.
 - Build tag shows short commit and date from build.txt.
+- Auth config & IdentityToolkit probe:
+  - /auth loads without a red configuration banner when VITE_FIREBASE_* values are present.
+  - Console may log a single IdentityToolkit probe warning (404/403) if the current origin is not in Firebase Auth authorized domains; treat this as informational.
+  - Red configuration cards only appear when required keys (apiKey/authDomain/projectId/appId) are missing or Firebase init throws.
 - 2025-12-03 smoke-test plan (manual verification needed):
   - Sign in with a non-demo account, open `/meals`, search “chicken,” log a meal, and confirm the totals update.
   - Visit `/coach`, send a prompt such as “Create a 3 day workout split,” and ensure a friendly reply renders without “Bad Request.”

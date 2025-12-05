@@ -1,7 +1,23 @@
-let warnedIdentityToolkit = false;
+export type IdentityToolkitProbeStatus = {
+  status: "ok" | "warning" | "error";
+  statusCode?: number;
+  message?: string;
+};
 
-export function probeFirebaseRuntime() {
-  if (typeof window === "undefined") return;
+let warnedIdentityToolkit = false;
+let lastIdentityToolkitProbe: IdentityToolkitProbeStatus | null = null;
+
+const recordIdentityToolkitProbe = (probe: IdentityToolkitProbeStatus) => {
+  lastIdentityToolkitProbe = probe;
+  return probe;
+};
+
+export function getIdentityToolkitProbeStatus(): IdentityToolkitProbeStatus | null {
+  return lastIdentityToolkitProbe;
+}
+
+export async function probeFirebaseRuntime(): Promise<{ identityToolkit: IdentityToolkitProbeStatus | null }> {
+  if (typeof window === "undefined") return { identityToolkit: lastIdentityToolkitProbe };
 
   const origin = window.location.origin;
   const keyFromRuntime = (async () => {
@@ -9,7 +25,7 @@ export function probeFirebaseRuntime() {
       const resp = await fetch("/__/firebase/init.json", { cache: "no-store" });
       if (!resp.ok) {
         console.warn("[probe] init.json fetch failed", resp.status);
-        return undefined;
+        return { apiKey: undefined, projectId: undefined } as const;
       }
       const json = await resp.json();
       const { projectId, authDomain, apiKey } = json || {};
@@ -27,41 +43,80 @@ export function probeFirebaseRuntime() {
           projectId,
         );
       }
-      return typeof apiKey === "string" ? apiKey : undefined;
+      return {
+        apiKey: typeof apiKey === "string" ? apiKey : undefined,
+        projectId: typeof projectId === "string" ? projectId : undefined,
+      } as const;
     } catch (error) {
       console.warn("[probe] init.json fetch error:", error);
-      return undefined;
+      return { apiKey: undefined, projectId: undefined } as const;
     }
   })();
 
-  void (async () => {
+  const identityToolkit = await (async () => {
     try {
-      const apiKey = await keyFromRuntime;
+      const { apiKey, projectId } = await keyFromRuntime;
       console.log("[probe] origin:", origin, "apiKey present:", Boolean(apiKey));
       if (!apiKey) {
-        console.warn("[probe] No runtime apiKey. Check Hosting and /__/firebase/init.json.");
-        return;
+        console.info("[probe] IdentityToolkit probe skipped: no runtime apiKey");
+        return recordIdentityToolkitProbe({
+          status: "warning",
+          message: "IdentityToolkit probe skipped: missing runtime apiKey",
+        });
       }
 
-      const url = `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/clientConfig?key=${apiKey}`;
-      const resp = await fetch(url, { mode: "no-cors" }).catch((error) => {
+      const normalizedProjectId =
+        projectId || (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined);
+      if (!normalizedProjectId) {
+        return recordIdentityToolkitProbe({
+          status: "warning",
+          message: "IdentityToolkit probe skipped: missing projectId",
+        });
+      }
+
+      const url = `https://identitytoolkit.googleapis.com/v2/projects/${encodeURIComponent(
+        normalizedProjectId,
+      )}/clientConfig?key=${encodeURIComponent(apiKey)}`;
+      const resp = await fetch(url, { mode: "cors" }).catch((error) => {
         if (!warnedIdentityToolkit) {
-          console.warn("[probe] IdentityToolkit fetch error", error);
+          console.info("[probe] IdentityToolkit fetch error (network)", error);
           warnedIdentityToolkit = true;
         }
         return null as any;
       });
 
-      if (!resp) return;
-      if (!resp.ok && !warnedIdentityToolkit) {
-        console.warn("[probe] IdentityToolkit fetch error", resp.status);
+      if (!resp) {
+        return recordIdentityToolkitProbe({ status: "warning", message: "IdentityToolkit probe failed" });
+      }
+
+      if (resp.ok) {
+        if (!warnedIdentityToolkit) {
+          console.info("[probe] IdentityToolkit clientConfig ok", resp.status);
+          warnedIdentityToolkit = true;
+        }
+        return recordIdentityToolkitProbe({ status: "ok", statusCode: resp.status });
+      }
+
+      const status = resp.status;
+      const reason =
+        status === 404
+          ? "clientConfig not provisioned for this origin"
+          : `clientConfig responded ${status}`;
+      const level: IdentityToolkitProbeStatus["status"] = status === 404 || status === 403 ? "warning" : "error";
+      const logFn = level === "warning" ? console.info : console.warn;
+      if (!warnedIdentityToolkit) {
+        logFn("[probe] IdentityToolkit clientConfig", { status, reason });
         warnedIdentityToolkit = true;
       }
+      return recordIdentityToolkitProbe({ status: level, statusCode: status, message: reason });
     } catch (error) {
       if (!warnedIdentityToolkit) {
-        console.warn("[probe] IdentityToolkit fetch error", error);
+        console.info("[probe] IdentityToolkit fetch error", error);
         warnedIdentityToolkit = true;
       }
+      return recordIdentityToolkitProbe({ status: "warning", message: "IdentityToolkit probe error" });
     }
   })();
+
+  return { identityToolkit };
 }
