@@ -123,9 +123,12 @@ export function getFirebaseInitError(): string | null {
 }
 
 function initializeFirebaseApp(): FirebaseApp | null {
-  if (!hasFirebaseConfig) {
+  if (!hasFirebaseConfig && !firebaseInitError) {
+    // Warn but continue booting with whatever partial config we have so the UI can render
     firebaseInitError = `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
-    return null;
+    console.warn("[firebase] partial configuration detected", {
+      missing: firebaseConfigMissingKeys,
+    });
   }
   try {
     if (!getApps().length) {
