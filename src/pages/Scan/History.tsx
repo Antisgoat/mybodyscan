@@ -1,37 +1,39 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import type { ScanDocument } from "@/lib/api/scan";
+import { auth, db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { deserializeScanDocument } from "@/lib/api/scan";
 
 export default function ScanHistoryPage() {
   const [scans, setScans] = useState<ScanDocument[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthUser();
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const ref = collection(db, "users", user.uid, "scans");
+    const currentUser = user ?? auth.currentUser;
+    if (!currentUser) {
+      setScans([]);
+      return;
+    }
+    setError(null);
+    const ref = collection(db, "users", currentUser.uid, "scans");
     const q = query(ref, orderBy("createdAt", "desc"), limit(10));
-    const unsub = onSnapshot(q, (snap) => {
-      const next = snap.docs.map((doc) => {
-        const data = doc.data() as any;
-        return {
-          id: doc.id,
-          uid: user.uid,
-          createdAt: data.createdAt?.toDate?.() ?? new Date(),
-          updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-          status: data.status ?? "pending",
-          errorMessage: data.errorMessage,
-          photoPaths: data.photoPaths ?? { front: "", back: "", left: "", right: "" },
-          input: data.input ?? { currentWeightKg: 0, goalWeightKg: 0 },
-          estimate: data.estimate ?? null,
-          workoutPlan: data.workoutPlan ?? null,
-          nutritionPlan: data.nutritionPlan ?? null,
-        } as ScanDocument;
-      });
-      setScans(next);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs.map((docSnap) =>
+          deserializeScanDocument(docSnap.id, currentUser.uid, docSnap.data() as Record<string, unknown>)
+        );
+        setScans(next);
+      },
+      (err) => {
+        console.error("scan history snapshot error", err);
+        setError("Unable to load scans right now.");
+      }
+    );
     return () => unsub();
-  }, []);
+  }, [user]);
 
   return (
     <div className="space-y-4">
@@ -39,6 +41,7 @@ export default function ScanHistoryPage() {
         <h1 className="text-2xl font-semibold">Recent scans</h1>
         <p className="text-sm text-muted-foreground">View your latest analyses.</p>
       </div>
+      {error && <p className="text-sm text-red-700">{error}</p>}
       <div className="space-y-3">
         {scans.map((scan) => (
           <div key={scan.id} className="rounded-lg border p-4">

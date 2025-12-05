@@ -32,3 +32,10 @@ Manual checks for this PR
   - [ ] Scan flow: start → upload placeholders → result appears
   - [ ] Scan history delete removes entry and toast appears
   - [ ] Plans checkout opens Stripe session or URL fallback
+
+## 2025-12-05 — scan API hardening
+- ✅ `bun run typecheck`
+- ✅ `bun run lint`
+- Hardened scan API helpers to return typed {ok,data,error} results with safe error parsing and Firestore timestamp normalization.
+- Updated scan start/submit/result/history pages to surface friendly errors (with short debug refs), guard missing auth, and clean up snapshot handling.
+- To repro previous issues: start a scan while signed out or with missing photos—UI now blocks submission with descriptive messaging instead of generic exceptions; open scan result/history with revoked access to see controlled error text instead of console traces.
