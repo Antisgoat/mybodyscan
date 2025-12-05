@@ -14,6 +14,7 @@ import {
   firebaseConfigWarningKeys,
   getFirebaseInitError,
   hasFirebaseConfig,
+  getFirebaseAuth,
 } from "@/lib/firebase";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
@@ -55,6 +56,7 @@ const Auth = () => {
   const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
   const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
+  const authClient = useMemo(() => getFirebaseAuth(), []);
   const canSubmit = !firebaseInitError;
   const googleProvider = useMemo(() => new GoogleAuthProvider(), []);
   const appleProvider = useMemo(() => {
@@ -97,12 +99,16 @@ const Auth = () => {
       setAuthError(firebaseInitError);
       return;
     }
+    if (!authClient) {
+      setAuthError("Authentication is unavailable. Please refresh and try again.");
+      return;
+    }
     setLoading(true);
     try {
       setAuthError(null);
       if (mode === "signin") {
         try {
-          await signInWithEmailAndPassword(auth, email, password);
+          await signInWithEmailAndPassword(authClient, email, password);
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & { code?: string; message?: string };
@@ -171,7 +177,12 @@ const Auth = () => {
     setAuthError(null);
     setLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const authInstance = authClient;
+      if (!authInstance) {
+        setAuthError("Authentication is unavailable. Please refresh and try again.");
+        return;
+      }
+      await signInWithPopup(authInstance, googleProvider);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Google sign-in failed.";
@@ -195,7 +206,12 @@ const Auth = () => {
     setAuthError(null);
     setLoading(true);
     try {
-      await signInWithRedirect(auth, appleProvider);
+      const authInstance = authClient;
+      if (!authInstance) {
+        setAuthError("Authentication is unavailable. Please refresh and try again.");
+        return;
+      }
+      await signInWithRedirect(authInstance, appleProvider);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Apple sign-in failed.";
