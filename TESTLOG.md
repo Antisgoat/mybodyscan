@@ -48,3 +48,11 @@ Manual checks for this PR
 - Hardened scan API helpers to return typed {ok,data,error} results with safe error parsing and Firestore timestamp normalization.
 - Updated scan start/submit/result/history pages to surface friendly errors (with short debug refs), guard missing auth, and clean up snapshot handling.
 - To repro previous issues: start a scan while signed out or with missing photos—UI now blocks submission with descriptive messaging instead of generic exceptions; open scan result/history with revoked access to see controlled error text instead of console traces.
+
+## Release smoke test (quick reference)
+- Login/logout with email + password (and any enabled social providers).
+- Explore demo if available, ensuring it loads without sign-in.
+- Meals: search "chicken", add to today, and confirm calories/macros update.
+- AI coach: ask for a 3-day workout split and a sample meal; expect friendly replies or clear inline errors.
+- Scan flow: start a scan, upload or mock photos, submit, view the result, confirm it appears in History, and delete it.
+- Plans/Checkout: start a plan purchase against the test Stripe environment; confirm redirect and that access reflects in the UI when returning.
