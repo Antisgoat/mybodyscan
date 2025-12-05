@@ -6,7 +6,7 @@ import { DEMO_WORKOUT_PLAN } from "./demoContent";
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
 async function callFn(path: string, body?: any) {
-  const user = firebaseAuth.currentUser;
+  const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
   const r = await fetch(`${FUNCTIONS_URL}${path}`, {
@@ -52,7 +52,7 @@ export async function getWeeklyCompletion(planId: string) {
     track("demo_block", { action: "workout_weekly" });
     return 0;
   }
-  const uid = firebaseAuth.currentUser?.uid;
+  const uid = firebaseAuth?.currentUser?.uid;
   if (!uid) throw new Error("auth");
   const col = collection(db, `users/${uid}/workoutPlans/${planId}/progress`);
   const snaps = await getDocs(col);

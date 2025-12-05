@@ -15,7 +15,7 @@ export default function CheckoutCanceled() {
     return () => clearTimeout(t);
   }, [navigate]);
   const handleReturn = () => {
-    navigate(firebaseAuth.currentUser ? "/scan/new" : "/auth");
+    navigate(firebaseAuth?.currentUser ? "/scan/new" : "/auth");
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { initFirebase } from "@/lib/firebase";
+import { getFirebaseInitError, hasFirebaseConfig, initFirebase } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -7,6 +7,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      return undefined;
+    }
     const unsubscribe = onAuthStateChanged(auth, (next) => {
       setUser(next);
     });
@@ -17,6 +21,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (user === undefined) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (!auth) {
+    const reason = getFirebaseInitError() || (hasFirebaseConfig ? "Authentication unavailable." : "Firebase not configured.");
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        {reason} Please reload or use the demo experience.
+      </div>
+    );
   }
 
   if (!user) {

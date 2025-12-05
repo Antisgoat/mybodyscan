@@ -12,6 +12,11 @@ export function useUserUnits() {
   const [uid, setUid] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!firebaseAuth) {
+      setUid(null);
+      setLoading(false);
+      return undefined;
+    }
     setUid(firebaseAuth.currentUser?.uid ?? null);
     const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       setUid(user?.uid ?? null);
@@ -24,6 +29,11 @@ export function useUserUnits() {
 
   useEffect(() => {
     if (!uid) {
+      setLoading(false);
+      return;
+    }
+
+    if (!db) {
       setLoading(false);
       return;
     }
@@ -50,7 +60,7 @@ export function useUserUnits() {
   }, [uid]);
 
   const updateUnits = async (newUnits: UnitSystem) => {
-    if (!uid) return;
+    if (!uid || !db) return;
     
     try {
       const unitsRef = doc(db, "users", uid, "settings", "units");

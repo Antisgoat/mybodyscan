@@ -131,6 +131,7 @@ const App = () => {
   useAuthBootstrap();
 
   useEffect(() => {
+    if (!auth) return undefined;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         disableDemoEverywhere();

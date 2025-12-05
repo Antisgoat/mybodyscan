@@ -15,7 +15,7 @@ export default function CheckoutSuccess() {
     return () => clearTimeout(t);
   }, [navigate]);
   const handleReturn = () => {
-    navigate(firebaseAuth.currentUser ? "/scan/new" : "/auth");
+    navigate(firebaseAuth?.currentUser ? "/scan/new" : "/auth");
   };
 
   return (

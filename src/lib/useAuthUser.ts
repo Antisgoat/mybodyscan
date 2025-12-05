@@ -5,7 +5,7 @@ import { auth } from "@/lib/firebase"; // use the existing initialized export
 import { apiGet } from "@/lib/http";
 
 export function useAuthUser() {
-  const [user, setUser] = useState<User | null>(typeof auth !== "undefined" ? auth.currentUser : null);
+  const [user, setUser] = useState<User | null>(typeof auth !== "undefined" ? auth?.currentUser ?? null : null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -22,6 +22,11 @@ export function useAuthUser() {
       }
     }
 
+    if (!auth) {
+      setUser(null);
+      setLoading(false);
+      return undefined;
+    }
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u ?? null);
       setLoading(false);

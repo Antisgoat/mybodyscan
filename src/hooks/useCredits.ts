@@ -20,6 +20,11 @@ export function useCredits() {
   }
 
   useEffect(() => {
+    if (!firebaseAuth) {
+      setError("auth_unavailable");
+      setLoading(false);
+      return undefined;
+    }
     const unsubscribe = onIdTokenChanged(
       firebaseAuth,
       async (u) => {
@@ -60,6 +65,11 @@ export function useCredits() {
 
   useEffect(() => {
     if (!uid) return;
+    if (!db) {
+      setError("firestore_unavailable");
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
