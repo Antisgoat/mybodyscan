@@ -15,32 +15,9 @@ STRIPE_SECRET=*****
 ```
 
 ### Frontend env (.env.production.local)
-- Create `frontend/.env.production.local` (or `.env.production.local` in the repo root for Vite) on the build machine before running `npm run build`.
-- Do **not** commit this file; keep it local to the deploy box/CI secret store.
-
-Copy/paste the Firebase production config plus the required auth/App Check toggles:
-
-```
-VITE_FIREBASE_API_KEY=AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8
-VITE_FIREBASE_AUTH_DOMAIN=mybodyscan-f3daf.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=mybodyscan-f3daf
-VITE_FIREBASE_STORAGE_BUCKET=mybodyscan-f3daf.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=157018993008
-VITE_FIREBASE_APP_ID=1:157018993008:web:8bed67e098ca04dc4b1fb5
-VITE_FIREBASE_MEASUREMENT_ID=G-TV8M3PY1X3
-
-# Auth providers
-VITE_ENABLE_GOOGLE=true
-VITE_ENABLE_APPLE=true
-VITE_ENABLE_EMAIL=true
-
-# Demo/marketing flags
-VITE_ENABLE_DEMO=false
-VITE_ENABLE_PUBLIC_MARKETING_PAGE=false
-
-# App Check (use the production reCAPTCHA v3 site key from Firebase App Check)
-VITE_APPCHECK_SITE_KEY=<your-prod-recaptcha-v3-site-key>
-```
+- All production-safe defaults are already baked into the repo for Hosting deploys (Firebase web config, marketing flags, and demo toggles).
+- You only need to create `.env.production.local` when overriding defaults (for previews or non-production projects).
+- If the file is absent, the app still boots and the UI will clearly mark any unavailable features (Stripe, nutrition, coach, etc.).
 
 ## No-Mock Policy
 

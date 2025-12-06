@@ -13,8 +13,15 @@ Required secrets:
 ## Build & deploy
 
 ```
-npm ci
-npm run build:prod
+# From a clean checkout on the deploy box
+git checkout main
+git pull --rebase origin main
+
+# Install and build the web + functions bundles
+bun install
+bun run build
+
+# Deploy hosting + functions to production
 npx firebase-tools deploy --only functions,hosting --project mybodyscan-f3daf --force
 ```
 
