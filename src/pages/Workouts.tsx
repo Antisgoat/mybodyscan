@@ -26,6 +26,7 @@ export default function Workouts() {
   const [bodyFeel, setBodyFeel] = useState<"great" | "ok" | "tired" | "sore" | "">("");
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -42,11 +43,13 @@ export default function Workouts() {
             setCompleted([]);
             setRatio(0);
             setWeekRatio(0);
+            setLoadError("Workouts are unavailable right now. Check your connection or try again later.");
           }
           return;
         }
         if (!cancelled) {
           setPlan(currentPlan);
+          setLoadError(null);
         }
         await loadProgress(currentPlan, () => cancelled);
         try {
@@ -62,11 +65,16 @@ export default function Workouts() {
         }
       } catch (error) {
         console.warn("workouts.plan", error);
+        const message =
+          error instanceof Error && error.message.includes("workouts_disabled")
+            ? "Workouts are disabled because the backend URL isn't configured. Add VITE_FUNCTIONS_URL to enable workouts."
+            : "Workouts are unavailable right now. Check your connection or try again later.";
         if (!cancelled) {
           setPlan(null);
           setCompleted([]);
           setRatio(0);
           setWeekRatio(0);
+          setLoadError(message);
         }
       }
     };
@@ -129,9 +137,19 @@ export default function Workouts() {
       setCompleted([]);
       setRatio(0);
       setWeekRatio(0);
+      setLoadError(null);
     } catch (error: any) {
       if (error?.message === "demo-blocked") {
         toast({ title: "Create an account", description: "Demo mode cannot generate plans.", variant: "destructive" });
+        return;
+      }
+      if (typeof error?.message === "string" && error.message.includes("workouts_disabled")) {
+        setLoadError("Workouts are turned off because VITE_FUNCTIONS_URL is missing. Add it to enable workout generation.");
+        toast({
+          title: "Workouts offline",
+          description: "Backend URL missing. Set VITE_FUNCTIONS_URL to call the workout service.",
+          variant: "destructive",
+        });
         return;
       }
       toast({ title: "Unable to generate", description: "Please try again later.", variant: "destructive" });
@@ -195,6 +213,7 @@ export default function Workouts() {
             <CardContent className="p-8 text-center">
               <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
+              {loadError && <p className="mb-4 text-sm text-destructive">{loadError}</p>}
               <Button onClick={handleGenerate} className="w-full">
                 <Plus className="w-4 h-4 mr-2" />
                 Create my plan

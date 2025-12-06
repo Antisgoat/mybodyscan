@@ -28,6 +28,7 @@ const PRICE_ID_YEARLY = PRICE_IDS.yearly;
 const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
 const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
 const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
+const BILLING_CONFIGURED = Boolean(STRIPE_PUBLISHABLE_KEY);
 
 type PlanConfig = {
   name: string;
@@ -98,6 +99,14 @@ export default function Plans() {
   };
 
   const handleManageSubscription = async () => {
+    if (!BILLING_CONFIGURED) {
+      toast({
+        title: "Billing unavailable",
+        description: "Stripe is not configured. Add VITE_STRIPE_PUBLISHABLE_KEY to open the customer portal.",
+        variant: "destructive",
+      });
+      return;
+    }
     setManagingSubscription(true);
     try {
       const url = await createCustomerPortalSession();
@@ -111,11 +120,19 @@ export default function Plans() {
   };
 
   const authed = Boolean(user);
-  const canBuy = authed;
+  const canBuy = authed && BILLING_CONFIGURED;
 
   const handleCheckout = async (plan: PlanConfig) => {
     if (!user) {
       window.location.assign("/auth?next=/plans");
+      return;
+    }
+    if (!BILLING_CONFIGURED) {
+      toast({
+        title: "Billing unavailable",
+        description: "Stripe is not configured for this environment. Try again after billing is enabled.",
+        variant: "destructive",
+      });
       return;
     }
     if (!plan.priceId) {
@@ -344,6 +361,14 @@ export default function Plans() {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
               Billing setup incomplete — set {uniqueMissingEnvKeys.join(", ")} to enable Stripe checkout.
+            </AlertDescription>
+          </Alert>
+        )}
+        {!BILLING_CONFIGURED && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Stripe publishable key missing. Set VITE_STRIPE_PUBLISHABLE_KEY to allow checkout and subscription management.
             </AlertDescription>
           </Alert>
         )}

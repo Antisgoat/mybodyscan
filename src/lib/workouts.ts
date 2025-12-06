@@ -3,7 +3,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+const FUNCTIONS_URL = (import.meta.env.VITE_FUNCTIONS_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 
 export interface WorkoutExercise {
   id: string;
@@ -26,6 +26,9 @@ export interface WorkoutSummary {
 async function callFn(path: string, body?: any) {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
+  if (!FUNCTIONS_URL) {
+    throw new Error("workouts_disabled:missing_functions_url");
+  }
   const t = await user.getIdToken();
   const r = await fetch(`${FUNCTIONS_URL}${path}`, {
     method: "POST",
