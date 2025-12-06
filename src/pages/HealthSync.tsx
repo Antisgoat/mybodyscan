@@ -1,38 +1,35 @@
-import { useState } from "react";
 import { HeartPulse, Smartphone, MonitorSmartphone } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { connectMock, syncDayMock, type MockHealthConnection, type MockSyncResult } from "@/lib/healthShim";
 import { toast } from "@/hooks/use-toast";
+import { connectMock, syncDayMock } from "@/lib/healthShim";
 
 export default function HealthSync() {
-  const [connection, setConnection] = useState<MockHealthConnection | null>(null);
-  const [sync, setSync] = useState<MockSyncResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const handleConnect = async (provider: MockHealthConnection['provider']) => {
-    setLoading(true);
+  const handleUnavailable = async (provider?: string) => {
     try {
-      const response = await connectMock(provider);
-      setConnection(response);
-      toast({ title: "Connected", description: `${provider} linked for demo data.` });
+      // Surface the intentional block so users are not misled by fake data.
+      await connectMock((provider as any) || "manual");
     } catch (error: any) {
-      toast({ title: "Connection failed", description: error?.message || "Try again", variant: "destructive" });
-    } finally {
-      setLoading(false);
+      toast({
+        title: "Health sync coming soon",
+        description: error?.message || "We don't connect to Apple Health or Google Fit yet.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleSync = async (day: 'today' | 'yesterday') => {
+  const handleSync = async () => {
     try {
-      const result = await syncDayMock(day);
-      setSync(result);
-      toast({ title: `Synced ${day}`, description: `${result.steps} steps imported.` });
+      await syncDayMock("today");
     } catch (error: any) {
-      toast({ title: "Sync failed", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Health sync unavailable",
+        description: error?.message || "We'll ship health integrations soon.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -54,30 +51,28 @@ export default function HealthSync() {
           <CardContent className="flex flex-col gap-3">
             <Button
               variant="outline"
-              disabled={loading}
-              onClick={() => handleConnect('apple-health')}
+              disabled
+              onClick={() => handleUnavailable("apple-health")}
               className="flex items-center justify-center gap-2"
             >
               <Smartphone className="h-4 w-4" />
-              Connect Apple HealthKit
+              Connect Apple HealthKit (coming soon)
             </Button>
             <Button
               variant="outline"
-              disabled={loading}
-              onClick={() => handleConnect('google-health-connect')}
+              disabled
+              onClick={() => handleUnavailable("google-health-connect")}
               className="flex items-center justify-center gap-2"
             >
               <MonitorSmartphone className="h-4 w-4" />
-              Connect Health Connect
+              Connect Health Connect (coming soon)
             </Button>
-            <Button variant="ghost" disabled={loading} onClick={() => handleConnect('manual')}>
-              Mock web data source
+            <Button variant="ghost" disabled onClick={() => handleUnavailable("manual")}>
+              Mock web data source (disabled)
             </Button>
-            {connection && (
-              <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-                Connected to {connection.provider} · {new Date(connection.connectedAt).toLocaleTimeString()}
-              </div>
-            )}
+            <div className="rounded-md bg-amber-50 p-3 text-xs text-amber-900">
+              Health sync is gated until native connectors ship. No data is sent to or read from Apple Health or Google Fit yet.
+            </div>
           </CardContent>
         </Card>
 
@@ -86,28 +81,12 @@ export default function HealthSync() {
             <CardTitle>Sync a day</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Button onClick={() => handleSync('today')} variant="default">
-              Sync today
+            <Button onClick={handleSync} variant="default" disabled>
+              Sync today (disabled)
             </Button>
-            <Button onClick={() => handleSync('yesterday')} variant="outline">
-              Sync yesterday
-            </Button>
-            {sync && (
-              <div className="grid grid-cols-3 gap-3 rounded-md border p-3 text-center text-xs">
-                <div>
-                  <div className="text-muted-foreground">Steps</div>
-                  <div className="text-lg font-semibold">{sync.steps}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Active kcal</div>
-                  <div className="text-lg font-semibold">{sync.activeCalories}</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Sleep</div>
-                  <div className="text-lg font-semibold">{sync.sleepHours}h</div>
-                </div>
-              </div>
-            )}
+            <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+              Real health imports will land once native connectors are wired. Nothing is being synced right now.
+            </div>
           </CardContent>
         </Card>
       </main>
