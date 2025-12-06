@@ -19,6 +19,7 @@ const DEFAULT_UNITS: DisplayUnits = "us";
 export function useUnits(): UnitsState {
   const { user } = useAuthUser();
   const demo = useDemoMode();
+  const uid = user?.uid;
   const [units, setUnitsState] = useState<DisplayUnits>(DEFAULT_UNITS);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -30,14 +31,14 @@ export function useUnits(): UnitsState {
       setLoading(false);
       return;
     }
-    if (!user || !db) {
+    if (!uid || !db) {
       setUnitsState(DEFAULT_UNITS);
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const ref = doc(db, "users", user.uid);
+    const ref = doc(db, "users", uid);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -52,25 +53,26 @@ export function useUnits(): UnitsState {
       },
     );
     return () => unsub();
-  }, [user?.uid, demo]);
+  }, [uid, demo]);
 
   const persistUnits = useCallback(
     async (next: DisplayUnits) => {
       setUnitsState(next);
-      if (demo || !user || !db) return;
+      if (demo || !uid || !db) return;
+      const previousUnits = units;
       setSaving(true);
       try {
-        await setDoc(doc(db, "users", user.uid), { preferences: { units: next } }, { merge: true });
+        await setDoc(doc(db, "users", uid), { preferences: { units: next } }, { merge: true });
         setError(null);
       } catch (err: any) {
         setError(err?.message || "Unable to save units");
-        setUnitsState((prev) => prev);
+        setUnitsState(previousUnits);
         throw err;
       } finally {
         setSaving(false);
       }
     },
-    [user, demo],
+    [uid, demo, units],
   );
 
   return { units, loading, saving, error, setUnits: persistUnits };

@@ -10,6 +10,7 @@ export interface SubscriptionInfo {
   status: SubscriptionStatus;
   product?: string | null;
   price?: string | null;
+  priceId?: string | null;
   updatedAt?: string | null;
 }
 
@@ -39,10 +40,16 @@ export function useSubscription() {
       (snap) => {
         const sub = (snap.data()?.subscription || null) as SubscriptionInfo | null;
         if (sub) {
+          const planPriceId =
+            (sub as { planPriceId?: string | null; priceId?: string | null }).planPriceId ??
+            (sub as { planPriceId?: string | null; priceId?: string | null }).priceId ??
+            sub.price ??
+            null;
           setSubscription({
             status: (sub.status as SubscriptionStatus) || "none",
             product: sub.product ?? null,
             price: sub.price ?? null,
+            priceId: planPriceId,
             updatedAt: (sub as any).updatedAt ?? null,
           });
         } else {
