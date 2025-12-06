@@ -22,6 +22,7 @@ export default function Today() {
   const demo = useDemoMode();
   const { plan: coachPlan } = useUserProfile();
   const todayISO = new Date().toISOString().slice(0, 10);
+  const healthConfigured = Boolean((import.meta.env.VITE_HEALTH_CONNECT ?? "").trim());
   const [mealTotals, setMealTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>(() =>
     demo ? DEMO_NUTRITION_LOG.totals : { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
@@ -132,6 +133,16 @@ export default function Today() {
         <main className="max-w-md mx-auto p-6 space-y-6" data-testid="today-dashboard">
           <DemoBanner />
           <h1 className="text-2xl font-semibold text-foreground">{t('today.title')}</h1>
+          {!healthConfigured && (
+            <Card>
+              <CardContent className="space-y-2 py-4">
+                <p className="text-sm font-medium">Health data unavailable</p>
+                <p className="text-sm text-muted-foreground">
+                  Health connectors are coming soon. For now, steps and vitals won’t appear here.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
         <Card>
           <CardHeader>

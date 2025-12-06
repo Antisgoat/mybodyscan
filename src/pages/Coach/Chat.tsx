@@ -89,6 +89,8 @@ export default function CoachChatPage() {
   const [recognizer, setRecognizer] = useState<any | null>(null);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
+  const coachRpm = (import.meta.env.VITE_COACH_RPM ?? "").trim();
+  const coachConfigured = coachRpm.length > 0;
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
@@ -182,6 +184,12 @@ export default function CoachChatPage() {
 
   const handleSend = async () => {
     if (pending) {
+      return;
+    }
+    if (!coachConfigured) {
+      const message = "Coach chat is disabled until COACH_RPM is set.";
+      setCoachError(message);
+      toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       return;
     }
     if (!demo && !demoGuard("coach chat")) {
@@ -361,8 +369,13 @@ export default function CoachChatPage() {
                 )}
               </div>
               <div className="space-y-3">
-                {coachError && (
-                  <p className="text-sm text-destructive">{coachError}</p>
+                {(coachError || !coachConfigured) && (
+                  <Alert variant="destructive">
+                    <AlertTitle>{coachConfigured ? "Coach unavailable" : "Coach setup incomplete"}</AlertTitle>
+                    <AlertDescription>
+                      {coachError ?? "Add COACH_RPM to enable secure coach chat in this environment."}
+                    </AlertDescription>
+                  </Alert>
                 )}
                 <Textarea
                   value={input}
@@ -374,7 +387,7 @@ export default function CoachChatPage() {
                   }}
                   placeholder={readOnlyDemo ? "Demo preview — chat is read-only." : "Share wins or ask for tweaks..."}
                   rows={4}
-                  disabled={pending || readOnlyDemo || initializing}
+                  disabled={pending || readOnlyDemo || initializing || !coachConfigured}
                   data-testid="coach-message-input"
                 />
                 <div className="flex justify-end">
@@ -382,7 +395,7 @@ export default function CoachChatPage() {
                     <Button
                       variant="secondary"
                       onClick={listening ? stopListening : startListening}
-                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing}
+                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing || !coachConfigured}
                       data-testid="coach-mic"
                     >
                       {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
@@ -398,7 +411,7 @@ export default function CoachChatPage() {
                     ) : (
                       <Button
                         onClick={handleSend}
-                        disabled={pending || !input.trim() || initializing}
+                        disabled={pending || !input.trim() || initializing || !coachConfigured}
                         data-testid="coach-send-button"
                       >
                         Send

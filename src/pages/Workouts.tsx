@@ -27,6 +27,7 @@ export default function Workouts() {
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const functionsConfigured = Boolean((import.meta.env.VITE_FUNCTIONS_URL ?? "").trim());
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
@@ -210,17 +211,29 @@ export default function Workouts() {
         <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Card>
-            <CardContent className="p-8 text-center">
-              <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
+              <CardContent className="p-8 text-center">
+                <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
               {loadError && <p className="mb-4 text-sm text-destructive">{loadError}</p>}
-              <Button onClick={handleGenerate} className="w-full">
-                <Plus className="w-4 h-4 mr-2" />
-                Create my plan
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
+              {!functionsConfigured && (
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Set VITE_FUNCTIONS_URL to enable plan generation, then retry.
+                </p>
+              )}
+              <div className="flex flex-col gap-2">
+                <Button onClick={handleGenerate} className="w-full" disabled={!functionsConfigured}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create my plan
+                </Button>
+                {loadError && functionsConfigured && (
+                  <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+                    Retry loading
+                  </Button>
+                )}
+              </div>
+              </CardContent>
+            </Card>
+          </main>
         <BottomNav />
       </div>
     );

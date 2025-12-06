@@ -9,6 +9,8 @@ import { getLastWeight, setLastWeight } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { useAuthUser } from "@/lib/auth";
+import { useUnits } from "@/hooks/useUnits";
+import { kgToLb, lbToKg } from "@/lib/units";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -20,7 +22,12 @@ export default function ScanStart() {
   const initialWeight = storedWeightRef.current;
   const [storedWeight, setStoredWeight] = useState<number | null>(initialWeight);
   const [mode, setMode] = useState<"confirm" | "input">(initialWeight == null ? "input" : "confirm");
-  const [weightInput, setWeightInput] = useState<string>(initialWeight != null ? initialWeight.toString() : "");
+  const { units } = useUnits();
+  const [weightInput, setWeightInput] = useState<string>(() => {
+    if (initialWeight == null) return "";
+    const value = units === "metric" ? lbToKg(initialWeight) : initialWeight;
+    return value.toString();
+  });
   const [error, setError] = useState<string | null>(null);
   const demo = useDemoMode();
   const { user } = useAuthUser();
@@ -45,12 +52,13 @@ export default function ScanStart() {
 
     const parsed = Number(weightInput.trim());
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError("Enter a valid weight in pounds.");
+      setError(`Enter a valid weight in ${units === "metric" ? "kilograms" : "pounds"}.`);
       return;
     }
 
-    setLastWeight(parsed);
-    const normalized = Math.round(parsed * 10) / 10;
+    const asLb = units === "metric" ? kgToLb(parsed) : parsed;
+    setLastWeight(asLb);
+    const normalized = Math.round(asLb * 10) / 10;
     setStoredWeight(normalized);
     setMode("confirm");
     goToCapture();
@@ -69,7 +77,7 @@ export default function ScanStart() {
       {showInput ? (
         <form onSubmit={handleSave} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="current-weight">Current weight (lb)</Label>
+            <Label htmlFor="current-weight">Current weight ({units === "metric" ? "kg" : "lb"})</Label>
             <Input
               id="current-weight"
               type="number"
@@ -101,7 +109,9 @@ export default function ScanStart() {
         </form>
       ) : (
         <div className="space-y-4">
-          <p className="text-lg font-medium">Is your weight still {formatWeight(storedWeight!)} lb?</p>
+          <p className="text-lg font-medium">
+            Is your weight still {formatWeight(units === "metric" ? lbToKg(storedWeight!) : storedWeight!)} {units === "metric" ? "kg" : "lb"}?
+          </p>
           <div className="flex flex-wrap gap-3">
             {readOnlyDemo ? (
               <Tooltip>
