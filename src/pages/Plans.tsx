@@ -60,6 +60,7 @@ export default function Plans() {
   const success = searchParams.get("success") === "1" || status === "success";
   const canceled = searchParams.get("canceled") === "1" || status === "cancel";
   const signUpHref = "/auth?next=/plans";
+  const subscriptionPriceId = subscription?.priceId ?? subscription?.price ?? null;
 
   const dismissCheckoutState = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -271,6 +272,15 @@ export default function Plans() {
     corePlans[2],
   ];
 
+  const priceIdToPlanName = plans.reduce<Record<string, string>>((acc, plan) => {
+    if (plan.priceId) acc[plan.priceId] = plan.name;
+    return acc;
+  }, {});
+
+  const subscriptionPlanDisplay = subscriptionPriceId
+    ? priceIdToPlanName[subscriptionPriceId] || subscription?.product || subscriptionPriceId
+    : subscription?.product || null;
+
   const missingPriceEnvKeys = plans
     .filter((plan) => !plan.priceId && plan.envKey)
     .map((plan) => plan.envKey as string);
@@ -315,7 +325,7 @@ export default function Plans() {
             <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span>
                 Status: {subscription?.status ?? "active"}
-                {subscription?.price ? ` • Price: ${subscription.price}` : ""}
+                {subscriptionPlanDisplay ? ` • Plan: ${subscriptionPlanDisplay}` : ""}
               </span>
               <Button size="sm" variant="outline" onClick={handleManageSubscription} disabled={managingSubscription}>
                 {managingSubscription ? "Opening portal…" : "Manage subscription"}
@@ -349,86 +359,87 @@ export default function Plans() {
         )}
 
         <div className="space-y-4">
-          {plans.filter((plan) => !plan.subscriberOnly || hasSubscription).map((plan) => (
-            <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
-              <CardHeader className="relative">
-                {(plan.popular || plan.badge) && (
-                  <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
-                    {plan.badge || "Most Popular"}
-                  </Badge>
-                )}
-                <CardTitle className="flex items-center justify-between">
-                  <span>{plan.name}</span>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2">
-                      {plan.originalPrice && (
-                        <span className="text-sm text-muted-foreground line-through">{plan.originalPrice}</span>
-                      )}
-                      <div className="text-lg font-bold">{plan.price}</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{plan.period}</div>
-                  </div>
-                </CardTitle>
-                <p className="text-sm text-accent font-medium">{plan.credits}</p>
-                {plan.description && (
-                  <p className="text-xs text-muted-foreground">{plan.description}</p>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-accent flex-shrink-0" />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                {plan.features.some((feature) => feature.includes("3 scans per month")) && (
-                  <p className="text-xs text-muted-foreground mt-2">*Unused scans roll over for 12 months.*</p>
-                )}
-                <div className="space-y-1">
-                  <Button
-                    className="w-full"
-                    variant={plan.popular ? "default" : "outline"}
-                    onClick={() =>
-                      plan.mode === "subscription" && hasSubscription && subscription?.price === plan.priceId
-                        ? handleManageSubscription()
-                        : handleCheckout(plan)
-                    }
-                    disabled={
-                      !canBuy ||
-                      pendingPlan === plan.plan ||
-                      !plan.priceId ||
-                      (plan.mode === "subscription" && hasSubscription && managingSubscription)
-                    }
-                  >
-                    {pendingPlan === plan.plan || (plan.mode === "subscription" && managingSubscription) ? (
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {plan.mode === "subscription" && hasSubscription ? "Opening portal…" : "Opening checkout…"}
-                      </span>
-                    ) : plan.mode === "subscription" && hasSubscription && subscription?.price === plan.priceId ? (
-                      "Manage subscription"
-                    ) : plan.mode === "subscription" && hasSubscription ? (
-                      "Change plan"
-                    ) : plan.mode === "subscription" ? (
-                      t('plans.subscribe')
-                    ) : (
-                      t('plans.buyNow')
-                    )}
-                  </Button>
-                  {!authed && (
-                    <>
-                      <a className="block text-xs text-center text-primary underline" href={signUpHref}>
-                        Sign in to use this feature
-                      </a>
-                      <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
-                    </>
+          {plans.filter((plan) => !plan.subscriberOnly || hasSubscription).map((plan) => {
+            const isCurrentSubscriptionPlan = plan.mode === "subscription" && subscriptionPriceId === plan.priceId;
+            return (
+              <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
+                <CardHeader className="relative">
+                  {(plan.popular || plan.badge) && (
+                    <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                      {plan.badge || "Most Popular"}
+                    </Badge>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{plan.name}</span>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2">
+                        {plan.originalPrice && (
+                          <span className="text-sm text-muted-foreground line-through">{plan.originalPrice}</span>
+                        )}
+                        <div className="text-lg font-bold">{plan.price}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">{plan.period}</div>
+                    </div>
+                  </CardTitle>
+                  <p className="text-sm text-accent font-medium">{plan.credits}</p>
+                  {plan.description && <p className="text-xs text-muted-foreground">{plan.description}</p>}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ul className="space-y-2">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-accent flex-shrink-0" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {plan.features.some((feature) => feature.includes("3 scans per month")) && (
+                    <p className="text-xs text-muted-foreground mt-2">*Unused scans roll over for 12 months.*</p>
+                  )}
+                  <div className="space-y-1">
+                    <Button
+                      className="w-full"
+                      variant={plan.popular ? "default" : "outline"}
+                      onClick={() =>
+                        plan.mode === "subscription" && hasSubscription && isCurrentSubscriptionPlan
+                          ? handleManageSubscription()
+                          : handleCheckout(plan)
+                      }
+                      disabled={
+                        !canBuy ||
+                        pendingPlan === plan.plan ||
+                        !plan.priceId ||
+                        (plan.mode === "subscription" && hasSubscription && managingSubscription)
+                      }
+                    >
+                      {pendingPlan === plan.plan || (plan.mode === "subscription" && managingSubscription) ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {plan.mode === "subscription" && hasSubscription ? "Opening portal…" : "Opening checkout…"}
+                        </span>
+                      ) : plan.mode === "subscription" && hasSubscription && isCurrentSubscriptionPlan ? (
+                        "Manage subscription"
+                      ) : plan.mode === "subscription" && hasSubscription ? (
+                        "Change plan"
+                      ) : plan.mode === "subscription" ? (
+                        t('plans.subscribe')
+                      ) : (
+                        t('plans.buyNow')
+                      )}
+                    </Button>
+                    {!authed && (
+                      <>
+                        <a className="block text-xs text-center text-primary underline" href={signUpHref}>
+                          Sign in to use this feature
+                        </a>
+                        <p className="text-xs text-muted-foreground text-center">Sign in to complete checkout.</p>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Savings Comparison Card */}
