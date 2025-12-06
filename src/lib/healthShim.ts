@@ -1,41 +1,24 @@
-const TODO_LINK = 'https://linear.app/mybodyscan/issue/HEALTH-SHIM';
+const TODO_LINK = "https://linear.app/mybodyscan/issue/HEALTH-SHIM";
+
+const NOT_AVAILABLE_ERROR =
+  "Health integrations are not live yet. This screen is gated until Apple Health/Google Fit connectors ship.";
 
 function logShim(method: string) {
-  console.info(`[shim] ${method}() – replace with health connector. TODO: ${TODO_LINK}`);
+  console.info(`[shim-disabled] ${method}() – real connector pending. TODO: ${TODO_LINK}`);
 }
 
-export type HealthProvider = 'apple-health' | 'google-health-connect' | 'manual';
+export type HealthProvider = "apple-health" | "google-health-connect" | "manual";
 
-export interface MockHealthConnection {
-  provider: HealthProvider;
-  status: 'connected' | 'disconnected';
-  connectedAt: string;
+/**
+ * Placeholder helpers that make it explicit we do NOT connect to any health provider yet.
+ * All callers must surface the "coming soon" state instead of pretending a connection succeeded.
+ */
+export async function connectMock(_provider: HealthProvider): Promise<never> {
+  logShim("connectMock");
+  throw new Error(NOT_AVAILABLE_ERROR);
 }
 
-export interface MockSyncResult {
-  day: 'today' | 'yesterday';
-  steps: number;
-  activeCalories: number;
-  sleepHours: number;
-}
-
-export async function connectMock(provider: HealthProvider): Promise<MockHealthConnection> {
-  logShim('connectMock');
-  return {
-    provider,
-    status: 'connected',
-    connectedAt: new Date().toISOString(),
-  };
-}
-
-export async function syncDayMock(day: 'today' | 'yesterday'): Promise<MockSyncResult> {
-  logShim('syncDayMock');
-  const offset = day === 'today' ? 0 : 1;
-  const base = 8000 - offset * 1200;
-  return {
-    day,
-    steps: base,
-    activeCalories: 520 - offset * 80,
-    sleepHours: Number((7.2 + offset * 0.3).toFixed(1)),
-  };
+export async function syncDayMock(_day: "today" | "yesterday"): Promise<never> {
+  logShim("syncDayMock");
+  throw new Error(NOT_AVAILABLE_ERROR);
 }

@@ -14,10 +14,13 @@ import { track } from "@/lib/analytics";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useCredits } from "@/hooks/useCredits";
+import { useSubscription } from "@/hooks/useSubscription";
 import { PRICE_IDS } from "@/config/prices";
 import { startCheckout } from "@/lib/api/billing";
 import { call } from "@/lib/callable";
 import { apiFetchJson } from "@/lib/apiFetch";
+import { createCustomerPortalSession } from "@/lib/api/portal";
+import { openExternalUrl } from "@/lib/platform";
 
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
@@ -51,6 +54,8 @@ export default function Plans() {
   const { refresh: refreshCredits } = useCredits();
   const [refreshingCredits, setRefreshingCredits] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isActive: hasSubscription, subscription, error: subscriptionError } = useSubscription();
+  const [managingSubscription, setManagingSubscription] = useState(false);
   const status = searchParams.get("status");
   const success = searchParams.get("success") === "1" || status === "success";
   const canceled = searchParams.get("canceled") === "1" || status === "cancel";
@@ -89,6 +94,19 @@ export default function Plans() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       window.scrollTo(0, 0);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setManagingSubscription(true);
+    try {
+      const url = await createCustomerPortalSession();
+      await openExternalUrl(url);
+    } catch (err: any) {
+      const message = err?.message || "Subscription management is unavailable right now.";
+      toast({ title: "Can't open portal", description: message, variant: "destructive" });
+    } finally {
+      setManagingSubscription(false);
     }
   };
 
@@ -291,6 +309,26 @@ export default function Plans() {
             </AlertDescription>
           </Alert>
         )}
+        {hasSubscription && (
+          <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900">
+            <AlertTitle>Subscription active</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Status: {subscription?.status ?? "active"}
+                {subscription?.price ? ` • Price: ${subscription.price}` : ""}
+              </span>
+              <Button size="sm" variant="outline" onClick={handleManageSubscription} disabled={managingSubscription}>
+                {managingSubscription ? "Opening portal…" : "Manage subscription"}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {subscriptionError && (
+          <Alert variant="destructive" className="border-destructive/40 bg-destructive/5">
+            <AlertTitle>Subscription status unavailable</AlertTitle>
+            <AlertDescription>{subscriptionError}</AlertDescription>
+          </Alert>
+        )}
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-foreground mb-2">{t('plans.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('plans.description')}</p>
@@ -311,7 +349,7 @@ export default function Plans() {
         )}
 
         <div className="space-y-4">
-          {plans.filter(plan => !plan.subscriberOnly || false).map((plan) => ( // TODO: Check subscription status
+          {plans.filter((plan) => !plan.subscriberOnly || hasSubscription).map((plan) => (
             <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
               <CardHeader className="relative">
                 {(plan.popular || plan.badge) && (
@@ -352,14 +390,27 @@ export default function Plans() {
                   <Button
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
-                    onClick={() => handleCheckout(plan)}
-                    disabled={!canBuy || pendingPlan === plan.plan || !plan.priceId}
+                    onClick={() =>
+                      plan.mode === "subscription" && hasSubscription && subscription?.price === plan.priceId
+                        ? handleManageSubscription()
+                        : handleCheckout(plan)
+                    }
+                    disabled={
+                      !canBuy ||
+                      pendingPlan === plan.plan ||
+                      !plan.priceId ||
+                      (plan.mode === "subscription" && hasSubscription && managingSubscription)
+                    }
                   >
-                    {pendingPlan === plan.plan ? (
+                    {pendingPlan === plan.plan || (plan.mode === "subscription" && managingSubscription) ? (
                       <span className="inline-flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Opening checkout…
+                        {plan.mode === "subscription" && hasSubscription ? "Opening portal…" : "Opening checkout…"}
                       </span>
+                    ) : plan.mode === "subscription" && hasSubscription && subscription?.price === plan.priceId ? (
+                      "Manage subscription"
+                    ) : plan.mode === "subscription" && hasSubscription ? (
+                      "Change plan"
                     ) : plan.mode === "subscription" ? (
                       t('plans.subscribe')
                     ) : (

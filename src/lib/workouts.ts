@@ -5,6 +5,24 @@ import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
 
+export interface WorkoutExercise {
+  id: string;
+  name: string;
+  sets?: number;
+  reps?: number | string;
+}
+
+export interface WorkoutDay {
+  day: string;
+  exercises: WorkoutExercise[];
+}
+
+export interface WorkoutSummary {
+  planId: string | null;
+  days: WorkoutDay[];
+  progress: Record<string, string[]>;
+}
+
 async function callFn(path: string, body?: any) {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
@@ -35,6 +53,22 @@ export async function getPlan() {
     return await callFn("/getPlan", {});
   } catch (error) {
     console.warn("workouts.getPlan", error);
+    return null;
+  }
+}
+
+export async function getWorkouts(): Promise<WorkoutSummary | null> {
+  if (isDemoActive()) {
+    return { planId: DEMO_WORKOUT_PLAN.id ?? "demo-plan", days: DEMO_WORKOUT_PLAN.days, progress: {} };
+  }
+  try {
+    const res = await callFn("/getWorkouts", {});
+    const planId = (res?.planId as string | null | undefined) ?? null;
+    const days = Array.isArray(res?.days) ? (res.days as WorkoutDay[]) : [];
+    const progress = (res?.progress as Record<string, string[]>) ?? {};
+    return { planId, days, progress };
+  } catch (error) {
+    console.warn("workouts.getWorkouts", error);
     return null;
   }
 }

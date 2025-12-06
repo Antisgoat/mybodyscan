@@ -4,19 +4,29 @@ import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent } from "@/components/ui/card";
-import { getTodayPlanMock, type MockWorkoutPlan } from "@/lib/workoutsShim";
+import { getWorkouts } from "@/lib/workouts";
 
 export default function WorkoutsCompleted() {
-  const [plan, setPlan] = useState<MockWorkoutPlan | null>(null);
+  const [workouts, setWorkouts] = useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getTodayPlanMock().then(setPlan);
+    getWorkouts()
+      .then(setWorkouts)
+      .catch((err) => setError(err?.message || "Unable to load workouts"));
   }, []);
 
   const completedDays = useMemo(() => {
-    if (!plan) return [];
-    return plan.completionStreak.filter((item) => item.completed);
-  }, [plan]);
+    const today = new Date();
+    return Array.from({ length: 14 }).reduce<{ date: string; completed: boolean }[]>((acc, _, idx) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - idx);
+      const iso = d.toISOString().slice(0, 10);
+      const completed = Boolean(workouts?.progress?.[iso]?.length);
+      if (completed) acc.push({ date: iso, completed });
+      return acc;
+    }, []);
+  }, [workouts]);
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -32,7 +42,7 @@ export default function WorkoutsCompleted() {
         {completedDays.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No workouts logged yet — your next completion will show up here.
+              {error || "No workouts logged yet — your next completion will show up here."}
             </CardContent>
           </Card>
         ) : (

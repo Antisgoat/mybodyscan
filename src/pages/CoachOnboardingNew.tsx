@@ -49,7 +49,7 @@ export default function CoachOnboardingNew() {
   const navigate = useNavigate();
   const { computePlan } = useComputePlan();
   const { toast } = useToast();
-  const units = useUnits();
+  const { units } = useUnits();
 
   const updateData = (updates: Partial<OnboardingData>) => {
     setData(prev => ({ ...prev, ...updates }));
@@ -160,19 +160,46 @@ export default function CoachOnboardingNew() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="text-sm font-medium text-foreground">Height</Label>
-            <HeightInputUS
-              valueCm={data.height_cm}
-              onChangeCm={(cm) => updateData({ height_cm: cm ?? undefined })}
-            />
+            {units === "metric" ? (
+              <Input
+                id="height-cm"
+                type="number"
+                inputMode="decimal"
+                placeholder="170"
+                value={data.height_cm ?? ""}
+                onChange={(e) => {
+                  if (e.target.value === "") {
+                    updateData({ height_cm: undefined });
+                    return;
+                  }
+                  const val = Number(e.target.value);
+                  if (!Number.isNaN(val)) updateData({ height_cm: val });
+                }}
+              />
+            ) : (
+              <HeightInputUS
+                valueCm={data.height_cm}
+                onChangeCm={(cm) => updateData({ height_cm: cm ?? undefined })}
+              />
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="weight" className="text-sm font-medium text-foreground">Weight (lb)</Label>
+            <Label htmlFor="weight" className="text-sm font-medium text-foreground">
+              Weight ({units === "metric" ? "kg" : "lb"})
+            </Label>
             <Input
               id="weight"
               type="number"
-              placeholder="154"
-              value={data.weight_kg != null ? Math.round(kgToLb(data.weight_kg)) : ""}
+              inputMode="decimal"
+              placeholder={units === "metric" ? "70" : "154"}
+              value={
+                units === "metric"
+                  ? data.weight_kg ?? ""
+                  : data.weight_kg != null
+                    ? Math.round(kgToLb(data.weight_kg))
+                    : ""
+              }
               onChange={(e) => {
                 if (e.target.value === "") {
                   updateData({ weight_kg: undefined });
@@ -180,7 +207,8 @@ export default function CoachOnboardingNew() {
                 }
                 const value = Number(e.target.value);
                 if (Number.isNaN(value)) return;
-                updateData({ weight_kg: lbToKg(value) ?? undefined });
+                const normalized = units === "metric" ? value : lbToKg(value) ?? undefined;
+                updateData({ weight_kg: normalized });
               }}
               className="h-11"
             />
