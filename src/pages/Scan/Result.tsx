@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ReferenceChart } from "@/components/ReferenceChart";
 import { Seo } from "@/components/Seo";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -29,6 +30,7 @@ import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scan
 import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
 import type { ManualCircumferences } from "./scanRefineStore";
+import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -113,6 +115,10 @@ export default function ScanFlowResult() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
+  const appCheck = useAppCheckStatus();
+  const functionsConfigured = Boolean(
+    (import.meta.env.VITE_FUNCTIONS_URL ?? "").trim() || (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
+  );
 
   const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
   const capturedShots = useMemo(
@@ -430,6 +436,28 @@ export default function ScanFlowResult() {
         <h1 className="text-3xl font-semibold">Preview Result</h1>
         <p className="text-muted-foreground">{estimateStatus}</p>
       </div>
+      {appCheck.status === "checking" ? (
+        <Alert className="border-dashed">
+          <AlertTitle>Checking secure access…</AlertTitle>
+          <AlertDescription>Ensuring App Check is ready before rendering your scan preview.</AlertDescription>
+        </Alert>
+      ) : null}
+      {!functionsConfigured ? (
+        <Alert variant="destructive">
+          <AlertTitle>Scan services offline</AlertTitle>
+          <AlertDescription>
+            We couldn’t find the scan service URL. Add VITE_FUNCTIONS_URL to enable saving results.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {appCheck.status === "missing" ? (
+        <Alert variant="destructive">
+          <AlertTitle>App Check required</AlertTitle>
+          <AlertDescription>
+            Secure access failed. Refresh the page or contact support before finalizing your scan.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Estimated body metrics</CardTitle>

@@ -297,6 +297,11 @@ export default function MealsSearch() {
   const [status, setStatus] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
+  const nutritionKeysPresent =
+    Boolean((import.meta.env.VITE_USDA_API_KEY ?? "").trim()) ||
+    Boolean((import.meta.env.VITE_OPENFOOD_API_KEY ?? "").trim()) ||
+    Boolean((import.meta.env.VITE_NUTRITION_RPM ?? "").trim());
+  const searchDisabled = demo || !nutritionKeysPresent;
 
   useEffect(() => {
     if (!authReady || !uid) {
@@ -320,6 +325,15 @@ export default function MealsSearch() {
       setPrimarySource(null);
       setStatus("Search is disabled in demo. Sign in to use.");
       setSearchWarning("Search is disabled in demo. Sign in to use.");
+      return;
+    }
+
+    if (!nutritionKeysPresent) {
+      setLoading(false);
+      setResults([]);
+      setPrimarySource(null);
+      setStatus("Nutrition search unavailable until keys are added.");
+      setSearchWarning("Food search is unavailable because nutrition API keys are missing.");
       return;
     }
 
@@ -389,6 +403,13 @@ export default function MealsSearch() {
       cancelled = true;
     };
   }, [debouncedQuery, demo, toast]);
+
+  useEffect(() => {
+    if (!nutritionKeysPresent && !demo) {
+      setStatus("Nutrition search unavailable until keys are added.");
+      setSearchWarning("Food search is unavailable because nutrition API keys are missing.");
+    }
+  }, [nutritionKeysPresent, demo]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -550,6 +571,15 @@ export default function MealsSearch() {
           <p className="text-sm text-muted-foreground">Tap a result to adjust servings and log it to your meals.</p>
         </div>
 
+        {!nutritionKeysPresent && !demo && (
+          <Alert variant="destructive">
+            <AlertTitle>Nutrition search unavailable</AlertTitle>
+            <AlertDescription>
+              Add USDA or OpenFoodFacts keys (USDA_API_KEY / OPENFOOD_API_KEY or NUTRITION_RPM) to enable food search.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form className="flex gap-2" onSubmit={(event) => event.preventDefault()}>
           <Input
             value={query}
@@ -557,15 +587,15 @@ export default function MealsSearch() {
             placeholder="Search chicken breast, oatmeal, whey…"
             className="flex-1"
             data-testid="nutrition-search"
-            disabled={demo}
-            title={demo ? "Search is disabled in demo" : undefined}
+            disabled={searchDisabled}
+            title={searchDisabled ? "Search is disabled until nutrition keys are added." : undefined}
           />
           <Button
             type="button"
             variant="outline"
             onClick={() => setScannerOpen(true)}
-            disabled={demo || loading}
-            title={demo ? "Scan is disabled in demo" : undefined}
+            disabled={searchDisabled || loading}
+            title={searchDisabled ? "Scan is disabled until nutrition keys are added." : undefined}
           >
             <Barcode className="mr-1 h-4 w-4" />
             Scan

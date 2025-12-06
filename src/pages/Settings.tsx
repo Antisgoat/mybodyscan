@@ -62,6 +62,14 @@ const Settings = () => {
   const demoMode = useDemoMode();
   const [appCheckStatus, setAppCheckStatus] = useState<"checking" | "present" | "absent">("checking");
   const stripePublishablePresent = Boolean((import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim());
+  const functionsConfigured = Boolean((import.meta.env.VITE_FUNCTIONS_URL ?? "").trim());
+  const scanConfigured = functionsConfigured || Boolean((import.meta.env.VITE_SCAN_START_URL ?? "").trim());
+  const coachConfigured = Boolean((import.meta.env.VITE_COACH_RPM ?? "").trim());
+  const nutritionConfigured =
+    Boolean((import.meta.env.VITE_USDA_API_KEY ?? "").trim()) ||
+    Boolean((import.meta.env.VITE_OPENFOOD_API_KEY ?? "").trim()) ||
+    Boolean((import.meta.env.VITE_NUTRITION_RPM ?? "").trim());
+  const healthConfigured = Boolean((import.meta.env.VITE_HEALTH_CONNECT ?? "").trim());
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
@@ -366,6 +374,48 @@ const Settings = () => {
             </div>
             <HeaderEnvBadge />
           </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Feature availability</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Scans</span>
+              <Badge variant={scanConfigured ? "default" : "secondary"}>{scanConfigured ? "Configured" : "Missing URL"}</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Plans & billing</span>
+              <Badge variant={stripePublishablePresent ? "default" : "secondary"}>
+                {stripePublishablePresent ? "Stripe ready" : "Stripe key missing"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Coach chat</span>
+              <Badge variant={coachConfigured ? "default" : "secondary"}>
+                {coachConfigured ? "Enabled" : "COACH_RPM missing"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Meals search</span>
+              <Badge variant={nutritionConfigured ? "default" : "secondary"}>
+                {nutritionConfigured ? "Enabled" : "Nutrition keys missing"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Workouts</span>
+              <Badge variant={functionsConfigured ? "default" : "secondary"}>
+                {functionsConfigured ? "Enabled" : "Functions URL missing"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between rounded border px-3 py-2">
+              <span>Health sync</span>
+              <Badge variant={healthConfigured ? "default" : "secondary"}>
+                {healthConfigured ? "Configured" : "Coming soon"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

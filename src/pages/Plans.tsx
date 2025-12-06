@@ -61,6 +61,10 @@ export default function Plans() {
   const success = searchParams.get("success") === "1" || status === "success";
   const canceled = searchParams.get("canceled") === "1" || status === "cancel";
   const signUpHref = "/auth?next=/plans";
+  const subscriptionStatus = subscription?.status ?? "none";
+  const subscriptionPastDue = subscriptionStatus === "past_due";
+  const subscriptionCanceled = subscriptionStatus === "canceled";
+  const subscriptionActive = subscriptionStatus === "active";
 
   const dismissCheckoutState = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -326,13 +330,33 @@ export default function Plans() {
             </AlertDescription>
           </Alert>
         )}
-        {hasSubscription && (
-          <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900">
-            <AlertTitle>Subscription active</AlertTitle>
+        {subscription && (
+          <Alert
+            variant={subscriptionPastDue || subscriptionCanceled ? "destructive" : undefined}
+            className={
+              subscriptionPastDue || subscriptionCanceled
+                ? "border-destructive/40 bg-destructive/5"
+                : "border-emerald-300 bg-emerald-50 text-emerald-900"
+            }
+          >
+            <AlertTitle>
+              {subscriptionCanceled
+                ? "Subscription canceled"
+                : subscriptionPastDue
+                  ? "Payment past due"
+                  : "Subscription active"}
+            </AlertTitle>
             <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span>
-                Status: {subscription?.status ?? "active"}
+                Status: {subscriptionStatus}
                 {subscription?.price ? ` • Price: ${subscription.price}` : ""}
+                {subscriptionPastDue
+                  ? " — update your payment method to keep premium scans."
+                  : subscriptionCanceled
+                    ? " — restart checkout to regain access."
+                    : subscriptionActive
+                      ? " — premium access is enabled."
+                      : ""}
               </span>
               <Button size="sm" variant="outline" onClick={handleManageSubscription} disabled={managingSubscription}>
                 {managingSubscription ? "Opening portal…" : "Manage subscription"}

@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
@@ -93,6 +93,7 @@ import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
 import { disableDemoEverywhere } from "./state/demo";
+import { useToast } from "@/hooks/use-toast";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
@@ -129,6 +130,9 @@ const DemoWireup = () => {
 
 const App = () => {
   useAuthBootstrap();
+  const { toast } = useToast();
+  const claimsErrorCountRef = useRef(0);
+  const claimsToastAtRef = useRef(0);
 
   useEffect(() => {
     if (!auth) return undefined;
@@ -137,8 +141,19 @@ const App = () => {
         disableDemoEverywhere();
         try {
           await refreshClaimsAndAdminBoost();
+          claimsErrorCountRef.current = 0;
         } catch (error) {
           console.warn("claims_refresh_failed", error);
+          claimsErrorCountRef.current += 1;
+          const now = Date.now();
+          if (claimsErrorCountRef.current > 1 && now - claimsToastAtRef.current > 10_000) {
+            toast({
+              title: "We’re having trouble refreshing your access",
+              description: "If this continues, sign out and back in or contact support.",
+              variant: "destructive",
+            });
+            claimsToastAtRef.current = now;
+          }
         }
       }
     });
