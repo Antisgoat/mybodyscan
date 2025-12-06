@@ -81,6 +81,8 @@ const firebaseConfig: FirebaseRuntimeConfig = {
   ...(injectedConfig ?? {}),
 };
 
+const isMissing = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
+
 for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
   const currentValue = (firebaseConfig as any)[key];
   if (isMissing(currentValue) && !isMissing(fallbackValue)) {
@@ -94,8 +96,6 @@ for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
 
 const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
 const warningKeys = ["appId", "storageBucket", "measurementId"] as const;
-
-const isMissing = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
 
 export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
   const value = (firebaseConfig as any)?.[key];
