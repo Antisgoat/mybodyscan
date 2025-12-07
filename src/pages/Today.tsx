@@ -22,7 +22,9 @@ export default function Today() {
   const demo = useDemoMode();
   const { plan: coachPlan } = useUserProfile();
   const todayISO = new Date().toISOString().slice(0, 10);
-  const healthConfigured = Boolean((import.meta.env.VITE_HEALTH_CONNECT ?? "").trim());
+  // Health connectors are not live yet; always surface the "coming soon" banner
+  // so users aren't misled into thinking data is syncing.
+  const healthConfigured = false;
   const [mealTotals, setMealTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>(() =>
     demo ? DEMO_NUTRITION_LOG.totals : { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
