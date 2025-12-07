@@ -24,6 +24,7 @@ import { coachChatCollection } from "@/lib/db/coachPaths";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { demoCoach } from "@/lib/demoDataset";
 import { demoGuard } from "@/lib/demoGuard";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 declare global {
   interface Window {
@@ -90,8 +91,14 @@ export default function CoachChatPage() {
   const [recognizer, setRecognizer] = useState<any | null>(null);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
-  const coachRpm = (import.meta.env.VITE_COACH_RPM ?? "").trim();
-  const coachConfigured = coachRpm.length > 0;
+  const { health: systemHealth } = useSystemHealth();
+  const coachPrereqMessage =
+    systemHealth?.coachRpmPresent === false
+      ? "Coach chat is disabled until COACH_RPM is configured on Cloud Functions."
+      : systemHealth?.openaiKeyPresent === false
+        ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
+        : null;
+  const coachConfigured = coachPrereqMessage == null;
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
@@ -192,7 +199,7 @@ export default function CoachChatPage() {
       return;
     }
     if (!coachConfigured) {
-      const message = "Coach chat is disabled until COACH_RPM is set.";
+      const message = coachPrereqMessage ?? "Coach chat is disabled until it is fully configured.";
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
       return;
@@ -385,7 +392,7 @@ export default function CoachChatPage() {
                   <Alert variant="destructive">
                     <AlertTitle>{coachConfigured ? "Coach unavailable" : "Coach setup incomplete"}</AlertTitle>
                     <AlertDescription>
-                      {coachError ?? "Add COACH_RPM to enable secure coach chat in this environment."}
+                      {coachError ?? coachPrereqMessage ?? "Coach chat is unavailable right now."}
                     </AlertDescription>
                   </Alert>
                 )}

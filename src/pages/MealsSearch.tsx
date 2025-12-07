@@ -32,6 +32,7 @@ import { backend } from "@/lib/backendBridge";
 import { nutritionSearchClient } from "@/lib/nutritionApi";
 import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -297,11 +298,9 @@ export default function MealsSearch() {
   const [status, setStatus] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
-  const nutritionKeysPresent =
-    Boolean((import.meta.env.VITE_USDA_API_KEY ?? "").trim()) ||
-    Boolean((import.meta.env.VITE_OPENFOOD_API_KEY ?? "").trim()) ||
-    Boolean((import.meta.env.VITE_NUTRITION_RPM ?? "").trim());
-  const searchDisabled = demo || !nutritionKeysPresent;
+  const { health: systemHealth } = useSystemHealth();
+  const nutritionConfigured = systemHealth?.usdaKeyPresent !== false;
+  const searchDisabled = demo || !nutritionConfigured;
 
   useEffect(() => {
     if (!authReady || !uid) {
@@ -328,12 +327,12 @@ export default function MealsSearch() {
       return;
     }
 
-    if (!nutritionKeysPresent) {
+    if (!nutritionConfigured) {
       setLoading(false);
       setResults([]);
       setPrimarySource(null);
-      setStatus("Nutrition search unavailable until keys are added.");
-      setSearchWarning("Food search is unavailable because nutrition API keys are missing.");
+      setStatus("Nutrition search is offline until USDA credentials are configured.");
+      setSearchWarning("Food search is unavailable because the server is missing USDA_FDC_API_KEY.");
       return;
     }
 
@@ -402,14 +401,7 @@ export default function MealsSearch() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, demo, toast]);
-
-  useEffect(() => {
-    if (!nutritionKeysPresent && !demo) {
-      setStatus("Nutrition search unavailable until keys are added.");
-      setSearchWarning("Food search is unavailable because nutrition API keys are missing.");
-    }
-  }, [nutritionKeysPresent, demo]);
+  }, [debouncedQuery, demo, nutritionConfigured, toast]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -571,11 +563,11 @@ export default function MealsSearch() {
           <p className="text-sm text-muted-foreground">Tap a result to adjust servings and log it to your meals.</p>
         </div>
 
-        {!nutritionKeysPresent && !demo && (
+        {systemHealth?.usdaKeyPresent === false && !demo && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition search unavailable</AlertTitle>
             <AlertDescription>
-              Add USDA or OpenFoodFacts keys (USDA_API_KEY / OPENFOOD_API_KEY or NUTRITION_RPM) to enable food search.
+              Add the USDA_FDC_API_KEY (or enable the nutrition proxy) in Firebase Functions to restore food search.
             </AlertDescription>
           </Alert>
         )}
@@ -588,14 +580,14 @@ export default function MealsSearch() {
             className="flex-1"
             data-testid="nutrition-search"
             disabled={searchDisabled}
-            title={searchDisabled ? "Search is disabled until nutrition keys are added." : undefined}
+            title={searchDisabled ? "Search is disabled until nutrition keys are configured." : undefined}
           />
           <Button
             type="button"
             variant="outline"
             onClick={() => setScannerOpen(true)}
             disabled={searchDisabled || loading}
-            title={searchDisabled ? "Scan is disabled until nutrition keys are added." : undefined}
+            title={searchDisabled ? "Scan is disabled until nutrition keys are configured." : undefined}
           >
             <Barcode className="mr-1 h-4 w-4" />
             Scan

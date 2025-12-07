@@ -85,6 +85,16 @@ service cloud.firestore {
         allow write: if !isDemoUser() && isOwner(uid);
       }
 
+      match /workoutPlans/{planId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+
+        match /progress/{day} {
+          allow read: if isOwner(uid);
+          allow write: if false;
+        }
+      }
+
       match /nutritionLogs/{day} {
         allow read: if isOwner(uid);
         allow create: if !isDemoUser() && isOwner(uid);
