@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged } from 'firebase/auth';
 import { disableDemoEverywhere } from '@/lib/demoState';
-import { apiFetchJson } from '@/lib/apiFetch';
 import { auth } from '@/lib/firebase';
+import { bootstrapSystem } from '@/lib/system';
 
 export function useAuthBootstrap() {
   const ranForUid = useRef<string | null>(null);
@@ -23,7 +23,7 @@ export function useAuthBootstrap() {
       if (ranForUid.current === u.uid) return;
       ranForUid.current = u.uid;
       try {
-        await apiFetchJson('/system/bootstrap', { method: 'POST', body: JSON.stringify({}) });
+        await bootstrapSystem();
         await u.getIdToken(true); // refresh claims if updated
         failureCountRef.current = 0;
       } catch (e) {

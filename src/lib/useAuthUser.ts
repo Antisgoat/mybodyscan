@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase"; // use the existing initialized export
-import { apiGet } from "@/lib/http";
+import { bootstrapSystem } from "@/lib/system";
 
 export function useAuthUser() {
   const [user, setUser] = useState<User | null>(typeof auth !== "undefined" ? auth?.currentUser ?? null : null);
@@ -11,7 +11,7 @@ export function useAuthUser() {
   useEffect(() => {
     async function afterLogin(u: User) {
       try {
-        await apiGet("/api/system/bootstrap", { expectJson: false });
+        await bootstrapSystem();
       } catch (error) {
         console.warn("auth.bootstrap_failed", error);
       }
