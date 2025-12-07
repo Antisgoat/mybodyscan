@@ -1,3 +1,5 @@
+import { isIdentityToolkitProbeEnabled } from "@/lib/firebase/identityToolkitProbe";
+
 export type IdentityToolkitProbeStatus = {
   status: "ok" | "warning" | "error";
   statusCode?: number;
@@ -18,6 +20,19 @@ export function getIdentityToolkitProbeStatus(): IdentityToolkitProbeStatus | nu
 
 export async function probeFirebaseRuntime(): Promise<{ identityToolkit: IdentityToolkitProbeStatus | null }> {
   if (typeof window === "undefined") return { identityToolkit: lastIdentityToolkitProbe };
+
+  if (!isIdentityToolkitProbeEnabled()) {
+    if (!warnedIdentityToolkit && import.meta.env.DEV) {
+      console.info("[probe] IdentityToolkit probe disabled for this build");
+    }
+    warnedIdentityToolkit = true;
+    return {
+      identityToolkit: recordIdentityToolkitProbe({
+        status: "warning",
+        message: "IdentityToolkit probe disabled for this build",
+      }),
+    };
+  }
 
   const origin = window.location.origin;
   const keyFromRuntime = (async () => {

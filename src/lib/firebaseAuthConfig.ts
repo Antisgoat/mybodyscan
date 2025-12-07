@@ -1,4 +1,5 @@
 import { firebaseReady, getFirebaseConfig } from "@/lib/firebase";
+import { isIdentityToolkitProbeEnabled } from "@/lib/firebase/identityToolkitProbe";
 import type { IdentityToolkitProbeStatus } from "@/lib/firebase/runtimeConfig";
 
 const AUTH_CONFIG_ENDPOINT = "https://identitytoolkit.googleapis.com/v2";
@@ -140,6 +141,17 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
     };
     cachedConfigPromise = Promise.resolve(
       withEnvFallback({ authorizedDomains: [], providerIds: [] })
+    );
+    return cachedConfigPromise;
+  }
+
+  if (!isIdentityToolkitProbeEnabled()) {
+    lastClientConfigProbe = {
+      status: "warning",
+      message: "IdentityToolkit clientConfig probe disabled in this build",
+    };
+    cachedConfigPromise = Promise.resolve(
+      withEnvFallback({ authorizedDomains: [], providerIds: [] }),
     );
     return cachedConfigPromise;
   }
