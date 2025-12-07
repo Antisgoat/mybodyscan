@@ -118,6 +118,13 @@ service cloud.firestore {
           && request.resource.data.calories >= 0
           && request.resource.data.calories <= 10000;
         allow delete: if false;
+
+        match /entries/{entryId} {
+          allow read: if isOwner(uid);
+          allow create: if !isDemoUser() && isOwner(uid);
+          allow update: if !isDemoUser() && isOwner(uid);
+          allow delete: if !isDemoUser() && isOwner(uid);
+        }
       }
 
       match /healthDaily/{day} {
