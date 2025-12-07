@@ -61,6 +61,8 @@ export const systemHealth = onRequest(
       envPresent(process.env.STRIPE_SIGNATURE);
 
     const usdaKeyPresent = secretPresent(usdaFdcApiKeyParam) || envPresent(process.env.USDA_FDC_API_KEY);
+    const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM) || usdaKeyPresent;
+    const coachRpmPresent = envPresent(process.env.COACH_RPM);
 
     const identityToolkitReachable = true;
     const identityToolkitReason = openaiKeyPresent || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
@@ -80,6 +82,8 @@ export const systemHealth = onRequest(
       stripeSecretPresent,
       openaiKeyPresent,
       usdaKeyPresent,
+      nutritionRpmPresent,
+      coachRpmPresent,
       identityToolkitReachable,
       identityToolkitReason,
     });

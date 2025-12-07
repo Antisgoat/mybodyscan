@@ -52,10 +52,5 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 }
 
 export async function fetchSystemHealth(): Promise<any | null> {
-  try {
-    return await apiFetchJson("/system/health");
-  } catch (error) {
-    console.warn("system_health_unavailable", error);
-    return null;
-  }
+  return apiFetchJson("/system/health");
 }
