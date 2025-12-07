@@ -85,6 +85,7 @@ export default function CoachChatPage() {
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
+  const [hydratingHistory, setHydratingHistory] = useState(false);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
@@ -133,12 +134,15 @@ export default function CoachChatPage() {
   useEffect(() => {
     if (demo) {
       setMessages(DEMO_CHAT_MESSAGES);
+      setHydratingHistory(false);
       return;
     }
     if (!authReady || !appCheckReady || !uid) {
       setMessages([]);
+      setHydratingHistory(false);
       return;
     }
+    setHydratingHistory(true);
     const chatPath = coachChatCollectionPath(uid);
     if (import.meta.env.DEV) {
       const segmentCount = chatPath.split("/").length;
@@ -174,6 +178,7 @@ export default function CoachChatPage() {
         } satisfies ChatMessage;
       });
       setMessages(sortMessages(next));
+      setHydratingHistory(false);
     });
     return () => unsubscribe();
   }, [authReady, uid, demo]);
@@ -319,6 +324,13 @@ export default function CoachChatPage() {
               </CardContent>
             </Card>
           )}
+          {!demo && authReady && appCheckReady && !hasMessages && hydratingHistory ? (
+            <Card className="border border-dashed">
+              <CardContent className="text-sm text-muted-foreground">
+                Loading your recent coach messages…
+              </CardContent>
+            </Card>
+          ) : null}
           <div className="grid gap-6 lg:grid-cols-[1.75fr,1fr]">
           <Card className="border bg-card/60">
             <CardHeader>

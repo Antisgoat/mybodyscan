@@ -6,20 +6,23 @@ import { Label } from "@/components/ui/label";
 import { Seo } from "@/components/Seo";
 import type { ManualInputKey } from "./scanRefineStore";
 import { commitManualInput, setManualInput, useScanRefineStore } from "./scanRefineStore";
+import { useUnits } from "@/hooks/useUnits";
 
 interface RefineMeasurementsFormProps {
   onSubmit?: () => void;
   footer?: ReactNode;
 }
 
-const FIELD_CONFIG: Array<{ key: ManualInputKey; label: string; id: string; help?: string }> = [
-  { key: "neck", label: "Neck (in)", id: "refine-neck" },
-  { key: "waist", label: "Waist (in)", id: "refine-waist" },
-  { key: "hip", label: "Hip (in)", id: "refine-hip" },
+const FIELD_CONFIG: Array<{ key: ManualInputKey; id: string; help?: string; label: string }> = [
+  { key: "neck", label: "Neck", id: "refine-neck" },
+  { key: "waist", label: "Waist", id: "refine-waist" },
+  { key: "hip", label: "Hip", id: "refine-hip" },
 ];
 
 export function RefineMeasurementsForm({ onSubmit, footer }: RefineMeasurementsFormProps) {
   const { manualInputs } = useScanRefineStore();
+  const { units } = useUnits();
+  const unitLabel = units === "metric" ? "cm" : "in";
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -31,7 +34,7 @@ export function RefineMeasurementsForm({ onSubmit, footer }: RefineMeasurementsF
       {FIELD_CONFIG.map(({ key, label, id, help }) => (
         <div key={key} className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <Label htmlFor={id}>{label}</Label>
+            <Label htmlFor={id}>{`${label} (${unitLabel})`}</Label>
             {help ? <span className="text-xs text-muted-foreground">{help}</span> : null}
           </div>
           <Input
