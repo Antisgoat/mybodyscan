@@ -8,13 +8,19 @@ type BootstrapResponse = {
   claimsUpdated?: boolean;
 };
 
+const SOFT_BOOTSTRAP_STATUSES = new Set([404, 405]);
+
+function isSoftBootstrapStatus(status?: number): boolean {
+  return typeof status === "number" && SOFT_BOOTSTRAP_STATUSES.has(status);
+}
+
 export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
   const user = auth.currentUser;
   if (!user) return null;
 
   try {
     const response = await apiFetch("/system/bootstrap", { method: "POST" });
-    if (response.status === 404 || response.status === 405) {
+    if (isSoftBootstrapStatus(response.status)) {
       console.info("system_bootstrap_unavailable", { status: response.status });
       return null;
     }
@@ -22,7 +28,9 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
     if (!response.ok) {
       const fallbackMessage = `HTTP ${response.status}`;
       const text = await response.text().catch(() => "");
-      throw new Error(text || fallbackMessage);
+      const error = new Error(text || fallbackMessage) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     const contentType = response.headers.get("Content-Type") || "";
@@ -32,8 +40,14 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 
     return payload && typeof payload === "object" ? (payload as BootstrapResponse) : null;
   } catch (error) {
+    const typedError = error as Error & { status?: number };
+    const status = typeof typedError?.status === "number" ? typedError.status : undefined;
+    if (isSoftBootstrapStatus(status)) {
+      console.info("system_bootstrap_unavailable", { status, message: typedError?.message });
+      return null;
+    }
     console.error("system_bootstrap_failed", error);
-    throw error instanceof Error ? error : new Error("bootstrap_failed");
+    throw typedError instanceof Error ? typedError : new Error("bootstrap_failed");
   }
 }
 
