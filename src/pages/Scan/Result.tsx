@@ -20,7 +20,7 @@ import type { ViewName, PhotoFeatures } from "@/lib/vision/features";
 import { combineLandmarks } from "@/lib/vision/features";
 import type { Landmarks } from "@/lib/vision/landmarks";
 import { analyzePhoto } from "@/lib/vision/landmarks";
-import { cmToIn, kgToLb } from "@/lib/units";
+import { cmToIn, kgToLb, lbToKg, CM_PER_IN } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
 import { auth, db } from "@/lib/firebase";
@@ -31,6 +31,7 @@ import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
 import type { ManualCircumferences } from "./scanRefineStore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { useUnits } from "@/hooks/useUnits";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -93,12 +94,12 @@ function toInches(value?: number | null, scale?: number | null): number | undefi
   return value * (scale as number);
 }
 
-function parseManualCircumference(value: string): number | undefined {
+function parseManualCircumference(value: string, units: "us" | "metric"): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return parsed;
+  return units === "metric" ? parsed / CM_PER_IN : parsed;
 }
 
 export default function ScanFlowResult() {
@@ -116,6 +117,7 @@ export default function ScanFlowResult() {
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
   const appCheck = useAppCheckStatus();
+  const { units } = useUnits();
   const functionsConfigured = Boolean(
     (import.meta.env.VITE_FUNCTIONS_URL ?? "").trim() || (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
   );
@@ -208,14 +210,14 @@ export default function ScanFlowResult() {
   }, [photoFeatures, heightIn]);
 
   const manualCircumferences = useMemo<ManualCircumferences | null>(() => {
-    const neckIn = parseManualCircumference(manualInputs.neck);
-    const waistIn = parseManualCircumference(manualInputs.waist);
-    const hipIn = parseManualCircumference(manualInputs.hip);
+    const neckIn = parseManualCircumference(manualInputs.neck, units);
+    const waistIn = parseManualCircumference(manualInputs.waist, units);
+    const hipIn = parseManualCircumference(manualInputs.hip, units);
     if (neckIn == null && waistIn == null && hipIn == null) {
       return null;
     }
     return { neckIn, waistIn, hipIn };
-  }, [manualInputs]);
+  }, [manualInputs, units]);
 
   const primaryFile = useMemo(() => {
     const firstCaptured = capturedShots[0];
@@ -289,7 +291,13 @@ export default function ScanFlowResult() {
       ? `For ${sexLabel} age ${ageBandLabel}, ${percentText}% places you in the ${rangeLabel} range.`
       : null;
   const bmiValue = formatDecimal(estimate?.bmi ?? null);
-  const weightValue = formatDecimal((estimate?.usedWeight ?? weightLb) ?? null);
+  const weightValue = useMemo(() => {
+    const weight = estimate?.usedWeight ?? weightLb ?? null;
+    if (!Number.isFinite(weight ?? NaN)) return null;
+    return units === "metric"
+      ? `${lbToKg(weight as number).toFixed(1)}`
+      : `${formatDecimal(weight)}`;
+  }, [estimate?.usedWeight, weightLb, units]);
 
   const photoEstimatePayload = useMemo(
     () => ({
@@ -469,7 +477,7 @@ export default function ScanFlowResult() {
               <p className="text-3xl font-semibold">{bodyFatValue ? `${bodyFatValue}%` : "—"}</p>
             </div>
             <p className="text-sm">
-              Estimated BMI: {bmiValue ?? "—"} · Weight: {weightValue ? `${weightValue} lb` : "—"}
+              Estimated BMI: {bmiValue ?? "—"} · Weight: {weightValue ? `${weightValue} ${units === "metric" ? "kg" : "lb"}` : "—"}
             </p>
             <p className="text-xs text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
             {referenceContextText ? (

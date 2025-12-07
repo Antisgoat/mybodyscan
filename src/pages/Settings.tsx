@@ -37,6 +37,7 @@ import { buildErrorToast } from "@/lib/errorToasts";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
+import { useUnits } from "@/hooks/useUnits";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -61,6 +62,7 @@ const Settings = () => {
   const { user } = useAuthUser();
   const demoMode = useDemoMode();
   const [appCheckStatus, setAppCheckStatus] = useState<"checking" | "present" | "absent">("checking");
+  const { units } = useUnits();
   const stripePublishablePresent = Boolean((import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim());
   const functionsConfigured = Boolean((import.meta.env.VITE_FUNCTIONS_URL ?? "").trim());
   const scanConfigured = functionsConfigured || Boolean((import.meta.env.VITE_SCAN_START_URL ?? "").trim());
@@ -102,9 +104,10 @@ const Settings = () => {
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
-      setWeightInput(Math.round(kgToLb(profile.weight_kg)).toString());
+      const normalized = units === "metric" ? profile.weight_kg : kgToLb(profile.weight_kg);
+      setWeightInput(Math.round(normalized).toString());
     }
-  }, [profile?.weight_kg]);
+  }, [profile?.weight_kg, units]);
 
   useEffect(() => {
     let active = true;
@@ -138,14 +141,18 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
-    const weightLb = parseFloat(weightInput);
-    if (!Number.isFinite(weightLb) || weightLb <= 0) {
-      toast({ title: "Enter your weight", description: "Weight must be a positive number in pounds.", variant: "destructive" });
+    const parsedWeight = parseFloat(weightInput);
+    if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
+      toast({
+        title: "Enter your weight",
+        description: `Weight must be a positive number in ${units === "metric" ? "kilograms" : "pounds"}.`,
+        variant: "destructive",
+      });
       return;
     }
     setSavingMetrics(true);
     try {
-      const weightKg = Number(lbToKg(weightLb).toFixed(2));
+      const weightKg = Number((units === "metric" ? parsedWeight : lbToKg(parsedWeight)).toFixed(2));
       const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
       await setDoc(profileRef, { weight_kg: weightKg }, { merge: true });
       toast({ title: "Weight updated" });
@@ -427,12 +434,12 @@ const Settings = () => {
               <p className="text-sm text-muted-foreground">{formatHeightFromCm(profile?.height_cm)}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="weight">Current weight (lb)</Label>
+              <Label htmlFor="weight">Current weight ({units === "metric" ? "kg" : "lb"})</Label>
               <Input
                 id="weight"
                 type="number"
                 inputMode="decimal"
-                placeholder="Enter weight in pounds"
+                placeholder={units === "metric" ? "Enter weight in kilograms" : "Enter weight in pounds"}
                 value={weightInput}
                 onChange={(event) => setWeightInput(event.target.value)}
               />

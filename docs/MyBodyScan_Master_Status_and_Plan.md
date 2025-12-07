@@ -20,12 +20,11 @@
 - **Diagnostics**: `/system/check` reads the `system/health` endpoint and shows missing env/secrets; debug pages are behind auth or dev flags.
 
 ## High-level roadmap
-- **V1 ready**: Core auth/routing, scan upload/result lifecycle, meals logging with USDA/OPEN FF proxies, AI coach chat + history pruning, workout plan generation/mark-complete, subscription checkout/portal (with graceful Stripe-off state), units preference persistence, and explicit health-sync gating.
+- **V1 ready**: Core auth/routing, scan upload/result lifecycle, meals logging with USDA/OPEN FF proxies, AI coach chat + history pruning, workout plan generation/mark-complete, subscription checkout/portal (with graceful Stripe-off state), units preference persistence with metric-aware scan screens, and explicit health-sync gating.
 - **Near-term (stabilization)**:
-  - Tighten subscription awareness across plan cards and gated flows.
-  - Expand empty/error states (workouts/meals) for missing env keys.
-  - Finalize canonical scan UI and deprecate legacy capture routes.
-  - Wire automatic cleanup for temporary scan uploads.
+  - Deprecate legacy scan capture/processing routes in favor of the canonical `/scan/*` journey and wire automatic cleanup for temporary uploads.
+  - Add automated coverage for logged-out redirects and disabled billing/nutrition states.
+  - Expand workout streak/weekly stats visibility and add receipts/history surfacing once Stripe portal exposes it.
 - **Coming soon / larger lifts**:
   - Real HealthKit/Health Connect connectors and Today dashboard backed by real data.
   - Rich coach/workout personalization and streaks with analytics parity.

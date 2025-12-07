@@ -25,9 +25,14 @@ export default function ScanCapture() {
         <CardHeader>
           <CardTitle>Capture Photos</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {appCheck.status === "checking" ? (
-            <p className="text-sm text-muted-foreground">Preparing secure upload…</p>
+            <Alert className="border-dashed">
+              <AlertTitle>Preparing secure upload…</AlertTitle>
+              <AlertDescription>
+                Waiting for App Check before enabling uploads. This usually takes a few seconds.
+              </AlertDescription>
+            </Alert>
           ) : null}
           {!functionsConfigured ? (
             <Alert variant="destructive" className="mb-3">
@@ -45,7 +50,13 @@ export default function ScanCapture() {
               </AlertDescription>
             </Alert>
           ) : null}
-          {!blocked && <ScanCaptureComponent onReady={handleReady} />}
+          {!blocked ? (
+            <ScanCaptureComponent onReady={handleReady} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Upload controls stay disabled until App Check is ready and the scan service URL is configured.
+            </p>
+          )}
         </CardContent>
       </Card>
       {readyPayload ? (
