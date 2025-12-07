@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth as firebaseAuth, db } from '../lib/firebase';
 
 export function useNeedsOnboardingMBS() {
@@ -8,30 +8,45 @@ export function useNeedsOnboardingMBS() {
   const [needs, setNeeds] = useState(false);
 
   useEffect(() => {
-    if (!firebaseAuth) {
-      setNeeds(false);
-      setLoading(false);
-      return undefined;
-    }
-
     if (!firebaseAuth || !db) {
       setNeeds(false);
       setLoading(false);
       return undefined;
     }
 
-    const unsub = onAuthStateChanged(firebaseAuth, async (u) => {
-      if (!u) { setNeeds(false); setLoading(false); return; }
-      try {
-        const snap = await getDoc(doc(db, `users/${u.uid}/meta/onboarding`));
-        const done = snap.exists() && snap.data()?.completed === true;
-        setNeeds(!done);
-      } catch { setNeeds(false); }
-      setLoading(false);
+    let unsubscribeMeta: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (u) => {
+      if (unsubscribeMeta) {
+        unsubscribeMeta();
+        unsubscribeMeta = null;
+      }
+
+      if (!u) {
+        setNeeds(false);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const ref = doc(db, "users", u.uid, "meta", "onboarding");
+      unsubscribeMeta = onSnapshot(
+        ref,
+        (snap) => {
+          const done = snap.exists() && snap.data()?.completed === true;
+          setNeeds(!done);
+          setLoading(false);
+        },
+        () => {
+          setNeeds(false);
+          setLoading(false);
+        },
+      );
     });
 
     return () => {
-      unsub();
+      if (unsubscribeMeta) unsubscribeMeta();
+      unsubscribeAuth();
     };
   }, []);
 
