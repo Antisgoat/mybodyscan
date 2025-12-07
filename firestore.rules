@@ -22,14 +22,12 @@ service cloud.firestore {
       return isDemoByClaim() || isDemoByUid();
     }
 
-    function blocksServerOwnedWrites() {
-      return !(("credits" in request.resource.data) ||
-               ("stripe" in request.resource.data) ||
-               ("plan" in request.resource.data) ||
-               ("subscription" in request.resource.data) ||
-               ("role" in request.resource.data) ||
-               ("claims" in request.resource.data) ||
-               ("stripeCustomerId" in request.resource.data));
+    function serverOwnedKeys() {
+      return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId'];
+    }
+
+    function isWritingServerOwnedFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOwnedKeys());
     }
 
     match /publicConfig/{docId} {
@@ -49,8 +47,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if !isDemoUser() && isOwner(uid);
-      allow update: if !isDemoUser() && isOwner(uid) && blocksServerOwnedWrites();
+      allow create: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields();
+      allow update: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields();
       allow delete: if false;
 
       match /scans/{scanId} {
