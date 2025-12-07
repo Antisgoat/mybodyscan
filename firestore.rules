@@ -30,6 +30,73 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOwnedKeys());
     }
 
+    function onboardingFieldKeys() {
+      return ['age', 'sex', 'height', 'goal', 'timeline', 'equipment', 'injuries', 'activities', 'experience', 'diet', 'likes', 'notifications', 'completedAt', 'version'];
+    }
+
+    function isSexValue(value) {
+      return value == 'male' || value == 'female' || value == 'other';
+    }
+
+    function isGoalValue(value) {
+      return value == 'lose-fat' || value == 'gain-muscle' || value == 'maintain' || value == 'recomp';
+    }
+
+    function isEquipmentValue(value) {
+      return value == 'gym' || value == 'home-basic' || value == 'bodyweight' || value == 'none';
+    }
+
+    function isExperienceValue(value) {
+      return value == 'beginner' || value == 'intermediate' || value == 'advanced';
+    }
+
+    function isDietValue(value) {
+      return value == 'balanced' || value == 'low-carb' || value == 'vegetarian' || value == 'vegan' || value == 'keto';
+    }
+
+    function isValidOnboardingMap(data) {
+      return data is map
+        && data.keys().hasOnly(onboardingFieldKeys())
+        && (!data.keys().hasAny(['age']) || (data.age is int && data.age >= 13 && data.age <= 100))
+        && (!data.keys().hasAny(['sex']) || isSexValue(data.sex))
+        && (!data.keys().hasAny(['height']) || (data.height is number && data.height >= 90 && data.height <= 260))
+        && (!data.keys().hasAny(['goal']) || isGoalValue(data.goal))
+        && (!data.keys().hasAny(['timeline']) || (data.timeline is int && data.timeline >= 1 && data.timeline <= 36))
+        && (!data.keys().hasAny(['equipment']) || isEquipmentValue(data.equipment))
+        && (!data.keys().hasAny(['experience']) || isExperienceValue(data.experience))
+        && (!data.keys().hasAny(['diet']) || isDietValue(data.diet))
+        && (!data.keys().hasAny(['injuries']) || data.injuries is string)
+        && (!data.keys().hasAny(['activities']) || data.activities is string)
+        && (!data.keys().hasAny(['likes']) || data.likes is string)
+        && (!data.keys().hasAny(['notifications']) || data.notifications is bool)
+        && (!data.keys().hasAny(['completedAt']) || data.completedAt is timestamp)
+        && (!data.keys().hasAny(['version']) || data.version is int);
+    }
+
+    function onboardingMetaKeys() {
+      return ['completed', 'completedAt', 'draft', 'draftVersion', 'step', 'updatedAt', 'startedAt', 'version'];
+    }
+
+    function isValidOnboardingMetaWrite() {
+      return request.resource.data.keys().hasOnly(onboardingMetaKeys())
+        && (!request.resource.data.keys().hasAny(['completed']) || request.resource.data.completed is bool)
+        && (!request.resource.data.keys().hasAny(['completedAt']) || request.resource.data.completedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['startedAt']) || request.resource.data.startedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['draftVersion']) || request.resource.data.draftVersion is int)
+        && (!request.resource.data.keys().hasAny(['version']) || request.resource.data.version is int)
+        && (!request.resource.data.keys().hasAny(['step']) || (request.resource.data.step is int && request.resource.data.step >= 0 && request.resource.data.step <= 4))
+        && (!request.resource.data.keys().hasAny(['draft']) || isValidOnboardingMap(request.resource.data.draft));
+    }
+
+    function isUpdatingOnboarding() {
+      return request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']);
+    }
+
+    function isValidOnboardingUpdate() {
+      return !isUpdatingOnboarding() || isValidOnboardingMap(request.resource.data.onboarding);
+    }
+
     match /publicConfig/{docId} {
       allow read: if true;
       allow write: if false;
@@ -47,8 +114,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields();
-      allow update: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields();
+      allow create: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
+      allow update: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
       allow delete: if false;
 
       match /scans/{scanId} {
@@ -150,9 +217,14 @@ service cloud.firestore {
         allow write: if !isDemoUser() && isOwner(uid);
       }
 
-      match /meta/{docId} {
+      match /meta/onboarding {
         allow read: if isOwner(uid);
-        allow write: if !isDemoUser() && isOwner(uid);
+        allow write: if !isDemoUser() && isOwner(uid) && isValidOnboardingMetaWrite();
+      }
+
+      match /meta/{docId} {
+        allow read: if docId != "onboarding" && isOwner(uid);
+        allow write: if false;
       }
     }
 
