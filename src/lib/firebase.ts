@@ -81,7 +81,10 @@ const firebaseConfig: FirebaseRuntimeConfig = {
   ...(injectedConfig ?? {}),
 };
 
-const isMissing = (value: unknown) => value === undefined || value === null || String(value).trim() === "";
+function isMissing(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  return String(value).trim() === "";
+}
 
 for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
   const currentValue = (firebaseConfig as any)[key];
