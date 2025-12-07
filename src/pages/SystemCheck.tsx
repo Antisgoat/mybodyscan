@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { BUILD } from "@/lib/build";
 import { cameraReadyOnThisDevice, hasGetUserMedia, isSecureContextOrLocal, isNativeCapacitor } from "@/lib/platform";
+import { computeFeatureStatuses } from "@/lib/envStatus";
+import { Badge } from "@/components/ui/badge";
 
 type Health = Record<string, any> | null;
 
@@ -11,6 +13,7 @@ export default function SystemCheckPage() {
   const [health, setHealth] = useState<Health>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { statuses: featureStatuses } = computeFeatureStatuses();
 
   async function runChecks() {
     setBusy(true);
@@ -74,6 +77,23 @@ export default function SystemCheckPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">Feature availability</h2>
+        <div className="space-y-2 text-sm">
+          {featureStatuses.map((status) => (
+            <div key={status.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
+              <div className="flex-1">
+                <span className="font-medium">{status.label}</span>
+                {status.detail && <p className="text-xs text-muted-foreground">{status.detail}</p>}
+              </div>
+              <Badge variant={status.configured ? "default" : "secondary"}>
+                {status.configured ? status.okLabel : status.warnLabel}
+              </Badge>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-2">

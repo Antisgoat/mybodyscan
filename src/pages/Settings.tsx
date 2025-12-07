@@ -28,7 +28,7 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { useCredits } from "@/hooks/useCredits";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
-import { buildHash, buildTimestamp, publishableKeySuffix, describeStripeEnvironment } from "@/lib/env";
+import { buildHash, buildTimestamp, publishableKeySuffix } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import { describePortalError, openCustomerPortal } from "@/lib/payments";
 import { openExternal } from "@/lib/links";
@@ -38,6 +38,7 @@ import { call } from "@/lib/callable";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useUnits } from "@/hooks/useUnits";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -63,40 +64,32 @@ const Settings = () => {
   const demoMode = useDemoMode();
   const [appCheckStatus, setAppCheckStatus] = useState<"checking" | "present" | "absent">("checking");
   const { units } = useUnits();
-  const stripePublishablePresent = Boolean((import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim());
-  const functionsConfigured = Boolean((import.meta.env.VITE_FUNCTIONS_URL ?? "").trim());
-  const scanConfigured = functionsConfigured || Boolean((import.meta.env.VITE_SCAN_START_URL ?? "").trim());
-  const coachConfigured = Boolean((import.meta.env.VITE_COACH_RPM ?? "").trim());
-  const nutritionConfigured =
-    Boolean((import.meta.env.VITE_USDA_API_KEY ?? "").trim()) ||
-    Boolean((import.meta.env.VITE_OPENFOOD_API_KEY ?? "").trim()) ||
-    Boolean((import.meta.env.VITE_NUTRITION_RPM ?? "").trim());
-  const healthConfigured = Boolean((import.meta.env.VITE_HEALTH_CONNECT ?? "").trim());
+  const { statuses: featureStatuses, stripeMode, stripeConfigured } = computeFeatureStatuses();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
-  const stripeEnvironment = describeStripeEnvironment();
   const showBuildInfo = import.meta.env.DEV;
-  const buildCommit = (import.meta.env.VITE_COMMIT_SHA ? String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7) : buildHash) || "dev";
+  const buildCommit =
+    (import.meta.env.VITE_COMMIT_SHA ? String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7) : buildHash) || "dev";
   const buildTime = import.meta.env.VITE_BUILD_TIME
     ? String(import.meta.env.VITE_BUILD_TIME)
     : buildTimestamp
     ? new Date(buildTimestamp).toLocaleString()
     : "";
   const environmentBadgeLabel =
-    stripeEnvironment === "live"
+    stripeMode === "live"
       ? "LIVE"
-      : stripeEnvironment === "test"
+      : stripeMode === "test"
       ? "TEST"
-      : stripeEnvironment === "custom"
+        : stripeMode === "custom"
       ? "CUSTOM"
       : "MISSING";
   const environmentTone =
-    stripeEnvironment === "live"
+    stripeMode === "live"
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-      : stripeEnvironment === "test"
+      : stripeMode === "test"
       ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-      : stripeEnvironment === "custom"
+        : stripeMode === "custom"
       ? "bg-sky-500/10 text-sky-600 dark:text-sky-300"
       : "bg-destructive/10 text-destructive";
 
@@ -387,40 +380,17 @@ const Settings = () => {
             <CardTitle>Feature availability</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Scans</span>
-              <Badge variant={scanConfigured ? "default" : "secondary"}>{scanConfigured ? "Configured" : "Missing URL"}</Badge>
-            </div>
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Plans & billing</span>
-              <Badge variant={stripePublishablePresent ? "default" : "secondary"}>
-                {stripePublishablePresent ? "Stripe ready" : "Stripe key missing"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Coach chat</span>
-              <Badge variant={coachConfigured ? "default" : "secondary"}>
-                {coachConfigured ? "Enabled" : "COACH_RPM missing"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Meals search</span>
-              <Badge variant={nutritionConfigured ? "default" : "secondary"}>
-                {nutritionConfigured ? "Enabled" : "Nutrition keys missing"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Workouts</span>
-              <Badge variant={functionsConfigured ? "default" : "secondary"}>
-                {functionsConfigured ? "Enabled" : "Functions URL missing"}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between rounded border px-3 py-2">
-              <span>Health sync</span>
-              <Badge variant={healthConfigured ? "default" : "secondary"}>
-                {healthConfigured ? "Configured" : "Coming soon"}
-              </Badge>
-            </div>
+            {featureStatuses.map((status) => (
+              <div key={status.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
+                <div className="flex-1">
+                  <span className="font-medium">{status.label}</span>
+                  {status.detail && <p className="text-xs text-muted-foreground">{status.detail}</p>}
+                </div>
+                <Badge variant={status.configured ? "default" : "secondary"}>
+                  {status.configured ? status.okLabel : status.warnLabel}
+                </Badge>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -479,8 +449,8 @@ const Settings = () => {
             </div>
             <div className="flex items-center justify-between rounded border px-3 py-2">
               <span>Stripe publishable key</span>
-              <Badge variant={stripePublishablePresent ? "default" : "destructive"} className="uppercase tracking-wide">
-                {stripePublishablePresent ? "Present" : "Missing"}
+              <Badge variant={stripeConfigured ? "default" : "destructive"} className="uppercase tracking-wide">
+                {stripeConfigured ? "Present" : "Missing"}
               </Badge>
             </div>
           </CardContent>
@@ -673,7 +643,16 @@ const Settings = () => {
             </div>
             <div className="rounded bg-muted p-3 text-xs text-muted-foreground space-y-1">
               <div>Version: {buildCommit}{buildTime ? ` • ${buildTime}` : ""}</div>
-              <div>Stripe mode: {stripeEnvironment === "live" ? "Live" : stripeEnvironment === "test" ? "Test" : stripeEnvironment === "custom" ? "Custom key" : "Missing"}</div>
+              <div>
+                Stripe mode:{" "}
+                {stripeMode === "live"
+                  ? "Live"
+                  : stripeMode === "test"
+                    ? "Test"
+                    : stripeMode === "custom"
+                      ? "Custom key"
+                      : "Missing"}
+              </div>
               <div>Publishable key suffix: {publishableKeySuffix || "n/a"}</div>
               {showBuildInfo ? (
                 <div>
