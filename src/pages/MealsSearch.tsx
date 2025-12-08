@@ -299,9 +299,8 @@ export default function MealsSearch() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
   const { health: systemHealth } = useSystemHealth();
-  const nutritionConfigured =
-    systemHealth?.nutritionConfigured ?? systemHealth?.usdaKeyPresent !== false;
-  const searchDisabled = demo || !nutritionConfigured;
+  const nutritionEnabled = systemHealth?.nutritionConfigured !== false;
+  const searchDisabled = demo || !nutritionEnabled;
 
   useEffect(() => {
     if (!authReady || !uid) {
@@ -328,7 +327,7 @@ export default function MealsSearch() {
       return;
     }
 
-    if (!nutritionConfigured) {
+    if (!nutritionEnabled) {
       setLoading(false);
       setResults([]);
       setPrimarySource(null);
@@ -402,7 +401,7 @@ export default function MealsSearch() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, demo, nutritionConfigured, toast]);
+  }, [debouncedQuery, demo, nutritionEnabled, toast]);
 
   const updateRecents = (item: FoodItem) => {
     const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
@@ -564,7 +563,7 @@ export default function MealsSearch() {
           <p className="text-sm text-muted-foreground">Tap a result to adjust servings and log it to your meals.</p>
         </div>
 
-        {nutritionConfigured === false && !demo && (
+        {!nutritionEnabled && !demo && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition search unavailable</AlertTitle>
             <AlertDescription>

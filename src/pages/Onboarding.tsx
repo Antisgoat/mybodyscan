@@ -79,7 +79,42 @@ type PersistMetaPayload = Partial<{
   draft: OnboardingPayload;
 }>;
 
+type DraftErrorState = {
+  title: string;
+  description: string;
+  kind: "network" | "permission" | "unknown";
+};
+
 const DEFAULT_FORM: OnboardingForm = {};
+const NETWORK_ERROR_CODES = new Set(["unavailable", "deadline-exceeded", "cancelled"]);
+const PERMISSION_ERROR_CODES = new Set(["permission-denied", "unauthenticated"]);
+
+const describeDraftError = (error: unknown): DraftErrorState => {
+  const rawCode = (error as { code?: unknown } | undefined)?.code;
+  const code = typeof rawCode === "string" ? rawCode : null;
+  const rawMessage = (error as { message?: unknown } | undefined)?.message;
+  const message = typeof rawMessage === "string" && rawMessage.trim().length ? rawMessage : null;
+  if (code && PERMISSION_ERROR_CODES.has(code)) {
+    return {
+      title: "Permission required",
+      description:
+        "You don’t have permission to save onboarding yet. Please sign out and sign back in, or contact support.",
+      kind: "permission",
+    };
+  }
+  if (code && NETWORK_ERROR_CODES.has(code)) {
+    return {
+      title: "Offline?",
+      description: "Can't save progress right now. We'll retry automatically.",
+      kind: "network",
+    };
+  }
+  return {
+    title: "Save failed",
+    description: message ?? "Can't save progress right now. Please try again.",
+    kind: "unknown",
+  };
+};
 
 const clampStep = (value: number) => Math.min(Math.max(value, 0), STEP_TITLES.length - 1);
 
@@ -222,7 +257,7 @@ export default function Onboarding() {
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
   const [initializing, setInitializing] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<DraftErrorState | null>(null);
   const [progressSavedAt, setProgressSavedAt] = useState<Date | null>(null);
   const [stepMessage, setStepMessage] = useState<string | null>(null);
   const [savingFinal, setSavingFinal] = useState(false);
@@ -352,7 +387,7 @@ export default function Onboarding() {
         setProgressSavedAt(new Date());
       } catch (error) {
         if (opts.silent) {
-          setDraftError("Can't save progress right now. We'll retry automatically.");
+          setDraftError(describeDraftError(error));
         }
         throw error;
       }
@@ -450,8 +485,15 @@ export default function Onboarding() {
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
       navigate(destinationAfterOnboarding, { replace: true });
     } catch (err: any) {
-      const message = err?.message || "Please try again.";
-      toast({ title: "Error saving profile", description: message, variant: "destructive" });
+      const code = typeof err?.code === "string" ? err.code : null;
+      let description = err?.message || "Please try again.";
+      if (code === "permission-denied") {
+        description =
+          "Your account can’t save onboarding yet. This is usually a permissions issue – please refresh or contact support.";
+      } else if (code === "unauthenticated") {
+        description = "Please sign in again to finish onboarding.";
+      }
+      toast({ title: "Error saving profile", description, variant: "destructive" });
     } finally {
       setSavingFinal(false);
     }
@@ -707,8 +749,8 @@ export default function Onboarding() {
             <p className="text-xs text-muted-foreground">{progressLabel}</p>
             {draftError && (
               <Alert variant="destructive">
-                <AlertTitle>Offline?</AlertTitle>
-                <AlertDescription>{draftError}</AlertDescription>
+                <AlertTitle>{draftError.title}</AlertTitle>
+                <AlertDescription>{draftError.description}</AlertDescription>
               </Alert>
             )}
           </CardContent>

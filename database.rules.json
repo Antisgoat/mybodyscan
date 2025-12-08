@@ -118,28 +118,51 @@ service cloud.firestore {
         (!data.keys().hasAny(['version']) || data.version is int);
     }
 
-    function onboardingMetaKeys() {
-      return ['completed', 'completedAt', 'draft', 'draftVersion', 'step', 'updatedAt', 'startedAt', 'version'];
-    }
-
     function isValidOnboardingMetaWrite() {
-      return request.resource.data.keys().hasOnly(onboardingMetaKeys()) &&
-        (!request.resource.data.keys().hasAny(['completed']) || request.resource.data.completed is bool) &&
-        (!request.resource.data.keys().hasAny(['completedAt']) || request.resource.data.completedAt is timestamp) &&
-        (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp) &&
-        (!request.resource.data.keys().hasAny(['startedAt']) || request.resource.data.startedAt is timestamp) &&
-        (!request.resource.data.keys().hasAny(['draftVersion']) || request.resource.data.draftVersion is int) &&
-        (!request.resource.data.keys().hasAny(['version']) || request.resource.data.version is int) &&
-        (!request.resource.data.keys().hasAny(['step']) || (request.resource.data.step is int && request.resource.data.step >= 0 && request.resource.data.step <= 4)) &&
-        (!request.resource.data.keys().hasAny(['draft']) || isValidOnboardingMap(request.resource.data.draft));
+      let incomingKeys = request.resource.data.keys();
+      let changedKeys = exists(resource.name)
+        ? request.resource.data.diff(resource.data).changedKeys()
+        : incomingKeys;
+      return (
+        (!changedKeys.hasAny(['completed']) ||
+          !incomingKeys.hasAny(['completed']) ||
+          request.resource.data.completed is bool) &&
+        (!changedKeys.hasAny(['completedAt']) ||
+          !incomingKeys.hasAny(['completedAt']) ||
+          request.resource.data.completedAt is timestamp) &&
+        (!changedKeys.hasAny(['updatedAt']) ||
+          !incomingKeys.hasAny(['updatedAt']) ||
+          request.resource.data.updatedAt is timestamp) &&
+        (!changedKeys.hasAny(['startedAt']) ||
+          !incomingKeys.hasAny(['startedAt']) ||
+          request.resource.data.startedAt is timestamp) &&
+        (!changedKeys.hasAny(['draftVersion']) ||
+          !incomingKeys.hasAny(['draftVersion']) ||
+          request.resource.data.draftVersion is int) &&
+        (!changedKeys.hasAny(['version']) ||
+          !incomingKeys.hasAny(['version']) ||
+          request.resource.data.version is int) &&
+        (!changedKeys.hasAny(['step']) ||
+          !incomingKeys.hasAny(['step']) ||
+          (request.resource.data.step is int && request.resource.data.step >= 0 && request.resource.data.step <= 4)) &&
+        (!changedKeys.hasAny(['draft']) ||
+          !incomingKeys.hasAny(['draft']) ||
+          isValidOnboardingMap(request.resource.data.draft))
+      );
     }
 
-    function isUpdatingOnboarding() {
+    function onboardingFieldChanged() {
+      if (!request.resource.data.keys().hasAny(['onboarding'])) {
+        return false;
+      }
+      if (!exists(resource.name)) {
+        return true;
+      }
       return request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']);
     }
 
     function isValidOnboardingUpdate() {
-      return !isUpdatingOnboarding() || isValidOnboardingMap(request.resource.data.onboarding);
+      return !onboardingFieldChanged() || isValidOnboardingMap(request.resource.data.onboarding);
     }
 
     match /app/publicConfig {
