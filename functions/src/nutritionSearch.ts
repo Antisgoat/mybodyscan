@@ -858,6 +858,9 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
   },
 );
 
-export const nutritionSearchHttp = onRequest({ region: "us-central1" }, async (req, res) => {
+export const nutritionSearchHttp = onRequest(
+  { region: "us-central1", secrets: [usdaApiKeyParam] },
+  async (req, res) => {
   await handleNutritionSearch(req as unknown as Request, res as unknown as Response);
-});
+  },
+);

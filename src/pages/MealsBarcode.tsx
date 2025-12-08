@@ -8,11 +8,22 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
 import { searchFoods } from "@/lib/nutrition";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const STATUS_CLASS = "text-xs text-muted-foreground";
 
 export default function MealsBarcode() {
   const { t } = useI18n();
+  const demo = useDemoMode();
+  const { health: systemHealth } = useSystemHealth();
+  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const lookupsBlocked = demo || nutritionConfigured === false;
+  const blockedMessage = demo
+    ? "Barcode lookup is disabled in demo mode. Sign in to try the live nutrition database."
+    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
   const [code, setCode] = useState("");
   const [manualResult, setManualResult] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
@@ -21,6 +32,10 @@ export default function MealsBarcode() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!code) return;
+    if (lookupsBlocked) {
+      setStatus(blockedMessage);
+      return;
+    }
     setLoading(true);
     try {
       setStatus("Searching…");
@@ -44,6 +59,12 @@ export default function MealsBarcode() {
       <Seo title="Barcode Scan - MyBodyScan" description="Scan packaged foods to log meals" />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
+        {lookupsBlocked && (
+          <Alert variant="destructive">
+            <AlertTitle>Nutrition search unavailable</AlertTitle>
+            <AlertDescription>{blockedMessage}</AlertDescription>
+          </Alert>
+        )}
         <div className="space-y-2 text-center">
           <div className="text-xs font-medium uppercase tracking-wide text-primary">Beta</div>
           <h1 className="text-2xl font-semibold text-foreground">{t('meals.scanBarcode')}</h1>
@@ -59,8 +80,9 @@ export default function MealsBarcode() {
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 placeholder="Manual UPC entry"
+                disabled={lookupsBlocked}
               />
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || lookupsBlocked} title={lookupsBlocked ? blockedMessage : undefined}>
                 {loading ? "Searching" : "Lookup"}
               </Button>
             </form>

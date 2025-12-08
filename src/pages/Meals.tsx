@@ -78,6 +78,8 @@ export default function Meals() {
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const nutritionUnavailable = nutritionConfigured === false;
+  const nutritionOfflineMessage =
+    "Nutrition search is offline until nutrition API keys or rate limits are configured.";
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
@@ -348,9 +350,7 @@ export default function Meals() {
         {nutritionUnavailable && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition services offline</AlertTitle>
-            <AlertDescription>
-              Food search and barcode lookup need nutrition API keys or rate-limit configs. Logging existing templates still works, but search is disabled until those keys are added.
-            </AlertDescription>
+            <AlertDescription>{nutritionOfflineMessage}</AlertDescription>
           </Alert>
         )}
 
@@ -391,16 +391,28 @@ export default function Meals() {
                 Fat: <span className="font-medium">{log.totals.fat ?? 0} g</span>
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" asChild>
-                  <a href="/meals/search">
+                {nutritionUnavailable ? (
+                  <Button size="sm" disabled title={nutritionOfflineMessage}>
                     <Plus className="mr-1 h-4 w-4" /> Search foods
-                  </a>
-                </Button>
-                <Button size="sm" variant="outline" asChild>
-                  <a href="/barcode">
+                  </Button>
+                ) : (
+                  <Button size="sm" asChild>
+                    <a href="/meals/search">
+                      <Plus className="mr-1 h-4 w-4" /> Search foods
+                    </a>
+                  </Button>
+                )}
+                {nutritionUnavailable ? (
+                  <Button size="sm" variant="outline" disabled title={nutritionOfflineMessage}>
                     <Barcode className="mr-1 h-4 w-4" /> Scan barcode
-                  </a>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href="/barcode">
+                      <Barcode className="mr-1 h-4 w-4" /> Scan barcode
+                    </a>
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

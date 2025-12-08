@@ -309,6 +309,10 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
   }
 }
 
+export async function nutritionBarcodeHandler(req: Request, res: Response): Promise<void> {
+  await handleNutritionBarcode(req, res);
+}
+
 export const nutritionBarcode = onRequest(
   { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
   (req: Request, res: Response) =>
