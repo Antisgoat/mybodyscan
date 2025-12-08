@@ -36,13 +36,17 @@ export const getAppCheckMode = (): AppCheckMode => {
   return "soft";
 };
 
-export const getOpenAIKey = () => getOpenAiSecret() ?? getEnv("OPENAI_API_KEY");
+export const getOpenAIKey = () => (getEnv("OPENAI_API_KEY") || "").trim() || getOpenAiSecret() || undefined;
 
 export const getStripeSecret = () => resolveStripeSecret() ?? undefined;
 
 export const getStripeSigningSecret = () => getWebhookSecret() ?? undefined;
 
-export const hasOpenAI = () => Boolean(getOpenAIKey());
+export const hasOpenAI = () => {
+  const envKey = (getEnv("OPENAI_API_KEY") || "").trim();
+  if (envKey) return true;
+  return Boolean(getOpenAiSecret());
+};
 export const hasStripe = () => Boolean(resolveStripeSecret() && getWebhookSecret());
 
 export function assertStripeConfigured() {

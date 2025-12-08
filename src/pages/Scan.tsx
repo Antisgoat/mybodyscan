@@ -6,6 +6,7 @@ import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 interface PhotoInputs {
   front: File | null;
@@ -23,8 +24,14 @@ export default function ScanPage() {
   const [photos, setPhotos] = useState<PhotoInputs>({ front: null, back: null, left: null, right: null });
   const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
   const [error, setError] = useState<string | null>(null);
-  const { statuses } = computeFeatureStatuses();
-  const scanConfigured = statuses.find((status) => status.id === "scans")?.configured !== false;
+  const { health: systemHealth } = useSystemHealth();
+  const { statuses } = computeFeatureStatuses({
+    scanConfigured: systemHealth?.openaiConfigured,
+    coachConfigured: systemHealth?.openaiConfigured,
+    nutritionConfigured: systemHealth?.nutritionConfigured,
+  });
+  const scanConfigured =
+    systemHealth?.openaiConfigured ?? statuses.find((status) => status.id === "scans")?.configured !== false;
 
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
@@ -55,7 +62,11 @@ export default function ScanPage() {
       return;
     }
     if (!scanConfigured) {
-      setError("Body scans are offline until the functions URL is configured.");
+      setError(
+        systemHealth?.openaiConfigured === false
+          ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
+          : "Body scans are offline until the functions URL is configured.",
+      );
       return;
     }
     setStatus("starting");
@@ -109,8 +120,9 @@ export default function ScanPage() {
         <Alert variant="destructive">
           <AlertTitle>Scan unavailable</AlertTitle>
           <AlertDescription>
-            Scans are offline until the Cloud Functions base URL is configured. Ask an admin to set VITE_FUNCTIONS_URL or the
-            dedicated scan endpoints before trying again.
+            {systemHealth?.openaiConfigured === false
+              ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
+              : "Scans are offline until the Cloud Functions base URL is configured. Ask an admin to set VITE_FUNCTIONS_URL or the dedicated scan endpoints before trying again."}
           </AlertDescription>
         </Alert>
       )}

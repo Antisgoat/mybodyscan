@@ -299,7 +299,8 @@ export default function MealsSearch() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
   const { health: systemHealth } = useSystemHealth();
-  const nutritionConfigured = systemHealth?.usdaKeyPresent !== false;
+  const nutritionConfigured =
+    systemHealth?.nutritionConfigured ?? systemHealth?.usdaKeyPresent !== false;
   const searchDisabled = demo || !nutritionConfigured;
 
   useEffect(() => {
@@ -563,7 +564,7 @@ export default function MealsSearch() {
           <p className="text-sm text-muted-foreground">Tap a result to adjust servings and log it to your meals.</p>
         </div>
 
-        {systemHealth?.usdaKeyPresent === false && !demo && (
+        {nutritionConfigured === false && !demo && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition search unavailable</AlertTitle>
             <AlertDescription>
