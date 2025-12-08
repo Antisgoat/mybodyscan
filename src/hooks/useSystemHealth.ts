@@ -4,8 +4,10 @@ import { fetchSystemHealth } from "@/lib/system";
 
 export interface SystemHealthSnapshot {
   openaiKeyPresent?: boolean;
+  openaiConfigured?: boolean;
   stripeSecretPresent?: boolean;
   usdaKeyPresent?: boolean;
+  nutritionConfigured?: boolean;
   coachRpmPresent?: boolean;
   nutritionRpmPresent?: boolean;
   [key: string]: unknown;

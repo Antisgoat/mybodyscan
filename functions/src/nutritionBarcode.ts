@@ -5,7 +5,6 @@ import type { Request, Response } from "express";
 
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { getEnv } from "./lib/env.js";
 import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
 import { withCors } from "./middleware/cors.js";
@@ -17,6 +16,10 @@ const FETCH_TIMEOUT_MS = 8000;
 const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 
 function getUsdaApiKey(): string | undefined {
+  const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
+  if (envValue) {
+    return envValue;
+  }
   try {
     const secretValue = usdaApiKeyParam.value();
     if (typeof secretValue === "string") {
@@ -28,8 +31,7 @@ function getUsdaApiKey(): string | undefined {
   } catch {
     // secret not bound
   }
-  const envValue = getEnv("USDA_FDC_API_KEY")?.trim();
-  return envValue ? envValue : undefined;
+  return undefined;
 }
 
 interface CacheEntry {
@@ -247,6 +249,11 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
       throw new HttpError(400, "invalid_request", "code_required");
     }
 
+    const apiKey = getUsdaApiKey();
+    if (!apiKey) {
+      throw new HttpError(501, "nutrition_not_configured", "USDA_FDC_API_KEY missing");
+    }
+
     const now = Date.now();
     const cached = cache.get(code);
     if (cached && cached.expires > now) {
@@ -270,16 +277,12 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
     let result = offOutcome.result;
     let usdaOutcome: ProviderOutcome | null = null;
 
-    const apiKey = getUsdaApiKey();
-
-    if (!result && apiKey) {
-      usdaOutcome = await runSafe(
-        "nutrition_barcode_usda",
-        () => fetchUsdaByBarcode(apiKey, code),
-        { requestId, uid },
-      );
-      result = usdaOutcome.result;
-    }
+    usdaOutcome = await runSafe(
+      "nutrition_barcode_usda",
+      () => fetchUsdaByBarcode(apiKey, code),
+      { requestId, uid },
+    );
+    result = result || usdaOutcome.result;
 
     if (result) {
       cache.set(code, { value: result, source: result.source, expires: now + CACHE_TTL });
@@ -293,7 +296,7 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
       throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
     }
 
-    const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
+    const fallbackSource: "Open Food Facts" | "USDA" = "USDA";
     cache.set(code, { value: null, source: fallbackSource, expires: now + CACHE_TTL });
     send(res, 200, {
       results: [],

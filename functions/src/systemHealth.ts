@@ -44,8 +44,7 @@ export const systemHealth = onRequest(
   },
   async (req, res) => {
     await appCheckSoft(req);
-    const openaiKeyPresent =
-      !!process.env.OPENAI_API_KEY || secretPresent(openAiSecretParam) || envPresent(process.env.OPENAI_API_KEY);
+    const openaiConfigured = envPresent(process.env.OPENAI_API_KEY) || secretPresent(openAiSecretParam);
 
     const stripeSecretPresent =
       !!process.env.STRIPE_SECRET ||
@@ -60,12 +59,13 @@ export const systemHealth = onRequest(
       envPresent(process.env.STRIPE_SIGNING_SECRET) ||
       envPresent(process.env.STRIPE_SIGNATURE);
 
-    const usdaKeyPresent = secretPresent(usdaFdcApiKeyParam) || envPresent(process.env.USDA_FDC_API_KEY);
+    const usdaKeyPresent = envPresent(process.env.USDA_FDC_API_KEY) || secretPresent(usdaFdcApiKeyParam);
+    const nutritionConfigured = usdaKeyPresent;
     const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM) || usdaKeyPresent;
     const coachRpmPresent = envPresent(process.env.COACH_RPM);
 
     const identityToolkitReachable = true;
-    const identityToolkitReason = openaiKeyPresent || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
+    const identityToolkitReason = openaiConfigured || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
 
     const authProviders = {
       google: getEnvBool("AUTH_GOOGLE_ENABLED", true),
@@ -80,7 +80,9 @@ export const systemHealth = onRequest(
       appCheckMode: getAppCheckMode(),
       authProviders,
       stripeSecretPresent,
-      openaiKeyPresent,
+      openaiKeyPresent: openaiConfigured,
+      nutritionConfigured,
+      openaiConfigured,
       usdaKeyPresent,
       nutritionRpmPresent,
       coachRpmPresent,

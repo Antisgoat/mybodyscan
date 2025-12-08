@@ -10,6 +10,16 @@ Required secrets:
 - `STRIPE_WEBHOOK`
 - `OPENAI_API_KEY`
 
+Set the production keys for project `mybodyscan-f3daf` with:
+
+```bash
+cd functions
+firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
+firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
+```
+
+Paste the real values when prompted; they will populate `process.env.USDA_FDC_API_KEY` and `process.env.OPENAI_API_KEY` at runtime.
+
 ## Build & deploy
 
 ```

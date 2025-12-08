@@ -14,6 +14,18 @@ OPENAI_API_KEY=*****
 STRIPE_SECRET=*****
 ```
 
+### Setting API keys for production (project: mybodyscan-f3daf)
+
+Use Firebase Functions secrets so the keys stay server-side and never ship to the browser:
+
+```bash
+cd functions
+firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
+firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
+```
+
+When prompted, paste your real USDA and OpenAI keys. These commands load the values into `process.env.USDA_FDC_API_KEY` and `process.env.OPENAI_API_KEY` at runtime. Do **not** commit the values to git.
+
 ### Frontend env (.env.production.local)
 - All production-safe defaults are already baked into the repo for Hosting deploys (Firebase web config, marketing flags, and demo toggles).
 - You only need to create `.env.production.local` when overriding defaults (for previews or non-production projects).

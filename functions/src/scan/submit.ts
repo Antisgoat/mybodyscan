@@ -4,7 +4,7 @@ import type { Request } from "firebase-functions/v2/https";
 import OpenAI from "openai";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
-import { getOpenAIKey, hasOpenAI } from "../lib/env.js";
+import { hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
 
@@ -17,7 +17,15 @@ const OPENAI_TIMEOUT_MS = 12000;
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 
-const openai = new OpenAI({ apiKey: getOpenAIKey() ?? "" });
+function buildOpenAIClient(): OpenAI {
+  const apiKey = (process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) {
+    throw new HttpsError("failed-precondition", "Scan engine not configured.", {
+      reason: "openai_not_configured",
+    });
+  }
+  return new OpenAI({ apiKey });
+}
 
 type Pose = (typeof POSES)[number];
 
@@ -174,6 +182,7 @@ async function callOpenAI(
   images: Array<{ pose: Pose; url: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
 ): Promise<string> {
+  const openai = buildOpenAIClient();
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
     "Return JSON only matching {\"estimate\": ScanEstimate, \"workoutPlan\": WorkoutPlan, \"nutritionPlan\": NutritionPlan}.",

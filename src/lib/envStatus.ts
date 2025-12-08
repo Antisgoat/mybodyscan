@@ -37,23 +37,27 @@ const readEnv = (key: string): string => {
   return typeof raw === "string" ? raw.trim() : "";
 };
 
-export function computeFeatureStatuses(): FeatureStatusSummary {
+export type RemoteHealth = {
+  scanConfigured?: boolean;
+  coachConfigured?: boolean;
+  nutritionConfigured?: boolean;
+  openaiConfigured?: boolean;
+};
+
+export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStatusSummary {
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
   const stripeKey = readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
   const coachRpm = readEnv("VITE_COACH_RPM");
-  const usdaKey = readEnv("VITE_USDA_API_KEY");
-  const offKey = readEnv("VITE_OPENFOOD_API_KEY");
-  const nutritionRpm = readEnv("VITE_NUTRITION_RPM");
   const healthConnector = readEnv("VITE_HEALTH_CONNECT");
 
   const firebaseReady = firebaseConfigMissingKeys.length === 0;
   const functionsConfigured = Boolean(functionsUrl);
-  const scanConfigured = functionsConfigured || Boolean(scanStartUrl);
+  const scanConfigured = remoteHealth?.scanConfigured ?? (functionsConfigured || Boolean(scanStartUrl));
   const stripeMode = describeStripeEnvironment();
   const stripeConfigured = stripeMode !== "missing";
-  const coachConfigured = Boolean(coachRpm);
-  const nutritionConfigured = Boolean(usdaKey || offKey || nutritionRpm);
+  const coachConfigured = remoteHealth?.coachConfigured ?? Boolean(coachRpm);
+  const nutritionConfigured = remoteHealth?.nutritionConfigured ?? Boolean(functionsConfigured);
   const healthConfigured = Boolean(healthConnector);
 
   const statuses: FeatureStatus[] = [

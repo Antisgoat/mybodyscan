@@ -4,7 +4,6 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { getEnv } from "./lib/env.js";
 import { ensureSoftAppCheckFromCallable, ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { HttpError, send } from "./util/http.js";
 
@@ -95,6 +94,11 @@ const USDA_DATA_TYPES = ["Branded", "Survey (FNDDS)", "SR Legacy", "Foundation"]
 const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 
 function getUsdaApiKey(): string | undefined {
+  const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
+  if (envValue) {
+    return envValue;
+  }
+
   try {
     const secretValue = usdaApiKeyParam.value();
     if (typeof secretValue === "string") {
@@ -107,11 +111,7 @@ function getUsdaApiKey(): string | undefined {
     // Secret not bound in this environment
   }
 
-  const envValue =
-    getEnv("USDA_FDC_API_KEY")?.trim() ||
-    getEnv("USDA_API_KEY")?.trim() ||
-    getEnv("VITE_USDA_API_KEY")?.trim();
-  return envValue ? envValue : undefined;
+  return undefined;
 }
 
 const FETCH_TIMEOUT_MS = 8000;
@@ -663,6 +663,9 @@ async function runNutritionSearchCore(
   }
 
   const apiKey = getUsdaApiKey();
+  if (!apiKey) {
+    throw new HttpError(501, "nutrition_not_configured", "USDA_FDC_API_KEY missing");
+  }
   const errors: HttpError[] = [];
 
   const usdaResult = await runSafe("USDA", () => searchUsda(input.query, apiKey), {
@@ -721,6 +724,17 @@ function handleError(res: Response, error: unknown, requestId: string): void {
         message: error.message || "Unauthorized",
         debugId: requestId,
         reason: "unauthorized",
+      });
+      return;
+    }
+    if (error.status === 501) {
+      res.status(501).json({
+        status: "upstream_error",
+        results: [],
+        code: error.code || "nutrition_not_configured",
+        message: "Nutrition search is offline until USDA_FDC_API_KEY is configured.",
+        debugId: requestId,
+        reason: error.code || "nutrition_not_configured",
       });
       return;
     }
@@ -825,6 +839,12 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
         if (error.status === 429) {
           throw new HttpsError("resource-exhausted", "Too many nutrition searches. Please slow down.", {
             debugId: requestId,
+          });
+        }
+        if (error.status === 501) {
+          throw new HttpsError("failed-precondition", "Nutrition search is not configured.", {
+            debugId: requestId,
+            reason: error.code || "nutrition_not_configured",
           });
         }
         throw new HttpsError("unavailable", error.message || "Food database temporarily unavailable.", {
