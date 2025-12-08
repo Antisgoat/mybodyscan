@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
 import ProtectedRoute from "./components/ProtectedRoute";
-import OnboardingRedirectMBS from "./components/OnboardingRedirectMBS";
+import PersonalizationGate from "./components/PersonalizationGate";
 import AuthedLayout from "./layouts/AuthedLayout";
 import { MBS_FLAGS } from "./lib/flags";
 import Index from "./pages/Index";
@@ -186,10 +186,9 @@ const App = () => {
             <BrowserRouter>
               <DemoModeProvider>
                 <DemoWireup />
-                <OnboardingRedirectMBS>
-                  <div id="main-content" role="main">
-                    <Suspense fallback={null}>
-                      <Routes>
+                <div id="main-content" role="main">
+                  <Suspense fallback={null}>
+                    <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -261,15 +260,17 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <DataBoundary page="scan">
-                          <PageSuspense>
-                            <Scan />
-                          </PageSuspense>
-                        </DataBoundary>
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <DataBoundary page="scan">
+                            <PageSuspense>
+                              <Scan />
+                            </PageSuspense>
+                          </DataBoundary>
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -279,15 +280,17 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <DataBoundary page="coach">
-                          <PageSuspense>
-                            <Coach />
-                          </PageSuspense>
-                        </DataBoundary>
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <DataBoundary page="coach">
+                            <PageSuspense>
+                              <Coach />
+                            </PageSuspense>
+                          </DataBoundary>
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -297,11 +300,13 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <CoachChat />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <CoachChat />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -311,11 +316,13 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <CoachDay />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <CoachDay />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -325,11 +332,13 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ProgramsCatalog />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ProgramsCatalog />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -339,11 +348,13 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ProgramsQuiz />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ProgramsQuiz />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -353,11 +364,13 @@ const App = () => {
               element={
                 <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ProgramDetail />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ProgramDetail />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -385,11 +398,13 @@ const App = () => {
               element={
                 <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <Workouts />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <Workouts />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -399,11 +414,13 @@ const App = () => {
               element={
                 <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <WorkoutsLibrary />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <WorkoutsLibrary />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -413,11 +430,13 @@ const App = () => {
               element={
                 <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <WorkoutsCompleted />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <WorkoutsCompleted />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -482,76 +501,141 @@ const App = () => {
               }
             />
             {/* Capture routes (old + new kept) */}
-            <Route path="/capture" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/capture/photos" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<CaptureSkeleton />}>
-                    <PhotoCapture />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/capture-picker" element={<ProtectedRoute><AuthedLayout><CapturePicker /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/photo-capture" element={<ProtectedRoute><AuthedLayout><PhotoCapture /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/capture"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <CapturePicker />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/capture/photos"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<CaptureSkeleton />}>
+                        <PhotoCapture />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/capture-picker"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <CapturePicker />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/photo-capture"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <PhotoCapture />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             {/* Processing routes (old + new kept) */}
-            <Route path="/processing/:uid/:scanId" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<PageSkeleton />}>
-                    <Processing />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/processing/:scanId" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<PageSkeleton />}>
-                    <Processing />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/scans/:scanId" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<PageSkeleton />}>
-                    <ScanResult />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/scans/compare/:leftId/:rightId" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<PageSkeleton />}>
-                    <ScanComparePage />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/processing/:uid/:scanId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <Processing />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/processing/:scanId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <Processing />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/scans/:scanId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <ScanResult />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/scans/compare/:leftId/:rightId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <ScanComparePage />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             {/* Results */}
-            <Route path="/results/:scanId" element={
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <Suspense fallback={<PageSkeleton />}>
-                    <Results />
-                  </Suspense>
-                </AuthedLayout>
-              </ProtectedRoute>
-            } />
+            <Route
+              path="/results/:scanId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Suspense fallback={<PageSkeleton />}>
+                        <Results />
+                      </Suspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             {/* Other */}
             <Route
               path="/history"
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <HistoryPage />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <HistoryPage />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -643,8 +727,30 @@ const App = () => {
               }
             />
             <Route path="/settings/units" element={<ProtectedRoute><AuthedLayout><SettingsUnits /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/coach/onboarding" element={<ProtectedRoute><AuthedLayout><CoachOnboarding /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/coach/tracker" element={<ProtectedRoute><AuthedLayout><CoachTracker /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/coach/onboarding"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <CoachOnboarding />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/coach/tracker"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <CoachTracker />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
             {/* New scan routes */}
             <Route
@@ -652,11 +758,13 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanStart />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanStart />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -666,11 +774,13 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanCapture />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanCapture />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -680,11 +790,13 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanFlowPage />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanFlowPage />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -694,11 +806,13 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanFlowResult />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanFlowResult />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -708,11 +822,13 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanRefine />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanRefine />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -722,32 +838,69 @@ const App = () => {
               element={
                 <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <ScanFlowHistory />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <ScanFlowHistory />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
             />
-            <Route path="/scan/new" element={<ProtectedRoute><AuthedLayout><ScanNew /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/scan/new"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <ScanNew />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/scan/:scanId"
               element={
                 <ProtectedRoute>
-                  <AuthedLayout>
-                    <PageSuspense>
-                      <ScanResult />
-                    </PageSuspense>
-                  </AuthedLayout>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <PageSuspense>
+                        <ScanResult />
+                      </PageSuspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
                 </ProtectedRoute>
               }
             />
             <Route path="/scan/tips" element={<ProtectedRoute><AuthedLayout><ScanTips /></AuthedLayout></ProtectedRoute>} />
             {/* Report routes */}
-            <Route path="/report" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/report/:scanId" element={<ProtectedRoute><AuthedLayout><Report /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/report"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Report />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/report/:scanId"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <Report />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             <Route path="/dev/audit" element={<PageSuspense><DevAudit /></PageSuspense>} />
             <Route path="/diagnostics" element={<PageSuspense><Diagnostics /></PageSuspense>} />
             <Route path="/__diag" element={<PageSuspense><Diagnostics /></PageSuspense>} />
@@ -803,10 +956,9 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </Suspense>
-                  </div>
-                </OnboardingRedirectMBS>
+                    </Routes>
+                  </Suspense>
+                </div>
               </DemoModeProvider>
             </BrowserRouter>
           </AppCheckProvider>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
@@ -27,6 +28,7 @@ const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const demo = useDemoMode();
+  const onboardingStatus = useOnboardingStatus();
   const [lastScan, setLastScan] = useState<LastScan | null>(() => {
     if (isDemo()) {
       return {
@@ -47,6 +49,15 @@ const Home = () => {
   const bf = summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
   const weight = summary.weightText;
   const bmi = summary.bmiText;
+  const showOnboardingNudge =
+    !onboardingStatus.loading && !onboardingStatus.personalizationCompleted;
+  const nudgeDescription = onboardingStatus.hasAnyOnboardingData
+    ? "Pick up where you left off to unlock personalized scans and workouts."
+    : "Share your goals once to unlock personalized scans and workouts.";
+  const onboardingCtaTarget = useMemo(
+    () => `/onboarding?returnTo=${encodeURIComponent("/home")}`,
+    [],
+  );
 
   useEffect(() => {
     if (demo && !user) {
@@ -142,6 +153,19 @@ const Home = () => {
         <h1 className="text-3xl font-semibold">MyBodyScan</h1>
       </header>
       <section className="space-y-4">
+        {showOnboardingNudge && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base">Complete your profile</CardTitle>
+              <CardDescription>{nudgeDescription}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button size="sm" onClick={() => navigate(onboardingCtaTarget)}>
+                Finish setup
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Last scan</CardTitle>
@@ -188,7 +212,12 @@ const Home = () => {
 
         <div className="grid gap-3">
           {renderStartButton({ className: "w-full" })}
-          <a href="/onboarding" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2">Personalize results (1 min)</a>
+          <a
+            href={onboardingCtaTarget}
+            className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2"
+          >
+            Personalize results (1 min)
+          </a>
           <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
           <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
           <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>
