@@ -63,8 +63,8 @@ export const systemHealth = onRequest(
       envPresent(process.env.STRIPE_SIGNATURE);
 
     const usdaKeyPresent = envPresent(process.env.USDA_FDC_API_KEY) || secretPresent(usdaFdcApiKeyParam);
-    const nutritionConfigured = usdaKeyPresent;
-    const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM) || usdaKeyPresent;
+    const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM);
+    const nutritionConfigured = usdaKeyPresent || nutritionRpmPresent;
     const coachRpmPresent = envPresent(process.env.COACH_RPM);
     const scanDisabled = getEnvBool(scanDisabledFlag, false);
     const coachDisabled = getEnvBool(coachDisabledFlag, false);

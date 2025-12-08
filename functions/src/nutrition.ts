@@ -6,6 +6,7 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckSoft } from "./http.js";
+import { nutritionBarcodeHandler } from "./nutritionBarcode.js";
 import { nutritionSearchHandler } from "./nutritionSearch.js";
 import type {
   DailyLogDocument,
@@ -617,5 +618,11 @@ function parseQuery(value: unknown) {
 
 nutritionRouter.get("/search", nutritionSearchHandler);
 nutritionRouter.post("/search", nutritionSearchHandler);
+nutritionRouter.get("/barcode", (req, res) => {
+  void nutritionBarcodeHandler(req as Request, res as Response);
+});
+nutritionRouter.post("/barcode", (req, res) => {
+  void nutritionBarcodeHandler(req as Request, res as Response);
+});
 nutritionRouter.get("/daily-log", getDailyLogHandler);
 nutritionRouter.get("/history", getNutritionHistoryHandler);

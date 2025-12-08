@@ -302,6 +302,9 @@ export default function MealsSearch() {
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const nutritionEnabled = nutritionConfigured !== false;
+  const offlineReason = "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+  const demoReason = "Nutrition search is disabled in demo mode. Sign in to use it.";
+  const searchBlockReason = demo ? demoReason : offlineReason;
   const searchDisabled = demo || !nutritionEnabled;
 
   useEffect(() => {
@@ -324,8 +327,8 @@ export default function MealsSearch() {
       setLoading(false);
       setResults([]);
       setPrimarySource(null);
-      setStatus("Search is disabled in demo. Sign in to use.");
-      setSearchWarning("Search is disabled in demo. Sign in to use.");
+      setStatus(demoReason);
+      setSearchWarning(demoReason);
       return;
     }
 
@@ -333,8 +336,8 @@ export default function MealsSearch() {
       setLoading(false);
       setResults([]);
       setPrimarySource(null);
-      setStatus("Nutrition search is offline until USDA credentials are configured.");
-      setSearchWarning("Food search is unavailable because the server is missing USDA_FDC_API_KEY.");
+      setStatus(offlineReason);
+      setSearchWarning(offlineReason);
       return;
     }
 
@@ -351,7 +354,7 @@ export default function MealsSearch() {
     let cancelled = false;
     setLoading(true);
     setSearchWarning(null);
-      setStatus("Searching…");
+    setStatus("Searching…");
 
     (async () => {
       try {
@@ -413,6 +416,11 @@ export default function MealsSearch() {
 
   const handleBarcodeSuccess = async (code: string) => {
     setScannerOpen(false);
+    if (searchDisabled) {
+      setStatus(searchBlockReason);
+      setSearchWarning(searchBlockReason);
+      return;
+    }
     const normalized = sanitizeNutritionQuery(code);
     if (!normalized) {
       setStatus("Invalid barcode");
@@ -461,6 +469,11 @@ export default function MealsSearch() {
 
   const handleBarcodeError = (message: string) => {
     setScannerOpen(false);
+    if (searchDisabled) {
+      setStatus(searchBlockReason);
+      setSearchWarning(searchBlockReason);
+      return;
+    }
     setStatus(message);
     setSearchWarning(message);
   };
@@ -568,9 +581,7 @@ export default function MealsSearch() {
         {!nutritionEnabled && !demo && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition search unavailable</AlertTitle>
-            <AlertDescription>
-              Add the USDA_FDC_API_KEY (or enable the nutrition proxy) in Firebase Functions to restore food search.
-            </AlertDescription>
+            <AlertDescription>{offlineReason}</AlertDescription>
           </Alert>
         )}
 
@@ -582,14 +593,14 @@ export default function MealsSearch() {
             className="flex-1"
             data-testid="nutrition-search"
             disabled={searchDisabled}
-            title={searchDisabled ? "Search is disabled until nutrition keys are configured." : undefined}
+            title={searchDisabled ? searchBlockReason : undefined}
           />
           <Button
             type="button"
             variant="outline"
             onClick={() => setScannerOpen(true)}
             disabled={searchDisabled || loading}
-            title={searchDisabled ? "Scan is disabled until nutrition keys are configured." : undefined}
+            title={searchDisabled ? searchBlockReason : undefined}
           >
             <Barcode className="mr-1 h-4 w-4" />
             Scan

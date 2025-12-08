@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { backend } from "@/lib/backendBridge";
 import { sanitizeFoodItem as sanitizeFoodRecord } from "@/features/nutrition/sanitize";
@@ -13,6 +14,9 @@ import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useDemoMode } from "@/components/DemoModeProvider";
 
 async function loadZXing() {
   try {
@@ -71,6 +75,14 @@ export default function BarcodeScan() {
   const frameRef = useRef<number>();
   const zxingControlsRef = useRef<{ stop?: () => void } | null>(null);
   const scanningRef = useRef(false);
+  const demo = useDemoMode();
+  const { health: systemHealth } = useSystemHealth();
+  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const nutritionOffline = nutritionConfigured === false;
+  const lookupsBlocked = demo || nutritionOffline;
+  const blockedMessage = demo
+    ? "Barcode scanner is disabled in demo mode. Sign in to try live nutrition lookups."
+    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
   const [manualCode, setManualCode] = useState("");
   const [running, setRunning] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
@@ -93,6 +105,11 @@ export default function BarcodeScan() {
 
   const fetchItem = useCallback(
     async (code: string) => {
+      if (lookupsBlocked) {
+        setStatus(blockedMessage);
+        setItem(null);
+        return;
+      }
       setLoadingItem(true);
       setItem(null);
       setStatus("Looking up…");
@@ -128,7 +145,7 @@ export default function BarcodeScan() {
         setLoadingItem(false);
       }
     },
-    [toast],
+    [blockedMessage, lookupsBlocked, toast],
   );
 
   const stopScanner = useCallback(() => {
@@ -161,11 +178,15 @@ export default function BarcodeScan() {
   const handleDetected = useCallback(
     (code: string) => {
       if (!code) return;
+       if (lookupsBlocked) {
+         setStatus(blockedMessage);
+         return;
+       }
       setDetectedCode(code);
       stopScanner();
       void fetchItem(code);
     },
-    [fetchItem, stopScanner],
+    [blockedMessage, fetchItem, lookupsBlocked, stopScanner],
   );
 
   const startWithBarcodeDetector = useCallback(async () => {
@@ -240,6 +261,12 @@ export default function BarcodeScan() {
   }, [handleDetected, unavailableMessage]);
 
   const startScanner = useCallback(async () => {
+    if (lookupsBlocked) {
+      setScannerUnavailable(true);
+      setScannerError(blockedMessage);
+      setStatus(blockedMessage);
+      return;
+    }
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setScannerUnavailable(true);
       setScannerError(insecureMessage);
@@ -264,7 +291,15 @@ export default function BarcodeScan() {
       setScannerError(unavailableMessage);
       stopScanner();
     }
-  }, [insecureMessage, startWithBarcodeDetector, startWithZxing, stopScanner, unavailableMessage]);
+  }, [
+    blockedMessage,
+    insecureMessage,
+    lookupsBlocked,
+    startWithBarcodeDetector,
+    startWithZxing,
+    stopScanner,
+    unavailableMessage,
+  ]);
 
   const toggleTorch = async () => {
     const track = streamRef.current?.getVideoTracks()?.[0];
@@ -281,6 +316,10 @@ export default function BarcodeScan() {
   const handleManual = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!manualCode.trim()) return;
+    if (lookupsBlocked) {
+      setStatus(blockedMessage);
+      return;
+    }
     await fetchItem(manualCode.trim());
   };
 
@@ -309,6 +348,13 @@ export default function BarcodeScan() {
     };
   }, [insecureMessage, stopScanner, unavailableMessage]);
 
+  useEffect(() => {
+    if (lookupsBlocked) {
+      setStatus(blockedMessage);
+      setItem(null);
+    }
+  }, [blockedMessage, lookupsBlocked]);
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 p-6 pb-20 md:pb-10">
       <Seo title="Barcode Scan" description="Scan UPCs to log foods" />
@@ -318,6 +364,12 @@ export default function BarcodeScan() {
           Align the barcode within the frame. Scanning defaults to region {defaultCountry}. Use the torch in low light or enter the code manually.
         </p>
       </header>
+      {lookupsBlocked && (
+        <Alert variant="destructive">
+          <AlertTitle>Nutrition search unavailable</AlertTitle>
+          <AlertDescription>{blockedMessage}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader className="flex items-center justify-between">
@@ -325,7 +377,13 @@ export default function BarcodeScan() {
             <Camera className="h-4 w-4" /> Live scanner
           </CardTitle>
           <div className="flex gap-2">
-            <Button size="sm" variant={running ? "outline" : "default"} onClick={running ? stopScanner : startScanner}>
+            <Button
+              size="sm"
+              variant={running ? "outline" : "default"}
+              onClick={running ? stopScanner : startScanner}
+              disabled={!running && lookupsBlocked}
+              title={!running && lookupsBlocked ? blockedMessage : undefined}
+            >
               {running ? (
                 <>
                   <Square className="mr-1 h-4 w-4" /> Stop
@@ -336,7 +394,7 @@ export default function BarcodeScan() {
                 </>
               )}
             </Button>
-            <Button size="sm" variant="ghost" onClick={toggleTorch} disabled={!torchAvailable}>
+            <Button size="sm" variant="ghost" onClick={toggleTorch} disabled={!torchAvailable || lookupsBlocked}>
               {torchOn ? <FlashlightOff className="h-4 w-4" /> : <Flashlight className="h-4 w-4" />}
             </Button>
           </div>
@@ -373,9 +431,15 @@ export default function BarcodeScan() {
                 value={manualCode}
                 onChange={(event) => setManualCode(event.target.value)}
                 placeholder={`Enter UPC (${defaultCountry})`}
+                disabled={lookupsBlocked}
               />
             </div>
-            <Button type="submit" className="self-end" disabled={!manualCode.trim()}>
+            <Button
+              type="submit"
+              className="self-end"
+              disabled={!manualCode.trim() || lookupsBlocked}
+              title={lookupsBlocked ? blockedMessage : undefined}
+            >
               Lookup
             </Button>
           </form>

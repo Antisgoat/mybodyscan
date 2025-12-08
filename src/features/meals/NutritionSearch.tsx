@@ -5,12 +5,17 @@ import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useDemoMode } from "@/components/DemoModeProvider";
 
 export default function NutritionSearch() {
   const { loading: authLoading } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
-  const nutritionEnabled = nutritionConfigured !== false;
+  const demo = useDemoMode();
+  const nutritionEnabled = !demo && nutritionConfigured !== false;
+  const offlineMessage = demo
+    ? "Nutrition search is disabled in demo mode. Sign in to try the live database."
+    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +32,7 @@ export default function NutritionSearch() {
       return;
     }
     if (!nutritionEnabled) {
-      setError("Nutrition search is offline until API keys or RPM are configured.");
+      setError(offlineMessage);
       setHasSearched(false);
       return;
     }
@@ -63,6 +68,7 @@ export default function NutritionSearch() {
   }
 
   function onDetectedFromScanner(code: string) {
+    if (!nutritionEnabled) return;
     setQ(code);
     setTimeout(() => {
       void onSubmit();
@@ -74,10 +80,7 @@ export default function NutritionSearch() {
       {!nutritionEnabled && (
         <Alert variant="destructive">
           <AlertTitle>Nutrition search unavailable</AlertTitle>
-          <AlertDescription>
-            Food lookups and barcode scanning are disabled until nutrition API keys or rate-limit configs are added. You can
-            still view existing logs.
-          </AlertDescription>
+          <AlertDescription>{offlineMessage}</AlertDescription>
         </Alert>
       )}
       <form onSubmit={onSubmit} className="flex gap-2">
@@ -100,7 +103,10 @@ export default function NutritionSearch() {
         </button>
         <button
           type="button"
-          onClick={() => setScanOpen(true)}
+          onClick={() => {
+            if (!nutritionEnabled) return;
+            setScanOpen(true);
+          }}
           className="rounded-md border px-3 py-2 text-sm"
           aria-label="Scan barcode"
           disabled={!nutritionEnabled}
