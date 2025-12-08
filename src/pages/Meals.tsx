@@ -36,6 +36,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 import NutritionSearch from "@/features/meals/NutritionSearch";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { computeFeatureStatuses } from "@/lib/envStatus";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -72,6 +74,8 @@ export default function Meals() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
   const uid = authReady ? user?.uid ?? null : null;
+  const { statuses } = computeFeatureStatuses();
+  const nutritionConfigured = statuses.find((status) => status.id === "nutrition")?.configured !== false;
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
@@ -338,6 +342,15 @@ export default function Meals() {
           <h1 className="text-3xl font-semibold text-foreground">Today's Meals</h1>
           <p className="text-sm text-muted-foreground">Log foods from search, barcode, favorites, and templates. Macros shown in kcal and US units.</p>
         </div>
+
+        {!nutritionConfigured && (
+          <Alert variant="destructive">
+            <AlertTitle>Nutrition services offline</AlertTitle>
+            <AlertDescription>
+              Food search and barcode lookup need nutrition API keys or rate-limit configs. Logging existing templates still works, but search is disabled until those keys are added.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <NutritionSearch />
 
