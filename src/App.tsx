@@ -380,15 +380,17 @@ const App = () => {
               element={
                 <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <DataBoundary page="nutrition">
-                          <PageSuspense>
-                            <Nutrition />
-                          </PageSuspense>
-                        </DataBoundary>
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <DataBoundary page="nutrition">
+                            <PageSuspense>
+                              <Nutrition />
+                            </PageSuspense>
+                          </DataBoundary>
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -446,13 +448,15 @@ const App = () => {
               element={
                 <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <PageSuspense>
-                          <Meals />
-                        </PageSuspense>
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <PageSuspense>
+                            <Meals />
+                          </PageSuspense>
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -462,11 +466,13 @@ const App = () => {
               element={
                 <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <MealsSearch />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <MealsSearch />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -476,11 +482,13 @@ const App = () => {
               element={
                 <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}> 
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <BarcodeScan />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <BarcodeScan />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -491,11 +499,13 @@ const App = () => {
               element={
                 <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
                   <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <MealsHistory />
-                      </RouteBoundary>
-                    </AuthedLayout>
+                    <PersonalizationGate>
+                      <AuthedLayout>
+                        <RouteBoundary>
+                          <MealsHistory />
+                        </RouteBoundary>
+                      </AuthedLayout>
+                    </PersonalizationGate>
                   </ProtectedRoute>
                 </FeatureGate>
               }
@@ -875,7 +885,18 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
-            <Route path="/scan/tips" element={<ProtectedRoute><AuthedLayout><ScanTips /></AuthedLayout></ProtectedRoute>} />
+            <Route
+              path="/scan/tips"
+              element={
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <ScanTips />
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              }
+            />
             {/* Report routes */}
             <Route
               path="/report"
