@@ -32,6 +32,8 @@ import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
 import type { ManualCircumferences } from "./scanRefineStore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { useUnits } from "@/hooks/useUnits";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -118,9 +120,18 @@ export default function ScanFlowResult() {
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
   const appCheck = useAppCheckStatus();
   const { units } = useUnits();
-  const functionsConfigured = Boolean(
-    (import.meta.env.VITE_FUNCTIONS_URL ?? "").trim() || (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
-  );
+  const { health: systemHealth } = useSystemHealth();
+  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const scanOffline =
+    !scanConfigured ||
+    systemHealth?.scanConfigured === false ||
+    systemHealth?.openaiConfigured === false ||
+    systemHealth?.openaiKeyPresent === false;
+  const scanOfflineMessage = scanOffline
+    ? systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
+      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before results can be finalized."
+      : "Scan services are offline until the Cloud Functions base URL is configured."
+    : null;
 
   const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
   const capturedShots = useMemo(
@@ -450,12 +461,10 @@ export default function ScanFlowResult() {
           <AlertDescription>Ensuring App Check is ready before rendering your scan preview.</AlertDescription>
         </Alert>
       ) : null}
-      {!functionsConfigured ? (
+      {scanOfflineMessage ? (
         <Alert variant="destructive">
           <AlertTitle>Scan services offline</AlertTitle>
-          <AlertDescription>
-            We couldn’t find the scan service URL. Add VITE_FUNCTIONS_URL to enable saving results.
-          </AlertDescription>
+          <AlertDescription>{scanOfflineMessage}</AlertDescription>
         </Alert>
       ) : null}
       {appCheck.status === "missing" ? (

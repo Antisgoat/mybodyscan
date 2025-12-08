@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import OpenAI from "openai";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
@@ -7,8 +8,23 @@ import { withCors } from "./middleware/cors.js";
 import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
+import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
+import { hasOpenAI } from "./lib/env.js";
+import { getOpenAIKey } from "./openai/keys.js";
 
 const db = getFirestore();
+type BodyFeel = "great" | "ok" | "tired" | "sore";
+const BODY_FEEL_VALUES: BodyFeel[] = ["great", "ok", "tired", "sore"];
+const BODY_FEEL_SET = new Set<BodyFeel>(BODY_FEEL_VALUES);
+const ADJUST_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const ADJUST_TIMEOUT_MS = 8_000;
+const MAX_NOTE_LENGTH = 400;
+
+type AdjustmentMods = {
+  intensity: number;
+  volume: number;
+  summary?: string | null;
+};
 
 interface PlanPrefs {
   focus?: "back" | "legs" | "core" | "full";
@@ -37,6 +53,127 @@ function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
     day,
     exercises: baseExercises.map((ex, idx) => ({ ...ex, id: `${ex.id}-${index}-${idx}` })),
   }));
+}
+
+function clampDelta(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value);
+  return Math.max(-2, Math.min(2, rounded));
+}
+
+function describeDay(day: WorkoutDay | null): string {
+  if (!day) {
+    return "No workout found for this day.";
+  }
+  if (!Array.isArray(day.exercises) || day.exercises.length === 0) {
+    return `Day ${day.day}: no exercises recorded.`;
+  }
+  const items = day.exercises.map((exercise, index) => {
+    const name = typeof exercise?.name === "string" && exercise.name.trim().length ? exercise.name : `Movement ${index + 1}`;
+    const sets = typeof exercise?.sets === "number" ? exercise.sets : "-";
+    const reps = typeof exercise?.reps === "string" || typeof exercise?.reps === "number" ? exercise.reps : "-";
+    return `${index + 1}. ${name} – ${sets} x ${reps}`;
+  });
+  return `Day ${day.day}: ${items.join("; ")}`;
+}
+
+function extractAdjustmentJson(content: string): any {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/```json([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
+  if (fenced) {
+    const payload = fenced[1]?.trim();
+    if (payload) {
+      return JSON.parse(payload);
+    }
+  }
+  return JSON.parse(trimmed);
+}
+
+function parseAdjustmentPayload(raw: any): AdjustmentMods {
+  const intensity = clampDelta(Number(raw?.intensity ?? raw?.intensityDelta ?? raw?.intensity_delta ?? raw?.intensityAdjustment));
+  const volume = clampDelta(Number(raw?.volume ?? raw?.volumeDelta ?? raw?.volume_delta ?? raw?.volumeAdjustment));
+  const summarySource =
+    typeof raw?.summary === "string"
+      ? raw.summary
+      : typeof raw?.message === "string"
+        ? raw.message
+        : typeof raw?.notes === "string"
+          ? raw.notes
+          : null;
+  const summary = summarySource ? summarySource.trim().slice(0, 240) : null;
+  return { intensity, volume, summary };
+}
+
+function normalizeBodyFeel(value: unknown): BodyFeel | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return BODY_FEEL_SET.has(normalized as BodyFeel) ? (normalized as BodyFeel) : null;
+}
+
+function sanitizeNotes(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, MAX_NOTE_LENGTH);
+}
+
+function fallbackMods(bodyFeel: BodyFeel): { intensity: number; volume: number } {
+  return {
+    intensity: bodyFeel === "great" ? 1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
+    volume: bodyFeel === "great" ? 1 : bodyFeel === "sore" ? -1 : 0,
+  };
+}
+
+async function requestAiAdjustment(input: {
+  uid: string;
+  requestId: string;
+  bodyFeel: BodyFeel;
+  notes: string | null;
+  day: WorkoutDay | null;
+}): Promise<AdjustmentMods> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) {
+    throw new Error("openai_missing_key");
+  }
+
+  const client = new OpenAI({ apiKey });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ADJUST_TIMEOUT_MS);
+
+  try {
+    const response = await client.chat.completions.create({
+      model: ADJUST_MODEL,
+      temperature: 0.2,
+      max_tokens: 250,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You fine-tune strength training plans. Respond with compact JSON shaped as {\"intensity\":-2..2,\"volume\":-2..2,\"summary\":\"<=160 chars\"}. Positive numbers increase stress, negative ease up.",
+        },
+        {
+          role: "user",
+          content: [
+            `Body feel: ${input.bodyFeel}`,
+            `Notes: ${input.notes ?? "none provided"}`,
+            describeDay(input.day),
+            "Respond with JSON only.",
+          ].join("\n"),
+        },
+      ],
+      user: input.uid,
+      signal: controller.signal as any,
+    } as any);
+
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("openai_empty_response");
+    }
+    const raw = extractAdjustmentJson(content);
+    return parseAdjustmentPayload(raw);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
@@ -248,21 +385,62 @@ export const getWorkouts = withHandler(handleGetWorkouts);
 export const adjustWorkout = onRequest(
   { invoker: "public", region: "us-central1" },
   withCors(async (req: ExpressRequest, res: ExpressResponse) => {
+    const requestId = req.get("x-request-id")?.trim() || randomUUID();
     try {
       const uid = await requireAuth(req as any);
-      const { dayId, bodyFeel, notes } = (req.body as any) || {};
-      if (!uid || !dayId || !bodyFeel) {
-        res.status(400).json({ error: "bad_request" });
+      await ensureSoftAppCheckFromRequest(req as any, { fn: "adjustWorkout", uid, requestId });
+      const payload = (req.body as any) || {};
+      const dayId = typeof payload?.dayId === "string" ? payload.dayId.trim() : "";
+      const normalizedBodyFeel = normalizeBodyFeel(payload?.bodyFeel);
+      if (!uid || !dayId || !normalizedBodyFeel) {
+        res.status(400).json({ error: "bad_request", debugId: requestId });
         return;
       }
-      const mods = {
-        intensity: bodyFeel === "great" ? +1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
-        volume: bodyFeel === "great" ? +1 : bodyFeel === "sore" ? -1 : 0,
-      };
-      res.json({ ok: true, mods, echo: { dayId, notes: notes || null } });
+      const notes = sanitizeNotes(payload?.notes);
+      const plan = await fetchCurrentPlan(uid);
+      const targetDay = plan?.days?.find((day) => day.day === dayId) ?? null;
+      let mods = fallbackMods(normalizedBodyFeel);
+      let summary: string | null = null;
+      let source: "fallback" | "openai" = "fallback";
+      if (hasOpenAI()) {
+        try {
+          const aiMods = await requestAiAdjustment({
+            uid,
+            requestId,
+            bodyFeel: normalizedBodyFeel,
+            notes,
+            day: targetDay ?? null,
+          });
+          mods = { intensity: aiMods.intensity, volume: aiMods.volume };
+          summary = aiMods.summary ?? null;
+          source = "openai";
+        } catch (error: any) {
+          console.error("workout_adjust_ai_failed", {
+            message: error?.message,
+            requestId,
+            uid,
+          });
+        }
+      }
+      res.json({
+        ok: true,
+        mods,
+        summary,
+        source,
+        echo: { dayId, notes: notes ?? null, bodyFeel: normalizedBodyFeel },
+        debugId: requestId,
+      });
     } catch (error: any) {
+      console.error("workout_adjust_failed", { message: error?.message, requestId });
       if (!res.headersSent) {
-        res.status(500).json({ error: "server_error" });
+        if (error instanceof HttpsError) {
+          res.status(statusFromCode((error as HttpsError).code)).json({
+            error: error.message,
+            debugId: requestId,
+          });
+          return;
+        }
+        res.status(500).json({ error: "server_error", debugId: requestId });
       }
     }
   })

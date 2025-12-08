@@ -14,6 +14,9 @@ import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { authedFetch } from "@/lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -27,13 +30,34 @@ export default function Workouts() {
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const functionsConfigured = Boolean((import.meta.env.VITE_FUNCTIONS_URL ?? "").trim());
+  const { health: systemHealth, error: healthError } = useSystemHealth();
+  const { workoutsConfigured, workoutAdjustConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const workoutsOfflineMessage = workoutsConfigured
+    ? null
+    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable plan generation.";
+  const adjustUnavailableMessage = !workoutAdjustConfigured
+    ? "AI workout adjustments require the OpenAI key (OPENAI_API_KEY) on Cloud Functions."
+    : null;
+  const adjustDisabled = !workoutAdjustConfigured || !workoutsConfigured;
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!workoutsConfigured) {
+      setPlan(null);
+      setCompleted([]);
+      setRatio(0);
+      setWeekRatio(0);
+      setLoadError(
+        "Workouts are disabled because the Cloud Functions base URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts.",
+      );
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const hydrate = async () => {
       try {
@@ -68,7 +92,7 @@ export default function Workouts() {
         console.warn("workouts.plan", error);
         const message =
           error instanceof Error && error.message.includes("workouts_disabled")
-            ? "Workouts are disabled because the backend URL isn't configured. Add VITE_FUNCTIONS_URL to enable workouts."
+            ? "Workouts are disabled because the backend URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts."
             : "Workouts are unavailable right now. Check your connection or try again later.";
         if (!cancelled) {
           setPlan(null);
@@ -85,10 +109,10 @@ export default function Workouts() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workoutsConfigured]);
 
   async function loadProgress(p: any, isCancelled?: () => boolean) {
-    if (!p || !Array.isArray(p.days)) return;
+    if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
     const idx = p.days.findIndex((d: any) => d.day === todayName);
     if (idx < 0) return;
     const uid = auth.currentUser?.uid;
@@ -130,6 +154,14 @@ export default function Workouts() {
   };
 
   const handleGenerate = async () => {
+    if (!workoutsConfigured) {
+      const description =
+        workoutsOfflineMessage ??
+        "Workout APIs are offline. Set the Cloud Functions base URL before generating a plan.";
+      setLoadError(description);
+      toast({ title: "Workouts offline", description, variant: "destructive" });
+      return;
+    }
     try {
       const res = await generateWorkoutPlan({ focus: "back" });
       if (!res) return;
@@ -145,10 +177,13 @@ export default function Workouts() {
         return;
       }
       if (typeof error?.message === "string" && error.message.includes("workouts_disabled")) {
-        setLoadError("Workouts are turned off because VITE_FUNCTIONS_URL is missing. Add it to enable workout generation.");
+        const description =
+          workoutsOfflineMessage ??
+          "Workouts are turned off because the Cloud Functions base URL is missing. Add it to enable workout generation.";
+        setLoadError(description);
         toast({
           title: "Workouts offline",
-          description: "Backend URL missing. Set VITE_FUNCTIONS_URL to call the workout service.",
+          description,
           variant: "destructive",
         });
         return;
@@ -157,10 +192,26 @@ export default function Workouts() {
     }
   };
 
+  const formatDelta = (value: number) => (value >= 0 ? `+${value}` : `${value}`);
+
   const submitBodyFeel = async () => {
     if (!plan) return;
     if (!bodyFeel) {
       toast({ title: "Select how your body feels" });
+      return;
+    }
+    if (!workoutsConfigured) {
+      const description =
+        workoutsOfflineMessage ?? "Workout APIs are offline. Configure the Cloud Functions URL before adjusting.";
+      toast({ title: "Workouts offline", description, variant: "destructive" });
+      return;
+    }
+    if (adjustDisabled) {
+      const description =
+        adjustUnavailableMessage ??
+        workoutsOfflineMessage ??
+        "AI workout adjustments are offline. Configure OPENAI_API_KEY to re-enable.";
+      toast({ title: "Adjustments unavailable", description, variant: "destructive" });
       return;
     }
     try {
@@ -170,14 +221,23 @@ export default function Workouts() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayId: todayName, bodyFeel, notes }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `adjust_failed_${res.status}`);
+      const payloadText = await res.text();
+      let data: any = {};
+      if (payloadText) {
+        try {
+          data = JSON.parse(payloadText);
+        } catch {
+          data = {};
+        }
       }
-      const data = await res.json();
-      // Apply simple local adjustments to sets as a demo of dynamic update
+      if (!res.ok) {
+        const message = data?.error || data?.message || `adjust_failed_${res.status}`;
+        throw new Error(message);
+      }
+      const intensityDelta = Number(data?.mods?.intensity ?? 0);
+      const volumeDelta = Number(data?.mods?.volume ?? 0);
       if (today) {
-        const deltaSets = data?.mods?.volume ?? 0;
+        const deltaSets = Number.isFinite(volumeDelta) ? volumeDelta : 0;
         const next = { ...plan };
         const idx = next.days.findIndex((d: any) => d.day === todayName);
         if (idx >= 0) {
@@ -195,7 +255,12 @@ export default function Workouts() {
           setPlan(next);
         }
       }
-      toast({ title: "Plan adjusted", description: `Intensity ${data?.mods?.intensity >= 0 ? "+" : ""}${data?.mods?.intensity}, Volume ${data?.mods?.volume >= 0 ? "+" : ""}${data?.mods?.volume}` });
+      const summary =
+        typeof data?.summary === "string" && data.summary.trim().length ? data.summary.trim() : null;
+      toast({
+        title: "Plan adjusted",
+        description: summary ?? `Intensity ${formatDelta(intensityDelta)} · Volume ${formatDelta(volumeDelta)}`,
+      });
       setBodyFeel("");
       setNotes("");
     } catch (error: any) {
@@ -215,17 +280,17 @@ export default function Workouts() {
                 <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
               {loadError && <p className="mb-4 text-sm text-destructive">{loadError}</p>}
-              {!functionsConfigured && (
+              {workoutsOfflineMessage && (
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Set VITE_FUNCTIONS_URL to enable plan generation, then retry.
+                  {workoutsOfflineMessage}
                 </p>
               )}
               <div className="flex flex-col gap-2">
-                <Button onClick={handleGenerate} className="w-full" disabled={!functionsConfigured}>
+                <Button onClick={handleGenerate} className="w-full" disabled={!workoutsConfigured}>
                   <Plus className="w-4 h-4 mr-2" />
                   Create my plan
                 </Button>
-                {loadError && functionsConfigured && (
+                {loadError && workoutsConfigured && (
                   <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
                     Retry loading
                   </Button>
@@ -248,6 +313,18 @@ export default function Workouts() {
       <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <DemoBanner />
+          {healthError ? (
+            <Alert variant="destructive">
+              <AlertTitle>System health unavailable</AlertTitle>
+              <AlertDescription>{healthError}</AlertDescription>
+            </Alert>
+          ) : null}
+          {workoutsOfflineMessage ? (
+            <Alert variant="destructive">
+              <AlertTitle>Workouts offline</AlertTitle>
+              <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
+            </Alert>
+          ) : null}
           <div className="text-center space-y-2">
           <Dumbbell className="w-8 h-8 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">{t('workouts.title')}</h1>
@@ -283,9 +360,22 @@ export default function Workouts() {
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="font-medium text-foreground">How did your body feel today?</div>
+                {adjustUnavailableMessage && (
+                  <Alert variant="default" className="border-dashed">
+                    <AlertTitle>Adjustments paused</AlertTitle>
+                    <AlertDescription>{adjustUnavailableMessage}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {["great","ok","tired","sore"].map((v) => (
-                    <Button key={v} type="button" variant={bodyFeel===v?"default":"outline"} size="sm" onClick={() => setBodyFeel(v as any)}>
+                    <Button
+                      key={v}
+                      type="button"
+                      variant={bodyFeel===v?"default":"outline"}
+                      size="sm"
+                      onClick={() => setBodyFeel(v as any)}
+                      disabled={adjustDisabled}
+                    >
                       {v === "great" ? "Great" : v === "ok" ? "OK" : v === "tired" ? "Tired" : "Sore"}
                     </Button>
                   ))}
@@ -296,9 +386,10 @@ export default function Workouts() {
                   placeholder="Notes (optional)"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                  disabled={adjustDisabled}
                 />
                 <div className="flex justify-end">
-                  <Button onClick={submitBodyFeel} disabled={!bodyFeel || adjusting}>
+                  <Button onClick={submitBodyFeel} disabled={!bodyFeel || adjusting || adjustDisabled}>
                     {adjusting ? "Saving…" : "Save adjustment"}
                   </Button>
                 </div>

@@ -3,7 +3,7 @@ import { onRequest } from "firebase-functions/v2/https";
 
 import { appCheckSoft } from "./http/appCheckSoft.js";
 
-import { getAppCheckMode, getEnvBool } from "./lib/env.js";
+import { getAppCheckMode, getEnvBool, hasOpenAI } from "./lib/env.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import {
   stripeSecretKeyParam,
@@ -13,6 +13,9 @@ import {
 } from "./stripe/keys.js";
 
 const usdaFdcApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+const scanDisabledFlag = "SCAN_DISABLED";
+const coachDisabledFlag = "COACH_DISABLED";
+const workoutsDisabledFlag = "WORKOUTS_DISABLED";
 
 type SecretLike = { value(): string | undefined };
 
@@ -44,7 +47,7 @@ export const systemHealth = onRequest(
   },
   async (req, res) => {
     await appCheckSoft(req);
-    const openaiConfigured = envPresent(process.env.OPENAI_API_KEY) || secretPresent(openAiSecretParam);
+    const openaiConfigured = hasOpenAI();
 
     const stripeSecretPresent =
       !!process.env.STRIPE_SECRET ||
@@ -63,6 +66,14 @@ export const systemHealth = onRequest(
     const nutritionConfigured = usdaKeyPresent;
     const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM) || usdaKeyPresent;
     const coachRpmPresent = envPresent(process.env.COACH_RPM);
+    const scanDisabled = getEnvBool(scanDisabledFlag, false);
+    const coachDisabled = getEnvBool(coachDisabledFlag, false);
+    const workoutsDisabled = getEnvBool(workoutsDisabledFlag, false);
+    const scanConfigured = openaiConfigured && !scanDisabled;
+    const scanServicesHealthy = scanConfigured;
+    const coachConfigured = openaiConfigured && !coachDisabled;
+    const workoutsConfigured = !workoutsDisabled;
+    const workoutAdjustConfigured = workoutsConfigured && openaiConfigured;
 
     const identityToolkitReachable = true;
     const identityToolkitReason = openaiConfigured || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
@@ -83,6 +94,11 @@ export const systemHealth = onRequest(
       openaiKeyPresent: openaiConfigured,
       nutritionConfigured,
       openaiConfigured,
+      scanConfigured,
+      scanServicesHealthy,
+      coachConfigured,
+      workoutsConfigured,
+      workoutAdjustConfigured,
       usdaKeyPresent,
       nutritionRpmPresent,
       coachRpmPresent,

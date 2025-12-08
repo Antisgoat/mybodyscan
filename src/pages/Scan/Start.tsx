@@ -11,6 +11,9 @@ import { demoToast } from "@/lib/demoToast";
 import { useAuthUser } from "@/lib/auth";
 import { useUnits } from "@/hooks/useUnits";
 import { kgToLb, lbToKg } from "@/lib/units";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -32,10 +35,26 @@ export default function ScanStart() {
   const demo = useDemoMode();
   const { user } = useAuthUser();
   const readOnlyDemo = demo && !user;
+  const { health: systemHealth } = useSystemHealth();
+  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const scanOffline =
+    !scanConfigured ||
+    systemHealth?.scanConfigured === false ||
+    systemHealth?.openaiConfigured === false ||
+    systemHealth?.openaiKeyPresent === false;
+  const scanPrereqMessage = scanOffline
+    ? systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
+      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be set on Cloud Functions."
+      : "Scanning endpoints are offline until the Cloud Functions base URL is configured."
+    : null;
 
   const goToCapture = () => {
     if (readOnlyDemo) {
       demoToast();
+      return;
+    }
+    if (scanOffline) {
+      setError("Scans are offline for maintenance. Please try again later.");
       return;
     }
     navigate("/scan/capture");
@@ -61,6 +80,10 @@ export default function ScanStart() {
     const normalized = Math.round(asLb * 10) / 10;
     setStoredWeight(normalized);
     setMode("confirm");
+    if (scanOffline) {
+      setError("Scan services are unavailable right now. Please try again later.");
+      return;
+    }
     goToCapture();
   };
 
@@ -73,6 +96,13 @@ export default function ScanStart() {
         <h1 className="text-3xl font-semibold">Start a Scan</h1>
         <p className="text-muted-foreground">Get set to capture four clear progress photos.</p>
       </div>
+
+      {scanPrereqMessage ? (
+        <Alert variant="destructive">
+          <AlertTitle>Scan unavailable</AlertTitle>
+          <AlertDescription>{scanPrereqMessage}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {showInput ? (
         <form onSubmit={handleSave} className="space-y-4">
@@ -102,7 +132,7 @@ export default function ScanStart() {
               <TooltipContent>Sign up to save progress</TooltipContent>
             </Tooltip>
           ) : (
-            <Button type="submit" size="lg">
+            <Button type="submit" size="lg" disabled={scanOffline}>
               Save and continue
             </Button>
           )}
@@ -125,7 +155,7 @@ export default function ScanStart() {
                 <TooltipContent>Sign up to save progress</TooltipContent>
               </Tooltip>
             ) : (
-              <Button size="lg" onClick={goToCapture}>
+              <Button size="lg" onClick={goToCapture} disabled={scanOffline}>
                 Yes
               </Button>
             )}

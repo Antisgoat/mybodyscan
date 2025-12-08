@@ -5,16 +5,29 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent } from "@/components/ui/card";
 import { getWorkouts } from "@/lib/workouts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function WorkoutsCompleted() {
   const [workouts, setWorkouts] = useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
   const [error, setError] = useState<string | null>(null);
+  const { health: systemHealth, error: systemHealthError } = useSystemHealth();
+  const { workoutsConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const workoutsOfflineMessage = workoutsConfigured
+    ? null
+    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to view completions.";
 
   useEffect(() => {
+    if (!workoutsConfigured) {
+      setError(workoutsOfflineMessage ?? "Workouts are disabled in this environment.");
+      setWorkouts(null);
+      return;
+    }
     getWorkouts()
       .then(setWorkouts)
       .catch((err) => setError(err?.message || "Unable to load workouts"));
-  }, []);
+  }, [workoutsConfigured, workoutsOfflineMessage]);
 
   const completedDays = useMemo(() => {
     const today = new Date();
@@ -38,6 +51,18 @@ export default function WorkoutsCompleted() {
           <h1 className="text-2xl font-semibold text-foreground">Completed Workouts</h1>
           <p className="text-sm text-muted-foreground">Keep the streak alive! These were logged over the last 14 days.</p>
         </div>
+        {systemHealthError ? (
+          <Alert variant="destructive">
+            <AlertTitle>System health unavailable</AlertTitle>
+            <AlertDescription>{systemHealthError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {workoutsOfflineMessage ? (
+          <Alert variant="destructive">
+            <AlertTitle>Workouts offline</AlertTitle>
+            <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {completedDays.length === 0 ? (
           <Card>

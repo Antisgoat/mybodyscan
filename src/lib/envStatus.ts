@@ -26,6 +26,8 @@ export type FeatureStatusSummary = {
   functionsConfigured: boolean;
   scanConfigured: boolean;
   coachConfigured: boolean;
+  workoutsConfigured: boolean;
+  workoutAdjustConfigured: boolean;
   nutritionConfigured: boolean;
   healthConfigured: boolean;
 };
@@ -47,24 +49,43 @@ export type RemoteHealth = {
   usdaKeyPresent?: boolean;
   coachRpmPresent?: boolean;
   stripeSecretPresent?: boolean;
+  workoutsConfigured?: boolean;
+  workoutAdjustConfigured?: boolean;
+  scanServicesHealthy?: boolean;
 };
 
 export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStatusSummary {
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
+  const functionsOrigin = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
+  const projectId = readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
   const stripeKey = readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
   const coachRpm = readEnv("VITE_COACH_RPM");
   const healthConnector = readEnv("VITE_HEALTH_CONNECT");
 
   const firebaseReady = firebaseConfigMissingKeys.length === 0;
-  const functionsConfigured = Boolean(functionsUrl);
+  const functionsConfigured = Boolean(functionsUrl || functionsOrigin || projectId);
   const openaiConfigured = remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent;
   const scanConfigured =
-    remoteHealth?.scanConfigured ?? openaiConfigured ?? (functionsConfigured || Boolean(scanStartUrl));
+    typeof remoteHealth?.scanConfigured === "boolean"
+      ? remoteHealth.scanConfigured
+      : Boolean(openaiConfigured || functionsConfigured || scanStartUrl);
   const stripeMode = describeStripeEnvironment();
   const stripeConfigured =
     stripeMode !== "missing" || remoteHealth?.stripeSecretPresent === true || Boolean(stripeKey);
-  const coachConfigured = remoteHealth?.coachConfigured ?? remoteHealth?.coachRpmPresent ?? openaiConfigured ?? Boolean(coachRpm);
+  const coachConfigured =
+    typeof remoteHealth?.coachConfigured === "boolean"
+      ? remoteHealth.coachConfigured
+      : Boolean(remoteHealth?.coachRpmPresent || openaiConfigured || coachRpm);
+  const workoutsConfigured =
+    typeof remoteHealth?.workoutsConfigured === "boolean" ? remoteHealth.workoutsConfigured : functionsConfigured;
+  const workoutAdjustConfigured =
+    typeof remoteHealth?.workoutAdjustConfigured === "boolean"
+      ? remoteHealth.workoutAdjustConfigured
+      : Boolean(
+          workoutsConfigured &&
+            (remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent ?? openaiConfigured ?? false),
+        );
   const nutritionConfigured =
     remoteHealth?.nutritionConfigured ??
     remoteHealth?.usdaKeyPresent ??
@@ -98,10 +119,14 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
     {
       id: "workouts",
       label: "Workouts",
-      configured: functionsConfigured,
+      configured: workoutsConfigured,
       okLabel: "Functions ready",
       warnLabel: "Functions URL missing",
-      detail: functionsConfigured ? undefined : "Set VITE_FUNCTIONS_URL to enable workout APIs.",
+      detail: workoutsConfigured
+        ? workoutAdjustConfigured
+          ? undefined
+          : "AI adjustments limited until OPENAI_API_KEY is configured."
+        : "Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workout APIs.",
     },
     {
       id: "coach",
@@ -159,6 +184,8 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
     functionsConfigured,
     scanConfigured,
     coachConfigured,
+    workoutsConfigured,
+    workoutAdjustConfigured,
     nutritionConfigured,
     healthConfigured,
   };

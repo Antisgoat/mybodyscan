@@ -6,13 +6,27 @@ import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getWorkouts, type WorkoutDay } from "@/lib/workouts";
 import { WorkoutStreakChart } from "@/components/charts/WorkoutStreakChart";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function WorkoutsLibrary() {
   const [workouts, setWorkouts] = useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { health: systemHealth, error: systemHealthError } = useSystemHealth();
+  const { workoutsConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const workoutsOfflineMessage = workoutsConfigured
+    ? null
+    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable the library.";
 
   useEffect(() => {
+    if (!workoutsConfigured) {
+      setWorkouts(null);
+      setLoading(false);
+      setError(workoutsOfflineMessage ?? "Workouts are disabled in this environment.");
+      return;
+    }
     setLoading(true);
     getWorkouts()
       .then(setWorkouts)
@@ -20,7 +34,7 @@ export default function WorkoutsLibrary() {
         setError(err?.message || "Unable to load workouts");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [workoutsConfigured, workoutsOfflineMessage]);
 
   const todayPlan: WorkoutDay | null = useMemo(() => {
     if (!workouts?.days?.length) return null;
@@ -50,6 +64,18 @@ export default function WorkoutsLibrary() {
           <h1 className="text-2xl font-semibold text-foreground">Workout Library</h1>
           <p className="text-sm text-muted-foreground">Today’s plan plus on-demand sessions to swap in.</p>
         </div>
+        {systemHealthError ? (
+          <Alert variant="destructive">
+            <AlertTitle>System health unavailable</AlertTitle>
+            <AlertDescription>{systemHealthError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {workoutsOfflineMessage ? (
+          <Alert variant="destructive">
+            <AlertTitle>Workouts offline</AlertTitle>
+            <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {loading && (
           <Card>

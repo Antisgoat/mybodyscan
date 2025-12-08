@@ -10,6 +10,11 @@ export interface SystemHealthSnapshot {
   nutritionConfigured?: boolean;
   coachRpmPresent?: boolean;
   nutritionRpmPresent?: boolean;
+  scanConfigured?: boolean;
+  scanServicesHealthy?: boolean;
+  coachConfigured?: boolean;
+  workoutsConfigured?: boolean;
+  workoutAdjustConfigured?: boolean;
   [key: string]: unknown;
 }
 
