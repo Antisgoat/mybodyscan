@@ -178,8 +178,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
-      allow update: if !isDemoUser() && isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
+      allow create: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
+      allow update: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
       allow delete: if false;
 
       match /scans/{scanId} {
@@ -212,7 +212,7 @@ service cloud.firestore {
 
       match /meta/onboarding {
         allow read: if isOwner(uid);
-        allow write: if !isDemoUser() && isOwner(uid) && isValidOnboardingMetaWrite();
+        allow write: if isOwner(uid) && isValidOnboardingMetaWrite();
       }
 
       match /{document=**} {
