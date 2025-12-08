@@ -5,6 +5,7 @@ import { BUILD } from "@/lib/build";
 import { cameraReadyOnThisDevice, hasGetUserMedia, isSecureContextOrLocal, isNativeCapacitor } from "@/lib/platform";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Badge } from "@/components/ui/badge";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 type Health = Record<string, any> | null;
 
@@ -13,7 +14,8 @@ export default function SystemCheckPage() {
   const [health, setHealth] = useState<Health>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { statuses: featureStatuses } = computeFeatureStatuses();
+  const { health: systemHealth } = useSystemHealth();
+  const { statuses: featureStatuses } = computeFeatureStatuses(systemHealth ?? undefined);
 
   async function runChecks() {
     setBusy(true);

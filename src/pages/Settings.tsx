@@ -39,6 +39,7 @@ import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useUnits } from "@/hooks/useUnits";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -64,7 +65,8 @@ const Settings = () => {
   const demoMode = useDemoMode();
   const [appCheckStatus, setAppCheckStatus] = useState<"checking" | "present" | "absent">("checking");
   const { units } = useUnits();
-  const { statuses: featureStatuses, stripeMode, stripeConfigured } = computeFeatureStatuses();
+  const { health: systemHealth } = useSystemHealth();
+  const { statuses: featureStatuses, stripeMode, stripeConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";

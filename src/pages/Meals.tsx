@@ -38,6 +38,7 @@ import NutritionSearch from "@/features/meals/NutritionSearch";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -75,7 +76,7 @@ export default function Meals() {
   const { user, authReady } = useAuthUser();
   const uid = authReady ? user?.uid ?? null : null;
   const { health: systemHealth } = useSystemHealth();
-  const nutritionConfigured = systemHealth?.nutritionConfigured;
+  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const nutritionUnavailable = nutritionConfigured === false;
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
