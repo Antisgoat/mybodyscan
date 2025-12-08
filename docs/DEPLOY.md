@@ -1,57 +1,68 @@
 # Deploying MyBodyScan
 
-## Secrets
-Use Google Cloud Secret Manager for all sensitive values (do **not** rely on `functions.config()`).
+## Configuration to verify
 
-Required secrets:
+1. **Frontend env (`.env.production.local`)**  
+   Populate the same keys described in `docs/GO-LIVE.md` (`VITE_FIREBASE_*`, `VITE_APPCHECK_SITE_KEY`, `VITE_FUNCTIONS_URL`, `VITE_STRIPE_PUBLISHABLE_KEY`, etc.). Keep the file untracked.
 
-- `USDA_FDC_API_KEY`
-- `STRIPE_SECRET`
-- `STRIPE_WEBHOOK`
-- `OPENAI_API_KEY`
+2. **Rules parity**  
+   Run `npm run rules:check`. It fails if `database.rules.json` and `firestore.rules` drift, which would otherwise break `firebase deploy`.
 
-Set the production keys for project `mybodyscan-f3daf` with:
-
-```bash
-cd functions
-firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
-firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
-```
-
-Paste the real values when prompted; they will populate `process.env.USDA_FDC_API_KEY` and `process.env.OPENAI_API_KEY` at runtime.
+3. **Functions secrets**  
+   All runtime secrets live in Firebase (project `mybodyscan-f3daf`). Run once per rotation:
+   ```bash
+   cd functions
+   firebase functions:secrets:set HOST_BASE_URL --project mybodyscan-f3daf
+   firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project mybodyscan-f3daf
+   firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
+   firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
+   firebase functions:secrets:set STRIPE_SECRET --project mybodyscan-f3daf
+   firebase functions:secrets:set STRIPE_SECRET_KEY --project mybodyscan-f3daf
+   firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --project mybodyscan-f3daf
+   # optional throttles / feature gates
+   firebase functions:secrets:set COACH_RPM --project mybodyscan-f3daf
+   firebase functions:secrets:set NUTRITION_RPM --project mybodyscan-f3daf
+   ```
+   - `HOST_BASE_URL` should match the primary domain (e.g. `https://mybodyscanapp.com`).
+   - `APP_CHECK_ALLOWED_ORIGINS` is a comma-delimited list of HTTPS origins permitted when App Check strict mode is enabled later.
+   - Stripe requires **all three** secrets above; OpenAI scans/coaching and USDA nutrition rely on their respective keys.
 
 ## Build & deploy
 
-```
-# From a clean checkout on the deploy box
+The repo is wired for Node 18+/Bun, but production deploys should use the same steps as CI:
+
+```bash
 git checkout main
 git pull --rebase origin main
 
-# Install and build the web + functions bundles
-bun install
-bun run build
+npm ci
+npm run build                      # outputs dist/ for Hosting
+npm --prefix functions run ci-or-install
+npm --prefix functions run build   # compiles Functions to lib/
 
-# Deploy hosting + functions to production
-npx firebase-tools deploy --only functions,hosting --project mybodyscan-f3daf --force
+npm run rules:check
+
+npx firebase-tools deploy --only hosting,functions --project mybodyscan-f3daf
 ```
+
+Notes:
+- Hosting serves the `dist` directory and rewrites every SPA route plus `/api/*`, `/system/*`, `/workouts/*`, `/telemetry/log`, `/admin/*`, etc. to Cloud Functions.
+- `firebase.json` already attaches the required predeploy scripts, so `firebase deploy` from CI will also run dependency install + build steps.
 
 ## Post-deploy checklist
 
-1. Verify caching headers:
-   - `curl -I https://mybodyscanapp.com` → `Cache-Control: no-store` for `index.html`.
-   - `curl -I https://mybodyscanapp.com/assets/<asset>.js` → `Cache-Control: public, max-age=31536000, immutable`.
-2. Confirm build metadata is current:
-   - Visit `https://mybodyscanapp.com/build.txt` and ensure `sha` matches the deployed commit.
-3. Smoke-test demo mode:
-   - Browse `https://mybodyscanapp.com/welcome?demo=1` and confirm no seeded data appears.
+1. **Headers + caching**
+   - `curl -I https://mybodyscanapp.com` → `Cache-Control: no-store` on `index.html`.
+   - `curl -I https://mybodyscanapp.com/assets/<bundle>.js` → `Cache-Control: public, max-age=31536000, immutable`.
+2. **Runtime health**
+   - Visit `/settings` → Feature availability and `/system/check`; expect all rows to read “Ready/Configured”. Missing rows should include actionable hints (“Add USDA_FDC_API_KEY secret”, etc.).
+   - Trigger `/api/system/health` via the button in `/system/check`; expect HTTP 200 with OpenAI/Stripe/USDA flags = `true`.
+3. **Critical flows**
+   - Sign in, start a scan, and confirm status transitions `queued → processing → completed` and credits decrement.
+   - Run a Meals search (“chicken”); expect USDA results. If not, confirm `USDA_FDC_API_KEY` secret is correct.
+   - Open Coach chat; prompts should respond within policy limits. Missing OpenAI or `COACH_RPM` causes the UI to show “Configure OpenAI backend”.
+   - From `/settings`, open the Stripe customer portal; it should redirect through `HOST_BASE_URL`.
+4. **Demo mode sanity**
+   - Browse `https://mybodyscanapp.com/welcome?demo=1`; ensure write actions remain blocked and diagnostics show “Demo ON”.
 
-## Final verification checklist
-
-- Secrets in Secret Manager include: `USDA_FDC_API_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK`, and `OPENAI_API_KEY`.
-- Deploy command: `npx firebase-tools deploy --only functions,hosting --project mybodyscan-f3daf --force`
-- Post-deploy manual tests:
-  - https://mybodyscanapp.com → footer build tag matches latest commit.
-  - https://mybodyscanapp.com/welcome?demo=1 → browse freely, ensure write actions are blocked and no seeded calories appear.
-  - Meals search “chicken” → confirm live USDA results; Open Food Facts fallback banner shows only if USDA fails.
-  - Sign in as developer@adlrlabs.com → verify 3 free credits, run an end-to-end scan, confirm status transitions, and result saved under `users/{uid}/scans`.
-  - Coach Chat responds to a prompt and Regenerate Plan refreshes the weekly card.
+Document any failing step (include console/log snippets) before retrying the deploy. The runbook in `docs/GO-LIVE.md` should be updated whenever a new env key or secret is introduced.

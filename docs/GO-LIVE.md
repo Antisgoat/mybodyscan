@@ -1,64 +1,102 @@
 # Go-Live Runbook
 
-This guide lets an operator ship production updates without touching a local terminal.
+This guide explains how to prepare configuration, secrets, and documentation so a non-technical deployer can ship MyBodyScan safely.
 
-## 1. Configure secrets
-Create or verify the following secrets in GitHub Actions or Firebase Functions. Keep only the names—never paste real values in documentation.
+## 1. Environment + secrets
 
-```
-HOST_BASE_URL=https://mybodyscanapp.com
-APP_CHECK_ALLOWED_ORIGINS=https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app,https://mybodyscan-f3daf.firebaseapp.com
-APP_CHECK_ENFORCE_SOFT=true
-OPENAI_API_KEY=*****
-# Optional
-STRIPE_SECRET=*****
-```
+### Frontend (.env.production.local)
+The Vite build reads `.env.production.local` at the repo root. Copy `.env.example`, populate the placeholders, and keep the file out of git.
 
-### Setting API keys for production (project: mybodyscan-f3daf)
+| Key | Purpose |
+| --- | --- |
+| `VITE_FIREBASE_API_KEY` + companion Firebase keys | Web SDK config for Hosting (`authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`, `measurementId`). |
+| `VITE_APPCHECK_SITE_KEY` (ReCaptcha v3) | Required for App Check; production keys must list `mybodyscanapp.com`, `www.mybodyscanapp.com`, and the Firebase Hosting domains as allowed origins. |
+| `VITE_FUNCTIONS_URL` *or* `VITE_FUNCTIONS_ORIGIN` / `VITE_FUNCTIONS_BASE_URL` | Base URL for callable + REST Cloud Functions (workouts, nutrition, scans, system health). |
+| `VITE_SCAN_START_URL`, `VITE_SCAN_SUBMIT_URL` (optional) | Overrides for dedicated scan capture endpoints when fronting Functions via another origin. |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Publishable key used by Stripe.js and Settings → Support. |
+| `VITE_ENABLE_GOOGLE`, `VITE_ENABLE_APPLE`, `VITE_ENABLE_EMAIL`, `VITE_ENABLE_DEMO` | Feature flags for auth buttons; keep them `true` in production. |
+| `VITE_HEALTH_CONNECT` | Set to `"true"` only when health connectors are ready to ship. |
+| `VITE_COACH_RPM`, `VITE_PRICE_*` entries, etc. | Optional tuning knobs surfaced in Plans/Coach diagnostics; omit when defaults are acceptable. |
 
-Use Firebase Functions secrets so the keys stay server-side and never ship to the browser:
+The build will fall back to baked-in Firebase config if the env file is missing, but Stripe, scans, and nutrition will show “Missing” badges in `/settings` and `/system/check`.
+
+### Cloud Functions runtime configuration
+`firebase.json` already pins `runtime: nodejs20`, `source: functions`, and default environment variables (`APPCHECK_MODE=soft`, auth provider flags, etc.). All sensitive values must flow through **Firebase Functions secrets**:
 
 ```bash
 cd functions
-firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
+
+# App + host
+firebase functions:secrets:set HOST_BASE_URL --project mybodyscan-f3daf         # e.g. https://mybodyscanapp.com
+firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project mybodyscan-f3daf
+
+# Third-party services
 firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
+firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
+firebase functions:secrets:set STRIPE_SECRET --project mybodyscan-f3daf
+firebase functions:secrets:set STRIPE_SECRET_KEY --project mybodyscan-f3daf
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --project mybodyscan-f3daf
+
+# Optional throttles / feature gates
+firebase functions:secrets:set COACH_RPM --project mybodyscan-f3daf             # e.g. 10 requests/min
+firebase functions:secrets:set NUTRITION_RPM --project mybodyscan-f3daf         # e.g. 30 requests/min
 ```
 
-When prompted, paste your real USDA and OpenAI keys. These commands load the values into `process.env.USDA_FDC_API_KEY` and `process.env.OPENAI_API_KEY` at runtime. Do **not** commit the values to git.
+Guidance:
+- Never paste real keys in docs or code. Use the CLI above (or Firebase Console → Build → Functions → Secrets) and store values in Secret Manager.
+- Leave `APPCHECK_MODE=soft` until App Check hard enforcement is green for all clients. To harden, change the env var in `firebase.json` and redeploy Functions.
+- `HOST_BASE_URL` controls Stripe redirect URLs; update it before switching domains.
 
-### Frontend env (.env.production.local)
-- All production-safe defaults are already baked into the repo for Hosting deploys (Firebase web config, marketing flags, and demo toggles).
-- You only need to create `.env.production.local` when overriding defaults (for previews or non-production projects).
-- If the file is absent, the app still boots and the UI will clearly mark any unavailable features (Stripe, nutrition, coach, etc.).
+### Rules parity
+We ship the same Firestore logic in both `database.rules.json` (used by tests) and `firestore.rules` (used by deploys). Run `npm run rules:check` before go-live; it fails if the files diverge.
 
-## No-Mock Policy
+## 2. No-mock policy
 
-- `OPENAI_API_KEY` must be set as a **Functions variable** via the Firebase Console or CLI before running any scans.
-- If `OPENAI_API_KEY` is missing, `POST /api/scan/submit` returns HTTP `503` with `openai_not_configured` and no mock data is generated.
-- Visit `/system/check` in production to verify OpenAI, Stripe, and App Check status before go-live.
+- Scans, coach chat, and workouts will refuse to run without `OPENAI_API_KEY`. `/system/check` and `/settings` surface the missing-secret detail; `/api/scan/submit` returns `503 openai_not_configured`.
+- Nutrition search requires either `USDA_FDC_API_KEY` or a `NUTRITION_RPM` override. Without them the UI shows “Meals search: Keys missing”.
+- Stripe requires *both* the publishable key (Vite env) and the three backend secrets. Missing pieces disable checkout, customer portal, and webhooks.
 
-## 2. Deploy
-Preferred: trigger **Firebase Deploy** workflow in GitHub Actions (`.github/workflows/firebase-deploy.yml`).
+## 3. Deploy
 
-1. Navigate to **Actions → Firebase Deploy → Run workflow**.
-2. Ensure the desired branch is selected (default: `work`).
-3. Press **Run workflow** for a one-click deploy.
+### Preferred (GitHub Actions)
+Use `.github/workflows/firebase-deploy.yml`:
+1. GitHub → **Actions → Firebase Deploy → Run workflow**.
+2. Choose the branch to deploy (default `main`).
+3. Click **Run workflow**. The workflow runs `npm run verify:local`, `npm --prefix functions run build`, then `firebase deploy --only hosting,functions --project mybodyscan-f3daf`.
 
-Fallback: run `firebase deploy --only functions,hosting` via the Firebase CLI with the same secrets configured locally.
+### Fallback (CLI)
 
-## 3. Post-deploy checks
-Perform these immediately after the deployment finishes:
+```bash
+git checkout main
+git pull --rebase origin main
 
-- Load `https://mybodyscanapp.com/` — login or home screen should render.
-- Confirm Google and Apple authentication buttons are visible.
-- Navigate to **Scan**, **Nutrition**, **Coach**, and **Settings** pages and watch the console for errors (should be clean).
-- Visit `/system/check` to confirm OpenAI shows **Configured** and App Check mode is expected.
-- Trigger a scan; if `OPENAI_API_KEY` is misconfigured the endpoint should return HTTP `503 openai_not_configured` by design.
-- Call payments endpoints; when Stripe secrets are absent the API should respond with HTTP `501 Not Implemented`.
+npm install
+npm run build
+npm --prefix functions run build
+npm run rules:check
 
-## 4. Smoke tests
-For automated coverage, run the Playwright E2E suite locally when needed:
+npx firebase-tools deploy --only hosting,functions --project mybodyscan-f3daf
+```
+
+Hosting serves the contents of `dist`, and rewrites route `/api/*`, `/workouts/*`, `/system/*`, `/admin/*`, etc. to the deployed Functions.
+
+## 4. Post-deploy checks
+
+Perform these immediately after Hosting + Functions finish:
+
+- `https://mybodyscanapp.com/` loads without console errors; Google/Apple buttons render.
+- `/scan`, `/coach`, `/meals`, and `/workouts` all show their feature cards instead of “Missing URL” banners.
+- `/settings` → Feature availability shows green for Firebase, scans, nutrition, workouts, Stripe, and health (if intentionally enabled). Missing pieces should include actionable text (e.g. “Add USDA_FDC_API_KEY secret”).
+- `/system/check` and `/settings/system-check` display App Check = soft, OpenAI/Stripe = Configured, and show real API responses from `/api/system/health`.
+- Trigger a scan in production; status transitions should reach `completed`, and credits decrement appropriately.
+- Hit the customer portal from `/settings` → “Open billing portal”; expect Stripe to open with a valid session. Missing secrets should return `501 payments_disabled`.
+
+## 5. Smoke tests
+
+For automated coverage:
 
 ```bash
 BASE_URL=https://mybodyscanapp.com npm run test:e2e
 ```
+
+Run selectively after major UI or auth changes to catch regressions in scan, coach, nutrition, and settings flows.

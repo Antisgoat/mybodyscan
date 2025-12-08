@@ -93,6 +93,57 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
     Boolean(functionsConfigured);
   const healthConfigured = Boolean(healthConnector);
 
+  const scanServicesHealthy = remoteHealth?.scanServicesHealthy;
+  const usdaKeyPresent = remoteHealth?.usdaKeyPresent;
+  const nutritionRpmPresent = remoteHealth?.nutritionRpmPresent;
+  const coachRpmPresent = remoteHealth?.coachRpmPresent;
+
+  const firebaseDetail = firebaseReady
+    ? "Using baked-in Firebase web config."
+    : `Missing: ${firebaseConfigMissingKeys.join(", ")}. Add the Firebase web keys to .env.production.local.`;
+
+  const scanWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Needs config";
+  const scanDetail = scanConfigured
+    ? scanServicesHealthy === false
+      ? "Function reachable but reported unhealthy; check Cloud Functions logs."
+      : undefined
+    : openaiConfigured === false
+      ? "Add OPENAI_API_KEY via firebase functions:secrets:set before running scans."
+      : functionsConfigured
+        ? "Deploy scan handlers and confirm /api/system/health responds."
+        : "Set VITE_FUNCTIONS_URL or dedicated scan endpoints.";
+
+  const workoutsDetail = workoutsConfigured
+    ? workoutAdjustConfigured
+      ? undefined
+      : "AI adjustments disabled until OPENAI_API_KEY secret is configured."
+    : "Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workout APIs.";
+
+  const coachWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Throttle missing";
+  const coachDetail = coachConfigured
+    ? undefined
+    : openaiConfigured === false
+      ? "Add OPENAI_API_KEY via firebase functions:secrets:set."
+      : coachRpmPresent === false
+        ? "Set COACH_RPM secret to un-throttle chat completions."
+        : "Deploy coachChat Function and confirm /api/system/health passes.";
+
+  const nutritionDetail = nutritionConfigured
+    ? undefined
+    : usdaKeyPresent === false
+      ? "Add USDA_FDC_API_KEY via firebase functions:secrets:set."
+      : nutritionRpmPresent === false
+        ? "Set NUTRITION_RPM secret to control USDA usage."
+        : "Provide USDA/OpenFoodFacts keys or enable the nutrition proxy in Functions.";
+
+  const stripeDetail = stripeConfigured
+    ? undefined
+    : "Set VITE_STRIPE_PUBLISHABLE_KEY and functions secrets STRIPE_SECRET/STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET.";
+
+  const healthDetail = healthConfigured
+    ? "Connector flag detected."
+    : "Leave disabled until VITE_HEALTH_CONNECT is intentionally enabled.";
+
   const statuses: FeatureStatus[] = [
     {
       id: "firebase",
@@ -100,21 +151,15 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: firebaseReady,
       okLabel: "Ready",
       warnLabel: "Missing keys",
-      detail: firebaseReady
-        ? "Using baked-in Firebase web config."
-        : `Missing: ${firebaseConfigMissingKeys.join(", ")}`,
+      detail: firebaseDetail,
     },
     {
       id: "scans",
       label: "Body scans",
       configured: scanConfigured,
       okLabel: "Configured",
-      warnLabel: "Missing URL",
-      detail: scanConfigured
-        ? undefined
-        : openaiConfigured === false
-          ? "AI engine unavailable; configure OPENAI_API_KEY."
-          : "Set VITE_FUNCTIONS_URL or VITE_SCAN_START_URL.",
+      warnLabel: scanWarnLabel,
+      detail: scanDetail,
     },
     {
       id: "workouts",
@@ -122,23 +167,15 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: workoutsConfigured,
       okLabel: "Functions ready",
       warnLabel: "Functions URL missing",
-      detail: workoutsConfigured
-        ? workoutAdjustConfigured
-          ? undefined
-          : "AI adjustments limited until OPENAI_API_KEY is configured."
-        : "Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workout APIs.",
+      detail: workoutsDetail,
     },
     {
       id: "coach",
       label: "Coach chat",
       configured: coachConfigured,
       okLabel: "Enabled",
-      warnLabel: "COACH_RPM missing",
-      detail: coachConfigured
-        ? undefined
-        : openaiConfigured === false
-          ? "AI engine unavailable; configure OPENAI_API_KEY."
-          : "Set COACH_RPM to un-throttle chat completions.",
+      warnLabel: coachWarnLabel,
+      detail: coachDetail,
     },
     {
       id: "nutrition",
@@ -146,9 +183,7 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: nutritionConfigured,
       okLabel: "Enabled",
       warnLabel: "Keys missing",
-      detail: nutritionConfigured
-        ? undefined
-        : "Provide USDA/OpenFoodFacts keys or NUTRITION_RPM to enable food lookups.",
+      detail: nutritionDetail,
     },
     {
       id: "stripe",
@@ -163,7 +198,7 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
               ? "Custom key"
               : "Stripe ready",
       warnLabel: "Stripe key missing",
-      detail: stripeConfigured ? undefined : "Set VITE_STRIPE_PUBLISHABLE_KEY or VITE_STRIPE_PK.",
+      detail: stripeDetail,
     },
     {
       id: "health",
@@ -171,9 +206,7 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: healthConfigured,
       okLabel: "Configured",
       warnLabel: "Coming soon",
-      detail: healthConfigured
-        ? "Connector flag detected."
-        : "Health connectors are intentionally disabled until native integrations ship.",
+      detail: healthDetail,
     },
   ];
 
