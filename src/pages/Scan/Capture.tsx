@@ -4,14 +4,25 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Seo } from "@/components/Seo";
 import ScanCaptureComponent, { type CaptureReady } from "@/features/scan/ScanCapture";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function ScanCapture() {
   const [readyPayload, setReadyPayload] = useState<CaptureReady | null>(null);
   const appCheck = useAppCheckStatus();
-  const functionsConfigured = Boolean(
-    (import.meta.env.VITE_FUNCTIONS_URL ?? "").trim() || (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
-  );
-  const blocked = appCheck.status === "missing" || !functionsConfigured;
+  const { health: systemHealth } = useSystemHealth();
+  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const scanOffline =
+    !scanConfigured ||
+    systemHealth?.scanConfigured === false ||
+    systemHealth?.openaiConfigured === false ||
+    systemHealth?.openaiKeyPresent === false;
+  const blocked = appCheck.status === "missing" || scanOffline;
+  const scanPrereqMessage = scanOffline
+    ? systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
+      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before uploads are enabled."
+      : "Scan endpoints are offline until the Cloud Functions base URL is set."
+    : null;
 
   function handleReady(payload: CaptureReady) {
     setReadyPayload(payload);
@@ -34,11 +45,12 @@ export default function ScanCapture() {
               </AlertDescription>
             </Alert>
           ) : null}
-          {!functionsConfigured ? (
+
+          {scanPrereqMessage ? (
             <Alert variant="destructive" className="mb-3">
               <AlertTitle>Scanning service unavailable</AlertTitle>
               <AlertDescription>
-                The scan service URL is not configured. Add VITE_FUNCTIONS_URL to continue.
+                {scanPrereqMessage}
               </AlertDescription>
             </Alert>
           ) : null}
