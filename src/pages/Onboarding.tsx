@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Section } from "@/components/ui/section";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { sanitizeReturnTo } from "@/lib/returnTo";
 import { toast } from "@/hooks/use-toast";
 import HeightInputUS from "@/components/HeightInputUS";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
@@ -215,6 +216,7 @@ const validateForCompletion = (form: OnboardingForm): string | null => {
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthUser();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<OnboardingForm>(DEFAULT_FORM);
@@ -228,6 +230,13 @@ export default function Onboarding() {
   const lastPersistedPayloadRef = useRef<string>(EMPTY_SERIALIZED_PROGRESS);
   const completedRef = useRef(false);
   const metaInitializedRef = useRef(false);
+
+  const returnToTarget = useMemo(
+    () => sanitizeReturnTo(searchParams.get("returnTo")),
+    [searchParams],
+  );
+
+  const destinationAfterOnboarding = returnToTarget ?? POST_ONBOARDING_ROUTE;
 
   const userDocRef = useMemo(
     () => (user?.uid && db ? doc(db, "users", user.uid) : null),
@@ -264,7 +273,7 @@ export default function Onboarding() {
           const metaData = metaSnap.data() as Record<string, unknown>;
           if (metaData.completed === true) {
             completedRef.current = true;
-            navigate(POST_ONBOARDING_ROUTE, { replace: true });
+            navigate(destinationAfterOnboarding, { replace: true });
             return;
           }
 
@@ -311,7 +320,7 @@ export default function Onboarding() {
     return () => {
       cancelled = true;
     };
-  }, [user?.uid, userDocRef, onboardingDocRef, navigate, reloadToken, db]);
+  }, [user?.uid, userDocRef, onboardingDocRef, navigate, reloadToken, db, destinationAfterOnboarding]);
 
   const persistMeta = useCallback(
     async (payload: PersistMetaPayload, opts: { silent?: boolean } = {}) => {
@@ -439,7 +448,7 @@ export default function Onboarding() {
       lastPersistedPayloadRef.current = serializeProgress(STEP_TITLES.length - 1, sanitized);
       completedRef.current = true;
       toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
-      navigate(POST_ONBOARDING_ROUTE, { replace: true });
+      navigate(destinationAfterOnboarding, { replace: true });
     } catch (err: any) {
       const message = err?.message || "Please try again.";
       toast({ title: "Error saving profile", description: message, variant: "destructive" });
