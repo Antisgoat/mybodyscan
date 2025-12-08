@@ -10,6 +10,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isStaff() {
+      return request.auth != null && request.auth.token.staff == true;
+    }
+
     function isDemoByClaim() {
       return isSignedIn() && (request.auth.token.demo == true);
     }
@@ -26,8 +30,16 @@ service cloud.firestore {
       return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId'];
     }
 
+    function clientPreservesServerFields() {
+      let incomingKeys = request.resource.data.keys();
+      let changedKeys = exists(resource.name)
+        ? request.resource.data.diff(resource.data).changedKeys()
+        : incomingKeys;
+      return !incomingKeys.hasAny(serverOwnedKeys()) && !changedKeys.hasAny(serverOwnedKeys());
+    }
+
     function isWritingServerOwnedFields() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOwnedKeys());
+      return !clientPreservesServerFields();
     }
 
     function onboardingFieldKeys() {
@@ -102,16 +114,13 @@ service cloud.firestore {
           (request.resource.data.step is int && request.resource.data.step >= 0 && request.resource.data.step <= 4))
         && (!changedKeys.hasAny(['draft']) ||
           !incomingKeys.hasAny(['draft']) ||
-          isValidOnboardingMap(request.resource.data.draft));
+          isValidOnboardingMap(request.resource.data.draft))
+      );
     }
 
     function onboardingFieldChanged() {
       let hasOnboarding = request.resource.data.keys().hasAny(['onboarding']);
       let docExists = exists(resource.name);
-
-      // If there is no onboarding field in the incoming data, nothing changed.
-      // If the doc doesn't exist yet, onboarding is considered "changed".
-      // Otherwise, we check the diff for the onboarding field.
       return hasOnboarding &&
         (!docExists ||
           request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']));
@@ -135,6 +144,12 @@ service cloud.firestore {
     match /app/{docId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    match /events/telemetry/{eventId} {
+      allow create: if isSignedIn();
+      allow read: if isStaff();
+      allow update, delete: if false;
     }
 
     match /users/{uid} {
@@ -254,13 +269,21 @@ service cloud.firestore {
     }
 
     match /stripeEvents/{eventId} {
-      allow read: if request.auth != null && request.auth.token.staff == true;
+      allow read: if isStaff();
       allow write: if false;
     }
 
     match /telemetryEvents/{eventId} {
-      allow read: if request.auth != null && request.auth.token.staff == true;
+      allow read: if isStaff();
       allow write: if false;
+    }
+
+    match /stripe_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -97,15 +97,14 @@ const describeDraftError = (error: unknown): DraftErrorState => {
   if (code && PERMISSION_ERROR_CODES.has(code)) {
     return {
       title: "Permission required",
-      description:
-        "You don’t have permission to save onboarding yet. Please sign out and sign back in, or contact support.",
+      description: "Sign out and back in.",
       kind: "permission",
     };
   }
   if (code && NETWORK_ERROR_CODES.has(code)) {
     return {
       title: "Offline?",
-      description: "Can't save progress right now. We'll retry automatically.",
+      description: "We’ll retry automatically.",
       kind: "network",
     };
   }
