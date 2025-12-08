@@ -1,10 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { computeFeatureStatuses } from "@/lib/envStatus";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function NutritionSearch() {
   const { loading: authLoading } = useAuthUser();
+  const { statuses } = useMemo(() => computeFeatureStatuses(), []);
+  const nutritionConfigured = statuses.find((status) => status.id === "nutrition")?.configured !== false;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +21,11 @@ export default function NutritionSearch() {
     setError(null);
     setResults(null);
     if (!q.trim()) {
+      setHasSearched(false);
+      return;
+    }
+    if (!nutritionConfigured) {
+      setError("Nutrition search is offline until API keys or RPM are configured.");
       setHasSearched(false);
       return;
     }
@@ -60,6 +69,15 @@ export default function NutritionSearch() {
 
   return (
     <div className="space-y-3">
+      {!nutritionConfigured && (
+        <Alert variant="destructive">
+          <AlertTitle>Nutrition search unavailable</AlertTitle>
+          <AlertDescription>
+            Food lookups and barcode scanning are disabled until nutrition API keys or rate-limit configs are added. You can
+            still view existing logs.
+          </AlertDescription>
+        </Alert>
+      )}
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           data-testid="nutrition-search-input"
@@ -68,12 +86,12 @@ export default function NutritionSearch() {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search foods (e.g., chicken breast, oatmeal or barcode)…"
           className="w-full rounded-md border px-3 py-2 text-sm"
-          disabled={authLoading || busy}
+          disabled={authLoading || busy || !nutritionConfigured}
         />
         <button
           data-testid="nutrition-search-button"
           type="submit"
-          disabled={!q.trim() || busy}
+          disabled={!q.trim() || busy || !nutritionConfigured}
           className="rounded-md border px-3 py-2 text-sm"
         >
           {busy ? "Searching…" : "Search"}
@@ -83,6 +101,7 @@ export default function NutritionSearch() {
           onClick={() => setScanOpen(true)}
           className="rounded-md border px-3 py-2 text-sm"
           aria-label="Scan barcode"
+          disabled={!nutritionConfigured}
         >
           Scan
         </button>

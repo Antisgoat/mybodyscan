@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { startScanSessionClient, submitScanClient } from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { useUnits } from "@/hooks/useUnits";
+import { lbToKg } from "@/lib/units";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 interface PhotoInputs {
   front: File | null;
@@ -12,12 +16,15 @@ interface PhotoInputs {
 
 export default function ScanPage() {
   const { user, loading: authLoading } = useAuthUser();
+  const { units } = useUnits();
   const nav = useNavigate();
   const [currentWeight, setCurrentWeight] = useState("");
   const [goalWeight, setGoalWeight] = useState("");
   const [photos, setPhotos] = useState<PhotoInputs>({ front: null, back: null, left: null, right: null });
   const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
   const [error, setError] = useState<string | null>(null);
+  const { statuses } = computeFeatureStatuses();
+  const scanConfigured = statuses.find((status) => status.id === "scans")?.configured !== false;
 
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
@@ -35,10 +42,20 @@ export default function ScanPage() {
       return;
     }
 
-    const currentWeightKg = Number(currentWeight);
-    const goalWeightKg = Number(goalWeight);
+    const toKg = (value: string): number => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return Number.NaN;
+      return units === "us" ? lbToKg(numeric) : numeric;
+    };
+
+    const currentWeightKg = toKg(currentWeight);
+    const goalWeightKg = toKg(goalWeight);
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
       setError("Please enter valid numbers for your weight goals.");
+      return;
+    }
+    if (!scanConfigured) {
+      setError("Body scans are offline until the functions URL is configured.");
       return;
     }
     setStatus("starting");
@@ -88,10 +105,20 @@ export default function ScanPage() {
         and nutrition plan.
       </p>
 
+      {!scanConfigured && (
+        <Alert variant="destructive">
+          <AlertTitle>Scan unavailable</AlertTitle>
+          <AlertDescription>
+            Scans are offline until the Cloud Functions base URL is configured. Ask an admin to set VITE_FUNCTIONS_URL or the
+            dedicated scan endpoints before trying again.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 gap-4">
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Current weight (kg)
+            Current weight ({units === "us" ? "lb" : "kg"})
             <input
               type="number"
               inputMode="decimal"
@@ -103,7 +130,7 @@ export default function ScanPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">
-            Goal weight (kg)
+            Goal weight ({units === "us" ? "lb" : "kg"})
             <input
               type="number"
               inputMode="decimal"
@@ -139,7 +166,7 @@ export default function ScanPage() {
 
         <button
           type="submit"
-          disabled={missingFields || status !== "idle"}
+          disabled={missingFields || status !== "idle" || !scanConfigured}
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
         >
           {status === "starting" && "Starting scan…"}
