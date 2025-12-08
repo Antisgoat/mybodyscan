@@ -144,13 +144,17 @@
       },
       {
         "source": "/system/health",
-        "function": "systemHealth",
-        "region": "us-central1"
+        "function": {
+          "functionId": "systemHealth",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/systemHealth",
-        "function": "systemHealth",
-        "region": "us-central1"
+        "function": {
+          "functionId": "systemHealth",
+          "region": "us-central1"
+        }
       },
       {
         "source": "**",
