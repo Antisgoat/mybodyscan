@@ -106,17 +106,20 @@ service cloud.firestore {
     }
 
     function onboardingFieldChanged() {
-      if (!request.resource.data.keys().hasAny(['onboarding'])) {
-        return false;
-      }
-      if (!exists(resource.name)) {
-        return true;
-      }
-      return request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']);
+      let hasOnboarding = request.resource.data.keys().hasAny(['onboarding']);
+      let docExists = exists(resource.name);
+
+      // If there is no onboarding field in the incoming data, nothing changed.
+      // If the doc doesn't exist yet, onboarding is considered "changed".
+      // Otherwise, we check the diff for the onboarding field.
+      return hasOnboarding &&
+        (!docExists ||
+          request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']));
     }
 
     function isValidOnboardingUpdate() {
-      return !onboardingFieldChanged() || isValidOnboardingMap(request.resource.data.onboarding);
+      return !onboardingFieldChanged() ||
+        isValidOnboardingMap(request.resource.data.onboarding);
     }
 
     match /publicConfig/{docId} {
