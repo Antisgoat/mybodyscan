@@ -33,6 +33,7 @@ import { nutritionSearchClient } from "@/lib/nutritionApi";
 import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -299,7 +300,8 @@ export default function MealsSearch() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
   const { health: systemHealth } = useSystemHealth();
-  const nutritionEnabled = systemHealth?.nutritionConfigured !== false;
+  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const nutritionEnabled = nutritionConfigured !== false;
   const searchDisabled = demo || !nutritionEnabled;
 
   useEffect(() => {

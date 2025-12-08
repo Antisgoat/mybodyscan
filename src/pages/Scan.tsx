@@ -25,13 +25,8 @@ export default function ScanPage() {
   const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
   const [error, setError] = useState<string | null>(null);
   const { health: systemHealth } = useSystemHealth();
-  const { statuses } = computeFeatureStatuses({
-    scanConfigured: systemHealth?.openaiConfigured,
-    coachConfigured: systemHealth?.openaiConfigured,
-    nutritionConfigured: systemHealth?.nutritionConfigured,
-  });
-  const scanConfigured =
-    systemHealth?.openaiConfigured ?? statuses.find((status) => status.id === "scans")?.configured !== false;
+  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
 
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
@@ -63,7 +58,7 @@ export default function ScanPage() {
     }
     if (!scanConfigured) {
       setError(
-        systemHealth?.openaiConfigured === false
+        openaiMissing
           ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
           : "Body scans are offline until the functions URL is configured.",
       );
@@ -120,7 +115,7 @@ export default function ScanPage() {
         <Alert variant="destructive">
           <AlertTitle>Scan unavailable</AlertTitle>
           <AlertDescription>
-            {systemHealth?.openaiConfigured === false
+            {openaiMissing
               ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
               : "Scans are offline until the Cloud Functions base URL is configured. Ask an admin to set VITE_FUNCTIONS_URL or the dedicated scan endpoints before trying again."}
           </AlertDescription>

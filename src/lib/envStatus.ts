@@ -42,6 +42,11 @@ export type RemoteHealth = {
   coachConfigured?: boolean;
   nutritionConfigured?: boolean;
   openaiConfigured?: boolean;
+  openaiKeyPresent?: boolean;
+  nutritionRpmPresent?: boolean;
+  usdaKeyPresent?: boolean;
+  coachRpmPresent?: boolean;
+  stripeSecretPresent?: boolean;
 };
 
 export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStatusSummary {
@@ -53,11 +58,18 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
 
   const firebaseReady = firebaseConfigMissingKeys.length === 0;
   const functionsConfigured = Boolean(functionsUrl);
-  const scanConfigured = remoteHealth?.scanConfigured ?? (functionsConfigured || Boolean(scanStartUrl));
+  const openaiConfigured = remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent;
+  const scanConfigured =
+    remoteHealth?.scanConfigured ?? openaiConfigured ?? (functionsConfigured || Boolean(scanStartUrl));
   const stripeMode = describeStripeEnvironment();
-  const stripeConfigured = stripeMode !== "missing";
-  const coachConfigured = remoteHealth?.coachConfigured ?? Boolean(coachRpm);
-  const nutritionConfigured = remoteHealth?.nutritionConfigured ?? Boolean(functionsConfigured);
+  const stripeConfigured =
+    stripeMode !== "missing" || remoteHealth?.stripeSecretPresent === true || Boolean(stripeKey);
+  const coachConfigured = remoteHealth?.coachConfigured ?? remoteHealth?.coachRpmPresent ?? openaiConfigured ?? Boolean(coachRpm);
+  const nutritionConfigured =
+    remoteHealth?.nutritionConfigured ??
+    remoteHealth?.usdaKeyPresent ??
+    remoteHealth?.nutritionRpmPresent ??
+    Boolean(functionsConfigured);
   const healthConfigured = Boolean(healthConnector);
 
   const statuses: FeatureStatus[] = [
@@ -77,7 +89,11 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: scanConfigured,
       okLabel: "Configured",
       warnLabel: "Missing URL",
-      detail: scanConfigured ? undefined : "Set VITE_FUNCTIONS_URL or VITE_SCAN_START_URL.",
+      detail: scanConfigured
+        ? undefined
+        : openaiConfigured === false
+          ? "AI engine unavailable; configure OPENAI_API_KEY."
+          : "Set VITE_FUNCTIONS_URL or VITE_SCAN_START_URL.",
     },
     {
       id: "workouts",
@@ -93,7 +109,11 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       configured: coachConfigured,
       okLabel: "Enabled",
       warnLabel: "COACH_RPM missing",
-      detail: coachConfigured ? undefined : "Set COACH_RPM to un-throttle chat completions.",
+      detail: coachConfigured
+        ? undefined
+        : openaiConfigured === false
+          ? "AI engine unavailable; configure OPENAI_API_KEY."
+          : "Set COACH_RPM to un-throttle chat completions.",
     },
     {
       id: "nutrition",

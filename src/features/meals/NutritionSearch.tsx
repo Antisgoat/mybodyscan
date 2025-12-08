@@ -4,11 +4,13 @@ import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function NutritionSearch() {
   const { loading: authLoading } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
-  const nutritionEnabled = systemHealth?.nutritionConfigured !== false;
+  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const nutritionEnabled = nutritionConfigured !== false;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

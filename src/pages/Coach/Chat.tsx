@@ -25,6 +25,7 @@ import { buildErrorToast } from "@/lib/errorToasts";
 import { demoCoach } from "@/lib/demoDataset";
 import { demoGuard } from "@/lib/demoGuard";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { computeFeatureStatuses } from "@/lib/envStatus";
 
 declare global {
   interface Window {
@@ -92,13 +93,15 @@ export default function CoachChatPage() {
   const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
   const { health: systemHealth } = useSystemHealth();
+  const { coachConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const coachPrereqMessage =
     systemHealth?.coachRpmPresent === false
       ? "Coach chat is disabled until COACH_RPM is configured on Cloud Functions."
       : systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
         ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
-        : null;
-  const coachConfigured = coachPrereqMessage == null;
+        : coachConfigured === false
+          ? "Coach chat is offline until the backend configuration is completed."
+          : null;
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
