@@ -1,14 +1,14 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 export default function NutritionSearch() {
   const { loading: authLoading } = useAuthUser();
-  const { statuses } = useMemo(() => computeFeatureStatuses(), []);
-  const nutritionConfigured = statuses.find((status) => status.id === "nutrition")?.configured !== false;
+  const { health: systemHealth } = useSystemHealth();
+  const nutritionEnabled = systemHealth?.nutritionConfigured !== false;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function NutritionSearch() {
       setHasSearched(false);
       return;
     }
-    if (!nutritionConfigured) {
+    if (!nutritionEnabled) {
       setError("Nutrition search is offline until API keys or RPM are configured.");
       setHasSearched(false);
       return;
@@ -69,7 +69,7 @@ export default function NutritionSearch() {
 
   return (
     <div className="space-y-3">
-      {!nutritionConfigured && (
+      {!nutritionEnabled && (
         <Alert variant="destructive">
           <AlertTitle>Nutrition search unavailable</AlertTitle>
           <AlertDescription>
@@ -86,12 +86,12 @@ export default function NutritionSearch() {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search foods (e.g., chicken breast, oatmeal or barcode)…"
           className="w-full rounded-md border px-3 py-2 text-sm"
-          disabled={authLoading || busy || !nutritionConfigured}
+          disabled={authLoading || busy || !nutritionEnabled}
         />
         <button
           data-testid="nutrition-search-button"
           type="submit"
-          disabled={!q.trim() || busy || !nutritionConfigured}
+          disabled={!q.trim() || busy || !nutritionEnabled}
           className="rounded-md border px-3 py-2 text-sm"
         >
           {busy ? "Searching…" : "Search"}
@@ -101,7 +101,7 @@ export default function NutritionSearch() {
           onClick={() => setScanOpen(true)}
           className="rounded-md border px-3 py-2 text-sm"
           aria-label="Scan barcode"
-          disabled={!nutritionConfigured}
+          disabled={!nutritionEnabled}
         >
           Scan
         </button>

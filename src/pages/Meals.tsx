@@ -36,7 +36,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 import NutritionSearch from "@/features/meals/NutritionSearch";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 
@@ -76,12 +75,8 @@ export default function Meals() {
   const { user, authReady } = useAuthUser();
   const uid = authReady ? user?.uid ?? null : null;
   const { health: systemHealth } = useSystemHealth();
-  const { statuses } = computeFeatureStatuses({
-    nutritionConfigured: systemHealth?.nutritionConfigured ?? systemHealth?.usdaKeyPresent,
-  });
-  const nutritionConfigured =
-    systemHealth?.nutritionConfigured ?? (systemHealth?.usdaKeyPresent !== false &&
-      statuses.find((status) => status.id === "nutrition")?.configured !== false);
+  const nutritionConfigured = systemHealth?.nutritionConfigured;
+  const nutritionUnavailable = nutritionConfigured === false;
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
@@ -349,7 +344,7 @@ export default function Meals() {
           <p className="text-sm text-muted-foreground">Log foods from search, barcode, favorites, and templates. Macros shown in kcal and US units.</p>
         </div>
 
-        {!nutritionConfigured && (
+        {nutritionUnavailable && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition services offline</AlertTitle>
             <AlertDescription>
