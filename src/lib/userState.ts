@@ -2,6 +2,7 @@ const PROFILE_STATE_KEY = "mbs_profile_state";
 
 interface StoredProfileState {
   lastWeightLb?: number;
+  lastGoalWeightLb?: number;
 }
 
 function isBrowser(): boolean {
@@ -35,19 +36,38 @@ function writeProfileState(state: StoredProfileState) {
   }
 }
 
+function normalizeWeight(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.round(value * 10) / 10;
+}
+
+function writeWeight(next: number | null, key: keyof StoredProfileState) {
+  if (next == null) return;
+  const normalized = normalizeWeight(next);
+  if (normalized == null) return;
+  const nextState: StoredProfileState = {
+    ...readProfileState(),
+    [key]: normalized,
+  };
+  writeProfileState(nextState);
+}
+
 export function getLastWeight(): number | null {
   const { lastWeightLb } = readProfileState();
   return typeof lastWeightLb === "number" && Number.isFinite(lastWeightLb) ? lastWeightLb : null;
 }
 
+export function getLastGoalWeight(): number | null {
+  const { lastGoalWeightLb } = readProfileState();
+  return typeof lastGoalWeightLb === "number" && Number.isFinite(lastGoalWeightLb) ? lastGoalWeightLb : null;
+}
+
 export function setLastWeight(lb: number) {
-  if (!Number.isFinite(lb) || lb <= 0) {
-    return;
-  }
-  const normalized = Math.round(lb * 10) / 10;
-  const nextState: StoredProfileState = {
-    ...readProfileState(),
-    lastWeightLb: normalized,
-  };
-  writeProfileState(nextState);
+  writeWeight(lb, "lastWeightLb");
+}
+
+export function setLastGoalWeight(lb: number) {
+  writeWeight(lb, "lastGoalWeightLb");
 }

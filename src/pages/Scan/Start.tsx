@@ -1,11 +1,11 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Seo } from "@/components/Seo";
-import { getLastWeight, setLastWeight } from "@/lib/userState";
+import { getLastGoalWeight, getLastWeight, setLastGoalWeight, setLastWeight } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { useAuthUser } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { kgToLb, lbToKg } from "@/lib/units";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { clearCaptureFiles, resetCaptureFlow, setCaptureSession, setCaptureWeights } from "./scanCaptureStore";
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? weight.toFixed(0) : weight.toFixed(1);
@@ -23,12 +24,20 @@ export default function ScanStart() {
   const navigate = useNavigate();
   const storedWeightRef = useRef<number | null>(getLastWeight());
   const initialWeight = storedWeightRef.current;
+  const storedGoalWeightRef = useRef<number | null>(getLastGoalWeight());
+  const initialGoalWeight = storedGoalWeightRef.current;
   const [storedWeight, setStoredWeight] = useState<number | null>(initialWeight);
+  const [storedGoalWeight, setStoredGoalWeight] = useState<number | null>(initialGoalWeight);
   const [mode, setMode] = useState<"confirm" | "input">(initialWeight == null ? "input" : "confirm");
   const { units } = useUnits();
   const [weightInput, setWeightInput] = useState<string>(() => {
     if (initialWeight == null) return "";
     const value = units === "metric" ? lbToKg(initialWeight) : initialWeight;
+    return value.toString();
+  });
+  const [goalWeightInput, setGoalWeightInput] = useState<string>(() => {
+    if (initialGoalWeight == null) return "";
+    const value = units === "metric" ? lbToKg(initialGoalWeight) : initialGoalWeight;
     return value.toString();
   });
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +56,10 @@ export default function ScanStart() {
       ? "Scans require the OpenAI key (OPENAI_API_KEY) to be set on Cloud Functions."
       : "Scanning endpoints are offline until the Cloud Functions base URL is configured."
     : null;
+
+  useEffect(() => {
+    resetCaptureFlow();
+  }, []);
 
   const goToCapture = () => {
     if (readOnlyDemo) {
@@ -69,17 +82,31 @@ export default function ScanStart() {
       return;
     }
 
-    const parsed = Number(weightInput.trim());
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError(`Enter a valid weight in ${units === "metric" ? "kilograms" : "pounds"}.`);
+    const parsedCurrent = Number(weightInput.trim());
+    if (!Number.isFinite(parsedCurrent) || parsedCurrent <= 0) {
+      setError(`Enter a valid current weight in ${units === "metric" ? "kilograms" : "pounds"}.`);
+      return;
+    }
+    const parsedGoal = Number(goalWeightInput.trim());
+    if (!Number.isFinite(parsedGoal) || parsedGoal <= 0) {
+      setError(`Enter a valid goal weight in ${units === "metric" ? "kilograms" : "pounds"}.`);
       return;
     }
 
-    const asLb = units === "metric" ? kgToLb(parsed) : parsed;
-    setLastWeight(asLb);
-    const normalized = Math.round(asLb * 10) / 10;
-    setStoredWeight(normalized);
+    const currentLb = units === "metric" ? kgToLb(parsedCurrent) : parsedCurrent;
+    const goalLb = units === "metric" ? kgToLb(parsedGoal) : parsedGoal;
+    setLastWeight(currentLb);
+    setLastGoalWeight(goalLb);
+    const normalizedCurrent = Math.round(currentLb * 10) / 10;
+    const normalizedGoal = Math.round(goalLb * 10) / 10;
+    setStoredWeight(normalizedCurrent);
+    setStoredGoalWeight(normalizedGoal);
     setMode("confirm");
+    const currentWeightKg = units === "metric" ? parsedCurrent : lbToKg(parsedCurrent);
+    const goalWeightKg = units === "metric" ? parsedGoal : lbToKg(parsedGoal);
+    clearCaptureFiles();
+    setCaptureSession(null);
+    setCaptureWeights({ currentWeightKg, goalWeightKg });
     if (scanOffline) {
       setError("Scan services are unavailable right now. Please try again later.");
       return;
@@ -88,6 +115,10 @@ export default function ScanStart() {
   };
 
   const showInput = mode === "input";
+  const formattedCurrentWeight =
+    storedWeight != null ? formatWeight(units === "metric" ? lbToKg(storedWeight) : storedWeight) : null;
+  const formattedGoalWeight =
+    storedGoalWeight != null ? formatWeight(units === "metric" ? lbToKg(storedGoalWeight) : storedGoalWeight) : null;
 
   return (
     <div className="space-y-6">
@@ -106,20 +137,35 @@ export default function ScanStart() {
 
       {showInput ? (
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current-weight">Current weight ({units === "metric" ? "kg" : "lb"})</Label>
-            <Input
-              id="current-weight"
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              min="1"
-              required
-              value={weightInput}
-              onChange={(event) => setWeightInput(event.target.value)}
-            />
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="current-weight">Current weight ({units === "metric" ? "kg" : "lb"})</Label>
+              <Input
+                id="current-weight"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="1"
+                required
+                value={weightInput}
+                onChange={(event) => setWeightInput(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-weight">Goal weight ({units === "metric" ? "kg" : "lb"})</Label>
+              <Input
+                id="goal-weight"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min="1"
+                required
+                value={goalWeightInput}
+                onChange={(event) => setGoalWeightInput(event.target.value)}
+              />
+            </div>
           </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
             {readOnlyDemo ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -139,9 +185,16 @@ export default function ScanStart() {
         </form>
       ) : (
         <div className="space-y-4">
-          <p className="text-lg font-medium">
-            Is your weight still {formatWeight(units === "metric" ? lbToKg(storedWeight!) : storedWeight!)} {units === "metric" ? "kg" : "lb"}?
-          </p>
+          <div className="space-y-1">
+            <p className="text-lg font-medium">
+              Is your current weight still {formattedCurrentWeight} {units === "metric" ? "kg" : "lb"}?
+            </p>
+            {formattedGoalWeight ? (
+              <p className="text-sm text-muted-foreground">
+                Goal weight: {formattedGoalWeight} {units === "metric" ? "kg" : "lb"}
+              </p>
+            ) : null}
+          </div>
           <div className="flex flex-wrap gap-3">
             {readOnlyDemo ? (
               <Tooltip>
@@ -165,7 +218,14 @@ export default function ScanStart() {
               variant="outline"
               onClick={() => {
                 setMode("input");
-                setWeightInput(storedWeight != null ? storedWeight.toString() : "");
+                setWeightInput(
+                  storedWeight != null ? (units === "metric" ? lbToKg(storedWeight) : storedWeight).toString() : "",
+                );
+                setGoalWeightInput(
+                  storedGoalWeight != null
+                    ? (units === "metric" ? lbToKg(storedGoalWeight) : storedGoalWeight).toString()
+                    : "",
+                );
                 setError(null);
               }}
             >

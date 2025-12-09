@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
+import { loadAllPrograms, type CatalogEntry, type ProgramMeta } from "@/lib/coach/catalog";
 import type { Exercise, Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
@@ -32,6 +32,7 @@ import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { applyCatalogPlan, type CatalogPlanSubmission } from "@/lib/workouts";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -143,6 +144,22 @@ export default function ProgramDetail() {
         })),
       );
 
+      const catalogSubmission = buildCatalogPlanSubmission(program, meta);
+      let workoutPlanId: string | null = null;
+      try {
+        const applied = await applyCatalogPlan(catalogSubmission);
+        workoutPlanId = typeof applied?.planId === "string" ? applied.planId : null;
+      } catch (error: any) {
+        throw new Error(
+          typeof error?.message === "string" && error.message.length
+            ? error.message
+            : "Unable to apply the workout plan. Please try again.",
+        );
+      }
+      if (!workoutPlanId) {
+        throw new Error("Unable to activate workout plan.");
+      }
+
       const fallbackCalorieTarget = typeof priorPlan?.calorieTarget === "number" ? priorPlan.calorieTarget : 2200;
       const fallbackProteinFloor = typeof priorPlan?.proteinFloor === "number" ? priorPlan.proteinFloor : 140;
       const progression =
@@ -165,6 +182,7 @@ export default function ProgramDetail() {
         programTitle: program.title,
         programGoal: meta.goal,
         programLevel: meta.level,
+        workoutPlanId,
         updatedAt: serverTimestamp(),
       };
 
@@ -187,12 +205,16 @@ export default function ProgramDetail() {
       navigate("/coach", { replace: true });
     } catch (error) {
       const code = typeof (error as { code?: string } | null)?.code === "string" ? (error as { code: string }).code : null;
-      const description =
-        code === "permission-denied"
-          ? "Your account can't start programs yet. Refresh or contact support."
-          : code === "unavailable"
-            ? "Programs are temporarily offline. Please try again shortly."
-            : "Please try again.";
+      let description: string;
+      if (code === "permission-denied") {
+        description = "Your account can't start programs yet. Refresh or contact support.";
+      } else if (code === "unavailable") {
+        description = "Programs are temporarily offline. Please try again shortly.";
+      } else if (typeof (error as Error)?.message === "string" && (error as Error).message.length) {
+        description = (error as Error).message;
+      } else {
+        description = "Please try again.";
+      }
       toast({
         title: "Could not start program",
         description,
@@ -514,4 +536,57 @@ export default function ProgramDetail() {
       <BottomNav />
     </div>
   );
+}
+
+const DAY_NAME_PRESETS: Record<number, string[]> = {
+  1: ["Mon"],
+  2: ["Mon", "Thu"],
+  3: ["Mon", "Wed", "Fri"],
+  4: ["Mon", "Tue", "Thu", "Fri"],
+  5: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+  6: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  7: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+};
+
+function pickWeekdays(count: number): string[] {
+  const clamped = Math.max(1, Math.min(count, 7));
+  return DAY_NAME_PRESETS[clamped] ?? DAY_NAME_PRESETS[5];
+}
+
+function flattenExercises(day: Program["weeks"][number]["days"][number]): CatalogPlanSubmission["days"][number]["exercises"] {
+  const exercises = day.blocks?.flatMap((block) => block.exercises || []) ?? [];
+  if (!exercises.length) {
+    return [
+      {
+        name: "Session",
+        sets: 3,
+        reps: "10",
+      },
+    ];
+  }
+  return exercises.slice(0, 12).map((exercise, index) => ({
+    name: exercise.name || `Exercise ${index + 1}`,
+    sets: Number.isFinite(exercise.sets) && exercise.sets > 0 ? exercise.sets : 3,
+    reps: exercise.reps ?? "10",
+  }));
+}
+
+function buildCatalogPlanSubmission(program: Program, meta: ProgramMeta): CatalogPlanSubmission {
+  const baseWeek = program.weeks?.[0];
+  const sourceDays = baseWeek?.days ?? [];
+  if (!sourceDays.length) {
+    throw new Error("Program days are missing a schedule.");
+  }
+  const weekdays = pickWeekdays(sourceDays.length);
+  const days = sourceDays.slice(0, weekdays.length).map((day, index) => ({
+    day: weekdays[index],
+    exercises: flattenExercises(day),
+  }));
+  return {
+    programId: program.id,
+    title: program.title,
+    goal: program.goal,
+    level: meta.level,
+    days,
+  };
 }

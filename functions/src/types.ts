@@ -131,7 +131,7 @@ export interface WorkoutExercise {
   id: string;
   name: string;
   sets: number;
-  reps: number;
+  reps: number | string;
   done?: boolean;
 }
 

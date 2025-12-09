@@ -18,7 +18,7 @@ export { startScanSession } from "./scan/start.js";
 export { submitScan } from "./scan/submit.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
-export { adjustWorkout, generateWorkoutPlan, getPlan, getWorkouts, markExerciseDone } from "./workouts.js";
+export { adjustWorkout, applyCatalogPlan, generateWorkoutPlan, getPlan, getWorkouts, markExerciseDone } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";
 export { createCheckout } from "./stripe/createCheckout.js";
@@ -31,7 +31,7 @@ export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { systemBootstrap } from "./system.js";
 export { deleteAccount } from "./http/deleteAccount.js";
-export { getDailyLog, getNutritionHistory } from "./nutrition.js";
+export { addMeal, deleteMeal, getDailyLog, getNutritionHistory } from "./nutrition.js";
 
 const express = expressModule as any;
 const app = express();

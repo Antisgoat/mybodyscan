@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -23,10 +23,8 @@ import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb, lbToKg, CM_PER_IN } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
-import { collection, doc, serverTimestamp } from "firebase/firestore";
-import { CAPTURE_VIEW_SETS, type CaptureView, useScanCaptureStore } from "./scanCaptureStore";
+import { startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
+import { CAPTURE_VIEW_SETS, type CaptureView, resetCaptureFlow, setCaptureSession, useScanCaptureStore } from "./scanCaptureStore";
 import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
 import type { ManualCircumferences } from "./scanRefineStore";
@@ -34,6 +32,8 @@ import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { useUnits } from "@/hooks/useUnits";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { toast } from "@/hooks/use-toast";
+import { POSES, type Pose } from "@/features/scan/poses";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -42,6 +42,15 @@ const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Left: "left",
   Right: "right",
 };
+
+const VIEW_TO_POSE: Partial<Record<CaptureView, Pose>> = {
+  Front: "front",
+  Back: "back",
+  Left: "left",
+  Right: "right",
+};
+
+type FlowStatus = "idle" | "starting" | "uploading" | "processing" | "error";
 
 type PhotoMetadata = {
   name: string;
@@ -105,7 +114,9 @@ function parseManualCircumference(value: string, units: "us" | "metric"): number
 }
 
 export default function ScanFlowResult() {
-  const { mode, files } = useScanCaptureStore();
+  const { mode, files, weights, session } = useScanCaptureStore();
+  const currentWeightKg = weights.currentWeightKg;
+  const goalWeightKg = weights.goalWeightKg;
   const { profile } = useUserProfile();
   const [refineOpen, setRefineOpen] = useState(false);
   const { manualInputs, photoCircumferences } = useScanRefineStore();
@@ -113,11 +124,13 @@ export default function ScanFlowResult() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [lastWeight] = useState<number | null>(() => getLastWeight());
-  const [saving, setSaving] = useState(false);
-  const [savedScanId, setSavedScanId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [thumbnailDataUrl, setThumbnailDataUrl] = useState<string | null>(null);
-  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
+  const [flowStatus, setFlowStatus] = useState<FlowStatus>("idle");
+  const [flowError, setFlowError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadPose, setUploadPose] = useState<string | null>(null);
+  const [submittedScanId, setSubmittedScanId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const appCheck = useAppCheckStatus();
   const { units } = useUnits();
   const { health: systemHealth } = useSystemHealth();
@@ -139,6 +152,17 @@ export default function ScanFlowResult() {
     [shots, files],
   );
   const allCaptured = capturedShots.length === shots.length;
+  const poseFiles = useMemo(() => {
+    const map: Partial<Record<Pose, File>> = {};
+    for (const [view, file] of Object.entries(files) as Array<[CaptureView, File]>) {
+      const pose = VIEW_TO_POSE[view];
+      if (pose && file) {
+        map[pose] = file;
+      }
+    }
+    return map;
+  }, [files]);
+  const poseUploadsReady = POSES.every((pose) => Boolean(poseFiles[pose]));
 
   const tasks = useMemo(
     () =>
@@ -192,6 +216,100 @@ export default function ScanFlowResult() {
       cancelled = true;
     };
   }, [tasks, allCaptured]);
+
+  const readyForSubmission =
+    poseUploadsReady &&
+    currentWeightKg != null &&
+    goalWeightKg != null &&
+    !scanOffline &&
+    appCheck.status !== "missing";
+  const finalizeHelperMessage = !poseUploadsReady
+    ? "Capture all four required angles before continuing."
+    : currentWeightKg == null || goalWeightKg == null
+      ? "Return to Start to confirm your current and goal weight."
+      : scanOffline
+        ? "Scan services are offline until the backend is configured."
+        : appCheck.status === "missing"
+          ? "Secure uploads require App Check. Refresh and try again."
+          : "We'll upload your photos securely and notify you when the result is ready.";
+  const finalizeDisabled =
+    !readyForSubmission || flowStatus === "starting" || flowStatus === "uploading" || flowStatus === "processing";
+
+  const handleFinalize = async () => {
+    if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) {
+      setFlowError("Add all photos and confirm your weights before continuing.");
+      return;
+    }
+    if (scanOffline) {
+      setFlowError("Scan services are offline. Try again later.");
+      return;
+    }
+    if (appCheck.status === "missing") {
+      setFlowError("Secure uploads require App Check. Refresh this page and try again.");
+      return;
+    }
+    setFlowStatus("starting");
+    setFlowError(null);
+    setUploadProgress(0);
+    setUploadPose(null);
+    try {
+      let activeSession = session;
+      if (!activeSession) {
+        const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
+        if (!start.ok) {
+          const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
+          throw new Error(start.error.message + debugSuffix);
+        }
+        setCaptureSession(start.data);
+        activeSession = start.data;
+      }
+      if (!activeSession) {
+        throw new Error("Unable to start scan session.");
+      }
+      const photos = {
+        front: poseFiles.front!,
+        back: poseFiles.back!,
+        left: poseFiles.left!,
+        right: poseFiles.right!,
+      };
+      setFlowStatus("uploading");
+      const submit = await submitScanClient(
+        {
+          scanId: activeSession.scanId,
+          storagePaths: activeSession.storagePaths,
+          photos,
+          currentWeightKg,
+          goalWeightKg,
+        },
+        {
+          onUploadProgress: (info: ScanUploadProgress) => {
+            setUploadProgress(info.overallPercent);
+            setUploadPose(info.pose);
+          },
+        },
+      );
+      if (!submit.ok) {
+        const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        throw new Error(submit.error.message + debugSuffix);
+      }
+      setFlowStatus("processing");
+      setUploadPose(null);
+      setSubmittedScanId(activeSession.scanId);
+      toast({
+        title: "Scan uploaded",
+        description: "We’re processing your analysis. This can take a couple of minutes.",
+      });
+      resetCaptureFlow();
+      navigate(`/scan/${activeSession.scanId}`);
+    } catch (error: any) {
+      setFlowStatus("error");
+      const message =
+        typeof error?.message === "string" && error.message.length
+          ? error.message
+          : "Unable to submit your scan. Please try again.";
+      setFlowError(message);
+    }
+  };
 
 
   const sex = profile?.sex === "male" || profile?.sex === "female" ? profile.sex : undefined;
@@ -345,93 +463,19 @@ export default function ScanFlowResult() {
     return Number(heightIn);
   }, [heightIn]);
 
-  const payload = useMemo(() => {
-    if (bodyFatPctNumber == null) return null;
-    const normalizedBf = Number((bodyFatPctNumber as number).toFixed(1));
-    return {
-      method: "photo" as const,
-      bfPct: normalizedBf,
-      bmi: bmiNumber,
-      weightLb: usedWeightLb,
-      sex: sex ?? null,
-      age: age ?? null,
-      heightIn: heightInValue,
-      photoEstimates: photoEstimatePayload,
-      userCircumIn: userCircumPayload,
-      photos: {
-        mode,
-        captureViews: capturedShots,
-        files: photoMetadata,
-      },
-      thumbnail: thumbnailDataUrl ?? null,
-    };
-  }, [
-    bodyFatPctNumber,
-    bmiNumber,
-    usedWeightLb,
-    sex,
-    age,
-    heightInValue,
-    photoEstimatePayload,
-    userCircumPayload,
-    mode,
-    capturedShots,
-    photoMetadata,
-    thumbnailDataUrl,
-  ]);
-
-  const payloadSignature = useMemo(() => (payload ? JSON.stringify(payload) : null), [payload]);
-
-  useEffect(() => {
-    if (!payload || !payloadSignature) return;
-    if (payloadSignature === lastSavedSignature && savedScanId) return;
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const scansCollection = collection(db, "users", user.uid, "scans");
-    const docRef = savedScanId ? doc(scansCollection, savedScanId) : doc(scansCollection);
-    const docId = docRef.id;
-    let cancelled = false;
-
-    setSaving(true);
-    setSaveError(null);
-
-    const data: Record<string, unknown> = {
-      ...payload,
-      status: "completed",
-      updatedAt: serverTimestamp(),
-    };
-    if (!savedScanId) {
-      data.createdAt = serverTimestamp();
-    }
-
-    setDoc(docRef, data, { merge: true })
-      .then(() => {
-        if (cancelled) return;
-        setSaving(false);
-        setLastSavedSignature(payloadSignature);
-        if (!savedScanId) {
-          setSavedScanId(docId);
-        }
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("save_scan_preview", error);
-        setSaving(false);
-        setSaveError("Unable to save scan. Try again.");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [payload, payloadSignature, savedScanId, lastSavedSignature]);
-
   const estimateStatus = useMemo(() => {
     if (analysisError) return analysisError;
     if (analyzing) return "Analyzing photos…";
-    if (saving) return "Saving scan result…";
-    if (saveError) return saveError;
-    if (savedScanId) return "Scan saved to your history.";
+    if (flowStatus === "starting") return "Preparing secure upload…";
+    if (flowStatus === "uploading") {
+      const progressPct = Math.round(uploadProgress * 100);
+      return uploadPose
+        ? `Uploading ${uploadPose} photo (${progressPct}% complete)…`
+        : "Uploading encrypted photos…";
+    }
+    if (flowStatus === "processing") return "Photos uploaded. Processing your scan…";
+    if (flowError) return flowError;
+    if (submittedScanId) return "Scan uploaded. Opening your result…";
     if (!allCaptured) return "Capture every required angle to analyze the scan.";
     if (!heightIn || !sex) return "Add your height and sex in Settings to unlock the preview.";
     if (!bodyFatValue) return "Add your weight to see the full estimate.";
@@ -443,9 +487,11 @@ export default function ScanFlowResult() {
     heightIn,
     sex,
     bodyFatValue,
-    saving,
-    saveError,
-    savedScanId,
+    flowStatus,
+    flowError,
+    uploadProgress,
+    uploadPose,
+    submittedScanId,
   ]);
 
   return (
@@ -540,12 +586,52 @@ export default function ScanFlowResult() {
           </div>
         </CardContent>
       </Card>
-      {savedScanId ? (
+      <Card className="border border-dashed bg-muted/40">
+        <CardHeader>
+          <CardTitle>Finalize scan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{finalizeHelperMessage}</p>
+          {flowError ? <p className="text-sm text-destructive">{flowError}</p> : null}
+          {flowStatus === "uploading" ? (
+            <div className="space-y-1">
+              <div className="h-2 w-full rounded-full bg-secondary">
+                <div
+                  className="h-2 rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, Math.round(uploadProgress * 100))}%` }}
+                />
+              </div>
+              {uploadPose ? (
+                <p className="text-xs text-muted-foreground">
+                  Uploading {uploadPose} ({Math.round(uploadProgress * 100)}%)
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={handleFinalize} disabled={finalizeDisabled}>
+              {flowStatus === "uploading"
+                ? "Uploading…"
+                : flowStatus === "processing"
+                  ? "Processing…"
+                  : flowStatus === "starting"
+                    ? "Preparing…"
+                    : "Finalize with AI"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => navigate("/scan/capture")}>
+              Retake photos
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      {submittedScanId ? (
         <Card className="border border-dashed">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium">Scan saved</p>
-              <p className="text-sm text-muted-foreground">Find this scan anytime in your history.</p>
+              <p className="text-sm font-medium">Scan submitted</p>
+              <p className="text-sm text-muted-foreground">
+                We’re processing the analysis now. You can review it in your history at any time.
+              </p>
             </div>
             <Button asChild variant="outline" size="sm">
               <Link to="/scan/history">View history</Link>

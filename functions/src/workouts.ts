@@ -19,6 +19,8 @@ const BODY_FEEL_SET = new Set<BodyFeel>(BODY_FEEL_VALUES);
 const ADJUST_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const ADJUST_TIMEOUT_MS = 8_000;
 const MAX_NOTE_LENGTH = 400;
+const VALID_CATALOG_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const VALID_CATALOG_DAY_SET = new Set<string>(VALID_CATALOG_DAYS);
 
 type AdjustmentMods = {
   intensity: number;
@@ -121,6 +123,83 @@ function fallbackMods(bodyFeel: BodyFeel): { intensity: number; volume: number }
   return {
     intensity: bodyFeel === "great" ? 1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
     volume: bodyFeel === "great" ? 1 : bodyFeel === "sore" ? -1 : 0,
+  };
+}
+
+type CatalogExercisePayload = { name?: string; sets?: number; reps?: number | string };
+type CatalogDayPayload = { day?: string; exercises?: CatalogExercisePayload[] };
+
+function sanitizeCatalogPlan(payload: any): {
+  programId: string;
+  title?: string;
+  goal?: string;
+  level?: string;
+  days: WorkoutDay[];
+} {
+  if (!payload || typeof payload !== "object") {
+    throw new HttpsError("invalid-argument", "Missing plan payload.");
+  }
+  const programId =
+    typeof payload.programId === "string" && payload.programId.trim().length
+      ? payload.programId.trim().slice(0, 80)
+      : null;
+  if (!programId) {
+    throw new HttpsError("invalid-argument", "programId is required.");
+  }
+  const title =
+    typeof payload.title === "string" && payload.title.trim().length ? payload.title.trim().slice(0, 80) : undefined;
+  const goal =
+    typeof payload.goal === "string" && payload.goal.trim().length ? payload.goal.trim().slice(0, 40) : undefined;
+  const level =
+    typeof payload.level === "string" && payload.level.trim().length ? payload.level.trim().slice(0, 40) : undefined;
+  const rawDays: CatalogDayPayload[] = Array.isArray(payload.days) ? payload.days : [];
+  if (!rawDays.length) {
+    throw new HttpsError("invalid-argument", "At least one training day is required.");
+  }
+  if (rawDays.length > 7) {
+    throw new HttpsError("invalid-argument", "Too many training days.");
+  }
+  const days: WorkoutDay[] = rawDays.map((day, index) => {
+    const dayName = typeof day?.day === "string" ? day.day.trim() : "";
+    if (!VALID_CATALOG_DAY_SET.has(dayName)) {
+      throw new HttpsError("invalid-argument", `Invalid day value at index ${index}.`);
+    }
+    const rawExercises: CatalogExercisePayload[] = Array.isArray(day?.exercises) ? day.exercises : [];
+    if (!rawExercises.length) {
+      throw new HttpsError("invalid-argument", `Each day requires at least one exercise (${dayName}).`);
+    }
+    const exercises = rawExercises.slice(0, 12).map((exercise, exerciseIdx) => {
+      const name =
+        typeof exercise?.name === "string" && exercise.name.trim().length
+          ? exercise.name.trim().slice(0, 80)
+          : `Exercise ${exerciseIdx + 1}`;
+      const setsRaw = Number(exercise?.sets);
+      const sets = Number.isFinite(setsRaw) && setsRaw > 0 ? Math.min(setsRaw, 10) : 3;
+      const reps =
+        typeof exercise?.reps === "string" && exercise.reps.trim().length
+          ? exercise.reps.trim().slice(0, 40)
+          : Number.isFinite(exercise?.reps)
+            ? Number(exercise?.reps)
+            : "10";
+      return {
+        id: randomUUID(),
+        name,
+        sets,
+        reps,
+      };
+    });
+    return {
+      day: dayName,
+      exercises,
+    };
+  });
+
+  return {
+    programId,
+    title,
+    goal,
+    level,
+    days,
   };
 }
 
@@ -279,6 +358,35 @@ async function handleGenerate(req: Request, res: Response) {
   res.json(plan);
 }
 
+async function handleApplyCatalogPlan(req: Request, res: Response) {
+  if (req.method !== "POST") {
+    throw new HttpsError("invalid-argument", "Method not allowed.");
+  }
+  const uid = await requireAuth(req);
+  const plan = sanitizeCatalogPlan(req.body);
+  const planId = randomUUID();
+  const now = Timestamp.now();
+  await db.doc(`users/${uid}/workoutPlans/${planId}`).set({
+    id: planId,
+    active: true,
+    createdAt: now,
+    source: "catalog",
+    catalogProgramId: plan.programId,
+    title: plan.title,
+    goal: plan.goal,
+    level: plan.level,
+    days: plan.days,
+  });
+  await db.doc(`users/${uid}/workoutPlans_meta`).set(
+    {
+      activePlanId: planId,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
+  res.json({ planId });
+}
+
 async function handleGetPlan(req: Request, res: Response) {
   const uid = await requireAuth(req);
   const plan = await fetchCurrentPlan(uid);
@@ -382,6 +490,7 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
  */
 export const generateWorkoutPlan = withHandler(handleGenerate);
 export const generatePlan = generateWorkoutPlan;
+export const applyCatalogPlan = withHandler(handleApplyCatalogPlan);
 export const getPlan = withHandler(handleGetPlan);
 export const getCurrentPlan = getPlan;
 export const markExerciseDone = withHandler(handleMarkDone);

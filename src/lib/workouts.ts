@@ -23,6 +23,25 @@ export interface WorkoutSummary {
   progress: Record<string, string[]>;
 }
 
+export interface CatalogPlanExercise {
+  name: string;
+  sets: number;
+  reps: number | string;
+}
+
+export interface CatalogPlanDay {
+  day: string;
+  exercises: CatalogPlanExercise[];
+}
+
+export interface CatalogPlanSubmission {
+  programId: string;
+  title?: string;
+  goal?: string;
+  level?: string;
+  days: CatalogPlanDay[];
+}
+
 async function callFn(path: string, body?: any) {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
@@ -122,6 +141,14 @@ export async function getPlan() {
     }
     return null;
   }
+}
+
+export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_apply_plan" });
+    throw new Error("demo-blocked");
+  }
+  return callFn("/applyCatalogPlan", plan);
 }
 
 export async function getWorkouts(): Promise<WorkoutSummary | null> {
