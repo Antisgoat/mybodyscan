@@ -18,7 +18,7 @@ export { startScanSession } from "./scan/start.js";
 export { submitScan } from "./scan/submit.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
-export { adjustWorkout } from "./workouts.js";
+export { adjustWorkout, generateWorkoutPlan, getPlan, getWorkouts, markExerciseDone } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";
 export { createCheckout } from "./stripe/createCheckout.js";
