@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { startScanSessionClient, submitScanClient } from "@/lib/api/scan";
+import { startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
@@ -27,6 +27,8 @@ export default function ScanPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [delayNotice, setDelayNotice] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadPose, setUploadPose] = useState<string | null>(null);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
@@ -63,6 +65,8 @@ export default function ScanPage() {
     setError(message);
     setStatus("idle");
     setStatusDetail(null);
+    setUploadProgress(null);
+    setUploadPose(null);
     toast({ title: "Scan paused", description: message, variant: "destructive" });
   };
 
@@ -107,6 +111,8 @@ export default function ScanPage() {
 
       setStatus("uploading");
       setStatusDetail("Uploading encrypted photos… keep this tab open.");
+      setUploadProgress(0);
+      setUploadPose(null);
       const submit = await submitScanClient(
         {
           scanId: start.data.scanId,
@@ -121,8 +127,14 @@ export default function ScanPage() {
           goalWeightKg,
         },
         {
-          onUploadProgress: (completed, total) => {
-            setStatusDetail(`Uploading encrypted photos (${completed}/${total})… keep this tab open.`);
+          onUploadProgress: (info: ScanUploadProgress) => {
+            const filePercent = Math.round(info.percent * 100);
+            const overallPercent = Math.round(info.overallPercent * 100);
+            setUploadProgress(info.overallPercent);
+            setUploadPose(info.pose);
+            setStatusDetail(
+              `Uploading ${info.pose} photo (${filePercent}% of this file · ${overallPercent}% total)… keep this tab open.`,
+            );
           },
         },
       );
@@ -133,6 +145,8 @@ export default function ScanPage() {
         return;
       }
 
+      setUploadProgress(null);
+      setUploadPose(null);
       setStatus("analyzing");
       setStatusDetail("Photos uploaded. Waiting for AI analysis—this can take a couple of minutes.");
       nav(`/scan/${start.data.scanId}`);
@@ -141,6 +155,13 @@ export default function ScanPage() {
       failFlow("We hit an unexpected error while starting your scan. Please try again.");
     }
   }
+
+  useEffect(() => {
+    if (status !== "uploading") {
+      setUploadProgress(null);
+      setUploadPose(null);
+    }
+  }, [status]);
 
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -225,6 +246,21 @@ export default function ScanPage() {
           {status === "analyzing" && "Analyzing your scan…"}
           {status === "idle" && "Analyze scan"}
         </button>
+        {status === "uploading" && uploadProgress !== null && (
+          <div className="space-y-1">
+            <div className="w-full bg-secondary h-2 rounded-full">
+              <div
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${Math.max(0, Math.min(100, uploadProgress * 100))}%` }}
+              />
+            </div>
+            {uploadPose && (
+              <p className="text-[11px] text-muted-foreground" aria-live="polite">
+                {`Uploading ${uploadPose}… ${Math.round(uploadProgress * 100)}% complete`}
+              </p>
+            )}
+          </div>
+        )}
         {statusDetail && (
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {statusDetail}

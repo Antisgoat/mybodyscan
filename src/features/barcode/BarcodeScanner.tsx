@@ -5,9 +5,10 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onDetected: (code: string) => void;
+  onCapabilityChange?: (state: { supported: boolean; reason?: "blocked" | "unsupported" }) => void;
 };
 
-export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props) {
+export default function BarcodeScannerSheet({ open, onClose, onDetected, onCapabilityChange }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,20 +27,24 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
       if (cameraBlockReason === "blocked") {
         // FIX: Stop re-requesting camera once Safari blocks permission and explain how to resolve.
         setError("Camera permission is blocked for this site. Enable camera access in Safari Settings to scan.");
+        onCapabilityChange?.({ supported: false, reason: "blocked" });
         return;
       }
       if (cameraBlockReason === "unsupported") {
         setError("Live camera scanning isn't supported on this device. Enter the barcode manually.");
+        onCapabilityChange?.({ supported: false, reason: "unsupported" });
         return;
       }
       if (!cameraAvailable()) {
         setError("Live camera scanning isn't supported on this device. Enter the barcode manually.");
         setCameraBlockReason("unsupported");
+        onCapabilityChange?.({ supported: false, reason: "unsupported" });
         return;
       }
       if (!isSecureContextOrLocal()) {
         setError("Camera access requires HTTPS or localhost. Enter the barcode manually.");
         setCameraBlockReason("unsupported");
+        onCapabilityChange?.({ supported: false, reason: "unsupported" });
         return;
       }
       if (!videoRef.current) return;
@@ -62,6 +67,7 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
           onClose();
         });
         stopRef.current = stop;
+        onCapabilityChange?.({ supported: true });
       } catch (err: any) {
         // FIX: Translate ZXing/camera failures into actionable messaging instead of a generic error.
         if (!mounted) return;
@@ -70,12 +76,15 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
         if (code === "camera_permission_denied" || code === "NotAllowedError") {
           setCameraBlockReason("blocked");
           setError("Camera permission is blocked for this site. Enable camera access in Safari Settings > Safari > Camera.");
+          onCapabilityChange?.({ supported: false, reason: "blocked" });
         } else if (code === "camera_unsupported") {
           setCameraBlockReason("unsupported");
           setError("Live camera scanning isn't supported in this browser. Enter the barcode manually.");
+          onCapabilityChange?.({ supported: false, reason: "unsupported" });
         } else if (code === "insecure_context") {
           setCameraBlockReason("unsupported");
           setError("Camera access requires HTTPS or localhost. Enter the barcode manually.");
+          onCapabilityChange?.({ supported: false, reason: "unsupported" });
         } else if (code === "zxing_unavailable") {
           setError("Scanner component unavailable on this device. Use manual entry or upload a barcode photo.");
         } else {

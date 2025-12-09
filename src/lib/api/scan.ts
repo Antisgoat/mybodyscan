@@ -2,7 +2,7 @@ import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytesResumable, type UploadTaskSnapshot } from "firebase/storage";
 
 export type ScanEstimate = {
   bodyFatPercent: number;
@@ -179,10 +179,32 @@ export async function startScanSessionClient(params: {
   }
 }
 
-async function uploadPhoto(path: string, file: File): Promise<void> {
+async function uploadPhoto(
+  path: string,
+  file: File,
+  onProgress?: (snapshot: UploadTaskSnapshot) => void,
+): Promise<void> {
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
+  await new Promise<void>((resolve, reject) => {
+    const task = uploadBytesResumable(storageRef, file, { contentType: file.type || "image/jpeg" });
+    task.on(
+      "state_changed",
+      (snapshot) => onProgress?.(snapshot),
+      (error) => reject(error),
+      () => resolve(),
+    );
+  });
 }
+
+export type ScanUploadProgress = {
+  pose: keyof StartScanResponse["storagePaths"];
+  fileIndex: number;
+  fileCount: number;
+  bytesTransferred: number;
+  totalBytes: number;
+  percent: number;
+  overallPercent: number;
+};
 
 export async function submitScanClient(
   params: {
@@ -192,21 +214,40 @@ export async function submitScanClient(
     currentWeightKg: number;
     goalWeightKg: number;
   },
-  options?: { onUploadProgress?: (completed: number, total: number) => void },
+  options?: { onUploadProgress?: (progress: ScanUploadProgress) => void },
 ): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
   if (!user) return { ok: false, error: { message: "Please sign in before submitting a scan." } };
   try {
-    const entries = Object.entries(params.storagePaths) as Array<[
-      keyof typeof params.storagePaths,
-      string
-    ]>;
-    const total = entries.length;
+    const entries = Object.entries(params.storagePaths) as Array<[keyof typeof params.storagePaths, string]>;
+    const fileCount = entries.length;
+    let completedFiles = 0;
     for (const [index, [pose, path]] of entries.entries()) {
-      const file = params.photos[pose as keyof typeof params.photos];
+      const file = params.photos[pose];
       if (!file) return { ok: false, error: { message: `Missing ${pose} photo` } };
-      await uploadPhoto(path, file);
-      options?.onUploadProgress?.(index + 1, total);
+      await uploadPhoto(path, file, (snapshot) => {
+        const percent = snapshot.totalBytes ? snapshot.bytesTransferred / snapshot.totalBytes : 0;
+        const overallPercent = (completedFiles + percent) / fileCount;
+        options?.onUploadProgress?.({
+          pose,
+          fileIndex: index,
+          fileCount,
+          bytesTransferred: snapshot.bytesTransferred,
+          totalBytes: snapshot.totalBytes,
+          percent,
+          overallPercent,
+        });
+      });
+      completedFiles += 1;
+      options?.onUploadProgress?.({
+        pose,
+        fileIndex: index,
+        fileCount,
+        bytesTransferred: file.size,
+        totalBytes: file.size,
+        percent: 1,
+        overallPercent: completedFiles / fileCount,
+      });
     }
 
     await apiFetch(submitUrl(), {

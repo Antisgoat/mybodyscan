@@ -3,8 +3,7 @@ import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { auth as firebaseAuth } from "@/lib/firebase";
-
-const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_URL as string;
+import { fnUrl } from "@/lib/env";
 
 export interface MealServingSelection {
   qty?: number;
@@ -78,7 +77,8 @@ async function callFn(path: string, body?: any, method = "POST") {
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
   const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;
-  const r = await fetch(`${FUNCTIONS_URL}${path}`, {
+  const endpoint = fnUrl(path);
+  const r = await fetch(endpoint, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}`, "x-tz-offset-mins": String(tzOffsetMins) },
     body: method === "POST" ? JSON.stringify(body || {}) : undefined,

@@ -1,5 +1,5 @@
 import { auth as firebaseAuth, db } from "./firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
@@ -33,8 +33,62 @@ async function callFn(path: string, body?: any) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
     body: JSON.stringify(body || {}),
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) {
+    const payload = await r.text().catch(() => "");
+    let parsed: any = null;
+    try {
+      parsed = payload ? JSON.parse(payload) : null;
+    } catch {
+      parsed = null;
+    }
+    if (r.status === 404 && !parsed) {
+      throw new Error(`fn_not_found:${path}`);
+    }
+    const message =
+      typeof parsed?.error === "string"
+        ? parsed.error
+        : typeof parsed?.message === "string"
+          ? parsed.message
+          : payload?.trim() || `fn_error_${r.status}`;
+    throw new Error(message);
+  }
   return r.json();
+}
+
+async function fetchPlanFromFirestore() {
+  const uid = firebaseAuth?.currentUser?.uid;
+  if (!uid) throw new Error("auth");
+  try {
+    const metaSnap = await getDoc(doc(db, `users/${uid}/workoutPlans_meta`));
+    const planId = metaSnap.exists() ? (metaSnap.data()?.activePlanId as string | undefined) : undefined;
+    if (!planId) return null;
+    const planSnap = await getDoc(doc(db, `users/${uid}/workoutPlans/${planId}`));
+    if (!planSnap.exists()) return null;
+    const data = planSnap.data() as Record<string, any>;
+    return { id: planId, ...data };
+  } catch (error) {
+    console.warn("workouts.plan_fallback_failed", error);
+    return null;
+  }
+}
+
+async function fetchProgressFromFirestore(planId: string) {
+  const uid = firebaseAuth?.currentUser?.uid;
+  if (!uid) throw new Error("auth");
+  try {
+    const progressRef = collection(db, `users/${uid}/workoutPlans/${planId}/progress`);
+    const q = query(progressRef, orderBy("updatedAt", "desc"), limit(14));
+    const snaps = await getDocs(q);
+    const progress: Record<string, string[]> = {};
+    snaps.docs.forEach((docSnap) => {
+      const data = docSnap.data() as { completed?: string[] };
+      progress[docSnap.id] = Array.isArray(data?.completed) ? data.completed : [];
+    });
+    return progress;
+  } catch (error) {
+    console.warn("workouts.progress_fallback_failed", error);
+    return {};
+  }
 }
 
 export async function generateWorkoutPlan(prefs?: Record<string, any>) {
@@ -42,7 +96,14 @@ export async function generateWorkoutPlan(prefs?: Record<string, any>) {
     track("demo_block", { action: "workout_generate" });
     throw new Error("demo-blocked");
   }
-  return callFn("/generateWorkoutPlan", { prefs });
+  try {
+    return await callFn("/generateWorkoutPlan", { prefs });
+  } catch (error: any) {
+    if (typeof error?.message === "string" && error.message.startsWith("fn_not_found")) {
+      throw new Error("workouts_disabled_missing_fn");
+    }
+    throw error;
+  }
 }
 
 export async function getPlan() {
@@ -54,6 +115,11 @@ export async function getPlan() {
     return await callFn("/getPlan", {});
   } catch (error) {
     console.warn("workouts.getPlan", error);
+    if (error instanceof Error && error.message.startsWith("fn_not_found")) {
+      const fallback = await fetchPlanFromFirestore();
+      if (fallback) return fallback;
+      throw new Error("workouts_disabled_missing_fn");
+    }
     return null;
   }
 }
@@ -68,8 +134,14 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
     const days = Array.isArray(res?.days) ? (res.days as WorkoutDay[]) : [];
     const progress = (res?.progress as Record<string, string[]>) ?? {};
     return { planId, days, progress };
-  } catch (error) {
+  } catch (error: any) {
     console.warn("workouts.getWorkouts", error);
+    if (error instanceof Error && error.message.startsWith("fn_not_found")) {
+      const fallback = await fetchPlanFromFirestore();
+      if (!fallback) throw new Error("workouts_disabled_missing_fn");
+      const progress = await fetchProgressFromFirestore(fallback.id as string);
+      return { planId: fallback.id ?? null, days: Array.isArray(fallback.days) ? (fallback.days as WorkoutDay[]) : [], progress };
+    }
     return null;
   }
 }
