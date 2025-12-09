@@ -373,6 +373,13 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
   );
 }
 
+/**
+ * These HTTPS entrypoints back the client workouts/program flow:
+ *  - Programs or Workouts pages call /generateWorkoutPlan to persist a plan in users/{uid}/workoutPlans.
+ *  - /getPlan (and /getWorkouts) read the active plan + recent progress for dashboards.
+ *  - /markExerciseDone toggles per-exercise completion for the active day.
+ * The legacy names stay exported so existing callers that hit fnUrl("/getPlan") keep working.
+ */
 export const generateWorkoutPlan = withHandler(handleGenerate);
 export const generatePlan = generateWorkoutPlan;
 export const getPlan = withHandler(handleGetPlan);
