@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 export type CaptureMode = "4";
 export type CaptureView = "Front" | "Side" | "Back" | "Left" | "Right";
+export type PoseKey = "front" | "back" | "left" | "right";
 
 export const CAPTURE_VIEW_SETS: Record<CaptureMode, CaptureView[]> = {
   "4": ["Front", "Back", "Left", "Right"],
@@ -10,12 +11,29 @@ export const CAPTURE_VIEW_SETS: Record<CaptureMode, CaptureView[]> = {
 interface CaptureState {
   mode: CaptureMode;
   files: Partial<Record<CaptureView, File>>;
+  weights: {
+    currentWeightKg: number | null;
+    goalWeightKg: number | null;
+  };
+  session: {
+    scanId: string;
+    storagePaths: Record<PoseKey, string>;
+  } | null;
 }
 
-let state: CaptureState = {
-  mode: "4",
-  files: {},
-};
+function initialState(): CaptureState {
+  return {
+    mode: "4",
+    files: {},
+    weights: {
+      currentWeightKg: null,
+      goalWeightKg: null,
+    },
+    session: null,
+  };
+}
+
+let state: CaptureState = initialState();
 
 const listeners = new Set<() => void>();
 
@@ -56,6 +74,14 @@ export function setCaptureFile(view: CaptureView, file?: File) {
   });
 }
 
+export function clearCaptureFiles() {
+  if (!Object.keys(state.files).length) return;
+  setState({
+    ...state,
+    files: {},
+  });
+}
+
 export function pruneCaptureFiles(validViews: CaptureView[]) {
   const validSet = new Set(validViews);
   const nextFiles: Partial<Record<CaptureView, File>> = {};
@@ -67,6 +93,38 @@ export function pruneCaptureFiles(validViews: CaptureView[]) {
   setState({
     ...state,
     files: nextFiles,
+  });
+}
+
+export function setCaptureWeights(weights: { currentWeightKg: number; goalWeightKg: number }) {
+  setState({
+    ...state,
+    weights: {
+      currentWeightKg: weights.currentWeightKg,
+      goalWeightKg: weights.goalWeightKg,
+    },
+    session: null,
+  });
+}
+
+export function setCaptureSession(
+  session: {
+    scanId: string;
+    storagePaths: Record<PoseKey, string>;
+  } | null,
+) {
+  setState({
+    ...state,
+    session,
+  });
+}
+
+export function resetCaptureFlow(options?: { preserveWeights?: boolean }) {
+  const next = initialState();
+  const weights = options?.preserveWeights ? state.weights : next.weights;
+  setState({
+    ...next,
+    weights,
   });
 }
 
