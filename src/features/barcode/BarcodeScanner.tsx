@@ -13,6 +13,7 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
   const [error, setError] = useState<string | null>(null);
   const stopRef = useRef<StopFn | null>(null);
   const [manualCode, setManualCode] = useState("");
+  const [cameraBlockReason, setCameraBlockReason] = useState<"blocked" | "unsupported" | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -21,31 +22,65 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
       setError(null);
       setScanning(false);
       stopRef.current?.();
-      if (!cameraAvailable()) { setError("Camera not available"); return; }
-      if (!isSecureContextOrLocal()) { setError("Camera requires HTTPS (or localhost)"); return; }
+      stopRef.current = null;
+      if (cameraBlockReason === "blocked") {
+        // FIX: Stop re-requesting camera once Safari blocks permission and explain how to resolve.
+        setError("Camera permission is blocked for this site. Enable camera access in Safari Settings to scan.");
+        return;
+      }
+      if (cameraBlockReason === "unsupported") {
+        setError("Live camera scanning isn't supported on this device. Enter the barcode manually.");
+        return;
+      }
+      if (!cameraAvailable()) {
+        setError("Live camera scanning isn't supported on this device. Enter the barcode manually.");
+        setCameraBlockReason("unsupported");
+        return;
+      }
+      if (!isSecureContextOrLocal()) {
+        setError("Camera access requires HTTPS or localhost. Enter the barcode manually.");
+        setCameraBlockReason("unsupported");
+        return;
+      }
       if (!videoRef.current) return;
 
       setScanning(true);
-      const stop = await startVideoScan(videoRef.current, (code) => {
-        // Debounce: stop immediately on first detection
-        if (!mounted) return;
-        stopRef.current?.();
-        stopRef.current = null;
-        setScanning(false);
-        // Best-effort haptic
-        try {
-          (navigator as any).vibrate?.(60);
-        } catch (error) {
-          console.debug("barcode_vibrate_failed", error);
-        }
-        onDetected(code);
-        onClose();
-      });
-      if (!stop) {
-        setScanning(false);
-        setError("Scanner unavailable; try manual or photo upload.");
-      } else {
+      try {
+        const stop = await startVideoScan(videoRef.current, (code) => {
+          // Debounce: stop immediately on first detection
+          if (!mounted) return;
+          stopRef.current?.();
+          stopRef.current = null;
+          setScanning(false);
+          // Best-effort haptic
+          try {
+            (navigator as any).vibrate?.(60);
+          } catch (error) {
+            console.debug("barcode_vibrate_failed", error);
+          }
+          onDetected(code);
+          onClose();
+        });
         stopRef.current = stop;
+      } catch (err: any) {
+        // FIX: Translate ZXing/camera failures into actionable messaging instead of a generic error.
+        if (!mounted) return;
+        setScanning(false);
+        const code = err?.code ?? err?.name;
+        if (code === "camera_permission_denied" || code === "NotAllowedError") {
+          setCameraBlockReason("blocked");
+          setError("Camera permission is blocked for this site. Enable camera access in Safari Settings > Safari > Camera.");
+        } else if (code === "camera_unsupported") {
+          setCameraBlockReason("unsupported");
+          setError("Live camera scanning isn't supported in this browser. Enter the barcode manually.");
+        } else if (code === "insecure_context") {
+          setCameraBlockReason("unsupported");
+          setError("Camera access requires HTTPS or localhost. Enter the barcode manually.");
+        } else if (code === "zxing_unavailable") {
+          setError("Scanner component unavailable on this device. Use manual entry or upload a barcode photo.");
+        } else {
+          setError("Unable to start camera scanner. You can still enter the barcode manually.");
+        }
       }
     }
     run();
@@ -54,7 +89,7 @@ export default function BarcodeScannerSheet({ open, onClose, onDetected }: Props
       stopRef.current?.();
       stopRef.current = null;
     };
-  }, [open, onClose, onDetected]);
+  }, [open, onClose, onDetected, cameraBlockReason]);
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];

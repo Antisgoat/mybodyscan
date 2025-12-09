@@ -184,13 +184,16 @@ async function uploadPhoto(path: string, file: File): Promise<void> {
   await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
 }
 
-export async function submitScanClient(params: {
-  scanId: string;
-  storagePaths: { front: string; back: string; left: string; right: string };
-  photos: { front: File; back: File; left: File; right: File };
-  currentWeightKg: number;
-  goalWeightKg: number;
-}): Promise<ScanApiResult<void>> {
+export async function submitScanClient(
+  params: {
+    scanId: string;
+    storagePaths: { front: string; back: string; left: string; right: string };
+    photos: { front: File; back: File; left: File; right: File };
+    currentWeightKg: number;
+    goalWeightKg: number;
+  },
+  options?: { onUploadProgress?: (completed: number, total: number) => void },
+): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
   if (!user) return { ok: false, error: { message: "Please sign in before submitting a scan." } };
   try {
@@ -198,10 +201,12 @@ export async function submitScanClient(params: {
       keyof typeof params.storagePaths,
       string
     ]>;
-    for (const [pose, path] of entries) {
+    const total = entries.length;
+    for (const [index, [pose, path]] of entries.entries()) {
       const file = params.photos[pose as keyof typeof params.photos];
       if (!file) return { ok: false, error: { message: `Missing ${pose} photo` } };
       await uploadPhoto(path, file);
+      options?.onUploadProgress?.(index + 1, total);
     }
 
     await apiFetch(submitUrl(), {
