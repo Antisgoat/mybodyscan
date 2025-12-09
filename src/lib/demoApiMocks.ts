@@ -97,7 +97,7 @@ export function mockCoachReply(message: string) {
 export function mockStartScan(payload: unknown) {
   return {
     scanId: "demo-scan-new",
-    status: "completed",
+    status: "complete",
     resultId: demoLatestScan.id,
     payload,
   };

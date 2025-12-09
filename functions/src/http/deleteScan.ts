@@ -38,9 +38,12 @@ export const deleteScan = onRequest({ cors: true, timeoutSeconds: 540 }, async (
     const snap = await docRef.get();
     if (!snap.exists) return jsonError(res, 404, "not_found", "Scan not found");
 
-    // Delete storage files under prefix
+    // Delete storage files under both legacy and current prefixes
     const bucket = getStorage().bucket();
-    await bucket.deleteFiles({ prefix: `scans/${uid}/${scanId}/` }).catch(() => {});
+    await Promise.all([
+      bucket.deleteFiles({ prefix: `user_uploads/${uid}/${scanId}/` }).catch(() => {}),
+      bucket.deleteFiles({ prefix: `scans/${uid}/${scanId}/` }).catch(() => {}),
+    ]);
 
     await docRef.delete();
     logger.info("deleteScan_ok", { uid, scanId });

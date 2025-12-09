@@ -20,9 +20,7 @@ import {
   type FavoriteDocWithId,
 } from "@/lib/nutritionCollections";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { db } from "@/lib/firebase";
-import { addDoc } from "@/lib/dbWrite";
-import { collection, serverTimestamp } from "firebase/firestore";
+import { addMeal } from "@/lib/nutritionBackend";
 import { useAuthUser } from "@/lib/auth";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -518,18 +516,29 @@ export default function MealsSearch() {
 
     setLogging(true);
     try {
-      const entriesRef = collection(db, `users/${user.uid}/nutritionLogs/${today}/entries`);
-      await addDoc(entriesRef, {
-        foodId: item.id,
+      await addMeal(today, {
         name: item.name,
-        brand: item.brand ?? null,
-        grams: roundGrams(totalGrams),
-        kcal: roundKcal(macros.kcal),
         protein: roundGrams(macros.protein),
         carbs: roundGrams(macros.carbs),
         fat: roundGrams(macros.fat),
-        source: item.source,
-        createdAt: serverTimestamp(),
+        calories: roundKcal(macros.kcal),
+        entrySource: "search",
+        serving: {
+          qty: quantity,
+          unit: "custom",
+          grams: Math.round(totalGrams),
+          originalQty: quantity,
+          originalUnit: item.servings?.[0]?.label ?? undefined,
+        },
+        item: {
+          id: item.id,
+          name: item.name,
+          brand: item.brand ?? null,
+          source: item.source,
+          serving: item.serving ?? undefined,
+          per_serving: item.per_serving ?? undefined,
+          per_100g: item.per_100g ?? undefined,
+        },
       });
       toast({ title: "Food logged", description: item.name });
       updateRecents(item);

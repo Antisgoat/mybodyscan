@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
+import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
@@ -29,6 +29,7 @@ export default function ScanPage() {
   const [delayNotice, setDelayNotice] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPose, setUploadPose] = useState<string | null>(null);
+  const [activeScanId, setActiveScanId] = useState<string | null>(null);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
@@ -70,10 +71,22 @@ export default function ScanPage() {
     toast({ title: "Scan paused", description: message, variant: "destructive" });
   };
 
+  async function cleanupPendingScan(scanId: string | null) {
+    if (!scanId) return;
+    try {
+      await deleteScanApi(scanId);
+    } catch (cleanupError) {
+      console.warn("scan.cleanup_failed", cleanupError);
+    } finally {
+      setActiveScanId((prev) => (prev === scanId ? null : prev));
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setStatusDetail(null);
+    let sessionScanId: string | null = null;
     if (missingFields) {
       setError("Please add all four photos and enter your weights.");
       return;
@@ -109,13 +122,16 @@ export default function ScanPage() {
         return;
       }
 
+      const startedScanId = start.data.scanId;
+      sessionScanId = startedScanId;
+      setActiveScanId(startedScanId);
       setStatus("uploading");
       setStatusDetail("Uploading encrypted photos… keep this tab open.");
       setUploadProgress(0);
       setUploadPose(null);
       const submit = await submitScanClient(
         {
-          scanId: start.data.scanId,
+          scanId: startedScanId,
           storagePaths: start.data.storagePaths,
           photos: {
             front: photos.front!,
@@ -141,6 +157,10 @@ export default function ScanPage() {
 
       if (!submit.ok) {
         const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        if (submit.error.reason === "upload_failed") {
+          await cleanupPendingScan(startedScanId);
+          sessionScanId = null;
+        }
         failFlow(submit.error.message + debugSuffix);
         return;
       }
@@ -149,10 +169,15 @@ export default function ScanPage() {
       setUploadPose(null);
       setStatus("analyzing");
       setStatusDetail("Photos uploaded. Waiting for AI analysis—this can take a couple of minutes.");
-      nav(`/scan/${start.data.scanId}`);
+      sessionScanId = null;
+      setActiveScanId(null);
+      nav(`/scans/${startedScanId}`);
     } catch (err) {
       console.error("scan.submit.unexpected", err);
       failFlow("We hit an unexpected error while starting your scan. Please try again.");
+      if (sessionScanId) {
+        await cleanupPendingScan(sessionScanId);
+      }
     }
   }
 

@@ -31,7 +31,9 @@ async function handler(req: Request, res: Response) {
       }
       const data = snap.data() as any;
       const charged = Boolean(data.charged);
-      const completed = data.status === "completed" && data.result?.bf_percent != null;
+      const statusValue = typeof data.status === "string" ? data.status.toLowerCase() : "";
+      const completed =
+        (statusValue === "complete" || statusValue === "completed") && data.result?.bf_percent != null;
       if (!charged || completed) {
         return;
       }

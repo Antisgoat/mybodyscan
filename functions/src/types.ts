@@ -43,6 +43,7 @@ export interface ScanDocument {
   uid: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  completedAt?: Timestamp | null;
   status: "pending" | "processing" | "complete" | "error";
   errorMessage?: string;
   photoPaths: {

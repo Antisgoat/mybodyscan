@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -25,11 +25,10 @@ export default function Nutrition() {
   const [totals, setTotals] = useState<{ calories: number; protein?: number; carbs?: number; fat?: number }>({ calories: 0 });
   const [history, setHistory] = useState<NutritionHistoryDay[]>([]);
 
-  useEffect(() => {
+  const loadNutrition = useCallback(async () => {
     if (!authReady || !appCheckReady) {
       return;
     }
-
     if (!user) {
       setTotals({ calories: 0 });
       setHistory([]);
@@ -37,40 +36,28 @@ export default function Nutrition() {
       setLoading(false);
       return;
     }
-
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [log, hist] = await Promise.all([
-          getDailyLog(todayISO()),
-          getNutritionHistory(7),
-        ]);
-        if (cancelled) return;
-        setTotals(log?.totals ?? { calories: 0 });
-        setHistory(Array.isArray(hist) ? hist : []);
-      } catch (err: any) {
-        console.warn("nutrition.load", err);
-        if (!cancelled) {
-          setError(err?.message || "Unable to load nutrition data");
-          toast({ title: "Unable to load", description: err?.message || "Please try again.", variant: "destructive" });
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
+    setLoading(true);
     setError(null);
-    void load();
+    try {
+      const [log, hist] = await Promise.all([getDailyLog(todayISO()), getNutritionHistory(7)]);
+      setTotals(log?.totals ?? { calories: 0 });
+      setHistory(Array.isArray(hist) ? hist : []);
+    } catch (err: any) {
+      console.warn("nutrition.load", err);
+      setError(err?.message || "Unable to load nutrition data");
+      toast({ title: "Unable to load", description: err?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [appCheckReady, authReady, toast, user]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [authReady, appCheckReady, user]);
+  useEffect(() => {
+    void loadNutrition();
+  }, [loadNutrition]);
+
+  const handleMealLogged = useCallback(() => {
+    void loadNutrition();
+  }, [loadNutrition]);
 
   const mostRecent = useMemo(() => history[history.length - 1], [history]);
 
@@ -91,7 +78,7 @@ export default function Nutrition() {
           <Card>
             <CardContent>
               {user ? (
-                <NutritionSearch />
+                <NutritionSearch onMealLogged={handleMealLogged} />
               ) : (
                 <p className="text-sm text-muted-foreground">Sign in to search foods and scan barcodes.</p>
               )}

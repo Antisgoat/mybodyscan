@@ -202,7 +202,7 @@ export default function ProgramDetail() {
         { merge: true },
       );
       toast({ title: "Program started", description: `${program.title} is now your active plan.` });
-      navigate("/coach", { replace: true });
+      navigate(`/workouts?plan=${workoutPlanId}&started=1`, { replace: true });
     } catch (error) {
       const code = typeof (error as { code?: string } | null)?.code === "string" ? (error as { code: string }).code : null;
       let description: string;

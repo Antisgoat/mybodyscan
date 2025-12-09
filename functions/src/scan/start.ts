@@ -64,6 +64,7 @@ async function handleStart(req: Request, res: any) {
       uid,
       createdAt: now,
       updatedAt: now,
+      completedAt: null,
       status: "pending",
       photoPaths: storagePaths,
       input: {

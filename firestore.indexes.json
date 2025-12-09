@@ -8,6 +8,15 @@
       ]
     },
     {
+      "collectionGroup": "scans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "charged", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionId": "stripeEvents",
       "queryScope": "COLLECTION",
       "fields": [

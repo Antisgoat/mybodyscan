@@ -47,8 +47,9 @@ export type ScanDocument = {
   uid: string;
   createdAt: Date;
   updatedAt: Date;
+  completedAt: Date | null;
   status: "pending" | "processing" | "complete" | "completed" | "failed" | "error";
-  errorMessage?: string;
+  errorMessage?: string | null;
   photoPaths: {
     front: string;
     back: string;
@@ -88,7 +89,7 @@ function deleteUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_DELETE_URL", "deleteScan");
 }
 
-export type ScanError = { code?: string; message: string; debugId?: string; status?: number };
+export type ScanError = { code?: string; message: string; debugId?: string; status?: number; reason?: string };
 
 export type ScanApiResult<T> = { ok: true; data: T } | { ok: false; error: ScanError };
 
@@ -113,13 +114,15 @@ type FirestoreScan = Partial<ScanDocument> & Record<string, unknown>;
 function toScanDocument(id: string, uid: string, data: FirestoreScan): ScanDocument {
   const fallbackPaths = data.photoPaths as ScanDocument["photoPaths"] | undefined;
   const input = data.input as ScanDocument["input"] | undefined;
+  const completedAtRaw = data.completedAt as unknown;
   return {
     id,
     uid,
     createdAt: parseTimestamp(data.createdAt),
     updatedAt: parseTimestamp(data.updatedAt),
+    completedAt: completedAtRaw ? parseTimestamp(completedAtRaw) : null,
     status: (data.status as ScanDocument["status"]) ?? "pending",
-    errorMessage: typeof data.errorMessage === "string" ? data.errorMessage : undefined,
+    errorMessage: typeof data.errorMessage === "string" ? data.errorMessage : null,
     photoPaths:
       fallbackPaths ??
       ({
@@ -141,14 +144,14 @@ function toScanDocument(id: string, uid: string, data: FirestoreScan): ScanDocum
   };
 }
 
-function buildScanError(err: unknown, fallbackMessage: string): ScanError {
+function buildScanError(err: unknown, fallbackMessage: string, reason?: string): ScanError {
   if (err instanceof ApiError) {
-    const data = (err.data ?? {}) as { code?: string; message?: string; debugId?: string };
+    const data = (err.data ?? {}) as { code?: string; message?: string; debugId?: string; reason?: string };
     const message = typeof data.message === "string" && data.message.length ? data.message : fallbackMessage;
-    return { code: err.code ?? data.code, message, debugId: data.debugId, status: err.status };
+    return { code: err.code ?? data.code, message, debugId: data.debugId, status: err.status, reason: reason ?? data.reason };
   }
-  if (err instanceof Error) return { message: err.message };
-  return { message: fallbackMessage };
+  if (err instanceof Error) return { message: err.message, reason };
+  return { message: fallbackMessage, reason };
 }
 
 export function deserializeScanDocument(id: string, uid: string, data: Record<string, unknown>): ScanDocument {
@@ -218,6 +221,7 @@ export async function submitScanClient(
 ): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
   if (!user) return { ok: false, error: { message: "Please sign in before submitting a scan." } };
+  let uploadsCompleted = false;
   try {
     const entries = Object.entries(params.storagePaths) as Array<[keyof typeof params.storagePaths, string]>;
     const fileCount = entries.length;
@@ -250,6 +254,7 @@ export async function submitScanClient(
       });
     }
 
+    uploadsCompleted = true;
     await apiFetch(submitUrl(), {
       method: "POST",
       body: {
@@ -262,7 +267,11 @@ export async function submitScanClient(
     return { ok: true, data: undefined };
   } catch (err) {
     console.error("scan:submit error", err);
-    return { ok: false, error: buildScanError(err, "Could not upload your photos. Please try again.") };
+    const reason = uploadsCompleted ? "submit_failed" : "upload_failed";
+    const fallback = uploadsCompleted
+      ? "We couldn't process your scan. Please try again."
+      : "Could not upload your photos. Please try again.";
+    return { ok: false, error: buildScanError(err, fallback, reason) };
   }
 }
 

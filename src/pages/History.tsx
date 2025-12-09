@@ -7,6 +7,7 @@ import { getFrontThumbUrl } from "@/lib/scanMedia";
 import { deleteScanApi } from "@/lib/api/scan";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { scanStatusLabel } from "@/lib/scanStatus";
 
 export default function HistoryPage() {
   const nav = useNavigate();
@@ -123,6 +124,10 @@ export default function HistoryPage() {
         {items.map((it) => {
           const m = normalizeScanMetrics(it as any);
           const sel = selected.includes(it.id);
+          const statusMeta = scanStatusLabel(
+            it.status as string | undefined,
+            (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt,
+          );
           return (
             <li key={it.id} className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}>
               <button className="block w-full text-left" onClick={() => toggle(it.id)}>
@@ -133,17 +138,43 @@ export default function HistoryPage() {
                     <div className="h-full w-full animate-pulse" />
                   )}
                 </div>
-                <div className="p-2">
-                  <div className="text-xs text-muted-foreground truncate">
-                    {new Date(it.createdAt?.toMillis?.() ?? Date.now()).toLocaleString()}
+                <div className="p-2 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate">
+                      {new Date(it.createdAt?.toMillis?.() ?? Date.now()).toLocaleString()}
+                    </span>
+                    <span>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          statusMeta.badgeVariant === "destructive"
+                            ? "bg-red-50 text-red-700"
+                            : statusMeta.badgeVariant === "default"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {statusMeta.label}
+                      </span>
+                    </span>
                   </div>
-                  <div className="text-sm font-medium">
-                    {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {m.weightLb != null ? `${m.weightLb} lb` : "—"}
-                  </div>
+                  {statusMeta.showMetrics ? (
+                    <div className="text-sm font-medium">
+                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {m.weightLb != null ? `${m.weightLb} lb` : "—"}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{statusMeta.helperText}</p>
+                  )}
                 </div>
               </button>
-              <div className="flex items-center justify-between px-2 pb-2">
-                <button onClick={() => nav(`/scans/${it.id}`)} className="text-[11px] underline">Open</button>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
+                <div className="flex gap-2">
+                  <button onClick={() => nav(`/scans/${it.id}`)} className="text-[11px] underline">Open</button>
+                  {statusMeta.recommendRescan && (
+                    <button onClick={() => nav("/scan")} className="text-[11px] underline text-primary">
+                      Rescan
+                    </button>
+                  )}
+                </div>
                 <button onClick={() => onDelete(it.id)} className="text-[11px] text-red-700 underline" disabled={busyDelete === it.id}>
                   {busyDelete === it.id ? "Deleting…" : "Delete"}
                 </button>
