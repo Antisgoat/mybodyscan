@@ -1,5 +1,6 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
+import { cameraAvailable, isSecureContextOrLocal } from "@/features/barcode/useZxing";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -31,6 +32,7 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
   const [results, setResults] = useState<FoodItem[] | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [scannerCapability, setScannerCapability] = useState<{ supported: boolean; reason?: "blocked" | "unsupported" } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
@@ -81,6 +83,12 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
     }
   }
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const supported = cameraAvailable() && isSecureContextOrLocal();
+    setScannerCapability({ supported, reason: supported ? undefined : "unsupported" });
+  }, []);
+
   function onDetectedFromScanner(code: string) {
     if (!nutritionEnabled) return;
     setQ(code);
@@ -88,6 +96,14 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
       void onSubmit();
     }, 50);
   }
+
+  const liveScannerSupported = scannerCapability?.supported !== false;
+  const scannerBlocked = scannerCapability?.reason === "blocked";
+  const scannerWarning = nutritionEnabled && !liveScannerSupported
+    ? scannerBlocked
+      ? "Camera access is blocked for this site. Enable camera permissions or enter the UPC manually."
+      : "Live barcode scanning isn't available on this browser. Enter the UPC manually."
+    : null;
 
   function startEdit(item: FoodItem, source: MealEntry["entrySource"]) {
     if (!nutritionEnabled) return;
@@ -165,16 +181,20 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
         <button
           type="button"
           onClick={() => {
-            if (!nutritionEnabled) return;
+            if (!nutritionEnabled || !liveScannerSupported) return;
             setScanOpen(true);
           }}
           className="rounded-md border px-3 py-2 text-sm"
           aria-label="Scan barcode"
-          disabled={!nutritionEnabled}
+          disabled={!nutritionEnabled || !liveScannerSupported}
+          title={!liveScannerSupported ? scannerWarning ?? undefined : undefined}
         >
           Scan
         </button>
       </form>
+      {scannerWarning && (
+        <p className="text-[11px] text-muted-foreground">{scannerWarning}</p>
+      )}
 
       {busy && (
         <div className="space-y-2" aria-live="polite">
@@ -231,6 +251,7 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={onDetectedFromScanner}
+        onCapabilityChange={(state) => setScannerCapability(state)}
       />
 
       <Dialog open={editorOpen} onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}>
