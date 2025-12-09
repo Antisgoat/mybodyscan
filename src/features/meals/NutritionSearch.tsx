@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
@@ -6,9 +6,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ServingEditor } from "@/components/nutrition/ServingEditor";
+import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
+import { toast } from "@/hooks/use-toast";
+import { demoToast } from "@/lib/demoToast";
 
-export default function NutritionSearch() {
-  const { loading: authLoading } = useAuthUser();
+type NutritionSearchProps = {
+  onMealLogged?: (item: FoodItem) => void;
+};
+
+export default function NutritionSearch({ onMealLogged }: NutritionSearchProps = {}) {
+  const { loading: authLoading, user } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const demo = useDemoMode();
@@ -22,6 +31,11 @@ export default function NutritionSearch() {
   const [results, setResults] = useState<FoodItem[] | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorSource, setEditorSource] = useState<MealEntry["entrySource"]>("search");
+  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   async function onSubmit(e?: FormEvent) {
     e?.preventDefault();
@@ -73,6 +87,53 @@ export default function NutritionSearch() {
     setTimeout(() => {
       void onSubmit();
     }, 50);
+  }
+
+  function startEdit(item: FoodItem, source: MealEntry["entrySource"]) {
+    if (!nutritionEnabled) return;
+    if (demo) {
+      demoToast();
+      return;
+    }
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
+      return;
+    }
+    setEditorItem(item);
+    setEditorSource(source);
+    setEditorOpen(true);
+  }
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setEditorItem(null);
+    setEditorBusy(false);
+    setEditorSource("search");
+  };
+
+  async function handleConfirm({ meal }: { meal: MealEntry }) {
+    if (!editorItem) return;
+    if (!user) {
+      toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
+      closeEditor();
+      return;
+    }
+    setEditorBusy(true);
+    try {
+      // FIX: prior implementation rendered Add buttons with no handler, so nothing was persisted.
+      await addMeal(todayISO, { ...meal, entrySource: editorSource ?? "search" });
+      toast({ title: "Meal logged", description: `${editorItem.name} added to today.` });
+      onMealLogged?.(editorItem);
+      closeEditor();
+    } catch (error: any) {
+      const description =
+        typeof error?.message === "string" && error.message.length
+          ? error.message
+          : "Unable to log meal. Please try again.";
+      toast({ title: "Unable to log meal", description, variant: "destructive" });
+    } finally {
+      setEditorBusy(false);
+    }
   }
 
   return (
@@ -153,8 +214,14 @@ export default function NutritionSearch() {
                   {fmtCal(it.calories)}{sep(it)}{fmtMacros(it)}{sep(it)}{fmtServing(it)}{sep(it)}{it.source || ""}
                 </div>
               </div>
-              {/* Hook up "Add" to diary in a later prompt */}
-              <button className="rounded border px-2 py-1 text-xs">Add</button>
+              <button
+                className="rounded border px-2 py-1 text-xs"
+                onClick={() => startEdit(it, "search")}
+                disabled={busy || !nutritionEnabled || !user || demo}
+                title={!user ? "Sign in to log meals" : undefined}
+              >
+                Add
+              </button>
             </li>
           ))}
         </ul>
@@ -165,6 +232,25 @@ export default function NutritionSearch() {
         onClose={() => setScanOpen(false)}
         onDetected={onDetectedFromScanner}
       />
+
+      <Dialog open={editorOpen} onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{editorItem ? `Log ${editorItem.name}` : "Log food"}</DialogTitle>
+          </DialogHeader>
+          {editorItem && (
+            <ServingEditor
+              item={editorItem}
+              onConfirm={handleConfirm}
+              entrySource={editorSource}
+              busy={editorBusy}
+              readOnly={demo}
+              onDemoAttempt={demoToast}
+              onCancel={closeEditor}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -183,6 +183,16 @@ export default function Meals() {
     [recents],
   );
 
+  const handleSearchLogged = useCallback(
+    (item: FoodItem) => {
+      // FIX: Search results previously logged nothing; ensure we sync local state after a successful write.
+      updateRecents(item);
+      refreshLog();
+      refreshHistory();
+    },
+    [refreshHistory, refreshLog, updateRecents],
+  );
+
   const openEditor = (item: FoodItem, qty = 1, unit: ServingUnit = "serving") => {
     setEditorItem(item);
     setEditorQty(qty);
@@ -354,7 +364,7 @@ export default function Meals() {
           </Alert>
         )}
 
-        <NutritionSearch />
+        <NutritionSearch onMealLogged={handleSearchLogged} />
 
         <Card>
           <CardHeader>

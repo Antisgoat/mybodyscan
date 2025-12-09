@@ -7,6 +7,7 @@ import { lbToKg } from "@/lib/units";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { toast } from "@/hooks/use-toast";
 
 interface PhotoInputs {
   front: File | null;
@@ -24,6 +25,8 @@ export default function ScanPage() {
   const [photos, setPhotos] = useState<PhotoInputs>({ front: null, back: null, left: null, right: null });
   const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [statusDetail, setStatusDetail] = useState<string | null>(null);
+  const [delayNotice, setDelayNotice] = useState<string | null>(null);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
@@ -36,9 +39,37 @@ export default function ScanPage() {
     return !currentWeight || !goalWeight || !photos.front || !photos.back || !photos.left || !photos.right;
   }, [currentWeight, goalWeight, photos]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (status === "uploading") {
+      timer = setTimeout(() => {
+        // FIX: Surface long-running uploads with actionable guidance instead of leaving users guessing.
+        setDelayNotice("Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls.");
+      }, 60000);
+    } else if (status === "analyzing") {
+      timer = setTimeout(() => {
+        setDelayNotice("Analysis is still running. We'll notify you as soon as your scan finishes.");
+      }, 90000);
+    } else {
+      setDelayNotice(null);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [status]);
+
+  // FIX: Centralize scan failures so we can reset UI and surface a toast consistently.
+  const failFlow = (message: string) => {
+    setError(message);
+    setStatus("idle");
+    setStatusDetail(null);
+    toast({ title: "Scan paused", description: message, variant: "destructive" });
+  };
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setStatusDetail(null);
     if (missingFields) {
       setError("Please add all four photos and enter your weights.");
       return;
@@ -64,38 +95,51 @@ export default function ScanPage() {
       );
       return;
     }
-    setStatus("starting");
-    const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
-    if (!start.ok) {
-      const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
-      setError(start.error.message + debugSuffix);
-      setStatus("idle");
-      return;
+    try {
+      setStatus("starting");
+      setStatusDetail("Verifying credits and reserving secure compute…");
+      const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
+      if (!start.ok) {
+        const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
+        failFlow(start.error.message + debugSuffix);
+        return;
+      }
+
+      setStatus("uploading");
+      setStatusDetail("Uploading encrypted photos… keep this tab open.");
+      const submit = await submitScanClient(
+        {
+          scanId: start.data.scanId,
+          storagePaths: start.data.storagePaths,
+          photos: {
+            front: photos.front!,
+            back: photos.back!,
+            left: photos.left!,
+            right: photos.right!,
+          },
+          currentWeightKg,
+          goalWeightKg,
+        },
+        {
+          onUploadProgress: (completed, total) => {
+            setStatusDetail(`Uploading encrypted photos (${completed}/${total})… keep this tab open.`);
+          },
+        },
+      );
+
+      if (!submit.ok) {
+        const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        failFlow(submit.error.message + debugSuffix);
+        return;
+      }
+
+      setStatus("analyzing");
+      setStatusDetail("Photos uploaded. Waiting for AI analysis—this can take a couple of minutes.");
+      nav(`/scan/${start.data.scanId}`);
+    } catch (err) {
+      console.error("scan.submit.unexpected", err);
+      failFlow("We hit an unexpected error while starting your scan. Please try again.");
     }
-
-    setStatus("uploading");
-    const submit = await submitScanClient({
-      scanId: start.data.scanId,
-      storagePaths: start.data.storagePaths,
-      photos: {
-        front: photos.front!,
-        back: photos.back!,
-        left: photos.left!,
-        right: photos.right!,
-      },
-      currentWeightKg,
-      goalWeightKg,
-    });
-
-    if (!submit.ok) {
-      const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
-      setError(submit.error.message + debugSuffix);
-      setStatus("idle");
-      return;
-    }
-
-    setStatus("analyzing");
-    nav(`/scan/${start.data.scanId}`);
   }
 
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
@@ -181,6 +225,12 @@ export default function ScanPage() {
           {status === "analyzing" && "Analyzing your scan…"}
           {status === "idle" && "Analyze scan"}
         </button>
+        {statusDetail && (
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {statusDetail}
+          </p>
+        )}
+        {delayNotice && <p className="text-xs text-amber-600">{delayNotice}</p>}
       </form>
     </div>
   );

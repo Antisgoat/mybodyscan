@@ -12,12 +12,23 @@ async function ensureZXing() {
   }
 }
 
+type ScannerError = Error & { code?: string };
+
+// FIX: Bubble up typed scanner errors so the UI can explain capability issues instead of showing a generic failure.
+function makeError(code: string, message: string): ScannerError {
+  const error = new Error(message) as ScannerError;
+  error.code = code;
+  return error;
+}
+
 export function cameraAvailable(): boolean {
-  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (typeof navigator === "undefined") return false;
+  return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function");
 }
 
 export function isSecureContextOrLocal(): boolean {
-  return window.isSecureContext || location.hostname === "localhost";
+  if (typeof window === "undefined") return false;
+  return Boolean(window.isSecureContext) || (typeof location !== "undefined" && location.hostname === "localhost");
 }
 
 export async function startVideoScan(
@@ -25,24 +36,48 @@ export async function startVideoScan(
   onText: (code: string) => void
 ): Promise<StopFn | null> {
   const ZX = await ensureZXing();
-  if (!ZX || !cameraAvailable() || !isSecureContextOrLocal()) return null;
+  if (!ZX) {
+    throw makeError("zxing_unavailable", "Scanner dependency failed to load.");
+  }
+  if (!cameraAvailable()) {
+    throw makeError("camera_unsupported", "Camera API unavailable in this browser.");
+  }
+  if (!isSecureContextOrLocal()) {
+    throw makeError("insecure_context", "Camera access requires HTTPS or localhost.");
+  }
 
   const { BrowserMultiFormatReader } = ZX;
   const reader = new BrowserMultiFormatReader();
 
   videoEl.setAttribute("playsinline", "true"); // iOS requirement
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: "environment" } },
-    audio: false
-  });
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
+    });
+  } catch (error: any) {
+    const err = makeError(
+      error?.name === "NotAllowedError" ? "camera_permission_denied" : "camera_start_failed",
+      error?.message || "Camera access was blocked."
+    );
+    throw err;
+  }
   videoEl.srcObject = stream;
   await videoEl.play();
 
-  const controls = reader.decodeFromVideoDevice(undefined, videoEl, (result: any) => {
-    if (result && typeof result.getText === "function") {
-      onText(result.getText());
-    }
-  });
+  let controls: any;
+  try {
+    controls = reader.decodeFromVideoDevice(undefined, videoEl, (result: any) => {
+      if (result && typeof result.getText === "function") {
+        onText(result.getText());
+      }
+    });
+  } catch (error: any) {
+    stream.getTracks().forEach((t) => t.stop());
+    videoEl.srcObject = null;
+    throw makeError("scanner_start_failed", error?.message || "Scanner failed to initialize.");
+  }
 
   const stop: StopFn = () => {
     try {

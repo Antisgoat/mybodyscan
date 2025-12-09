@@ -47,6 +47,7 @@ const publishableKey = readEnv("VITE_STRIPE_PK") || readEnv("VITE_STRIPE_PUBLISH
 const commitSha = readEnv("VITE_BUILD_SHA") || readEnv("VITE_COMMIT_SHA") || readEnv("COMMIT_SHA");
 const fallbackVersion = readEnv("VITE_APP_VERSION");
 const buildTimeEnv = readEnv("VITE_BUILD_TIME") || readEnv("BUILD_TIME");
+const functionsUrlEnv = readEnv("VITE_FUNCTIONS_URL") || readEnv("FUNCTIONS_URL");
 const functionsOriginEnv = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("FUNCTIONS_ORIGIN");
 const functionsBaseEnv = readEnv("VITE_FUNCTIONS_BASE_URL") || readEnv("FUNCTIONS_BASE_URL");
 const functionsRegionEnv = readEnv("VITE_FUNCTIONS_REGION") || readEnv("FUNCTIONS_REGION") || "us-central1";
@@ -76,6 +77,11 @@ export function describeStripeEnvironment(): "test" | "live" | "custom" | "missi
 
 export function fnUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
+  const directUrl = trim(functionsUrlEnv).replace(/\/?$/, "");
+  if (directUrl) {
+    // FIX: Honor VITE_FUNCTIONS_URL overrides so workouts & other APIs hit the deployed backend instead of localhost defaults.
+    return `${directUrl}${normalized}`;
+  }
   const origin = trim(functionsOriginEnv).replace(/\/?$/, "");
   if (origin) {
     return `${origin}${normalized}`;

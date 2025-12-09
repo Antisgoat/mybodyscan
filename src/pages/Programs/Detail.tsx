@@ -23,11 +23,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
-import type { Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
+import type { Exercise, Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
-import { doc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
@@ -67,6 +67,20 @@ function firstTrainingDay(program: Program) {
     if (day) return day;
   }
   return program.weeks[0]?.days?.[0];
+}
+
+function describeExercise(exercise: Exercise) {
+  const parts: string[] = [];
+  if (typeof exercise.sets === "number" && exercise.sets > 0) {
+    parts.push(`${exercise.sets} sets`);
+  }
+  if (exercise.reps) {
+    parts.push(`${exercise.reps}`);
+  }
+  if (typeof exercise.restSec === "number" && exercise.restSec > 0) {
+    parts.push(`${exercise.restSec}s rest`);
+  }
+  return parts.length ? `${exercise.name} — ${parts.join(" · ")}` : exercise.name;
 }
 
 export default function ProgramDetail() {
@@ -113,25 +127,75 @@ export default function ProgramDetail() {
     }
     try {
       setIsSaving(true);
+      const profileRef = doc(db, "users", user.uid, "coach", "profile");
+      const planRef = doc(db, "users", user.uid, "coachPlans", "current");
+      const priorPlanSnap = await getDoc(planRef);
+      const priorPlan = priorPlanSnap.exists() ? (priorPlanSnap.data() as Record<string, any>) : null;
+
+      const sessions = program.weeks.flatMap((week, weekIdx) =>
+        (week.days ?? []).map((day) => ({
+          day: `Week ${weekIdx + 1} • ${day.name}`,
+          blocks: day.blocks.map((block) => ({
+            title: block.title,
+            focus: block.title,
+            work: block.exercises.map((exercise) => describeExercise(exercise)),
+          })),
+        })),
+      );
+
+      const fallbackCalorieTarget = typeof priorPlan?.calorieTarget === "number" ? priorPlan.calorieTarget : 2200;
+      const fallbackProteinFloor = typeof priorPlan?.proteinFloor === "number" ? priorPlan.proteinFloor : 140;
+      const progression =
+        priorPlan?.progression ??
+        ({ deloadEvery: Array.isArray(program.deloadWeeks) && program.deloadWeeks.length ? program.deloadWeeks[0] : 4 } as {
+          deloadEvery: number;
+        });
+
+      const nextPlan = {
+        days: meta.daysPerWeek,
+        weeks: meta.weeks,
+        split: program.title,
+        sessions,
+        progression,
+        calorieTarget: fallbackCalorieTarget,
+        proteinFloor: fallbackProteinFloor,
+        disclaimer: program.summary ?? priorPlan?.disclaimer ?? "Training guidance only – not medical advice.",
+        source: "catalog",
+        programId: program.id,
+        programTitle: program.title,
+        programGoal: meta.goal,
+        programLevel: meta.level,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(planRef, nextPlan, { merge: true });
+      // FIX: Mirror the selected catalog program into the coach profile so downstream tabs immediately show the active plan.
       await setDoc(
-        doc(db, "users", user.uid, "coach", "profile"),
+        profileRef,
         {
           currentProgramId: program.id,
           activeProgramId: program.id,
-          startedAt: new Date().toISOString(),
+          startedAt: serverTimestamp(),
           currentWeekIdx: 0,
           currentDayIdx: 0,
           lastCompletedWeekIdx: -1,
           lastCompletedDayIdx: -1,
         },
-        { merge: true }
+        { merge: true },
       );
       toast({ title: "Program started", description: `${program.title} is now your active plan.` });
       navigate("/coach", { replace: true });
     } catch (error) {
+      const code = typeof (error as { code?: string } | null)?.code === "string" ? (error as { code: string }).code : null;
+      const description =
+        code === "permission-denied"
+          ? "Your account can't start programs yet. Refresh or contact support."
+          : code === "unavailable"
+            ? "Programs are temporarily offline. Please try again shortly."
+            : "Please try again.";
       toast({
         title: "Could not start program",
-        description: "Please try again.",
+        description,
         variant: "destructive",
       });
     } finally {
