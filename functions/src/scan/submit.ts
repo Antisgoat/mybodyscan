@@ -7,12 +7,12 @@
 import { randomUUID } from "node:crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
-import OpenAI from "openai";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
+import { OpenAIClientError, structuredJsonChat, type ChatContentPart } from "../openai/client.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -22,16 +22,6 @@ const OPENAI_TIMEOUT_MS = 12000;
 
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
-
-function buildOpenAIClient(): OpenAI {
-  const apiKey = (process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    throw new HttpsError("failed-precondition", "Scan engine not configured.", {
-      reason: "openai_not_configured",
-    });
-  }
-  return new OpenAI({ apiKey });
-}
 
 type Pose = (typeof POSES)[number];
 
@@ -57,15 +47,6 @@ type ParsedAnalysis = {
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(value, min), max);
-}
-
-function extractJson(text: string): any {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```json([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/);
-  if (fenced) {
-    return JSON.parse(fenced[1]?.trim() ?? "{}");
-  }
-  return JSON.parse(trimmed);
 }
 
 function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate {
@@ -173,25 +154,27 @@ async function buildImageInputs(uid: string, paths: Record<Pose, string>): Promi
   return entries;
 }
 
-function normalizeContent(content: any): string {
-  if (typeof content === "string") return content.trim();
-  if (Array.isArray(content)) {
-    return content
-      .map((part: any) => (typeof part?.text === "string" ? part.text : typeof part?.content === "string" ? part.content : ""))
-      .join("\n")
-      .trim();
+function validateVisionPayload(raw: unknown): OpenAIResult {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("invalid_analysis_payload");
   }
-  return "";
+  const payload = raw as Record<string, unknown>;
+  const coerce = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : undefined);
+  return {
+    estimate: coerce(payload.estimate),
+    workoutPlan: coerce(payload.workoutPlan),
+    nutritionPlan: coerce(payload.nutritionPlan),
+  };
 }
 
 async function callOpenAI(
   images: Array<{ pose: Pose; url: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
-): Promise<string> {
-  const openai = buildOpenAIClient();
+  requestId: string,
+): Promise<OpenAIResult> {
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
-    "Return JSON only matching {\"estimate\": ScanEstimate, \"workoutPlan\": WorkoutPlan, \"nutritionPlan\": NutritionPlan}.",
+    'Respond with JSON matching {"estimate": ScanEstimate, "workoutPlan": WorkoutPlan, "nutritionPlan": NutritionPlan}.',
     "Use concise language and realistic programming for an intermediate trainee.",
   ].join("\n");
 
@@ -201,45 +184,33 @@ async function callOpenAI(
     "Use the four photos (front, back, left, right) to inform the estimate and plans.",
     "BMI can be null if unreliable. Notes must remind this is only an estimate.",
     "Workout plan should span multiple weeks with daily splits.",
-    "Nutrition plan should include daily calories/macros and a sample day of meals.",
+    "Nutrition plan must include daily calories/macros and a sample day of meals.",
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
+  const imageParts: ChatContentPart[] = images.map(({ url }) => ({
+    type: "image_url" as const,
+    image_url: { url, detail: "high" as const },
+  }));
+  const userContent: ChatContentPart[] = [{ type: "text", text: userText }, ...imageParts];
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: OPENAI_MODEL,
-      temperature: 0.4,
-      max_tokens: 900,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userText },
-            ...images.map(({ url }) => ({ type: "image_url", image_url: { url, detail: "high" } })),
-          ],
-        },
-      ],
-      user: input.uid,
-      signal: controller.signal as any,
-    } as any);
+  const { data } = await structuredJsonChat<OpenAIResult>({
+    systemPrompt,
+    userContent,
+    temperature: 0.4,
+    maxTokens: 900,
+    userId: input.uid,
+    requestId,
+    timeoutMs: OPENAI_TIMEOUT_MS,
+    model: OPENAI_MODEL,
+    validate: validateVisionPayload,
+  });
 
-    const content = normalizeContent(response.choices?.[0]?.message?.content);
-    if (!content) {
-      throw new Error("openai_no_content");
-    }
-    return content;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return data;
 }
 
-function parseAnalysis(content: string): ParsedAnalysis {
+function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
   try {
-    const raw = extractJson(content) as OpenAIResult;
     const estimate = sanitizeEstimate(raw.estimate);
     const workoutPlan = sanitizeWorkout(raw.workoutPlan);
     const nutritionPlan = sanitizeNutrition(raw.nutritionPlan);
@@ -305,15 +276,15 @@ export const submitScan = onRequest(
       }
 
       await scanRef.set(
-        { status: "processing", updatedAt: serverTimestamp(), completedAt: null, errorMessage: null },
+        { status: "processing", updatedAt: serverTimestamp(), completedAt: null, errorMessage: null, errorReason: null },
         { merge: true },
       );
 
       let analysis: ParsedAnalysis;
       try {
         const images = await buildImageInputs(uid, payload.photoPaths);
-        const content = await callOpenAI(images, { ...payload, uid });
-        analysis = parseAnalysis(content);
+        const result = await callOpenAI(images, { ...payload, uid }, requestId);
+        analysis = buildAnalysisFromResult(result);
       } catch (error: any) {
         const message = error?.message ?? "Unknown";
         console.error("scan_submit_processing_failed", { message, stack: error?.stack, uid, scanId: payload.scanId, requestId });
@@ -328,6 +299,24 @@ export const submitScan = onRequest(
           throw new HttpsError("invalid-argument", "Invalid photo path supplied.", {
             debugId: requestId,
             reason: "invalid_photo_paths",
+          });
+        }
+        if (error instanceof OpenAIClientError) {
+          if (error.code === "openai_missing_key") {
+            throw new HttpsError("failed-precondition", "Scan engine not configured.", {
+              debugId: requestId,
+              reason: "openai_not_configured",
+            });
+          }
+          if (error.status === 429) {
+            throw new HttpsError("unavailable", "Scan engine is busy. Please try again shortly.", {
+              debugId: requestId,
+              reason: "openai_rate_limited",
+            });
+          }
+          throw new HttpsError("unavailable", "Scan engine is temporarily unavailable. Please try again.", {
+            debugId: requestId,
+            reason: "openai_unavailable",
           });
         }
         throw new HttpsError("internal", "Unexpected error while processing scan.", {
@@ -349,6 +338,7 @@ export const submitScan = onRequest(
         workoutPlan: analysis.workoutPlan,
         nutritionPlan: analysis.nutritionPlan,
         errorMessage: null,
+        errorReason: null,
       };
 
       await scanRef.set(update, { merge: true });
@@ -366,9 +356,16 @@ export const submitScan = onRequest(
       if (scanRef) {
         const errorMessage =
           error instanceof HttpsError ? error.message : "Unexpected error while processing scan.";
+        const errorReason = deriveErrorReason(error);
         await scanRef
           .set(
-            { status: "error", errorMessage, updatedAt: serverTimestamp(), completedAt: serverTimestamp() },
+            {
+              status: "error",
+              errorMessage,
+              errorReason,
+              updatedAt: serverTimestamp(),
+              completedAt: serverTimestamp(),
+            },
             { merge: true },
           )
           .catch(() => undefined);
@@ -401,6 +398,21 @@ function respondWithSubmitError(res: any, error: unknown, requestId: string): vo
     debugId: requestId,
     reason: "server_error",
   });
+}
+
+function deriveErrorReason(error: unknown): string {
+  if (error instanceof HttpsError) {
+    const details = (error as { details?: any }).details;
+    if (details && typeof details === "object" && typeof details.reason === "string") {
+      return details.reason;
+    }
+    return error.code;
+  }
+  if (error instanceof OpenAIClientError) {
+    return error.code;
+  }
+  const message = (error as Error)?.message;
+  return typeof message === "string" && message ? message.slice(0, 80) : "unknown_error";
 }
 
 function statusFromHttpsError(error: HttpsError): number {

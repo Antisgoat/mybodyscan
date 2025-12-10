@@ -20,6 +20,15 @@ const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
 const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 
+function normalizeBarcode(value: string): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D+/g, "");
+  if (digits.length < 8 || digits.length > 18) {
+    return null;
+  }
+  return digits;
+}
+
 function getUsdaApiKey(): string | undefined {
   const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
   if (envValue) {
@@ -95,6 +104,12 @@ async function requestJson(url: URL | string, init: RequestInit, label: string):
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new HttpError(503, "upstream_rate_limited", `${label}_429`);
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new HttpError(501, "nutrition_not_configured", `${label}_${response.status}`);
+        }
         if (response.status >= 400 && response.status < 500) {
           throw new HttpError(502, "upstream_4xx", `${label}_${response.status}`);
         }
@@ -249,9 +264,10 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
       return;
     }
 
-    const code = String(req.query?.code || req.body?.code || "").trim();
+    const rawCode = String(req.query?.code || req.body?.code || "").trim();
+    const code = normalizeBarcode(rawCode);
     if (!code) {
-      throw new HttpError(400, "invalid_request", "code_required");
+      throw new HttpError(400, "invalid_request", rawCode ? "code_invalid" : "code_required");
     }
 
     const apiKey = getUsdaApiKey();

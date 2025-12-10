@@ -5,7 +5,6 @@
  * - `adjustWorkout` reuses OpenAI to suggest per-day intensity/volume tweaks based on body feel, falling back to deterministic logic.
  */
 import { randomUUID } from "crypto";
-import OpenAI from "openai";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
@@ -16,7 +15,7 @@ import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { hasOpenAI } from "./lib/env.js";
-import { getOpenAIKey } from "./openai/keys.js";
+import { structuredJsonChat } from "./openai/client.js";
 
 const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
@@ -24,6 +23,7 @@ const BODY_FEEL_VALUES: BodyFeel[] = ["great", "ok", "tired", "sore"];
 const BODY_FEEL_SET = new Set<BodyFeel>(BODY_FEEL_VALUES);
 const ADJUST_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const ADJUST_TIMEOUT_MS = 8_000;
+const PLAN_TIMEOUT_MS = 10_000;
 const MAX_NOTE_LENGTH = 400;
 const VALID_CATALOG_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 const VALID_CATALOG_DAY_SET = new Set<string>(VALID_CATALOG_DAYS);
@@ -85,18 +85,6 @@ function describeDay(day: WorkoutDay | null): string {
   return `Day ${day.day}: ${items.join("; ")}`;
 }
 
-function extractAdjustmentJson(content: string): any {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/```json([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/i);
-  if (fenced) {
-    const payload = fenced[1]?.trim();
-    if (payload) {
-      return JSON.parse(payload);
-    }
-  }
-  return JSON.parse(trimmed);
-}
-
 function parseAdjustmentPayload(raw: any): AdjustmentMods {
   const intensity = clampDelta(Number(raw?.intensity ?? raw?.intensityDelta ?? raw?.intensity_delta ?? raw?.intensityAdjustment));
   const volume = clampDelta(Number(raw?.volume ?? raw?.volumeDelta ?? raw?.volume_delta ?? raw?.volumeAdjustment));
@@ -110,6 +98,13 @@ function parseAdjustmentPayload(raw: any): AdjustmentMods {
           : null;
   const summary = summarySource ? summarySource.trim().slice(0, 240) : null;
   return { intensity, volume, summary };
+}
+
+function validateAdjustmentResponse(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("invalid_adjustment_payload");
+  }
+  return raw as Record<string, unknown>;
 }
 
 function normalizeBodyFeel(value: unknown): BodyFeel | null {
@@ -216,100 +211,106 @@ async function requestAiAdjustment(input: {
   notes: string | null;
   day: WorkoutDay | null;
 }): Promise<AdjustmentMods> {
-  const apiKey = getOpenAIKey();
-  if (!apiKey) {
-    throw new Error("openai_missing_key");
-  }
+  const prompt = [
+    `Body feel: ${input.bodyFeel}`,
+    `Notes: ${input.notes ?? "none provided"}`,
+    describeDay(input.day),
+    "Respond with JSON only.",
+  ].join("\n");
 
-  const client = new OpenAI({ apiKey });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ADJUST_TIMEOUT_MS);
+  const { data } = await structuredJsonChat<Record<string, unknown>>({
+    systemPrompt:
+      "You fine-tune strength training plans. Respond with compact JSON shaped as {\"intensity\":-2..2,\"volume\":-2..2,\"summary\":\"<=160 chars\"}. Positive numbers increase stress, negative ease up.",
+    userContent: prompt,
+    temperature: 0.2,
+    maxTokens: 320,
+    userId: input.uid,
+    requestId: input.requestId,
+    timeoutMs: ADJUST_TIMEOUT_MS,
+    model: ADJUST_MODEL,
+    validate: validateAdjustmentResponse,
+  });
 
-  try {
-    const response = await client.chat.completions.create({
-      model: ADJUST_MODEL,
-      temperature: 0.2,
-      max_tokens: 250,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You fine-tune strength training plans. Respond with compact JSON shaped as {\"intensity\":-2..2,\"volume\":-2..2,\"summary\":\"<=160 chars\"}. Positive numbers increase stress, negative ease up.",
-        },
-        {
-          role: "user",
-          content: [
-            `Body feel: ${input.bodyFeel}`,
-            `Notes: ${input.notes ?? "none provided"}`,
-            describeDay(input.day),
-            "Respond with JSON only.",
-          ].join("\n"),
-        },
-      ],
-      user: input.uid,
-      signal: controller.signal as any,
-    } as any);
+  return parseAdjustmentPayload(data);
+}
 
-    const content = response.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      throw new Error("openai_empty_response");
+const PLAN_SYSTEM_PROMPT = [
+  "You design pragmatic progressive overload workout plans.",
+  'Respond with JSON matching {"days":[{"day":"Mon","exercises":[{"name":"Goblet Squat","sets":3,"reps":"10"}]}]}.',
+  "Provide 3-6 days max, each with 3-5 exercises. Keep reps as short strings (e.g. \"8-12\" or \"10\").",
+  "Return JSON only with no markdown fences or prose.",
+].join("\n");
+
+type AiPlanSchema = { days: unknown[] };
+
+function validatePlanResponse(raw: unknown): AiPlanSchema {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const days = (raw as { days?: unknown[] }).days;
+    if (Array.isArray(days)) {
+      return { days };
     }
-    const raw = extractAdjustmentJson(content);
-    return parseAdjustmentPayload(raw);
-  } finally {
-    clearTimeout(timeout);
   }
+  if (Array.isArray(raw)) {
+    return { days: raw };
+  }
+  throw new Error("invalid_plan_payload");
+}
+
+function buildPlanPrompt(prefs: PlanPrefs): string {
+  const focus = prefs.focus || "balanced";
+  const equipment = prefs.equipment || "bodyweight";
+  const daysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 6));
+  const injuries = Array.isArray(prefs.injuries) && prefs.injuries.length ? prefs.injuries.join(", ") : "none";
+  return [
+    `Goal focus: ${focus}`,
+    `Equipment: ${equipment}`,
+    `Days per week: ${daysPerWeek}`,
+    `Injuries/notes: ${injuries}`,
+    "Each day should include a title (Mon-Sun) and exercises with name, sets (number), and reps (string).",
+  ].join("\n");
+}
+
+function adaptAiPlanDays(days: unknown[]): WorkoutDay[] {
+  return days
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => {
+      const exercisesRaw = Array.isArray(item.exercises) ? item.exercises : [];
+      const exercises = exercisesRaw
+        .filter((ex): ex is Record<string, unknown> => typeof ex === "object" && ex !== null)
+        .map((ex) => ({
+          id: randomUUID(),
+          name: String(ex.name || "Exercise").slice(0, 80),
+          sets: Number.isFinite(ex.sets) ? Math.max(1, Math.min(Number(ex.sets), 10)) : 3,
+          reps:
+            typeof ex.reps === "number" && Number.isFinite(ex.reps)
+              ? Number(ex.reps).toString()
+              : typeof ex.reps === "string" && ex.reps.trim().length
+                ? ex.reps.trim().slice(0, 40)
+                : "8-12",
+        }));
+      return {
+        day: String(item.day || "Mon").slice(0, 16),
+        exercises,
+      };
+    })
+    .filter((day) => day.exercises.length);
 }
 
 async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
-  const { getOpenAIKey, getEnv } = await import("./lib/env.js");
-  const apiKey = getOpenAIKey();
-  if (!apiKey) return null;
+  if (!hasOpenAI()) {
+    return null;
+  }
   try {
-    const prompt = `Return a JSON array of workout days. Each item must include "day" (Mon-Sun) and an array "exercises" with {"name","sets","reps"}. Focus: ${
-      prefs.focus || "balanced"
-    }. Equipment: ${prefs.equipment || "bodyweight"}. Days per week: ${prefs.daysPerWeek || 4}.`;
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: getEnv("OPENAI_MODEL") || "gpt-4o-mini",
-        input: prompt,
-        temperature: 0.4,
-      }),
+    const { data } = await structuredJsonChat<AiPlanSchema>({
+      systemPrompt: PLAN_SYSTEM_PROMPT,
+      userContent: buildPlanPrompt(prefs),
+      temperature: 0.4,
+      maxTokens: 800,
+      timeoutMs: PLAN_TIMEOUT_MS,
+      validate: validatePlanResponse,
     });
-    if (!response.ok) {
-      throw new Error(`openai ${response.status}`);
-    }
-    const data = (await response.json()) as any;
-    const text: string =
-      data?.output_text ||
-      data?.output?.[0]?.content?.[0]?.text ||
-      data?.choices?.[0]?.message?.content ||
-      "";
-    const jsonStart = text.indexOf("[");
-    const jsonEnd = text.lastIndexOf("]");
-    if (jsonStart < 0 || jsonEnd < jsonStart) {
-      throw new Error("invalid ai response");
-    }
-    const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-    if (!Array.isArray(parsed)) throw new Error("invalid plan");
-    return parsed
-      .filter((item) => typeof item === "object" && item !== null)
-      .map((item) => ({
-        day: String(item.day || "Mon"),
-        exercises: Array.isArray(item.exercises)
-          ? item.exercises.map((ex: any) => ({
-              id: randomUUID(),
-              name: String(ex.name || "Exercise"),
-              sets: Number(ex.sets || 3),
-              reps: Number(ex.reps || 10),
-            }))
-          : [],
-      }));
+    const planDays = adaptAiPlanDays(data.days);
+    return planDays.length ? planDays : null;
   } catch (err) {
     console.error("generateAiPlan", err);
     return null;
