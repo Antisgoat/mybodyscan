@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Callable nutrition search:
+ * - Handles callable traffic from `NutritionSearch` when direct REST access is blocked.
+ * - Queries USDA first (when keys available) then OpenFoodFacts, normalizing results for the meal editor.
+ */
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";

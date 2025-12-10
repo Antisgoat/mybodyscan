@@ -1,3 +1,5 @@
+// Pipeline map — OpenAI secrets:
+// - Resolves `OPENAI_API_KEY` from env or Secret Manager so scan/workout generators can call OpenAI securely.
 import { defineSecret } from "firebase-functions/params";
 
 export const openAiSecretParam = defineSecret("OPENAI_API_KEY");

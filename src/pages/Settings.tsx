@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Settings, units, and feature toggles:
+ * - Surfaces `useUnits` + `useSystemHealth` so users can change unit preferences while seeing which services (scan/nutrition/workouts)
+ *   are configured.
+ * - Also exposes App Check/claims diagnostics that influence scan credits and nutrition logging availability.
+ */
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";

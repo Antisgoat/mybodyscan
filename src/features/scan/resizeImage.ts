@@ -1,5 +1,6 @@
-// Resize to reduce upload size; apply EXIF orientation if the browser supports it.
-// No external deps; graceful fallback to raw file.
+// Pipeline map — upload pre-processing:
+// - Downsizes captured images client-side so uploads report accurate bytes for progress and stay under limits.
+// - Applies EXIF orientation where available; if anything fails we just return the original file and continue.
 export async function resizeImageFile(
   file: File,
   maxW = 1600,

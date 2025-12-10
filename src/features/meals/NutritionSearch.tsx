@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Meals search & logging:
+ * - Pulls USDA/OpenFood results through `nutritionSearch` callable, showing AppCheck/system health gating.
+ * - Allows barcode scan or manual search, then uses `ServingEditor` to capture servings.
+ * - Calls `addMeal` Cloud Function so Firestore `nutritionLogs/{day}` stays authoritative and totals update instantly.
+ */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import { cameraAvailable, isSecureContextOrLocal } from "@/features/barcode/useZxing";

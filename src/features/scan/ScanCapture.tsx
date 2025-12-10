@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Photo capture intake:
+ * - Enforces the 4 required poses before `ScanPage` can call `startScanSessionClient`.
+ * - Provides camera/library pickers, downscales via `resizeImageFile`, and emits blobs to the parent form.
+ * - Cleans up blob URLs so we do not leak memory between repeated capture attempts.
+ */
 import { useEffect, useRef, useState } from "react";
 import { POSES, POSE_LABEL, type Pose } from "./poses";
 import { resizeImageFile } from "./resizeImage";

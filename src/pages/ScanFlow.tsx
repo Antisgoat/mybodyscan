@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Scan entry routing:
+ * - Legacy `/scan-flow` route simply redirects into the main `/scan` upload page so users always hit the current flow.
+ * - Keeps SEO metadata for old links while ensuring they land on the `ScanPage` form that drives start→upload→result.
+ */
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";

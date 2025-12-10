@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Fraud gate tracking:
+ * - When the capture gate rejects photos client-side, the app calls this endpoint to increment daily failure counters.
+ * - Helps `beginPaidScan` enforce caps before consuming credits or running expensive analysis.
+ */
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "../firebase.js";

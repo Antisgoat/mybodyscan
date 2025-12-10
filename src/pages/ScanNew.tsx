@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Scan entry aliases:
+ * - Older marketing routes land here; we send them directly to `/scan` so the same upload/session logic runs.
+ * - Keeps metadata in place for bookmarks while maintaining a single implementation of the scan flow.
+ */
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";

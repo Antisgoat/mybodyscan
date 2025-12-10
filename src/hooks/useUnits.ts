@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Units preference:
+ * - Subscribes to `users/{uid}` to read `preferences.units`, defaulting to `"us"` when absent or in demo mode.
+ * - Persists updates via `setDoc`, so all height/weight conversions happen against a canonical kg/cm backend.
+ * - Surfaces `loading`/`saving` states that scan forms and nutrition pages rely on when formatting UI values.
+ */
 import { useCallback, useEffect, useState } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";

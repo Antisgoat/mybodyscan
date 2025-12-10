@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Measurement helpers:
+ * - Provides kg↔lb and cm↔ft/in conversions so UI can display user preferences while Firestore stays metric.
+ * - Formatting helpers back Scan, Settings, and History views when showing BMI/weight results.
+ */
 export type DisplayUnits = "us" | "metric";
 
 export const KG_PER_LB = 0.45359237;

@@ -1,3 +1,5 @@
+// Pipeline map — Legacy meals helpers:
+// - Minimal sanitizer for Stripe demo views; main UI uses `@/lib/nutrition/sanitize`, but this keeps feature parity.
 export function sanitizeFoodItem(x: any) {
   if (!x) return null;
   const name = String(x.name || x.description || x.product_name || '').trim();

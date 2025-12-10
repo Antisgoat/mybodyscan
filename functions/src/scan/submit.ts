@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Scan processing & plan generation:
+ * - Validates ownership, fetches signed URLs for each pose, and calls OpenAI Vision (`gpt-4o-mini`) with photos + weights.
+ * - Parses out body-fat estimate, BMI, workout plan, and nutrition plan; clamps values before writing to Firestore.
+ * - Transitions scan doc `status` through `processing` → `complete` (or `error`) so the client never sees a stuck state.
+ */
 import { randomUUID } from "node:crypto";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
