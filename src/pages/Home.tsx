@@ -25,29 +25,91 @@ type LastScan = {
   raw: any;
 };
 
+function toDateOrNull(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null;
+  }
+  if (typeof value?.toDate === "function") {
+    try {
+      const date = value.toDate();
+      return Number.isFinite(date.getTime()) ? date : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value?.seconds === "number") {
+    return new Date(value.seconds * 1000);
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+function buildDemoLastScan(): LastScan {
+  return {
+    id: demoLatestScan.id,
+    createdAt: demoLatestScan.completedAt?.toDate ? demoLatestScan.completedAt.toDate() : new Date(),
+    status: demoLatestScan.status,
+    raw: demoLatestScan,
+  };
+}
+
+function scanSortMillis(scan: LastScan): number {
+  const raw = scan.raw ?? {};
+  const completedAt = toDateOrNull(raw?.completedAt);
+  const updatedAt = toDateOrNull(raw?.updatedAt);
+  const createdAt = scan.createdAt ?? toDateOrNull(raw?.createdAt);
+  return completedAt?.getTime() ?? updatedAt?.getTime() ?? createdAt?.getTime() ?? 0;
+}
+
 const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const demo = useDemoMode();
   const onboardingStatus = useOnboardingStatus();
-  const [lastScan, setLastScan] = useState<LastScan | null>(() => {
-    if (isDemo()) {
-      return {
-        id: demoLatestScan.id,
-        createdAt: demoLatestScan.completedAt.toDate?.() ?? new Date(),
-        status: demoLatestScan.status,
-        raw: demoLatestScan,
-      } satisfies LastScan;
-    }
-    return null;
-  });
+  const initialDemoScan = isDemo() ? buildDemoLastScan() : null;
+  const [recentScans, setRecentScans] = useState<LastScan[]>(initialDemoScan ? [initialDemoScan] : []);
+  const [statusTick, bumpStatusTick] = useState(0);
   const loggedOnce = useRef(false);
+
+  const sortedScans = useMemo(() => {
+    if (recentScans.length <= 1) {
+      return recentScans;
+    }
+    return [...recentScans].sort((a, b) => scanSortMillis(b) - scanSortMillis(a));
+  }, [recentScans]);
+
+  const latestAttempt = sortedScans[0] ?? null;
+
+  const lastScan = useMemo<LastScan | null>(() => {
+    if (!sortedScans.length) return null;
+    for (const scan of sortedScans) {
+      const meta = scanStatusLabel(scan.status, scan.raw?.updatedAt ?? scan.raw?.completedAt ?? scan.raw?.createdAt);
+      if (meta.showMetrics) {
+        return scan;
+      }
+    }
+    return sortedScans[0] ?? null;
+  }, [sortedScans, statusTick]);
 
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
   const summary = summarizeScanMetrics(metrics);
   const statusMeta = lastScan
     ? scanStatusLabel(lastScan.status, lastScan.raw?.updatedAt ?? lastScan.raw?.completedAt ?? lastScan.raw?.createdAt)
     : null;
+  const latestStatusMeta = latestAttempt
+    ? scanStatusLabel(
+        latestAttempt.status,
+        latestAttempt.raw?.updatedAt ?? latestAttempt.raw?.completedAt ?? latestAttempt.raw?.createdAt,
+      )
+    : null;
+  const latestAttemptIsDisplayed = Boolean(lastScan && latestAttempt && lastScan.id === latestAttempt.id);
+  const showLatestErrorBanner = latestStatusMeta?.canonical === "error";
+  const showLatestStuckNotice = !showLatestErrorBanner && latestStatusMeta?.stale && !latestStatusMeta?.showMetrics;
+  const latestAttemptTimestamp = latestAttempt?.createdAt ? latestAttempt.createdAt.toLocaleString() : null;
   const done = statusMeta?.showMetrics ?? false;
   const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
   const bf = summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
@@ -64,44 +126,52 @@ const Home = () => {
   );
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setInterval(() => {
+      bumpStatusTick((tick) => tick + 1);
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [bumpStatusTick]);
+
+  useEffect(() => {
     if (demo && !user) {
-      setLastScan({
-        id: demoLatestScan.id,
-        createdAt: demoLatestScan.completedAt.toDate?.() ?? new Date(),
-        status: demoLatestScan.status,
-        raw: demoLatestScan,
-      });
+      const demoScan = buildDemoLastScan();
+      setRecentScans([demoScan]);
       return;
     }
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      setRecentScans([]);
+      return;
+    }
     const uid = user.uid;
 
     const q = query(
       collection(db, "users", uid, "scans"),
-      orderBy("createdAt", "desc"),
-      limitFn(1)
+      orderBy("updatedAt", "desc"),
+      limitFn(5),
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
         if (snap.empty) {
-          setLastScan(null);
+          setRecentScans([]);
           return;
         }
-        const doc = snap.docs[0];
-        const data: any = doc.data();
-        const createdAt = data?.createdAt?.toDate ? data.createdAt.toDate() : null;
-        if (!loggedOnce.current) {
-          console.log("Home lastScan:", data);
+        const mapped = snap.docs.map((docSnap) => {
+          const data: any = docSnap.data();
+          return {
+            id: docSnap.id,
+            createdAt: toDateOrNull(data?.createdAt),
+            status: data?.status ?? "unknown",
+            raw: data,
+          } satisfies LastScan;
+        });
+        if (!loggedOnce.current && mapped.length) {
+          console.log("Home lastScan:", mapped[0]?.raw);
           loggedOnce.current = true;
         }
-        setLastScan({
-          id: doc.id,
-          createdAt,
-          status: data?.status ?? "unknown",
-          raw: data,
-        });
+        setRecentScans(mapped);
       },
       (err) => {
         console.error("Home last scan error", err);
@@ -113,7 +183,7 @@ const Home = () => {
     );
 
     return () => unsub();
-  }, [user]);
+  }, [user, demo, navigate]);
 
   const renderStartButton = (props: { variant?: "default" | "secondary" | "outline"; className?: string } = {}) => {
     if (!demo || user) {
@@ -176,6 +246,27 @@ const Home = () => {
             <CardDescription>The most recent result for your account</CardDescription>
           </CardHeader>
           <CardContent>
+            {showLatestErrorBanner && (
+              <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+                <p className="text-sm font-semibold text-destructive">Last scan failed to complete</p>
+                <p className="text-xs text-destructive/80">
+                  {latestAttempt?.raw?.errorMessage || "Start a new scan to try again."}
+                </p>
+                <div className="mt-2">{renderStartButton({ className: "w-full" })}</div>
+              </div>
+            )}
+            {showLatestStuckNotice && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <p className="text-sm font-semibold">Scan appears stuck</p>
+                <p>
+                  {latestAttemptIsDisplayed
+                    ? "We haven't received the final result. Start a new scan to continue."
+                    : `Your most recent scan${
+                        latestAttemptTimestamp ? ` from ${latestAttemptTimestamp}` : ""
+                      } looks stuck. Showing the last completed result below.`}
+                </p>
+              </div>
+            )}
             {!lastScan && (
               <div>
                 <p className="text-muted-foreground">No scans yet — Start a Scan to see your first result.</p>

@@ -131,6 +131,20 @@ service cloud.firestore {
         isValidOnboardingMap(request.resource.data.onboarding);
     }
 
+    function isValidMacroValue(value, max) {
+      return value is number && value >= 0 && value <= max;
+    }
+
+    function isValidClientNutritionWrite() {
+      let allowedKeys = ['calories', 'protein_g', 'carbs_g', 'fat_g', 'updatedAt'];
+      return request.resource.data.keys().hasOnly(allowedKeys)
+        && (!request.resource.data.keys().hasAny(['calories']) || isValidMacroValue(request.resource.data.calories, 10000))
+        && (!request.resource.data.keys().hasAny(['protein_g']) || isValidMacroValue(request.resource.data.protein_g, 2000))
+        && (!request.resource.data.keys().hasAny(['carbs_g']) || isValidMacroValue(request.resource.data.carbs_g, 2000))
+        && (!request.resource.data.keys().hasAny(['fat_g']) || isValidMacroValue(request.resource.data.fat_g, 1000))
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
     match /publicConfig/{docId} {
       allow read: if true;
       allow write: if false;
@@ -217,11 +231,8 @@ service cloud.firestore {
 
       match /nutritionLogs/{day} {
         allow read: if isOwner(uid);
-        allow create: if !isDemoUser() && isOwner(uid);
-        allow update: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.calories is int
-          && request.resource.data.calories >= 0
-          && request.resource.data.calories <= 10000;
+        allow create: if !isDemoUser() && isOwner(uid) && isValidClientNutritionWrite();
+        allow update: if !isDemoUser() && isOwner(uid) && isValidClientNutritionWrite();
         allow delete: if false;
 
         match /entries/{entryId} {

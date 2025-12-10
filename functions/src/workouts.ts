@@ -353,6 +353,7 @@ async function fetchCurrentPlan(uid: string) {
 
 async function handleGenerate(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, { fn: "generateWorkoutPlan", uid });
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
@@ -363,6 +364,7 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
   const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, { fn: "applyCatalogPlan", uid });
   const plan = sanitizeCatalogPlan(req.body);
   const planId = randomUUID();
   const now = Timestamp.now();
@@ -389,12 +391,14 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
 
 async function handleGetPlan(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, { fn: "getPlan", uid });
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
 async function handleMarkDone(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, { fn: "markExerciseDone", uid });
   const body = req.body as {
     planId?: string;
     dayIndex?: number;
@@ -441,6 +445,7 @@ async function handleMarkDone(req: Request, res: Response) {
 
 async function handleGetWorkouts(req: Request, res: Response) {
   const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, { fn: "getWorkouts", uid });
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
     res.json({ planId: null, days: [] });
