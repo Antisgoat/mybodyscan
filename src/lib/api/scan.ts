@@ -224,14 +224,25 @@ export async function submitScanClient(
   let uploadsCompleted = false;
   try {
     const entries = Object.entries(params.storagePaths) as Array<[keyof typeof params.storagePaths, string]>;
+    if (!entries.length) {
+      return { ok: false, error: { message: "Missing upload targets for this scan." } };
+    }
     const fileCount = entries.length;
+    const totalBytes = entries.reduce((sum, [pose]) => {
+      const size = params.photos[pose]?.size ?? 0;
+      return sum + (Number.isFinite(size) ? size : 0);
+    }, 0);
+    const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
+    let uploadedBytes = 0;
     let completedFiles = 0;
     for (const [index, [pose, path]] of entries.entries()) {
       const file = params.photos[pose];
       if (!file) return { ok: false, error: { message: `Missing ${pose} photo` } };
       await uploadPhoto(path, file, (snapshot) => {
         const percent = snapshot.totalBytes ? snapshot.bytesTransferred / snapshot.totalBytes : 0;
-        const overallPercent = (completedFiles + percent) / fileCount;
+        const currentBytes = snapshot.bytesTransferred || 0;
+        const overallBytes = uploadedBytes + currentBytes;
+        const overallPercent = Math.min(1, Math.max(0, overallBytes / safeTotalBytes));
         options?.onUploadProgress?.({
           pose,
           fileIndex: index,
@@ -243,6 +254,8 @@ export async function submitScanClient(
         });
       });
       completedFiles += 1;
+      uploadedBytes += file.size || 0;
+      const normalizedOverall = Math.min(1, Math.max(0, uploadedBytes / safeTotalBytes));
       options?.onUploadProgress?.({
         pose,
         fileIndex: index,
@@ -250,7 +263,7 @@ export async function submitScanClient(
         bytesTransferred: file.size,
         totalBytes: file.size,
         percent: 1,
-        overallPercent: completedFiles / fileCount,
+        overallPercent: normalizedOverall || completedFiles / fileCount,
       });
     }
 

@@ -23,7 +23,7 @@ import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb, lbToKg, CM_PER_IN } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
 import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
+import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
 import { CAPTURE_VIEW_SETS, type CaptureView, resetCaptureFlow, setCaptureSession, useScanCaptureStore } from "./scanCaptureStore";
 import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
@@ -240,6 +240,10 @@ export default function ScanFlowResult() {
       setFlowError("Add all photos and confirm your weights before continuing.");
       return;
     }
+    if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
+      setFlowError("Please confirm valid weights before finalizing.");
+      return;
+    }
     if (scanOffline) {
       setFlowError("Scan services are offline. Try again later.");
       return;
@@ -252,8 +256,9 @@ export default function ScanFlowResult() {
     setFlowError(null);
     setUploadProgress(0);
     setUploadPose(null);
+    let activeSession = session;
+    let cleanupScanId: string | null = activeSession?.scanId ?? null;
     try {
-      let activeSession = session;
       if (!activeSession) {
         const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
         if (!start.ok) {
@@ -266,6 +271,7 @@ export default function ScanFlowResult() {
       if (!activeSession) {
         throw new Error("Unable to start scan session.");
       }
+      cleanupScanId = activeSession.scanId;
       const photos = {
         front: poseFiles.front!,
         back: poseFiles.back!,
@@ -290,6 +296,10 @@ export default function ScanFlowResult() {
       );
       if (!submit.ok) {
         const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        if (cleanupScanId && submit.error.reason === "upload_failed") {
+          await deleteScanApi(cleanupScanId).catch(() => undefined);
+        }
+        setCaptureSession(null);
         throw new Error(submit.error.message + debugSuffix);
       }
       setFlowStatus("processing");
@@ -303,11 +313,16 @@ export default function ScanFlowResult() {
       navigate(`/scan/${activeSession.scanId}`);
     } catch (error: any) {
       setFlowStatus("error");
+      setUploadProgress(0);
+      setUploadPose(null);
       const message =
         typeof error?.message === "string" && error.message.length
           ? error.message
           : "Unable to submit your scan. Please try again.";
       setFlowError(message);
+      setCaptureSession(null);
+      setSubmittedScanId(null);
+      toast({ title: "Unable to submit scan", description: message, variant: "destructive" });
     }
   };
 

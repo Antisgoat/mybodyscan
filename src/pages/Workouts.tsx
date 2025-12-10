@@ -32,6 +32,7 @@ export default function Workouts() {
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activationPending, setActivationPending] = useState(false);
   const { health: systemHealth, error: healthError } = useSystemHealth();
   const { workoutsConfigured, workoutAdjustConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const workoutsOfflineMessage = workoutsConfigured
@@ -47,25 +48,41 @@ export default function Workouts() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const params = new URLSearchParams(location.search);
+    const requestedPlanId = params.get("plan");
+
+    const cleanup = () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
 
     if (!workoutsConfigured) {
       setPlan(null);
       setCompleted([]);
       setRatio(0);
       setWeekRatio(0);
+      setActivationPending(false);
       setLoadError(
         "Workouts are disabled because the Cloud Functions base URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts.",
       );
-      return () => {
-        cancelled = true;
-      };
+      return cleanup;
     }
 
-    const hydrate = async () => {
+    const hydrate = async (attempt = 0) => {
       try {
         const currentPlan = await getPlan();
         if (!currentPlan) {
+          if (requestedPlanId && attempt < 3) {
+            if (!cancelled) {
+              setActivationPending(true);
+              setLoadError(null);
+            }
+            retryTimer = setTimeout(() => hydrate(attempt + 1), 800 * (attempt + 1));
+            return;
+          }
           if (!cancelled) {
+            setActivationPending(false);
             setPlan(null);
             setCompleted([]);
             setRatio(0);
@@ -75,6 +92,7 @@ export default function Workouts() {
           return;
         }
         if (!cancelled) {
+          setActivationPending(false);
           setPlan(currentPlan);
           setLoadError(null);
         }
@@ -97,6 +115,7 @@ export default function Workouts() {
             ? "Workouts are disabled because the backend URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts."
             : "Workouts are unavailable right now. Check your connection or try again later.";
         if (!cancelled) {
+          setActivationPending(false);
           setPlan(null);
           setCompleted([]);
           setRatio(0);
@@ -108,9 +127,7 @@ export default function Workouts() {
 
     void hydrate();
 
-    return () => {
-      cancelled = true;
-    };
+    return cleanup;
   }, [workoutsConfigured, location.search]);
 
   async function loadProgress(p: any, isCancelled?: () => boolean) {
@@ -290,10 +307,15 @@ export default function Workouts() {
         <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Card>
-              <CardContent className="p-8 text-center">
-                <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
+            <CardContent className="p-8 text-center">
+              <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
               {loadError && <p className="mb-4 text-sm text-destructive">{loadError}</p>}
+              {activationPending && (
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Activating your new program… this usually takes a few seconds.
+                </p>
+              )}
               {workoutsOfflineMessage && (
                 <p className="mb-4 text-sm text-muted-foreground">
                   {workoutsOfflineMessage}
@@ -310,9 +332,9 @@ export default function Workouts() {
                   </Button>
                 )}
               </div>
-              </CardContent>
-            </Card>
-          </main>
+            </CardContent>
+          </Card>
+        </main>
         <BottomNav />
       </div>
     );
