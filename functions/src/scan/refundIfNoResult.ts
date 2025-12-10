@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Refund safety net:
+ * - Allows clients/support to refund a scan if it was charged but never produced a `complete` result (`result.bf_percent`).
+ * - Credits are re-added via `refundCredit`, and the scan doc is marked `aborted` to prevent double processing.
+ */
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "../firebase.js";

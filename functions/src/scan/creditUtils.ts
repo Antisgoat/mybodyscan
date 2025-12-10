@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Scan credit accounting:
+ * - Provides transactional helpers to deduct or refund scan credits so billing stays consistent with scan lifecycle.
+ * - `consumeCreditBuckets` sorts by expiry and mutates amounts, while `refundCredit` pushes a 1-credit bucket back.
+ */
 import type { Transaction, DocumentReference } from "firebase-admin/firestore";
 import { Timestamp } from "../firebase.js";
 

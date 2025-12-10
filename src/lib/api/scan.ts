@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Client scan API bridge:
+ * - Starts scan sessions (`startScanSessionClient`) so Firestore creates a pending doc + storage paths.
+ * - Streams uploads via Firebase Storage, emitting `ScanUploadProgress` so the UI can avoid 0% stalls.
+ * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
+ */
 import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";

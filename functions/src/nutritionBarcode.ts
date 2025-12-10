@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Barcode nutrition lookup:
+ * - Verifies auth/App Check, rate limits, and fetches by UPC from OpenFoodFacts + USDA branded endpoints.
+ * - Caches successful/miss results to reduce upstream load and feeds normalized `FoodItem` back to the UI.
+ */
 import { randomUUID } from "node:crypto";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";

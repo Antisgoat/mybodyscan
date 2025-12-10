@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Workout plan generation & adjustments:
+ * - Generates plans after scans or onboarding using deterministic templates or OpenAI text, storing them under `users/{uid}/workoutPlans`.
+ * - Exposes HTTPS endpoints for generating/applying catalog plans, fetching current plans/progress, and marking exercises done.
+ * - `adjustWorkout` reuses OpenAI to suggest per-day intensity/volume tweaks based on body feel, falling back to deterministic logic.
+ */
 import { randomUUID } from "crypto";
 import OpenAI from "openai";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";

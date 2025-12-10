@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Nutrition client API:
+ * - Wraps callable `nutritionSearch` + REST `/nutrition/*` endpoints with App Check enforcement and friendly errors.
+ * - Normalizes results via `sanitizeFoodItem` so search lists and meal editor always receive consistent macros.
+ * - Exposes `fetchDailyLog` / `fetchNutritionHistory` for dashboards to reflect Firestore aggregate totals.
+ */
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
 import { apiFetchJson } from "@/lib/apiFetch";

@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Full-featured nutrition search service:
+ * - Shared callable + HTTPS endpoint that enforces App Check, rate limits, and USDA secret presence.
+ * - Queries USDA + OpenFoodFacts in parallel, normalizes serving sizes/macros, and returns sanitized food items.
+ * - Consumed by `NutritionSearch` UI and by Cloud Functions when logging meals from other entry points.
+ */
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";

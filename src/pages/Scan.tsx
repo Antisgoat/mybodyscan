@@ -1,3 +1,11 @@
+/**
+ * Pipeline map — Scan upload & status:
+ * - Collects 4 photos + weight inputs, converting to kg via `useUnits`.
+ * - Calls `startScanSessionClient` to reserve Firestore `users/{uid}/scans/{scanId}` with `status: "pending"`.
+ * - Streams uploads through `submitScanClient` so progress callbacks update local UI and progress bar.
+ * - Navigates to `/scans/{id}` once uploads finish, while `ScanResult` polls Firestore for `processing`→`complete`.
+ * - On errors, surfaces actionable toasts and uses `deleteScanApi` to clean up orphaned scan docs/storage objects.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";

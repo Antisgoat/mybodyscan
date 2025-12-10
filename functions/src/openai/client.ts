@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Shared OpenAI text client:
+ * - Provides retry/timeout logic for chat completions used by coach/workout adjustments.
+ * - Centralizes key loading (env or secret) and guards against missing/invalid models.
+ */
 import { getOpenAIKey } from "./keys.js";
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";

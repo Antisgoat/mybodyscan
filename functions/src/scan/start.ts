@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Scan session creation:
+ * - Auth + App Check guard, validates weight inputs, then creates `users/{uid}/scans/{scanId}` with `status:"pending"`.
+ * - Returns signed storage paths per pose so the client can push to Cloud Storage with real progress reporting.
+ * - All downstream processing (`submitScan`) expects this doc to exist before photos begin uploading.
+ */
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { randomUUID } from "node:crypto";

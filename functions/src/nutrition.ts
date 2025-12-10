@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Meals & nutrition backend:
+ * - Provides callable/REST endpoints for searching USDA/OpenFood, logging meals, deleting meals, and fetching daily/history logs.
+ * - Maintains `users/{uid}/nutritionLogs/{day}` totals inside transactions so UI rings update immediately after each add/delete.
+ * - Normalizes servings/macros, enforces App Check where possible, and routes barcode lookups through the same sanitizer.
+ */
 import { randomUUID } from "crypto";
 import expressModule from "express";
 import type { Request, Response } from "express";

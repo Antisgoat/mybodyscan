@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Scan history consumption:
+ * - Subscribes to two Firestore scan docs so users can compare normalized metrics post-analysis.
+ * - Uses `normalizeScanMetrics` to convert canonical kg/cm data into lb/BMI for the UI.
+ * - Provides share/back/rescan affordances so users can quickly start another scan if deltas look off.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { onSnapshot } from "firebase/firestore";

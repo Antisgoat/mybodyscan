@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Feature gating:
+ * - Fetches `/systemHealth` once (with caching) so Scan, Nutrition, and Workouts UIs know if backend services/keys exist.
+ * - Exposes `refresh` for Settings diagnostics while keeping previous snapshot during retries.
+ */
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchSystemHealth } from "@/lib/system";

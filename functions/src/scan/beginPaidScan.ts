@@ -1,3 +1,9 @@
+/**
+ * Pipeline map — Credit gate before scans run:
+ * - Verifies App Check + auth, rate limits, dedupes recent photo hashes, and consumes credit buckets in a transaction.
+ * - Marks the scan doc as `authorized` / `charged` so `submitScan` knows billing has cleared.
+ * - Staff/unlimited users bypass debits but still get gate metadata recorded for audit/refund flows.
+ */
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";

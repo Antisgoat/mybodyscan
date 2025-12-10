@@ -1,3 +1,8 @@
+/**
+ * Pipeline map — Ops visibility:
+ * - Exposes `/systemHealth` so the client can gate Scan/Nutrition/Workouts based on env flags and secret presence.
+ * - Reads secret params + env vars (OPENAI, Stripe, USDA) and reports booleans consumed by `useSystemHealth`.
+ */
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 

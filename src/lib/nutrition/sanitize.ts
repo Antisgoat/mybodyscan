@@ -1,3 +1,6 @@
+// Pipeline map — Meals search normalization:
+// - Converts USDA / OpenFood / legacy payloads into `FoodItem` for the UI + Cloud Functions.
+// - Normalizes macros so `nutritionLogs` never store undefined values.
 export type FoodItem = {
   id: string;
   name: string;

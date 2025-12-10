@@ -1,3 +1,10 @@
+/**
+ * Pipeline map — Scan results & plan surfacing:
+ * - Reads `users/{uid}/scans/{scanId}` via `getScan`, then keeps polling while status is `pending/processing`.
+ * - Uses `scanStatusLabel` to translate Firestore `status`, `completedAt`, and `errorMessage` into UI copy.
+ * - Once the cloud function writes `estimate`, `workoutPlan`, and `nutritionPlan`, renders each section for users
+ *   and links out to plan activation/history flows.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getScan, type ScanDocument } from "@/lib/api/scan";
