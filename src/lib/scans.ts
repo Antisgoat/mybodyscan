@@ -100,7 +100,7 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   };
 }
 
-export type ScanStatus = "queued" | "processing" | "completed" | "error" | "unknown";
+export type ScanStatus = "pending" | "processing" | "complete" | "error" | "unknown";
 
 export type ScanDoc = {
   id?: string;
@@ -161,7 +161,10 @@ export function normalizeScanMetrics(d: ScanDoc | null | undefined): ScanMetrics
 
 export function statusOf(d: ScanDoc | null | undefined): ScanStatus {
   const s = (d?.status || "").toLowerCase();
-  if (s === "queued" || s === "processing" || s === "completed" || s === "error") return s as ScanStatus;
+  if (s === "queued" || s === "pending") return "pending";
+  if (s === "processing" || s === "in_progress") return "processing";
+  if (s === "completed" || s === "complete" || s === "done") return "complete";
+  if (s === "error" || s === "failed" || s === "failure") return "error";
   return "unknown";
 }
 

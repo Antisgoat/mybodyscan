@@ -61,7 +61,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const recentQuery = await db
     .collection(`users/${uid}/scans`)
     .where("charged", "==", true)
-    .where("status", "==", "completed")
+    .where("status", "in", ["complete", "completed"])
     .where("completedAt", ">=", cutoff)
     .get();
 

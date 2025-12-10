@@ -5,10 +5,15 @@ export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const uid = auth.currentUser?.uid;
   if (!uid) return null;
   const storage = getStorage();
-  const path = `scans/${uid}/${scanId}/original/front.jpg`;
+  const modernPath = `user_uploads/${uid}/${scanId}/front.jpg`;
+  const legacyPath = `scans/${uid}/${scanId}/original/front.jpg`;
   try {
-    return await getDownloadURL(ref(storage, path));
+    return await getDownloadURL(ref(storage, modernPath));
   } catch {
-    return null;
+    try {
+      return await getDownloadURL(ref(storage, legacyPath));
+    } catch {
+      return null;
+    }
   }
 }

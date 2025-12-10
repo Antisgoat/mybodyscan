@@ -16,6 +16,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
+import { scanStatusLabel } from "@/lib/scanStatus";
 
 type LastScan = {
   id: string;
@@ -44,7 +45,10 @@ const Home = () => {
 
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
   const summary = summarizeScanMetrics(metrics);
-  const done = lastScan?.status === "done" || lastScan?.status === "completed";
+  const statusMeta = lastScan
+    ? scanStatusLabel(lastScan.status, lastScan.raw?.updatedAt ?? lastScan.raw?.completedAt ?? lastScan.raw?.createdAt)
+    : null;
+  const done = statusMeta?.showMetrics ?? false;
   const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
   const bf = summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
   const weight = summary.weightText;
@@ -196,9 +200,18 @@ const Home = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    <Badge variant="secondary">{lastScan.status}</Badge>
-                    <p className="text-xs text-muted-foreground">Check History for progress.</p>
+                  <div className="space-y-2">
+                    <Badge variant={statusMeta?.badgeVariant ?? "secondary"}>
+                      {statusMeta?.label ?? "Processing…"}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">
+                      {statusMeta?.helperText ?? "Check History for progress."}
+                    </p>
+                    {statusMeta?.recommendRescan && (
+                      <Button size="sm" variant="outline" onClick={() => navigate("/scan")}>
+                        Rescan
+                      </Button>
+                    )}
                   </div>
                 )}
                 <div className="flex gap-2 pt-2">

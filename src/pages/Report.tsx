@@ -82,7 +82,7 @@ export default function Report() {
             if (
               metrics.bodyFatPercent != null &&
               data?.charged &&
-              (status === "completed" || status === "done")
+              (status === "completed" || status === "complete" || status === "done")
             ) {
               return { id: docSnap.id, data };
             }

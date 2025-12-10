@@ -17,6 +17,7 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { DemoBanner } from "@/components/DemoBanner";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
+import { scanStatusLabel } from "@/lib/scanStatus";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -211,6 +212,10 @@ const Results = () => {
   const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
   const weightDisplay = summary.weightText;
   const bmiDisplay = summary.bmiText;
+  const statusMeta = scanStatusLabel(
+    activeScan.status,
+    activeScan.completedAt ?? activeScan.updatedAt ?? activeScan.createdAt,
+  );
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
@@ -226,29 +231,30 @@ const Results = () => {
             <CardTitle className="text-lg">
               {formatDate(activeScan.completedAt || activeScan.createdAt)}
             </CardTitle>
-            <Badge variant={
-              activeScan.status === "completed" ? "default" :
-              activeScan.status === "processing" ? "secondary" :
-              "destructive"
-            }>
-              {activeScan.status}
+            <Badge variant={statusMeta.badgeVariant}>
+              {statusMeta.label}
             </Badge>
           </div>
         </CardHeader>
 
         <CardContent>
-          {activeScan.status === "processing" ? (
-            <ProcessingUI />
-          ) : activeScan.status === "failed" ? (
-            <div className="text-center py-6">
-              <p className="text-destructive mb-4">Scan analysis failed</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                {activeScan.error || "We couldn't process your scan. Please try again with better lighting or clearer angles."}
-              </p>
-              <Button onClick={() => navigate("/scan/new")} variant="outline">
-                Try Again
-              </Button>
-            </div>
+          {!statusMeta.showMetrics ? (
+            statusMeta.canonical === "error" || statusMeta.recommendRescan ? (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-destructive">{statusMeta.label}</p>
+                <p className="text-sm text-muted-foreground">
+                  {activeScan.error || activeScan.errorMessage || statusMeta.helperText || "We couldn't process your scan. Please try again."}
+                </p>
+                <Button onClick={() => navigate("/scan/new")} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ProcessingUI />
+                <p className="text-center text-xs text-muted-foreground">{statusMeta.helperText}</p>
+              </div>
+            )
           ) : (
             <div className="grid grid-cols-3 gap-4 text-center">
               <Card>
@@ -283,7 +289,7 @@ const Results = () => {
       </Card>
 
       {/* Notes section - only show for completed scans */}
-      {activeScan.status === "completed" && (
+      {statusMeta.showMetrics && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg">Notes</CardTitle>

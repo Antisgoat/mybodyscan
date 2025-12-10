@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getScan, type ScanDocument } from "@/lib/api/scan";
+import { scanStatusLabel } from "@/lib/scanStatus";
 
 const REFRESH_INTERVAL_MS = 7000;
 
@@ -70,20 +71,28 @@ export default function ScanResultPage() {
     );
   }
 
-  if (scan.status === "error") {
+  const statusMeta = scanStatusLabel(scan.status, scan.completedAt ?? scan.updatedAt ?? scan.createdAt);
+
+  if (statusMeta.canonical === "error" || statusMeta.recommendRescan) {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm text-red-700">We couldn&apos;t complete this scan.</p>
-        {scan.errorMessage && <p className="text-xs text-red-700/90">{scan.errorMessage}</p>}
-        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Try again</button>
+        <p className="text-sm text-red-700">{statusMeta.label}</p>
+        <p className="text-xs text-red-700/90">
+          {scan.errorMessage || statusMeta.helperText || "We couldn't complete this scan."}
+        </p>
+        <div className="flex gap-2">
+          <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Try again</button>
+          <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/history")}>History</button>
+        </div>
       </div>
     );
   }
 
-  if (scan.status === "pending" || scan.status === "processing") {
+  if (!statusMeta.showMetrics) {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm">Analyzing your photos…</p>
+        <p className="text-sm">{statusMeta.label}</p>
+        <p className="text-xs text-muted-foreground">{statusMeta.helperText}</p>
         <div className="h-2 w-1/2 animate-pulse bg-black/10" />
       </div>
     );

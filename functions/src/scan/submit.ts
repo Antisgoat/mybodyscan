@@ -298,7 +298,10 @@ export const submitScan = onRequest(
       }
       scanRef = docRef;
 
-      await scanRef.set({ status: "processing", updatedAt: serverTimestamp() }, { merge: true });
+      await scanRef.set(
+        { status: "processing", updatedAt: serverTimestamp(), completedAt: null, errorMessage: null },
+        { merge: true },
+      );
 
       let analysis: ParsedAnalysis;
       try {
@@ -330,6 +333,7 @@ export const submitScan = onRequest(
       const update: Partial<ScanDocument> = {
         status: "complete",
         updatedAt: serverTimestamp(),
+        completedAt: serverTimestamp(),
         photoPaths: payload.photoPaths,
         input: {
           currentWeightKg: payload.currentWeightKg,
@@ -338,6 +342,7 @@ export const submitScan = onRequest(
         estimate: analysis.estimate,
         workoutPlan: analysis.workoutPlan,
         nutritionPlan: analysis.nutritionPlan,
+        errorMessage: null,
       };
 
       await scanRef.set(update, { merge: true });
@@ -356,7 +361,10 @@ export const submitScan = onRequest(
         const errorMessage =
           error instanceof HttpsError ? error.message : "Unexpected error while processing scan.";
         await scanRef
-          .set({ status: "error", errorMessage, updatedAt: serverTimestamp() }, { merge: true })
+          .set(
+            { status: "error", errorMessage, updatedAt: serverTimestamp(), completedAt: serverTimestamp() },
+            { merge: true },
+          )
           .catch(() => undefined);
       }
       respondWithSubmitError(res, error, requestId);

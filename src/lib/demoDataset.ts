@@ -49,7 +49,7 @@ function normalizeScan(entry: RawScanEntry) {
     : null;
   return {
     id: entry.id,
-    status: entry.status ?? "completed",
+    status: entry.status ?? "complete",
     takenAt: entry.takenAt ?? entry.completedAt,
     completedAt: toTimestamp(entry.completedAt),
     createdAt: toTimestamp(createdAt),

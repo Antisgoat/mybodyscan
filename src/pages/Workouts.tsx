@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +23,7 @@ const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Workouts() {
   const { t } = useI18n();
+  const location = useLocation();
   const [plan, setPlan] = useState<any>(null);
   const [completed, setCompleted] = useState<string[]>([]);
   const [ratio, setRatio] = useState(0);
@@ -109,7 +111,7 @@ export default function Workouts() {
     return () => {
       cancelled = true;
     };
-  }, [workoutsConfigured]);
+  }, [workoutsConfigured, location.search]);
 
   async function loadProgress(p: any, isCancelled?: () => boolean) {
     if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
@@ -191,6 +193,18 @@ export default function Workouts() {
       toast({ title: "Unable to generate", description: "Please try again later.", variant: "destructive" });
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("started") === "1" && plan) {
+      toast({ title: "Plan ready", description: "Your new workout program is active." });
+      params.delete("started");
+      params.delete("plan");
+      const nextSearch = params.toString();
+      const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+      window.history.replaceState({}, "", nextUrl);
+    }
+  }, [location.pathname, location.search, plan, toast]);
 
   const formatDelta = (value: number) => (value >= 0 ? `+${value}` : `${value}`);
 

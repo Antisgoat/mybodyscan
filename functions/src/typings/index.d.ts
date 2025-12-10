@@ -371,6 +371,7 @@ interface ScanDocument {
   uid: string;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
+    completedAt?: FirebaseFirestore.Timestamp | null;
   status: "pending" | "processing" | "complete" | "error";
   errorMessage?: string;
   photoPaths: {
