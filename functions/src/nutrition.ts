@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
+import { scrubUndefined } from "./lib/scrub.js";
 import { withCors } from "./middleware/cors.js";
 import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckSoft } from "./http.js";
 import { nutritionBarcodeHandler } from "./nutritionBarcode.js";
@@ -145,15 +146,12 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
       }),
       defaultTotals()
     );
-    tx.set(
-      docRef,
-      {
-        meals,
-        totals,
-        updatedAt: Timestamp.now(),
-      },
-      { merge: true }
-    );
+    const payload = scrubUndefined({
+      meals,
+      totals,
+      updatedAt: Timestamp.now(),
+    });
+    tx.set(docRef, payload, { merge: true });
   });
   return totals;
 }
@@ -179,15 +177,12 @@ async function removeMeal(uid: string, day: string, mealId: string) {
       }),
       defaultTotals()
     );
-    tx.set(
-      docRef,
-      {
-        meals,
-        totals,
-        updatedAt: Timestamp.now(),
-      },
-      { merge: true }
-    );
+    const payload = scrubUndefined({
+      meals,
+      totals,
+      updatedAt: Timestamp.now(),
+    });
+    tx.set(docRef, payload, { merge: true });
   });
   return totals;
 }
