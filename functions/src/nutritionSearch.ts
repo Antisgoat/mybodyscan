@@ -349,6 +349,12 @@ async function requestJson(url: URL, init: RequestInit, label: string): Promise<
       });
 
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new HttpError(503, "upstream_rate_limited", `${label}_429`);
+        }
+        if (response.status === 401 || response.status === 403) {
+          throw new HttpError(501, "nutrition_not_configured", `${label}_${response.status}`);
+        }
         if (response.status >= 400 && response.status < 500) {
           throw new HttpError(502, "upstream_4xx", `${label}_${response.status}`);
         }
@@ -627,6 +633,13 @@ function asString(value: unknown): string {
   return "";
 }
 
+function sanitizeSearchQuery(value: string): string {
+  if (!value) return "";
+  const collapsed = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const limited = collapsed.slice(0, 80);
+  return limited.replace(/[^\p{L}\p{N}\s&(),.\-'/]/gu, "");
+}
+
 function normalizeSourcePreference(value: unknown): "usda-first" | "off-first" | "combined" {
   const raw = asString(value).trim().toLowerCase();
   if (raw === "off-first" || raw === "combined") {
@@ -645,7 +658,7 @@ function normalizeSearchRecord(record: Record<string, unknown> | null | undefine
       (data as any).text ??
       "",
   );
-  const query = rawTerm.trim();
+  const query = sanitizeSearchQuery(rawTerm);
   return {
     query,
     sourcePreference: normalizeSourcePreference((data as any).sourcePreference),

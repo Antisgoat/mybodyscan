@@ -46,6 +46,7 @@ export interface ScanDocument {
   completedAt?: Timestamp | null;
   status: "pending" | "processing" | "complete" | "error";
   errorMessage?: string;
+  errorReason?: string | null;
   photoPaths: {
     front: string;
     back: string;

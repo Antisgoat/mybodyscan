@@ -171,7 +171,6 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 - `VITE_APPCHECK_SITE_KEY`
 - `VITE_FUNCTIONS_BASE_URL`
 - `VITE_STRIPE_PK` or `VITE_STRIPE_PUBLISHABLE_KEY`
-- `VITE_USDA_API_KEY`
 
 ### Enable Sign in with Apple (Web)
 

@@ -17,9 +17,6 @@ export const APPCHECK_SITE_KEY: string | undefined = env.VITE_APPCHECK_SITE_KEY 
 export const DEMO_ENABLED: boolean = bool(env.VITE_ENABLE_DEMO ?? env.VITE_DEMO_MODE ?? env.VITE_DEMO_ENABLED, false);
 export const SHOW_APPLE_WEB: boolean = bool(env.VITE_ENABLE_APPLE ?? env.VITE_SHOW_APPLE ?? env.VITE_SHOW_APPLE_WEB, false);
 
-export const USDA_API_KEY: string | undefined = env.VITE_USDA_API_KEY || undefined;
-export const OFF_ENABLED: boolean = bool(env.VITE_OFF_ENABLED, true); // default ON for fallback
-
 export const STRIPE_PUBLISHABLE_KEY: string | undefined =
   env.VITE_STRIPE_PK || env.VITE_STRIPE_PUBLISHABLE_KEY || undefined;
 
