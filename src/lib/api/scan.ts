@@ -215,6 +215,30 @@ export type ScanUploadProgress = {
   overallPercent: number;
 };
 
+const MIN_VISIBLE_PROGRESS = 0.01;
+
+type UploadTarget = {
+  pose: keyof StartScanResponse["storagePaths"];
+  path: string;
+  file: File;
+  size: number;
+};
+
+function clampProgressFraction(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
+function ensureVisibleProgress(value: number, hasBytes: boolean): number {
+  if (!hasBytes) {
+    return clampProgressFraction(value);
+  }
+  const baseline = value <= 0 ? MIN_VISIBLE_PROGRESS : value;
+  return clampProgressFraction(baseline);
+}
+
 export async function submitScanClient(
   params: {
     scanId: string;
@@ -233,43 +257,68 @@ export async function submitScanClient(
     if (!entries.length) {
       return { ok: false, error: { message: "Missing upload targets for this scan." } };
     }
-    const fileCount = entries.length;
-    const totalBytes = entries.reduce((sum, [pose]) => {
-      const size = params.photos[pose]?.size ?? 0;
-      return sum + (Number.isFinite(size) ? size : 0);
-    }, 0);
-    const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
-    let uploadedBytes = 0;
-    let completedFiles = 0;
-    for (const [index, [pose, path]] of entries.entries()) {
+    const uploadTargets: UploadTarget[] = [];
+    for (const [pose, path] of entries) {
       const file = params.photos[pose];
-      if (!file) return { ok: false, error: { message: `Missing ${pose} photo` } };
-      await uploadPhoto(path, file, (snapshot) => {
-        const percent = snapshot.totalBytes ? snapshot.bytesTransferred / snapshot.totalBytes : 0;
-        const currentBytes = snapshot.bytesTransferred || 0;
-        const overallBytes = uploadedBytes + currentBytes;
-        const overallPercent = Math.min(1, Math.max(0, overallBytes / safeTotalBytes));
+      if (!file) return { ok: false, error: { message: `Missing ${pose} photo.` } };
+      const size = Number.isFinite(file.size) ? Number(file.size) : 0;
+      uploadTargets.push({ pose, path, file, size });
+    }
+    if (!uploadTargets.length) {
+      return { ok: false, error: { message: "No photos selected for this scan." } };
+    }
+    const zeroByteTargets = uploadTargets.filter((target) => target.size <= 0);
+    if (zeroByteTargets.length) {
+      const poses = zeroByteTargets.map((target) => target.pose).join(", ");
+      return {
+        ok: false,
+        error: {
+          message: `We couldn't read your ${poses} photo. Please retake and try again.`,
+          reason: "upload_failed",
+        },
+      };
+    }
+
+    const fileCount = uploadTargets.length;
+    const totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
+    const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
+    const fallbackDenominator = fileCount || 1;
+    let uploadedBytes = 0;
+
+    for (const [index, target] of uploadTargets.entries()) {
+      await uploadPhoto(target.path, target.file, (snapshot) => {
+        const snapshotTotal = snapshot.totalBytes || target.size || 1;
+        const snapshotBytes = snapshot.bytesTransferred || 0;
+        const hasTransferred = snapshotBytes > 0;
+        const filePercent = ensureVisibleProgress(
+          snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
+          hasTransferred,
+        );
+        const bytesBasis =
+          safeTotalBytes > 0 ? (uploadedBytes + snapshotBytes) / safeTotalBytes : (index + filePercent) / fallbackDenominator;
+        const overallPercent = ensureVisibleProgress(bytesBasis, hasTransferred);
         options?.onUploadProgress?.({
-          pose,
+          pose: target.pose,
           fileIndex: index,
           fileCount,
-          bytesTransferred: snapshot.bytesTransferred,
-          totalBytes: snapshot.totalBytes,
-          percent,
+          bytesTransferred: snapshotBytes,
+          totalBytes: snapshotTotal,
+          percent: filePercent,
           overallPercent,
         });
       });
-      completedFiles += 1;
-      uploadedBytes += file.size || 0;
-      const normalizedOverall = Math.min(1, Math.max(0, uploadedBytes / safeTotalBytes));
+
+      uploadedBytes += target.size;
+      const normalizedOverall =
+        safeTotalBytes > 0 ? uploadedBytes / safeTotalBytes : (index + 1) / fallbackDenominator;
       options?.onUploadProgress?.({
-        pose,
+        pose: target.pose,
         fileIndex: index,
         fileCount,
-        bytesTransferred: file.size,
-        totalBytes: file.size,
+        bytesTransferred: target.size,
+        totalBytes: target.size,
         percent: 1,
-        overallPercent: normalizedOverall || completedFiles / fileCount,
+        overallPercent: clampProgressFraction(normalizedOverall),
       });
     }
 

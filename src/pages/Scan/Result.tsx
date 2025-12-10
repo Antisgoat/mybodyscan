@@ -34,6 +34,7 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { toast } from "@/hooks/use-toast";
 import { POSES, type Pose } from "@/features/scan/poses";
+import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -483,7 +484,7 @@ export default function ScanFlowResult() {
     if (analyzing) return "Analyzing photos…";
     if (flowStatus === "starting") return "Preparing secure upload…";
     if (flowStatus === "uploading") {
-      const progressPct = Math.round(uploadProgress * 100);
+      const progressPct = toVisiblePercent(uploadProgress);
       return uploadPose
         ? `Uploading ${uploadPose} photo (${progressPct}% complete)…`
         : "Uploading encrypted photos…";
@@ -613,12 +614,12 @@ export default function ScanFlowResult() {
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div
                   className="h-2 rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(100, Math.round(uploadProgress * 100))}%` }}
+                  style={{ width: `${toProgressBarWidth(uploadProgress)}%` }}
                 />
               </div>
               {uploadPose ? (
                 <p className="text-xs text-muted-foreground">
-                  Uploading {uploadPose} ({Math.round(uploadProgress * 100)}%)
+                  Uploading {uploadPose} ({toVisiblePercent(uploadProgress)}%)
                 </p>
               ) : null}
             </div>

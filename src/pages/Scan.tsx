@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
+import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 
 interface PhotoInputs {
   front: File | null;
@@ -152,8 +153,8 @@ export default function ScanPage() {
         },
         {
           onUploadProgress: (info: ScanUploadProgress) => {
-            const filePercent = Math.round(info.percent * 100);
-            const overallPercent = Math.round(info.overallPercent * 100);
+            const filePercent = toVisiblePercent(info.percent);
+            const overallPercent = toVisiblePercent(info.overallPercent);
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
             setStatusDetail(
@@ -284,12 +285,12 @@ export default function ScanPage() {
             <div className="w-full bg-secondary h-2 rounded-full">
               <div
                 className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: `${Math.max(0, Math.min(100, uploadProgress * 100))}%` }}
+                style={{ width: `${toProgressBarWidth(uploadProgress)}%` }}
               />
             </div>
             {uploadPose && (
               <p className="text-[11px] text-muted-foreground" aria-live="polite">
-                {`Uploading ${uploadPose}… ${Math.round(uploadProgress * 100)}% complete`}
+                {`Uploading ${uploadPose}… ${toVisiblePercent(uploadProgress)}% complete`}
               </p>
             )}
           </div>
