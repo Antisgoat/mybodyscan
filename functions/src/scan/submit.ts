@@ -268,13 +268,6 @@ export const submitScan = onRequest(
       const authContext = await requireAuthWithClaims(req as Request);
       await ensureSoftAppCheckFromRequest(req as Request, { fn: "submitScan", uid: authContext.uid, requestId });
 
-      if (!hasOpenAI()) {
-        throw new HttpsError("failed-precondition", "Scan engine not configured.", {
-          debugId: requestId,
-          reason: "openai_not_configured",
-        });
-      }
-
       const payload = parsePayload(req.body);
       if (!payload) {
         throw new HttpsError("invalid-argument", "Missing or invalid scan data.", {
@@ -297,6 +290,13 @@ export const submitScan = onRequest(
         });
       }
       scanRef = docRef;
+
+      if (!hasOpenAI()) {
+        throw new HttpsError("failed-precondition", "Scan engine not configured.", {
+          debugId: requestId,
+          reason: "openai_not_configured",
+        });
+      }
 
       await scanRef.set(
         { status: "processing", updatedAt: serverTimestamp(), completedAt: null, errorMessage: null },

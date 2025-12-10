@@ -4,6 +4,7 @@ import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
 import { fnUrl } from "@/lib/env";
+import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 
 export interface WorkoutExercise {
   id: string;
@@ -47,9 +48,19 @@ async function callFn(path: string, body?: any) {
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
   const endpoint = fnUrl(path);
+  await ensureAppCheck();
+  const appCheckHeaders = await getAppCheckTokenHeader();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${t}`,
+  };
+  Object.entries(appCheckHeaders).forEach(([key, value]) => {
+    headers[key] = value;
+  });
   const r = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+    headers,
+    credentials: "include",
     body: JSON.stringify(body || {}),
   });
   if (!r.ok) {
