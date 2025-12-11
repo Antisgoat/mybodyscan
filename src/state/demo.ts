@@ -1,6 +1,6 @@
 import type { User } from "firebase/auth";
 
-type Listener = (value: boolean) => void;
+type Listener = () => void;
 
 const SESSION_KEY = "mbs_demo";
 const QUERY_PARAM = "demo";
@@ -49,7 +49,7 @@ function notifyListeners(next: boolean) {
   try {
     listeners.forEach((listener) => {
       try {
-        listener(next);
+        listener();
       } catch (error) {
         if (!loggedListenerError) {
           console.error("demo_state_listener_error", error);

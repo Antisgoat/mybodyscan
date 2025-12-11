@@ -220,3 +220,36 @@ export function signOutAll() {
 
 export { isIOSSafari } from "@/lib/isIOSWeb";
 
+type AuthTestInternals = {
+  reset(): void;
+  emit(user: Auth["currentUser"] | null, options?: { authReady?: boolean }): void;
+  snapshot(): AuthSnapshot;
+};
+
+function resetAuthStore(): void {
+  cachedUser = typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null;
+  authReadyFlag = !firebaseAuth || !!cachedUser;
+  processedUidKey = null;
+  cachedSnapshot = {
+    user: authReadyFlag ? cachedUser : null,
+    authReady: authReadyFlag,
+  };
+  authListeners.clear();
+}
+
+export const __authTestInternals: AuthTestInternals = {
+  reset() {
+    resetAuthStore();
+  },
+  emit(user, options) {
+    if (typeof options?.authReady === "boolean") {
+      authReadyFlag = options.authReady;
+    }
+    handleUserChange(user);
+    notifyAuthSubscribers();
+  },
+  snapshot() {
+    return getAuthSnapshot();
+  },
+};
+

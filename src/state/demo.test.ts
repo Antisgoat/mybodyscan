@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-import { disableDemo, setDemo, subscribeDemo } from "./demo";
+import { disableDemo, enableDemo, isDemo, setDemo, subscribeDemo } from "./demo";
 
 type StorageLike = {
   getItem(key: string): string | null;
@@ -56,7 +56,7 @@ describe("demo state store", () => {
 
   it("does not fire subscribers synchronously upon subscribe", () => {
     const events: boolean[] = [];
-    const unsubscribe = subscribeDemo((value) => events.push(value));
+    const unsubscribe = subscribeDemo(() => events.push(isDemo()));
 
     expect(events).toEqual([]);
 
@@ -75,7 +75,7 @@ describe("demo state store", () => {
 
   it("stops notifying listeners after unsubscribe", () => {
     const events: boolean[] = [];
-    const unsubscribe = subscribeDemo((value) => events.push(value));
+    const unsubscribe = subscribeDemo(() => events.push(isDemo()));
 
     setDemo(true);
     expect(events).toEqual([true]);
@@ -88,7 +88,8 @@ describe("demo state store", () => {
 
   it("coalesces nested updates triggered inside listeners", () => {
     const events: boolean[] = [];
-    const unsubscribe = subscribeDemo((value) => {
+    const unsubscribe = subscribeDemo(() => {
+      const value = isDemo();
       events.push(value);
       if (value) {
         setDemo(false);
@@ -100,5 +101,13 @@ describe("demo state store", () => {
     expect(events).toEqual([true, false]);
 
     unsubscribe();
+  });
+
+  it("persists the session flag when toggling demo mode", () => {
+    expect(window.sessionStorage.getItem("mbs_demo")).toBeNull();
+    enableDemo();
+    expect(window.sessionStorage.getItem("mbs_demo")).toBe("1");
+    disableDemo();
+    expect(window.sessionStorage.getItem("mbs_demo")).toBeNull();
   });
 });
