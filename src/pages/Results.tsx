@@ -18,6 +18,7 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
+import { useUnits } from "@/hooks/useUnits";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -207,8 +208,9 @@ const Results = () => {
     );
   }
 
+  const { units } = useUnits();
   const metrics = extractScanMetrics(activeScan);
-  const summary = summarizeScanMetrics(metrics);
+  const summary = summarizeScanMetrics(metrics, units);
   const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
   const weightDisplay = summary.weightText;
   const bmiDisplay = summary.bmiText;

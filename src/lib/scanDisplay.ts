@@ -1,4 +1,4 @@
-import { cmToIn, kgToLb, formatBmi } from "@/lib/units";
+import { cmToIn, kgToLb, lbToKg, formatBmi, type DisplayUnits } from "@/lib/units";
 import type { NormalizedScanMetrics } from "@/lib/scans";
 
 export interface ScanMetricSummary {
@@ -14,7 +14,10 @@ function roundToTenths(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-export function summarizeScanMetrics(metrics: NormalizedScanMetrics | null): ScanMetricSummary {
+export function summarizeScanMetrics(
+  metrics: NormalizedScanMetrics | null,
+  units: DisplayUnits = "us",
+): ScanMetricSummary {
   const bodyFatPercent = metrics?.bodyFatPercent ?? null;
   const bodyFatText = bodyFatPercent != null ? `${bodyFatPercent.toFixed(1)}%` : "—";
 
@@ -23,7 +26,22 @@ export function summarizeScanMetrics(metrics: NormalizedScanMetrics | null): Sca
     const pounds = kgToLb(metrics.weightKg);
     weightLb = Number.isFinite(pounds) ? roundToTenths(pounds) : null;
   }
-  const weightText = weightLb != null ? `${weightLb.toFixed(1)} lb` : "—";
+  let displayWeight: number | null = null;
+  if (units === "metric") {
+    if (metrics?.weightKg != null) {
+      displayWeight = metrics.weightKg;
+    } else if (weightLb != null) {
+      const kg = lbToKg(weightLb);
+      displayWeight = Number.isFinite(kg) ? roundToTenths(kg) : null;
+    }
+  } else {
+    displayWeight = weightLb ?? (metrics?.weightKg != null ? kgToLb(metrics.weightKg) : null);
+    if (displayWeight != null) {
+      displayWeight = roundToTenths(displayWeight);
+    }
+  }
+  const unitLabel = units === "metric" ? "kg" : "lb";
+  const weightText = displayWeight != null ? `${displayWeight.toFixed(1)} ${unitLabel}` : "—";
 
   const bmi = metrics?.bmi ?? null;
   const bmiText = bmi != null ? formatBmi(bmi, 1) : "—";
