@@ -24,6 +24,10 @@ let authReadyFlag = !firebaseAuth || !!cachedUser;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
 let processedUidKey: string | null = null;
+let cachedSnapshot: AuthSnapshot = {
+  user: authReadyFlag ? cachedUser : null,
+  authReady: authReadyFlag,
+};
 
 function notifyAuthSubscribers() {
   authListeners.forEach((listener) => {
@@ -63,13 +67,14 @@ async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
   }
 }
 
-function handleUserChange(nextUser: Auth["currentUser"] | null) {
+function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
   cachedUser = nextUser;
   authReadyFlag = true;
+  const snapshotChanged = updateAuthSnapshot();
 
   if (!nextUser) {
     processedUidKey = null;
-    return;
+    return snapshotChanged;
   }
 
   if (!nextUser.isAnonymous && typeof window !== "undefined") {
@@ -83,23 +88,26 @@ function handleUserChange(nextUser: Auth["currentUser"] | null) {
   const shouldRefreshClaims = !nextUser.isAnonymous;
   const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
   if (processedUidKey === statusKey) {
-    return;
+    return snapshotChanged;
   }
 
   processedUidKey = statusKey;
 
   if (!shouldRefreshClaims) {
-    return;
+    return snapshotChanged;
   }
 
   void refreshClaimsFor(nextUser);
+  return snapshotChanged;
 }
 
 function ensureAuthListener() {
   if (!firebaseAuth || unsubscribeAuthListener) return;
   unsubscribeAuthListener = onAuthStateChanged(firebaseAuth, (user) => {
-    handleUserChange(user);
-    notifyAuthSubscribers();
+    const snapshotChanged = handleUserChange(user);
+    if (snapshotChanged) {
+      notifyAuthSubscribers();
+    }
   });
 }
 
@@ -112,14 +120,23 @@ function subscribeAuth(listener: () => void) {
 }
 
 function getAuthSnapshot(): AuthSnapshot {
-  return {
-    user: authReadyFlag ? cachedUser : null,
-    authReady: authReadyFlag,
-  };
+  return cachedSnapshot;
 }
 
 function getServerAuthSnapshot(): AuthSnapshot {
   return { user: null, authReady: false };
+}
+
+function updateAuthSnapshot(): boolean {
+  const nextUser = authReadyFlag ? cachedUser : null;
+  if (cachedSnapshot.user === nextUser && cachedSnapshot.authReady === authReadyFlag) {
+    return false;
+  }
+  cachedSnapshot = {
+    user: nextUser,
+    authReady: authReadyFlag,
+  };
+  return true;
 }
 
 async function ensureFirebaseAuth(): Promise<Auth> {

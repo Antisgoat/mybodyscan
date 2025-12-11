@@ -91,6 +91,21 @@ export default function Workouts() {
           }
           return;
         }
+        if (requestedPlanId && currentPlan.id !== requestedPlanId) {
+          if (attempt < 3) {
+            if (!cancelled) {
+              setActivationPending(true);
+              setLoadError(null);
+            }
+            retryTimer = setTimeout(() => hydrate(attempt + 1), 800 * (attempt + 1));
+            return;
+          }
+          if (!cancelled) {
+            setActivationPending(false);
+            setLoadError("We’re still preparing your new program. Pull down to refresh or try again.");
+          }
+          return;
+        }
         if (!cancelled) {
           setActivationPending(false);
           setPlan(currentPlan);
@@ -213,7 +228,8 @@ export default function Workouts() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("started") === "1" && plan) {
+    const requestedPlanId = params.get("plan");
+    if (params.get("started") === "1" && plan && (!requestedPlanId || plan.id === requestedPlanId)) {
       toast({ title: "Plan ready", description: "Your new workout program is active." });
       params.delete("started");
       params.delete("plan");

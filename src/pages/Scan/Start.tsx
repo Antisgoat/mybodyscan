@@ -73,6 +73,17 @@ export default function ScanStart() {
     navigate("/scan/capture");
   };
 
+  const confirmStoredWeightsAndContinue = () => {
+    if (storedWeight == null || storedGoalWeight == null) {
+      setError("Update your current and goal weight before continuing.");
+      return;
+    }
+    const currentWeightKg = lbToKg(storedWeight);
+    const goalWeightKg = lbToKg(storedGoalWeight);
+    setCaptureWeights({ currentWeightKg, goalWeightKg });
+    goToCapture();
+  };
+
   const handleSave = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     setError(null);
@@ -208,7 +219,7 @@ export default function ScanStart() {
                 <TooltipContent>Sign up to save progress</TooltipContent>
               </Tooltip>
             ) : (
-              <Button size="lg" onClick={goToCapture} disabled={scanOffline}>
+              <Button size="lg" onClick={confirmStoredWeightsAndContinue} disabled={scanOffline}>
                 Yes
               </Button>
             )}

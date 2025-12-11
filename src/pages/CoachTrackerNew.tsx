@@ -9,13 +9,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Seo } from "@/components/Seo";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { addMeal as logMeal, type MealEntry } from "@/lib/nutritionBackend";
 
 interface NutritionLog {
   calories: number;
@@ -114,30 +114,17 @@ export default function CoachTrackerNew() {
     loadChartData();
   }, [uid, plan]);
 
-  const saveLog = async (newLog: NutritionLog) => {
-    if (!uid) return;
-
-    try {
-      const logRef = doc(db, "users", uid, "nutritionLogs", dateStr);
-      await setDoc(logRef, newLog);
-      
+  const addMeal = async () => {
+    if (!uid) {
       toast({
-        title: "Saved",
-        description: "Nutrition log updated",
-      });
-    } catch (error) {
-      console.error("Error saving log:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save nutrition log",
+        title: "Sign in required",
+        description: "Sign in to log meals.",
         variant: "destructive",
       });
+      return;
     }
-  };
-
-  const addMeal = () => {
     const meal = {
-      name: mealForm.name,
+      name: mealForm.name.trim() || "Manual meal",
       calories: parseInt(mealForm.calories) || 0,
       protein_g: parseInt(mealForm.protein_g) || 0,
       carbs_g: parseInt(mealForm.carbs_g) || 0,
@@ -153,10 +140,31 @@ export default function CoachTrackerNew() {
     };
 
     setLog(newLog);
-    saveLog(newLog);
-    
-    setMealForm({ name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
-    setMealDialogOpen(false);
+    const entry: MealEntry = {
+      name: meal.name,
+      calories: meal.calories,
+      protein: meal.protein_g,
+      carbs: meal.carbs_g,
+      fat: meal.fat_g,
+      entrySource: "coach-tracker",
+    };
+
+    try {
+      await logMeal(dateStr, entry);
+      toast({
+        title: "Meal logged",
+        description: `Added ${meal.name} to ${format(selectedDate, "MMM dd")}`,
+      });
+      setMealForm({ name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setMealDialogOpen(false);
+    } catch (error) {
+      console.error("coachTrackerNew.addMeal", error);
+      toast({
+        title: "Unable to log meal",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const targetCalories = plan?.calorieTarget || 2000;
