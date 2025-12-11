@@ -9,6 +9,8 @@ let explicit: boolean | null = null;
 let current = resolveDemo();
 const listeners = new Set<Listener>();
 let loggedListenerError = false;
+let notifyingListeners = false;
+let queuedNotification: boolean | null = null;
 
 function readSessionDemo(): boolean | null {
   if (typeof window === "undefined") return null;
@@ -38,19 +40,38 @@ function resolveDemo(): boolean {
   return readQueryDemo();
 }
 
+function notifyListeners(next: boolean) {
+  if (notifyingListeners) {
+    queuedNotification = next;
+    return;
+  }
+  notifyingListeners = true;
+  try {
+    listeners.forEach((listener) => {
+      try {
+        listener(next);
+      } catch (error) {
+        if (!loggedListenerError) {
+          console.error("demo_state_listener_error", error);
+          loggedListenerError = true;
+        }
+      }
+    });
+  } finally {
+    notifyingListeners = false;
+  }
+
+  const queued = queuedNotification;
+  queuedNotification = null;
+  if (queued !== null && queued !== next) {
+    notifyListeners(queued);
+  }
+}
+
 function update(next: boolean) {
   if (current === next) return;
   current = next;
-  listeners.forEach((listener) => {
-    try {
-      listener(next);
-    } catch (error) {
-      if (!loggedListenerError) {
-        console.error("demo_state_listener_error", error);
-        loggedListenerError = true;
-      }
-    }
-  });
+  notifyListeners(next);
 }
 
 function persistSession(value: boolean) {
