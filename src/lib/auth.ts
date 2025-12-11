@@ -24,6 +24,11 @@ let authReadyFlag = !firebaseAuth || !!cachedUser;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
 let processedUidKey: string | null = null;
+let lastSnapshot: AuthSnapshot = {
+  user: authReadyFlag ? cachedUser : null,
+  authReady: authReadyFlag,
+};
+const serverSnapshot: AuthSnapshot = { user: null, authReady: false };
 
 function notifyAuthSubscribers() {
   authListeners.forEach((listener) => {
@@ -112,14 +117,16 @@ function subscribeAuth(listener: () => void) {
 }
 
 function getAuthSnapshot(): AuthSnapshot {
-  return {
-    user: authReadyFlag ? cachedUser : null,
-    authReady: authReadyFlag,
-  };
+  const user = authReadyFlag ? cachedUser : null;
+  if (lastSnapshot.user === user && lastSnapshot.authReady === authReadyFlag) {
+    return lastSnapshot;
+  }
+  lastSnapshot = { user, authReady: authReadyFlag };
+  return lastSnapshot;
 }
 
 function getServerAuthSnapshot(): AuthSnapshot {
-  return { user: null, authReady: false };
+  return serverSnapshot;
 }
 
 async function ensureFirebaseAuth(): Promise<Auth> {

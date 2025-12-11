@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string };
@@ -12,9 +12,11 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { hasError: true, message: (error as Error)?.message ?? "Unknown error" };
   }
 
-  componentDidCatch(error: unknown, info: unknown) {
-    console.error("App crashed:", error, info);
-    // TODO: add Sentry/logger here if available
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    const componentStack = info?.componentStack || "(no component stack)";
+    console.error("[AppErrorBoundary] error", normalized);
+    console.error("[AppErrorBoundary] component stack", componentStack);
   }
 
   render() {
