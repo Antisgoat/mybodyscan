@@ -7,7 +7,9 @@
     "outDir": "lib",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
     "typeRoots": ["./src/typings"],
+    "types": ["node"],
     "skipLibCheck": true,
     "noImplicitAny": false,
     "strict": false

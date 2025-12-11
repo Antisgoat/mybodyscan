@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
+import { consumeAuthRedirectError } from "@/lib/authRedirect";
+import { signInWithApple as startAppleSignIn, signInWithGoogle as startGoogleSignIn } from "@/lib/auth/providers";
 import {
   auth,
   firebaseConfigMissingKeys,
@@ -24,7 +26,7 @@ import {
 } from "@/lib/firebase/runtimeConfig";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
-import { GoogleAuthProvider, OAuthProvider, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
@@ -58,13 +60,6 @@ const Auth = () => {
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
   const authClient = useMemo(() => getFirebaseAuth(), []);
   const canSubmit = !firebaseInitError;
-  const googleProvider = useMemo(() => new GoogleAuthProvider(), []);
-  const appleProvider = useMemo(() => {
-    const provider = new OAuthProvider("apple.com");
-    provider.addScope("email");
-    provider.addScope("name");
-    return provider;
-  }, []);
   const onBrowseDemo = useCallback(() => {
     navigate("/welcome?demo=1", { replace: false });
   }, [navigate]);
@@ -77,6 +72,24 @@ const Auth = () => {
       window.location.replace(defaultTarget);
     }
   }, [user, location.pathname, defaultTarget]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const redirectError = await consumeAuthRedirectError();
+      if (cancelled || !redirectError) {
+        return;
+      }
+      const fallbackMessage = redirectError.friendlyMessage ?? redirectError.message ?? "Sign-in failed.";
+      const friendlyCode = redirectError.friendlyCode ?? redirectError.code;
+      const message = formatError(fallbackMessage, friendlyCode);
+      setAuthError(message);
+      toast(message, "error");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();
@@ -177,12 +190,7 @@ const Auth = () => {
     setAuthError(null);
     setLoading(true);
     try {
-      const authInstance = authClient;
-      if (!authInstance) {
-        setAuthError("Authentication is unavailable. Please refresh and try again.");
-        return;
-      }
-      await signInWithPopup(authInstance, googleProvider);
+      await startGoogleSignIn(defaultTarget);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Google sign-in failed.";
@@ -196,7 +204,7 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [firebaseInitError, googleProvider]);
+  }, [firebaseInitError, defaultTarget]);
 
   const handleAppleSignIn = useCallback(async () => {
     if (firebaseInitError) {
@@ -206,12 +214,7 @@ const Auth = () => {
     setAuthError(null);
     setLoading(true);
     try {
-      const authInstance = authClient;
-      if (!authInstance) {
-        setAuthError("Authentication is unavailable. Please refresh and try again.");
-        return;
-      }
-      await signInWithRedirect(authInstance, appleProvider);
+      await startAppleSignIn(defaultTarget);
     } catch (error: unknown) {
       const normalized = normalizeFirebaseError(error);
       const fallback = normalized.message ?? "Apple sign-in failed.";
@@ -225,7 +228,7 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [appleProvider, firebaseInitError]);
+  }, [firebaseInitError, defaultTarget]);
 
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
