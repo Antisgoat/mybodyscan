@@ -68,13 +68,16 @@ async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
   }
 }
 
-function handleUserChange(nextUser: Auth["currentUser"] | null) {
+function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
+  const prevUser = cachedUser;
+  const wasReady = authReadyFlag;
   cachedUser = nextUser;
   authReadyFlag = true;
+  let changed = wasReady !== authReadyFlag || prevUser !== nextUser;
 
   if (!nextUser) {
     processedUidKey = null;
-    return;
+    return changed;
   }
 
   if (!nextUser.isAnonymous && typeof window !== "undefined") {
@@ -87,24 +90,23 @@ function handleUserChange(nextUser: Auth["currentUser"] | null) {
 
   const shouldRefreshClaims = !nextUser.isAnonymous;
   const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
-  if (processedUidKey === statusKey) {
-    return;
+  if (processedUidKey !== statusKey) {
+    processedUidKey = statusKey;
+    if (shouldRefreshClaims) {
+      void refreshClaimsFor(nextUser);
+    }
   }
 
-  processedUidKey = statusKey;
-
-  if (!shouldRefreshClaims) {
-    return;
-  }
-
-  void refreshClaimsFor(nextUser);
+  return changed;
 }
 
 function ensureAuthListener() {
   if (!firebaseAuth || unsubscribeAuthListener) return;
   unsubscribeAuthListener = onAuthStateChanged(firebaseAuth, (user) => {
-    handleUserChange(user);
-    notifyAuthSubscribers();
+    const changed = handleUserChange(user);
+    if (changed) {
+      notifyAuthSubscribers();
+    }
   });
 }
 
