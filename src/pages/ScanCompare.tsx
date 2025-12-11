@@ -8,12 +8,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { onSnapshot } from "firebase/firestore";
 import { scanDocRef, type ScanDoc, normalizeScanMetrics } from "@/lib/scans";
+import { lbToKg } from "@/lib/units";
+import { useUnits } from "@/hooks/useUnits";
 
 export default function ScanComparePage() {
   const nav = useNavigate();
   const { leftId = "", rightId = "" } = useParams();
   const [left, setLeft] = useState<ScanDoc | null>(null);
   const [right, setRight] = useState<ScanDoc | null>(null);
+  const { units } = useUnits();
 
   useEffect(() => {
     if (!leftId) return undefined;
@@ -26,6 +29,14 @@ export default function ScanComparePage() {
 
   const L = useMemo(() => normalizeScanMetrics(left || undefined), [left]);
   const R = useMemo(() => normalizeScanMetrics(right || undefined), [right]);
+  const weightUnitLabel = units === "metric" ? "kg" : "lb";
+  const convertWeight = (value: number | null) => {
+    if (value == null) return null;
+    const numeric = units === "metric" ? lbToKg(value) : value;
+    return Number.isFinite(numeric) ? Number(numeric.toFixed(1)) : null;
+  };
+  const leftWeight = convertWeight(L.weightLb);
+  const rightWeight = convertWeight(R.weightLb);
 
   function delta(a: number | null, b: number | null) {
     if (a == null || b == null) return { abs: null, pct: null };
@@ -34,7 +45,7 @@ export default function ScanComparePage() {
     return { abs, pct };
   }
   const dBF = delta(L.bodyFatPct, R.bodyFatPct);
-  const dW  = delta(L.weightLb, R.weightLb);
+  const dW  = delta(leftWeight, rightWeight);
   const dBMI= delta(L.bmi, R.bmi);
 
   function label(d: {abs: number|null, pct: number|null}, unit = "") {
@@ -66,15 +77,15 @@ export default function ScanComparePage() {
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        <CompareCol title="Left" id={leftId} BF={L.bodyFatPct} W={L.weightLb} BMI={L.bmi} />
-        <CompareCol title="Right" id={rightId} BF={R.bodyFatPct} W={R.weightLb} BMI={R.bmi} />
+        <CompareCol title="Left" id={leftId} BF={L.bodyFatPct} W={leftWeight} BMI={L.bmi} unitLabel={weightUnitLabel} />
+        <CompareCol title="Right" id={rightId} BF={R.bodyFatPct} W={rightWeight} BMI={R.bmi} unitLabel={weightUnitLabel} />
       </div>
 
       <section className="rounded border p-3">
         <h2 className="text-sm font-medium mb-2">Change (Left → Right)</h2>
         <ul className="text-sm space-y-1">
           <li>Body Fat: <strong>{label(dBF, "%")}</strong></li>
-          <li>Weight: <strong>{label(dW, " lb")}</strong></li>
+          <li>Weight: <strong>{label(dW, ` ${weightUnitLabel}`)}</strong></li>
           <li>BMI: <strong>{label(dBMI)}</strong></li>
         </ul>
         <div className="mt-3 flex items-center gap-2">
@@ -88,14 +99,28 @@ export default function ScanComparePage() {
   );
 }
 
-function CompareCol({ title, id, BF, W, BMI }: { title: string; id: string; BF: number|null; W: number|null; BMI: number|null }) {
+function CompareCol({
+  title,
+  id,
+  BF,
+  W,
+  BMI,
+  unitLabel,
+}: {
+  title: string;
+  id: string;
+  BF: number | null;
+  W: number | null;
+  BMI: number | null;
+  unitLabel: string;
+}) {
   return (
     <div className="rounded border p-3">
       <div className="text-xs text-muted-foreground">{title}</div>
       <div className="text-[11px] text-muted-foreground truncate">#{id}</div>
       <div className="mt-2 space-y-1 text-sm">
         <div>BF: <strong>{BF != null ? `${BF}%` : "—"}</strong></div>
-        <div>Weight: <strong>{W != null ? `${W} lb` : "—"}</strong></div>
+        <div>Weight: <strong>{W != null ? `${W} ${unitLabel}` : "—"}</strong></div>
         <div>BMI: <strong>{BMI != null ? `${BMI}` : "—"}</strong></div>
       </div>
     </div>

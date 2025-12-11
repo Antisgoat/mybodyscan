@@ -8,11 +8,14 @@ import { deleteScanApi } from "@/lib/api/scan";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { scanStatusLabel } from "@/lib/scanStatus";
+import { useUnits } from "@/hooks/useUnits";
+import { lbToKg } from "@/lib/units";
 
 export default function HistoryPage() {
   const nav = useNavigate();
   const { toast } = useToast();
   const { user, authReady } = useAuthUser();
+  const { units } = useUnits();
   const uid = authReady ? user?.uid ?? null : null;
   const [items, setItems] = useState<ScanItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -128,6 +131,14 @@ export default function HistoryPage() {
             it.status as string | undefined,
             (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt,
           );
+          const weightValue =
+            m.weightLb != null
+              ? units === "metric"
+                ? lbToKg(m.weightLb)
+                : m.weightLb
+              : null;
+          const weightText =
+            weightValue != null ? `${weightValue.toFixed(1)} ${units === "metric" ? "kg" : "lb"}` : "—";
           return (
             <li key={it.id} className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}>
               <button className="block w-full text-left" onClick={() => toggle(it.id)}>
@@ -159,7 +170,7 @@ export default function HistoryPage() {
                   </div>
                   {statusMeta.showMetrics ? (
                     <div className="text-sm font-medium">
-                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {m.weightLb != null ? `${m.weightLb} lb` : "—"}
+                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {weightText}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">{statusMeta.helperText}</p>

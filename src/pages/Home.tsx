@@ -17,6 +17,7 @@ import { demoToast } from "@/lib/demoToast";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
+import { useUnits } from "@/hooks/useUnits";
 
 type LastScan = {
   id: string;
@@ -69,6 +70,7 @@ const Home = () => {
   const { user } = useAuthUser();
   const navigate = useNavigate();
   const demo = useDemoMode();
+  const { units } = useUnits();
   const onboardingStatus = useOnboardingStatus();
   const initialDemoScan = isDemo() ? buildDemoLastScan() : null;
   const [recentScans, setRecentScans] = useState<LastScan[]>(initialDemoScan ? [initialDemoScan] : []);
@@ -96,7 +98,7 @@ const Home = () => {
   }, [sortedScans, statusTick]);
 
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
-  const summary = summarizeScanMetrics(metrics);
+  const summary = summarizeScanMetrics(metrics, units);
   const statusMeta = lastScan
     ? scanStatusLabel(lastScan.status, lastScan.raw?.updatedAt ?? lastScan.raw?.completedAt ?? lastScan.raw?.createdAt)
     : null;
