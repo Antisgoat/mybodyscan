@@ -6,7 +6,7 @@
  * - Navigates to `/scans/{id}` once uploads finish, while `ScanResult` polls Firestore for `processing`→`complete`.
  * - On errors, surfaces actionable toasts and uses `deleteScanApi` to clean up orphaned scan docs/storage objects.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
@@ -39,6 +39,8 @@ export default function ScanPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPose, setUploadPose] = useState<string | null>(null);
   const [activeScanId, setActiveScanId] = useState<string | null>(null);
+  const activeScanRef = useRef<string | null>(null);
+  const sessionFinalizedRef = useRef<boolean>(false);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
@@ -80,16 +82,19 @@ export default function ScanPage() {
     toast({ title: "Scan paused", description: message, variant: "destructive" });
   };
 
-  async function cleanupPendingScan(scanId: string | null) {
-    if (!scanId) return;
-    try {
-      await deleteScanApi(scanId);
-    } catch (cleanupError) {
-      console.warn("scan.cleanup_failed", cleanupError);
-    } finally {
-      setActiveScanId((prev) => (prev === scanId ? null : prev));
-    }
-  }
+  const cleanupPendingScan = useCallback(
+    async (scanId: string | null) => {
+      if (!scanId) return;
+      try {
+        await deleteScanApi(scanId);
+      } catch (cleanupError) {
+        console.warn("scan.cleanup_failed", cleanupError);
+      } finally {
+        setActiveScanId((prev) => (prev === scanId ? null : prev));
+      }
+    },
+    [setActiveScanId],
+  );
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -132,6 +137,7 @@ export default function ScanPage() {
       }
 
       const startedScanId = start.data.scanId;
+      sessionFinalizedRef.current = false;
       sessionScanId = startedScanId;
       setActiveScanId(startedScanId);
       setStatus("uploading");
@@ -163,6 +169,7 @@ export default function ScanPage() {
           },
         },
       );
+      sessionFinalizedRef.current = true;
 
       if (!submit.ok) {
         const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
@@ -189,6 +196,18 @@ export default function ScanPage() {
       }
     }
   }
+
+  useEffect(() => {
+    activeScanRef.current = activeScanId;
+  }, [activeScanId]);
+
+  useEffect(() => {
+    return () => {
+      if (activeScanRef.current && !sessionFinalizedRef.current) {
+        void cleanupPendingScan(activeScanRef.current);
+      }
+    };
+  }, [cleanupPendingScan]);
 
   useEffect(() => {
     if (status !== "uploading") {

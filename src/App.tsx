@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense, useRef } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import type { ReactNode } from "react";
 import { CrashBanner } from "@/components/CrashBanner";
 import { PageSkeleton, CaptureSkeleton } from "@/components/LoadingSkeleton";
@@ -88,7 +87,7 @@ import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
-import { auth } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/auth";
 import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
@@ -130,35 +129,36 @@ const DemoWireup = () => {
 
 const App = () => {
   useAuthBootstrap();
+  const { user } = useAuthUser();
   const { toast } = useToast();
   const claimsErrorCountRef = useRef(0);
   const claimsToastAtRef = useRef(0);
 
   useEffect(() => {
-    if (!auth) return undefined;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        disableDemoEverywhere();
-        try {
-          await refreshClaimsAndAdminBoost();
-          claimsErrorCountRef.current = 0;
-        } catch (error) {
-          console.warn("claims_refresh_failed", error);
-          claimsErrorCountRef.current += 1;
-          const now = Date.now();
-          if (claimsErrorCountRef.current > 1 && now - claimsToastAtRef.current > 10_000) {
-            toast({
-              title: "We’re having trouble refreshing your access",
-              description: "If this continues, sign out and back in or contact support.",
-              variant: "destructive",
-            });
-            claimsToastAtRef.current = now;
-          }
+    if (!user) {
+      claimsErrorCountRef.current = 0;
+      return;
+    }
+    disableDemoEverywhere();
+    void (async () => {
+      try {
+        await refreshClaimsAndAdminBoost();
+        claimsErrorCountRef.current = 0;
+      } catch (error) {
+        console.warn("claims_refresh_failed", error);
+        claimsErrorCountRef.current += 1;
+        const now = Date.now();
+        if (claimsErrorCountRef.current > 1 && now - claimsToastAtRef.current > 10_000) {
+          toast({
+            title: "We’re having trouble refreshing your access",
+            description: "If this continues, sign out and back in or contact support.",
+            variant: "destructive",
+          });
+          claimsToastAtRef.current = now;
         }
       }
-    });
-    return unsubscribe;
-  }, []);
+    })();
+  }, [user, toast]);
 
   useEffect(() => {
     // Auth persistence is now handled in main.tsx
