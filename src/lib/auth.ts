@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { auth as firebaseAuth, getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
 import {
   Auth,
@@ -12,6 +12,115 @@ import {
 } from "firebase/auth";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { call } from "@/lib/callable";
+
+type AuthSnapshot = {
+  user: Auth["currentUser"] | null;
+  authReady: boolean;
+};
+
+let cachedUser: Auth["currentUser"] | null =
+  typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null;
+let authReadyFlag = !firebaseAuth || !!cachedUser;
+const authListeners = new Set<() => void>();
+let unsubscribeAuthListener: (() => void) | null = null;
+let processedUidKey: string | null = null;
+
+function notifyAuthSubscribers() {
+  authListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[auth] listener error", error);
+      }
+    }
+  });
+}
+
+async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
+  try {
+    await user.getIdToken(true);
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] pre-claims token refresh failed", err);
+    }
+  }
+
+  try {
+    await call("refreshClaims", {});
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] refreshClaims callable failed", err);
+    }
+  }
+
+  try {
+    await user.getIdToken(true);
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] post-claims token refresh failed", err);
+    }
+  }
+}
+
+function handleUserChange(nextUser: Auth["currentUser"] | null) {
+  cachedUser = nextUser;
+  authReadyFlag = true;
+
+  if (!nextUser) {
+    processedUidKey = null;
+    return;
+  }
+
+  if (!nextUser.isAnonymous && typeof window !== "undefined") {
+    try {
+      window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  const shouldRefreshClaims = !nextUser.isAnonymous;
+  const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
+  if (processedUidKey === statusKey) {
+    return;
+  }
+
+  processedUidKey = statusKey;
+
+  if (!shouldRefreshClaims) {
+    return;
+  }
+
+  void refreshClaimsFor(nextUser);
+}
+
+function ensureAuthListener() {
+  if (!firebaseAuth || unsubscribeAuthListener) return;
+  unsubscribeAuthListener = onAuthStateChanged(firebaseAuth, (user) => {
+    handleUserChange(user);
+    notifyAuthSubscribers();
+  });
+}
+
+function subscribeAuth(listener: () => void) {
+  ensureAuthListener();
+  authListeners.add(listener);
+  return () => {
+    authListeners.delete(listener);
+  };
+}
+
+function getAuthSnapshot(): AuthSnapshot {
+  return {
+    user: authReadyFlag ? cachedUser : null,
+    authReady: authReadyFlag,
+  };
+}
+
+function getServerAuthSnapshot(): AuthSnapshot {
+  return { user: null, authReady: false };
+}
 
 async function ensureFirebaseAuth(): Promise<Auth> {
   if (!firebaseAuth) {
@@ -27,88 +136,12 @@ export function getCachedAuth(): Auth | null {
 }
 
 export function useAuthUser() {
-  const [user, setUser] = useState<Auth["currentUser"] | null>(() =>
-    typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null,
-  );
-  const [authReady, setAuthReady] = useState<boolean>(() => !!firebaseAuth?.currentUser);
-  const processedUidRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const auth = firebaseAuth;
-
-    if (!auth) {
-      setAuthReady(true);
-      setUser(null);
-      return undefined;
-    }
-
-    if (!authReady && auth.currentUser) {
-      setUser(auth.currentUser);
-      setAuthReady(true);
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
-      setAuthReady(true);
-
-      if (!nextUser) {
-        processedUidRef.current = null;
-        return;
-      }
-
-      if (!nextUser.isAnonymous && typeof window !== "undefined") {
-        try {
-          window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-        } catch {
-          // ignore storage errors
-        }
-      }
-
-      const shouldRefreshClaims = !nextUser.isAnonymous;
-      const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
-      if (processedUidRef.current === statusKey) {
-        return;
-      }
-
-      processedUidRef.current = statusKey;
-
-      if (!shouldRefreshClaims) {
-        return;
-      }
-
-      void (async () => {
-        try {
-          await nextUser.getIdToken(true);
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] pre-claims token refresh failed", err);
-          }
-        }
-
-        try {
-          await call("refreshClaims", {});
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] refreshClaims callable failed", err);
-          }
-        }
-
-        try {
-          await nextUser.getIdToken(true);
-        } catch (err) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] post-claims token refresh failed", err);
-          }
-        }
-      })();
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [authReady]);
-
-  return { user: authReady ? user : null, loading: !authReady, authReady } as const;
+  const snapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
+  return {
+    user: snapshot.authReady ? snapshot.user : null,
+    loading: !snapshot.authReady,
+    authReady: snapshot.authReady,
+  } as const;
 }
 
 const RETURN_PATH_STORAGE_KEY = "mybodyscan:auth:return";

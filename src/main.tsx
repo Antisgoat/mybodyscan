@@ -17,8 +17,6 @@ import { assertEnv } from "@/lib/env";
 
 assertEnv();
 
-handleAuthRedirectOnce();
-
 // Boot error trap to capture first thrown error before any UI swallows it
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => {
@@ -39,6 +37,7 @@ if (typeof window !== "undefined") {
 
 void (async () => {
   await firebaseReady();
+  await handleAuthRedirectOnce().catch(() => undefined);
   logFirebaseRuntimeInfo();
 
   void probeFirebaseRuntime();
