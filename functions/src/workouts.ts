@@ -15,6 +15,7 @@ import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { hasOpenAI } from "./lib/env.js";
+import { scrubUndefined } from "./lib/scrub.js";
 import { structuredJsonChat } from "./openai/client.js";
 
 const db = getFirestore();
@@ -335,15 +336,17 @@ async function persistPlan(uid: string, prefs: PlanPrefs) {
     prefs,
     days,
   } as WorkoutPlan;
-  await db.doc(`users/${uid}/workoutPlans/${planId}`).set({
-    ...plan,
-    source,
-  });
+  await db.doc(`users/${uid}/workoutPlans/${planId}`).set(
+    scrubUndefined({
+      ...plan,
+      source,
+    })
+  );
   await db.doc(`users/${uid}/workoutPlans_meta`).set(
-    {
+    scrubUndefined({
       activePlanId: planId,
       updatedAt: Timestamp.now(),
-    },
+    }),
     { merge: true }
   );
   return { planId, days, source };
@@ -375,22 +378,24 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
   const plan = sanitizeCatalogPlan(req.body);
   const planId = randomUUID();
   const now = Timestamp.now();
-  await db.doc(`users/${uid}/workoutPlans/${planId}`).set({
-    id: planId,
-    active: true,
-    createdAt: now,
-    source: "catalog",
-    catalogProgramId: plan.programId,
-    title: plan.title,
-    goal: plan.goal,
-    level: plan.level,
-    days: plan.days,
-  });
+  await db.doc(`users/${uid}/workoutPlans/${planId}`).set(
+    scrubUndefined({
+      id: planId,
+      active: true,
+      createdAt: now,
+      source: "catalog",
+      catalogProgramId: plan.programId,
+      title: plan.title,
+      goal: plan.goal,
+      level: plan.level,
+      days: plan.days,
+    })
+  );
   await db.doc(`users/${uid}/workoutPlans_meta`).set(
-    {
+    scrubUndefined({
       activePlanId: planId,
       updatedAt: now,
-    },
+    }),
     { merge: true },
   );
   res.json({ planId });
@@ -440,10 +445,10 @@ async function handleMarkDone(req: Request, res: Response) {
     ratio = total ? completed.length / total : 0;
     tx.set(
       progressRef,
-      {
+      scrubUndefined({
         completed,
         updatedAt: Timestamp.now(),
-      },
+      }),
       { merge: true }
     );
   });
