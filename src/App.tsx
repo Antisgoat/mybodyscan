@@ -127,7 +127,7 @@ const DemoWireup = () => {
   return null;
 };
 
-const App = () => {
+export const AppProviders = ({ children }: { children: ReactNode }) => {
   useAuthBootstrap();
   const { user } = useAuthUser();
   const { toast } = useToast();
@@ -186,9 +186,20 @@ const App = () => {
             <BrowserRouter>
               <DemoModeProvider>
                 <DemoWireup />
-                <div id="main-content" role="main">
-                  <Suspense fallback={null}>
-                    <Routes>
+                <div id="main-content" role="main">{children}</div>
+              </DemoModeProvider>
+            </BrowserRouter>
+          </AppCheckProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
+
+const App = () => (
+  <AppProviders>
+    <Suspense fallback={null}>
+      <Routes>
             {/* Root route - flag-controlled */}
             <Route
               path="/"
@@ -977,16 +988,9 @@ const App = () => {
             {/* Friendly not-found route and wildcard */}
             <Route path="/not-found" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
-                </div>
-              </DemoModeProvider>
-            </BrowserRouter>
-          </AppCheckProvider>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
-  );
-};
+      </Routes>
+    </Suspense>
+  </AppProviders>
+);
 
 export default App;

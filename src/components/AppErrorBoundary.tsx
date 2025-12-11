@@ -1,5 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { getCachedAuth } from "@/lib/auth";
+import { isDemoAllowed } from "@/state/demo";
+
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; stack?: string };
 
@@ -21,10 +24,25 @@ export class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: unknown, info: ErrorInfo) {
     const normalizedError =
       error instanceof Error ? error : new Error(typeof error === "string" ? error : "Unknown error");
+    const auth = getCachedAuth();
+    const user = auth?.currentUser;
+    const location = typeof window !== "undefined" ? window.location.href : undefined;
+    const demo = isDemoAllowed(user ?? null);
     console.error("App crashed:", {
       message: normalizedError.message,
       stack: normalizedError.stack,
       componentStack: info?.componentStack,
+      context: {
+        location,
+        user: user
+          ? {
+              uid: user.uid,
+              isAnonymous: user.isAnonymous,
+              email: user.email,
+            }
+          : null,
+        demoMode: demo,
+      },
     });
     // TODO: add Sentry/logger here if available
   }
