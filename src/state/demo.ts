@@ -120,7 +120,8 @@ export function disableDemoEverywhere(
 
 export function subscribeDemo(listener: Listener): () => void {
   listeners.add(listener);
-  listener(current);
+  // Do not invoke listener immediately; useSyncExternalStore already reads the current snapshot,
+  // and firing here would trigger an infinite update loop (React error #185).
   return () => {
     listeners.delete(listener);
   };
