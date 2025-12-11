@@ -1,21 +1,25 @@
-import React, { useMemo, useState } from 'react';
-import { setDoc } from '../lib/dbWrite';
-import { DemoWriteButton } from '../components/DemoWriteGuard';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { useAuthUserMBS } from '../hooks/useAuthUserMBS';
-import ToastMBS from '../components/ToastMBS';
-import { toFriendlyMBS } from '../lib/errors.mbs';
-import ScanTipsMBS from '../components/ScanTipsMBS';
-import HeightInputUS from '../components/HeightInputUS';
-import { kgToLb, lbToKg } from '../lib/units';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { doc, getDoc, serverTimestamp } from "firebase/firestore";
+
+import { setDoc } from "../lib/dbWrite";
+import { DemoWriteButton } from "../components/DemoWriteGuard";
+import { db } from "../lib/firebase";
+import { useAuthUser } from "@/lib/auth";
+import ToastMBS from "../components/ToastMBS";
+import { toFriendlyMBS } from "../lib/errors.mbs";
+import ScanTipsMBS from "../components/ScanTipsMBS";
+import HeightInputUS from "../components/HeightInputUS";
+import { kgToLb, lbToKg } from "../lib/units";
+import { scrubUndefined } from "@/lib/scrubUndefined";
 
 type Step = 1|2|3|4;
 
 export default function OnboardingMBS() {
-  const { user } = useAuthUserMBS();
+  const { user } = useAuthUser();
   const [step, setStep] = useState<Step>(1);
   const [msg, setMsg] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const [goals, setGoals] = useState<string[]>([]);
   const [targetWeightKg, setTargetWeightKg] = useState<number | undefined>();
@@ -30,21 +34,53 @@ export default function OnboardingMBS() {
   const [reminderTime, setReminderTime] = useState<'morning'|'afternoon'|'evening'>('morning');
   const [consent, setConsent] = useState<boolean>(false);
 
-  const userDocRef = useMemo(() => user ? doc(db, 'users', user.uid) : null, [user]);
-  const meRef = useMemo(() => user ? doc(db, 'users', user.uid, 'profile', 'profile') : null, [user]);
-  const settingsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'settings', 'settings') : null, [user]);
-  const prefsRef = useMemo(() => user ? doc(db, 'users', user.uid, 'preferences', 'preferences') : null, [user]);
-  const onboardingRef = useMemo(() => user ? doc(db, `users/${user.uid}/meta/onboarding`) : null, [user]);
+  const userDocRef = useMemo(() => (user?.uid && db ? doc(db, "users", user.uid) : null), [user?.uid]);
+  const meRef = useMemo(
+    () => (user?.uid && db ? doc(db, "users", user.uid, "profile", "profile") : null),
+    [user?.uid],
+  );
+  const settingsRef = useMemo(
+    () => (user?.uid && db ? doc(db, "users", user.uid, "settings", "settings") : null),
+    [user?.uid],
+  );
+  const prefsRef = useMemo(
+    () => (user?.uid && db ? doc(db, "users", user.uid, "preferences", "preferences") : null),
+    [user?.uid],
+  );
+  const onboardingRef = useMemo(
+    () => (user?.uid && db ? doc(db, "users", user.uid, "meta", "onboarding") : null),
+    [user?.uid],
+  );
 
-  async function load() {
-    if (!user || !onboardingRef) return;
-    const snap = await getDoc(onboardingRef);
-    if (snap.exists() && snap.data()?.completed) {
-      setMsg('Onboarding already completed.');
+  useEffect(() => {
+    let cancelled = false;
+    if (!user || !userDocRef || !onboardingRef) {
+      return () => {
+        cancelled = true;
+      };
     }
-  }
-
-  React.useEffect(() => { load().catch(()=>{}); }, [onboardingRef]);
+    (async () => {
+      try {
+        const [userSnap, onboardingSnap] = await Promise.all([getDoc(userDocRef), getDoc(onboardingRef)]);
+        if (cancelled) return;
+        if (onboardingSnap.exists() && onboardingSnap.data()?.completed) {
+          setMsg("Onboarding already completed.");
+          navigate("/home", { replace: true });
+          return;
+        }
+        if (!onboardingSnap.exists() && userSnap.exists()) {
+          setMsg(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMsg(toFriendlyMBS(error));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, userDocRef, onboardingRef, navigate]);
 
   function toggle(arr: string[], v: string) {
     return arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v];
@@ -52,44 +88,45 @@ export default function OnboardingMBS() {
 
   async function finish() {
     try {
-      if (!user || !userDocRef || !meRef || !settingsRef || !prefsRef || !onboardingRef) throw new Error('AUTH_REQUIRED');
-      if (!consent) throw new Error('Please grant consent to continue.');
+      if (!user || !userDocRef || !meRef || !settingsRef || !prefsRef || !onboardingRef) {
+        throw new Error("AUTH_REQUIRED");
+      }
+      if (!consent) throw new Error("Please grant consent to continue.");
 
-      const profile = {
+      const profile = scrubUndefined({
         sexAtBirth: sexAtBirth || undefined,
         heightCm: heightCm ?? undefined,
         weightKg: weightKg ?? undefined,
         age: age ?? undefined,
-        units: 'Imperial',
+        units: "Imperial",
         experience: experience || undefined,
         goals,
         targetWeightKg: targetWeightKg ?? undefined,
         activityLevel: activityLevel || undefined,
-      };
-      const settings = { reminderDays, reminderTime };
-      const preferences = { scanMode };
-
+      });
+      const settings = scrubUndefined({ reminderDays, reminderTime });
+      const preferences = scrubUndefined({ scanMode });
       const timestamp = serverTimestamp();
+      const onboardingMeta = scrubUndefined({
+        completed: true,
+        updatedAt: timestamp,
+      });
+      const onboardingRoot = scrubUndefined({
+        onboarding: {
+          ...profile,
+          consent,
+          completedAt: timestamp,
+        },
+      });
+
       await Promise.all([
         setDoc(meRef, profile, { merge: true }),
         setDoc(settingsRef, settings, { merge: true }),
         setDoc(prefsRef, preferences, { merge: true }),
-        setDoc(onboardingRef, { completed: true, updatedAt: timestamp }, { merge: true }),
-        setDoc(
-          userDocRef,
-          {
-            onboarding: {
-              ...profile,
-              goals,
-              targetWeightKg: targetWeightKg ?? undefined,
-              consent,
-              completedAt: timestamp,
-            },
-          },
-          { merge: true }
-        ),
+        setDoc(onboardingRef, onboardingMeta, { merge: true }),
+        setDoc(userDocRef, onboardingRoot, { merge: true }),
       ]);
-      setMsg('Onboarding saved.');
+      setMsg("Onboarding saved.");
     } catch (e: any) {
       setMsg(toFriendlyMBS(e));
     }
