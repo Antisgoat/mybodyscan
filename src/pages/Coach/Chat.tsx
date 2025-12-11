@@ -102,6 +102,7 @@ export default function CoachChatPage() {
         : coachConfigured === false
           ? "Coach chat is offline until the backend configuration is completed."
           : null;
+  const coachAvailable = coachConfigured && !coachPrereqMessage;
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
@@ -201,7 +202,7 @@ export default function CoachChatPage() {
     if (pending) {
       return;
     }
-    if (!coachConfigured) {
+    if (!coachAvailable) {
       const message = coachPrereqMessage ?? "Coach chat is disabled until it is fully configured.";
       setCoachError(message);
       toast({ title: "Coach unavailable", description: message, variant: "destructive" });
@@ -391,9 +392,9 @@ export default function CoachChatPage() {
                 )}
               </div>
               <div className="space-y-3">
-                {(coachError || !coachConfigured) && (
+                {(coachError || !coachAvailable) && (
                   <Alert variant="destructive">
-                    <AlertTitle>{coachConfigured ? "Coach unavailable" : "Coach setup incomplete"}</AlertTitle>
+                    <AlertTitle>{coachAvailable ? "Coach unavailable" : "Coach setup incomplete"}</AlertTitle>
                     <AlertDescription>
                       {coachError ?? coachPrereqMessage ?? "Coach chat is unavailable right now."}
                     </AlertDescription>
@@ -409,7 +410,7 @@ export default function CoachChatPage() {
                   }}
                   placeholder={readOnlyDemo ? "Demo preview — chat is read-only." : "Share wins or ask for tweaks..."}
                   rows={4}
-                  disabled={pending || readOnlyDemo || initializing || !coachConfigured}
+                  disabled={pending || readOnlyDemo || initializing || !coachAvailable}
                   data-testid="coach-message-input"
                 />
                 <div className="flex justify-end">
@@ -417,7 +418,7 @@ export default function CoachChatPage() {
                     <Button
                       variant="secondary"
                       onClick={listening ? stopListening : startListening}
-                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing || !coachConfigured}
+                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing || !coachAvailable}
                       data-testid="coach-mic"
                     >
                       {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
@@ -433,7 +434,7 @@ export default function CoachChatPage() {
                     ) : (
                       <Button
                         onClick={handleSend}
-                        disabled={pending || !input.trim() || initializing || !coachConfigured}
+                        disabled={pending || !input.trim() || initializing || !coachAvailable}
                         data-testid="coach-send-button"
                       >
                         Send

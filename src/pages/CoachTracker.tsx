@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
-import { doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { format, subDays, addDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,11 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useAuthUser } from "@/lib/auth";
+import { toast } from "@/hooks/use-toast";
+import { addMeal as logMeal, getDailyLog, getNutritionHistory, type MealEntry } from "@/lib/nutritionBackend";
+
+type ChartPoint = { date: string; calories: number };
+const EMPTY_LOG = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
 
 const CoachTracker = () => {
   const { plan } = useUserProfile();
@@ -34,99 +38,158 @@ const CoachTracker = () => {
     carbs_g: "",
     fat_g: "",
   });
-  const [chart, setChart] = useState<any[]>([]);
+  const [chart, setChart] = useState<ChartPoint[]>([]);
   const [yesterday, setYesterday] = useState<any>(null);
   const [offset, setOffset] = useState(false);
   const [showMealDialog, setShowMealDialog] = useState(false);
 
+  const readLog = useCallback(async (): Promise<typeof EMPTY_LOG> => {
+    if (!uid) {
+      return EMPTY_LOG;
+    }
+    try {
+      const data = await getDailyLog(dateStr);
+      const totals = (data?.totals as Record<string, unknown>) ?? {};
+      return {
+        calories: Number(totals.calories) || 0,
+        protein_g: Number(totals.protein ?? totals.protein_g) || 0,
+        carbs_g: Number(totals.carbs ?? totals.carbs_g) || 0,
+        fat_g: Number(totals.fat ?? totals.fat_g) || 0,
+      };
+    } catch (error) {
+      console.warn("coachTracker.loadLog", error);
+      return EMPTY_LOG;
+    }
+  }, [uid, dateStr]);
+
+  const refreshDay = useCallback(async () => {
+    const next = await readLog();
+    setLog(next);
+  }, [readLog]);
+
   useEffect(() => {
-    if (!uid) return;
     let cancelled = false;
-    const load = async () => {
-      try {
-        const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", dateStr));
-        if (cancelled) return;
-        if (snap.exists()) {
-          setLog({
-            calories: snap.data().calories || 0,
-            protein_g: snap.data().protein_g || 0,
-            carbs_g: snap.data().carbs_g || 0,
-            fat_g: snap.data().fat_g || 0,
-          });
-        } else {
-          setLog({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
-        }
-      } catch (error) {
-        console.warn("coachTracker.loadLog", error);
-        if (!cancelled) {
-          setLog({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
-        }
+    (async () => {
+      const next = await readLog();
+      if (!cancelled) {
+        setLog(next);
       }
-    };
-    void load();
+    })();
     return () => {
       cancelled = true;
     };
+  }, [readLog]);
+
+  const fetchHistory = useCallback(async (): Promise<ChartPoint[]> => {
+    if (!uid) {
+      return [];
+    }
+    try {
+      const days = await getNutritionHistory(7, dateStr);
+      return days.map((day) => ({
+        date: day.date,
+        calories: day.totals.calories || 0,
+      }));
+    } catch (error) {
+      console.warn("coachTracker.history", error);
+      return [];
+    }
   }, [uid, dateStr]);
 
-  async function save() {
-    if (!uid) return;
-    const ref = doc(db, "users", uid, "nutritionLogs", dateStr);
-    await setDoc(ref, { ...log, updatedAt: serverTimestamp() }, { merge: true });
-    await loadChart();
-  }
+  const refreshHistory = useCallback(async () => {
+    const next = await fetchHistory();
+    setChart(next);
+  }, [fetchHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next = await fetchHistory();
+      if (!cancelled) {
+        setChart(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchHistory]);
+
+  useEffect(() => {
+    if (!uid) {
+      setYesterday(null);
+      return;
+    }
+    let cancelled = false;
+    const yDay = format(subDays(new Date(), 1), "yyyy-MM-dd");
+    getDoc(doc(db, "users", uid, "healthDaily", yDay))
+      .then((snap) => {
+        if (!cancelled) {
+          setYesterday(snap.exists() ? snap.data() : null);
+        }
+      })
+      .catch((error) => {
+        console.warn("coachTracker.yesterday", error);
+        if (!cancelled) {
+          setYesterday(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
 
   async function addMeal() {
-    if (!uid) return;
+    if (!uid) {
+      toast({
+        title: "Sign in required",
+        description: "Sign in to log meals.",
+        variant: "destructive",
+      });
+      return;
+    }
     const calories = Number(mealForm.calories) || 0;
     const protein_g = Number(mealForm.protein_g) || 0;
     const carbs_g = Number(mealForm.carbs_g) || 0;
     const fat_g = Number(mealForm.fat_g) || 0;
 
-    const newLog = {
-      calories: log.calories + calories,
-      protein_g: log.protein_g + protein_g,
-      carbs_g: log.carbs_g + carbs_g,
-      fat_g: log.fat_g + fat_g,
+    if (!calories && !protein_g && !carbs_g && !fat_g) {
+      toast({
+        title: "Add meal details",
+        description: "Enter at least one macro value before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const mealName = isToday ? "Manual meal" : `Manual meal (${format(selectedDate, "MMM dd")})`;
+    const meal: MealEntry = {
+      name: mealName,
+      calories,
+      protein: protein_g,
+      carbs: carbs_g,
+      fat: fat_g,
+      entrySource: "coach-tracker",
     };
 
-    setLog(newLog);
-    const ref = doc(db, "users", uid, "nutritionLogs", dateStr);
-    await setDoc(ref, { ...newLog, updatedAt: serverTimestamp() }, { merge: true });
-    
-    setMealForm({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
-    setShowMealDialog(false);
-    await loadChart();
-  }
-
-  async function loadChart() {
-    if (!uid) return;
-    const arr: any[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const day = format(subDays(new Date(), i), "yyyy-MM-dd");
-      try {
-        const snap = await getDoc(doc(db, "users", uid, "nutritionLogs", day));
-        arr.push({ date: day, calories: snap.exists() ? snap.data().calories || 0 : 0 });
-      } catch (error) {
-        console.warn("coachTracker.chartDay", { day, error });
-        arr.push({ date: day, calories: 0 });
-      }
-    }
-    setChart(arr);
-    const yDay = format(subDays(new Date(), 1), "yyyy-MM-dd");
     try {
-      const ySnap = await getDoc(doc(db, "users", uid, "healthDaily", yDay));
-      if (ySnap.exists()) setYesterday(ySnap.data());
-      else setYesterday(null);
-    } catch (error) {
-      console.warn("coachTracker.yesterday", error);
-      setYesterday(null);
+      await logMeal(dateStr, meal);
+      toast({
+        title: "Meal logged",
+        description: isToday ? "Added to today’s totals." : `Added to ${format(selectedDate, "MMM dd")}.`,
+      });
+      setMealForm({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setShowMealDialog(false);
+      await refreshDay();
+      await refreshHistory();
+    } catch (error: any) {
+      console.error("coachTracker.addMeal", error);
+      toast({
+        title: "Unable to log meal",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
     }
   }
-
-  useEffect(() => {
-    loadChart().catch(() => {});
-  }, [uid]);
 
   const total = log.calories || 0;
   const target = plan?.calorieTarget || 0;
