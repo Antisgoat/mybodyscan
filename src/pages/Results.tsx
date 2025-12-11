@@ -86,6 +86,7 @@ const Results = () => {
   const demo = isDemo();
   const readOnlyDemo = demo && !user;
   const activeScan = scan ?? (demo ? (demoLatestScan as any) : null);
+  const { units } = useUnits();
 
   // Initialize note from scan data
   useEffect(() => {
@@ -208,7 +209,6 @@ const Results = () => {
     );
   }
 
-  const { units } = useUnits();
   const metrics = extractScanMetrics(activeScan);
   const summary = summarizeScanMetrics(metrics, units);
   const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";

@@ -633,9 +633,11 @@ function asString(value: unknown): string {
   return "";
 }
 
+const CONTROL_CHAR_PATTERN = new RegExp(String.raw`[\x00-\x1F\x7F]`, "g");
+
 function sanitizeSearchQuery(value: string): string {
   if (!value) return "";
-  const collapsed = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const collapsed = value.replace(CONTROL_CHAR_PATTERN, " ").replace(/\s+/g, " ").trim();
   const limited = collapsed.slice(0, 80);
   return limited.replace(/[^\p{L}\p{N}\s&(),.\-'/]/gu, "");
 }
