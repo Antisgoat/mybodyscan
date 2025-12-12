@@ -10,7 +10,11 @@ import { auth } from "@/lib/firebase";
 
 // Prefer redirect on iOS/Capacitor/WebView; popup on desktop browsers.
 function isNativeCapacitor(): boolean {
-  try { return !!(window as any).Capacitor?.isNativePlatform?.(); } catch { return false; }
+  try {
+    return !!(window as any).Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
 }
 function isIOSWeb(): boolean {
   const ua = navigator.userAgent || "";
@@ -18,7 +22,10 @@ function isIOSWeb(): boolean {
 }
 function isLikelyWebView(): boolean {
   const ua = navigator.userAgent || "";
-  return /(wv|WebView|; wv\))/i.test(ua) || (window as any).flutter_inappwebview != null;
+  return (
+    /(wv|WebView|; wv\))/i.test(ua) ||
+    (window as any).flutter_inappwebview != null
+  );
 }
 function preferRedirect(): boolean {
   return isNativeCapacitor() || isIOSWeb() || isLikelyWebView();

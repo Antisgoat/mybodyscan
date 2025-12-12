@@ -28,7 +28,10 @@ function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
 
 async function handleStart(req: Request, res: any) {
   res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+  res.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Firebase-AppCheck"
+  );
   const requestId = req.get("x-request-id")?.trim() || randomUUID();
   res.set("X-Request-Id", requestId);
 
@@ -38,22 +41,34 @@ async function handleStart(req: Request, res: any) {
   }
 
   if (req.method !== "POST") {
-    res.status(405).json({ code: "method_not_allowed", message: "Method not allowed", debugId: requestId });
+    res.status(405).json({
+      code: "method_not_allowed",
+      message: "Method not allowed",
+      debugId: requestId,
+    });
     return;
   }
 
   try {
     const authContext = await requireAuthWithClaims(req);
     const { uid } = authContext;
-    await ensureSoftAppCheckFromRequest(req, { fn: "startScanSession", uid, requestId });
+    await ensureSoftAppCheckFromRequest(req, {
+      fn: "startScanSession",
+      uid,
+      requestId,
+    });
 
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
-      throw new HttpsError("invalid-argument", "Missing or invalid scan data.", {
-        debugId: requestId,
-        reason: "invalid_scan_request",
-      });
+      throw new HttpsError(
+        "invalid-argument",
+        "Missing or invalid scan data.",
+        {
+          debugId: requestId,
+          reason: "invalid_scan_request",
+        }
+      );
     }
 
     const scanId = randomUUID();
@@ -85,7 +100,11 @@ async function handleStart(req: Request, res: any) {
     await db.doc(`users/${uid}/scans/${scanId}`).set(doc);
     console.info("scan_start_created", { uid, scanId, requestId });
 
-    const payload: StartResponse & { debugId: string } = { scanId, storagePaths, debugId: requestId };
+    const payload: StartResponse & { debugId: string } = {
+      scanId,
+      storagePaths,
+      debugId: requestId,
+    };
     res.json(payload);
   } catch (error) {
     respondWithStartError(res, error, requestId);
@@ -99,13 +118,24 @@ export const startScanSession = onRequest(
       await handleStart(req as Request, res);
     } catch (err: any) {
       const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
-      console.error("scan_start_unhandled", { message: err?.message, requestId });
-      res.status(500).json({ code: "scan_internal_error", message: "Unable to start scan.", debugId: requestId });
+      console.error("scan_start_unhandled", {
+        message: err?.message,
+        requestId,
+      });
+      res.status(500).json({
+        code: "scan_internal_error",
+        message: "Unable to start scan.",
+        debugId: requestId,
+      });
     }
-  },
+  }
 );
 
-function respondWithStartError(res: any, error: unknown, requestId: string): void {
+function respondWithStartError(
+  res: any,
+  error: unknown,
+  requestId: string
+): void {
   if (error instanceof HttpsError) {
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
@@ -118,7 +148,10 @@ function respondWithStartError(res: any, error: unknown, requestId: string): voi
     });
     return;
   }
-  console.error("scan_start_failed", { message: (error as Error)?.message, requestId });
+  console.error("scan_start_failed", {
+    message: (error as Error)?.message,
+    requestId,
+  });
   res.status(500).json({
     code: "scan_internal_error",
     message: "Unable to start scan.",

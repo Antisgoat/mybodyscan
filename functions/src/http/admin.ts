@@ -41,9 +41,12 @@ function forbidden(res: Response) {
   res.status(403).json({ error: "forbidden" });
 }
 
-async function requireStaff(req: Request): Promise<{ uid: string; email: string | null }> {
+async function requireStaff(
+  req: Request
+): Promise<{ uid: string; email: string | null }> {
   const { uid, claims } = await requireAuthWithClaims(req);
-  const tokenEmail = typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
+  const tokenEmail =
+    typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
   const tokenStaff = claims?.staff === true;
   if (tokenStaff || (tokenEmail && STAFF_EMAIL_ALLOWLIST.has(tokenEmail))) {
     return { uid, email: tokenEmail };
@@ -62,15 +65,27 @@ function sanitizeQuery(input: unknown): string {
   return input.trim().toLowerCase();
 }
 
-async function fetchUserCredits(uid: string): Promise<{ credits: number | null; unlimited: boolean }> {
+async function fetchUserCredits(
+  uid: string
+): Promise<{ credits: number | null; unlimited: boolean }> {
   try {
     const snap = await db.doc(`users/${uid}/private/credits`).get();
-    const credits = snap.exists ? Number((snap.data() as any)?.creditsSummary?.totalAvailable ?? 0) : null;
+    const credits = snap.exists
+      ? Number((snap.data() as any)?.creditsSummary?.totalAvailable ?? 0)
+      : null;
     const unlimitedSnap = await db.doc(`users/${uid}/private/admin`).get();
-    const unlimited = Boolean((unlimitedSnap.data() as any)?.unlimitedCredits === true);
-    return { credits: Number.isFinite(credits || 0) ? credits : null, unlimited };
+    const unlimited = Boolean(
+      (unlimitedSnap.data() as any)?.unlimitedCredits === true
+    );
+    return {
+      credits: Number.isFinite(credits || 0) ? credits : null,
+      unlimited,
+    };
   } catch (error) {
-    console.warn("admin_fetch_user_credits_error", { uid, message: (error as Error)?.message });
+    console.warn("admin_fetch_user_credits_error", {
+      uid,
+      message: (error as Error)?.message,
+    });
     return { credits: null, unlimited: false };
   }
 }
@@ -94,7 +109,9 @@ async function searchUsers(prefix: string) {
         email: user.email,
         createdAt: user.metadata?.creationTime || null,
         lastLogin: user.metadata?.lastSignInTime || null,
-        unlimitedClaim: Boolean((user.customClaims as any)?.unlimitedCredits === true),
+        unlimitedClaim: Boolean(
+          (user.customClaims as any)?.unlimitedCredits === true
+        ),
         unlimitedMirror: meta.unlimited,
         credits: meta.credits,
       });
@@ -119,8 +136,13 @@ function resolveOpId(req: Request, provided?: string | null): string {
   return randomUUID();
 }
 
-async function handleGrantCredits(req: Request, res: Response, staffUid: string) {
-  const body = typeof req.body === "object" && req.body ? (req.body as any) : {};
+async function handleGrantCredits(
+  req: Request,
+  res: Response,
+  staffUid: string
+) {
+  const body =
+    typeof req.body === "object" && req.body ? (req.body as any) : {};
   const uid = typeof body.uid === "string" ? body.uid.trim() : "";
   const amount = Number(body.amount ?? 0);
   if (!uid || !Number.isFinite(amount) || amount <= 0) {
@@ -129,22 +151,39 @@ async function handleGrantCredits(req: Request, res: Response, staffUid: string)
   }
   const opId = `admin_${resolveOpId(req, body.opId)}`;
   try {
-    const result = await runUserOperation(uid, opId, { type: "admin_grant", amount, source: staffUid }, async () => {
-      await addCredits(uid, amount, `Admin grant by ${staffUid}`, 12);
-      await db.doc(`users/${uid}/private/admin`).set(
-        { lastGrantBy: staffUid, lastGrantAt: Timestamp.now(), lastGrantAmount: amount },
-        { merge: true },
-      );
-    });
+    const result = await runUserOperation(
+      uid,
+      opId,
+      { type: "admin_grant", amount, source: staffUid },
+      async () => {
+        await addCredits(uid, amount, `Admin grant by ${staffUid}`, 12);
+        await db.doc(`users/${uid}/private/admin`).set(
+          {
+            lastGrantBy: staffUid,
+            lastGrantAt: Timestamp.now(),
+            lastGrantAmount: amount,
+          },
+          { merge: true }
+        );
+      }
+    );
     res.json({ ok: true, opId, alreadyCompleted: result.alreadyCompleted });
   } catch (error) {
-    console.error("admin_grant_error", { uid, message: (error as Error)?.message });
+    console.error("admin_grant_error", {
+      uid,
+      message: (error as Error)?.message,
+    });
     res.status(500).json({ error: "grant_failed" });
   }
 }
 
-async function handleToggleUnlimited(req: Request, res: Response, staffUid: string) {
-  const body = typeof req.body === "object" && req.body ? (req.body as any) : {};
+async function handleToggleUnlimited(
+  req: Request,
+  res: Response,
+  staffUid: string
+) {
+  const body =
+    typeof req.body === "object" && req.body ? (req.body as any) : {};
   const uid = typeof body.uid === "string" ? body.uid.trim() : "";
   const value = body.value === true || body.value === "true";
   if (!uid) {
@@ -154,24 +193,31 @@ async function handleToggleUnlimited(req: Request, res: Response, staffUid: stri
   try {
     const record = await auth.getUser(uid);
     const existingClaims = record.customClaims || {};
-    await auth.setCustomUserClaims(uid, { ...existingClaims, unlimitedCredits: value });
+    await auth.setCustomUserClaims(uid, {
+      ...existingClaims,
+      unlimitedCredits: value,
+    });
     await db.doc(`users/${uid}/private/admin`).set(
       {
         unlimitedCredits: value,
         unlimitedUpdatedAt: Timestamp.now(),
         unlimitedUpdatedBy: staffUid,
       },
-      { merge: true },
+      { merge: true }
     );
     res.json({ ok: true, unlimited: value });
   } catch (error) {
-    console.error("admin_toggle_unlimited_error", { uid, message: (error as Error)?.message });
+    console.error("admin_toggle_unlimited_error", {
+      uid,
+      message: (error as Error)?.message,
+    });
     res.status(500).json({ error: "toggle_failed" });
   }
 }
 
 async function handleRefreshClaims(req: Request, res: Response) {
-  const body = typeof req.body === "object" && req.body ? (req.body as any) : {};
+  const body =
+    typeof req.body === "object" && req.body ? (req.body as any) : {};
   const uid = typeof body.uid === "string" ? body.uid.trim() : "";
   if (!uid) {
     res.status(400).json({ error: "invalid_request" });
@@ -181,25 +227,34 @@ async function handleRefreshClaims(req: Request, res: Response) {
     await updateUserClaims(uid);
     res.json({ ok: true });
   } catch (error) {
-    console.error("admin_refresh_claims_error", { uid, message: (error as Error)?.message });
+    console.error("admin_refresh_claims_error", {
+      uid,
+      message: (error as Error)?.message,
+    });
     res.status(500).json({ error: "refresh_failed" });
   }
 }
 
 async function handleEvents(req: Request, res: Response) {
-  const body = typeof req.body === "object" && req.body ? (req.body as any) : {};
+  const body =
+    typeof req.body === "object" && req.body ? (req.body as any) : {};
   const limit = Number(body.limit ?? 5);
-  const clamped = Number.isFinite(limit) && limit > 0 ? Math.min(50, Math.floor(limit)) : 5;
+  const clamped =
+    Number.isFinite(limit) && limit > 0 ? Math.min(50, Math.floor(limit)) : 5;
   try {
     const snap = await db
       .collection("stripeEvents")
       .orderBy("created", "desc")
       .limit(clamped)
       .get();
-    const events = snap.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const events = snap.docs.map(
+      (
+        doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
+      ) => ({
+        id: doc.id,
+        ...doc.data(),
+      })
+    );
     res.json({ ok: true, events });
   } catch (error) {
     console.error("admin_events_error", { message: (error as Error)?.message });
@@ -208,75 +263,88 @@ async function handleEvents(req: Request, res: Response) {
 }
 
 async function handleTelemetry(req: Request, res: Response) {
-  const body = typeof req.body === "object" && req.body ? (req.body as any) : {};
+  const body =
+    typeof req.body === "object" && req.body ? (req.body as any) : {};
   const limit = Number(body.limit ?? 50);
-  const clamped = Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.floor(limit)) : 50;
+  const clamped =
+    Number.isFinite(limit) && limit > 0 ? Math.min(100, Math.floor(limit)) : 50;
   try {
     const snap = await db
       .collection("telemetryEvents")
       .orderBy("createdAt", "desc")
       .limit(clamped)
       .get();
-    const events = snap.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const events = snap.docs.map(
+      (
+        doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>
+      ) => ({
+        id: doc.id,
+        ...doc.data(),
+      })
+    );
     res.json({ ok: true, events });
   } catch (error) {
-    console.error("admin_telemetry_error", { message: (error as Error)?.message });
+    console.error("admin_telemetry_error", {
+      message: (error as Error)?.message,
+    });
     res.status(500).json({ error: "telemetry_failed" });
   }
 }
 
-export const adminGateway = onRequest({ region: "us-central1" }, async (req: Request, res: Response) => {
-  const cors = applyCors(req, res);
-  if (cors.ended) return;
+export const adminGateway = onRequest(
+  { region: "us-central1" },
+  async (req: Request, res: Response) => {
+    const cors = applyCors(req, res);
+    if (cors.ended) return;
 
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "method_not_allowed" });
-    return;
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "method_not_allowed" });
+      return;
+    }
+
+    let staffInfo: { uid: string; email: string | null };
+    try {
+      staffInfo = await requireStaff(req);
+    } catch (error) {
+      console.warn("admin_access_denied", {
+        message: (error as Error)?.message,
+      });
+      forbidden(res);
+      return;
+    }
+
+    const path = (req.path || req.url || "").replace(/^\/+|\/+$/g, "");
+
+    switch (path) {
+      case "admin/users/search": {
+        const query = sanitizeQuery((req.body as any)?.query);
+        const users = await searchUsers(query);
+        res.json({ ok: true, users });
+        return;
+      }
+      case "admin/users/grantCredits": {
+        await handleGrantCredits(req, res, staffInfo.uid);
+        return;
+      }
+      case "admin/users/toggleUnlimited": {
+        await handleToggleUnlimited(req, res, staffInfo.uid);
+        return;
+      }
+      case "admin/users/refreshClaims": {
+        await handleRefreshClaims(req, res);
+        return;
+      }
+      case "admin/events/recent": {
+        await handleEvents(req, res);
+        return;
+      }
+      case "admin/telemetry/recent": {
+        await handleTelemetry(req, res);
+        return;
+      }
+      default: {
+        res.status(404).json({ error: "not_found" });
+      }
+    }
   }
-
-  let staffInfo: { uid: string; email: string | null };
-  try {
-    staffInfo = await requireStaff(req);
-  } catch (error) {
-    console.warn("admin_access_denied", { message: (error as Error)?.message });
-    forbidden(res);
-    return;
-  }
-
-  const path = (req.path || req.url || "").replace(/^\/+|\/+$/g, "");
-
-  switch (path) {
-    case "admin/users/search": {
-      const query = sanitizeQuery((req.body as any)?.query);
-      const users = await searchUsers(query);
-      res.json({ ok: true, users });
-      return;
-    }
-    case "admin/users/grantCredits": {
-      await handleGrantCredits(req, res, staffInfo.uid);
-      return;
-    }
-    case "admin/users/toggleUnlimited": {
-      await handleToggleUnlimited(req, res, staffInfo.uid);
-      return;
-    }
-    case "admin/users/refreshClaims": {
-      await handleRefreshClaims(req, res);
-      return;
-    }
-    case "admin/events/recent": {
-      await handleEvents(req, res);
-      return;
-    }
-    case "admin/telemetry/recent": {
-      await handleTelemetry(req, res);
-      return;
-    }
-    default: {
-      res.status(404).json({ error: "not_found" });
-    }
-  }
-});
+);

@@ -1,23 +1,39 @@
-import { appJson, requireStripe, requireUidFromAuthHeader, getStripe } from "./stripe/common.js";
+import {
+  appJson,
+  requireStripe,
+  requireUidFromAuthHeader,
+  getStripe,
+} from "./stripe/common.js";
 
 export const createCustomerPortal = appJson(async (req, res) => {
   requireStripe();
-  if (req.method !== "POST") return res.status(405).send(JSON.stringify({ error: "method_not_allowed" }));
+  if (req.method !== "POST")
+    return res
+      .status(405)
+      .send(JSON.stringify({ error: "method_not_allowed" }));
   const uid = await requireUidFromAuthHeader(req);
 
   const stripe = getStripe();
-  const search = await stripe.customers.search({ query: `metadata['uid']:'${uid}'` });
+  const search = await stripe.customers.search({
+    query: `metadata['uid']:'${uid}'`,
+  });
   let customer = search.data[0];
   if (!customer) {
     customer = await stripe.customers.create({ metadata: { uid } });
   } else if (!customer.metadata?.uid) {
-    await stripe.customers.update(customer.id, { metadata: { ...(customer.metadata ?? {}), uid } });
+    await stripe.customers.update(customer.id, {
+      metadata: { ...(customer.metadata ?? {}), uid },
+    });
   }
   if (!customer) {
     throw new Error("customer_creation_failed");
   }
 
-  const rawOrigin = req.get("origin") || req.headers["x-forwarded-origin"] || req.headers["x-forwarded-host"] || "";
+  const rawOrigin =
+    req.get("origin") ||
+    req.headers["x-forwarded-origin"] ||
+    req.headers["x-forwarded-host"] ||
+    "";
   let origin = "https://mybodyscan-f3daf.web.app";
   if (typeof rawOrigin === "string" && rawOrigin.length) {
     origin = rawOrigin.startsWith("http") ? rawOrigin : `https://${rawOrigin}`;

@@ -63,8 +63,18 @@
             {
               "title": "Accessory Volume",
               "exercises": [
-                { "name": "Cable Kickback", "sets": 3, "reps": "12", "restSec": 60 },
-                { "name": "Walking Lunge", "sets": 3, "reps": "12/leg", "restSec": 90 }
+                {
+                  "name": "Cable Kickback",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                },
+                {
+                  "name": "Walking Lunge",
+                  "sets": 3,
+                  "reps": "12/leg",
+                  "restSec": 90
+                }
               ]
             }
           ]
@@ -106,8 +116,18 @@
             {
               "title": "Arm & Shoulder Finish",
               "exercises": [
-                { "name": "Cable Lateral Raise", "sets": 3, "reps": "15", "restSec": 45 },
-                { "name": "Rope Triceps Pressdown", "sets": 3, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Cable Lateral Raise",
+                  "sets": 3,
+                  "reps": "15",
+                  "restSec": 45
+                },
+                {
+                  "name": "Rope Triceps Pressdown",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -131,8 +151,18 @@
                     }
                   ]
                 },
-                { "name": "Cable Abduction", "sets": 3, "reps": "15", "restSec": 45 },
-                { "name": "Back Extension", "sets": 3, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Cable Abduction",
+                  "sets": 3,
+                  "reps": "15",
+                  "restSec": 45
+                },
+                {
+                  "name": "Back Extension",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -156,8 +186,18 @@
                     }
                   ]
                 },
-                { "name": "Step-Up", "sets": 3, "reps": "15/leg", "restSec": 60 },
-                { "name": "Side Plank", "sets": 3, "reps": "45s/side", "restSec": 45 }
+                {
+                  "name": "Step-Up",
+                  "sets": 3,
+                  "reps": "15/leg",
+                  "restSec": 60
+                },
+                {
+                  "name": "Side Plank",
+                  "sets": 3,
+                  "reps": "45s/side",
+                  "restSec": 45
+                }
               ]
             }
           ]

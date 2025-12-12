@@ -1,4 +1,9 @@
-import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
+import {
+  Component,
+  type CSSProperties,
+  type ErrorInfo,
+  type ReactNode,
+} from "react";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string };
@@ -20,9 +25,15 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   private handleReload = () => {
     try {
-      if (typeof window !== "undefined" && typeof window.location?.reload === "function") {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.location?.reload === "function"
+      ) {
         window.location.reload();
-      } else if (typeof location !== "undefined" && typeof location.reload === "function") {
+      } else if (
+        typeof location !== "undefined" &&
+        typeof location.reload === "function"
+      ) {
         location.reload();
       }
     } catch {

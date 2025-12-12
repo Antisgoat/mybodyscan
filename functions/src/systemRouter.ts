@@ -6,10 +6,13 @@ import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
 const ADMIN_BOOTSTRAP_DEFAULT = 50;
 
 function getAdminBootstrapCredits(): number {
-  const raw = process.env.ADMIN_BOOTSTRAP_CREDITS || process.env.ADMIN_BOOTSTRAP_CREDIT;
+  const raw =
+    process.env.ADMIN_BOOTSTRAP_CREDITS || process.env.ADMIN_BOOTSTRAP_CREDIT;
   if (!raw) return ADMIN_BOOTSTRAP_DEFAULT;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : ADMIN_BOOTSTRAP_DEFAULT;
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : ADMIN_BOOTSTRAP_DEFAULT;
 }
 
 function parseAdminEmails(): Set<string> {
@@ -18,7 +21,7 @@ function parseAdminEmails(): Set<string> {
     csv
       .split(",")
       .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0),
+      .filter((value) => value.length > 0)
   );
 }
 
@@ -35,9 +38,13 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
   try {
     const { uid, claims } = await requireAuthWithClaims(req);
     const auth = getAuth();
-    const decodedEmail = typeof claims?.email === "string" ? claims.email : undefined;
+    const decodedEmail =
+      typeof claims?.email === "string" ? claims.email : undefined;
     let email = decodedEmail?.toLowerCase() || undefined;
-    let userRecord: { customClaims?: Record<string, unknown>; email?: string | null } | null = null;
+    let userRecord: {
+      customClaims?: Record<string, unknown>;
+      email?: string | null;
+    } | null = null;
     if (!email) {
       try {
         const record = await auth.getUser(uid);
@@ -67,12 +74,16 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
     const updates: Record<string, unknown> = {};
     if (snap.exists) {
       const data = snap.data() as Record<string, unknown>;
-      const storedCredits = typeof data?.credits === "number" ? data.credits : null;
+      const storedCredits =
+        typeof data?.credits === "number" ? data.credits : null;
       if (storedCredits != null) {
         credits = storedCredits;
       }
 
-      if (isAdminEmail && (storedCredits == null || storedCredits < bootstrapCredits)) {
+      if (
+        isAdminEmail &&
+        (storedCredits == null || storedCredits < bootstrapCredits)
+      ) {
         updates.credits = bootstrapCredits;
         credits = bootstrapCredits;
       } else if (!isAdminEmail && storedCredits == null) {
@@ -128,14 +139,21 @@ systemRouter.get("/whoami", async (req: Request, res: Response) => {
     try {
       const decoded = await getAuth().verifyIdToken(match[1]);
       uid = decoded?.uid ?? null;
-      email = typeof decoded?.email === "string" ? decoded.email.toLowerCase() : null;
+      email =
+        typeof decoded?.email === "string" ? decoded.email.toLowerCase() : null;
       if (uid) {
         try {
           const snap = await db.doc(`users/${uid}`).get();
           const available = snap.get("creditsAvailable");
           const legacy = snap.get("credits");
-          const value = typeof available === "number" ? available : typeof legacy === "number" ? legacy : null;
-          credits = value != null && Number.isFinite(value) ? Number(value) : null;
+          const value =
+            typeof available === "number"
+              ? available
+              : typeof legacy === "number"
+                ? legacy
+                : null;
+          credits =
+            value != null && Number.isFinite(value) ? Number(value) : null;
         } catch {
           credits = null;
         }
@@ -157,67 +175,73 @@ systemRouter.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, ts: Date.now() });
 });
 
-systemRouter.post("/admin/grant-credits", async (req: Request, res: Response) => {
-  const header = req.get("authorization") ?? "";
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  if (!match) {
-    res.status(401).json({ error: "unauthenticated" });
-    return;
-  }
+systemRouter.post(
+  "/admin/grant-credits",
+  async (req: Request, res: Response) => {
+    const header = req.get("authorization") ?? "";
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    if (!match) {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
+    }
 
-  let decoded: { uid: string; email?: string } | null = null;
-  try {
-    decoded = await getAuth().verifyIdToken(match[1]);
-  } catch {
-    res.status(401).json({ error: "unauthenticated" });
-    return;
-  }
+    let decoded: { uid: string; email?: string } | null = null;
+    try {
+      decoded = await getAuth().verifyIdToken(match[1]);
+    } catch {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
+    }
 
-  const email = decoded?.email ? decoded.email.toLowerCase() : "";
-  if (!email || !adminEmails.has(email)) {
-    res.status(403).json({ error: "forbidden" });
-    return;
-  }
+    const email = decoded?.email ? decoded.email.toLowerCase() : "";
+    if (!email || !adminEmails.has(email)) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
 
-  const rawAmount = Number(req.body?.amount ?? 0);
-  const amount = Number.isFinite(rawAmount) && rawAmount > 0 ? Math.floor(rawAmount) : 1;
-  const uid = decoded?.uid;
-  if (!uid) {
-    res.status(400).json({ error: "invalid_user" });
-    return;
-  }
+    const rawAmount = Number(req.body?.amount ?? 0);
+    const amount =
+      Number.isFinite(rawAmount) && rawAmount > 0 ? Math.floor(rawAmount) : 1;
+    const uid = decoded?.uid;
+    if (!uid) {
+      res.status(400).json({ error: "invalid_user" });
+      return;
+    }
 
-  const userRef = db.doc(`users/${uid}`);
-  const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const userRef = db.doc(`users/${uid}`);
+    const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
 
-  try {
-    await db.runTransaction(async (tx) => {
-      const now = new Date();
-      const expires = new Date(now.getTime());
-      expires.setMonth(expires.getMonth() + (Number.isFinite(months) ? months : 24));
+    try {
+      await db.runTransaction(async (tx) => {
+        const now = new Date();
+        const expires = new Date(now.getTime());
+        expires.setMonth(
+          expires.getMonth() + (Number.isFinite(months) ? months : 24)
+        );
 
-      tx.set(userRef.collection("credits").doc(), {
-        amount,
-        reason: "admin-grant",
-        createdAt: now,
-        expiresAt: expires,
-        source: "admin",
+        tx.set(userRef.collection("credits").doc(), {
+          amount,
+          reason: "admin-grant",
+          createdAt: now,
+          expiresAt: expires,
+          source: "admin",
+        });
+        tx.set(
+          userRef,
+          {
+            creditsAvailable: FieldValue.increment(amount),
+            credits: FieldValue.increment(amount),
+            updatedAt: now,
+          },
+          { merge: true }
+        );
       });
-      tx.set(
-        userRef,
-        {
-          creditsAvailable: FieldValue.increment(amount),
-          credits: FieldValue.increment(amount),
-          updatedAt: now,
-        },
-        { merge: true },
-      );
-    });
-  } catch (error: any) {
-    console.error("admin_grant_credits_failed", { message: error?.message });
-    res.status(500).json({ error: "grant_failed" });
-    return;
-  }
+    } catch (error: any) {
+      console.error("admin_grant_credits_failed", { message: error?.message });
+      res.status(500).json({ error: "grant_failed" });
+      return;
+    }
 
-  res.json({ ok: true, granted: amount });
-});
+    res.json({ ok: true, granted: amount });
+  }
+);

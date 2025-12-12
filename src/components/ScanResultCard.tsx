@@ -30,7 +30,11 @@ interface ScanResultCardProps {
   showPhotos?: boolean;
 }
 
-export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardProps) {
+export function ScanResultCard({
+  scan,
+  onEditNote,
+  showPhotos,
+}: ScanResultCardProps) {
   const { t } = useI18n();
   const { units } = useUnits();
 
@@ -40,7 +44,9 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">
-              {scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : ""}
+              {scan.createdAt?.toDate
+                ? scan.createdAt.toDate().toLocaleDateString()
+                : ""}
             </CardTitle>
             <Badge variant={scan.status === "ready" ? "default" : "secondary"}>
               {scan.status}
@@ -65,12 +71,14 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">
-            {scan.createdAt?.toDate ? scan.createdAt.toDate().toLocaleDateString() : ""}
+            {scan.createdAt?.toDate
+              ? scan.createdAt.toDate().toLocaleDateString()
+              : ""}
           </CardTitle>
           <Badge variant="default">Complete</Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {/* Main Metrics Grid */}
         <div className="grid grid-cols-2 gap-4 text-center">
@@ -78,25 +86,29 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
             <div className="text-2xl font-bold text-primary">
               {scan.measurements.bodyFat || scan.measurements.body_fat}%
             </div>
-            <div className="text-xs text-muted-foreground">{t('scan.bodyFat')}</div>
+            <div className="text-xs text-muted-foreground">
+              {t("scan.bodyFat")}
+            </div>
           </div>
           <div>
             <div className="text-2xl font-bold">
               {formatWeightFromKg(scan.measurements.weight, 0, units)}
             </div>
-            <div className="text-xs text-muted-foreground">{t('scan.weight')}</div>
+            <div className="text-xs text-muted-foreground">
+              {t("scan.weight")}
+            </div>
           </div>
           <div>
-            <div className="text-lg font-semibold">
-              {scan.measurements.bmi}
-            </div>
-            <div className="text-xs text-muted-foreground">{t('scan.bmi')}</div>
+            <div className="text-lg font-semibold">{scan.measurements.bmi}</div>
+            <div className="text-xs text-muted-foreground">{t("scan.bmi")}</div>
           </div>
           <div>
             <div className="text-lg font-semibold">
               {formatWeightFromKg(scan.measurements.leanMass, 0, units)}
             </div>
-            <div className="text-xs text-muted-foreground">{t('scan.leanMass')}</div>
+            <div className="text-xs text-muted-foreground">
+              {t("scan.leanMass")}
+            </div>
           </div>
         </div>
 
@@ -106,32 +118,32 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
             <div className="font-medium">
               {formatWeightFromKg(scan.measurements.muscleMass, 0, units)}
             </div>
-            <div className="text-xs text-muted-foreground">{t('scan.muscleMass')}</div>
+            <div className="text-xs text-muted-foreground">
+              {t("scan.muscleMass")}
+            </div>
           </div>
           <div>
-            <div className="font-medium">
-              {scan.measurements.visceralFat}
+            <div className="font-medium">{scan.measurements.visceralFat}</div>
+            <div className="text-xs text-muted-foreground">
+              {t("scan.visceralFat")}
             </div>
-            <div className="text-xs text-muted-foreground">{t('scan.visceralFat')}</div>
           </div>
           <div>
-            <div className="font-medium">
-              {scan.measurements.bmr} kcal
-            </div>
-            <div className="text-xs text-muted-foreground">{t('scan.bmr')}</div>
+            <div className="font-medium">{scan.measurements.bmr} kcal</div>
+            <div className="text-xs text-muted-foreground">{t("scan.bmr")}</div>
           </div>
           <div>
-            <div className="font-medium">
-              {scan.measurements.tee} kcal
-            </div>
-            <div className="text-xs text-muted-foreground">{t('scan.tee')}</div>
+            <div className="font-medium">{scan.measurements.tee} kcal</div>
+            <div className="text-xs text-muted-foreground">{t("scan.tee")}</div>
           </div>
         </div>
 
         {/* Photos Thumbnails */}
         {showPhotos && scan.photos && (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">Photos</div>
+            <div className="text-xs font-medium text-muted-foreground">
+              Photos
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {scan.photos.slice(0, 4).map((photo, index) => (
                 <div key={index} className="relative aspect-square">
@@ -139,10 +151,10 @@ export function ScanResultCard({ scan, onEditNote, showPhotos }: ScanResultCardP
                     src={photo}
                     alt={`Scan photo ${index + 1}`}
                     className="w-full h-full object-cover rounded border cursor-pointer hover:opacity-80"
-                    onClick={() => window.open(photo, '_blank')}
+                    onClick={() => window.open(photo, "_blank")}
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 text-center">
-                    {['Front', 'Left', 'Right', 'Back'][index]}
+                    {["Front", "Left", "Right", "Back"][index]}
                   </div>
                 </div>
               ))}

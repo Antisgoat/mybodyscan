@@ -6,20 +6,40 @@ import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
 
-type Check = { name: string; path: string; method?: "GET" | "POST"; body?: any };
+type Check = {
+  name: string;
+  path: string;
+  method?: "GET" | "POST";
+  body?: any;
+};
 
-const API_BASE = resolveFunctionUrl("VITE_API_BASE_URL", "api").replace(/\/$/, "");
+const API_BASE = resolveFunctionUrl("VITE_API_BASE_URL", "api").replace(
+  /\/$/,
+  ""
+);
 
 const TESTS: Check[] = [
   { name: "System Health", path: `${API_BASE}/system/health`, method: "GET" },
-  { name: "Coach Chat", path: `${API_BASE}/coach/chat`, method: "POST", body: { question: "hello" } },
-  { name: "Nutrition", path: `${API_BASE}/nutrition/search`, method: "POST", body: { q: "chicken" } },
+  {
+    name: "Coach Chat",
+    path: `${API_BASE}/coach/chat`,
+    method: "POST",
+    body: { question: "hello" },
+  },
+  {
+    name: "Nutrition",
+    path: `${API_BASE}/nutrition/search`,
+    method: "POST",
+    body: { q: "chicken" },
+  },
 ];
 
 export default function SystemCheckPro() {
   const user = auth.currentUser;
   const [appCheckToken, setAppCheckToken] = useState<string>("");
-  const [rows, setRows] = useState<{ name: string; ok: boolean; status?: number; error?: string }[]>([]);
+  const [rows, setRows] = useState<
+    { name: string; ok: boolean; status?: number; error?: string }[]
+  >([]);
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
@@ -31,10 +51,18 @@ export default function SystemCheckPro() {
 
   async function run() {
     setRunning(true);
-    const next: { name: string; ok: boolean; status?: number; error?: string }[] = [];
+    const next: {
+      name: string;
+      ok: boolean;
+      status?: number;
+      error?: string;
+    }[] = [];
     for (const test of TESTS) {
       try {
-        await apiFetch<any>(test.path, { method: test.method || "GET", body: test.body });
+        await apiFetch<any>(test.path, {
+          method: test.method || "GET",
+          body: test.body,
+        });
         next.push({ name: test.name, ok: true, status: 200 });
       } catch (error: any) {
         next.push({
@@ -57,7 +85,11 @@ export default function SystemCheckPro() {
         </a>
         <h1 className="text-sm font-medium">System Check Pro</h1>
         <div className="flex-1" />
-        <button onClick={run} disabled={running} className="rounded border px-2 py-1 text-xs">
+        <button
+          onClick={run}
+          disabled={running}
+          className="rounded border px-2 py-1 text-xs"
+        >
           {running ? "Running…" : "Run"}
         </button>
       </header>
@@ -66,7 +98,9 @@ export default function SystemCheckPro() {
         <div>
           User: {user?.email || "(signed out)"} · UID: {user?.uid || "-"}
         </div>
-        <div>Project ID: {import.meta.env.VITE_FIREBASE_PROJECT_ID || "(missing)"}</div>
+        <div>
+          Project ID: {import.meta.env.VITE_FIREBASE_PROJECT_ID || "(missing)"}
+        </div>
         <div>App Check token present: {appCheckToken ? "yes" : "no"}</div>
         <div>Demo Active: {String(isDemoActive())}</div>
       </section>

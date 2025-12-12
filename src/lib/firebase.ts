@@ -49,30 +49,42 @@ const pickConfigValue = (
 };
 
 const envConfig: Partial<FirebaseRuntimeConfig> = {
-  apiKey: pickConfigValue(env.VITE_FIREBASE_API_KEY, import.meta.env.VITE_FIREBASE_API_KEY),
-  authDomain: pickConfigValue(env.VITE_FIREBASE_AUTH_DOMAIN, import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
-  projectId: pickConfigValue(env.VITE_FIREBASE_PROJECT_ID, import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  apiKey: pickConfigValue(
+    env.VITE_FIREBASE_API_KEY,
+    import.meta.env.VITE_FIREBASE_API_KEY
+  ),
+  authDomain: pickConfigValue(
+    env.VITE_FIREBASE_AUTH_DOMAIN,
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
+  ),
+  projectId: pickConfigValue(
+    env.VITE_FIREBASE_PROJECT_ID,
+    import.meta.env.VITE_FIREBASE_PROJECT_ID
+  ),
   storageBucket: pickConfigValue(
     env.VITE_FIREBASE_STORAGE_BUCKET,
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET
   ),
   messagingSenderId: pickConfigValue(
     env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID
   ),
-  appId: pickConfigValue(env.VITE_FIREBASE_APP_ID, import.meta.env.VITE_FIREBASE_APP_ID),
+  appId: pickConfigValue(
+    env.VITE_FIREBASE_APP_ID,
+    import.meta.env.VITE_FIREBASE_APP_ID
+  ),
   measurementId: pickConfigValue(
     env.VITE_FIREBASE_MEASUREMENT_ID,
-    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
   ),
 };
 
 const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
   typeof globalThis !== "undefined"
-    ? ((
-        (globalThis as any).__FIREBASE_CONFIG__ ||
-        (globalThis as any).__FIREBASE_RUNTIME_CONFIG__
-      ) as Partial<FirebaseRuntimeConfig> | undefined)
+    ? (((globalThis as any).__FIREBASE_CONFIG__ ||
+        (globalThis as any).__FIREBASE_RUNTIME_CONFIG__) as
+        | Partial<FirebaseRuntimeConfig>
+        | undefined)
     : undefined;
 
 const firebaseConfig: FirebaseRuntimeConfig = {
@@ -100,29 +112,37 @@ for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
 const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
 const warningKeys = ["appId", "storageBucket", "measurementId"] as const;
 
-export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
-  const value = (firebaseConfig as any)?.[key];
-  return isMissing(value);
-});
+export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
+  (key) => {
+    const value = (firebaseConfig as any)?.[key];
+    return isMissing(value);
+  }
+);
 
 export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
   const value = (firebaseConfig as any)?.[key];
   return isMissing(value);
 });
 
-export const hasFirebaseConfig: boolean = firebaseConfigMissingKeys.length === 0;
+export const hasFirebaseConfig: boolean =
+  firebaseConfigMissingKeys.length === 0;
 
 if (firebaseConfigWarningKeys.length && typeof console !== "undefined") {
   console.warn(
     "[firebase] Optional config keys missing; continuing with defaults",
-    firebaseConfigWarningKeys,
+    firebaseConfigWarningKeys
   );
 }
 
 let firebaseInitError: string | null = null;
 
 export function getFirebaseInitError(): string | null {
-  return firebaseInitError || (hasFirebaseConfig ? null : `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`);
+  return (
+    firebaseInitError ||
+    (hasFirebaseConfig
+      ? null
+      : `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`)
+  );
 }
 
 function initializeFirebaseApp(): FirebaseApp | null {
@@ -151,14 +171,21 @@ const app: FirebaseApp | null = initializeFirebaseApp();
 
 export const firebaseApp: FirebaseApp | null = app;
 export const auth: Auth | null = app ? getAuth(app) : null;
-const persistenceReady: Promise<void> = app && auth
-  ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
-  : Promise.resolve();
+const persistenceReady: Promise<void> =
+  app && auth
+    ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
+    : Promise.resolve();
 
-export const db: Firestore = app ? getFirestore(app) : (null as unknown as Firestore);
+export const db: Firestore = app
+  ? getFirestore(app)
+  : (null as unknown as Firestore);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-export const functions: Functions = app ? getFunctions(app, functionsRegion) : (null as unknown as Functions);
-export const storage: FirebaseStorage = app ? getStorage(app) : (null as unknown as FirebaseStorage);
+export const functions: Functions = app
+  ? getFunctions(app, functionsRegion)
+  : (null as unknown as Functions);
+export const storage: FirebaseStorage = app
+  ? getStorage(app)
+  : (null as unknown as FirebaseStorage);
 
 let analyticsInstance: Analytics | null = null;
 
@@ -237,10 +264,22 @@ const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
 };
 
 export const providerFlags = {
-  google: parseFlag(import.meta.env.VITE_ENABLE_GOOGLE ?? env.VITE_ENABLE_GOOGLE, true),
-  apple: parseFlag(import.meta.env.VITE_ENABLE_APPLE ?? env.VITE_ENABLE_APPLE, true),
-  email: parseFlag(import.meta.env.VITE_ENABLE_EMAIL ?? env.VITE_ENABLE_EMAIL, true),
-  demo: parseFlag(import.meta.env.VITE_ENABLE_DEMO ?? env.VITE_ENABLE_DEMO, true),
+  google: parseFlag(
+    import.meta.env.VITE_ENABLE_GOOGLE ?? env.VITE_ENABLE_GOOGLE,
+    true
+  ),
+  apple: parseFlag(
+    import.meta.env.VITE_ENABLE_APPLE ?? env.VITE_ENABLE_APPLE,
+    true
+  ),
+  email: parseFlag(
+    import.meta.env.VITE_ENABLE_EMAIL ?? env.VITE_ENABLE_EMAIL,
+    true
+  ),
+  demo: parseFlag(
+    import.meta.env.VITE_ENABLE_DEMO ?? env.VITE_ENABLE_DEMO,
+    true
+  ),
 };
 
 export const envFlags = providerFlags;
@@ -252,7 +291,9 @@ function ensureAuthAvailable(): Auth {
   if (!auth || !app) {
     const reason =
       getFirebaseInitError() ??
-      (hasFirebaseConfig ? "Firebase auth unavailable" : "Firebase not initialized");
+      (hasFirebaseConfig
+        ? "Firebase auth unavailable"
+        : "Firebase not initialized");
     throw new Error(reason);
   }
   return auth;
@@ -276,4 +317,3 @@ export async function signInWithEmail(email: string, password: string) {
 export function initFirebase() {
   return { app, auth, db, storage, functions, analytics: analyticsInstance };
 }
-

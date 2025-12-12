@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 function normalizeArgs(args) {
   const list = [];
@@ -17,8 +17,8 @@ function swizzle(args) {
 }
 
 swizzle.wrap = function wrap(fn) {
-  if (typeof fn !== 'function') {
-    throw new TypeError('Expected a function to wrap');
+  if (typeof fn !== "function") {
+    throw new TypeError("Expected a function to wrap");
   }
   return function wrapped() {
     return fn.apply(this, normalizeArgs(arguments));

@@ -5,13 +5,20 @@ export function useUserClaims() {
   useEffect(() => {
     let cancel = false;
     async function load() {
-      const u = auth.currentUser; if (!u) { setClaims(null); return; }
+      const u = auth.currentUser;
+      if (!u) {
+        setClaims(null);
+        return;
+      }
       const r = await u.getIdTokenResult(true).catch(() => null);
       if (!cancel) setClaims(r?.claims || null);
     }
     load();
     const unsub = auth.onIdTokenChanged(() => load());
-    return () => { cancel = true; unsub(); };
+    return () => {
+      cancel = true;
+      unsub();
+    };
   }, []);
   return claims;
 }

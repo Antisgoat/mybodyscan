@@ -1,4 +1,5 @@
-const ENDPOINT = "https://identitytoolkit.googleapis.com/v1/projects/mybodyscan-f3daf/config";
+const ENDPOINT =
+  "https://identitytoolkit.googleapis.com/v1/projects/mybodyscan-f3daf/config";
 
 export type IdentityToolkitStatus = {
   reachable: boolean;
@@ -7,22 +8,29 @@ export type IdentityToolkitStatus = {
 
 export async function checkIdentityToolkitReachability(
   apiKey?: string,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal }
 ): Promise<IdentityToolkitStatus> {
-  const trimmed = apiKey?.trim() || (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim();
+  const trimmed =
+    apiKey?.trim() ||
+    (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim();
   if (!trimmed) {
     return { reachable: false, reason: "missing_api_key" };
   }
 
   try {
-    const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(trimmed)}`, {
-      method: "GET",
-      signal: options?.signal,
-    });
+    const response = await fetch(
+      `${ENDPOINT}?key=${encodeURIComponent(trimmed)}`,
+      {
+        method: "GET",
+        signal: options?.signal,
+      }
+    );
     if (!response.ok) {
       let reason: string | undefined;
       try {
-        const payload = (await response.json()) as { error?: { message?: string } };
+        const payload = (await response.json()) as {
+          error?: { message?: string };
+        };
         if (payload?.error?.message) {
           reason = payload.error.message;
         }
@@ -37,7 +45,10 @@ export async function checkIdentityToolkitReachability(
     return { reachable: true };
   } catch (error: unknown) {
     const message =
-      error && typeof error === "object" && "name" in error && (error as { name?: string }).name === "AbortError"
+      error &&
+      typeof error === "object" &&
+      "name" in error &&
+      (error as { name?: string }).name === "AbortError"
         ? "aborted"
         : "network_error";
     if (message === "aborted") {

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useCredits } from './useCredits';
+import { useState, useEffect } from "react";
+import { useCredits } from "./useCredits";
 
 interface Entitlement {
   subscribed: boolean;
@@ -12,7 +12,7 @@ export function useEntitlement() {
   const [entitlement, setEntitlement] = useState<Entitlement>({
     subscribed: false,
     plan: null,
-    credits: 0
+    credits: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -29,15 +29,15 @@ export function useEntitlement() {
       try {
         // Simulated entitlement logic
         const subscribed = credits > 0;
-        const plan = subscribed ? 'pro' : null;
-        
+        const plan = subscribed ? "pro" : null;
+
         setEntitlement({
           subscribed,
           plan,
-          credits
+          credits,
         });
       } catch (error) {
-        console.error('Failed to fetch entitlement:', error);
+        console.error("Failed to fetch entitlement:", error);
       } finally {
         setLoading(false);
       }
@@ -49,11 +49,11 @@ export function useEntitlement() {
   return {
     ...entitlement,
     loading,
-    hasAccess: (feature: 'scan' | 'coach' | 'nutrition') => {
-      if (feature === 'scan') {
+    hasAccess: (feature: "scan" | "coach" | "nutrition") => {
+      if (feature === "scan") {
         return entitlement.credits > 0 || entitlement.subscribed;
       }
       return entitlement.subscribed; // Coach and Nutrition require subscription
-    }
+    },
   };
 }

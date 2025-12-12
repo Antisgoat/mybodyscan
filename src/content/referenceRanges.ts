@@ -157,7 +157,10 @@ function normalizeSex(sex: string | undefined): Sex {
   return value === "female" ? "female" : "male";
 }
 
-function getBandForAge(bands: AgeBandDefinition[], age: number): AgeBandDefinition {
+function getBandForAge(
+  bands: AgeBandDefinition[],
+  age: number
+): AgeBandDefinition {
   for (const band of bands) {
     if (age < band.minAge) continue;
     if (band.maxAge == null || age <= band.maxAge) {
@@ -183,7 +186,10 @@ export function getSexAgeBands(sex: string, age: number): LabeledRange[] {
   }));
 }
 
-export function findRangeForValue(ranges: LabeledRange[], value: number): LabeledRange | null {
+export function findRangeForValue(
+  ranges: LabeledRange[],
+  value: number
+): LabeledRange | null {
   if (!Number.isFinite(value)) return null;
   const lastIndex = ranges.length - 1;
   for (let index = 0; index < ranges.length; index += 1) {

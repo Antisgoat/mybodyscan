@@ -12,7 +12,11 @@ import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { scrubUndefined } from "./lib/scrub.js";
 import { withCors } from "./middleware/cors.js";
-import { allowCorsAndOptionalAppCheck, requireAuth, verifyAppCheckSoft } from "./http.js";
+import {
+  allowCorsAndOptionalAppCheck,
+  requireAuth,
+  verifyAppCheckSoft,
+} from "./http.js";
 import { nutritionBarcodeHandler } from "./nutritionBarcode.js";
 import { nutritionSearchHandler } from "./nutritionSearch.js";
 import type {
@@ -47,7 +51,10 @@ function computeCalories(meal: MealRecord) {
   const carbs = round(meal.carbs || 0, 1);
   const fat = round(meal.fat || 0, 1);
   const alcohol = round(meal.alcohol || 0, 1);
-  const caloriesFromMacros = round(protein * 4 + carbs * 4 + fat * 9 + alcohol * 7, 0);
+  const caloriesFromMacros = round(
+    protein * 4 + carbs * 4 + fat * 9 + alcohol * 7,
+    0
+  );
   let calories = caloriesFromMacros;
   let caloriesInput: number | undefined;
   if (typeof meal.calories === "number") {
@@ -87,7 +94,9 @@ function sanitizeServing(raw: any): MealServingSelection | null {
     return Number.isFinite(num) ? num : null;
   };
   const unitOrNull = (value: any): string | null =>
-    typeof value === "string" && value.trim().length ? value.trim().slice(0, 40) : null;
+    typeof value === "string" && value.trim().length
+      ? value.trim().slice(0, 40)
+      : null;
   return {
     qty: numberOrNull(raw.qty) ?? undefined,
     unit: unitOrNull(raw.unit) ?? undefined,
@@ -113,13 +122,15 @@ function sanitizeNutrients(raw: any) {
 
 function sanitizeItem(raw: any): NutritionItemSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
-  const name = typeof raw.name === "string" ? raw.name.trim().slice(0, 140) : null;
+  const name =
+    typeof raw.name === "string" ? raw.name.trim().slice(0, 140) : null;
   if (!name) return null;
   return {
     id: typeof raw.id === "string" ? raw.id.slice(0, 120) : undefined,
     name,
     brand: typeof raw.brand === "string" ? raw.brand.slice(0, 120) : null,
-    source: typeof raw.source === "string" ? raw.source.slice(0, 40) : undefined,
+    source:
+      typeof raw.source === "string" ? raw.source.slice(0, 40) : undefined,
     serving: sanitizeServing(raw.serving),
     per_serving: sanitizeNutrients(raw.per_serving),
     per_100g: sanitizeNutrients(raw.per_100g),
@@ -132,8 +143,12 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
   let totals: DailyLogDocument["totals"] = defaultTotals();
   await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(docRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-    const data = snap.exists ? (snap.data() as DailyLogDocument) : { meals: [], totals };
+    const snap = (await tx.get(
+      docRef
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const data = snap.exists
+      ? (snap.data() as DailyLogDocument)
+      : { meals: [], totals };
     const meals = Array.isArray(data.meals) ? [...data.meals] : [];
     const existingIndex = meals.findIndex((m) => m.id === meal.id);
     const enriched = { ...meal, ...computeCalories(meal) };
@@ -166,7 +181,9 @@ async function removeMeal(uid: string, day: string, mealId: string) {
   const docRef = db.doc(`users/${uid}/nutritionLogs/${day}`);
   let totals: DailyLogDocument["totals"] = defaultTotals();
   await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(docRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const snap = (await tx.get(
+      docRef
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     if (!snap.exists) {
       totals = defaultTotals();
       return;
@@ -231,8 +248,8 @@ async function handleAddMeal(req: Request, res: Response) {
       typeof body.meal.entrySource === "string"
         ? body.meal.entrySource.slice(0, 40)
         : body.meal.item
-        ? "search"
-        : undefined,
+          ? "search"
+          : undefined,
   };
   validateMeal(meal);
   const totals = await upsertMeal(uid, day, meal);
@@ -254,13 +271,19 @@ async function handleDeleteMeal(req: Request, res: Response) {
 async function buildDailyLogResponse(req: Request) {
   const uid = await requireAuth(req);
   const dateISO =
-    (req.body?.dateISO as string) || (req.query?.dateISO as string) || (req.query?.date as string) ||
+    (req.body?.dateISO as string) ||
+    (req.query?.dateISO as string) ||
+    (req.query?.date as string) ||
     new Date().toISOString().slice(0, 10);
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const day = normalizeDate(dateISO, tz);
   const log = await readDailyLog(uid, day);
   const { getEnv } = await import("./lib/env.js");
-  const source = getEnv("USDA_API_KEY") ? "usda" : getEnv("OPENFOODFACTS_USER_AGENT") ? "openfoodfacts" : "unknown";
+  const source = getEnv("USDA_API_KEY")
+    ? "usda"
+    : getEnv("OPENFOODFACTS_USER_AGENT")
+      ? "openfoodfacts"
+      : "unknown";
   return { date: day, ...log, source };
 }
 
@@ -280,30 +303,33 @@ async function buildHistoryResponse(req: Request) {
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const normalizedAnchor = normalizeDate(anchorIso, tz);
   const anchorDate = new Date(normalizedAnchor);
-  const tasks: Promise<{ date: string; totals: DailyLogDocument["totals"] }>[] = [];
+  const tasks: Promise<{ date: string; totals: DailyLogDocument["totals"] }>[] =
+    [];
   for (let offset = 0; offset < range; offset++) {
     const day = new Date(anchorDate);
     day.setUTCDate(anchorDate.getUTCDate() - offset);
     const iso = day.toISOString().slice(0, 10);
     const docRef = db.doc(`users/${uid}/nutritionLogs/${iso}`);
     tasks.push(
-      docRef.get().then((snap: FirebaseFirestore.DocumentSnapshot<DailyLogDocument>) => {
-        if (!snap.exists) {
-          return { date: iso, totals: defaultTotals() };
-        }
-        const data = snap.data() as DailyLogDocument;
-        const totals = data.totals || defaultTotals();
-        return {
-          date: iso,
-          totals: {
-            calories: totals.calories || 0,
-            protein: totals.protein || 0,
-            carbs: totals.carbs || 0,
-            fat: totals.fat || 0,
-            alcohol: totals.alcohol || 0,
-          },
-        };
-      })
+      docRef
+        .get()
+        .then((snap: FirebaseFirestore.DocumentSnapshot<DailyLogDocument>) => {
+          if (!snap.exists) {
+            return { date: iso, totals: defaultTotals() };
+          }
+          const data = snap.data() as DailyLogDocument;
+          const totals = data.totals || defaultTotals();
+          return {
+            date: iso,
+            totals: {
+              calories: totals.calories || 0,
+              protein: totals.protein || 0,
+              carbs: totals.carbs || 0,
+              fat: totals.fat || 0,
+              alcohol: totals.alcohol || 0,
+            },
+          };
+        })
     );
   }
   const results = await Promise.all(tasks);
@@ -338,10 +364,10 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
           code === "unauthenticated"
             ? 401
             : code === "invalid-argument"
-            ? 400
-            : code === "not-found"
-            ? 404
-            : statusFromCode(code);
+              ? 400
+              : code === "not-found"
+                ? 404
+                : statusFromCode(code);
         res.status(status).json({ error: err.message || "error" });
       }
     })
@@ -354,10 +380,10 @@ function respondWithError(res: Response, err: any) {
     code === "unauthenticated"
       ? 401
       : code === "invalid-argument"
-      ? 400
-      : code === "not-found"
-      ? 404
-      : statusFromCode(code);
+        ? 400
+        : code === "not-found"
+          ? 404
+          : statusFromCode(code);
   const message = err?.message || "error";
   res.status(status).json({ code, message });
 }
@@ -423,43 +449,63 @@ function numberOrZero(value: unknown): number {
 
 function fromUsdaFood(food: any): ApiNutritionItem | null {
   if (!food) return null;
-  const name = (food.description || food.lowercaseDescription || "").toString().trim();
+  const name = (food.description || food.lowercaseDescription || "")
+    .toString()
+    .trim();
   if (!name) return null;
   const brand = (food.brandOwner || food.brand || "").toString().trim() || null;
   const nutrients = Array.isArray(food.foodNutrients) ? food.foodNutrients : [];
   const lookup = new Map<string, number>();
   for (const nutrient of nutrients) {
-    const key = (nutrient?.nutrientName || nutrient?.nutrient?.name || "").toString().toLowerCase();
+    const key = (nutrient?.nutrientName || nutrient?.nutrient?.name || "")
+      .toString()
+      .toLowerCase();
     if (!key) continue;
     const amount = Number(nutrient?.value);
     if (Number.isFinite(amount)) {
       lookup.set(key, amount);
     }
   }
-  const fallbackKcal = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "208");
-  const fallbackProtein = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "203");
-  const fallbackCarbs = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "205");
-  const fallbackFat = food?.foodNutrients?.find?.((n: any) => n?.nutrientNumber === "204");
+  const fallbackKcal = food?.foodNutrients?.find?.(
+    (n: any) => n?.nutrientNumber === "208"
+  );
+  const fallbackProtein = food?.foodNutrients?.find?.(
+    (n: any) => n?.nutrientNumber === "203"
+  );
+  const fallbackCarbs = food?.foodNutrients?.find?.(
+    (n: any) => n?.nutrientNumber === "205"
+  );
+  const fallbackFat = food?.foodNutrients?.find?.(
+    (n: any) => n?.nutrientNumber === "204"
+  );
 
   const kcal =
     lookup.get("energy") ??
     lookup.get("energy (kcal)") ??
     lookup.get("calories") ??
-    (fallbackKcal && fallbackKcal.value != null ? Number(fallbackKcal.value) : undefined) ??
+    (fallbackKcal && fallbackKcal.value != null
+      ? Number(fallbackKcal.value)
+      : undefined) ??
     0;
   const protein =
     lookup.get("protein") ??
-    (fallbackProtein && fallbackProtein.value != null ? Number(fallbackProtein.value) : undefined) ??
+    (fallbackProtein && fallbackProtein.value != null
+      ? Number(fallbackProtein.value)
+      : undefined) ??
     0;
   const carbs =
     lookup.get("carbohydrate, by difference") ??
     lookup.get("carbohydrate") ??
-    (fallbackCarbs && fallbackCarbs.value != null ? Number(fallbackCarbs.value) : undefined) ??
+    (fallbackCarbs && fallbackCarbs.value != null
+      ? Number(fallbackCarbs.value)
+      : undefined) ??
     0;
   const fat =
     lookup.get("total lipid (fat)") ??
     lookup.get("fat") ??
-    (fallbackFat && fallbackFat.value != null ? Number(fallbackFat.value) : undefined) ??
+    (fallbackFat && fallbackFat.value != null
+      ? Number(fallbackFat.value)
+      : undefined) ??
     0;
 
   return {
@@ -476,11 +522,25 @@ function fromUsdaFood(food: any): ApiNutritionItem | null {
 
 function fromOffProduct(product: any): ApiNutritionItem | null {
   if (!product) return null;
-  const name = (product.product_name || product.generic_name || product.name || "").toString().trim();
+  const name = (
+    product.product_name ||
+    product.generic_name ||
+    product.name ||
+    ""
+  )
+    .toString()
+    .trim();
   if (!name) return null;
-  const brand = (product.brands || product.brand_owner || "").toString().split(",")[0]?.trim() || null;
+  const brand =
+    (product.brands || product.brand_owner || "")
+      .toString()
+      .split(",")[0]
+      ?.trim() || null;
   const nutriments = product.nutriments || {};
-  const kcal = nutriments["energy-kcal_100g"] ?? nutriments["energy-kcal"] ?? nutriments["energy"];
+  const kcal =
+    nutriments["energy-kcal_100g"] ??
+    nutriments["energy-kcal"] ??
+    nutriments["energy"];
   return {
     id: `off_${product.code || randomUUID()}`,
     name,
@@ -510,7 +570,9 @@ async function searchUsda(query: string): Promise<ApiNutritionItem[]> {
   }
   const data = (await response.json().catch(() => ({}))) as any;
   const foods = Array.isArray(data?.foods) ? data.foods : [];
-  return foods.map(fromUsdaFood).filter((item): item is ApiNutritionItem => Boolean(item));
+  return foods
+    .map(fromUsdaFood)
+    .filter((item): item is ApiNutritionItem => Boolean(item));
 }
 
 async function searchOff(query: string): Promise<ApiNutritionItem[]> {
@@ -529,7 +591,9 @@ async function searchOff(query: string): Promise<ApiNutritionItem[]> {
   }
   const data = (await response.json().catch(() => ({}))) as any;
   const products = Array.isArray(data?.products) ? data.products : [];
-  return products.map(fromOffProduct).filter((item): item is ApiNutritionItem => Boolean(item));
+  return products
+    .map(fromOffProduct)
+    .filter((item): item is ApiNutritionItem => Boolean(item));
 }
 
 async function lookupBarcode(barcode: string): Promise<ApiNutritionItem[]> {
@@ -573,7 +637,9 @@ async function executeSearch(query: string, barcode: string) {
         primarySource = "usda";
       }
     } catch (error) {
-      console.warn("usda_search_failed", { message: (error as Error)?.message });
+      console.warn("usda_search_failed", {
+        message: (error as Error)?.message,
+      });
     }
   }
 
@@ -604,7 +670,9 @@ async function executeSearch(query: string, barcode: string) {
         primarySource = "barcode";
       }
     } catch (error) {
-      console.warn("off_barcode_failed", { message: (error as Error)?.message });
+      console.warn("off_barcode_failed", {
+        message: (error as Error)?.message,
+      });
     }
   }
 

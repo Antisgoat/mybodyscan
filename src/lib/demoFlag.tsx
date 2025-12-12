@@ -1,5 +1,9 @@
 import React from "react";
-import { disableDemo as disableStoreDemo, enableDemo as enableStoreDemo, get } from "@/state/demo";
+import {
+  disableDemo as disableStoreDemo,
+  enableDemo as enableStoreDemo,
+  get,
+} from "@/state/demo";
 import { isDemoActive as envDemoActive } from "./demo";
 
 export const DEMO_SESSION_KEY = "mbs_demo";
@@ -49,7 +53,10 @@ export function disableDemo(): void {
 
 type LocationLike = { pathname: string; search: string };
 
-export function isDemoMode(_user: { uid?: string } | null | undefined, _currentLocation: LocationLike): boolean {
+export function isDemoMode(
+  _user: { uid?: string } | null | undefined,
+  _currentLocation: LocationLike
+): boolean {
   return isDemo();
 }
 
@@ -72,7 +79,10 @@ export function assertReadOnly(action: string): void {
   }
 }
 
-export const DemoGuard: React.FC<{ children: React.ReactNode; note?: string }> = ({ children, note }) => {
+export const DemoGuard: React.FC<{
+  children: React.ReactNode;
+  note?: string;
+}> = ({ children, note }) => {
   if (!isDemo()) return <>{children}</>;
   const notice = note || "Read-only demo";
   if (React.isValidElement(children)) {

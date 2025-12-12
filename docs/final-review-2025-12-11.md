@@ -1,6 +1,7 @@
 # Final review – 2025-12-11
 
 ## Summary
+
 - **Auth / Onboarding** – Replaced the legacy anonymous auth hook inside `OnboardingMBS`, added Firestore-safe scrubbing for all writes, and redirect users with completed onboarding straight into the app so they cannot get stuck on the legacy page. Removed the unused `useAuthUserMBS`, `ProtectedRouteMBS`, and `mbs.routes` helpers to avoid future divergence.
 - **Scan** – Reviewed `startScanSession`, `submitScan`, client upload progress, and delete APIs. All status transitions already map to the canonical `pending → processing → complete/error` flow, and UI helpers (`scanStatusLabel`) align with those states. No code changes required.
 - **Meals / Nutrition** – Audited Cloud Functions (`addMeal`, `deleteMeal`, history/log readers) plus UI entry points (search, barcode, dashboard). All client paths use the callable endpoints and scrub macros via `computeCalories`, so no corrective code changes were needed.
@@ -9,6 +10,7 @@
 - **Settings / Units** – Confirmed `useUnits` listens to `users/{uid}` preferences and that scan start, meals, and onboarding forms respect the helper conversions everywhere. No changes were necessary.
 
 ## Manual QA checklist
+
 1. **Auth + Onboarding**
    - Sign up via email/Google, complete the modern onboarding wizard, and reload to confirm you land on `/home`.
    - Visit `/onboarding-mbs` after finishing onboarding to confirm it immediately redirects to `/home`.

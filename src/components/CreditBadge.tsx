@@ -12,7 +12,9 @@ export default function CreditBadge() {
   if (authLoading || profileLoading || !user) return null;
 
   const hasUnlimitedClaim =
-    claims?.role === "admin" || claims?.unlimited === true || claims?.creditsUnlimited === true;
+    claims?.role === "admin" ||
+    claims?.unlimited === true ||
+    claims?.creditsUnlimited === true;
 
   const label = hasUnlimitedClaim ? "Unlimited" : formatCredits(profile);
   if (!label) return null;

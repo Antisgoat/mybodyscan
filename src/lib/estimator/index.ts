@@ -33,7 +33,10 @@ function sanitize(value?: number | null): number | undefined {
   return value;
 }
 
-function toInches(value: number | undefined, scale: number | undefined): number | undefined {
+function toInches(
+  value: number | undefined,
+  scale: number | undefined
+): number | undefined {
   if (!Number.isFinite(value ?? NaN) || !Number.isFinite(scale ?? NaN)) {
     return undefined;
   }
@@ -59,7 +62,10 @@ function resolveMeasurement(manual?: number, photo?: number): Measurement {
   return { value: undefined, source: null };
 }
 
-function measurementConfidence(source: MeasurementSource, pose: number): number {
+function measurementConfidence(
+  source: MeasurementSource,
+  pose: number
+): number {
   if (source === "manual") {
     return 1;
   }
@@ -75,7 +81,9 @@ function average(values: number[]): number {
   return total / values.length;
 }
 
-function weightedMedian(entries: Array<{ value: number; weight: number }>): number {
+function weightedMedian(
+  entries: Array<{ value: number; weight: number }>
+): number {
   const valid = entries
     .filter((entry) => Number.isFinite(entry.value) && entry.weight > 0)
     .sort((a, b) => a.value - b.value);
@@ -98,7 +106,8 @@ function weightedMedian(entries: Array<{ value: number; weight: number }>): numb
 }
 
 export function estimateBodyComp(input: EstimateInput): EstimateResult {
-  const { sex, age, heightIn, weightLb, photoFeatures, manualCircumferences } = input;
+  const { sex, age, heightIn, weightLb, photoFeatures, manualCircumferences } =
+    input;
   const poseScore = clamp01(photoFeatures?.poseScore ?? 0);
 
   const averages = photoFeatures?.averages;
@@ -109,24 +118,43 @@ export function estimateBodyComp(input: EstimateInput): EstimateResult {
   const photoWaistIn = toInches(averages?.waistWidth, scale);
   const photoHipIn = toInches(averages?.hipWidth, scale);
 
-  const neck = resolveMeasurement(manualCircumferences?.neckIn ?? undefined, photoNeckIn);
-  const waist = resolveMeasurement(manualCircumferences?.waistIn ?? undefined, photoWaistIn);
-  const hip = resolveMeasurement(manualCircumferences?.hipIn ?? undefined, photoHipIn);
+  const neck = resolveMeasurement(
+    manualCircumferences?.neckIn ?? undefined,
+    photoNeckIn
+  );
+  const waist = resolveMeasurement(
+    manualCircumferences?.waistIn ?? undefined,
+    photoWaistIn
+  );
+  const hip = resolveMeasurement(
+    manualCircumferences?.hipIn ?? undefined,
+    photoHipIn
+  );
 
   const circumferenceSources = [neck.source, waist.source, hip.source];
-  const manualCount = circumferenceSources.filter((source) => source === "manual").length;
-  const photoCount = circumferenceSources.filter((source) => source === "photo").length;
+  const manualCount = circumferenceSources.filter(
+    (source) => source === "manual"
+  ).length;
+  const photoCount = circumferenceSources.filter(
+    (source) => source === "photo"
+  ).length;
   const circumferencePresence = manualCount + photoCount;
 
   const navyEstimate =
     sex === "female"
-      ? navyFemale({ waistIn: waist.value, neckIn: neck.value, hipIn: hip.value, heightIn })
+      ? navyFemale({
+          waistIn: waist.value,
+          neckIn: neck.value,
+          hipIn: hip.value,
+          heightIn,
+        })
       : navyMale({ waistIn: waist.value, neckIn: neck.value, heightIn });
-  const navyConfidenceComponents = sex === "female"
-    ? [waist, neck, hip]
-    : [waist, neck];
+  const navyConfidenceComponents =
+    sex === "female" ? [waist, neck, hip] : [waist, neck];
   const navyWeight = average(
-    navyConfidenceComponents.map((measurement) => measurementConfidence(measurement.source, poseScore)),
+    navyConfidenceComponents.map((measurement) =>
+      measurementConfidence(measurement.source, poseScore)
+    )
   );
 
   const baiEstimate = bai({ hipIn: hip.value, heightIn });
@@ -135,10 +163,13 @@ export function estimateBodyComp(input: EstimateInput): EstimateResult {
   const wthrEstimate = wthr({ waistIn: waist.value, heightIn, sex });
   const wthrWeight = measurementConfidence(waist.source, poseScore);
 
-  const bmi = weightLb ? Number(((weightLb / (heightIn * heightIn)) * 703).toFixed(1)) : NaN;
+  const bmi = weightLb
+    ? Number(((weightLb / (heightIn * heightIn)) * 703).toFixed(1))
+    : NaN;
   const deurenbergEstimate = deurenberg({ weightLb, heightIn, age, sex });
   const weightConfidence = weightLb ? 0.6 : 0;
-  const circumferenceBonus = circumferencePresence >= 2 ? 0.3 : circumferencePresence === 1 ? 0.15 : 0;
+  const circumferenceBonus =
+    circumferencePresence >= 2 ? 0.3 : circumferencePresence === 1 ? 0.15 : 0;
   const deurenbergWeight = weightConfidence + circumferenceBonus;
 
   const combined = weightedMedian([
@@ -148,7 +179,9 @@ export function estimateBodyComp(input: EstimateInput): EstimateResult {
     { value: wthrEstimate, weight: wthrWeight },
   ]);
 
-  const bodyFatPct = Number.isFinite(combined) ? Number((combined as number).toFixed(1)) : NaN;
+  const bodyFatPct = Number.isFinite(combined)
+    ? Number((combined as number).toFixed(1))
+    : NaN;
 
   return {
     bodyFatPct,

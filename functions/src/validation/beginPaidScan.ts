@@ -34,7 +34,9 @@ function sanitizeHash(value: unknown): string | null {
   return sanitized;
 }
 
-export function validateBeginPaidScanPayload(input: unknown): ValidationResult<BeginPaidScanPayload> {
+export function validateBeginPaidScanPayload(
+  input: unknown
+): ValidationResult<BeginPaidScanPayload> {
   const errors: string[] = [];
   const body = (input || {}) as Record<string, unknown>;
   const scanId = sanitizeScanId(body.scanId);

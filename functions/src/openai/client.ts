@@ -16,7 +16,11 @@ export class OpenAIClientError extends Error {
   code: "openai_missing_key" | "openai_failed";
   status: number;
 
-  constructor(code: "openai_missing_key" | "openai_failed", status: number, message?: string) {
+  constructor(
+    code: "openai_missing_key" | "openai_failed",
+    status: number,
+    message?: string
+  ) {
     super(message ?? code);
     this.name = "OpenAIClientError";
     this.code = code;
@@ -26,7 +30,10 @@ export class OpenAIClientError extends Error {
 
 export type ChatContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } };
+  | {
+      type: "image_url";
+      image_url: { url: string; detail?: "auto" | "low" | "high" };
+    };
 
 export type ChatContent = string | ChatContentPart[];
 
@@ -62,8 +69,16 @@ type ChatResponse = {
 };
 
 function buildModelList(candidate?: string): string[] {
-  const base = [candidate, process.env.OPENAI_MODEL, "gpt-4o-mini", "gpt-4o-mini-2024-07-18"]
-    .filter((model): model is string => typeof model === "string" && model.trim().length > 0)
+  const base = [
+    candidate,
+    process.env.OPENAI_MODEL,
+    "gpt-4o-mini",
+    "gpt-4o-mini-2024-07-18",
+  ]
+    .filter(
+      (model): model is string =>
+        typeof model === "string" && model.trim().length > 0
+    )
     .map((model) => model.trim());
 
   if (base.length === 0) {
@@ -77,7 +92,11 @@ function resolveOpenAIKey(): string {
   try {
     return getOpenAIKey();
   } catch (error) {
-    if (error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key") {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "openai_missing_key"
+    ) {
       throw new OpenAIClientError("openai_missing_key", 501);
     }
     throw error;
@@ -86,7 +105,10 @@ function resolveOpenAIKey(): string {
 
 function clampMaxTokens(value?: number): number | undefined {
   if (!Number.isFinite(value)) return undefined;
-  const normalized = Math.max(1, Math.min(MAX_TOKENS_CAP, Math.floor(Number(value))));
+  const normalized = Math.max(
+    1,
+    Math.min(MAX_TOKENS_CAP, Math.floor(Number(value)))
+  );
   return normalized;
 }
 
@@ -100,14 +122,21 @@ function normalizeContent(content: ChatContent): string | ChatContentPart[] {
           return { type: "text", text };
         }
         if (part.type === "image_url") {
-          const url = typeof part.image_url?.url === "string" ? part.image_url.url.trim() : "";
+          const url =
+            typeof part.image_url?.url === "string"
+              ? part.image_url.url.trim()
+              : "";
           if (!url) {
             return null;
           }
           const detail = part.image_url?.detail;
-          const normalizedDetail = detail === "low" || detail === "high" ? detail : undefined;
+          const normalizedDetail =
+            detail === "low" || detail === "high" ? detail : undefined;
           return normalizedDetail
-            ? { type: "image_url", image_url: { url, detail: normalizedDetail } }
+            ? {
+                type: "image_url",
+                image_url: { url, detail: normalizedDetail },
+              }
             : { type: "image_url", image_url: { url } };
         }
         return null;
@@ -120,7 +149,9 @@ function normalizeContent(content: ChatContent): string | ChatContentPart[] {
   return typeof content === "string" ? content : "";
 }
 
-function normalizeMessages(messages: ChatMessage[]): Array<{ role: string; content: string | ChatContentPart[] }> {
+function normalizeMessages(
+  messages: ChatMessage[]
+): Array<{ role: string; content: string | ChatContentPart[] }> {
   if (!Array.isArray(messages) || !messages.length) {
     throw new OpenAIClientError("openai_failed", 400, "missing_messages");
   }
@@ -134,16 +165,20 @@ async function executeChat(
   model: string,
   key: string,
   request: ChatRequest,
-  requestId?: string,
+  requestId?: string
 ): Promise<ChatResponse> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), request.timeoutMs ?? OPENAI_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    request.timeoutMs ?? OPENAI_TIMEOUT_MS
+  );
 
   try {
     const body: Record<string, unknown> = {
       model,
       temperature:
-        typeof request.temperature === "number" && Number.isFinite(request.temperature)
+        typeof request.temperature === "number" &&
+        Number.isFinite(request.temperature)
           ? request.temperature
           : DEFAULT_TEXT_TEMPERATURE,
       messages: normalizeMessages(request.messages),
@@ -183,12 +218,20 @@ async function executeChat(
     }
 
     if (response.status >= 500) {
-      throw new OpenAIClientError("openai_failed", 500, `status_${response.status}`);
+      throw new OpenAIClientError(
+        "openai_failed",
+        500,
+        `status_${response.status}`
+      );
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new OpenAIClientError("openai_failed", response.status, text || `status_${response.status}`);
+      throw new OpenAIClientError(
+        "openai_failed",
+        response.status,
+        text || `status_${response.status}`
+      );
     }
 
     let data: any;
@@ -208,7 +251,10 @@ async function executeChat(
       usage: data?.usage,
     };
   } catch (error) {
-    if (error instanceof OpenAIClientError || error instanceof InvalidModelError) {
+    if (
+      error instanceof OpenAIClientError ||
+      error instanceof InvalidModelError
+    ) {
       throw error;
     }
 
@@ -216,7 +262,11 @@ async function executeChat(
       throw new OpenAIClientError("openai_failed", 502, "timeout");
     }
 
-    throw new OpenAIClientError("openai_failed", 502, (error as Error)?.message || "unknown_error");
+    throw new OpenAIClientError(
+      "openai_failed",
+      502,
+      (error as Error)?.message || "unknown_error"
+    );
   } finally {
     clearTimeout(timeout);
   }
@@ -224,7 +274,14 @@ async function executeChat(
 
 export async function chatOnce(
   prompt: string,
-  opts: { userId?: string; model?: string; requestId?: string; temperature?: number; maxTokens?: number; timeoutMs?: number } = {},
+  opts: {
+    userId?: string;
+    model?: string;
+    requestId?: string;
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+  } = {}
 ): Promise<string> {
   const trimmed = prompt?.trim();
   if (!trimmed) {
@@ -250,16 +307,24 @@ export async function chatOnce(
             { role: "user", content: trimmed },
           ],
           user: opts.userId,
-          temperature: typeof opts.temperature === "number" ? opts.temperature : DEFAULT_TEXT_TEMPERATURE,
+          temperature:
+            typeof opts.temperature === "number"
+              ? opts.temperature
+              : DEFAULT_TEXT_TEMPERATURE,
           maxTokens: opts.maxTokens ?? 256,
           timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
-        opts.requestId,
+        opts.requestId
       );
       return result.content;
     } catch (error) {
       if (error instanceof InvalidModelError) {
-        console.warn({ fn: "openai", event: "model_unavailable", requestId: opts.requestId ?? null, model });
+        console.warn({
+          fn: "openai",
+          event: "model_unavailable",
+          requestId: opts.requestId ?? null,
+          model,
+        });
         lastError = error;
         continue;
       }
@@ -275,12 +340,12 @@ export async function chatOnce(
   throw new OpenAIClientError(
     "openai_failed",
     502,
-    lastError instanceof Error ? lastError.message : undefined,
+    lastError instanceof Error ? lastError.message : undefined
   );
 }
 
 export async function structuredJsonChat<T>(
-  request: StructuredJsonRequest<T>,
+  request: StructuredJsonRequest<T>
 ): Promise<{ raw: string; data: T }> {
   const systemPrompt = request.systemPrompt?.trim();
   if (!systemPrompt) {
@@ -307,27 +372,40 @@ export async function structuredJsonChat<T>(
           responseFormat: "json_object",
           timeoutMs: request.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
-        request.requestId,
+        request.requestId
       );
 
       let parsed: unknown;
       try {
         parsed = JSON.parse(response.content);
       } catch (error) {
-        throw new OpenAIClientError("openai_failed", 502, "invalid_json_payload");
+        throw new OpenAIClientError(
+          "openai_failed",
+          502,
+          "invalid_json_payload"
+        );
       }
 
       let validated: T;
       try {
         validated = request.validate(parsed);
       } catch (error) {
-        throw new OpenAIClientError("openai_failed", 502, (error as Error)?.message ?? "invalid_json_schema");
+        throw new OpenAIClientError(
+          "openai_failed",
+          502,
+          (error as Error)?.message ?? "invalid_json_schema"
+        );
       }
 
       return { raw: response.content, data: validated };
     } catch (error) {
       if (error instanceof InvalidModelError) {
-        console.warn({ fn: "openai", event: "model_unavailable", requestId: request.requestId ?? null, model });
+        console.warn({
+          fn: "openai",
+          event: "model_unavailable",
+          requestId: request.requestId ?? null,
+          model,
+        });
         lastError = error;
         continue;
       }
@@ -343,6 +421,6 @@ export async function structuredJsonChat<T>(
   throw new OpenAIClientError(
     "openai_failed",
     502,
-    lastError instanceof Error ? lastError.message : undefined,
+    lastError instanceof Error ? lastError.message : undefined
   );
 }

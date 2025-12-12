@@ -4,7 +4,11 @@ interface PageSkeletonProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-export function PageSkeleton({ label = "Loading…", className = "", ...divProps }: PageSkeletonProps) {
+export function PageSkeleton({
+  label = "Loading…",
+  className = "",
+  ...divProps
+}: PageSkeletonProps) {
   return (
     <div
       className={`min-h-screen w-full flex items-center justify-center bg-background ${className}`.trim()}

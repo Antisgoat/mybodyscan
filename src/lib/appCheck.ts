@@ -1,8 +1,15 @@
-import { initializeAppCheck, ReCaptchaV3Provider, getToken, type AppCheck } from "firebase/app-check";
+import {
+  initializeAppCheck,
+  ReCaptchaV3Provider,
+  getToken,
+  type AppCheck,
+} from "firebase/app-check";
 import { firebaseApp } from "@/lib/firebase";
 
 const siteKeyRaw =
-  (import.meta as any).env?.VITE_APPCHECK_SITE_KEY || (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY || "";
+  (import.meta as any).env?.VITE_APPCHECK_SITE_KEY ||
+  (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY ||
+  "";
 const siteKey = siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
 const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
 let warned = false;
@@ -53,7 +60,9 @@ export async function ensureAppCheck(): Promise<void> {
   init();
 }
 
-export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Record<string, string>> {
+export async function getAppCheckTokenHeader(
+  forceRefresh = false
+): Promise<Record<string, string>> {
   try {
     const inst = init();
     if (!inst) return {};
@@ -61,7 +70,10 @@ export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Reco
     return token ? { "X-Firebase-AppCheck": token } : {};
   } catch (error: any) {
     const code = (error as any)?.code || (error as any)?.message;
-    if (code === "appCheck/recaptcha-error" || code === "appcheck/recaptcha-error") {
+    if (
+      code === "appCheck/recaptcha-error" ||
+      code === "appcheck/recaptcha-error"
+    ) {
       if (!recaptchaWarned) {
         console.warn("appcheck_recaptcha_error_soft", error);
         recaptchaWarned = true;
@@ -72,6 +84,8 @@ export async function getAppCheckTokenHeader(forceRefresh = false): Promise<Reco
   }
 }
 
-export async function getAppCheckHeader(forceRefresh = false): Promise<Record<string, string>> {
+export async function getAppCheckHeader(
+  forceRefresh = false
+): Promise<Record<string, string>> {
   return getAppCheckTokenHeader(forceRefresh);
 }

@@ -84,13 +84,23 @@
                     }
                   ]
                 },
-                { "name": "Half Kneeling Windmill", "sets": 3, "reps": "6/side", "restSec": 60 }
+                {
+                  "name": "Half Kneeling Windmill",
+                  "sets": 3,
+                  "reps": "6/side",
+                  "restSec": 60
+                }
               ]
             },
             {
               "title": "Carry",
               "exercises": [
-                { "name": "Farmer Carry", "sets": 4, "reps": "40m", "restSec": 60 },
+                {
+                  "name": "Farmer Carry",
+                  "sets": 4,
+                  "reps": "40m",
+                  "restSec": 60
+                },
                 {
                   "name": "Front Rack Carry",
                   "sets": 3,
@@ -113,8 +123,18 @@
             {
               "title": "Complex x4",
               "exercises": [
-                { "name": "Kettlebell Snatch", "sets": 4, "reps": "10/side", "restSec": 30 },
-                { "name": "Kettlebell Lunge Press", "sets": 4, "reps": "8/side", "restSec": 30 },
+                {
+                  "name": "Kettlebell Snatch",
+                  "sets": 4,
+                  "reps": "10/side",
+                  "restSec": 30
+                },
+                {
+                  "name": "Kettlebell Lunge Press",
+                  "sets": 4,
+                  "reps": "8/side",
+                  "restSec": 30
+                },
                 {
                   "name": "Russian Twist",
                   "sets": 4,

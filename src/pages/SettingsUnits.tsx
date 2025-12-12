@@ -11,19 +11,34 @@ const SettingsUnits = () => {
   const { toast } = useToast();
   const options = useMemo(
     () => [
-      { value: "us", label: "US (lb, ft/in)", description: "Default for most users" },
-      { value: "metric", label: "Metric (kg, cm)", description: "Use SI units for measurements" },
+      {
+        value: "us",
+        label: "US (lb, ft/in)",
+        description: "Default for most users",
+      },
+      {
+        value: "metric",
+        label: "Metric (kg, cm)",
+        description: "Use SI units for measurements",
+      },
     ],
-    [],
+    []
   );
 
   const handleChange = async (value: string) => {
     const next = value === "metric" ? "metric" : "us";
     try {
       await setUnits(next);
-      toast({ title: "Units updated", description: `Now showing ${next === "metric" ? "metric" : "US"} units.` });
+      toast({
+        title: "Units updated",
+        description: `Now showing ${next === "metric" ? "metric" : "US"} units.`,
+      });
     } catch (err: any) {
-      toast({ title: "Unable to save units", description: err?.message || error || "Try again", variant: "destructive" });
+      toast({
+        title: "Unable to save units",
+        description: err?.message || error || "Try again",
+        variant: "destructive",
+      });
     }
   };
 
@@ -46,10 +61,18 @@ const SettingsUnits = () => {
                 className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-muted/50"
                 htmlFor={`units-${option.value}`}
               >
-                <RadioGroupItem value={option.value} id={`units-${option.value}`} className="mt-1" />
+                <RadioGroupItem
+                  value={option.value}
+                  id={`units-${option.value}`}
+                  className="mt-1"
+                />
                 <div>
-                  <div className="font-medium text-foreground">{option.label}</div>
-                  <div className="text-xs text-muted-foreground">{option.description}</div>
+                  <div className="font-medium text-foreground">
+                    {option.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {option.description}
+                  </div>
                 </div>
               </Label>
             ))}
@@ -57,7 +80,12 @@ const SettingsUnits = () => {
 
           {error && <div className="text-xs text-destructive">{error}</div>}
 
-          <Button variant="outline" size="sm" disabled className="w-full justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            className="w-full justify-center"
+          >
             {loading || saving ? "Saving…" : "Changes save automatically"}
           </Button>
         </CardContent>

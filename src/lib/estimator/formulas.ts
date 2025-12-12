@@ -25,7 +25,7 @@ export function navyMale({
   if (!waistIn || !neckIn || !heightIn || waistIn <= neckIn) {
     return NaN;
   }
-  const bf = 86.010 * log10(waistIn - neckIn) - 70.041 * log10(heightIn) + 36.76;
+  const bf = 86.01 * log10(waistIn - neckIn) - 70.041 * log10(heightIn) + 36.76;
   return clamp(round(bf), 3, 65);
 }
 
@@ -43,7 +43,10 @@ export function navyFemale({
   if (!waistIn || !neckIn || !hipIn || !heightIn || waistIn + hipIn <= neckIn) {
     return NaN;
   }
-  const bf = 163.205 * log10(waistIn + hipIn - neckIn) - 97.684 * log10(heightIn) - 78.387;
+  const bf =
+    163.205 * log10(waistIn + hipIn - neckIn) -
+    97.684 * log10(heightIn) -
+    78.387;
   return clamp(round(bf), 5, 65);
 }
 

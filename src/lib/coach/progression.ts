@@ -11,7 +11,10 @@ interface FlattenedSet {
 
 type DisplayOverrides = Record<number, string | undefined>;
 
-export function flattenDay(day: Day, overrides?: DisplayOverrides): FlattenedSet[] {
+export function flattenDay(
+  day: Day,
+  overrides?: DisplayOverrides
+): FlattenedSet[] {
   const rows: FlattenedSet[] = [];
   let globalExerciseIndex = 0;
   day.blocks.forEach((block) => {
@@ -34,13 +37,19 @@ export function flattenDay(day: Day, overrides?: DisplayOverrides): FlattenedSet
 
 export function nextProgressionHint(exercise: Exercise): string {
   const { reps, rir, restSec, tempo } = exercise;
-  const rirText = typeof rir === "number" ? ` Aim to finish around ${rir} RIR.` : "";
-  const restText = typeof restSec === "number" ? ` Keep rest about ${Math.round(restSec / 30) * 30} sec.` : "";
+  const rirText =
+    typeof rir === "number" ? ` Aim to finish around ${rir} RIR.` : "";
+  const restText =
+    typeof restSec === "number"
+      ? ` Keep rest about ${Math.round(restSec / 30) * 30} sec.`
+      : "";
   const tempoText = tempo ? ` Control tempo (${tempo}).` : "";
   return `Add 2.5–5 lb next week if all sets hit ${reps}.${rirText}${restText}${tempoText}`.trim();
 }
 
-function parseRepRange(reps: string): { lower: number | null; upper: number | null } | null {
+function parseRepRange(
+  reps: string
+): { lower: number | null; upper: number | null } | null {
   const cleaned = reps.trim().toLowerCase();
   if (!cleaned || cleaned.includes("amrap") || cleaned.includes("min")) {
     return null;
@@ -149,8 +158,10 @@ export function computeNextTargets(params: {
   }
 
   const { lower, upper } = repRange;
-  const avgReps = lastSets.reduce((sum, set) => sum + set.reps, 0) / lastSets.length;
-  const allMetUpper = typeof upper === "number" && lastSets.every((set) => set.reps >= upper);
+  const avgReps =
+    lastSets.reduce((sum, set) => sum + set.reps, 0) / lastSets.length;
+  const allMetUpper =
+    typeof upper === "number" && lastSets.every((set) => set.reps >= upper);
 
   if (allMetUpper) {
     if (isCompoundLift(exerciseName)) {

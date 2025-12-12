@@ -10,10 +10,16 @@ export default function NotFound() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="max-w-md text-center space-y-4">
-        <h1 className="text-3xl font-semibold text-foreground">Page not found</h1>
-        <p className="text-sm text-muted-foreground">The page you’re looking for doesn’t exist or was moved.</p>
+        <h1 className="text-3xl font-semibold text-foreground">
+          Page not found
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          The page you’re looking for doesn’t exist or was moved.
+        </p>
         <div className="flex justify-center gap-2">
-          <Link className="underline" to="/home">Go home</Link>
+          <Link className="underline" to="/home">
+            Go home
+          </Link>
         </div>
       </div>
     </main>

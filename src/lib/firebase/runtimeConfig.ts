@@ -18,8 +18,11 @@ export function getIdentityToolkitProbeStatus(): IdentityToolkitProbeStatus | nu
   return lastIdentityToolkitProbe;
 }
 
-export async function probeFirebaseRuntime(): Promise<{ identityToolkit: IdentityToolkitProbeStatus | null }> {
-  if (typeof window === "undefined") return { identityToolkit: lastIdentityToolkitProbe };
+export async function probeFirebaseRuntime(): Promise<{
+  identityToolkit: IdentityToolkitProbeStatus | null;
+}> {
+  if (typeof window === "undefined")
+    return { identityToolkit: lastIdentityToolkitProbe };
 
   if (!isIdentityToolkitProbeEnabled()) {
     if (!warnedIdentityToolkit && import.meta.env.DEV) {
@@ -55,7 +58,7 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
           "[probe] build/runtime projectId mismatch:",
           expected,
           "vs",
-          projectId,
+          projectId
         );
       }
       return {
@@ -71,9 +74,16 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
   const identityToolkit = await (async () => {
     try {
       const { apiKey, projectId } = await keyFromRuntime;
-      console.log("[probe] origin:", origin, "apiKey present:", Boolean(apiKey));
+      console.log(
+        "[probe] origin:",
+        origin,
+        "apiKey present:",
+        Boolean(apiKey)
+      );
       if (!apiKey) {
-        console.info("[probe] IdentityToolkit probe skipped: no runtime apiKey");
+        console.info(
+          "[probe] IdentityToolkit probe skipped: no runtime apiKey"
+        );
         return recordIdentityToolkitProbe({
           status: "warning",
           message: "IdentityToolkit probe skipped: missing runtime apiKey",
@@ -81,7 +91,8 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
       }
 
       const normalizedProjectId =
-        projectId || (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined);
+        projectId ||
+        (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined);
       if (!normalizedProjectId) {
         return recordIdentityToolkitProbe({
           status: "warning",
@@ -90,7 +101,7 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
       }
 
       const url = `https://identitytoolkit.googleapis.com/v2/projects/${encodeURIComponent(
-        normalizedProjectId,
+        normalizedProjectId
       )}/clientConfig?key=${encodeURIComponent(apiKey)}`;
       const resp = await fetch(url, { mode: "cors" }).catch((error) => {
         if (!warnedIdentityToolkit) {
@@ -101,7 +112,10 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
       });
 
       if (!resp) {
-        return recordIdentityToolkitProbe({ status: "warning", message: "IdentityToolkit probe failed" });
+        return recordIdentityToolkitProbe({
+          status: "warning",
+          message: "IdentityToolkit probe failed",
+        });
       }
 
       if (resp.ok) {
@@ -109,7 +123,10 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
           console.info("[probe] IdentityToolkit clientConfig ok", resp.status);
           warnedIdentityToolkit = true;
         }
-        return recordIdentityToolkitProbe({ status: "ok", statusCode: resp.status });
+        return recordIdentityToolkitProbe({
+          status: "ok",
+          statusCode: resp.status,
+        });
       }
 
       const status = resp.status;
@@ -117,19 +134,27 @@ export async function probeFirebaseRuntime(): Promise<{ identityToolkit: Identit
         status === 404
           ? "clientConfig not provisioned for this origin"
           : `clientConfig responded ${status}`;
-      const level: IdentityToolkitProbeStatus["status"] = status === 404 || status === 403 ? "warning" : "error";
+      const level: IdentityToolkitProbeStatus["status"] =
+        status === 404 || status === 403 ? "warning" : "error";
       const logFn = level === "warning" ? console.info : console.warn;
       if (!warnedIdentityToolkit) {
         logFn("[probe] IdentityToolkit clientConfig", { status, reason });
         warnedIdentityToolkit = true;
       }
-      return recordIdentityToolkitProbe({ status: level, statusCode: status, message: reason });
+      return recordIdentityToolkitProbe({
+        status: level,
+        statusCode: status,
+        message: reason,
+      });
     } catch (error) {
       if (!warnedIdentityToolkit) {
         console.info("[probe] IdentityToolkit fetch error", error);
         warnedIdentityToolkit = true;
       }
-      return recordIdentityToolkitProbe({ status: "warning", message: "IdentityToolkit probe error" });
+      return recordIdentityToolkitProbe({
+        status: "warning",
+        message: "IdentityToolkit probe error",
+      });
     }
   })();
 

@@ -27,7 +27,12 @@ const DEFAULT_PRICE_MAP: Record<string, string> = {
   elite_annual: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 };
 
-const SUBSCRIPTION_PLAN_KEYS = new Set(["monthly", "annual", "pro_monthly", "elite_annual"]);
+const SUBSCRIPTION_PLAN_KEYS = new Set([
+  "monthly",
+  "annual",
+  "pro_monthly",
+  "elite_annual",
+]);
 
 function getRuntimeConfig(): RuntimeConfig {
   if (runtimeConfigOverride !== undefined) {
@@ -60,7 +65,9 @@ function readRuntimeConfig(path: string[]): string | null {
   return null;
 }
 
-function firstNonEmpty(values: Array<string | null | undefined>): string | null {
+function firstNonEmpty(
+  values: Array<string | null | undefined>
+): string | null {
   for (const value of values) {
     if (typeof value === "string") {
       const trimmed = value.trim();
@@ -105,7 +112,11 @@ export function getStripeSecret(): string | null {
   try {
     return getStripeKey();
   } catch (error) {
-    if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "payments_disabled"
+    ) {
       const configSecret = readRuntimeConfig(["stripe", "secret"]);
       if (configSecret) {
         return configSecret;
@@ -134,7 +145,11 @@ export function getOpenAiSecret(): string | null {
   try {
     return getOpenAIKey();
   } catch (error) {
-    if (error && typeof error === "object" && (error as { code?: string }).code === "openai_missing_key") {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "openai_missing_key"
+    ) {
       const configSecret = readRuntimeConfig(["openai", "api_key"]);
       if (configSecret) {
         return configSecret;

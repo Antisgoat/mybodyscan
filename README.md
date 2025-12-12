@@ -73,6 +73,7 @@ Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets
 The web app now includes WebView guardrails so it can be wrapped with Capacitor. See [mobile/WRAP.md](mobile/WRAP.md) for the complete step-by-step plan covering Capacitor setup, platform provisioning, and build handoff.
 
 Highlights:
+
 - Google sign-in auto-detects iOS/Android WebViews and uses redirect flows (no popup requirements)
 - External payment links route through `openExternal()` so Stripe opens in the system browser
 - File capture inputs request the environment camera with size/type validation, keeping scan uploads mobile-friendly
@@ -110,12 +111,12 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ### Cloud Functions secrets (attach via `firebase functions:secrets:set`)
 
-| Function | Secret name(s) | Purpose |
-| --- | --- | --- |
-| `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`) | Stripe API key for hosted checkout + portal. |
-| `stripeWebhook` | `STRIPE_SECRET`, `STRIPE_WEBHOOK` | Stripe API key and webhook signing secret. |
-| `coachChat` | `OPENAI_API_KEY` | Grants access to OpenAI chat models. |
-| `nutritionSearch`, `nutritionBarcode` | `USDA_FDC_API_KEY` | USDA FoodData Central lookups (Open Food Facts handles fallback). |
+| Function                                 | Secret name(s)                              | Purpose                                                           |
+| ---------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------- |
+| `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`) | Stripe API key for hosted checkout + portal.                      |
+| `stripeWebhook`                          | `STRIPE_SECRET`, `STRIPE_WEBHOOK`           | Stripe API key and webhook signing secret.                        |
+| `coachChat`                              | `OPENAI_API_KEY`                            | Grants access to OpenAI chat models.                              |
+| `nutritionSearch`, `nutritionBarcode`    | `USDA_FDC_API_KEY`                          | USDA FoodData Central lookups (Open Food Facts handles fallback). |
 
 ### Operational notes
 
@@ -185,11 +186,11 @@ Cloud Functions read Stripe credentials from Firebase Secrets Manager entries na
 
 Set these secrets or environment variables via Firebase (preferred) or your deployment environment:
 
-- `OPENAI_API_KEY` *(HTTPS chat + nutrition features; mock mode activates if unset)*
-- `STRIPE_SECRET_KEY` or `STRIPE_SECRET` *(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)*
-- `HOST_BASE_URL` *(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)*
-- `APP_CHECK_ALLOWED_ORIGINS` *(comma-delimited allowlist for strict App Check enforcement; optional)*
-- `APP_CHECK_ENFORCE_SOFT` *(defaults to `true`; set to `false` to enforce App Check for allowed origins)*
+- `OPENAI_API_KEY` _(HTTPS chat + nutrition features; mock mode activates if unset)_
+- `STRIPE_SECRET_KEY` or `STRIPE_SECRET` _(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)_
+- `HOST_BASE_URL` _(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)_
+- `APP_CHECK_ALLOWED_ORIGINS` _(comma-delimited allowlist for strict App Check enforcement; optional)_
+- `APP_CHECK_ENFORCE_SOFT` _(defaults to `true`; set to `false` to enforce App Check for allowed origins)_
 
 ## Secrets & Deploy
 
@@ -233,9 +234,11 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 - `APP_CHECK_ENFORCE_SOFT = true`
 
 ## Firebase Web config (Lovable without env vars)
-We first try Vite env vars (VITE_FIREBASE_*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
+
+We first try Vite env vars (VITE*FIREBASE*\*). If they are absent (e.g., Lovable has no Environment panel), we fall back to `src/config/firebase.public.ts` which contains your **public** Web config.
 
 Authorized domains (Firebase Console → Auth → Settings):
+
 - localhost
 - 127.0.0.1
 - mybodyscan-f3daf.web.app
@@ -244,6 +247,7 @@ Authorized domains (Firebase Console → Auth → Settings):
 - your custom domain(s)
 
 Notes:
+
 - The Storage bucket must be `mybodyscan-f3daf.appspot.com` (the canonical bucket), not `...firebasestorage.app` which is a download host.
 
 ## Firestore & Storage rules quick reference
@@ -295,7 +299,7 @@ Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safa
 - Delete account removes Auth user, Firestore subtree, and Storage folder; subsequent login creates a new clean user.
 - Export returns JSON with signed URLs and latest results.
 - Firestore/Storage rules compile and block writes where expected (private paths).
-- TEST badge appears when pk_test_ is in use; Settings shows Support, Terms, Privacy, and Refresh Claims works (∞ on developer@).
+- TEST badge appears when pk*test* is in use; Settings shows Support, Terms, Privacy, and Refresh Claims works (∞ on developer@).
 - `/__smoke` probes show: rules write-deny, export JSON preview OK.
 - CI green; no regressions to sign-in, payments/portal, scans, coach, nutrition.
 
@@ -351,47 +355,54 @@ app). This script is intended for web builds only and is decoupled from the Clou
 Stripe webhook requests now require a valid signature. Invalid signatures return HTTP 400 and are not processed, so make sure the webhook endpoint in your Stripe dashboard uses the current signing secret. Webhook deliveries are de-duplicated via the `stripe_events/{eventId}` collection with a 30-day TTL on markers—enable TTL on the `expiresAt` field in the Firestore console to automatically purge old markers.
 
 ## Auth env setup (fix for `auth/api-key-not-valid`)
-1) Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
-2) In **Lovable → Project Settings → Environment**, add the same `VITE_FIREBASE_*` variables.
-3) Firebase Console → **Authentication → Settings → Authorized domains**: add
+
+1. Fill **.env.development** and **.env.production** with your real Firebase Web App values (see `.env.example`).
+2. In **Lovable → Project Settings → Environment**, add the same `VITE_FIREBASE_*` variables.
+3. Firebase Console → **Authentication → Settings → Authorized domains**: add
    - localhost
    - 127.0.0.1
    - mybodyscan-f3daf.web.app
    - mybodyscan-f3daf.firebaseapp.com
    - your custom domain(s) (e.g., mybodyscan.app, www.mybodyscan.app)
    - your Lovable preview domain
-4) Rebuild locally: `npm ci && npm run build && npm run preview`
-5) Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
+4. Rebuild locally: `npm ci && npm run build && npm run preview`
+5. Deploy: `npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --force`
 
 ## Smoke test
 
 After deploying this PR, validate end-to-end:
 
-1) Auth
+1. Auth
+
 - Desktop Chrome: sign in with Email and Google
 - iOS Safari (private tab): tap Google → redirect completes and signs in; no auth/internal-error
 - Reload the app: redirect result is consumed once, no page loop
 
-2) Scan
+2. Scan
+
 - Start a scan, upload 4 photos, Submit
 - Inference completes; result appears on the results page and is saved under `users/{uid}/scans/{scanId}`
 - If no credits and not whitelisted, a toast prompts to buy credits
 
-3) Credits & Billing
+3. Credits & Billing
+
 - Plans: “Buy Now/Subscribe/Yearly” call Cloud Run `https://createcheckout-534gpapj7q-uc.a.run.app` (set `VITE_USE_HOSTING_SHIM=true` to force `/createCheckout` during testing)
 - After successful payment and webhook, credits/subscription reflect on the account
 - “Manage Billing” opens Stripe Customer Portal via `https://createcustomerportal-534gpapj7q-uc.a.run.app` with the same optional hosting shim fallback
 
-4) Coach & Nutrition
+4. Coach & Nutrition
+
 - Coach chat responds for authed users; errors show friendly toasts
 - Nutrition: search returns results (USDA first, OFF fallback); barcode works (OFF first)
 - Add/edit/delete meal entries updates daily totals
 
-5) Stability
+5. Stability
+
 - Visit `/__diag`: shows auth user, claims, App Check token present, Stripe key presence, build info
 - “Unregister SW + Clear caches” succeeds (no SW by default)
 
-6) CI
+6. CI
+
 - GitHub Actions workflow green for Web and Functions
 
 ## Secrets & Deploy Quick Reference
@@ -405,7 +416,9 @@ After deploying this PR, validate end-to-end:
   - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
 - Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
 - Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)
+
 ## Reliable deploy (prod)
+
 - Build with stamp: `VITE_BUILD_TIME` + `VITE_BUILD_SHA`.
 - Deploy functions first (if changed), then hosting:
 

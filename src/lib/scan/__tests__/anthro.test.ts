@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bmiFromKgCm, computeBodyFat, reconcileBodyFat, bfUsNavyFemale, bfUsNavyMale } from "../anthro";
+import {
+  bmiFromKgCm,
+  computeBodyFat,
+  reconcileBodyFat,
+  bfUsNavyFemale,
+  bfUsNavyMale,
+} from "../anthro";
 
 describe("anthropometric estimators", () => {
   it("computes US Navy male estimate within expected bounds", () => {
@@ -23,14 +29,24 @@ describe("anthropometric estimators", () => {
   });
 
   it("derives circumference-based body-fat results when data is available", () => {
-    const result = computeBodyFat({ sex: "male", heightCm: 180, neckCm: 40, waistCm: 90, weightKg: 82 });
+    const result = computeBodyFat({
+      sex: "male",
+      heightCm: 180,
+      neckCm: 40,
+      waistCm: 90,
+      weightKg: 82,
+    });
     expect(result.method).toBe("photo");
     expect(Number.isFinite(result.bfPercent)).toBe(true);
     expect(result.confidence).toBeGreaterThan(0.6);
   });
 
   it("falls back to BMI estimate when circumferences missing", () => {
-    const result = computeBodyFat({ sex: "female", heightCm: 165, weightKg: 70 });
+    const result = computeBodyFat({
+      sex: "female",
+      heightCm: 165,
+      weightKg: 70,
+    });
     expect(result.method).toBe("bmi_fallback");
     expect(result.confidence).toBeLessThan(0.5);
     expect(result.bfPercent).toBeGreaterThan(0);

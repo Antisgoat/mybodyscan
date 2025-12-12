@@ -86,7 +86,12 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Hanging Leg Raise", "sets": 3, "reps": "12", "restSec": 60 },
+                {
+                  "name": "Hanging Leg Raise",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                },
                 { "name": "Face Pull", "sets": 3, "reps": "15", "restSec": 60 }
               ]
             }
@@ -139,8 +144,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Pull-Up", "sets": 3, "reps": "AMRAP", "restSec": 120 },
-                { "name": "Barbell Hip Thrust", "sets": 3, "reps": "8", "restSec": 120 }
+                {
+                  "name": "Pull-Up",
+                  "sets": 3,
+                  "reps": "AMRAP",
+                  "restSec": 120
+                },
+                {
+                  "name": "Barbell Hip Thrust",
+                  "sets": 3,
+                  "reps": "8",
+                  "restSec": 120
+                }
               ]
             }
           ]
@@ -181,8 +196,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Dumbbell Romanian Deadlift", "sets": 3, "reps": "10", "restSec": 90 },
-                { "name": "Cable Chop", "sets": 3, "reps": "12/side", "restSec": 60 }
+                {
+                  "name": "Dumbbell Romanian Deadlift",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 90
+                },
+                {
+                  "name": "Cable Chop",
+                  "sets": 3,
+                  "reps": "12/side",
+                  "restSec": 60
+                }
               ]
             }
           ]

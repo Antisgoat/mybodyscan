@@ -48,7 +48,9 @@ function upsertScan(scan: Scan) {
 export async function getLastScan(uid: string): Promise<Scan | null> {
   const userScans = store.get(uid);
   if (!userScans) return null;
-  const scans = Array.from(userScans.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const scans = Array.from(userScans.values()).sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : -1
+  );
   return scans[0] || null;
 }
 
@@ -60,7 +62,10 @@ export async function listScansByUid(uid: string, limit = 50): Promise<Scan[]> {
     .slice(0, limit);
 }
 
-export async function getScan(uid: string, scanId: string): Promise<Scan | null> {
+export async function getScan(
+  uid: string,
+  scanId: string
+): Promise<Scan | null> {
   const userScans = store.get(uid);
   return userScans?.get(scanId) || null;
 }
@@ -89,7 +94,10 @@ function simulateProcessingToDone(uid: string, scanId: string) {
   }, 4500);
 }
 
-export async function createScanDraftPhotos(uid: string, files: { front: File; left: File; right: File; back: File }) {
+export async function createScanDraftPhotos(
+  uid: string,
+  files: { front: File; left: File; right: File; back: File }
+) {
   const id = uuidv4();
   const scan: Scan = {
     id,
@@ -115,7 +123,11 @@ export async function createScanDraftPhotos(uid: string, files: { front: File; l
   return { scanId: id, scan };
 }
 
-export async function createScanDraftVideo(uid: string, file: File, durationSec: number) {
+export async function createScanDraftVideo(
+  uid: string,
+  file: File,
+  durationSec: number
+) {
   const id = uuidv4();
   const scan: Scan = {
     id,

@@ -10,7 +10,11 @@ type Props = {
 export default function CreditsBadge(props: Props) {
   const { className } = props;
   const { user, claims, loading: claimsLoading, refresh } = useClaims();
-  const { credits, loading: creditsLoading, unlimited: creditsUnlimited } = useCredits();
+  const {
+    credits,
+    loading: creditsLoading,
+    unlimited: creditsUnlimited,
+  } = useCredits();
   const directClaims = useUserClaims();
   const loading = claimsLoading || creditsLoading;
 
@@ -20,12 +24,14 @@ export default function CreditsBadge(props: Props) {
     if (
       directClaims?.admin === true ||
       directClaims?.unlimited === true ||
-      (typeof directClaims?.role === "string" && directClaims.role.toLowerCase() === "admin")
+      (typeof directClaims?.role === "string" &&
+        directClaims.role.toLowerCase() === "admin")
     ) {
       return "Unlimited";
     }
     const dev = claims?.dev === true;
-    const unlimitedClaim = claims?.unlimited === true || claims?.unlimitedCredits === true;
+    const unlimitedClaim =
+      claims?.unlimited === true || claims?.unlimitedCredits === true;
     const unlimited =
       dev ||
       unlimitedClaim ||
@@ -34,7 +40,9 @@ export default function CreditsBadge(props: Props) {
       directClaims?.unlimited === true ||
       directClaims?.unlimitedCredits === true;
     if (unlimited) return "Unlimited";
-    const n = Number.isFinite(credits) ? Math.max(0, Math.floor(Number(credits))) : 0;
+    const n = Number.isFinite(credits)
+      ? Math.max(0, Math.floor(Number(credits)))
+      : 0;
     return String(n);
   })();
 
@@ -43,7 +51,8 @@ export default function CreditsBadge(props: Props) {
     if (
       directClaims?.admin === true ||
       directClaims?.unlimited === true ||
-      (typeof directClaims?.role === "string" && directClaims.role.toLowerCase() === "admin")
+      (typeof directClaims?.role === "string" &&
+        directClaims.role.toLowerCase() === "admin")
     ) {
       return "Unlimited credits";
     }
@@ -62,9 +71,19 @@ export default function CreditsBadge(props: Props) {
   })();
 
   return (
-    <div style={containerStyle} className={className} title={title} aria-label={title}>
+    <div
+      style={containerStyle}
+      className={className}
+      title={title}
+      aria-label={title}
+    >
       <span style={pillStyle}>{text}</span>
-      <button type="button" style={btnStyle} aria-label="Refresh credits" onClick={() => void refresh()}>
+      <button
+        type="button"
+        style={btnStyle}
+        aria-label="Refresh credits"
+        onClick={() => void refresh()}
+      >
         Refresh
       </button>
     </div>

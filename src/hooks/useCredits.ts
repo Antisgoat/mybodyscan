@@ -48,7 +48,9 @@ export function useCredits() {
               }
             }
           }
-          const hasUnlimited = token.claims.unlimitedCredits === true || token.claims.unlimited === true;
+          const hasUnlimited =
+            token.claims.unlimitedCredits === true ||
+            token.claims.unlimited === true;
           setUnlimited(hasUnlimited);
         }
       },
@@ -102,7 +104,7 @@ export function useCredits() {
       error,
       uid,
       projectId,
-    unlimited: true,
+      unlimited: true,
       remaining: Infinity,
       used: 0,
       refresh,
@@ -121,4 +123,3 @@ export function useCredits() {
     refresh,
   } as const;
 }
-

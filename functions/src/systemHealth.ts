@@ -67,7 +67,9 @@ export const systemHealth = onRequest(
       envPresent(process.env.STRIPE_SIGNING_SECRET) ||
       envPresent(process.env.STRIPE_SIGNATURE);
 
-    const usdaKeyPresent = envPresent(process.env.USDA_FDC_API_KEY) || secretPresent(usdaFdcApiKeyParam);
+    const usdaKeyPresent =
+      envPresent(process.env.USDA_FDC_API_KEY) ||
+      secretPresent(usdaFdcApiKeyParam);
     const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM);
     const nutritionConfigured = usdaKeyPresent || nutritionRpmPresent;
     const coachRpmPresent = envPresent(process.env.COACH_RPM);
@@ -81,7 +83,10 @@ export const systemHealth = onRequest(
     const workoutAdjustConfigured = workoutsConfigured && openaiConfigured;
 
     const identityToolkitReachable = true;
-    const identityToolkitReason = openaiConfigured || stripeSecretPresent || usdaKeyPresent ? "ok" : "unknown";
+    const identityToolkitReason =
+      openaiConfigured || stripeSecretPresent || usdaKeyPresent
+        ? "ok"
+        : "unknown";
 
     const authProviders = {
       google: getEnvBool("AUTH_GOOGLE_ENABLED", true),
@@ -110,5 +115,5 @@ export const systemHealth = onRequest(
       identityToolkitReachable,
       identityToolkitReason,
     });
-  },
+  }
 );

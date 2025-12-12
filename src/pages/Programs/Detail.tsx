@@ -22,8 +22,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { loadAllPrograms, type CatalogEntry, type ProgramMeta } from "@/lib/coach/catalog";
-import type { Exercise, Program, ProgramEquipment, ProgramFaq } from "@/lib/coach/types";
+import {
+  loadAllPrograms,
+  type CatalogEntry,
+  type ProgramMeta,
+} from "@/lib/coach/catalog";
+import type {
+  Exercise,
+  Program,
+  ProgramEquipment,
+  ProgramFaq,
+} from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
 import { auth, db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
@@ -81,7 +90,9 @@ function describeExercise(exercise: Exercise) {
   if (typeof exercise.restSec === "number" && exercise.restSec > 0) {
     parts.push(`${exercise.restSec}s rest`);
   }
-  return parts.length ? `${exercise.name} — ${parts.join(" · ")}` : exercise.name;
+  return parts.length
+    ? `${exercise.name} — ${parts.join(" · ")}`
+    : exercise.name;
 }
 
 export default function ProgramDetail() {
@@ -113,7 +124,10 @@ export default function ProgramDetail() {
   const program = entry?.program;
   const meta = entry?.meta;
 
-  const sampleDay = useMemo(() => (program ? firstTrainingDay(program) : null), [program]);
+  const sampleDay = useMemo(
+    () => (program ? firstTrainingDay(program) : null),
+    [program]
+  );
 
   const handleStartProgram = async () => {
     if (!program || !meta) return;
@@ -123,7 +137,10 @@ export default function ProgramDetail() {
     }
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "Sign in required", description: "Log in to save your training program." });
+      toast({
+        title: "Sign in required",
+        description: "Log in to save your training program.",
+      });
       return;
     }
     try {
@@ -131,7 +148,9 @@ export default function ProgramDetail() {
       const profileRef = doc(db, "users", user.uid, "coach", "profile");
       const planRef = doc(db, "users", user.uid, "coachPlans", "current");
       const priorPlanSnap = await getDoc(planRef);
-      const priorPlan = priorPlanSnap.exists() ? (priorPlanSnap.data() as Record<string, any>) : null;
+      const priorPlan = priorPlanSnap.exists()
+        ? (priorPlanSnap.data() as Record<string, any>)
+        : null;
 
       const sessions = program.weeks.flatMap((week, weekIdx) =>
         (week.days ?? []).map((day) => ({
@@ -141,30 +160,42 @@ export default function ProgramDetail() {
             focus: block.title,
             work: block.exercises.map((exercise) => describeExercise(exercise)),
           })),
-        })),
+        }))
       );
 
       const catalogSubmission = buildCatalogPlanSubmission(program, meta);
       let workoutPlanId: string | null = null;
       try {
         const applied = await applyCatalogPlan(catalogSubmission);
-        workoutPlanId = typeof applied?.planId === "string" ? applied.planId : null;
+        workoutPlanId =
+          typeof applied?.planId === "string" ? applied.planId : null;
       } catch (error: any) {
         throw new Error(
           typeof error?.message === "string" && error.message.length
             ? error.message
-            : "Unable to apply the workout plan. Please try again.",
+            : "Unable to apply the workout plan. Please try again."
         );
       }
       if (!workoutPlanId) {
         throw new Error("Unable to activate workout plan.");
       }
 
-      const fallbackCalorieTarget = typeof priorPlan?.calorieTarget === "number" ? priorPlan.calorieTarget : 2200;
-      const fallbackProteinFloor = typeof priorPlan?.proteinFloor === "number" ? priorPlan.proteinFloor : 140;
+      const fallbackCalorieTarget =
+        typeof priorPlan?.calorieTarget === "number"
+          ? priorPlan.calorieTarget
+          : 2200;
+      const fallbackProteinFloor =
+        typeof priorPlan?.proteinFloor === "number"
+          ? priorPlan.proteinFloor
+          : 140;
       const progression =
         priorPlan?.progression ??
-        ({ deloadEvery: Array.isArray(program.deloadWeeks) && program.deloadWeeks.length ? program.deloadWeeks[0] : 4 } as {
+        ({
+          deloadEvery:
+            Array.isArray(program.deloadWeeks) && program.deloadWeeks.length
+              ? program.deloadWeeks[0]
+              : 4,
+        } as {
           deloadEvery: number;
         });
 
@@ -176,7 +207,10 @@ export default function ProgramDetail() {
         progression,
         calorieTarget: fallbackCalorieTarget,
         proteinFloor: fallbackProteinFloor,
-        disclaimer: program.summary ?? priorPlan?.disclaimer ?? "Training guidance only – not medical advice.",
+        disclaimer:
+          program.summary ??
+          priorPlan?.disclaimer ??
+          "Training guidance only – not medical advice.",
         source: "catalog",
         programId: program.id,
         programTitle: program.title,
@@ -199,18 +233,29 @@ export default function ProgramDetail() {
           lastCompletedWeekIdx: -1,
           lastCompletedDayIdx: -1,
         },
-        { merge: true },
+        { merge: true }
       );
-      toast({ title: "Program started", description: `${program.title} is now your active plan.` });
+      toast({
+        title: "Program started",
+        description: `${program.title} is now your active plan.`,
+      });
       navigate(`/workouts?plan=${workoutPlanId}&started=1`, { replace: true });
     } catch (error) {
-      const code = typeof (error as { code?: string } | null)?.code === "string" ? (error as { code: string }).code : null;
+      const code =
+        typeof (error as { code?: string } | null)?.code === "string"
+          ? (error as { code: string }).code
+          : null;
       let description: string;
       if (code === "permission-denied") {
-        description = "Your account can't start programs yet. Refresh or contact support.";
+        description =
+          "Your account can't start programs yet. Refresh or contact support.";
       } else if (code === "unavailable") {
-        description = "Programs are temporarily offline. Please try again shortly.";
-      } else if (typeof (error as Error)?.message === "string" && (error as Error).message.length) {
+        description =
+          "Programs are temporarily offline. Please try again shortly.";
+      } else if (
+        typeof (error as Error)?.message === "string" &&
+        (error as Error).message.length
+      ) {
         description = (error as Error).message;
       } else {
         description = "Please try again.";
@@ -233,7 +278,10 @@ export default function ProgramDetail() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
-        <Seo title="Programs – MyBodyScan" description="Browse structured training programs." />
+        <Seo
+          title="Programs – MyBodyScan"
+          description="Browse structured training programs."
+        />
         <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
           <div className="h-64 animate-pulse rounded-lg bg-muted/50" />
           <div className="space-y-4">
@@ -249,15 +297,23 @@ export default function ProgramDetail() {
   if (!entry || !program || !meta) {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
-        <Seo title="Program not found – MyBodyScan" description="Program details." />
+        <Seo
+          title="Program not found – MyBodyScan"
+          description="Program details."
+        />
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-          <Button variant="ghost" className="w-fit" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            className="w-fit"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to programs
           </Button>
           <Card>
             <CardContent className="p-8 text-center text-sm text-muted-foreground">
-              We couldn't find that program. Browse the catalog to pick another option.
+              We couldn't find that program. Browse the catalog to pick another
+              option.
             </CardContent>
           </Card>
         </main>
@@ -267,7 +323,9 @@ export default function ProgramDetail() {
   }
 
   const equipment = meta.equipment.length ? meta.equipment : ["none"];
-  const equipmentDisplay = equipment.map((item) => equipmentLabels[item] ?? item);
+  const equipmentDisplay = equipment.map(
+    (item) => equipmentLabels[item] ?? item
+  );
   const deloadWeeks = program.deloadWeeks ?? [];
   const hasDeloadWeeks = deloadWeeks.length > 0;
   const deloadWeekLabel = deloadWeeks
@@ -281,7 +339,10 @@ export default function ProgramDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title={`${program.title} – MyBodyScan`} description={program.summary ?? "Training program details"} />
+      <Seo
+        title={`${program.title} – MyBodyScan`}
+        description={program.summary ?? "Training program details"}
+      />
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
         <Button variant="ghost" className="w-fit" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to programs
@@ -292,7 +353,11 @@ export default function ProgramDetail() {
             <AspectRatio ratio={16 / 7}>
               <div className="relative h-full w-full">
                 {meta.heroImg ? (
-                  <img src={meta.heroImg} alt={program.title} className="h-full w-full object-cover" />
+                  <img
+                    src={meta.heroImg}
+                    alt={program.title}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <div className="h-full w-full bg-gradient-to-br from-primary/30 via-primary/10 to-background" />
                 )}
@@ -310,12 +375,17 @@ export default function ProgramDetail() {
           </div>
           <CardHeader className="space-y-4">
             <div className="space-y-2">
-              <CardTitle className="text-3xl font-semibold">{program.title}</CardTitle>
+              <CardTitle className="text-3xl font-semibold">
+                {program.title}
+              </CardTitle>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                {program.summary ?? `A ${meta.daysPerWeek}-day plan for ${levelLabels[meta.level]}.`}
+                {program.summary ??
+                  `A ${meta.daysPerWeek}-day plan for ${levelLabels[meta.level]}.`}
               </p>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{scheduleCaption}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {scheduleCaption}
+            </p>
             {program.tags && program.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {program.tags.map((tag) => (
@@ -347,7 +417,9 @@ export default function ProgramDetail() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-primary">
                     Why this plan works
                   </span>
-                  <p className="text-sm leading-relaxed text-muted-foreground">{program.rationale}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {program.rationale}
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -360,28 +432,48 @@ export default function ProgramDetail() {
             <CardContent className="space-y-4">
               <dl className="grid gap-3 text-sm">
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Level</dt>
-                  <dd className="font-medium text-foreground">{levelLabels[meta.level]}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Level
+                  </dt>
+                  <dd className="font-medium text-foreground">
+                    {levelLabels[meta.level]}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Days / week</dt>
-                  <dd className="font-medium text-foreground">{meta.daysPerWeek}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Days / week
+                  </dt>
+                  <dd className="font-medium text-foreground">
+                    {meta.daysPerWeek}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Total weeks</dt>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Total weeks
+                  </dt>
                   <dd className="font-medium text-foreground">{meta.weeks}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Session length</dt>
-                  <dd className="font-medium text-foreground">{formatDuration(meta.durationPerSessionMin)}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Session length
+                  </dt>
+                  <dd className="font-medium text-foreground">
+                    {formatDuration(meta.durationPerSessionMin)}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">Equipment</dt>
-                  <dd className="font-medium text-foreground">{equipmentDisplay.join(" • ")}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Equipment
+                  </dt>
+                  <dd className="font-medium text-foreground">
+                    {equipmentDisplay.join(" • ")}
+                  </dd>
                 </div>
               </dl>
               {hasDeloadWeeks && deloadWeekLabel && (
-                <p className="text-xs text-muted-foreground">Includes deload week(s): {deloadWeekLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  Includes deload week(s): {deloadWeekLabel}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -390,12 +482,15 @@ export default function ProgramDetail() {
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <Card className="border bg-card/60">
             <CardHeader>
-              <CardTitle className="text-xl">Weekly schedule overview</CardTitle>
+              <CardTitle className="text-xl">
+                Weekly schedule overview
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {hasDeloadWeeks && (
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Deload weeks automatically dial back volume so you can recover before the next block.
+                  Deload weeks automatically dial back volume so you can recover
+                  before the next block.
                 </p>
               )}
               <Table>
@@ -412,7 +507,10 @@ export default function ProgramDetail() {
                         <div className="flex items-center gap-2">
                           <span>Week {index + 1}</span>
                           {isDeloadWeek(index, program.deloadWeeks) && (
-                            <Badge variant="outline" className="border-primary/40 text-primary">
+                            <Badge
+                              variant="outline"
+                              className="border-primary/40 text-primary"
+                            >
                               Deload
                             </Badge>
                           )}
@@ -463,12 +561,20 @@ export default function ProgramDetail() {
                   </AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
                     {sampleDay.blocks.map((block, blockIdx) => (
-                      <div key={blockIdx} className="rounded-md border bg-muted/40 p-4">
-                        <p className="text-sm font-semibold text-foreground">{block.title}</p>
+                      <div
+                        key={blockIdx}
+                        className="rounded-md border bg-muted/40 p-4"
+                      >
+                        <p className="text-sm font-semibold text-foreground">
+                          {block.title}
+                        </p>
                         <Separator className="my-2" />
                         <ul className="space-y-2 text-sm text-muted-foreground">
                           {block.exercises.map((exercise, exerciseIdx) => (
-                            <li key={exerciseIdx} className="flex items-start justify-between gap-4">
+                            <li
+                              key={exerciseIdx}
+                              className="flex items-start justify-between gap-4"
+                            >
                               <span>{exercise.name}</span>
                               <span className="text-xs uppercase tracking-wide">
                                 {exercise.sets} × {exercise.reps}
@@ -482,7 +588,9 @@ export default function ProgramDetail() {
                 </AccordionItem>
               </Accordion>
             ) : (
-              <p className="text-sm text-muted-foreground">No training days provided.</p>
+              <p className="text-sm text-muted-foreground">
+                No training days provided.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -514,7 +622,8 @@ export default function ProgramDetail() {
             <div className="flex items-start gap-3">
               <Info className="mt-1 h-5 w-5 text-primary" />
               <p className="text-sm text-muted-foreground">
-                Starting this program keeps your past logs intact and resets your weekly schedule to week 1.
+                Starting this program keeps your past logs intact and resets
+                your weekly schedule to week 1.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -527,7 +636,8 @@ export default function ProgramDetail() {
                 disabled={isSaving || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" /> {demo ? "Demo only" : "Start program"}
+                <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
+                {demo ? "Demo only" : "Start program"}
               </DemoWriteButton>
             </div>
           </CardContent>
@@ -553,7 +663,9 @@ function pickWeekdays(count: number): string[] {
   return DAY_NAME_PRESETS[clamped] ?? DAY_NAME_PRESETS[5];
 }
 
-function flattenExercises(day: Program["weeks"][number]["days"][number]): CatalogPlanSubmission["days"][number]["exercises"] {
+function flattenExercises(
+  day: Program["weeks"][number]["days"][number]
+): CatalogPlanSubmission["days"][number]["exercises"] {
   const exercises = day.blocks?.flatMap((block) => block.exercises || []) ?? [];
   if (!exercises.length) {
     return [
@@ -566,12 +678,16 @@ function flattenExercises(day: Program["weeks"][number]["days"][number]): Catalo
   }
   return exercises.slice(0, 12).map((exercise, index) => ({
     name: exercise.name || `Exercise ${index + 1}`,
-    sets: Number.isFinite(exercise.sets) && exercise.sets > 0 ? exercise.sets : 3,
+    sets:
+      Number.isFinite(exercise.sets) && exercise.sets > 0 ? exercise.sets : 3,
     reps: exercise.reps ?? "10",
   }));
 }
 
-function buildCatalogPlanSubmission(program: Program, meta: ProgramMeta): CatalogPlanSubmission {
+function buildCatalogPlanSubmission(
+  program: Program,
+  meta: ProgramMeta
+): CatalogPlanSubmission {
   const baseWeek = program.weeks?.[0];
   const sourceDays = baseWeek?.days ?? [];
   if (!sourceDays.length) {

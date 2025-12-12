@@ -17,7 +17,10 @@ export function appCheckSoft(req: Request, res: Response, next: NextFunction) {
       }
     })();
 
-    const token = req.header("X-Firebase-AppCheck") || req.header("x-firebase-appcheck") || "";
+    const token =
+      req.header("X-Firebase-AppCheck") ||
+      req.header("x-firebase-appcheck") ||
+      "";
     if (!token.trim()) {
       console.warn("appcheck_missing_soft", { path: req.path || req.url });
       return next();
@@ -31,7 +34,9 @@ export function appCheckSoft(req: Request, res: Response, next: NextFunction) {
 
     return next();
   } catch (error) {
-    console.warn("appcheck_soft_middleware_error", { message: (error as any)?.message });
+    console.warn("appcheck_soft_middleware_error", {
+      message: (error as any)?.message,
+    });
     return next();
   }
 }

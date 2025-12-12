@@ -14,16 +14,32 @@ fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
 function safeExec(cmd) {
   try {
-    return { ok: true, out: execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    return {
+      ok: true,
+      out: execSync(cmd, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    };
   } catch (e) {
     const out = (e.stdout?.toString?.() || "") + (e.stderr?.toString?.() || "");
     return { ok: false, out, code: e.status ?? 1 };
   }
 }
 
-function readJsonSafe(p) { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } }
-function exists(rel) { return fs.existsSync(path.join(ROOT, rel)); }
-function read(rel) { return exists(rel) ? fs.readFileSync(path.join(ROOT, rel), "utf8") : ""; }
+function readJsonSafe(p) {
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function exists(rel) {
+  return fs.existsSync(path.join(ROOT, rel));
+}
+function read(rel) {
+  return exists(rel) ? fs.readFileSync(path.join(ROOT, rel), "utf8") : "";
+}
 
 const ts = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+/, "Z");
 const graphRun = safeExec("node scripts/audit-graph.mjs");
@@ -44,10 +60,19 @@ const rewrites = fb?.hosting?.rewrites || [];
 const headers = fb?.hosting?.headers || [];
 
 const hasRewrite = (source, fnId) =>
-  rewrites.some((r) => r?.source === source && ((r.function?.functionId || r.function) === fnId));
+  rewrites.some(
+    (r) =>
+      r?.source === source && (r.function?.functionId || r.function) === fnId
+  );
 const hasIndexNoStore = () =>
-  headers.some((h) =>
-    h.source === "/index.html" && (h.headers || []).some((x) => x.key?.toLowerCase() === "cache-control" && /no-store/i.test(x.value || ""))
+  headers.some(
+    (h) =>
+      h.source === "/index.html" &&
+      (h.headers || []).some(
+        (x) =>
+          x.key?.toLowerCase() === "cache-control" &&
+          /no-store/i.test(x.value || "")
+      )
   );
 
 const checks = {
@@ -60,19 +85,45 @@ const checks = {
       hasRewrite("/api/createCustomerPortal", "createCustomerPortal"),
   },
   indexNoStore: { ok: hasIndexNoStore() },
-  appCheckClient: { ok: exists("src/lib/appCheck.ts") && /initializeAppCheck/.test(read("src/lib/appCheck.ts")) },
-  appCheckSoftServer: {
-    ok: /appCheckSoft\s*\(/.test(read("functions/src/http/appCheckSoft.ts") + read("functions/src/index.ts") + read("functions/src/http/index.ts")),
+  appCheckClient: {
+    ok:
+      exists("src/lib/appCheck.ts") &&
+      /initializeAppCheck/.test(read("src/lib/appCheck.ts")),
   },
-  demoSignedOutOnly: { ok: /auth\.currentUser/.test(read("src/lib/demo.ts")) && /VITE_DEMO_MODE/.test(read("src/lib/demo.ts")) },
-  adminUnlimited: { ok: exists("src/lib/useUserClaims.ts") && /Unlimited/.test(read("src/components/CreditsBadge.tsx") || "") },
-  fallbackClient: { ok: exists("src/lib/api/urls.ts") && /apiFetchWithFallback/.test(read("src/lib/http.ts")) },
-  nutritionSanitizer: { ok: exists("src/lib/nutrition/sanitize.ts") && /sanitizeFoodItem/.test(read("src/lib/nutrition/sanitize.ts")) },
+  appCheckSoftServer: {
+    ok: /appCheckSoft\s*\(/.test(
+      read("functions/src/http/appCheckSoft.ts") +
+        read("functions/src/index.ts") +
+        read("functions/src/http/index.ts")
+    ),
+  },
+  demoSignedOutOnly: {
+    ok:
+      /auth\.currentUser/.test(read("src/lib/demo.ts")) &&
+      /VITE_DEMO_MODE/.test(read("src/lib/demo.ts")),
+  },
+  adminUnlimited: {
+    ok:
+      exists("src/lib/useUserClaims.ts") &&
+      /Unlimited/.test(read("src/components/CreditsBadge.tsx") || ""),
+  },
+  fallbackClient: {
+    ok:
+      exists("src/lib/api/urls.ts") &&
+      /apiFetchWithFallback/.test(read("src/lib/http.ts")),
+  },
+  nutritionSanitizer: {
+    ok:
+      exists("src/lib/nutrition/sanitize.ts") &&
+      /sanitizeFoodItem/.test(read("src/lib/nutrition/sanitize.ts")),
+  },
 };
 
 const pkg = readJsonSafe(path.join(ROOT, "package.json")) || {};
 const hasTypecheck = !!pkg?.scripts?.typecheck;
-const tc = hasTypecheck ? safeExec("npm run -s typecheck") : { ok: false, out: "No typecheck script." };
+const tc = hasTypecheck
+  ? safeExec("npm run -s typecheck")
+  : { ok: false, out: "No typecheck script." };
 
 const statusEmoji = (ok) => (ok ? "✅" : "❌");
 const topDead = (graph.deadFiles || []).slice(0, 25);
@@ -91,13 +142,37 @@ const md = `# MyBodyScan — Full Repo Audit (Generated: ${ts})
 |------|:-----:|----------|
 ${[
   ["Hosting rewrites", checks.rewrites.ok, "firebase.json rewrites for /api/*"],
-  ["Fresh index (no-store)", checks.indexNoStore.ok, "firebase.json headers for /index.html"],
+  [
+    "Fresh index (no-store)",
+    checks.indexNoStore.ok,
+    "firebase.json headers for /index.html",
+  ],
   ["App Check (client init)", checks.appCheckClient.ok, "src/lib/appCheck.ts"],
-  ["App Check SOFT (server)", checks.appCheckSoftServer.ok, "functions/src/http/appCheckSoft.ts usage"],
-  ["Demo signed-out only", checks.demoSignedOutOnly.ok, "src/lib/demo.ts checks auth.currentUser"],
-  ["Admin credits “Unlimited”", checks.adminUnlimited.ok, "useUserClaims + CreditsBadge"],
-  ["Unified API + fallback", checks.fallbackClient.ok, "api/urls + apiFetchWithFallback"],
-  ["Nutrition sanitizer", checks.nutritionSanitizer.ok, "src/lib/nutrition/sanitize.ts"],
+  [
+    "App Check SOFT (server)",
+    checks.appCheckSoftServer.ok,
+    "functions/src/http/appCheckSoft.ts usage",
+  ],
+  [
+    "Demo signed-out only",
+    checks.demoSignedOutOnly.ok,
+    "src/lib/demo.ts checks auth.currentUser",
+  ],
+  [
+    "Admin credits “Unlimited”",
+    checks.adminUnlimited.ok,
+    "useUserClaims + CreditsBadge",
+  ],
+  [
+    "Unified API + fallback",
+    checks.fallbackClient.ok,
+    "api/urls + apiFetchWithFallback",
+  ],
+  [
+    "Nutrition sanitizer",
+    checks.nutritionSanitizer.ok,
+    "src/lib/nutrition/sanitize.ts",
+  ],
 ]
   .map(([area, ok, ev]) => `| ${area} | ${statusEmoji(ok)} | ${ev} |`)
   .join("\n")}
@@ -110,11 +185,16 @@ ${graph.deadFiles?.length > 25 ? `\n…and ${graph.deadFiles.length - 25} more` 
 ${(graph.caseConflicts || []).length ? graph.caseConflicts.map((group) => `- ${group.map((x) => `\`${x}\``).join(", ")}`).join("\n") : "_No conflicts detected._"}
 
 ## Stray fetch() to /api/* or Cloud Functions (first 25)
-${topStray.length
-  ? topStray
-      .map((s) => `- \`${s.file}:${s.line}\` — ${s.snippet}${s.alsoUsesUnified ? " _(file also imports unified client)_" : ""}`)
-      .join("\n")
-  : "_None detected._"}
+${
+  topStray.length
+    ? topStray
+        .map(
+          (s) =>
+            `- \`${s.file}:${s.line}\` — ${s.snippet}${s.alsoUsesUnified ? " _(file also imports unified client)_" : ""}`
+        )
+        .join("\n")
+    : "_None detected._"
+}
 ${(graph.strayFetchCalls || []).length > 25 ? `\n…and ${(graph.strayFetchCalls || []).length - 25} more` : ""}
 
 ## TypeScript Typecheck (best-effort)

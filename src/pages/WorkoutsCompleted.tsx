@@ -10,17 +10,22 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function WorkoutsCompleted() {
-  const [workouts, setWorkouts] = useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
+  const [workouts, setWorkouts] =
+    useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
   const [error, setError] = useState<string | null>(null);
   const { health: systemHealth, error: systemHealthError } = useSystemHealth();
-  const { workoutsConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { workoutsConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
     : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to view completions.";
 
   useEffect(() => {
     if (!workoutsConfigured) {
-      setError(workoutsOfflineMessage ?? "Workouts are disabled in this environment.");
+      setError(
+        workoutsOfflineMessage ?? "Workouts are disabled in this environment."
+      );
       setWorkouts(null);
       return;
     }
@@ -31,7 +36,9 @@ export default function WorkoutsCompleted() {
 
   const completedDays = useMemo(() => {
     const today = new Date();
-    return Array.from({ length: 14 }).reduce<{ date: string; completed: boolean }[]>((acc, _, idx) => {
+    return Array.from({ length: 14 }).reduce<
+      { date: string; completed: boolean }[]
+    >((acc, _, idx) => {
       const d = new Date(today);
       d.setDate(today.getDate() - idx);
       const iso = d.toISOString().slice(0, 10);
@@ -43,13 +50,20 @@ export default function WorkoutsCompleted() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Completed Workouts - MyBodyScan" description="Celebrate your recent streak" />
+      <Seo
+        title="Completed Workouts - MyBodyScan"
+        description="Celebrate your recent streak"
+      />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
         <div className="space-y-2 text-center">
           <Trophy className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-2xl font-semibold text-foreground">Completed Workouts</h1>
-          <p className="text-sm text-muted-foreground">Keep the streak alive! These were logged over the last 14 days.</p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Completed Workouts
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Keep the streak alive! These were logged over the last 14 days.
+          </p>
         </div>
         {systemHealthError ? (
           <Alert variant="destructive">
@@ -67,7 +81,8 @@ export default function WorkoutsCompleted() {
         {completedDays.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              {error || "No workouts logged yet — your next completion will show up here."}
+              {error ||
+                "No workouts logged yet — your next completion will show up here."}
             </CardContent>
           </Card>
         ) : (
@@ -76,8 +91,12 @@ export default function WorkoutsCompleted() {
               <Card key={entry.date}>
                 <CardContent className="flex items-center justify-between py-4 text-sm">
                   <div>
-                    <div className="font-medium text-foreground">{new Date(entry.date).toLocaleDateString()}</div>
-                    <div className="text-xs text-muted-foreground">Strength + conditioning</div>
+                    <div className="font-medium text-foreground">
+                      {new Date(entry.date).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Strength + conditioning
+                    </div>
                   </div>
                   <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                     Completed

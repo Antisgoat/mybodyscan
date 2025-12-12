@@ -10,6 +10,7 @@
 
 3. **Functions secrets**  
    All runtime secrets live in Firebase (project `mybodyscan-f3daf`). Run once per rotation:
+
    ```bash
    cd functions
    firebase functions:secrets:set HOST_BASE_URL --project mybodyscan-f3daf
@@ -23,6 +24,7 @@
    firebase functions:secrets:set COACH_RPM --project mybodyscan-f3daf
    firebase functions:secrets:set NUTRITION_RPM --project mybodyscan-f3daf
    ```
+
    - `HOST_BASE_URL` should match the primary domain (e.g. `https://mybodyscanapp.com`).
    - `APP_CHECK_ALLOWED_ORIGINS` is a comma-delimited list of HTTPS origins permitted when App Check strict mode is enabled later.
    - Stripe requires **all three** secrets above; OpenAI scans/coaching and USDA nutrition rely on their respective keys.
@@ -46,6 +48,7 @@ npx firebase-tools deploy --only hosting,functions --project mybodyscan-f3daf
 ```
 
 Notes:
+
 - Hosting serves the `dist` directory and rewrites every SPA route plus `/api/*`, `/system/*`, `/workouts/*`, `/telemetry/log`, `/admin/*`, etc. to Cloud Functions.
 - `firebase.json` already attaches the required predeploy scripts, so `firebase deploy` from CI will also run dependency install + build steps.
 

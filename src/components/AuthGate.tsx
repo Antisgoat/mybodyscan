@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { getFirebaseInitError, hasFirebaseConfig, initFirebase } from "@/lib/firebase";
+import {
+  getFirebaseInitError,
+  hasFirebaseConfig,
+  initFirebase,
+} from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
@@ -24,7 +28,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!auth) {
-    const reason = getFirebaseInitError() || (hasFirebaseConfig ? "Authentication unavailable." : "Firebase not configured.");
+    const reason =
+      getFirebaseInitError() ||
+      (hasFirebaseConfig
+        ? "Authentication unavailable."
+        : "Firebase not configured.");
     return (
       <div className="p-6 text-sm text-muted-foreground">
         {reason} Please reload or use the demo experience.
@@ -33,7 +41,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/login"
+    ) {
       window.location.href = "/login";
     }
     return null;

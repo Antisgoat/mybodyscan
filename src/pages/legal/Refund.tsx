@@ -12,7 +12,11 @@ const Refund = () => {
         <h1>Refund Policy</h1>
         <p>All purchases of digital goods are final and non-refundable.</p>
         <p>
-          For billing issues, contact <a href="mailto:support@mybodyscanapp.com">support@mybodyscanapp.com</a>.
+          For billing issues, contact{" "}
+          <a href="mailto:support@mybodyscanapp.com">
+            support@mybodyscanapp.com
+          </a>
+          .
         </p>
         <p>Consumer rights required by law are not affected.</p>
       </article>

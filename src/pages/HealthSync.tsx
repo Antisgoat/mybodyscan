@@ -15,7 +15,9 @@ export default function HealthSync() {
     } catch (error: any) {
       toast({
         title: "Health sync coming soon",
-        description: error?.message || "We don't connect to Apple Health or Google Fit yet.",
+        description:
+          error?.message ||
+          "We don't connect to Apple Health or Google Fit yet.",
         variant: "destructive",
       });
     }
@@ -35,13 +37,20 @@ export default function HealthSync() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Health Connect - MyBodyScan" description="Link HealthKit or Health Connect" />
+      <Seo
+        title="Health Connect - MyBodyScan"
+        description="Link HealthKit or Health Connect"
+      />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
         <div className="space-y-2 text-center">
           <HeartPulse className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-2xl font-semibold text-foreground">Health integrations</h1>
-          <p className="text-sm text-muted-foreground">Pull in steps, calories, and sleep to power Today’s dashboard.</p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Health integrations
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Pull in steps, calories, and sleep to power Today’s dashboard.
+          </p>
         </div>
 
         <Card>
@@ -67,11 +76,16 @@ export default function HealthSync() {
               <MonitorSmartphone className="h-4 w-4" />
               Connect Health Connect (coming soon)
             </Button>
-            <Button variant="ghost" disabled onClick={() => handleUnavailable("manual")}>
+            <Button
+              variant="ghost"
+              disabled
+              onClick={() => handleUnavailable("manual")}
+            >
               Mock web data source (disabled)
             </Button>
             <div className="rounded-md bg-amber-50 p-3 text-xs text-amber-900">
-              Health sync is gated until native connectors ship. No data is sent to or read from Apple Health or Google Fit yet.
+              Health sync is gated until native connectors ship. No data is sent
+              to or read from Apple Health or Google Fit yet.
             </div>
           </CardContent>
         </Card>
@@ -85,7 +99,8 @@ export default function HealthSync() {
               Sync today (disabled)
             </Button>
             <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-              Real health imports will land once native connectors are wired. Nothing is being synced right now.
+              Real health imports will land once native connectors are wired.
+              Nothing is being synced right now.
             </div>
           </CardContent>
         </Card>

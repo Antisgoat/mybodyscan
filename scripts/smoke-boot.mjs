@@ -14,11 +14,20 @@ function sleep(ms) {
 async function main() {
   const vite = spawn(
     process.platform === "win32" ? "npm.cmd" : "npm",
-    ["run", "dev", "--", "--host", HOST, "--port", String(PORT), "--strictPort"],
+    [
+      "run",
+      "dev",
+      "--",
+      "--host",
+      HOST,
+      "--port",
+      String(PORT),
+      "--strictPort",
+    ],
     {
       stdio: "pipe",
       env: { ...process.env, BROWSER: "none" },
-    },
+    }
   );
 
   const logs = [];
@@ -76,20 +85,30 @@ async function main() {
       pageErrors.push({ message: err?.message, stack: err?.stack });
     });
 
-    const res = await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+    const res = await page.goto(`${BASE_URL}/`, {
+      waitUntil: "domcontentloaded",
+    });
     await sleep(1500);
 
     // Heuristic: react #185 will appear as console error with minified code in prod, but in dev
     // we at least want the first pageerror / console.error.
-    const hasReact185 = consoleEvents.some((e) => /React error #185|Maximum update depth/i.test(e.text));
+    const hasReact185 = consoleEvents.some((e) =>
+      /React error #185|Maximum update depth/i.test(e.text)
+    );
 
     if (process.env.SMOKE_DUMP) {
-      console.log(JSON.stringify({
-        status: res?.status(),
-        hasReact185,
-        consoleEvents,
-        pageErrors,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            status: res?.status(),
+            hasReact185,
+            consoleEvents,
+            pageErrors,
+          },
+          null,
+          2
+        )
+      );
     }
 
     if (pageErrors.length) {

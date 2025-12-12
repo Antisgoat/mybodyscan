@@ -9,14 +9,21 @@ const APP_BASE_URL = process.env.APP_BASE_URL || "https://mybodyscanapp.com";
 
 export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
   const requestId = req.rawRequest?.get("x-request-id")?.trim() || randomUUID();
-  await ensureSoftAppCheckFromCallable(req, { fn: "createCheckout", uid: req.auth?.uid ?? null, requestId });
+  await ensureSoftAppCheckFromCallable(req, {
+    fn: "createCheckout",
+    uid: req.auth?.uid ?? null,
+    requestId,
+  });
 
   const uid = req.auth?.uid;
   if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in required.", { debugId: requestId });
+    throw new HttpsError("unauthenticated", "Sign in required.", {
+      debugId: requestId,
+    });
   }
 
-  const priceIdRaw = typeof req.data?.priceId === "string" ? req.data.priceId : "";
+  const priceIdRaw =
+    typeof req.data?.priceId === "string" ? req.data.priceId : "";
   const priceId = priceIdRaw.trim();
   if (!priceId || !priceId.startsWith("price_")) {
     throw new HttpsError("invalid-argument", "Invalid plan selected.", {
@@ -35,7 +42,8 @@ export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
     metadata: { uid },
   };
 
-  const promo = typeof req.data?.promoCode === "string" ? req.data.promoCode.trim() : "";
+  const promo =
+    typeof req.data?.promoCode === "string" ? req.data.promoCode.trim() : "";
   if (promo && mode === "subscription") {
     params.discounts = [{ promotion_code: promo }];
   }
@@ -43,7 +51,11 @@ export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create(params);
-    return { sessionId: session.id ?? null, url: session.url ?? null, debugId: requestId };
+    return {
+      sessionId: session.id ?? null,
+      url: session.url ?? null,
+      debugId: requestId,
+    };
   } catch (error: any) {
     logger.error("createCheckout_failed", {
       code: error?.code,
@@ -59,10 +71,14 @@ export const createCheckout = onCallWithOptionalAppCheck(async (req) => {
       });
     }
     if (error?.statusCode === 401 || error?.statusCode === 403) {
-      throw new HttpsError("failed-precondition", "Stripe configuration invalid.", {
-        debugId: requestId,
-        reason: "stripe_auth_error",
-      });
+      throw new HttpsError(
+        "failed-precondition",
+        "Stripe configuration invalid.",
+        {
+          debugId: requestId,
+          reason: "stripe_auth_error",
+        }
+      );
     }
     throw new HttpsError("unavailable", "Billing is temporarily unavailable.", {
       debugId: requestId,

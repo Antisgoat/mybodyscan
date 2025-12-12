@@ -1,11 +1,22 @@
 import type { Transaction } from "firebase-admin/firestore";
 import { FieldValue, getFirestore } from "./firebase.js";
 
-type VerifyRateLimitOptions = { key: string; max: number; windowSeconds: number };
+type VerifyRateLimitOptions = {
+  key: string;
+  max: number;
+  windowSeconds: number;
+};
 
-export async function verifyRateLimit(req: any, opts: VerifyRateLimitOptions): Promise<void> {
+export async function verifyRateLimit(
+  req: any,
+  opts: VerifyRateLimitOptions
+): Promise<void> {
   const uid = (req as any)?.auth?.uid || (req as any)?.user?.uid || "";
-  const ip = (req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "")
+  const ip = (
+    req?.headers?.["x-forwarded-for"] ||
+    req?.socket?.remoteAddress ||
+    ""
+  )
     .toString()
     .split(",")[0]
     .trim();
@@ -18,13 +29,20 @@ export async function verifyRateLimit(req: any, opts: VerifyRateLimitOptions): P
 
   await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(ref);
-    const data = snap.exists ? ((snap.data() as Record<string, unknown>) || {}) : {};
-    const windowStart = typeof data.windowStart === "number" ? data.windowStart : now;
+    const data = snap.exists
+      ? (snap.data() as Record<string, unknown>) || {}
+      : {};
+    const windowStart =
+      typeof data.windowStart === "number" ? data.windowStart : now;
     const count = typeof data.count === "number" ? data.count : 0;
     const elapsed = now - windowStart;
 
     if (elapsed > opts.windowSeconds * 1000) {
-      tx.set(ref, { count: 1, windowStart: now, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(ref, {
+        count: 1,
+        windowStart: now,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       return;
     }
 
@@ -32,7 +50,7 @@ export async function verifyRateLimit(req: any, opts: VerifyRateLimitOptions): P
     tx.set(
       ref,
       { count: next, windowStart, updatedAt: FieldValue.serverTimestamp() },
-      { merge: true },
+      { merge: true }
     );
 
     if (next > opts.max) {

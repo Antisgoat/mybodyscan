@@ -1,14 +1,14 @@
-import fs from 'node:fs';
-import { defineConfig, devices } from '@playwright/test';
+import fs from "node:fs";
+import { defineConfig, devices } from "@playwright/test";
 
 const isCI = !!process.env.CI;
-const baseURL = process.env.BASE_URL || 'https://mybodyscanapp.com';
+const baseURL = process.env.BASE_URL || "https://mybodyscanapp.com";
 const storageState = process.env.PLAYWRIGHT_STORAGE_STATE;
 const resolvedStorageState =
   storageState && fs.existsSync(storageState) ? storageState : undefined;
 
 export default defineConfig({
-  testDir: './specs',
+  testDir: "./specs",
   retries: isCI ? 1 : 0,
   timeout: 60_000,
   expect: {
@@ -16,19 +16,22 @@ export default defineConfig({
   },
   use: {
     baseURL,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
     storageState: resolvedStorageState,
   },
-  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+  ],
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
-  outputDir: 'test-results',
+  outputDir: "test-results",
 });

@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 
 export const chain =
-  (...fns: Array<(req: Request, res: Response, next: NextFunction) => unknown>) =>
+  (
+    ...fns: Array<(req: Request, res: Response, next: NextFunction) => unknown>
+  ) =>
   (req: Request, res: Response, final: () => unknown) => {
     let i = 0;
     const step: NextFunction = () => {

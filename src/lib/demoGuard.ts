@@ -23,7 +23,7 @@ function notify(feature: string) {
           level: "info",
           message,
         },
-      }),
+      })
     );
     handled = true;
   } catch {
@@ -31,7 +31,9 @@ function notify(feature: string) {
   }
 
   try {
-    const api = (window as unknown as { toast?: { info?: (msg: string) => void } }).toast;
+    const api = (
+      window as unknown as { toast?: { info?: (msg: string) => void } }
+    ).toast;
     if (api?.info) {
       api.info(message);
       handled = true;

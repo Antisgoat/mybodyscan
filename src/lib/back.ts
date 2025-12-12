@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { isAndroidWebView, isCapacitor, isWeb } from "./platform";
 
-const DEFAULT_CONFIRM_MESSAGE = "Going back may cancel the current action. Continue?";
+const DEFAULT_CONFIRM_MESSAGE =
+  "Going back may cancel the current action. Continue?";
 
 type BackGuard = {
   shouldBlock: () => boolean;
@@ -32,7 +33,11 @@ function pushGuard(guard: BackGuard): () => void {
 function ensureHistorySentinel() {
   if (!isWeb()) return;
   try {
-    window.history.pushState({ __mbsSentinel: Date.now() }, document.title, window.location.href);
+    window.history.pushState(
+      { __mbsSentinel: Date.now() },
+      document.title,
+      window.location.href
+    );
   } catch {
     // ignore
   }
@@ -53,9 +58,10 @@ function handlePopState(event: PopStateEvent) {
 
   ensureHistorySentinel();
   const message = activeGuard.getMessage?.() ?? DEFAULT_CONFIRM_MESSAGE;
-  const proceed = typeof window !== "undefined" && typeof window.confirm === "function"
-    ? window.confirm(message)
-    : true;
+  const proceed =
+    typeof window !== "undefined" && typeof window.confirm === "function"
+      ? window.confirm(message)
+      : true;
 
   if (proceed) {
     allowNextPop = true;
@@ -87,7 +93,7 @@ type GuardOptions = {
 
 export function useBackNavigationGuard(
   shouldBlock: () => boolean,
-  options?: GuardOptions,
+  options?: GuardOptions
 ): void {
   const shouldBlockRef = useRef(shouldBlock);
   const messageRef = useRef(options?.message);

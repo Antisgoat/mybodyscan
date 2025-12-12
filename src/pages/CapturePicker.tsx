@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useDemoMode } from "@/components/DemoModeProvider";
@@ -48,7 +52,9 @@ const CapturePicker = () => {
           <CardHeader>
             <CardTitle>Photos</CardTitle>
           </CardHeader>
-          <CardContent>{renderButton("Capture Photos", "/capture/photos")}</CardContent>
+          <CardContent>
+            {renderButton("Capture Photos", "/capture/photos")}
+          </CardContent>
         </Card>
       </div>
     </main>

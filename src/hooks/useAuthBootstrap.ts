@@ -31,10 +31,14 @@ export function useAuthBootstrap() {
         console.warn("bootstrap failed", e);
         failureCountRef.current += 1;
         const now = Date.now();
-        if (failureCountRef.current > 1 && now - lastToastAtRef.current > 10_000) {
+        if (
+          failureCountRef.current > 1 &&
+          now - lastToastAtRef.current > 10_000
+        ) {
           toast({
             title: "Refreshing access failed",
-            description: "We could not refresh your permissions. Try signing out and back in.",
+            description:
+              "We could not refresh your permissions. Try signing out and back in.",
             variant: "destructive",
           });
           lastToastAtRef.current = now;

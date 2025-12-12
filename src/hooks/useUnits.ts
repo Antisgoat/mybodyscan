@@ -47,7 +47,9 @@ export function useUnits(): UnitsState {
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        const pref = (snap.data()?.preferences as { units?: DisplayUnits } | undefined)?.units;
+        const pref = (
+          snap.data()?.preferences as { units?: DisplayUnits } | undefined
+        )?.units;
         setUnitsState(pref === "metric" ? "metric" : DEFAULT_UNITS);
         setLoading(false);
       },
@@ -55,7 +57,7 @@ export function useUnits(): UnitsState {
         setError(err.message || "Failed to load units");
         setUnitsState(DEFAULT_UNITS);
         setLoading(false);
-      },
+      }
     );
     return () => unsub();
   }, [user?.uid, demo]);
@@ -66,7 +68,11 @@ export function useUnits(): UnitsState {
       if (demo || !user || !db) return;
       setSaving(true);
       try {
-        await setDoc(doc(db, "users", user.uid), { preferences: { units: next } }, { merge: true });
+        await setDoc(
+          doc(db, "users", user.uid),
+          { preferences: { units: next } },
+          { merge: true }
+        );
         setError(null);
       } catch (err: any) {
         setError(err?.message || "Unable to save units");
@@ -76,7 +82,7 @@ export function useUnits(): UnitsState {
         setSaving(false);
       }
     },
-    [user, demo],
+    [user, demo]
   );
 
   return { units, loading, saving, error, setUnits: persistUnits };

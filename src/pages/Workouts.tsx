@@ -8,7 +8,12 @@ import { BottomNav } from "@/components/BottomNav";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
-import { generateWorkoutPlan, getPlan, markExerciseDone, getWeeklyCompletion } from "@/lib/workouts";
+import {
+  generateWorkoutPlan,
+  getPlan,
+  markExerciseDone,
+  getWeeklyCompletion,
+} from "@/lib/workouts";
 import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
@@ -28,13 +33,16 @@ export default function Workouts() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
-  const [bodyFeel, setBodyFeel] = useState<"great" | "ok" | "tired" | "sore" | "">("");
+  const [bodyFeel, setBodyFeel] = useState<
+    "great" | "ok" | "tired" | "sore" | ""
+  >("");
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activationPending, setActivationPending] = useState(false);
   const { health: systemHealth, error: healthError } = useSystemHealth();
-  const { workoutsConfigured, workoutAdjustConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { workoutsConfigured, workoutAdjustConfigured } =
+    computeFeatureStatuses(systemHealth ?? undefined);
   const workoutsOfflineMessage = workoutsConfigured
     ? null
     : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable plan generation.";
@@ -64,7 +72,7 @@ export default function Workouts() {
       setWeekRatio(0);
       setActivationPending(false);
       setLoadError(
-        "Workouts are disabled because the Cloud Functions base URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts.",
+        "Workouts are disabled because the Cloud Functions base URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts."
       );
       return cleanup;
     }
@@ -78,7 +86,10 @@ export default function Workouts() {
               setActivationPending(true);
               setLoadError(null);
             }
-            retryTimer = setTimeout(() => hydrate(attempt + 1), 800 * (attempt + 1));
+            retryTimer = setTimeout(
+              () => hydrate(attempt + 1),
+              800 * (attempt + 1)
+            );
             return;
           }
           if (!cancelled) {
@@ -87,7 +98,9 @@ export default function Workouts() {
             setCompleted([]);
             setRatio(0);
             setWeekRatio(0);
-            setLoadError("Workouts are unavailable right now. Check your connection or try again later.");
+            setLoadError(
+              "Workouts are unavailable right now. Check your connection or try again later."
+            );
           }
           return;
         }
@@ -97,12 +110,17 @@ export default function Workouts() {
               setActivationPending(true);
               setLoadError(null);
             }
-            retryTimer = setTimeout(() => hydrate(attempt + 1), 800 * (attempt + 1));
+            retryTimer = setTimeout(
+              () => hydrate(attempt + 1),
+              800 * (attempt + 1)
+            );
             return;
           }
           if (!cancelled) {
             setActivationPending(false);
-            setLoadError("We’re still preparing your new program. Pull down to refresh or try again.");
+            setLoadError(
+              "We’re still preparing your new program. Pull down to refresh or try again."
+            );
           }
           return;
         }
@@ -152,12 +170,20 @@ export default function Workouts() {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
     try {
-      const snap = await getDoc(doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`));
+      const snap = await getDoc(
+        doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`)
+      );
       if (isCancelled?.()) return;
-      const done = snap.exists() ? ((snap.data()?.completed as string[]) ?? []) : [];
+      const done = snap.exists()
+        ? ((snap.data()?.completed as string[]) ?? [])
+        : [];
       if (!isCancelled?.()) {
         setCompleted(done);
-        setRatio(p.days[idx].exercises.length ? done.length / p.days[idx].exercises.length : 0);
+        setRatio(
+          p.days[idx].exercises.length
+            ? done.length / p.days[idx].exercises.length
+            : 0
+        );
       }
     } catch (error) {
       console.warn("workouts.progress", error);
@@ -174,7 +200,8 @@ export default function Workouts() {
     if (idx < 0) {
       toast({
         title: "Workout day unavailable",
-        description: "We couldn’t find today in your plan. Try refreshing or starting a new program.",
+        description:
+          "We couldn’t find today in your plan. Try refreshing or starting a new program.",
         variant: "destructive",
       });
       return;
@@ -182,16 +209,28 @@ export default function Workouts() {
     const done = !completed.includes(exerciseId);
     try {
       const res = await markExerciseDone(plan.id, idx, exerciseId, done);
-      setCompleted(done ? [...completed, exerciseId] : completed.filter((id) => id !== exerciseId));
+      setCompleted(
+        done
+          ? [...completed, exerciseId]
+          : completed.filter((id) => id !== exerciseId)
+      );
       setRatio(res.ratio);
       if (done) track("workout_mark_done", { exerciseId });
       if (isDemoActive()) toast({ title: "Sign up to save your progress." });
     } catch (error: any) {
       if (error?.message === "demo-blocked") {
-        toast({ title: "Create an account", description: "Demo mode cannot save workouts.", variant: "destructive" });
+        toast({
+          title: "Create an account",
+          description: "Demo mode cannot save workouts.",
+          variant: "destructive",
+        });
         return;
       }
-      toast({ title: "Update failed", description: "Please try again.", variant: "destructive" });
+      toast({
+        title: "Update failed",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -215,10 +254,17 @@ export default function Workouts() {
       setLoadError(null);
     } catch (error: any) {
       if (error?.message === "demo-blocked") {
-        toast({ title: "Create an account", description: "Demo mode cannot generate plans.", variant: "destructive" });
+        toast({
+          title: "Create an account",
+          description: "Demo mode cannot generate plans.",
+          variant: "destructive",
+        });
         return;
       }
-      if (typeof error?.message === "string" && error.message.includes("workouts_disabled")) {
+      if (
+        typeof error?.message === "string" &&
+        error.message.includes("workouts_disabled")
+      ) {
         const description =
           workoutsOfflineMessage ??
           "Workouts are turned off because the Cloud Functions base URL is missing. Add it to enable workout generation.";
@@ -230,15 +276,26 @@ export default function Workouts() {
         });
         return;
       }
-      toast({ title: "Unable to generate", description: "Please try again later.", variant: "destructive" });
+      toast({
+        title: "Unable to generate",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
     }
   };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const requestedPlanId = params.get("plan");
-    if (params.get("started") === "1" && plan && (!requestedPlanId || plan.id === requestedPlanId)) {
-      toast({ title: "Plan ready", description: "Your new workout program is active." });
+    if (
+      params.get("started") === "1" &&
+      plan &&
+      (!requestedPlanId || plan.id === requestedPlanId)
+    ) {
+      toast({
+        title: "Plan ready",
+        description: "Your new workout program is active.",
+      });
       params.delete("started");
       params.delete("plan");
       const nextSearch = params.toString();
@@ -247,7 +304,8 @@ export default function Workouts() {
     }
   }, [location.pathname, location.search, plan, toast]);
 
-  const formatDelta = (value: number) => (value >= 0 ? `+${value}` : `${value}`);
+  const formatDelta = (value: number) =>
+    value >= 0 ? `+${value}` : `${value}`;
 
   const submitBodyFeel = async () => {
     if (!plan) return;
@@ -257,7 +315,8 @@ export default function Workouts() {
     }
     if (!workoutsConfigured) {
       const description =
-        workoutsOfflineMessage ?? "Workout APIs are offline. Configure the Cloud Functions URL before adjusting.";
+        workoutsOfflineMessage ??
+        "Workout APIs are offline. Configure the Cloud Functions URL before adjusting.";
       toast({ title: "Workouts offline", description, variant: "destructive" });
       return;
     }
@@ -266,7 +325,11 @@ export default function Workouts() {
         adjustUnavailableMessage ??
         workoutsOfflineMessage ??
         "AI workout adjustments are offline. Configure OPENAI_API_KEY to re-enable.";
-      toast({ title: "Adjustments unavailable", description, variant: "destructive" });
+      toast({
+        title: "Adjustments unavailable",
+        description,
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -286,7 +349,8 @@ export default function Workouts() {
         }
       }
       if (!res.ok) {
-        const message = data?.error || data?.message || `adjust_failed_${res.status}`;
+        const message =
+          data?.error || data?.message || `adjust_failed_${res.status}`;
         throw new Error(message);
       }
       const intensityDelta = Number(data?.mods?.intensity ?? 0);
@@ -311,15 +375,23 @@ export default function Workouts() {
         }
       }
       const summary =
-        typeof data?.summary === "string" && data.summary.trim().length ? data.summary.trim() : null;
+        typeof data?.summary === "string" && data.summary.trim().length
+          ? data.summary.trim()
+          : null;
       toast({
         title: "Plan adjusted",
-        description: summary ?? `Intensity ${formatDelta(intensityDelta)} · Volume ${formatDelta(volumeDelta)}`,
+        description:
+          summary ??
+          `Intensity ${formatDelta(intensityDelta)} · Volume ${formatDelta(volumeDelta)}`,
       });
       setBodyFeel("");
       setNotes("");
     } catch (error: any) {
-      toast({ title: "Unable to adjust", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Unable to adjust",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     } finally {
       setAdjusting(false);
     }
@@ -328,13 +400,20 @@ export default function Workouts() {
   if (!plan) {
     return (
       <div className="min-h-screen bg-background pb-16 md:pb-0">
-        <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
+        <Seo
+          title="Workouts - MyBodyScan"
+          description="Track your daily workout routine"
+        />
         <main className="max-w-md mx-auto p-6 space-y-6">
           <Card>
             <CardContent className="p-8 text-center">
               <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-4">No workout plan yet</h3>
-              {loadError && <p className="mb-4 text-sm text-destructive">{loadError}</p>}
+              <h3 className="text-lg font-medium text-foreground mb-4">
+                No workout plan yet
+              </h3>
+              {loadError && (
+                <p className="mb-4 text-sm text-destructive">{loadError}</p>
+              )}
               {activationPending && (
                 <p className="mb-4 text-sm text-muted-foreground">
                   Activating your new program… this usually takes a few seconds.
@@ -346,12 +425,20 @@ export default function Workouts() {
                 </p>
               )}
               <div className="flex flex-col gap-2">
-                <Button onClick={handleGenerate} className="w-full" disabled={!workoutsConfigured}>
+                <Button
+                  onClick={handleGenerate}
+                  className="w-full"
+                  disabled={!workoutsConfigured}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Create my plan
                 </Button>
                 {loadError && workoutsConfigured && (
-                  <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.location.reload()}
+                  >
                     Retry loading
                   </Button>
                 )}
@@ -365,40 +452,51 @@ export default function Workouts() {
   }
 
   const today = plan.days.find((d: any) => d.day === todayName);
+  const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
   const completedCount = completed.length;
-  const totalCount = today?.exercises.length || 0;
+  const totalCount = todayExercises.length;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Workouts - MyBodyScan" description="Track your daily workout routine" />
-        <main className="max-w-md mx-auto p-6 space-y-6">
-          <DemoBanner />
-          {healthError ? (
-            <Alert variant="destructive">
-              <AlertTitle>System health unavailable</AlertTitle>
-              <AlertDescription>{healthError}</AlertDescription>
-            </Alert>
-          ) : null}
-          {workoutsOfflineMessage ? (
-            <Alert variant="destructive">
-              <AlertTitle>Workouts offline</AlertTitle>
-              <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="text-center space-y-2">
+      <Seo
+        title="Workouts - MyBodyScan"
+        description="Track your daily workout routine"
+      />
+      <main className="max-w-md mx-auto p-6 space-y-6">
+        <DemoBanner />
+        {healthError ? (
+          <Alert variant="destructive">
+            <AlertTitle>System health unavailable</AlertTitle>
+            <AlertDescription>{healthError}</AlertDescription>
+          </Alert>
+        ) : null}
+        {workoutsOfflineMessage ? (
+          <Alert variant="destructive">
+            <AlertTitle>Workouts offline</AlertTitle>
+            <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="text-center space-y-2">
           <Dumbbell className="w-8 h-8 text-primary mx-auto" />
-          <h1 className="text-2xl font-semibold text-foreground">{t('workouts.title')}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {t("workouts.title")}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {completedCount} of {totalCount} exercises completed
           </p>
-          <p className="text-xs text-muted-foreground">{Math.round(weekRatio * 100)}% this week</p>
+          <p className="text-xs text-muted-foreground">
+            {Math.round(weekRatio * 100)}% this week
+          </p>
         </div>
         <div className="w-full bg-secondary rounded-full h-2">
-          <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${ratio * 100}%` }} />
+          <div
+            className="bg-primary h-2 rounded-full transition-all"
+            style={{ width: `${ratio * 100}%` }}
+          />
         </div>
-        {today && today.exercises.length > 0 ? (
+        {todayExercises.length > 0 ? (
           <div className="space-y-4">
-            {today.exercises.map((ex: any) => (
+            {todayExercises.map((ex: any) => (
               <Card key={ex.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -410,7 +508,10 @@ export default function Workouts() {
                     <div className="flex-1">
                       <h3 className="font-medium text-foreground">{ex.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {Number.isFinite(Number(ex.sets)) ? Number(ex.sets) : "—"} sets × {ex.reps ?? "—"} reps
+                        {Number.isFinite(Number(ex.sets))
+                          ? Number(ex.sets)
+                          : "—"}{" "}
+                        sets × {ex.reps ?? "—"} reps
                       </p>
                     </div>
                   </div>
@@ -419,24 +520,34 @@ export default function Workouts() {
             ))}
             <Card>
               <CardContent className="p-4 space-y-3">
-                <div className="font-medium text-foreground">How did your body feel today?</div>
+                <div className="font-medium text-foreground">
+                  How did your body feel today?
+                </div>
                 {adjustUnavailableMessage && (
                   <Alert variant="default" className="border-dashed">
                     <AlertTitle>Adjustments paused</AlertTitle>
-                    <AlertDescription>{adjustUnavailableMessage}</AlertDescription>
+                    <AlertDescription>
+                      {adjustUnavailableMessage}
+                    </AlertDescription>
                   </Alert>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  {["great","ok","tired","sore"].map((v) => (
+                  {["great", "ok", "tired", "sore"].map((v) => (
                     <Button
                       key={v}
                       type="button"
-                      variant={bodyFeel===v?"default":"outline"}
+                      variant={bodyFeel === v ? "default" : "outline"}
                       size="sm"
                       onClick={() => setBodyFeel(v as any)}
                       disabled={adjustDisabled}
                     >
-                      {v === "great" ? "Great" : v === "ok" ? "OK" : v === "tired" ? "Tired" : "Sore"}
+                      {v === "great"
+                        ? "Great"
+                        : v === "ok"
+                          ? "OK"
+                          : v === "tired"
+                            ? "Tired"
+                            : "Sore"}
                     </Button>
                   ))}
                 </div>
@@ -449,7 +560,10 @@ export default function Workouts() {
                   disabled={adjustDisabled}
                 />
                 <div className="flex justify-end">
-                  <Button onClick={submitBodyFeel} disabled={!bodyFeel || adjusting || adjustDisabled}>
+                  <Button
+                    onClick={submitBodyFeel}
+                    disabled={!bodyFeel || adjusting || adjustDisabled}
+                  >
                     {adjusting ? "Saving…" : "Save adjustment"}
                   </Button>
                 </div>
@@ -460,7 +574,9 @@ export default function Workouts() {
           <Card>
             <CardContent className="p-8 text-center">
               <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Rest day</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                Rest day
+              </h3>
             </CardContent>
           </Card>
         )}

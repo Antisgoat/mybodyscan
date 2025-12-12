@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -31,28 +37,28 @@ interface OnboardingData {
 
 const steps = [
   "basics",
-  "measurements", 
+  "measurements",
   "activity",
   "goals",
   "medical",
-  "plan"
+  "plan",
 ] as const;
 
-type Step = typeof steps[number];
+type Step = (typeof steps)[number];
 
 export default function CoachOnboardingNew() {
   const [currentStep, setCurrentStep] = useState<Step>("basics");
   const [data, setData] = useState<OnboardingData>({});
   const [computing, setComputing] = useState(false);
   const [plan, setPlan] = useState<any>(null);
-  
+
   const navigate = useNavigate();
   const { computePlan } = useComputePlan();
   const { toast } = useToast();
   const { units } = useUnits();
 
   const updateData = (updates: Partial<OnboardingData>) => {
-    setData(prev => ({ ...prev, ...updates }));
+    setData((prev) => ({ ...prev, ...updates }));
   };
 
   const nextStep = () => {
@@ -71,19 +77,25 @@ export default function CoachOnboardingNew() {
 
   const handleComputePlan = async () => {
     if (!auth.currentUser) return;
-    
+
     setComputing(true);
     try {
       // Save profile
-      const profileRef = doc(db, "users", auth.currentUser.uid, "coach", "profile");
+      const profileRef = doc(
+        db,
+        "users",
+        auth.currentUser.uid,
+        "coach",
+        "profile"
+      );
       await setDoc(profileRef, data);
 
       // Compute plan
       const planResult = await computePlan(data);
       setPlan(planResult);
-      
+
       setCurrentStep("plan");
-      
+
       toast({
         title: "Plan computed",
         description: "Your personalized plan is ready!",
@@ -115,7 +127,9 @@ export default function CoachOnboardingNew() {
           <Label>Sex</Label>
           <RadioGroup
             value={data.sex}
-            onValueChange={(value: "male" | "female") => updateData({ sex: value })}
+            onValueChange={(value: "male" | "female") =>
+              updateData({ sex: value })
+            }
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="male" id="male" />
@@ -127,7 +141,7 @@ export default function CoachOnboardingNew() {
             </div>
           </RadioGroup>
         </div>
-        
+
         <div>
           <Label htmlFor="age">Age</Label>
           <Input
@@ -135,7 +149,9 @@ export default function CoachOnboardingNew() {
             type="number"
             placeholder="Enter your age"
             value={data.age || ""}
-            onChange={(e) => updateData({ age: parseInt(e.target.value) || undefined })}
+            onChange={(e) =>
+              updateData({ age: parseInt(e.target.value) || undefined })
+            }
           />
         </div>
 
@@ -153,13 +169,16 @@ export default function CoachOnboardingNew() {
       <CardHeader>
         <CardTitle>Measurements</CardTitle>
         <CardDescription>
-          We need your height and weight for accurate calculations (Units: {units === "us" ? "US – lb, ft/in" : "Metric"})
+          We need your height and weight for accurate calculations (Units:{" "}
+          {units === "us" ? "US – lb, ft/in" : "Metric"})
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">Height</Label>
+            <Label className="text-sm font-medium text-foreground">
+              Height
+            </Label>
             {units === "metric" ? (
               <Input
                 id="height-cm"
@@ -185,7 +204,10 @@ export default function CoachOnboardingNew() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="weight" className="text-sm font-medium text-foreground">
+            <Label
+              htmlFor="weight"
+              className="text-sm font-medium text-foreground"
+            >
               Weight ({units === "metric" ? "kg" : "lb"})
             </Label>
             <Input
@@ -195,7 +217,7 @@ export default function CoachOnboardingNew() {
               placeholder={units === "metric" ? "70" : "154"}
               value={
                 units === "metric"
-                  ? data.weight_kg ?? ""
+                  ? (data.weight_kg ?? "")
                   : data.weight_kg != null
                     ? Math.round(kgToLb(data.weight_kg))
                     : ""
@@ -207,7 +229,8 @@ export default function CoachOnboardingNew() {
                 }
                 const value = Number(e.target.value);
                 if (Number.isNaN(value)) return;
-                const normalized = units === "metric" ? value : lbToKg(value) ?? undefined;
+                const normalized =
+                  units === "metric" ? value : (lbToKg(value) ?? undefined);
                 updateData({ weight_kg: normalized });
               }}
               className="h-11"
@@ -219,7 +242,10 @@ export default function CoachOnboardingNew() {
           <Button variant="outline" onClick={prevStep}>
             Back
           </Button>
-          <Button onClick={nextStep} disabled={!data.height_cm || !data.weight_kg}>
+          <Button
+            onClick={nextStep}
+            disabled={!data.height_cm || !data.weight_kg}
+          >
             Next
           </Button>
         </div>
@@ -236,7 +262,9 @@ export default function CoachOnboardingNew() {
       <CardContent className="space-y-4">
         <RadioGroup
           value={data.activity_level}
-          onValueChange={(value: typeof data.activity_level) => updateData({ activity_level: value })}
+          onValueChange={(value: typeof data.activity_level) =>
+            updateData({ activity_level: value })
+          }
         >
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="sedentary" id="sedentary" />
@@ -248,15 +276,21 @@ export default function CoachOnboardingNew() {
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="moderate" id="moderate" />
-            <Label htmlFor="moderate">Moderate - Moderate exercise 3-5 days/week</Label>
+            <Label htmlFor="moderate">
+              Moderate - Moderate exercise 3-5 days/week
+            </Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="very" id="very" />
-            <Label htmlFor="very">Very Active - Hard exercise 6-7 days/week</Label>
+            <Label htmlFor="very">
+              Very Active - Hard exercise 6-7 days/week
+            </Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="extra" id="extra" />
-            <Label htmlFor="extra">Extra Active - Very hard exercise, physical job</Label>
+            <Label htmlFor="extra">
+              Extra Active - Very hard exercise, physical job
+            </Label>
           </div>
         </RadioGroup>
 
@@ -283,7 +317,9 @@ export default function CoachOnboardingNew() {
           <Label>Primary Goal</Label>
           <RadioGroup
             value={data.goal}
-            onValueChange={(value: typeof data.goal) => updateData({ goal: value })}
+            onValueChange={(value: typeof data.goal) =>
+              updateData({ goal: value })
+            }
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="lose_fat" id="lose_fat" />
@@ -295,7 +331,9 @@ export default function CoachOnboardingNew() {
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="improve_heart" id="improve_heart" />
-              <Label htmlFor="improve_heart">Improve cardiovascular health</Label>
+              <Label htmlFor="improve_heart">
+                Improve cardiovascular health
+              </Label>
             </div>
           </RadioGroup>
         </div>
@@ -307,7 +345,11 @@ export default function CoachOnboardingNew() {
             type="number"
             placeholder="12"
             value={data.timeframe_weeks || ""}
-            onChange={(e) => updateData({ timeframe_weeks: parseInt(e.target.value) || undefined })}
+            onChange={(e) =>
+              updateData({
+                timeframe_weeks: parseInt(e.target.value) || undefined,
+              })
+            }
           />
         </div>
 
@@ -315,7 +357,9 @@ export default function CoachOnboardingNew() {
           <Label>Approach</Label>
           <RadioGroup
             value={data.style}
-            onValueChange={(value: typeof data.style) => updateData({ style: value })}
+            onValueChange={(value: typeof data.style) =>
+              updateData({ style: value })
+            }
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="ease_in" id="ease_in" />
@@ -332,7 +376,10 @@ export default function CoachOnboardingNew() {
           <Button variant="outline" onClick={prevStep}>
             Back
           </Button>
-          <Button onClick={nextStep} disabled={!data.goal || !data.timeframe_weeks || !data.style}>
+          <Button
+            onClick={nextStep}
+            disabled={!data.goal || !data.timeframe_weeks || !data.style}
+          >
             Next
           </Button>
         </div>
@@ -345,7 +392,8 @@ export default function CoachOnboardingNew() {
       <CardHeader>
         <CardTitle>Health & Safety</CardTitle>
         <CardDescription>
-          Please check any that apply (consult a healthcare professional for medical advice)
+          Please check any that apply (consult a healthcare professional for
+          medical advice)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -357,18 +405,18 @@ export default function CoachOnboardingNew() {
             "joint_issues",
             "eating_disorder_history",
             "pregnancy",
-            "medications"
+            "medications",
           ].map((flag) => (
             <div key={flag} className="flex items-center space-x-2">
               <Checkbox
                 id={flag}
                 checked={data.medical_flags?.[flag] || false}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   updateData({
                     medical_flags: {
                       ...data.medical_flags,
-                      [flag]: !!checked
-                    }
+                      [flag]: !!checked,
+                    },
                   })
                 }
               />
@@ -380,9 +428,10 @@ export default function CoachOnboardingNew() {
         </div>
 
         <div className="p-4 bg-muted rounded-lg text-sm">
-          <strong>Disclaimer:</strong> MyBodyScan is not a medical device. This information is for 
-          educational purposes only and should not replace professional medical advice. Consult 
-          your healthcare provider before making significant dietary or exercise changes.
+          <strong>Disclaimer:</strong> MyBodyScan is not a medical device. This
+          information is for educational purposes only and should not replace
+          professional medical advice. Consult your healthcare provider before
+          making significant dietary or exercise changes.
         </div>
 
         <div className="flex justify-between">
@@ -401,7 +450,9 @@ export default function CoachOnboardingNew() {
     <Card>
       <CardHeader>
         <CardTitle>Your Personal Plan</CardTitle>
-        <CardDescription>Here's your customized nutrition and fitness plan</CardDescription>
+        <CardDescription>
+          Here's your customized nutrition and fitness plan
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {plan && (
@@ -409,7 +460,9 @@ export default function CoachOnboardingNew() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-primary/10 rounded-lg">
                 <div className="text-2xl font-bold">{plan.target_kcal}</div>
-                <div className="text-sm text-muted-foreground">Daily Calories</div>
+                <div className="text-sm text-muted-foreground">
+                  Daily Calories
+                </div>
               </div>
               <div className="p-4 bg-accent/10 rounded-lg">
                 <div className="text-2xl font-bold">{plan.tdee}</div>
@@ -433,9 +486,13 @@ export default function CoachOnboardingNew() {
             </div>
 
             <div className="p-4 bg-warning/10 rounded-lg text-sm">
-              <strong>Safety Note:</strong> Minimum recommended daily intake is 1200 calories. 
-              Always stay hydrated, get adequate rest, and listen to your body. 
-              <a href="/legal/disclaimer" className="text-primary hover:underline ml-1">
+              <strong>Safety Note:</strong> Minimum recommended daily intake is
+              1200 calories. Always stay hydrated, get adequate rest, and listen
+              to your body.
+              <a
+                href="/legal/disclaimer"
+                className="text-primary hover:underline ml-1"
+              >
                 View full health disclaimers
               </a>
             </div>
@@ -446,9 +503,7 @@ export default function CoachOnboardingNew() {
           <Button variant="outline" onClick={prevStep}>
             Back
           </Button>
-          <DemoWriteButton onClick={finish}>
-            Start Tracking
-          </DemoWriteButton>
+          <DemoWriteButton onClick={finish}>Start Tracking</DemoWriteButton>
         </div>
       </CardContent>
     </Card>
@@ -456,11 +511,11 @@ export default function CoachOnboardingNew() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Seo 
+      <Seo
         title="Coach Onboarding - MyBodyScan"
         description="Set up your personalized nutrition and fitness plan"
       />
-      
+
       <div>
         <h1 className="text-3xl font-bold mb-2">Coach Setup</h1>
         <p className="text-muted-foreground">
@@ -472,7 +527,7 @@ export default function CoachOnboardingNew() {
       <div className="flex items-center space-x-2">
         {steps.map((step, index) => (
           <div key={step} className="flex items-center">
-            <div 
+            <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 steps.indexOf(currentStep) >= index
                   ? "bg-primary text-primary-foreground"
@@ -482,10 +537,10 @@ export default function CoachOnboardingNew() {
               {index + 1}
             </div>
             {index < steps.length - 1 && (
-              <div 
+              <div
                 className={`w-12 h-0.5 ${
                   steps.indexOf(currentStep) > index ? "bg-primary" : "bg-muted"
-                }`} 
+                }`}
               />
             )}
           </div>

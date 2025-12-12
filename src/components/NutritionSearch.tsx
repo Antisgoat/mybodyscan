@@ -1,5 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { lookupBarcode, searchFoods, type FoodItem, type SearchResult } from "@/lib/nutrition";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  lookupBarcode,
+  searchFoods,
+  type FoodItem,
+  type SearchResult,
+} from "@/lib/nutrition";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { withTimeout } from "@/lib/request";
 import { getCache, setCache } from "@/lib/cache";
@@ -48,7 +59,7 @@ export default function NutritionSearch(props: Props) {
         setSearchNonce((value) => value + 1);
       }
     },
-    [q],
+    [q]
   );
 
   useEffect(() => {
@@ -100,7 +111,9 @@ export default function NutritionSearch(props: Props) {
         }
 
         const executor = isBarcodeTerm ? lookupBarcode : searchFoods;
-        const cacheKey = !isBarcodeTerm ? `nut:${searchTerm.toLowerCase()}` : null;
+        const cacheKey = !isBarcodeTerm
+          ? `nut:${searchTerm.toLowerCase()}`
+          : null;
         if (cacheKey) {
           const cached = getCache<SearchResult>(cacheKey);
           if (cached) {
@@ -110,7 +123,10 @@ export default function NutritionSearch(props: Props) {
           }
         }
 
-        const res: SearchResult = await withTimeout(executor(searchTerm, { signal: controller.signal }), 8_000);
+        const res: SearchResult = await withTimeout(
+          executor(searchTerm, { signal: controller.signal }),
+          8_000
+        );
         if (controller.signal.aborted) return;
         setStatus(res.status || "Done.");
         setItems(Array.isArray(res.items) ? res.items : []);
@@ -118,13 +134,22 @@ export default function NutritionSearch(props: Props) {
           setCache(cacheKey, res);
         }
       } catch (error) {
-        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
-        if ((error as { code?: string } | undefined)?.code === "auth_required") {
+        if (
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === "AbortError")
+        )
+          return;
+        if (
+          (error as { code?: string } | undefined)?.code === "auth_required"
+        ) {
           setStatus("Sign in to search.");
           setItems([]);
           return;
         }
-        const message = error instanceof Error && error.message === "timeout" ? "Search timed out." : "Search failed. Please try again.";
+        const message =
+          error instanceof Error && error.message === "timeout"
+            ? "Search timed out."
+            : "Search failed. Please try again.";
         setStatus(message);
         setItems([]);
       } finally {
@@ -160,13 +185,20 @@ export default function NutritionSearch(props: Props) {
           placeholder="Search foods (e.g., chicken breast) or paste a barcode…"
           style={input}
         />
-        <button type="button" onClick={() => runSearch(true)} disabled={loading || !q.trim()} style={btn}>
+        <button
+          type="button"
+          onClick={() => runSearch(true)}
+          disabled={loading || !q.trim()}
+          style={btn}
+        >
           {loading ? "Searching…" : "Search"}
         </button>
       </div>
 
       {isLikelyBarcode && (
-        <div style={hint}>Tip: looks like a barcode. Hit Search to look it up.</div>
+        <div style={hint}>
+          Tip: looks like a barcode. Hit Search to look it up.
+        </div>
       )}
 
       {!!status && (
@@ -180,7 +212,12 @@ export default function NutritionSearch(props: Props) {
           <div key={it.id} style={card}>
             <div style={titleRow}>
               <div style={name}>{it.name}</div>
-              <span style={{ ...chip, ...(it.source === "usda" ? chipUsda : chipOff) }}>
+              <span
+                style={{
+                  ...chip,
+                  ...(it.source === "usda" ? chipUsda : chipOff),
+                }}
+              >
                 {it.source.toUpperCase()}
               </span>
             </div>
@@ -193,9 +230,14 @@ export default function NutritionSearch(props: Props) {
             </div>
           </div>
         ))}
-        {!loading && items.length === 0 && status && status.toLowerCase().includes("no") && (
-          <div style={empty}>No results. Try “chicken breast” or a known barcode.</div>
-        )}
+        {!loading &&
+          items.length === 0 &&
+          status &&
+          status.toLowerCase().includes("no") && (
+            <div style={empty}>
+              No results. Try “chicken breast” or a known barcode.
+            </div>
+          )}
       </div>
     </div>
   );
@@ -203,20 +245,61 @@ export default function NutritionSearch(props: Props) {
 
 /* ---------- styles (inline, minimal) ---------- */
 const wrap: React.CSSProperties = { display: "grid", gap: 12, maxWidth: 720 };
-const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr auto", gap: 8 };
-const input: React.CSSProperties = { padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, fontSize: 14 };
-const btn: React.CSSProperties = { padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, background: "white", cursor: "pointer" };
+const row: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: 8,
+};
+const input: React.CSSProperties = {
+  padding: "10px 12px",
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  fontSize: 14,
+};
+const btn: React.CSSProperties = {
+  padding: "10px 12px",
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  background: "white",
+  cursor: "pointer",
+};
 const hint: React.CSSProperties = { fontSize: 12, color: "#666" };
 const statusStyle: React.CSSProperties = { fontSize: 12, color: "#333" };
 const list: React.CSSProperties = { display: "grid", gap: 8 };
-const card: React.CSSProperties = { padding: 12, border: "1px solid #eee", borderRadius: 10, background: "white" };
-const titleRow: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+const card: React.CSSProperties = {
+  padding: 12,
+  border: "1px solid #eee",
+  borderRadius: 10,
+  background: "white",
+};
+const titleRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+};
 const name: React.CSSProperties = { fontWeight: 600, fontSize: 14 };
 const subtle: React.CSSProperties = { fontSize: 12, color: "#666" };
-const macroRow: React.CSSProperties = { display: "flex", gap: 12, marginTop: 8, fontSize: 12 };
-const chip: React.CSSProperties = { fontSize: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid #ddd" };
-const chipUsda: React.CSSProperties = { background: "#f0f7ff", borderColor: "#c9e0ff" };
-const chipOff: React.CSSProperties = { background: "#f9fff0", borderColor: "#dff0c2" };
+const macroRow: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  marginTop: 8,
+  fontSize: 12,
+};
+const chip: React.CSSProperties = {
+  fontSize: 10,
+  padding: "2px 6px",
+  borderRadius: 999,
+  border: "1px solid #ddd",
+};
+const chipUsda: React.CSSProperties = {
+  background: "#f0f7ff",
+  borderColor: "#c9e0ff",
+};
+const chipOff: React.CSSProperties = {
+  background: "#f9fff0",
+  borderColor: "#dff0c2",
+};
 const empty: React.CSSProperties = { fontSize: 12, color: "#666" };
 const visuallyHidden: React.CSSProperties = {
   position: "absolute",

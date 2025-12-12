@@ -10,7 +10,12 @@ type DemoNutritionItem = {
     carbs: number;
     fat: number;
   };
-  servings?: Array<{ id: string; label: string; grams: number; isDefault?: boolean }>;
+  servings?: Array<{
+    id: string;
+    label: string;
+    grams: number;
+    isDefault?: boolean;
+  }>;
   serving?: { qty?: number | null; unit?: string | null; text?: string };
 };
 
@@ -47,7 +52,9 @@ const demoNutritionItems: DemoNutritionItem[] = [
 
 export function mockNutritionSearch(q: string) {
   const term = q.trim().toLowerCase();
-  const items = demoNutritionItems.filter((item) => item.name.toLowerCase().includes(term));
+  const items = demoNutritionItems.filter((item) =>
+    item.name.toLowerCase().includes(term)
+  );
   return {
     results: (items.length ? items : demoNutritionItems).map((item) => ({
       id: item.id,
@@ -72,9 +79,7 @@ export function mockBarcodeLookup(code: string) {
         name: "Demo Protein Bar",
         brand: "MyBodyScan Labs",
         basePer100g: { kcal: 350, protein: 33, carbs: 32, fat: 12 },
-        servings: [
-          { id: "1bar", label: "1 bar", grams: 60, isDefault: true },
-        ],
+        servings: [{ id: "1bar", label: "1 bar", grams: 60, isDefault: true }],
         serving: { text: "1 bar" },
         source: "demo",
         raw: { source: "demo", barcode: normalized },
@@ -86,7 +91,8 @@ export function mockBarcodeLookup(code: string) {
 
 export function mockCoachReply(message: string) {
   const trimmed = message.trim();
-  const defaultReply = demoCoach.messages[0]?.reply ??
+  const defaultReply =
+    demoCoach.messages[0]?.reply ??
     "In demo mode, imagine I’m your coach. Tip: hit your protein target and keep daily steps high.";
   const followUp = demoCoach.messages[1]?.reply ?? defaultReply;
   return {

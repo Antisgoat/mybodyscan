@@ -6,9 +6,13 @@ function normalize(value: unknown): string {
 }
 
 function readFlag(): string {
-  const primary = normalize((import.meta.env as Record<string, unknown>)?.VITE_IDENTITY_PROBE);
+  const primary = normalize(
+    (import.meta.env as Record<string, unknown>)?.VITE_IDENTITY_PROBE
+  );
   if (primary) return primary;
-  return normalize((import.meta.env as Record<string, unknown>)?.VITE_ENABLE_IDENTITY_PROBES);
+  return normalize(
+    (import.meta.env as Record<string, unknown>)?.VITE_ENABLE_IDENTITY_PROBES
+  );
 }
 
 export function isIdentityToolkitProbeEnabled(): boolean {

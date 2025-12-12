@@ -9,7 +9,10 @@ import { onAuthStateChanged } from "firebase/auth";
 export default function Login() {
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
   const nextParam = searchParams.get("next");
   const defaultTarget = nextParam || from || "/";
 
@@ -52,10 +55,13 @@ export default function Login() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function wrap<T>(fn: () => Promise<T>, options?: { autoFinish?: boolean }) {
+  async function wrap<T>(
+    fn: () => Promise<T>,
+    options?: { autoFinish?: boolean }
+  ) {
     const { autoFinish = true } = options ?? {};
     setBusy(true);
     setMsg(null);
@@ -89,7 +95,9 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithApple(defaultTarget), { autoFinish: false })}
+          onClick={() =>
+            wrap(() => signInWithApple(defaultTarget), { autoFinish: false })
+          }
         >
           Continue with Apple
         </button>
@@ -125,22 +133,31 @@ export default function Login() {
         </div>
       )}
 
-      <Link className="mb-3 block w-full rounded border p-2 text-center" to="/demo">
+      <Link
+        className="mb-3 block w-full rounded border p-2 text-center"
+        to="/demo"
+      >
         Browse demo
       </Link>
 
       {msg && <p className="mt-2 text-sm text-red-600">{msg}</p>}
-      <p className="mt-4 text-xs text-gray-500">By continuing you agree to our Terms and Privacy Policy.</p>
+      <p className="mt-4 text-xs text-gray-500">
+        By continuing you agree to our Terms and Privacy Policy.
+      </p>
     </div>
   );
 }
 
-function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
+function normalizeFirebaseError(err: unknown): {
+  message?: string;
+  code?: string;
+} {
   if (!err) return {};
   if (typeof err === "string") return { message: err };
   if (typeof err === "object") {
     const record = err as Record<string, unknown>;
-    const message = typeof record.message === "string" ? record.message : undefined;
+    const message =
+      typeof record.message === "string" ? record.message : undefined;
     const code = typeof record.code === "string" ? record.code : undefined;
     if (message || code) return { message, code };
   }

@@ -39,7 +39,12 @@ async function loadImageData(file: File): Promise<LoadedImage> {
   img.crossOrigin = "anonymous";
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
-    img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error : new Error("image_load_failed"));
+    img.onerror = (event) =>
+      reject(
+        event instanceof ErrorEvent
+          ? event.error
+          : new Error("image_load_failed")
+      );
     img.src = url;
   });
   const width = img.naturalWidth || img.width;
@@ -120,7 +125,11 @@ function analyseSilhouette(image: LoadedImage): SilhouetteMetrics {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
-      const l = luminance(pixelData[idx], pixelData[idx + 1], pixelData[idx + 2]);
+      const l = luminance(
+        pixelData[idx],
+        pixelData[idx + 1],
+        pixelData[idx + 2]
+      );
       sum += l;
       sumSq += l * l;
       if (l < 235) {
@@ -145,7 +154,10 @@ function analyseSilhouette(image: LoadedImage): SilhouetteMetrics {
 
   const sampleBand = (ratio: number) => {
     if (bodyHeight <= 0) return 0;
-    const y = Math.min(height - 1, Math.max(0, Math.round(subjectTop + bodyHeight * ratio)));
+    const y = Math.min(
+      height - 1,
+      Math.max(0, Math.round(subjectTop + bodyHeight * ratio))
+    );
     const left = rowLeft[y];
     const right = rowRight[y];
     if (left >= right || left === width || right < 0) return 0;
@@ -176,7 +188,10 @@ function analyseSilhouette(image: LoadedImage): SilhouetteMetrics {
   };
 }
 
-export function evaluateGateMetrics(input: GateEvaluationInput): { score: number; reasons: string[] } {
+export function evaluateGateMetrics(input: GateEvaluationInput): {
+  score: number;
+  reasons: string[];
+} {
   const reasons = new Set<string>();
   let localScore = 1;
   const longEdge = input.longEdge;
@@ -185,11 +200,17 @@ export function evaluateGateMetrics(input: GateEvaluationInput): { score: number
     reasons.add("Use a higher-resolution photo (long edge ≥1080px)");
     localScore -= 0.35;
   }
-  if (input.aspectRatio < ASPECT_RANGE[0] || input.aspectRatio > ASPECT_RANGE[1]) {
+  if (
+    input.aspectRatio < ASPECT_RANGE[0] ||
+    input.aspectRatio > ASPECT_RANGE[1]
+  ) {
     reasons.add("Retake in portrait orientation with full body visible");
     localScore -= 0.15;
   }
-  if (input.brightness < BRIGHTNESS_RANGE[0] || input.brightness > BRIGHTNESS_RANGE[1]) {
+  if (
+    input.brightness < BRIGHTNESS_RANGE[0] ||
+    input.brightness > BRIGHTNESS_RANGE[1]
+  ) {
     reasons.add("Adjust lighting so the subject is evenly lit");
     localScore -= 0.2;
   }
@@ -215,9 +236,12 @@ export function evaluateGateMetrics(input: GateEvaluationInput): { score: number
   }
 
   if (input.imageIndex === 0) {
-    const shoulderToWaist = input.waistWidth > 0 ? input.shoulderWidth / input.waistWidth : 0;
+    const shoulderToWaist =
+      input.waistWidth > 0 ? input.shoulderWidth / input.waistWidth : 0;
     if (!Number.isFinite(shoulderToWaist) || shoulderToWaist < 1.02) {
-      reasons.add("Raise arms slightly so they are visible away from the torso");
+      reasons.add(
+        "Raise arms slightly so they are visible away from the torso"
+      );
       localScore -= 0.15;
     }
     if (input.waistWidth <= 0 || input.hipWidth <= 0) {
@@ -226,12 +250,19 @@ export function evaluateGateMetrics(input: GateEvaluationInput): { score: number
     }
   }
 
-  return { score: Math.max(0, Math.min(1, localScore)), reasons: Array.from(reasons) };
+  return {
+    score: Math.max(0, Math.min(1, localScore)),
+    reasons: Array.from(reasons),
+  };
 }
 
 export async function clientQualityGate(files: File[]): Promise<GateResult> {
   if (!files.length) {
-    return { pass: false, score: 0, reasons: ["Add the required photos before submitting"] };
+    return {
+      pass: false,
+      score: 0,
+      reasons: ["Add the required photos before submitting"],
+    };
   }
 
   const reasons = new Set<string>();

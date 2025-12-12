@@ -5,7 +5,11 @@ import { functions } from "@/lib/firebase";
 
 export type CheckoutMode = "payment" | "subscription";
 
-type CheckoutCallableResponse = { sessionId?: string | null; url?: string | null; debugId?: string | null };
+type CheckoutCallableResponse = {
+  sessionId?: string | null;
+  url?: string | null;
+  debugId?: string | null;
+};
 
 const createCheckoutCallable = httpsCallable<
   { priceId: string; mode: CheckoutMode; promoCode?: string },
@@ -37,8 +41,10 @@ function normalizeCheckoutError(error: unknown): Error {
       message = "Billing is temporarily unavailable. Please try again later.";
     }
     const err = new Error(message);
-    (err as Error & { code?: string; debugId?: string }).code = code || error.name;
-    (err as Error & { code?: string; debugId?: string }).debugId = extractDebugId(error);
+    (err as Error & { code?: string; debugId?: string }).code =
+      code || error.name;
+    (err as Error & { code?: string; debugId?: string }).debugId =
+      extractDebugId(error);
     return err;
   }
   if (error instanceof Error) return error;
@@ -46,10 +52,19 @@ function normalizeCheckoutError(error: unknown): Error {
 }
 
 // Small pure helper used by tests and non-callable fallback clients.
-export function buildCheckoutHeaders(idToken?: string | null, appCheckToken?: string | null): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const id = typeof idToken === "string" && idToken.trim().length ? idToken.trim() : "";
-  const app = typeof appCheckToken === "string" && appCheckToken.trim().length ? appCheckToken.trim() : "";
+export function buildCheckoutHeaders(
+  idToken?: string | null,
+  appCheckToken?: string | null
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const id =
+    typeof idToken === "string" && idToken.trim().length ? idToken.trim() : "";
+  const app =
+    typeof appCheckToken === "string" && appCheckToken.trim().length
+      ? appCheckToken.trim()
+      : "";
   if (id) headers.Authorization = `Bearer ${id}`;
   if (app) headers["X-Firebase-AppCheck"] = app;
   return headers;
@@ -58,8 +73,12 @@ export function buildCheckoutHeaders(idToken?: string | null, appCheckToken?: st
 export async function startCheckout(
   priceId: string,
   mode: CheckoutMode = "subscription",
-  promoCode?: string,
-): Promise<{ sessionId: string | null; url: string | null; debugId?: string | null }> {
+  promoCode?: string
+): Promise<{
+  sessionId: string | null;
+  url: string | null;
+  debugId?: string | null;
+}> {
   if (!priceId?.trim()) {
     throw new Error("Plan unavailable");
   }
@@ -67,7 +86,10 @@ export async function startCheckout(
   try {
     const response = await createCheckoutCallable({ priceId, mode, promoCode });
     const data = (response?.data ?? response) as CheckoutCallableResponse;
-    const sessionId = typeof data?.sessionId === "string" && data.sessionId ? data.sessionId : null;
+    const sessionId =
+      typeof data?.sessionId === "string" && data.sessionId
+        ? data.sessionId
+        : null;
     const url = typeof data?.url === "string" && data.url ? data.url : null;
     return { sessionId, url, debugId: data?.debugId ?? null };
   } catch (error) {

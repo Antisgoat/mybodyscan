@@ -31,7 +31,11 @@ export function ftInToCm(ft: number, inches: number): number {
 }
 
 // Formatting helpers for UI (US)
-export function formatWeightFromKg(kg?: number, digits = 0, units: DisplayUnits = "us"): string {
+export function formatWeightFromKg(
+  kg?: number,
+  digits = 0,
+  units: DisplayUnits = "us"
+): string {
   if (kg == null) return "—";
   const value = units === "metric" ? kg : kgToLb(kg);
   const label = units === "metric" ? "kg" : "lb";

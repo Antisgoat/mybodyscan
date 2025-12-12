@@ -7,21 +7,25 @@ Successfully audited and repaired the MyBodyScan codebase to resolve authenticat
 ## Root Causes Found
 
 ### 1. Boot Crash Issues
+
 - **File**: `src/lib/recaptcha/loadRecaptcha.ts`
 - **Issue**: reCAPTCHA loader could throw errors during boot if no site key was configured
 - **Impact**: Could cause "App failed to start" errors
 
 ### 2. Apple Login Banner Logic
+
 - **File**: `src/pages/Auth.tsx` (lines 148-152)
 - **Issue**: "Apple sign-in not configured" banner was showing for all Apple login errors, not just `auth/operation-not-allowed`
 - **Impact**: Incorrect error messaging for users
 
 ### 3. Auth Initialization Sequencing
+
 - **File**: `src/lib/firebase/init.ts`
 - **Issue**: Auth initialization wasn't properly sequenced and could cause race conditions
 - **Impact**: Potential duplicate auth listeners and initialization issues
 
 ### 4. Redirect Result Handling
+
 - **File**: `src/main.tsx`
 - **Issue**: Redirect results weren't being handled on app boot
 - **Impact**: Users returning from OAuth redirects might not complete sign-in
@@ -29,6 +33,7 @@ Successfully audited and repaired the MyBodyScan codebase to resolve authenticat
 ## Changes Made
 
 ### 1. Fixed reCAPTCHA Loader (`src/lib/recaptcha/loadRecaptcha.ts`)
+
 ```typescript
 // Before: Could throw errors and spam console
 if (!siteKey) {
@@ -44,32 +49,38 @@ if (!siteKey) {
 ```
 
 ### 2. Enhanced Firebase Auth Initialization (`src/lib/firebase/init.ts`)
+
 ```typescript
 // Added proper sequencing and singleton pattern
 let _authInitPromise: Promise<Auth> | null = null;
 
 export const getSequencedAuth = async (): Promise<Auth> => {
   if (_auth) return _auth;
-  
+
   if (_authInitPromise) return _authInitPromise;
-  
+
   _authInitPromise = (async () => {
     await appCheckReady;
     _auth = getAuth(app);
     await setPersistence(_auth, browserLocalPersistence);
-    if (typeof window !== "undefined") console.log("[init] Auth ready (after AppCheck: disabled)");
+    if (typeof window !== "undefined")
+      console.log("[init] Auth ready (after AppCheck: disabled)");
     return _auth;
   })();
-  
+
   return _authInitPromise;
 };
 ```
 
 ### 3. Fixed Apple Login Error Handling (`src/pages/Auth.tsx`)
+
 ```typescript
 // Before: Showed banner for all errors
 if (code === "auth/operation-not-allowed") {
-  toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
+  toast({
+    title: "Apple sign-in not configured",
+    description: "Enable Apple in Firebase Auth and try again.",
+  });
 } else {
   console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
   toast({ title: "Sign-in failed", description: mapAuthErrorToMessage(code) });
@@ -77,7 +88,10 @@ if (code === "auth/operation-not-allowed") {
 
 // After: Only show banner for specific error, generic message for others
 if (code === "auth/operation-not-allowed") {
-  toast({ title: "Apple sign-in not configured", description: "Enable Apple in Firebase Auth and try again." });
+  toast({
+    title: "Apple sign-in not configured",
+    description: "Enable Apple in Firebase Auth and try again.",
+  });
 } else {
   console.error("[auth] Apple login failed:", code, (err as any)?.message, err);
   toast({ title: "Sign-in failed", description: "Please try again." });
@@ -85,6 +99,7 @@ if (code === "auth/operation-not-allowed") {
 ```
 
 ### 4. Added Redirect Result Handling (`src/main.tsx`)
+
 ```typescript
 // Added proper redirect result handling on app boot
 async function initAuthAndRedirects() {
@@ -101,6 +116,7 @@ async function initAuthAndRedirects() {
 ```
 
 ### 5. Improved Popup→Redirect Fallback (`src/lib/auth/popupLogin.ts`)
+
 ```typescript
 // Enhanced error handling and clearer return semantics
 export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
@@ -123,9 +139,12 @@ export async function popupThenRedirect(auth: Auth, provider: AuthProvider) {
 ```
 
 ### 6. Enhanced Redirect Result Processing (`src/lib/auth.ts`)
+
 ```typescript
 // Added proper error handling for redirect results
-export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | null> {
+export async function resolveAuthRedirect(
+  auth: Auth
+): Promise<UserCredential | null> {
   try {
     const result = await getRedirectResult(auth);
     if (result) {
@@ -152,26 +171,31 @@ export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | 
 ## Verification Steps
 
 ### 1. Build Verification
+
 - ✅ `npm run typecheck` - No TypeScript errors
 - ✅ `npm run build` - Build completes successfully
 
 ### 2. Boot Crash Prevention
+
 - ✅ No static reCAPTCHA scripts in HTML
 - ✅ reCAPTCHA loader returns null gracefully when no key configured
 - ✅ App Check is disabled (returns resolved promise)
 - ✅ No top-level window/document access that could crash
 
 ### 3. Auth Initialization
+
 - ✅ Sequential auth initialization with singleton pattern
 - ✅ Proper error handling and logging
 - ✅ No duplicate auth listeners
 
 ### 4. Apple Login
+
 - ✅ Banner only shows for `auth/operation-not-allowed` error
 - ✅ Generic error message for other Apple login failures
 - ✅ Proper error logging for debugging
 
 ### 5. Redirect Handling
+
 - ✅ Redirect results processed on app boot
 - ✅ Popup→redirect fallback works correctly
 - ✅ Proper error handling for redirect failures
@@ -179,6 +203,7 @@ export async function resolveAuthRedirect(auth: Auth): Promise<UserCredential | 
 ## Console Output Verification
 
 When the app loads, you should see:
+
 ```
 [init] App mounted
 [init] Auth ready (after AppCheck: disabled)

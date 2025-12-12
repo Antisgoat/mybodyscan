@@ -13,7 +13,8 @@ import { assertEnv } from "@/lib/env";
 
 // Legacy shim: some older code may still reference global sanitizeFoodItem.
 // This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
-(globalThis as any).sanitizeFoodItem = (globalThis as any).sanitizeFoodItem || sanitizeFoodItem;
+(globalThis as any).sanitizeFoodItem =
+  (globalThis as any).sanitizeFoodItem || sanitizeFoodItem;
 
 assertEnv();
 
@@ -22,7 +23,14 @@ if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => {
     if (!(window as any).__firstBootError) {
       (window as any).__firstBootError = true;
-      console.error("[boot] first error:", e?.error || e?.message, e?.filename, e?.lineno, e?.colno, e?.error?.stack);
+      console.error(
+        "[boot] first error:",
+        e?.error || e?.message,
+        e?.filename,
+        e?.lineno,
+        e?.colno,
+        e?.error?.stack
+      );
     }
   });
   window.addEventListener("unhandledrejection", (e) => {

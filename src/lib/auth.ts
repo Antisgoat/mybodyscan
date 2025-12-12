@@ -1,5 +1,9 @@
 import { useSyncExternalStore } from "react";
-import { auth as firebaseAuth, getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
+import {
+  auth as firebaseAuth,
+  getFirebaseInitError,
+  hasFirebaseConfig,
+} from "@/lib/firebase";
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -19,7 +23,9 @@ type AuthSnapshot = {
 };
 
 let cachedUser: Auth["currentUser"] | null =
-  typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null;
+  typeof window !== "undefined" && firebaseAuth
+    ? firebaseAuth.currentUser
+    : null;
 let authReadyFlag = !firebaseAuth || !!cachedUser;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
@@ -86,7 +92,9 @@ function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
   }
 
   const shouldRefreshClaims = !nextUser.isAnonymous;
-  const statusKey = shouldRefreshClaims ? `${nextUser.uid}:claims` : `${nextUser.uid}:anon`;
+  const statusKey = shouldRefreshClaims
+    ? `${nextUser.uid}:claims`
+    : `${nextUser.uid}:anon`;
   if (processedUidKey === statusKey) {
     return snapshotChanged;
   }
@@ -129,7 +137,10 @@ function getServerAuthSnapshot(): AuthSnapshot {
 
 function updateAuthSnapshot(): boolean {
   const nextUser = authReadyFlag ? cachedUser : null;
-  if (cachedSnapshot.user === nextUser && cachedSnapshot.authReady === authReadyFlag) {
+  if (
+    cachedSnapshot.user === nextUser &&
+    cachedSnapshot.authReady === authReadyFlag
+  ) {
     return false;
   }
   cachedSnapshot = {
@@ -142,7 +153,10 @@ function updateAuthSnapshot(): boolean {
 async function ensureFirebaseAuth(): Promise<Auth> {
   if (!firebaseAuth) {
     const reason =
-      getFirebaseInitError() || (hasFirebaseConfig ? "Authentication unavailable" : "Firebase not configured");
+      getFirebaseInitError() ||
+      (hasFirebaseConfig
+        ? "Authentication unavailable"
+        : "Firebase not configured");
     throw new Error(reason);
   }
   return firebaseAuth;
@@ -153,7 +167,11 @@ export function getCachedAuth(): Auth | null {
 }
 
 export function useAuthUser() {
-  const snapshot = useSyncExternalStore(subscribeAuth, getAuthSnapshot, getServerAuthSnapshot);
+  const snapshot = useSyncExternalStore(
+    subscribeAuth,
+    getAuthSnapshot,
+    getServerAuthSnapshot
+  );
   return {
     user: snapshot.authReady ? snapshot.user : null,
     loading: !snapshot.authReady,
@@ -196,7 +214,11 @@ export async function signOutToAuth(): Promise<void> {
   window.location.href = "/auth";
 }
 
-export async function createAccountEmail(email: string, password: string, displayName?: string) {
+export async function createAccountEmail(
+  email: string,
+  password: string,
+  displayName?: string
+) {
   const auth = await ensureFirebaseAuth();
   const user = auth.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
@@ -211,7 +233,9 @@ export async function createAccountEmail(email: string, password: string, displa
 }
 
 export function sendReset(email: string) {
-  return ensureFirebaseAuth().then((auth) => sendPasswordResetEmail(auth, email));
+  return ensureFirebaseAuth().then((auth) =>
+    sendPasswordResetEmail(auth, email)
+  );
 }
 
 export function signOutAll() {
@@ -222,12 +246,18 @@ export { isIOSSafari } from "@/lib/isIOSWeb";
 
 type AuthTestInternals = {
   reset(): void;
-  emit(user: Auth["currentUser"] | null, options?: { authReady?: boolean }): void;
+  emit(
+    user: Auth["currentUser"] | null,
+    options?: { authReady?: boolean }
+  ): void;
   snapshot(): AuthSnapshot;
 };
 
 function resetAuthStore(): void {
-  cachedUser = typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null;
+  cachedUser =
+    typeof window !== "undefined" && firebaseAuth
+      ? firebaseAuth.currentUser
+      : null;
   authReadyFlag = !firebaseAuth || !!cachedUser;
   processedUidKey = null;
   cachedSnapshot = {
@@ -252,4 +282,3 @@ export const __authTestInternals: AuthTestInternals = {
     return getAuthSnapshot();
   },
 };
-

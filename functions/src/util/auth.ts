@@ -1,6 +1,8 @@
 import { getAuth } from "firebase-admin/auth";
 
-export async function uidFromAuth(req: any): Promise<{ uid: string; email?: string } | null> {
+export async function uidFromAuth(
+  req: any
+): Promise<{ uid: string; email?: string } | null> {
   const h = (req.headers?.authorization || "") as string;
   const m = /^Bearer\s+(.+)$/.exec(h);
   if (!m) return null;

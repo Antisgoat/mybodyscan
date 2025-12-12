@@ -1,24 +1,28 @@
 # MyBodyScan — Full Repo Audit (Generated: 2025-11-26T00-56-53Z)
+
 > This report is read‑only. No app code was changed. Use it to drive a cleanup/fix PR.
 
 ## Executive Summary
+
 - Import graph files: **354**, edges: **1084**.
-- Alias rules detected: @/*.
+- Alias rules detected: @/\*.
 - Entry files present: /workspace/mybodyscan/src/main.tsx, /workspace/mybodyscan/src/App.tsx.
 
 ## Findings Matrix (Top Priorities)
-| Area | Status | Evidence |
-|------|:-----:|----------|
-| Hosting rewrites | ✅ | firebase.json rewrites for /api/* |
-| Fresh index (no-store) | ✅ | firebase.json headers for /index.html |
-| App Check (client init) | ✅ | src/lib/appCheck.ts |
-| App Check SOFT (server) | ✅ | functions/src/http/appCheckSoft.ts usage |
-| Demo signed-out only | ✅ | src/lib/demo.ts checks auth.currentUser |
-| Admin credits “Unlimited” | ✅ | useUserClaims + CreditsBadge |
-| Unified API + fallback | ✅ | api/urls + apiFetchWithFallback |
-| Nutrition sanitizer | ✅ | src/lib/nutrition/sanitize.ts |
+
+| Area                      | Status | Evidence                                 |
+| ------------------------- | :----: | ---------------------------------------- |
+| Hosting rewrites          |   ✅   | firebase.json rewrites for /api/\*       |
+| Fresh index (no-store)    |   ✅   | firebase.json headers for /index.html    |
+| App Check (client init)   |   ✅   | src/lib/appCheck.ts                      |
+| App Check SOFT (server)   |   ✅   | functions/src/http/appCheckSoft.ts usage |
+| Demo signed-out only      |   ✅   | src/lib/demo.ts checks auth.currentUser  |
+| Admin credits “Unlimited” |   ✅   | useUserClaims + CreditsBadge             |
+| Unified API + fallback    |   ✅   | api/urls + apiFetchWithFallback          |
+| Nutrition sanitizer       |   ✅   | src/lib/nutrition/sanitize.ts            |
 
 ## Dead Code Candidates (first 25)
+
 - `/workspace/mybodyscan/src/auth/components/SocialButtons.tsx`
 - `/workspace/mybodyscan/src/components/AuthGate.tsx`
 - `/workspace/mybodyscan/src/components/AuthedLayout.tsx`
@@ -48,18 +52,21 @@
 …and 43 more
 
 ## Case Conflicts (same directory, case-insensitive basename)
+
 _No conflicts detected._
 
-## Stray fetch() to /api/* or Cloud Functions (first 25)
+## Stray fetch() to /api/\* or Cloud Functions (first 25)
+
 - `/workspace/mybodyscan/src/pages/SettingsAccountPrivacy.tsx:59` — const res = await fetch("/api/account/delete", {
 
-
 ## TypeScript Typecheck (best-effort)
+
 ```
 
 ```
 
 ## Recommended Next PR (Preview)
+
 - Enforce **/api** rewrites and **no-store** index if missing.
 - Ensure **App Check SOFT** wrappers at the top of HTTP handlers; keep client App Check init.
 - Remove dead files above after verifying they aren’t loaded via router or dynamic glob.
@@ -69,6 +76,7 @@ _No conflicts detected._
 
 ---
 
-_Artifacts:_  
-- JSON graph: `reports/import-graph.json`  
+_Artifacts:_
+
+- JSON graph: `reports/import-graph.json`
 - This report: **(you are reading it)**

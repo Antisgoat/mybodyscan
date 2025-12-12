@@ -5,7 +5,9 @@ export const stripeSecretKeyParam = defineSecret("STRIPE_SECRET_KEY");
 export const stripeWebhookSecretParam = defineSecret("STRIPE_WEBHOOK_SECRET");
 export const legacyStripeWebhookParam = defineSecret("STRIPE_WEBHOOK");
 
-function readSecretValue(param: ReturnType<typeof defineSecret>): string | null {
+function readSecretValue(
+  param: ReturnType<typeof defineSecret>
+): string | null {
   try {
     const value = param.value();
     if (typeof value === "string") {
@@ -36,7 +38,10 @@ export function getStripeKey(): string {
     }
   }
 
-  throw { code: "payments_disabled" as const, reason: "missing_stripe_secret" as const };
+  throw {
+    code: "payments_disabled" as const,
+    reason: "missing_stripe_secret" as const,
+  };
 }
 
 export function getStripeWebhookSecret(): string | null {

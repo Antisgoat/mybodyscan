@@ -68,16 +68,32 @@ const CoachOnboarding = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Let's start with what you want to achieve. We'll create a personalized plan just for you.
+              Let's start with what you want to achieve. We'll create a
+              personalized plan just for you.
             </p>
-            
+
             <div className="space-y-3">
               {[
-                { value: "lose_fat", label: "Lose body fat", desc: "Reduce fat while maintaining muscle" },
-                { value: "gain_muscle", label: "Build muscle", desc: "Increase lean mass and strength" },
-                { value: "improve_heart", label: "Improve cardiovascular health", desc: "Focus on heart health and endurance" }
+                {
+                  value: "lose_fat",
+                  label: "Lose body fat",
+                  desc: "Reduce fat while maintaining muscle",
+                },
+                {
+                  value: "gain_muscle",
+                  label: "Build muscle",
+                  desc: "Increase lean mass and strength",
+                },
+                {
+                  value: "improve_heart",
+                  label: "Improve cardiovascular health",
+                  desc: "Focus on heart health and endurance",
+                },
               ].map((goal) => (
-                <label key={goal.value} className={`block p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${form.goal === goal.value ? 'border-primary bg-primary/5' : ''}`}>
+                <label
+                  key={goal.value}
+                  className={`block p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors ${form.goal === goal.value ? "border-primary bg-primary/5" : ""}`}
+                >
                   <input
                     type="radio"
                     name="goal"
@@ -87,21 +103,29 @@ const CoachOnboarding = () => {
                     className="sr-only"
                   />
                   <div className="font-medium">{goal.label}</div>
-                  <div className="text-sm text-muted-foreground">{goal.desc}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {goal.desc}
+                  </div>
                 </label>
               ))}
             </div>
 
             <div className="space-y-3">
               <label className="block">
-                <span className="text-sm font-medium">How intense do you want to go?</span>
+                <span className="text-sm font-medium">
+                  How intense do you want to go?
+                </span>
                 <select
                   className="mt-1 w-full p-2 border rounded-md"
                   value={form.style}
                   onChange={(e) => update("style", e.target.value)}
                 >
-                  <option value="ease_in">Take it easy - gradual changes</option>
-                  <option value="all_in">Go all in - aggressive approach</option>
+                  <option value="ease_in">
+                    Take it easy - gradual changes
+                  </option>
+                  <option value="all_in">
+                    Go all in - aggressive approach
+                  </option>
                 </select>
               </label>
 
@@ -112,7 +136,9 @@ const CoachOnboarding = () => {
                   min="4"
                   max="52"
                   value={form.timeframe_weeks}
-                  onChange={(e) => update("timeframe_weeks", Number(e.target.value))}
+                  onChange={(e) =>
+                    update("timeframe_weeks", Number(e.target.value))
+                  }
                   className="mt-1"
                 />
               </label>
@@ -135,7 +161,8 @@ const CoachOnboarding = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              These details help us calculate your personalized calorie and macro targets.
+              These details help us calculate your personalized calorie and
+              macro targets.
             </p>
 
             <div className="grid grid-cols-2 gap-3">
@@ -181,7 +208,9 @@ const CoachOnboarding = () => {
                   type="number"
                   min="70"
                   max="600"
-                  value={form.weight_kg ? Math.round(kgToLb(form.weight_kg)) : ""}
+                  value={
+                    form.weight_kg ? Math.round(kgToLb(form.weight_kg)) : ""
+                  }
                   onChange={(e) => {
                     if (e.target.value === "") {
                       update("weight_kg", undefined);
@@ -203,16 +232,30 @@ const CoachOnboarding = () => {
                 value={form.activity_level}
                 onChange={(e) => update("activity_level", e.target.value)}
               >
-                <option value="sedentary">Sedentary (desk job, no exercise)</option>
-                <option value="light">Light (1-3 days/week light exercise)</option>
-                <option value="moderate">Moderate (3-5 days/week exercise)</option>
-                <option value="very">Very active (6-7 days/week exercise)</option>
-                <option value="extra">Extremely active (2x/day or physical job)</option>
+                <option value="sedentary">
+                  Sedentary (desk job, no exercise)
+                </option>
+                <option value="light">
+                  Light (1-3 days/week light exercise)
+                </option>
+                <option value="moderate">
+                  Moderate (3-5 days/week exercise)
+                </option>
+                <option value="very">
+                  Very active (6-7 days/week exercise)
+                </option>
+                <option value="extra">
+                  Extremely active (2x/day or physical job)
+                </option>
               </select>
             </label>
 
             <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">
+              <Button
+                variant="secondary"
+                onClick={() => setStep(1)}
+                className="flex-1"
+              >
                 Back
               </Button>
               <Button onClick={() => setStep(3)} className="flex-1">
@@ -231,18 +274,31 @@ const CoachOnboarding = () => {
           <CardContent className="space-y-4">
             <div className="p-3 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                Your safety is our priority. Please let us know about any conditions that might affect your nutrition plan.
+                Your safety is our priority. Please let us know about any
+                conditions that might affect your nutrition plan.
               </p>
             </div>
 
             <div className="space-y-3">
               {[
-                { key: "pregnant", label: "Currently pregnant or breastfeeding" },
+                {
+                  key: "pregnant",
+                  label: "Currently pregnant or breastfeeding",
+                },
                 { key: "under18", label: "Under 18 years old" },
-                { key: "eating_disorder_history", label: "History of eating disorders" },
-                { key: "heart_condition", label: "Heart condition or cardiac issues" },
+                {
+                  key: "eating_disorder_history",
+                  label: "History of eating disorders",
+                },
+                {
+                  key: "heart_condition",
+                  label: "Heart condition or cardiac issues",
+                },
               ].map((condition) => (
-                <label key={condition.key} className="flex items-start gap-3 p-2 hover:bg-muted/30 rounded-md cursor-pointer">
+                <label
+                  key={condition.key}
+                  className="flex items-start gap-3 p-2 hover:bg-muted/30 rounded-md cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     checked={form.medical_flags[condition.key] || false}
@@ -271,7 +327,10 @@ const CoachOnboarding = () => {
                 />
                 <span className="text-sm">
                   I understand this is not medical advice and I accept the{" "}
-                  <Link to="/legal/disclaimer" className="text-primary hover:underline">
+                  <Link
+                    to="/legal/disclaimer"
+                    className="text-primary hover:underline"
+                  >
                     full disclaimer
                   </Link>
                 </span>
@@ -279,11 +338,15 @@ const CoachOnboarding = () => {
             </div>
 
             <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">
+              <Button
+                variant="secondary"
+                onClick={() => setStep(2)}
+                className="flex-1"
+              >
                 Back
               </Button>
-              <Button 
-                onClick={finish} 
+              <Button
+                onClick={finish}
                 disabled={!form.ack.disclaimer}
                 className="flex-1"
               >
@@ -304,21 +367,29 @@ const CoachOnboarding = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">{plan.target_kcal}</div>
+              <div className="text-3xl font-bold text-primary">
+                {plan.target_kcal}
+              </div>
               <div className="text-muted-foreground">calories per day</div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 bg-primary/5 rounded-lg">
-                <Badge variant="secondary" className="mb-2">Protein</Badge>
+                <Badge variant="secondary" className="mb-2">
+                  Protein
+                </Badge>
                 <div className="font-semibold">{plan.protein_g}g</div>
               </div>
               <div className="text-center p-3 bg-accent/5 rounded-lg">
-                <Badge variant="secondary" className="mb-2">Fat</Badge>
+                <Badge variant="secondary" className="mb-2">
+                  Fat
+                </Badge>
                 <div className="font-semibold">{plan.fat_g}g</div>
               </div>
               <div className="text-center p-3 bg-warning/5 rounded-lg">
-                <Badge variant="secondary" className="mb-2">Carbs</Badge>
+                <Badge variant="secondary" className="mb-2">
+                  Carbs
+                </Badge>
                 <div className="font-semibold">{plan.carbs_g}g</div>
               </div>
             </div>
@@ -332,16 +403,26 @@ const CoachOnboarding = () => {
 
             {plan.needs_clearance && (
               <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <div className="font-medium text-destructive text-sm">Important</div>
+                <div className="font-medium text-destructive text-sm">
+                  Important
+                </div>
                 <div className="text-destructive text-sm">{plan.message}</div>
               </div>
             )}
 
             <div className="space-y-3">
-              <Button onClick={() => navigate("/coach/tracker")} className="w-full" size="lg">
+              <Button
+                onClick={() => navigate("/coach/tracker")}
+                className="w-full"
+                size="lg"
+              >
                 Start Tracking
               </Button>
-              <Button variant="secondary" onClick={() => setStep(1)} className="w-full">
+              <Button
+                variant="secondary"
+                onClick={() => setStep(1)}
+                className="w-full"
+              >
                 Edit My Answers
               </Button>
             </div>

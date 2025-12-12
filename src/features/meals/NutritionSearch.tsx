@@ -6,14 +6,22 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
-import { cameraAvailable, isSecureContextOrLocal } from "@/features/barcode/useZxing";
+import {
+  cameraAvailable,
+  isSecureContextOrLocal,
+} from "@/features/barcode/useZxing";
 import { nutritionSearch, type FoodItem } from "@/lib/api/nutrition";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
@@ -23,10 +31,14 @@ type NutritionSearchProps = {
   onMealLogged?: (item: FoodItem) => void;
 };
 
-export default function NutritionSearch({ onMealLogged }: NutritionSearchProps = {}) {
+export default function NutritionSearch({
+  onMealLogged,
+}: NutritionSearchProps = {}) {
   const { loading: authLoading, user } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
-  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { nutritionConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const demo = useDemoMode();
   const nutritionEnabled = !demo && nutritionConfigured !== false;
   const offlineMessage = demo
@@ -38,11 +50,15 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
   const [results, setResults] = useState<FoodItem[] | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
-  const [scannerCapability, setScannerCapability] = useState<{ supported: boolean; reason?: "blocked" | "unsupported" } | null>(null);
+  const [scannerCapability, setScannerCapability] = useState<{
+    supported: boolean;
+    reason?: "blocked" | "unsupported";
+  } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
-  const [editorSource, setEditorSource] = useState<MealEntry["entrySource"]>("search");
+  const [editorSource, setEditorSource] =
+    useState<MealEntry["entrySource"]>("search");
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   async function onSubmit(e?: FormEvent) {
@@ -65,19 +81,30 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
       const response = await nutritionSearch(q.trim());
       setResults(response.results ?? []);
       if (response.status === "upstream_error") {
-        const ref = response.debugId ? ` (ref ${response.debugId.slice(0, 8)})` : "";
-        setError(`${response.message ?? "Food database temporarily unavailable; please try again later."}${ref}`);
+        const ref = response.debugId
+          ? ` (ref ${response.debugId.slice(0, 8)})`
+          : "";
+        setError(
+          `${response.message ?? "Food database temporarily unavailable; please try again later."}${ref}`
+        );
       }
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
-      let message = typeof err?.message === "string" && err.message !== "Bad Request" ? err.message : null;
+      let message =
+        typeof err?.message === "string" && err.message !== "Bad Request"
+          ? err.message
+          : null;
       if (!message) {
         if (code === "invalid-argument" || code === "invalid_query") {
           message = "Search query must not be empty.";
         } else if (code === "resource-exhausted") {
           message = "You're searching too quickly. Please slow down.";
-        } else if (code === "unavailable" || code === "nutrition_backend_error") {
-          message = "Food database temporarily unavailable; please try again later.";
+        } else if (
+          code === "unavailable" ||
+          code === "nutrition_backend_error"
+        ) {
+          message =
+            "Food database temporarily unavailable; please try again later.";
         } else {
           message = "Unable to load nutrition results right now.";
         }
@@ -92,7 +119,10 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
   useEffect(() => {
     if (typeof window === "undefined") return;
     const supported = cameraAvailable() && isSecureContextOrLocal();
-    setScannerCapability({ supported, reason: supported ? undefined : "unsupported" });
+    setScannerCapability({
+      supported,
+      reason: supported ? undefined : "unsupported",
+    });
   }, []);
 
   function onDetectedFromScanner(code: string) {
@@ -105,11 +135,12 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
 
   const liveScannerSupported = scannerCapability?.supported !== false;
   const scannerBlocked = scannerCapability?.reason === "blocked";
-  const scannerWarning = nutritionEnabled && !liveScannerSupported
-    ? scannerBlocked
-      ? "Camera access is blocked for this site. Enable camera permissions or enter the UPC manually."
-      : "Live barcode scanning isn't available on this browser. Enter the UPC manually."
-    : null;
+  const scannerWarning =
+    nutritionEnabled && !liveScannerSupported
+      ? scannerBlocked
+        ? "Camera access is blocked for this site. Enable camera permissions or enter the UPC manually."
+        : "Live barcode scanning isn't available on this browser. Enter the UPC manually."
+      : null;
 
   function startEdit(item: FoodItem, source: MealEntry["entrySource"]) {
     if (!nutritionEnabled) return;
@@ -118,7 +149,11 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
       return;
     }
     if (!user) {
-      toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to log meals.",
+        variant: "destructive",
+      });
       return;
     }
     setEditorItem(item);
@@ -136,15 +171,25 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
   async function handleConfirm({ meal }: { meal: MealEntry }) {
     if (!editorItem) return;
     if (!user) {
-      toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to log meals.",
+        variant: "destructive",
+      });
       closeEditor();
       return;
     }
     setEditorBusy(true);
     try {
       // FIX: prior implementation rendered Add buttons with no handler, so nothing was persisted.
-      await addMeal(todayISO, { ...meal, entrySource: editorSource ?? "search" });
-      toast({ title: "Meal logged", description: `${editorItem.name} added to today.` });
+      await addMeal(todayISO, {
+        ...meal,
+        entrySource: editorSource ?? "search",
+      });
+      toast({
+        title: "Meal logged",
+        description: `${editorItem.name} added to today.`,
+      });
       onMealLogged?.(editorItem);
       closeEditor();
     } catch (error: any) {
@@ -152,7 +197,11 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
         typeof error?.message === "string" && error.message.length
           ? error.message
           : "Unable to log meal. Please try again.";
-      toast({ title: "Unable to log meal", description, variant: "destructive" });
+      toast({
+        title: "Unable to log meal",
+        description,
+        variant: "destructive",
+      });
     } finally {
       setEditorBusy(false);
     }
@@ -193,7 +242,9 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
           className="rounded-md border px-3 py-2 text-sm"
           aria-label="Scan barcode"
           disabled={!nutritionEnabled || !liveScannerSupported}
-          title={!liveScannerSupported ? scannerWarning ?? undefined : undefined}
+          title={
+            !liveScannerSupported ? (scannerWarning ?? undefined) : undefined
+          }
         >
           Scan
         </button>
@@ -225,19 +276,36 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
       )}
 
       {hasSearched && results && results.length === 0 && !busy && (
-        <div className="text-sm text-muted-foreground">No foods found for “{q}”.</div>
+        <div className="text-sm text-muted-foreground">
+          No foods found for “{q}”.
+        </div>
       )}
 
       {results && results.length > 0 && (
-        <ul className="divide-y rounded-md border" data-testid="nutrition-results">
+        <ul
+          className="divide-y rounded-md border"
+          data-testid="nutrition-results"
+        >
           {results.map((it) => (
-            <li key={it.id ?? it.name} className="flex items-center justify-between gap-3 p-3">
+            <li
+              key={it.id ?? it.name}
+              className="flex items-center justify-between gap-3 p-3"
+            >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">
-                  {it.name} {it.brand ? <span className="text-muted-foreground">· {it.brand}</span> : null}
+                  {it.name}{" "}
+                  {it.brand ? (
+                    <span className="text-muted-foreground">· {it.brand}</span>
+                  ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {fmtCal(it.calories)}{sep(it)}{fmtMacros(it)}{sep(it)}{fmtServing(it)}{sep(it)}{it.source || ""}
+                  {fmtCal(it.calories)}
+                  {sep(it)}
+                  {fmtMacros(it)}
+                  {sep(it)}
+                  {fmtServing(it)}
+                  {sep(it)}
+                  {it.source || ""}
                 </div>
               </div>
               <button
@@ -260,10 +328,15 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
         onCapabilityChange={(state) => setScannerCapability(state)}
       />
 
-      <Dialog open={editorOpen} onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}>
+      <Dialog
+        open={editorOpen}
+        onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}
+      >
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{editorItem ? `Log ${editorItem.name}` : "Log food"}</DialogTitle>
+            <DialogTitle>
+              {editorItem ? `Log ${editorItem.name}` : "Log food"}
+            </DialogTitle>
           </DialogHeader>
           {editorItem && (
             <ServingEditor
@@ -285,14 +358,22 @@ export default function NutritionSearch({ onMealLogged }: NutritionSearchProps =
 function fmtCal(kcal?: number | null) {
   return kcal ? `${round(kcal)} kcal` : "kcal ?";
 }
-function fmtMacros(it: { protein?: number|null; carbs?: number|null; fat?: number|null }) {
+function fmtMacros(it: {
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+}) {
   const p = it.protein != null ? `P ${round(it.protein)}g` : "P ?";
-  const c = it.carbs   != null ? `C ${round(it.carbs)}g`   : "C ?";
-  const f = it.fat     != null ? `F ${round(it.fat)}g`     : "F ?";
-  return [p,c,f].join(" • ");
+  const c = it.carbs != null ? `C ${round(it.carbs)}g` : "C ?";
+  const f = it.fat != null ? `F ${round(it.fat)}g` : "F ?";
+  return [p, c, f].join(" • ");
 }
-function fmtServing(it: { servingSize?: number|null; servingUnit?: string|null }) {
-  if (it.servingSize != null && it.servingUnit) return `${round(it.servingSize)} ${it.servingUnit}`;
+function fmtServing(it: {
+  servingSize?: number | null;
+  servingUnit?: string | null;
+}) {
+  if (it.servingSize != null && it.servingUnit)
+    return `${round(it.servingSize)} ${it.servingUnit}`;
   if (it.servingSize != null) return `${round(it.servingSize)} g`;
   return "per serving";
 }

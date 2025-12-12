@@ -1,4 +1,7 @@
-export function readSecret(name: string, fallbackEnvNames: string[]): { present: boolean; value?: string } {
+export function readSecret(
+  name: string,
+  fallbackEnvNames: string[]
+): { present: boolean; value?: string } {
   const candidates = [name, ...fallbackEnvNames];
 
   for (const candidate of candidates) {

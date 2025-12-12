@@ -2,7 +2,10 @@ import { auth } from "@/lib/firebase";
 import { get as getDemoState } from "@/state/demo";
 
 export function isDemoActive(): boolean {
-  const flag = String((import.meta as any)?.env?.VITE_DEMO_MODE ?? "false").toLowerCase() === "true";
+  const flag =
+    String(
+      (import.meta as any)?.env?.VITE_DEMO_MODE ?? "false"
+    ).toLowerCase() === "true";
   if (!flag) return false;
 
   // Demo mode only applies when signed out and the local demo flag is set.

@@ -6,9 +6,7 @@
       "/workspace/mybodyscan/src/main.tsx",
       "/workspace/mybodyscan/src/App.tsx"
     ],
-    "aliasRules": [
-      "@/*"
-    ]
+    "aliasRules": ["@/*"]
   },
   "deadFiles": [
     "/workspace/mybodyscan/src/auth/components/SocialButtons.tsx",

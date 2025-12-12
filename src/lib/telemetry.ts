@@ -50,13 +50,17 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
     message: payload.message,
     code: payload.code,
     stack: payload.stack,
-    url: payload.url || (typeof window !== "undefined" ? window.location.href : undefined),
+    url:
+      payload.url ||
+      (typeof window !== "undefined" ? window.location.href : undefined),
     component: payload.component,
     extra: payload.extra || undefined,
   };
 
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
     const token = await getAuthToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
@@ -70,7 +74,11 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
     if (!response.ok && import.meta.env.DEV) {
       console.info("[telemetry] failed", response.status);
     } else if (import.meta.env.DEV) {
-      console.info("[telemetry] sent", payload.kind, payload.message?.slice(0, 60) ?? "");
+      console.info(
+        "[telemetry] sent",
+        payload.kind,
+        payload.message?.slice(0, 60) ?? ""
+      );
     }
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -79,7 +87,10 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
   }
 }
 
-function normalizeErrorMessage(error: unknown): { message: string; stack?: string } {
+function normalizeErrorMessage(error: unknown): {
+  message: string;
+  stack?: string;
+} {
   if (error instanceof Error) {
     return { message: error.message, stack: error.stack ?? undefined };
   }
@@ -94,7 +105,9 @@ function normalizeErrorMessage(error: unknown): { message: string; stack?: strin
 }
 
 function onWindowError(event: ErrorEvent) {
-  const detail = normalizeErrorMessage(event.error ?? event.message ?? "Unhandled error");
+  const detail = normalizeErrorMessage(
+    event.error ?? event.message ?? "Unhandled error"
+  );
   void reportError({
     kind: "window_error",
     message: detail.message,

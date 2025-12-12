@@ -10,7 +10,10 @@ export async function coachAsk(message: string) {
     return response?.data?.text || response?.data?.answer || "";
   } catch (error: any) {
     if (error?.code === "app_check_required") {
-      toast({ title: "Coach requires App Check", description: "Retrying via API." });
+      toast({
+        title: "Coach requires App Check",
+        description: "Retrying via API.",
+      });
     }
     try {
       const resp = await apiFetch("/api/coach/chat", {
@@ -19,7 +22,11 @@ export async function coachAsk(message: string) {
         body: JSON.stringify({ message }),
       });
       if (!resp.ok) {
-        toast({ title: "Coach unavailable", description: `HTTP ${resp.status}`, variant: "destructive" });
+        toast({
+          title: "Coach unavailable",
+          description: `HTTP ${resp.status}`,
+          variant: "destructive",
+        });
         return "";
       }
       const data = await resp.json().catch(() => ({}));

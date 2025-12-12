@@ -5,10 +5,17 @@
  * - Staff/unlimited users bypass debits but still get gate metadata recorded for audit/refund flows.
  */
 import { HttpsError, onRequest } from "firebase-functions/v2/https";
-import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
+import type {
+  Request as ExpressRequest,
+  Response as ExpressResponse,
+} from "express";
 import { FieldValue, Timestamp, getFirestore } from "../firebase.js";
 import { withCors } from "../middleware/cors.js";
-import { requireAuth, requireAuthWithClaims, verifyAppCheckStrict } from "../http.js";
+import {
+  requireAuth,
+  requireAuthWithClaims,
+  verifyAppCheckStrict,
+} from "../http.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { enforceRateLimit } from "../middleware/rateLimit.js";
 import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
@@ -29,11 +36,11 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
   const unlimitedCredits = claims?.unlimitedCredits === true;
-  
+
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });
   }
-  
+
   if (unlimitedCredits) {
     console.info("beginPaidScan_unlimited_credits", { uid });
   }
@@ -47,7 +54,12 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   const payload = validation.data;
 
   try {
-    await enforceRateLimit({ uid, key: "beginPaidScan", limit: 10, windowMs: 60 * 60 * 1000 });
+    await enforceRateLimit({
+      uid,
+      key: "beginPaidScan",
+      limit: 10,
+      windowMs: 60 * 60 * 1000,
+    });
   } catch (err) {
     console.warn("beginPaidScan_rate_limited", { uid });
     res.status(429).json({ ok: false, reason: "rate_limited" });
@@ -56,7 +68,7 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
 
   const gateRef = db.doc(`users/${uid}/gate/${todayKey()}`);
   const gateSnap = await gateRef.get();
-  const gateData = gateSnap.exists ? gateSnap.data() as any : {};
+  const gateData = gateSnap.exists ? (gateSnap.data() as any) : {};
   const failedCount = Number(gateData.failed || 0);
   if (failedCount >= MAX_DAILY_FAILS) {
     res.status(429).json({ ok: false, reason: "cap" });
@@ -73,7 +85,9 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
 
   for (const docSnap of recentQuery.docs) {
     const data = docSnap.data() as any;
-    const docHashes: string[] = Array.isArray(data.imageHashes) ? data.imageHashes : [];
+    const docHashes: string[] = Array.isArray(data.imageHashes)
+      ? data.imageHashes
+      : [];
     if (!docHashes.length) continue;
     const duplicate = payload.hashes.some((hash) => docHashes.includes(hash));
     if (duplicate) {
@@ -89,13 +103,19 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
 
   try {
     await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const scanSnap = (await tx.get(scanRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      const scanSnap = (await tx.get(
+        scanRef
+      )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       if (!scanSnap.exists) {
         throw new HttpsError("not-found", "scan_not_found");
       }
 
       if (!staffBypass && !unlimitedCredits) {
-        const { buckets, consumed, total } = await consumeCreditBuckets(tx, creditRef, 1);
+        const { buckets, consumed, total } = await consumeCreditBuckets(
+          tx,
+          creditRef,
+          1
+        );
         if (!consumed) {
           throw new HttpsError("failed-precondition", "no_credits");
         }

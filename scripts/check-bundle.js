@@ -35,10 +35,12 @@ async function checkAssets() {
     console.error("Bundle size check failed:\n");
     for (const violation of violations) {
       console.error(
-        ` - ${violation.name}: raw ${(violation.rawSize / 1024 / 1024).toFixed(2)} MB, gzip ${(violation.gzipBytes / 1024 / 1024).toFixed(2)} MB`,
+        ` - ${violation.name}: raw ${(violation.rawSize / 1024 / 1024).toFixed(2)} MB, gzip ${(violation.gzipBytes / 1024 / 1024).toFixed(2)} MB`
       );
     }
-    console.error("\nTargets: raw <= 8 MB, gzip <= 2.5 MB. Reduce bundle size before deploying.");
+    console.error(
+      "\nTargets: raw <= 8 MB, gzip <= 2.5 MB. Reduce bundle size before deploying."
+    );
     process.exit(1);
   } else {
     console.log("Bundle size check passed.");

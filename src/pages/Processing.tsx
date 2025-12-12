@@ -14,10 +14,15 @@ const Processing = () => {
   const [status, setStatus] = useState<string>("queued");
   const { user } = useAuthUser();
   const [showTip, setShowTip] = useState(false);
-  const canonical = typeof window !== "undefined" ? window.location.href : undefined;
-  useBackNavigationGuard(() => status === "queued" || status === "processing" || status === "pending", {
-    message: "Going back may cancel the current action. Continue?",
-  });
+  const canonical =
+    typeof window !== "undefined" ? window.location.href : undefined;
+  useBackNavigationGuard(
+    () =>
+      status === "queued" || status === "processing" || status === "pending",
+    {
+      message: "Going back may cancel the current action. Continue?",
+    }
+  );
 
   useEffect(() => {
     const uid = user?.uid;
@@ -27,9 +32,14 @@ const Processing = () => {
       ref,
       (snap) => {
         const data: any = snap.data();
-        const rawStatus = typeof data?.status === "string" ? data.status.toLowerCase() : "queued";
+        const rawStatus =
+          typeof data?.status === "string"
+            ? data.status.toLowerCase()
+            : "queued";
         const normalized =
-          rawStatus === "completed" || rawStatus === "complete" || rawStatus === "done"
+          rawStatus === "completed" ||
+          rawStatus === "complete" ||
+          rawStatus === "done"
             ? "complete"
             : rawStatus;
         setStatus(normalized);
@@ -49,7 +59,11 @@ const Processing = () => {
   }, [scanId, navigate, user]);
 
   useEffect(() => {
-    if (status === "processing" || status === "queued" || status === "pending") {
+    if (
+      status === "processing" ||
+      status === "queued" ||
+      status === "pending"
+    ) {
       const timer = window.setTimeout(() => setShowTip(true), 60_000);
       return () => window.clearTimeout(timer);
     }
@@ -64,13 +78,20 @@ const Processing = () => {
         description="Analyzing your scan (about 1–2 minutes)."
         canonical={canonical}
       />
-      <div className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin" aria-label="Processing scan" />
+      <div
+        className="w-16 h-16 rounded-full border-4 border-muted border-t-primary animate-spin"
+        aria-label="Processing scan"
+      />
       <h1 className="mt-6 text-2xl font-semibold">Analyzing your scan</h1>
       <p className="text-muted-foreground mt-2">This can take ~1–2 minutes.</p>
       <div className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 bg-secondary text-secondary-foreground">
         <span
           className={`h-2 w-2 rounded-full ${
-            status === "complete" ? "bg-primary" : status === "error" ? "bg-destructive" : "bg-warning animate-pulse"
+            status === "complete"
+              ? "bg-primary"
+              : status === "error"
+                ? "bg-destructive"
+                : "bg-warning animate-pulse"
           }`}
         />
         <span className="text-sm font-medium">
@@ -97,8 +118,8 @@ const Processing = () => {
           <p className="text-sm text-muted-foreground">
             Something went wrong during processing. Please try again.
           </p>
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={() => navigate("/scan/new")}
             aria-label="Start a new scan"
           >

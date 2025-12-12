@@ -11,4 +11,3 @@ export interface HealthAdapter {
   requestPermissions(): Promise<boolean>;
   getDailySummary(date: string): Promise<DailySummary>;
 }
-

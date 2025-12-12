@@ -18,7 +18,9 @@ export default function ScanNew() {
     <div className="space-y-6">
       <Seo title="Body Scan" description="Redirecting to the Live Body Scan." />
       <h1 className="text-3xl font-semibold">Body Scan</h1>
-      <p className="text-muted-foreground">Redirecting to the updated scanning workflow…</p>
+      <p className="text-muted-foreground">
+        Redirecting to the updated scanning workflow…
+      </p>
     </div>
   );
 }

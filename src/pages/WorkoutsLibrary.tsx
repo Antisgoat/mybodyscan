@@ -11,11 +11,14 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 
 export default function WorkoutsLibrary() {
-  const [workouts, setWorkouts] = useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
+  const [workouts, setWorkouts] =
+    useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { health: systemHealth, error: systemHealthError } = useSystemHealth();
-  const { workoutsConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { workoutsConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
     : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable the library.";
@@ -24,7 +27,9 @@ export default function WorkoutsLibrary() {
     if (!workoutsConfigured) {
       setWorkouts(null);
       setLoading(false);
-      setError(workoutsOfflineMessage ?? "Workouts are disabled in this environment.");
+      setError(
+        workoutsOfflineMessage ?? "Workouts are disabled in this environment."
+      );
       return;
     }
     setLoading(true);
@@ -40,7 +45,9 @@ export default function WorkoutsLibrary() {
     if (!workouts?.days?.length) return null;
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const today = dayNames[new Date().getDay()];
-    return workouts.days.find((d) => d.day === today) ?? workouts.days[0] ?? null;
+    return (
+      workouts.days.find((d) => d.day === today) ?? workouts.days[0] ?? null
+    );
   }, [workouts]);
 
   const streak = useMemo(() => {
@@ -56,13 +63,20 @@ export default function WorkoutsLibrary() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Workout Library - MyBodyScan" description="Browse your plan and on-demand sessions" />
+      <Seo
+        title="Workout Library - MyBodyScan"
+        description="Browse your plan and on-demand sessions"
+      />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
         <div className="space-y-2 text-center">
           <LibraryBig className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-2xl font-semibold text-foreground">Workout Library</h1>
-          <p className="text-sm text-muted-foreground">Today’s plan plus on-demand sessions to swap in.</p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Workout Library
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Today’s plan plus on-demand sessions to swap in.
+          </p>
         </div>
         {systemHealthError ? (
           <Alert variant="destructive">
@@ -88,7 +102,9 @@ export default function WorkoutsLibrary() {
 
         {error && !loading && (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
+            <CardContent className="py-8 text-center text-sm text-destructive">
+              {error}
+            </CardContent>
           </Card>
         )}
 
@@ -99,14 +115,22 @@ export default function WorkoutsLibrary() {
                 <CardTitle>Today’s focus</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div className="font-medium text-foreground">{todayPlan.day}</div>
+                <div className="font-medium text-foreground">
+                  {todayPlan.day}
+                </div>
                 <p className="text-muted-foreground">
-                  Complete each set to keep your streak alive. We’ll mark completions as you log them.
+                  Complete each set to keep your streak alive. We’ll mark
+                  completions as you log them.
                 </p>
                 <ul className="space-y-2">
                   {todayPlan.exercises.map((exercise) => (
-                    <li key={exercise.id} className="flex flex-col rounded-md border p-3">
-                      <div className="text-sm font-semibold text-foreground">{exercise.name}</div>
+                    <li
+                      key={exercise.id}
+                      className="flex flex-col rounded-md border p-3"
+                    >
+                      <div className="text-sm font-semibold text-foreground">
+                        {exercise.name}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {exercise.sets ?? "-"} sets × {exercise.reps ?? "-"}
                       </div>
@@ -133,8 +157,12 @@ export default function WorkoutsLibrary() {
                 {workouts?.days?.map((day) => (
                   <div key={day.day} className="rounded-md border p-3 text-sm">
                     <div className="flex items-center justify-between">
-                      <div className="font-medium text-foreground">{day.day}</div>
-                      <div className="text-xs text-muted-foreground">{day.exercises.length} movements</div>
+                      <div className="font-medium text-foreground">
+                        {day.day}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {day.exercises.length} movements
+                      </div>
                     </div>
                     <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                       {day.exercises.slice(0, 3).map((ex) => (
@@ -142,13 +170,16 @@ export default function WorkoutsLibrary() {
                           {ex.name} — {ex.sets ?? "-"}×{ex.reps ?? "-"}
                         </li>
                       ))}
-                      {day.exercises.length === 0 && <li>No exercises listed yet.</li>}
+                      {day.exercises.length === 0 && (
+                        <li>No exercises listed yet.</li>
+                      )}
                     </ul>
                   </div>
                 ))}
                 {!workouts?.days?.length && (
                   <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                    No workout plan found yet. Generate a plan to start tracking your sessions.
+                    No workout plan found yet. Generate a plan to start tracking
+                    your sessions.
                   </div>
                 )}
               </CardContent>
@@ -159,7 +190,8 @@ export default function WorkoutsLibrary() {
         {!todayPlan && !loading && !error && (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              No workout plan found yet. Generate a plan to start tracking sessions.
+              No workout plan found yet. Generate a plan to start tracking
+              sessions.
             </CardContent>
           </Card>
         )}

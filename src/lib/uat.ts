@@ -44,7 +44,10 @@ type NormalizedError = {
   httpStatus?: number;
 };
 
-export function resolveUatAccess(user: User | null, claims: UserClaims | null): {
+export function resolveUatAccess(
+  user: User | null,
+  claims: UserClaims | null
+): {
   allowed: boolean;
   email: string | null;
   reason: "dev" | "staff" | "allowlist" | "denied";
@@ -54,7 +57,10 @@ export function resolveUatAccess(user: User | null, claims: UserClaims | null): 
     return { allowed: true, email, reason: "dev" };
   }
   const emailFromUser = user?.email?.toLowerCase() ?? null;
-  const emailFromClaims = typeof (claims as any)?.email === "string" ? (claims as any).email.toLowerCase() : null;
+  const emailFromClaims =
+    typeof (claims as any)?.email === "string"
+      ? (claims as any).email.toLowerCase()
+      : null;
   const email = emailFromUser || emailFromClaims;
   if (claims?.staff === true) {
     return { allowed: true, email: email ?? null, reason: "staff" };
@@ -70,13 +76,22 @@ export function resolveUatAccess(user: User | null, claims: UserClaims | null): 
 
 function normalizeError(error: unknown): NormalizedError {
   if (error instanceof DOMException && error.name === "AbortError") {
-    return { status: "skip", code: "aborted", message: "Request aborted", error: error.message };
+    return {
+      status: "skip",
+      code: "aborted",
+      message: "Request aborted",
+      error: error.message,
+    };
   }
   if (error && typeof error === "object") {
     const anyError = error as Record<string, unknown>;
     const code = typeof anyError.code === "string" ? anyError.code : null;
-    const message = typeof anyError.message === "string" ? anyError.message : null;
-    const httpStatus = typeof anyError.status === "number" ? (anyError.status as number) : undefined;
+    const message =
+      typeof anyError.message === "string" ? anyError.message : null;
+    const httpStatus =
+      typeof anyError.status === "number"
+        ? (anyError.status as number)
+        : undefined;
     return {
       code,
       message: message || code || "Probe failed",
@@ -90,11 +105,16 @@ function normalizeError(error: unknown): NormalizedError {
   return { message: "Unknown error", error: error ? String(error) : null };
 }
 
-export function useProbe<T = unknown>(label: string, onLog?: (entry: UatLogEntry) => void) {
+export function useProbe<T = unknown>(
+  label: string,
+  onLog?: (entry: UatLogEntry) => void
+) {
   const [state, setState] = useState<UatProbeState<T>>({ status: "idle" });
 
   const run = useCallback(
-    async (executor: () => Promise<ProbeExecutionResult<T>> | ProbeExecutionResult<T>) => {
+    async (
+      executor: () => Promise<ProbeExecutionResult<T>> | ProbeExecutionResult<T>
+    ) => {
       const startedAt = performance.now();
       const startedTs = Date.now();
       setState({ status: "running", timestamp: startedTs });
@@ -102,7 +122,8 @@ export function useProbe<T = unknown>(label: string, onLog?: (entry: UatLogEntry
         const result = await executor();
         const finishedAt = performance.now();
         const durationMs = Math.round(finishedAt - startedAt);
-        const status: UatStatus = result.status ?? (result.ok ? "pass" : "fail");
+        const status: UatStatus =
+          result.status ?? (result.ok ? "pass" : "fail");
         const next: UatProbeState<T> = {
           status,
           timestamp: Date.now(),
@@ -111,10 +132,17 @@ export function useProbe<T = unknown>(label: string, onLog?: (entry: UatLogEntry
           message: result.message ?? null,
           data: (result.data ?? null) as T | null,
           httpStatus: result.httpStatus,
-          error: result.ok ? null : result.message ?? null,
+          error: result.ok ? null : (result.message ?? null),
         };
         setState(next);
-        onLog?.({ label, status, code: next.code, message: next.message, durationMs, at: Date.now() });
+        onLog?.({
+          label,
+          status,
+          code: next.code,
+          message: next.message,
+          durationMs,
+          at: Date.now(),
+        });
         return next;
       } catch (error) {
         const finishedAt = performance.now();
@@ -131,11 +159,18 @@ export function useProbe<T = unknown>(label: string, onLog?: (entry: UatLogEntry
           httpStatus: normalized.httpStatus,
         };
         setState(next);
-        onLog?.({ label, status, code: next.code, message: next.message, durationMs, at: Date.now() });
+        onLog?.({
+          label,
+          status,
+          code: next.code,
+          message: next.message,
+          durationMs,
+          at: Date.now(),
+        });
         return next;
       }
     },
-    [label, onLog],
+    [label, onLog]
   );
 
   const reset = useCallback(() => {

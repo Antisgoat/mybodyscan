@@ -1,9 +1,11 @@
 ## Summary
+
 - Hardened scan lifecycle: back-end now writes canonical `pending → processing → complete/error` states with `completedAt` timestamps, client surfaces stale/failed scans with rescan CTAs, and we clean up abandoned uploads plus use the correct `/scans/:id` results route.
 - Meal search/log flows now call the unified `addMeal` Cloud Function so logging immediately updates today's totals on Meals & Nutrition pages, with the Nutrition page re-fetching daily data after each add.
 - Program start now routes users straight into Workouts, which re-hydrates when coming from the catalog and surfaces a confirmation toast; legacy pending/completed statuses were normalized throughout Processing/Results views.
 
 ## QA
+
 1. **Scan lifecycle**
    - Start a scan, finish uploads, and verify Firestore `users/{uid}/scans/{scanId}` moves `pending → processing → complete` with `completedAt`.
    - Kill the tab during upload; confirm the pending doc is deleted (or marked error) and no stuck “pending” entry shows in History/Home.

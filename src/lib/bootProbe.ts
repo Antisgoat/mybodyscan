@@ -1,6 +1,11 @@
 import { isWeb } from "./platform";
 import { BUILD } from "./buildInfo";
-import { DEMO_ENABLED, SHOW_APPLE_WEB, SW_ENABLED, APPCHECK_SITE_KEY } from "./flags";
+import {
+  DEMO_ENABLED,
+  SHOW_APPLE_WEB,
+  SW_ENABLED,
+  APPCHECK_SITE_KEY,
+} from "./flags";
 
 if (isWeb) {
   (async () => {
@@ -15,17 +20,27 @@ if (isWeb) {
     try {
       const params = new URLSearchParams();
       if (key) params.set("clientKey", key);
-      const response = await fetch(`/systemHealth${params.size ? `?${params.toString()}` : ""}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/systemHealth${params.size ? `?${params.toString()}` : ""}`,
+        {
+          cache: "no-store",
+        }
+      );
       if (response.ok) {
         const payload = (await response.json().catch(() => null)) as any;
         if (payload) {
           identityToolkitReachable = Boolean(payload.identityToolkitReachable);
           identityToolkitReason = payload.identityToolkitReason;
-          stripeSecretPresent = typeof payload.stripeSecretPresent === "boolean" ? payload.stripeSecretPresent : null;
-          openaiKeyPresent = typeof payload.openaiKeyPresent === "boolean" ? payload.openaiKeyPresent : null;
-          appCheckMode = typeof payload.appCheck === "string" ? payload.appCheck : undefined;
+          stripeSecretPresent =
+            typeof payload.stripeSecretPresent === "boolean"
+              ? payload.stripeSecretPresent
+              : null;
+          openaiKeyPresent =
+            typeof payload.openaiKeyPresent === "boolean"
+              ? payload.openaiKeyPresent
+              : null;
+          appCheckMode =
+            typeof payload.appCheck === "string" ? payload.appCheck : undefined;
         }
       } else if (import.meta.env.DEV) {
         console.warn("[boot] systemHealth request failed", response.status);
@@ -71,7 +86,7 @@ if (isWeb) {
               stripeSecretPresent,
               openaiKeyPresent,
             },
-          }),
+          })
         );
       } catch {
         /* empty */

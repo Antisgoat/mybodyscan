@@ -3,11 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { CalendarIcon, Plus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -39,7 +57,12 @@ interface ChartData {
 
 export default function CoachTrackerNew() {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [log, setLog] = useState<NutritionLog>({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+  const [log, setLog] = useState<NutritionLog>({
+    calories: 0,
+    protein_g: 0,
+    carbs_g: 0,
+    fat_g: 0,
+  });
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [mealForm, setMealForm] = useState({
     name: "",
@@ -49,7 +72,7 @@ export default function CoachTrackerNew() {
     fat_g: "",
   });
   const [mealDialogOpen, setMealDialogOpen] = useState(false);
-  
+
   const { plan } = useUserProfile();
   const { toast } = useToast();
 
@@ -79,12 +102,12 @@ export default function CoachTrackerNew() {
     const loadChartData = async () => {
       const data: ChartData[] = [];
       const today = new Date();
-      
+
       for (let i = 6; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
         const dateStr = format(date, "yyyy-MM-dd");
-        
+
         // Simple promise-based read for chart data
         const logRef = doc(db, "users", uid, "nutritionLogs", dateStr);
         try {
@@ -93,7 +116,7 @@ export default function CoachTrackerNew() {
             // Clean up immediately after first read
             setTimeout(() => unsubscribe(), 100);
           });
-          
+
           data.push({
             date: format(date, "MMM dd"),
             calories: snapshot.data()?.calories || 0,
@@ -107,7 +130,7 @@ export default function CoachTrackerNew() {
           });
         }
       }
-      
+
       setChartData(data);
     };
 
@@ -155,7 +178,13 @@ export default function CoachTrackerNew() {
         title: "Meal logged",
         description: `Added ${meal.name} to ${format(selectedDate, "MMM dd")}`,
       });
-      setMealForm({ name: "", calories: "", protein_g: "", carbs_g: "", fat_g: "" });
+      setMealForm({
+        name: "",
+        calories: "",
+        protein_g: "",
+        carbs_g: "",
+        fat_g: "",
+      });
       setMealDialogOpen(false);
     } catch (error) {
       console.error("coachTrackerNew.addMeal", error);
@@ -173,17 +202,19 @@ export default function CoachTrackerNew() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <Seo 
+      <Seo
         title="Nutrition Tracker - MyBodyScan"
         description="Track your daily nutrition and calories"
       />
-      
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Nutrition Tracker</h1>
-          <p className="text-muted-foreground">Track your daily intake and progress</p>
+          <p className="text-muted-foreground">
+            Track your daily intake and progress
+          </p>
         </div>
-        
+
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="flex items-center gap-2">
@@ -225,7 +256,12 @@ export default function CoachTrackerNew() {
                         id="meal-name"
                         placeholder="e.g., Breakfast"
                         value={mealForm.name}
-                        onChange={(e) => setMealForm(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setMealForm((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -236,7 +272,12 @@ export default function CoachTrackerNew() {
                           type="number"
                           placeholder="0"
                           value={mealForm.calories}
-                          onChange={(e) => setMealForm(prev => ({ ...prev, calories: e.target.value }))}
+                          onChange={(e) =>
+                            setMealForm((prev) => ({
+                              ...prev,
+                              calories: e.target.value,
+                            }))
+                          }
                         />
                       </div>
                       <div>
@@ -246,7 +287,12 @@ export default function CoachTrackerNew() {
                           type="number"
                           placeholder="0"
                           value={mealForm.protein_g}
-                          onChange={(e) => setMealForm(prev => ({ ...prev, protein_g: e.target.value }))}
+                          onChange={(e) =>
+                            setMealForm((prev) => ({
+                              ...prev,
+                              protein_g: e.target.value,
+                            }))
+                          }
                         />
                       </div>
                       <div>
@@ -256,7 +302,12 @@ export default function CoachTrackerNew() {
                           type="number"
                           placeholder="0"
                           value={mealForm.carbs_g}
-                          onChange={(e) => setMealForm(prev => ({ ...prev, carbs_g: e.target.value }))}
+                          onChange={(e) =>
+                            setMealForm((prev) => ({
+                              ...prev,
+                              carbs_g: e.target.value,
+                            }))
+                          }
                         />
                       </div>
                       <div>
@@ -266,7 +317,12 @@ export default function CoachTrackerNew() {
                           type="number"
                           placeholder="0"
                           value={mealForm.fat_g}
-                          onChange={(e) => setMealForm(prev => ({ ...prev, fat_g: e.target.value }))}
+                          onChange={(e) =>
+                            setMealForm((prev) => ({
+                              ...prev,
+                              fat_g: e.target.value,
+                            }))
+                          }
                         />
                       </div>
                     </div>
@@ -283,10 +339,12 @@ export default function CoachTrackerNew() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Calories</span>
-                <span>{log.calories} / {targetCalories}</span>
+                <span>
+                  {log.calories} / {targetCalories}
+                </span>
               </div>
               <div className="w-full bg-muted rounded-full h-2">
-                <div 
+                <div
                   className="bg-primary rounded-full h-2 transition-all"
                   style={{ width: `${progressPercent}%` }}
                 />
@@ -332,7 +390,10 @@ export default function CoachTrackerNew() {
               <div className="space-y-2">
                 <h4 className="font-medium">Today's Meals</h4>
                 {log.meals.map((meal, index) => (
-                  <div key={index} className="flex justify-between p-2 bg-muted/30 rounded">
+                  <div
+                    key={index}
+                    className="flex justify-between p-2 bg-muted/30 rounded"
+                  >
                     <span>{meal.name}</span>
                     <span className="text-sm text-muted-foreground">
                       {meal.calories} cal
@@ -352,35 +413,35 @@ export default function CoachTrackerNew() {
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="date" 
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                />
+                <XAxis
+                  dataKey="date"
                   fontSize={12}
                   stroke="hsl(var(--muted-foreground))"
                 />
-                <YAxis 
-                  fontSize={12}
-                  stroke="hsl(var(--muted-foreground))"
-                />
+                <YAxis fontSize={12} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--popover))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "var(--radius)"
+                    borderRadius: "var(--radius)",
                   }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="calories" 
-                  stroke="hsl(var(--primary))" 
+                <Line
+                  type="monotone"
+                  dataKey="calories"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 0, r: 4 }}
                 />
                 {plan?.calorieTarget && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="target" 
-                    stroke="hsl(var(--muted-foreground))" 
+                  <Line
+                    type="monotone"
+                    dataKey="target"
+                    stroke="hsl(var(--muted-foreground))"
                     strokeWidth={1}
                     strokeDasharray="5 5"
                     dot={false}
@@ -396,9 +457,13 @@ export default function CoachTrackerNew() {
       <Card className="border-warning/20 bg-warning/5">
         <CardContent className="pt-6">
           <div className="text-sm text-muted-foreground">
-            <strong>Health Note:</strong> Minimum recommended daily intake is 1200 calories. 
-            Stay hydrated, get adequate rest, and listen to your body. MyBodyScan is not a medical device.{" "}
-            <a href="/legal/disclaimer" className="text-primary hover:underline">
+            <strong>Health Note:</strong> Minimum recommended daily intake is
+            1200 calories. Stay hydrated, get adequate rest, and listen to your
+            body. MyBodyScan is not a medical device.{" "}
+            <a
+              href="/legal/disclaimer"
+              className="text-primary hover:underline"
+            >
               View full disclaimers
             </a>
           </div>

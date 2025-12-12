@@ -1,5 +1,8 @@
 import { sanitizeFoodItem as normalizeNutritionItem } from "@/features/nutrition/sanitize";
-import { nutritionSearch as requestNutritionSearch, nutritionBarcodeLookup as requestNutritionBarcode } from "./api";
+import {
+  nutritionSearch as requestNutritionSearch,
+  nutritionBarcodeLookup as requestNutritionBarcode,
+} from "./api";
 import { netError } from "./net";
 
 type RequestOptions = {
@@ -72,45 +75,69 @@ function n(x: unknown): number | undefined {
 
 function normalizeFoodItem(raw: any): FoodItem {
   const idSource = raw?.id ?? raw?.uid ?? raw?.fdcId ?? raw?.code;
-  const id = typeof idSource === "string" && idSource.trim().length
-    ? idSource.trim()
-    : typeof idSource === "number"
-    ? String(idSource)
-    : `food-${Math.random().toString(36).slice(2, 10)}`;
+  const id =
+    typeof idSource === "string" && idSource.trim().length
+      ? idSource.trim()
+      : typeof idSource === "number"
+        ? String(idSource)
+        : `food-${Math.random().toString(36).slice(2, 10)}`;
 
   const normalized = normalizeNutritionItem(raw) ?? {};
-  const name = typeof normalized.name === "string" && normalized.name.trim().length
-    ? normalized.name.trim()
-    : typeof raw?.name === "string"
-    ? raw.name.trim()
-    : typeof raw?.description === "string"
-    ? raw.description.trim()
-    : "";
-  const brand = normalized.brand ? normalized.brand : typeof raw?.brand === "string" ? raw.brand.trim() : undefined;
-  const sourceRaw = typeof raw?.source === "string" ? raw.source.toLowerCase() : "";
-  const source: FoodItem["source"] = sourceRaw === "off" || sourceRaw === "open food facts" ? "off" : "usda";
+  const name =
+    typeof normalized.name === "string" && normalized.name.trim().length
+      ? normalized.name.trim()
+      : typeof raw?.name === "string"
+        ? raw.name.trim()
+        : typeof raw?.description === "string"
+          ? raw.description.trim()
+          : "";
+  const brand = normalized.brand
+    ? normalized.brand
+    : typeof raw?.brand === "string"
+      ? raw.brand.trim()
+      : undefined;
+  const sourceRaw =
+    typeof raw?.source === "string" ? raw.source.toLowerCase() : "";
+  const source: FoodItem["source"] =
+    sourceRaw === "off" || sourceRaw === "open food facts" ? "off" : "usda";
 
   return {
     id,
     name,
     brand,
-    calories: normalized.kcal ?? (Number.isFinite(Number(raw?.calories)) ? Number(raw.calories) : undefined),
-    protein: normalized.protein_g ?? (Number.isFinite(Number(raw?.protein)) ? Number(raw.protein) : undefined),
-    carbs: normalized.carbs_g ?? (Number.isFinite(Number(raw?.carbs)) ? Number(raw.carbs) : undefined),
-    fat: normalized.fat_g ?? (Number.isFinite(Number(raw?.fat)) ? Number(raw.fat) : undefined),
+    calories:
+      normalized.kcal ??
+      (Number.isFinite(Number(raw?.calories))
+        ? Number(raw.calories)
+        : undefined),
+    protein:
+      normalized.protein_g ??
+      (Number.isFinite(Number(raw?.protein)) ? Number(raw.protein) : undefined),
+    carbs:
+      normalized.carbs_g ??
+      (Number.isFinite(Number(raw?.carbs)) ? Number(raw.carbs) : undefined),
+    fat:
+      normalized.fat_g ??
+      (Number.isFinite(Number(raw?.fat)) ? Number(raw.fat) : undefined),
     source,
   };
 }
 
 /** Search foods by free text via backend function. Cached 5m. */
-export async function searchFoods(q: string, options: RequestOptions = {}): Promise<SearchResult> {
+export async function searchFoods(
+  q: string,
+  options: RequestOptions = {}
+): Promise<SearchResult> {
   const cacheKey = `search:${q.toLowerCase()}`;
   const cached = cacheGet<SearchResult>(cacheKey);
   if (cached) return cached;
 
   const trimmed = q.trim();
   if (!trimmed) {
-    const empty: SearchResult = { items: [], status: "Enter a search term to begin." };
+    const empty: SearchResult = {
+      items: [],
+      status: "Enter a search term to begin.",
+    };
     cacheSet(cacheKey, empty);
     return empty;
   }
@@ -119,7 +146,8 @@ export async function searchFoods(q: string, options: RequestOptions = {}): Prom
   try {
     payload = await requestNutritionSearch(trimmed, { signal: options.signal });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
     if ((error as { code?: string } | undefined)?.code === "auth_required") {
       throw error;
     }
@@ -133,13 +161,14 @@ export async function searchFoods(q: string, options: RequestOptions = {}): Prom
         .filter((item): item is FoodItem => Boolean(item.name))
     : [];
 
-  const statusMessage = payload?.message === "no_results"
-    ? 'No results. Try "chicken breast" or a known barcode.'
-    : payload?.source
-      ? `Source: ${payload.source}`
-      : items.length
-        ? "Done."
-        : "No results.";
+  const statusMessage =
+    payload?.message === "no_results"
+      ? 'No results. Try "chicken breast" or a known barcode.'
+      : payload?.source
+        ? `Source: ${payload.source}`
+        : items.length
+          ? "Done."
+          : "No results.";
 
   const result: SearchResult = { items, status: statusMessage };
   if (!options.signal?.aborted) {
@@ -149,23 +178,32 @@ export async function searchFoods(q: string, options: RequestOptions = {}): Prom
 }
 
 /** Lookup by barcode (GTIN/UPC/EAN) via backend function. Cached 5m. */
-export async function lookupBarcode(code: string, options: RequestOptions = {}): Promise<SearchResult> {
+export async function lookupBarcode(
+  code: string,
+  options: RequestOptions = {}
+): Promise<SearchResult> {
   const cacheKey = `barcode:${code}`;
   const cached = cacheGet<SearchResult>(cacheKey);
   if (cached) return cached;
 
   const trimmed = code.trim();
   if (!trimmed) {
-    const empty: SearchResult = { items: [], status: "Enter a barcode to search." };
+    const empty: SearchResult = {
+      items: [],
+      status: "Enter a barcode to search.",
+    };
     cacheSet(cacheKey, empty);
     return empty;
   }
 
   let payload: BackendNutritionResponse | undefined;
   try {
-    payload = await requestNutritionBarcode(trimmed, { signal: options.signal });
+    payload = await requestNutritionBarcode(trimmed, {
+      signal: options.signal,
+    });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
     if ((error as { code?: string } | undefined)?.code === "auth_required") {
       throw error;
     }
@@ -179,13 +217,14 @@ export async function lookupBarcode(code: string, options: RequestOptions = {}):
         .filter((item): item is FoodItem => Boolean(item.name))
     : [];
 
-  const statusMessage = payload?.message === "no_results"
-    ? "No barcode match found."
-    : payload?.source
-      ? `Source: ${payload.source}`
-      : items.length
-        ? "Found."
-        : "No barcode match found.";
+  const statusMessage =
+    payload?.message === "no_results"
+      ? "No barcode match found."
+      : payload?.source
+        ? `Source: ${payload.source}`
+        : items.length
+          ? "Found."
+          : "No barcode match found.";
 
   const result: SearchResult = { items, status: statusMessage };
   if (!options.signal?.aborted) {

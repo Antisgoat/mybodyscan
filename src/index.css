@@ -49,7 +49,16 @@
     --ring: 217.2 32.6% 17.5%;
   }
 
-  html, body { height: 100%; }
-  body { @apply bg-background text-foreground; }
-  *, ::before, ::after { @apply border-border; }
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  *,
+  ::before,
+  ::after {
+    @apply border-border;
+  }
 }

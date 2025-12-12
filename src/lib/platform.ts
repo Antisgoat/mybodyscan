@@ -32,10 +32,16 @@ function getUserAgent(): string {
 
 function isStandaloneDisplayMode(): boolean {
   if (!isWeb()) return false;
-  if (typeof navigator !== "undefined" && (navigator as any).standalone === true) {
+  if (
+    typeof navigator !== "undefined" &&
+    (navigator as any).standalone === true
+  ) {
     return true;
   }
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function"
+  ) {
     try {
       return window.matchMedia(STANDALONE_DISPLAY_MODE_QUERY).matches;
     } catch {
@@ -59,7 +65,8 @@ export function isIOSWebView(): boolean {
   if (!hasIOSIndicators()) return false;
   if (isStandaloneDisplayMode()) return false;
   const ua = getUserAgent();
-  const isSafariEngine = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
+  const isSafariEngine =
+    /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
   return isSafariEngine;
 }
 
@@ -129,12 +136,17 @@ export async function openExternalUrl(url: string): Promise<void> {
 }
 
 export function hasGetUserMedia(): boolean {
-  return Boolean(typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  return Boolean(
+    typeof navigator !== "undefined" &&
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia
+  );
 }
 
 export function isSecureContextOrLocal(): boolean {
   if (typeof window === "undefined") return false;
-  if (typeof window.isSecureContext === "boolean" && window.isSecureContext) return true;
+  if (typeof window.isSecureContext === "boolean" && window.isSecureContext)
+    return true;
   if (typeof window.location !== "undefined") {
     return window.location.hostname === "localhost";
   }

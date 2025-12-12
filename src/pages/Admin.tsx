@@ -31,7 +31,10 @@ import { buildErrorToast } from "@/lib/errorToasts";
 
 const STAFF_EMAIL_ALLOW = new Set(["developer@adlrlabs.com"]);
 
-function isStaffUser(user: { email?: string | null }, claims: Record<string, unknown> | null): boolean {
+function isStaffUser(
+  user: { email?: string | null },
+  claims: Record<string, unknown> | null
+): boolean {
   const staffClaim = claims?.staff === true;
   const email = (user.email || "").toLowerCase();
   return staffClaim || STAFF_EMAIL_ALLOW.has(email);
@@ -98,18 +101,27 @@ function useIdentityToolkitStatus(): number | null {
   const [status, setStatus] = useState<number | null>(null);
   useEffect(() => {
     function handle(event: Event) {
-      const detail = (event as CustomEvent)?.detail as { itk?: number } | undefined;
+      const detail = (event as CustomEvent)?.detail as
+        | { itk?: number }
+        | undefined;
       if (detail && typeof detail.itk === "number") {
         setStatus(detail.itk);
       }
     }
     window.addEventListener("mbs:boot", handle as EventListener);
-    return () => window.removeEventListener("mbs:boot", handle as EventListener);
+    return () =>
+      window.removeEventListener("mbs:boot", handle as EventListener);
   }, []);
   return status;
 }
 
-function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh: () => Promise<void> }) {
+function UsersPanel({
+  users,
+  onRefresh,
+}: {
+  users: AdminUserRecord[];
+  onRefresh: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function handleGrant(uid: string, amount: number) {
@@ -120,8 +132,12 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Grant failed", description: "Check logs.", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Grant failed",
+            description: "Check logs.",
+            variant: "destructive",
+          },
+        })
       );
     } finally {
       setBusy(null);
@@ -136,8 +152,12 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Toggle failed", description: "Try again later.", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Toggle failed",
+            description: "Try again later.",
+            variant: "destructive",
+          },
+        })
       );
     } finally {
       setBusy(null);
@@ -152,8 +172,12 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Refresh failed", description: "Try again later.", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Refresh failed",
+            description: "Try again later.",
+            variant: "destructive",
+          },
+        })
       );
     } finally {
       setBusy(null);
@@ -178,14 +202,20 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
             <TableRow key={user.uid}>
               <TableCell>
                 <div className="flex flex-col">
-                  <span className="font-medium">{user.email || "(no email)"}</span>
-                  <span className="text-xs text-muted-foreground">{user.uid}</span>
+                  <span className="font-medium">
+                    {user.email || "(no email)"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {user.uid}
+                  </span>
                 </div>
               </TableCell>
               <TableCell>{formatDate(user.createdAt)}</TableCell>
               <TableCell>{user.credits ?? "—"}</TableCell>
               <TableCell>
-                <Badge variant={unlimited ? "default" : "outline"}>{unlimited ? "Unlimited" : "Metered"}</Badge>
+                <Badge variant={unlimited ? "default" : "outline"}>
+                  {unlimited ? "Unlimited" : "Metered"}
+                </Badge>
               </TableCell>
               <TableCell className="flex justify-end gap-2">
                 <Button
@@ -239,7 +269,11 @@ function UsersPanel({ users, onRefresh }: { users: AdminUserRecord[]; onRefresh:
 
 function PaymentsPanel({ events }: { events: StripeEventRecord[] }) {
   if (!events.length) {
-    return <p className="text-sm text-muted-foreground">No Stripe events recorded yet.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No Stripe events recorded yet.
+      </p>
+    );
   }
   return (
     <Table>
@@ -259,7 +293,12 @@ function PaymentsPanel({ events }: { events: StripeEventRecord[] }) {
           return (
             <TableRow key={event.id}>
               <TableCell>
-                <a href={stripeLink} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                <a
+                  href={stripeLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
                   {event.type}
                 </a>
               </TableCell>
@@ -267,11 +306,15 @@ function PaymentsPanel({ events }: { events: StripeEventRecord[] }) {
               <TableCell>
                 <div className="flex flex-col">
                   <span>{event.email || "—"}</span>
-                  <span className="text-xs text-muted-foreground">{event.uid || ""}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {event.uid || ""}
+                  </span>
                 </div>
               </TableCell>
               <TableCell>{event.priceId || "—"}</TableCell>
-              <TableCell>{event.amount != null ? (event.amount / 100).toFixed(2) : "—"}</TableCell>
+              <TableCell>
+                {event.amount != null ? (event.amount / 100).toFixed(2) : "—"}
+              </TableCell>
               <TableCell>{event.status || "—"}</TableCell>
             </TableRow>
           );
@@ -283,7 +326,11 @@ function PaymentsPanel({ events }: { events: StripeEventRecord[] }) {
 
 function TelemetryPanel({ events }: { events: TelemetryEventRecord[] }) {
   if (!events.length) {
-    return <p className="text-sm text-muted-foreground">No telemetry entries captured yet.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No telemetry entries captured yet.
+      </p>
+    );
   }
   return (
     <Table>
@@ -300,10 +347,16 @@ function TelemetryPanel({ events }: { events: TelemetryEventRecord[] }) {
         {events.map((event) => (
           <TableRow key={event.id}>
             <TableCell>{event.kind || "—"}</TableCell>
-            <TableCell className="max-w-sm truncate" title={event.message || undefined}>
+            <TableCell
+              className="max-w-sm truncate"
+              title={event.message || undefined}
+            >
               {event.message || "—"}
             </TableCell>
-            <TableCell className="max-w-xs truncate" title={event.url || undefined}>
+            <TableCell
+              className="max-w-xs truncate"
+              title={event.url || undefined}
+            >
               {event.url || "—"}
             </TableCell>
             <TableCell>{event.code || "—"}</TableCell>
@@ -325,7 +378,10 @@ export default function AdminConsole() {
   const [telemetry, setTelemetry] = useState<TelemetryEventRecord[]>([]);
   const itkStatus = useIdentityToolkitStatus();
 
-  const authorized = useMemo(() => (user ? isStaffUser(user, claims) : false), [user, claims]);
+  const authorized = useMemo(
+    () => (user ? isStaffUser(user, claims) : false),
+    [user, claims]
+  );
 
   const refreshUsers = useCallback(async () => {
     if (!authorized) return;
@@ -387,7 +443,8 @@ export default function AdminConsole() {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Admin console</h1>
         <p className="text-sm text-muted-foreground">
-          Search users, manage credits, review payments, and monitor telemetry. Staff access only.
+          Search users, manage credits, review payments, and monitor telemetry.
+          Staff access only.
         </p>
       </div>
 
@@ -414,7 +471,9 @@ export default function AdminConsole() {
               <Button size="sm" disabled variant="outline">
                 Impersonate (preview)
               </Button>
-              <p className="mt-1 text-xs text-muted-foreground">Read-only impersonation coming soon.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Read-only impersonation coming soon.
+              </p>
             </div>
           </div>
         </CardContent>
@@ -434,7 +493,9 @@ export default function AdminConsole() {
               placeholder="Search by email prefix"
               className="max-w-sm"
             />
-            {searching && <span className="text-xs text-muted-foreground">Searching…</span>}
+            {searching && (
+              <span className="text-xs text-muted-foreground">Searching…</span>
+            )}
           </div>
           <UsersPanel users={users} onRefresh={refreshUsers} />
         </TabsContent>

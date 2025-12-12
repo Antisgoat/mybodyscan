@@ -4,7 +4,12 @@ import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 
-export type SubscriptionStatus = "active" | "canceled" | "past_due" | "none" | string;
+export type SubscriptionStatus =
+  | "active"
+  | "canceled"
+  | "past_due"
+  | "none"
+  | string;
 
 export interface SubscriptionInfo {
   status: SubscriptionStatus;
@@ -16,7 +21,9 @@ export interface SubscriptionInfo {
 export function useSubscription() {
   const { user } = useAuthUser();
   const demo = useDemoMode();
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +44,8 @@ export function useSubscription() {
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        const sub = (snap.data()?.subscription || null) as SubscriptionInfo | null;
+        const sub = (snap.data()?.subscription ||
+          null) as SubscriptionInfo | null;
         if (sub) {
           setSubscription({
             status: (sub.status as SubscriptionStatus) || "none",
@@ -55,7 +63,7 @@ export function useSubscription() {
         setError(err.message || "Failed to load subscription");
         setSubscription(null);
         setLoading(false);
-      },
+      }
     );
     return () => unsub();
   }, [user?.uid, demo]);

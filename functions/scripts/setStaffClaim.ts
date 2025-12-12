@@ -10,4 +10,7 @@ async function main() {
   await auth.setCustomUserClaims(uid, claims);
   console.log(`set { staff:true } for uid=${uid}`);
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

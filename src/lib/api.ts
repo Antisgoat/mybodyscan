@@ -7,7 +7,10 @@ import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import { nutritionSearch as nutritionSearchCallable } from "@/lib/api/nutrition";
 import type { Auth, User } from "firebase/auth";
 import { apiFetchJson } from "./apiFetch";
-import { openCustomerPortal as openPaymentsPortal, startCheckout as startCheckoutFlow } from "./payments";
+import {
+  openCustomerPortal as openPaymentsPortal,
+  startCheckout as startCheckoutFlow,
+} from "./payments";
 import { isDemo } from "./demo";
 import { mockBarcodeLookup, mockStartScan } from "./demoApiMocks";
 import { authedJsonPost } from "./authedFetch";
@@ -19,7 +22,10 @@ const PRICE_IDS = {
   extra: (import.meta.env.VITE_PRICE_EXTRA ?? "").trim(),
 } as const;
 
-const CHECKOUT_MODES: Record<"one" | "monthly" | "yearly" | "extra", "payment" | "subscription"> = {
+const CHECKOUT_MODES: Record<
+  "one" | "monthly" | "yearly" | "extra",
+  "payment" | "subscription"
+> = {
   one: "payment",
   monthly: "subscription",
   yearly: "subscription",
@@ -30,7 +36,10 @@ function showDemoPreviewToast(description?: string) {
   toast({ title: "Demo preview — sign up to use this feature.", description });
 }
 
-async function getAuthContext(): Promise<{ auth: Auth | null; user: User | null }> {
+async function getAuthContext(): Promise<{
+  auth: Auth | null;
+  user: User | null;
+}> {
   return { auth: firebaseAuth, user: firebaseAuth?.currentUser ?? null };
 }
 
@@ -50,7 +59,7 @@ async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
 }
 
 export async function billingCheckout(
-  plan: "one" | "monthly" | "yearly" | "extra",
+  plan: "one" | "monthly" | "yearly" | "extra"
 ): Promise<{ sessionId: string; url: string | null }> {
   if (!plan) {
     throw new Error("invalid_plan");
@@ -85,7 +94,8 @@ export async function billingCheckout(
     throw error;
   }
 
-  const sessionId = typeof payload?.sessionId === "string" ? payload.sessionId : "";
+  const sessionId =
+    typeof payload?.sessionId === "string" ? payload.sessionId : "";
   if (!sessionId) {
     console.error("billing_checkout_missing_session", payload);
     const error: any = new Error("checkout_session_missing");
@@ -93,7 +103,10 @@ export async function billingCheckout(
     throw error;
   }
 
-  return { sessionId, url: typeof payload?.url === "string" ? payload.url : null };
+  return {
+    sessionId,
+    url: typeof payload?.url === "string" ? payload.url : null,
+  };
 }
 
 export function nutritionFnUrl(params?: Record<string, string>) {
@@ -138,7 +151,9 @@ const DEMO_NUTRITION_RESULTS = [
   },
 ] satisfies Array<Record<string, unknown>>;
 
-export async function nutritionSearch(query: string): Promise<NutritionSearchResponse> {
+export async function nutritionSearch(
+  query: string
+): Promise<NutritionSearchResponse> {
   const trimmed = query.trim();
   if (!trimmed) {
     return { results: [] };
@@ -156,7 +171,7 @@ export async function nutritionSearch(query: string): Promise<NutritionSearchRes
 
 export async function nutritionBarcodeLookup(
   code: string,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<NutritionSearchResponse> {
   const trimmed = code.trim();
   if (!trimmed) {
@@ -200,7 +215,10 @@ export async function nutritionBarcodeLookup(
   return payload ?? {};
 }
 
-export async function coachSend(message: string, options: { signal?: AbortSignal } = {}): Promise<string> {
+export async function coachSend(
+  message: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<string> {
   const trimmed = message.trim();
   if (!trimmed) {
     throw new Error("message_required");
@@ -247,8 +265,8 @@ function normalizeServingOption(raw: any, index: number): ServingOption | null {
     typeof idRaw === "string" && idRaw.trim().length
       ? idRaw.trim()
       : typeof idRaw === "number"
-      ? String(idRaw)
-      : `srv-${index}`;
+        ? String(idRaw)
+        : `srv-${index}`;
   return {
     id,
     label,
@@ -258,7 +276,10 @@ function normalizeServingOption(raw: any, index: number): ServingOption | null {
 }
 
 function normalizeFoodItem(raw: any): FoodItem {
-  const brand = typeof raw?.brand === "string" && raw.brand.trim().length ? raw.brand.trim() : null;
+  const brand =
+    typeof raw?.brand === "string" && raw.brand.trim().length
+      ? raw.brand.trim()
+      : null;
 
   const base = raw?.basePer100g ?? {};
   const basePer100g = {
@@ -291,12 +312,15 @@ function normalizeFoodItem(raw: any): FoodItem {
       raw?.id ??
         raw?.fdcId ??
         raw?.gtin ??
-        (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        (typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
           ? crypto.randomUUID()
-          : `food-${Math.random().toString(36).slice(2, 10)}`),
+          : `food-${Math.random().toString(36).slice(2, 10)}`)
     ),
     name:
-      typeof raw?.name === "string" && raw.name.trim().length ? raw.name.trim() : "Food",
+      typeof raw?.name === "string" && raw.name.trim().length
+        ? raw.name.trim()
+        : "Food",
     brand,
     source: raw?.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
     basePer100g,
@@ -312,26 +336,36 @@ function normalizeFoodItem(raw: any): FoodItem {
     per_serving: {
       kcal: typeof perServingRaw?.kcal === "number" ? perServingRaw.kcal : null,
       protein_g:
-        typeof perServingRaw?.protein_g === "number" ? perServingRaw.protein_g : null,
+        typeof perServingRaw?.protein_g === "number"
+          ? perServingRaw.protein_g
+          : null,
       carbs_g:
-        typeof perServingRaw?.carbs_g === "number" ? perServingRaw.carbs_g : null,
-      fat_g: typeof perServingRaw?.fat_g === "number" ? perServingRaw.fat_g : null,
+        typeof perServingRaw?.carbs_g === "number"
+          ? perServingRaw.carbs_g
+          : null,
+      fat_g:
+        typeof perServingRaw?.fat_g === "number" ? perServingRaw.fat_g : null,
     },
     per_100g: per100Raw
       ? {
           kcal: typeof per100Raw?.kcal === "number" ? per100Raw.kcal : null,
           protein_g:
-            typeof per100Raw?.protein_g === "number" ? per100Raw.protein_g : null,
-          carbs_g: typeof per100Raw?.carbs_g === "number" ? per100Raw.carbs_g : null,
+            typeof per100Raw?.protein_g === "number"
+              ? per100Raw.protein_g
+              : null,
+          carbs_g:
+            typeof per100Raw?.carbs_g === "number" ? per100Raw.carbs_g : null,
           fat_g: typeof per100Raw?.fat_g === "number" ? per100Raw.fat_g : null,
         }
       : undefined,
     fdcId:
       typeof raw?.fdcId === "number"
         ? raw.fdcId
-        : typeof raw?.fdcId === "string" && raw.fdcId.trim().length && !Number.isNaN(Number(raw.fdcId))
-        ? Number(raw.fdcId)
-        : undefined,
+        : typeof raw?.fdcId === "string" &&
+            raw.fdcId.trim().length &&
+            !Number.isNaN(Number(raw.fdcId))
+          ? Number(raw.fdcId)
+          : undefined,
     gtin:
       typeof raw?.gtin === "string" && raw.gtin.trim().length
         ? raw.gtin.trim()
@@ -350,7 +384,10 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
 
   const controller = new AbortController();
   nutritionSearchController = controller;
-  const timer = setTimeout(() => controller.abort(), NUTRITION_SEARCH_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => controller.abort(),
+    NUTRITION_SEARCH_TIMEOUT_MS
+  );
 
   try {
     let payload: NutritionSearchResponse | undefined;
@@ -423,7 +460,10 @@ async function authedFetch(path: string, init?: RequestInit) {
   const { user } = await requireAuthContext();
   const t = await user.getIdToken();
   const headers = new Headers(init?.headers ?? undefined);
-  headers.set("Content-Type", headers.get("Content-Type") || "application/json");
+  headers.set(
+    "Content-Type",
+    headers.get("Content-Type") || "application/json"
+  );
   headers.set("Authorization", `Bearer ${t}`);
   await ensureAppCheck();
   const appCheckHeaders = await getAppCheckTokenHeader();
@@ -491,7 +531,12 @@ export async function beginPaidScan(payload: {
   if (isDemo()) {
     showDemoPreviewToast("Demo preview — paid scans are disabled.");
     const mock = mockStartScan(payload);
-    return { ok: true, remainingCredits: 0, scanId: mock.scanId, resultId: mock.resultId };
+    return {
+      ok: true,
+      remainingCredits: 0,
+      scanId: mock.scanId,
+      resultId: mock.resultId,
+    };
   }
   const response = await authedFetch(`/beginPaidScan`, {
     method: "POST",
@@ -532,7 +577,10 @@ export async function refundIfNoResult(scanId: string) {
   return data as { ok: boolean; refunded: boolean };
 }
 
-export async function createCheckout(kind: "scan" | "sub_monthly" | "sub_annual", credits = 1) {
+export async function createCheckout(
+  kind: "scan" | "sub_monthly" | "sub_annual",
+  credits = 1
+) {
   await requireAuthContext();
   try {
     return (await apiFetchJson("/api/createCheckout", {

@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { isIOSWeb } from "@/lib/isIOSWeb";
-import { loadFirebaseAuthClientConfig, isProviderEnabled } from "@/lib/firebaseAuthConfig";
+import {
+  loadFirebaseAuthClientConfig,
+  isProviderEnabled,
+} from "@/lib/firebaseAuthConfig";
 import { coachPlanDocPath, coachChatCollectionPath } from "@/lib/paths";
 import { appVersion } from "@/lib/appInfo";
 
@@ -19,7 +28,12 @@ export default function DevAudit() {
   const [healthStatus, setHealthStatus] = useState<number | null>(null);
   const [appleEnabled, setAppleEnabled] = useState<boolean | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
-  const [rewriteProbe, setRewriteProbe] = useState<null | { healthOk: boolean; healthStatus: number; fallbackOk: boolean; fallbackStatus: number }>(null);
+  const [rewriteProbe, setRewriteProbe] = useState<null | {
+    healthOk: boolean;
+    healthStatus: number;
+    fallbackOk: boolean;
+    fallbackStatus: number;
+  }>(null);
   const [probing, setProbing] = useState(false);
 
   useEffect(() => {
@@ -27,11 +41,17 @@ export default function DevAudit() {
     const controller = new AbortController();
     async function loadHealth() {
       try {
-        const res = await fetch("/system/health", { method: "GET", credentials: "include", signal: controller.signal });
+        const res = await fetch("/system/health", {
+          method: "GET",
+          credentials: "include",
+          signal: controller.signal,
+        });
         if (cancelled) return;
         setHealthStatus(res.status);
         const json = await res.json().catch(() => null);
-        setHealthJson(JSON.stringify(json ?? { error: "invalid json" }, null, 2));
+        setHealthJson(
+          JSON.stringify(json ?? { error: "invalid json" }, null, 2)
+        );
       } catch {
         if (!cancelled) {
           setHealthStatus(0);
@@ -65,7 +85,9 @@ export default function DevAudit() {
   }, []);
 
   const isIOS = useMemo(() => isIOSWeb(), []);
-  const popupHint = isIOS ? "iOS Safari redirect recommended" : "Popup supported";
+  const popupHint = isIOS
+    ? "iOS Safari redirect recommended"
+    : "Popup supported";
 
   const routeLinks = useMemo(
     () => [
@@ -94,7 +116,10 @@ export default function DevAudit() {
       setRewriteProbe(null);
       const [healthRes, fallbackRes] = await Promise.all([
         fetch("/system/health", { method: "GET", redirect: "manual" }),
-        fetch("/this/path/does/not/exist", { method: "GET", redirect: "manual" }),
+        fetch("/this/path/does/not/exist", {
+          method: "GET",
+          redirect: "manual",
+        }),
       ]);
       setRewriteProbe({
         healthOk: healthRes.ok,
@@ -103,7 +128,12 @@ export default function DevAudit() {
         fallbackStatus: fallbackRes.status,
       });
     } catch {
-      setRewriteProbe({ healthOk: false, healthStatus: 0, fallbackOk: false, fallbackStatus: 0 });
+      setRewriteProbe({
+        healthOk: false,
+        healthStatus: 0,
+        fallbackOk: false,
+        fallbackStatus: 0,
+      });
     } finally {
       setProbing(false);
     }
@@ -134,7 +164,9 @@ export default function DevAudit() {
       healthStatus,
       health: healthJson,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -150,7 +182,9 @@ export default function DevAudit() {
       <div className="mx-auto w-full max-w-4xl flex flex-col gap-6 px-4 py-10">
         <div>
           <h1 className="text-3xl font-semibold">Developer Audit</h1>
-          <p className="text-sm text-muted-foreground">Read-only runtime and repo signals</p>
+          <p className="text-sm text-muted-foreground">
+            Read-only runtime and repo signals
+          </p>
         </div>
 
         <div className="grid gap-4">
@@ -158,14 +192,26 @@ export default function DevAudit() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Health</CardTitle>
-                <CardDescription>Raw payload from GET /system/health</CardDescription>
+                <CardDescription>
+                  Raw payload from GET /system/health
+                </CardDescription>
               </div>
-              <Badge variant={healthStatus && healthStatus >= 200 && healthStatus < 300 ? "default" : healthStatus === null ? "outline" : "destructive"}>
+              <Badge
+                variant={
+                  healthStatus && healthStatus >= 200 && healthStatus < 300
+                    ? "default"
+                    : healthStatus === null
+                      ? "outline"
+                      : "destructive"
+                }
+              >
                 {healthStatus === null ? "Checking…" : `HTTP ${healthStatus}`}
               </Badge>
             </CardHeader>
             <CardContent>
-              <pre className="overflow-auto rounded-md border bg-muted p-3 text-xs leading-relaxed">{healthJson || "Loading…"}</pre>
+              <pre className="overflow-auto rounded-md border bg-muted p-3 text-xs leading-relaxed">
+                {healthJson || "Loading…"}
+              </pre>
             </CardContent>
           </Card>
 
@@ -173,15 +219,29 @@ export default function DevAudit() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Routes</CardTitle>
-                <CardDescription>Quick openers for key app routes</CardDescription>
+                <CardDescription>
+                  Quick openers for key app routes
+                </CardDescription>
               </div>
             </CardHeader>
             <CardContent>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 {routeLinks.map((r) => (
-                  <li key={r.path} className="flex items-center justify-between gap-3">
-                    <span className="truncate"><span className="font-medium">{r.label}:</span> {r.path}</span>
-                    <a className="underline shrink-0" href={r.path} target="_blank" rel="noreferrer">Open</a>
+                  <li
+                    key={r.path}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="truncate">
+                      <span className="font-medium">{r.label}:</span> {r.path}
+                    </span>
+                    <a
+                      className="underline shrink-0"
+                      href={r.path}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -192,31 +252,84 @@ export default function DevAudit() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle>Firebase Providers</CardTitle>
-                <CardDescription>Console-detected providers and UA hint</CardDescription>
+                <CardDescription>
+                  Console-detected providers and UA hint
+                </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Badge variant={appleEnabled ? "default" : appleEnabled === false ? "secondary" : "outline"}>{appleEnabled === null ? "Apple ?" : appleEnabled ? "Apple on" : "Apple off"}</Badge>
-                <Badge variant={googleEnabled ? "default" : googleEnabled === false ? "secondary" : "outline"}>{googleEnabled === null ? "Google ?" : googleEnabled ? "Google on" : "Google off"}</Badge>
+                <Badge
+                  variant={
+                    appleEnabled
+                      ? "default"
+                      : appleEnabled === false
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {appleEnabled === null
+                    ? "Apple ?"
+                    : appleEnabled
+                      ? "Apple on"
+                      : "Apple off"}
+                </Badge>
+                <Badge
+                  variant={
+                    googleEnabled
+                      ? "default"
+                      : googleEnabled === false
+                        ? "secondary"
+                        : "outline"
+                  }
+                >
+                  {googleEnabled === null
+                    ? "Google ?"
+                    : googleEnabled
+                      ? "Google on"
+                      : "Google off"}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              <div><span className="font-medium">Popup:</span> {popupHint}</div>
+              <div>
+                <span className="font-medium">Popup:</span> {popupHint}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Hosting Rewrites Smoke</CardTitle>
-              <CardDescription>GET /system/health and a nonexistent path (should not 404)</CardDescription>
+              <CardDescription>
+                GET /system/health and a nonexistent path (should not 404)
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3">
-                <Button size="sm" onClick={runRewriteSmoke} disabled={probing}>{probing ? "Running…" : "Run"}</Button>
+                <Button size="sm" onClick={runRewriteSmoke} disabled={probing}>
+                  {probing ? "Running…" : "Run"}
+                </Button>
                 {rewriteProbe && (
                   <div className="text-sm">
-                    <span className={rewriteProbe.healthOk ? "text-emerald-600" : "text-destructive"}>/system/health: HTTP {rewriteProbe.healthStatus}</span>
+                    <span
+                      className={
+                        rewriteProbe.healthOk
+                          ? "text-emerald-600"
+                          : "text-destructive"
+                      }
+                    >
+                      /system/health: HTTP {rewriteProbe.healthStatus}
+                    </span>
                     <span className="mx-2">·</span>
-                    <span className={rewriteProbe.fallbackOk ? "text-emerald-600" : "text-destructive"}>/this/path/does/not/exist: HTTP {rewriteProbe.fallbackStatus}</span>
+                    <span
+                      className={
+                        rewriteProbe.fallbackOk
+                          ? "text-emerald-600"
+                          : "text-destructive"
+                      }
+                    >
+                      /this/path/does/not/exist: HTTP{" "}
+                      {rewriteProbe.fallbackStatus}
+                    </span>
                   </div>
                 )}
               </div>
@@ -226,12 +339,24 @@ export default function DevAudit() {
           <Card>
             <CardHeader>
               <CardTitle>Firestore Paths</CardTitle>
-              <CardDescription>Path helpers from src/lib/paths.ts</CardDescription>
+              <CardDescription>
+                Path helpers from src/lib/paths.ts
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="text-sm text-muted-foreground grid gap-1">
-                <li><span className="font-medium">coachPlanDocPath(\"USER_ID\"):</span> {coachPlanDocPath("USER_ID")}</li>
-                <li><span className="font-medium">coachChatCollectionPath(\"USER_ID\"):</span> {coachChatCollectionPath("USER_ID")}</li>
+                <li>
+                  <span className="font-medium">
+                    coachPlanDocPath(\"USER_ID\"):
+                  </span>{" "}
+                  {coachPlanDocPath("USER_ID")}
+                </li>
+                <li>
+                  <span className="font-medium">
+                    coachChatCollectionPath(\"USER_ID\"):
+                  </span>{" "}
+                  {coachChatCollectionPath("USER_ID")}
+                </li>
               </ul>
             </CardContent>
           </Card>
@@ -247,14 +372,18 @@ export default function DevAudit() {
             <CardContent>
               <ul className="text-sm text-muted-foreground grid gap-1">
                 {viteEnvPairs.map(([k, v]) => (
-                  <li key={k}><span className="font-medium">{k}:</span> {v}</li>
+                  <li key={k}>
+                    <span className="font-medium">{k}:</span> {v}
+                  </li>
                 ))}
               </ul>
             </CardContent>
           </Card>
 
           <div className="flex justify-end">
-            <Button variant="secondary" onClick={downloadSummary}>Download summary</Button>
+            <Button variant="secondary" onClick={downloadSummary}>
+              Download summary
+            </Button>
           </div>
         </div>
       </div>

@@ -33,9 +33,11 @@ let cachedHealth: SystemHealthSnapshot | null = null;
 let inflight: Promise<SystemHealthSnapshot | null> | null = null;
 
 async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
-  inflight = inflight ?? fetchSystemHealth().catch((error) => {
-    throw error instanceof Error ? error : new Error(String(error));
-  });
+  inflight =
+    inflight ??
+    fetchSystemHealth().catch((error) => {
+      throw error instanceof Error ? error : new Error(String(error));
+    });
   try {
     const snapshot = await inflight;
     cachedHealth = snapshot;

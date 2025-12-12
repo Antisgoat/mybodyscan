@@ -19,7 +19,9 @@ export const Seo = ({ title, description, canonical }: SeoProps) => {
       meta.setAttribute("content", description);
     }
     if (canonical) {
-      let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      let link = document.querySelector(
+        'link[rel="canonical"]'
+      ) as HTMLLinkElement | null;
       if (!link) {
         link = document.createElement("link");
         link.rel = "canonical";

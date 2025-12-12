@@ -1,6 +1,6 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 
 const pillVariants = cva(
   "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors",
@@ -18,7 +18,7 @@ const pillVariants = cva(
       variant: "default",
     },
   }
-)
+);
 
 export interface PillProps
   extends React.HTMLAttributes<HTMLDivElement>,
@@ -27,7 +27,7 @@ export interface PillProps
 function Pill({ className, variant, ...props }: PillProps) {
   return (
     <div className={cn(pillVariants({ variant }), className)} {...props} />
-  )
+  );
 }
 
-export { Pill, pillVariants }
+export { Pill, pillVariants };

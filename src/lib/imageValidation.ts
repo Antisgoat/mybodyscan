@@ -10,7 +10,9 @@ export function isAllowedImageType(file: File): boolean {
   return ALLOWED_IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
-export function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+export function readImageDimensions(
+  file: File
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();

@@ -13,7 +13,10 @@ interface ErrorBoundaryState {
   errorMessage?: string;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   state: ErrorBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -40,10 +43,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               {this.props.title ?? "Something went wrong"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {this.props.description ?? "We hit a snag loading this page. Try again in a moment."}
+              {this.props.description ??
+                "We hit a snag loading this page. Try again in a moment."}
             </p>
             {this.state.errorMessage ? (
-              <p className="text-xs text-muted-foreground/80">{this.state.errorMessage}</p>
+              <p className="text-xs text-muted-foreground/80">
+                {this.state.errorMessage}
+              </p>
             ) : null}
           </div>
           <Button size="sm" variant="secondary" onClick={this.handleRetry}>

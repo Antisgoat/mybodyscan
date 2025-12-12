@@ -4,6 +4,7 @@ import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { fnUrl } from "@/lib/env";
+import { scrubUndefined } from "@/lib/scrubUndefined";
 
 export interface MealServingSelection {
   qty?: number;
@@ -64,23 +65,44 @@ function round(value: number, decimals = 0) {
   return Math.round(value * factor) / factor;
 }
 
-export function computeCalories({ protein = 0, carbs = 0, fat = 0, alcohol = 0, calories }: MealEntry) {
+export function computeCalories({
+  protein = 0,
+  carbs = 0,
+  fat = 0,
+  alcohol = 0,
+  calories,
+}: MealEntry) {
   const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
   if (typeof calories === "number" && Math.abs(calories - kcal) <= 5) {
-    return { calories, reconciled: false, caloriesFromMacros: kcal, caloriesInput: calories };
+    return {
+      calories,
+      reconciled: false,
+      caloriesFromMacros: kcal,
+      caloriesInput: calories,
+    };
   }
-  return { calories: kcal, reconciled: calories !== undefined, caloriesFromMacros: kcal, caloriesInput: calories };
+  return {
+    calories: kcal,
+    reconciled: calories !== undefined,
+    caloriesFromMacros: kcal,
+    caloriesInput: calories,
+  };
 }
 
 async function callFn(path: string, body?: any, method = "POST") {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
   const t = await user.getIdToken();
-  const tzOffsetMins = typeof Intl !== 'undefined' ? new Date().getTimezoneOffset() : 0;
+  const tzOffsetMins =
+    typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
   const endpoint = fnUrl(path);
   const r = await fetch(endpoint, {
     method,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}`, "x-tz-offset-mins": String(tzOffsetMins) },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${t}`,
+      "x-tz-offset-mins": String(tzOffsetMins),
+    },
     body: method === "POST" ? JSON.stringify(body || {}) : undefined,
   });
   if (!r.ok) throw new Error(await r.text());
@@ -91,7 +113,7 @@ export async function addMeal(dateISO: string, meal: MealEntry) {
   if (isDemo()) {
     throw new Error("demo-blocked");
   }
-  const entry = { ...meal, ...computeCalories(meal) };
+  const entry = scrubUndefined({ ...meal, ...computeCalories(meal) });
   const result = await callFn("/addMeal", { dateISO, meal: entry });
   return result;
 }
@@ -115,7 +137,10 @@ export async function getDailyLog(dateISO: string) {
   return apiFetchJson(`${"/nutrition/daily-log"}${suffix}`, { method: "GET" });
 }
 
-export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string): Promise<NutritionHistoryDay[]> {
+export async function getNutritionHistory(
+  range: 7 | 30,
+  anchorDateISO?: string
+): Promise<NutritionHistoryDay[]> {
   if (isDemo()) {
     return DEMO_NUTRITION_HISTORY.slice(0, range);
   }
@@ -125,7 +150,10 @@ export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string)
     params.set("anchorDate", anchorDateISO);
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  const response = await apiFetchJson<{ days?: any[] }>(`/nutrition/history${suffix}`, { method: "GET" });
+  const response = await apiFetchJson<{ days?: any[] }>(
+    `/nutrition/history${suffix}`,
+    { method: "GET" }
+  );
   const list = Array.isArray(response?.days) ? response.days : [];
   return list.map((day: any) => ({
     date: day.date,
@@ -138,4 +166,3 @@ export async function getNutritionHistory(range: 7 | 30, anchorDateISO?: string)
     },
   }));
 }
-

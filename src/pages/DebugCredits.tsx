@@ -11,8 +11,11 @@ export default function DebugCredits() {
       <div>uid: {uid ?? "(none)"}</div>
       <div>doc path: {docPath ?? "users/{uid}"}</div>
       <div>credits: {credits}</div>
-      {!uid && <p className="text-sm text-muted-foreground">Log in to watch live credits.</p>}
+      {!uid && (
+        <p className="text-sm text-muted-foreground">
+          Log in to watch live credits.
+        </p>
+      )}
     </main>
   );
 }
-

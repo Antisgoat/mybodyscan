@@ -20,11 +20,15 @@ export default function ScanComparePage() {
 
   useEffect(() => {
     if (!leftId) return undefined;
-    return onSnapshot(scanDocRef(leftId), (s) => setLeft((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
+    return onSnapshot(scanDocRef(leftId), (s) =>
+      setLeft(s.exists() ? ({ id: s.id, ...s.data() } as any) : null)
+    );
   }, [leftId]);
   useEffect(() => {
     if (!rightId) return undefined;
-    return onSnapshot(scanDocRef(rightId), (s) => setRight((s.exists() ? ({ id: s.id, ...s.data() } as any) : null)));
+    return onSnapshot(scanDocRef(rightId), (s) =>
+      setRight(s.exists() ? ({ id: s.id, ...s.data() } as any) : null)
+    );
   }, [rightId]);
 
   const L = useMemo(() => normalizeScanMetrics(left || undefined), [left]);
@@ -45,10 +49,10 @@ export default function ScanComparePage() {
     return { abs, pct };
   }
   const dBF = delta(L.bodyFatPct, R.bodyFatPct);
-  const dW  = delta(leftWeight, rightWeight);
-  const dBMI= delta(L.bmi, R.bmi);
+  const dW = delta(leftWeight, rightWeight);
+  const dBMI = delta(L.bmi, R.bmi);
 
-  function label(d: {abs: number|null, pct: number|null}, unit = "") {
+  function label(d: { abs: number | null; pct: number | null }, unit = "") {
     if (d.abs == null) return "—";
     const sign = d.abs > 0 ? "+" : "";
     const pct = d.pct == null ? "" : ` (${d.pct > 0 ? "+" : ""}${d.pct}%)`;
@@ -70,29 +74,64 @@ export default function ScanComparePage() {
   return (
     <div className="mx-auto max-w-2xl p-4 space-y-4">
       <header className="sticky top-0 z-40 -mx-4 mb-1 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
-        <button onClick={() => nav(-1)} className="rounded border px-2 py-1 text-xs">Back</button>
+        <button
+          onClick={() => nav(-1)}
+          className="rounded border px-2 py-1 text-xs"
+        >
+          Back
+        </button>
         <h1 className="text-sm font-medium">Compare Scans</h1>
         <div className="flex-1" />
-        <button onClick={share} className="rounded border px-2 py-1 text-xs">Share</button>
+        <button onClick={share} className="rounded border px-2 py-1 text-xs">
+          Share
+        </button>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        <CompareCol title="Left" id={leftId} BF={L.bodyFatPct} W={leftWeight} BMI={L.bmi} unitLabel={weightUnitLabel} />
-        <CompareCol title="Right" id={rightId} BF={R.bodyFatPct} W={rightWeight} BMI={R.bmi} unitLabel={weightUnitLabel} />
+        <CompareCol
+          title="Left"
+          id={leftId}
+          BF={L.bodyFatPct}
+          W={leftWeight}
+          BMI={L.bmi}
+          unitLabel={weightUnitLabel}
+        />
+        <CompareCol
+          title="Right"
+          id={rightId}
+          BF={R.bodyFatPct}
+          W={rightWeight}
+          BMI={R.bmi}
+          unitLabel={weightUnitLabel}
+        />
       </div>
 
       <section className="rounded border p-3">
         <h2 className="text-sm font-medium mb-2">Change (Left → Right)</h2>
         <ul className="text-sm space-y-1">
-          <li>Body Fat: <strong>{label(dBF, "%")}</strong></li>
-          <li>Weight: <strong>{label(dW, ` ${weightUnitLabel}`)}</strong></li>
-          <li>BMI: <strong>{label(dBMI)}</strong></li>
+          <li>
+            Body Fat: <strong>{label(dBF, "%")}</strong>
+          </li>
+          <li>
+            Weight: <strong>{label(dW, ` ${weightUnitLabel}`)}</strong>
+          </li>
+          <li>
+            BMI: <strong>{label(dBMI)}</strong>
+          </li>
         </ul>
         <div className="mt-3 flex items-center gap-2">
-          <button onClick={() => nav(`/scans/compare/${rightId}/${leftId}`)} className="rounded border px-3 py-2 text-sm">
+          <button
+            onClick={() => nav(`/scans/compare/${rightId}/${leftId}`)}
+            className="rounded border px-3 py-2 text-sm"
+          >
             Swap Sides
           </button>
-          <button onClick={() => nav("/scan")} className="rounded border px-3 py-2 text-sm">Rescan</button>
+          <button
+            onClick={() => nav("/scan")}
+            className="rounded border px-3 py-2 text-sm"
+          >
+            Rescan
+          </button>
         </div>
       </section>
     </div>
@@ -119,9 +158,15 @@ function CompareCol({
       <div className="text-xs text-muted-foreground">{title}</div>
       <div className="text-[11px] text-muted-foreground truncate">#{id}</div>
       <div className="mt-2 space-y-1 text-sm">
-        <div>BF: <strong>{BF != null ? `${BF}%` : "—"}</strong></div>
-        <div>Weight: <strong>{W != null ? `${W} ${unitLabel}` : "—"}</strong></div>
-        <div>BMI: <strong>{BMI != null ? `${BMI}` : "—"}</strong></div>
+        <div>
+          BF: <strong>{BF != null ? `${BF}%` : "—"}</strong>
+        </div>
+        <div>
+          Weight: <strong>{W != null ? `${W} ${unitLabel}` : "—"}</strong>
+        </div>
+        <div>
+          BMI: <strong>{BMI != null ? `${BMI}` : "—"}</strong>
+        </div>
       </div>
     </div>
   );

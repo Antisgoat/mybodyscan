@@ -1,6 +1,6 @@
-import { Component, ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
+import { Component, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 interface RouteBoundaryProps {
   children: ReactNode;
@@ -11,7 +11,10 @@ interface RouteBoundaryState {
   error?: Error;
 }
 
-export class RouteBoundary extends Component<RouteBoundaryProps, RouteBoundaryState> {
+export class RouteBoundary extends Component<
+  RouteBoundaryProps,
+  RouteBoundaryState
+> {
   state: RouteBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(error: Error): RouteBoundaryState {
@@ -19,8 +22,12 @@ export class RouteBoundary extends Component<RouteBoundaryProps, RouteBoundarySt
   }
 
   componentDidCatch(error: Error) {
-    console.error('[route-boundary]', error);
-    toast({ title: 'Something went wrong', description: error.message, variant: 'destructive' });
+    console.error("[route-boundary]", error);
+    toast({
+      title: "Something went wrong",
+      description: error.message,
+      variant: "destructive",
+    });
   }
 
   private handleReset = () => {
@@ -31,9 +38,13 @@ export class RouteBoundary extends Component<RouteBoundaryProps, RouteBoundarySt
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
-          <div className="text-sm font-medium text-destructive">We hit a snag loading this view.</div>
+          <div className="text-sm font-medium text-destructive">
+            We hit a snag loading this view.
+          </div>
           {this.state.error && (
-            <div className="text-xs text-muted-foreground">{this.state.error.message}</div>
+            <div className="text-xs text-muted-foreground">
+              {this.state.error.message}
+            </div>
           )}
           <Button size="sm" variant="outline" onClick={this.handleReset}>
             Try again

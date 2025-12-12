@@ -9,7 +9,11 @@ try {
 }
 
 /** Soft App Check: never blocks; logs when header is missing/invalid. */
-export async function appCheckSoft(req: Request, _res: Response, next: NextFunction) {
+export async function appCheckSoft(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) {
   try {
     await httpAppCheckSoft(req);
   } catch {

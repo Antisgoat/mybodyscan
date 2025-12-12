@@ -1,5 +1,8 @@
 import type { CoachPlan, CoachProfile } from "@/hooks/useUserProfile";
-import type { FavoriteDocWithId, TemplateDocWithId } from "@/lib/nutritionCollections";
+import type {
+  FavoriteDocWithId,
+  TemplateDocWithId,
+} from "@/lib/nutritionCollections";
 import { demoMeals } from "@/lib/demoDataset";
 
 type DemoMealEntry = {
@@ -14,12 +17,27 @@ type DemoMealEntry = {
 
 type DemoNutritionHistoryDay = {
   date: string;
-  totals: { calories: number; protein: number; carbs: number; fat: number; alcohol?: number };
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    alcohol?: number;
+  };
 };
 
 const DEMO_CALORIE_TARGET = 2200;
 
-export const DEMO_NUTRITION_LOG: { totals: { calories: number; protein: number; carbs: number; fat: number; alcohol?: number }; meals: DemoMealEntry[] } = {
+export const DEMO_NUTRITION_LOG: {
+  totals: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    alcohol?: number;
+  };
+  meals: DemoMealEntry[];
+} = {
   totals: {
     calories: demoMeals.totals.calories,
     protein: demoMeals.totals.protein,
@@ -38,7 +56,9 @@ export const DEMO_NUTRITION_LOG: { totals: { calories: number; protein: number; 
   })),
 };
 
-export const DEMO_NUTRITION_HISTORY: DemoNutritionHistoryDay[] = Array.from({ length: 7 }).map((_, index) => {
+export const DEMO_NUTRITION_HISTORY: DemoNutritionHistoryDay[] = Array.from({
+  length: 7,
+}).map((_, index) => {
   const anchor = demoMeals.date ? new Date(demoMeals.date) : new Date();
   const date = new Date(anchor);
   date.setDate(anchor.getDate() - index);
@@ -49,8 +69,14 @@ export const DEMO_NUTRITION_HISTORY: DemoNutritionHistoryDay[] = Array.from({ le
   return {
     date: date.toISOString().slice(0, 10),
     totals: {
-      calories: Math.max(1500, Math.round(demoMeals.totals.calories + calorieSwing)),
-      protein: Math.max(90, Math.round(demoMeals.totals.protein + proteinSwing)),
+      calories: Math.max(
+        1500,
+        Math.round(demoMeals.totals.calories + calorieSwing)
+      ),
+      protein: Math.max(
+        90,
+        Math.round(demoMeals.totals.protein + proteinSwing)
+      ),
       carbs: Math.max(120, Math.round(demoMeals.totals.carbs + carbSwing)),
       fat: Math.max(35, Math.round(demoMeals.totals.fat + fatSwing)),
       alcohol: 0,
@@ -112,7 +138,11 @@ export const DEMO_COACH_PLAN: CoachPlan = {
         {
           title: "Strength",
           focus: "Push emphasis",
-          work: ["Dumbbell bench 4×8 @ RPE7", "Seated row 3×12", "Incline push-up 3×12"],
+          work: [
+            "Dumbbell bench 4×8 @ RPE7",
+            "Seated row 3×12",
+            "Incline push-up 3×12",
+          ],
         },
       ],
     },
@@ -122,7 +152,11 @@ export const DEMO_COACH_PLAN: CoachPlan = {
         {
           title: "Lower body",
           focus: "Posterior chain",
-          work: ["Trap-bar deadlift 4×6", "Split squat 3×10/side", "Hamstring curl 3×15"],
+          work: [
+            "Trap-bar deadlift 4×6",
+            "Split squat 3×10/side",
+            "Hamstring curl 3×15",
+          ],
         },
         {
           title: "Finisher",
@@ -147,7 +181,11 @@ export const DEMO_COACH_PLAN: CoachPlan = {
         {
           title: "Lower + core",
           focus: "Glutes & abs",
-          work: ["Front squat 4×6", "Romanian deadlift 3×10", "Cable wood chop 3×12/side"],
+          work: [
+            "Front squat 4×6",
+            "Romanian deadlift 3×10",
+            "Cable wood chop 3×12/side",
+          ],
         },
       ],
     },
@@ -157,7 +195,11 @@ export const DEMO_COACH_PLAN: CoachPlan = {
         {
           title: "Conditioning",
           focus: "Zone 2 + strides",
-          work: ["20 min easy bike", "6×20s strides", "Walking stretch cooldown"],
+          work: [
+            "20 min easy bike",
+            "6×20s strides",
+            "Walking stretch cooldown",
+          ],
         },
       ],
     },
@@ -165,7 +207,8 @@ export const DEMO_COACH_PLAN: CoachPlan = {
   progression: { deloadEvery: 4 },
   calorieTarget: DEMO_CALORIE_TARGET,
   proteinFloor: 150,
-  disclaimer: "Demo plan — educational only. Sign in to generate your own week.",
+  disclaimer:
+    "Demo plan — educational only. Sign in to generate your own week.",
   updatedAt: new Date(),
 };
 

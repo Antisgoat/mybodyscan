@@ -32,7 +32,8 @@ export type FeatureStatusSummary = {
   healthConfigured: boolean;
 };
 
-const envSource: Record<string, string | undefined> = (import.meta as any)?.env ?? {};
+const envSource: Record<string, string | undefined> =
+  (import.meta as any)?.env ?? {};
 
 const readEnv = (key: string): string => {
   const raw = envSource[key];
@@ -54,37 +55,52 @@ export type RemoteHealth = {
   scanServicesHealthy?: boolean;
 };
 
-export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStatusSummary {
+export function computeFeatureStatuses(
+  remoteHealth?: RemoteHealth
+): FeatureStatusSummary {
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  const functionsOrigin = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
-  const projectId = readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
+  const functionsOrigin =
+    readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
+  const projectId =
+    readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
-  const stripeKey = readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
+  const stripeKey =
+    readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
   const coachRpm = readEnv("VITE_COACH_RPM");
   const healthConnector = readEnv("VITE_HEALTH_CONNECT");
 
   const firebaseReady = firebaseConfigMissingKeys.length === 0;
-  const functionsConfigured = Boolean(functionsUrl || functionsOrigin || projectId);
-  const openaiConfigured = remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent;
+  const functionsConfigured = Boolean(
+    functionsUrl || functionsOrigin || projectId
+  );
+  const openaiConfigured =
+    remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent;
   const scanConfigured =
     typeof remoteHealth?.scanConfigured === "boolean"
       ? remoteHealth.scanConfigured
       : Boolean(openaiConfigured || functionsConfigured || scanStartUrl);
   const stripeMode = describeStripeEnvironment();
   const stripeConfigured =
-    stripeMode !== "missing" || remoteHealth?.stripeSecretPresent === true || Boolean(stripeKey);
+    stripeMode !== "missing" ||
+    remoteHealth?.stripeSecretPresent === true ||
+    Boolean(stripeKey);
   const coachConfigured =
     typeof remoteHealth?.coachConfigured === "boolean"
       ? remoteHealth.coachConfigured
       : Boolean(remoteHealth?.coachRpmPresent || openaiConfigured || coachRpm);
   const workoutsConfigured =
-    typeof remoteHealth?.workoutsConfigured === "boolean" ? remoteHealth.workoutsConfigured : functionsConfigured;
+    typeof remoteHealth?.workoutsConfigured === "boolean"
+      ? remoteHealth.workoutsConfigured
+      : functionsConfigured;
   const workoutAdjustConfigured =
     typeof remoteHealth?.workoutAdjustConfigured === "boolean"
       ? remoteHealth.workoutAdjustConfigured
       : Boolean(
           workoutsConfigured &&
-            (remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent ?? openaiConfigured ?? false),
+            (remoteHealth?.openaiConfigured ??
+              remoteHealth?.openaiKeyPresent ??
+              openaiConfigured ??
+              false)
         );
   const nutritionConfigured =
     remoteHealth?.nutritionConfigured ??
@@ -102,7 +118,8 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
     ? "Using baked-in Firebase web config."
     : `Missing: ${firebaseConfigMissingKeys.join(", ")}. Add the Firebase web keys to .env.production.local.`;
 
-  const scanWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Needs config";
+  const scanWarnLabel =
+    openaiConfigured === false ? "OpenAI missing" : "Needs config";
   const scanDetail = scanConfigured
     ? scanServicesHealthy === false
       ? "Function reachable but reported unhealthy; check Cloud Functions logs."
@@ -119,7 +136,8 @@ export function computeFeatureStatuses(remoteHealth?: RemoteHealth): FeatureStat
       : "AI adjustments disabled until OPENAI_API_KEY secret is configured."
     : "Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workout APIs.";
 
-  const coachWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Throttle missing";
+  const coachWarnLabel =
+    openaiConfigured === false ? "OpenAI missing" : "Throttle missing";
   const coachDetail = coachConfigured
     ? undefined
     : openaiConfigured === false

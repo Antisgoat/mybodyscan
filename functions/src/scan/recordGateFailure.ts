@@ -26,8 +26,10 @@ async function handler(req: Request, res: Response) {
   let remaining = MAX_DAILY_FAILS;
 
   await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-    const data = snap.exists ? snap.data() as any : {};
+    const snap = (await tx.get(
+      ref
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const data = snap.exists ? (snap.data() as any) : {};
     const failed = Number(data.failed || 0) + 1;
     const passed = Number(data.passed || 0);
     remaining = Math.max(0, MAX_DAILY_FAILS - failed);

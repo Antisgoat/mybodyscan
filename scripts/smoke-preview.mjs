@@ -23,16 +23,29 @@ async function run(cmd, args, opts = {}) {
 
 async function main() {
   if (!process.env.SMOKE_SKIP_BUILD) {
-    await run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], { env: process.env });
+    await run(
+      process.platform === "win32" ? "npm.cmd" : "npm",
+      ["run", "build"],
+      { env: process.env }
+    );
   }
 
   const preview = spawn(
     process.platform === "win32" ? "npm.cmd" : "npm",
-    ["run", "preview", "--", "--host", HOST, "--port", String(PORT), "--strictPort"],
+    [
+      "run",
+      "preview",
+      "--",
+      "--host",
+      HOST,
+      "--port",
+      String(PORT),
+      "--strictPort",
+    ],
     {
       stdio: "pipe",
       env: { ...process.env, BROWSER: "none" },
-    },
+    }
   );
 
   const consoleLines = [];
@@ -84,10 +97,14 @@ async function main() {
       pageErrors.push({ message: err?.message, stack: err?.stack });
     });
 
-    const res = await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
+    const res = await page.goto(`${BASE_URL}/`, {
+      waitUntil: "domcontentloaded",
+    });
     await sleep(2500);
 
-    const hasReact185 = consoleEvents.some((e) => /React error #185|Maximum update depth/i.test(e.text));
+    const hasReact185 = consoleEvents.some((e) =>
+      /React error #185|Maximum update depth/i.test(e.text)
+    );
 
     if (pageErrors.length || hasReact185) {
       const payload = {

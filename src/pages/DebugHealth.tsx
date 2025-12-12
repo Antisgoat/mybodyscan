@@ -32,4 +32,3 @@ const DebugHealth = () => {
 };
 
 export default DebugHealth;
-

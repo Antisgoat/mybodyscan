@@ -100,8 +100,15 @@ function getStatusCode(error: unknown): number | undefined {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
 }
 
-export function buildErrorToast(error: unknown, options?: ErrorToastOptions): ToastContent {
-  const { fallback = DEFAULT_FALLBACK, includeCodeInDev = true, logError = true } = options ?? {};
+export function buildErrorToast(
+  error: unknown,
+  options?: ErrorToastOptions
+): ToastContent {
+  const {
+    fallback = DEFAULT_FALLBACK,
+    includeCodeInDev = true,
+    logError = true,
+  } = options ?? {};
 
   if (logError && error) {
     // eslint-disable-next-line no-console
@@ -110,13 +117,20 @@ export function buildErrorToast(error: unknown, options?: ErrorToastOptions): To
 
   const code = getErrorCode(error);
   const status = getStatusCode(error);
-  const message = typeof (error as any)?.message === "string" ? (error as any).message : undefined;
+  const message =
+    typeof (error as any)?.message === "string"
+      ? (error as any).message
+      : undefined;
 
   const mapping =
     (code ? CODE_MESSAGES[code] : undefined) ||
     (typeof status === "number" ? STATUS_MESSAGES[status] : undefined) ||
     (message
-      ? { title: fallback.title, description: message, variant: fallback.variant ?? DEFAULT_FALLBACK.variant }
+      ? {
+          title: fallback.title,
+          description: message,
+          variant: fallback.variant ?? DEFAULT_FALLBACK.variant,
+        }
       : undefined) ||
     fallback;
 
@@ -127,11 +141,16 @@ export function buildErrorToast(error: unknown, options?: ErrorToastOptions): To
   };
 
   if (includeCodeInDev && import.meta.env.DEV) {
-    const details = [code, typeof status === "number" ? `HTTP ${status}` : undefined]
+    const details = [
+      code,
+      typeof status === "number" ? `HTTP ${status}` : undefined,
+    ]
       .filter(Boolean)
       .join(" · ");
     if (details) {
-      result.description = result.description ? `${result.description} (${details})` : details;
+      result.description = result.description
+        ? `${result.description} (${details})`
+        : details;
     }
   }
 

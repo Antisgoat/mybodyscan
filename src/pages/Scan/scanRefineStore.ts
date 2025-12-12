@@ -63,7 +63,9 @@ function roundToTenth(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function sanitizeCircumference(value: number | undefined | null): number | undefined {
+function sanitizeCircumference(
+  value: number | undefined | null
+): number | undefined {
   if (!Number.isFinite(value ?? NaN)) return undefined;
   if (!value || value <= 0) return undefined;
   return roundToTenth(value);
@@ -71,7 +73,7 @@ function sanitizeCircumference(value: number | undefined | null): number | undef
 
 function normalizeInputsWithPhoto(
   manual: ManualInputsState,
-  photo: ManualCircumferences | null,
+  photo: ManualCircumferences | null
 ): ManualInputsState {
   if (!photo) return manual;
   const next: ManualInputsState = { ...manual };
@@ -87,7 +89,9 @@ function normalizeInputsWithPhoto(
   return next;
 }
 
-export function setPhotoCircumferences(circumferences: ManualCircumferences | null) {
+export function setPhotoCircumferences(
+  circumferences: ManualCircumferences | null
+) {
   const sanitized: ManualCircumferences | null = circumferences
     ? {
         neckIn: sanitizeCircumference(circumferences.neckIn),
@@ -103,7 +107,10 @@ export function setPhotoCircumferences(circumferences: ManualCircumferences | nu
 }
 
 export function setManualInput(field: ManualInputKey, value: string) {
-  const nextManualInputs: ManualInputsState = { ...state.manualInputs, [field]: value };
+  const nextManualInputs: ManualInputsState = {
+    ...state.manualInputs,
+    [field]: value,
+  };
   setState({
     manualInputs: nextManualInputs,
     photoCircumferences: state.photoCircumferences,

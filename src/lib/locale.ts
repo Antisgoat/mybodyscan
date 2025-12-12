@@ -25,10 +25,25 @@ const REGION_MAP: Record<string, DefaultCountry> = {
   br: "BR",
 };
 
-export type DefaultCountry = "US" | "GB" | "FR" | "DE" | "MX" | "BR" | "CA" | "AU" | "EU";
+export type DefaultCountry =
+  | "US"
+  | "GB"
+  | "FR"
+  | "DE"
+  | "MX"
+  | "BR"
+  | "CA"
+  | "AU"
+  | "EU";
 
-export function defaultCountryFromLocale(locale?: string | null): DefaultCountry {
-  const raw = (locale || (typeof navigator !== "undefined" ? navigator.language : undefined) || FALLBACK_COUNTRY).toLowerCase();
+export function defaultCountryFromLocale(
+  locale?: string | null
+): DefaultCountry {
+  const raw = (
+    locale ||
+    (typeof navigator !== "undefined" ? navigator.language : undefined) ||
+    FALLBACK_COUNTRY
+  ).toLowerCase();
   if (SPECIFIC_LOCALE_MAP[raw]) {
     return SPECIFIC_LOCALE_MAP[raw];
   }

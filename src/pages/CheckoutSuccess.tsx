@@ -20,9 +20,14 @@ export default function CheckoutSuccess() {
 
   return (
     <main className="mx-auto max-w-2xl p-6">
-      <Seo title="Checkout Success – MyBodyScan" description="Your payment succeeded. Redirecting you back to the app." />
+      <Seo
+        title="Checkout Success – MyBodyScan"
+        description="Your payment succeeded. Redirecting you back to the app."
+      />
       <h1 className="text-2xl font-semibold mb-2">Payment successful</h1>
-      <p className="text-muted-foreground mb-6">Thanks! You’ll be redirected shortly. You can also jump back now.</p>
+      <p className="text-muted-foreground mb-6">
+        Thanks! You’ll be redirected shortly. You can also jump back now.
+      </p>
       <div className="flex gap-2">
         <Button onClick={handleReturn}>Return to App</Button>
       </div>

@@ -10,7 +10,7 @@ const WelcomeRedirect = () => {
     if (!user) return;
 
     const timer = setInterval(() => {
-      setCountdown(prev => Math.max(0, prev - 0.1));
+      setCountdown((prev) => Math.max(0, prev - 0.1));
     }, 100);
 
     return () => clearInterval(timer);
@@ -33,7 +33,7 @@ const WelcomeRedirect = () => {
       <div className="text-center space-y-2">
         <div className="text-muted-foreground">Taking you to the app...</div>
         <div className="w-32 h-1 bg-muted rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-primary transition-all duration-100 ease-out"
             style={{ width: `${((1.5 - countdown) / 1.5) * 100}%` }}
           />

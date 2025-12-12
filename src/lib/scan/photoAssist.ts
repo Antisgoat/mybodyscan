@@ -58,7 +58,12 @@ async function loadImageData(file: File): Promise<LoadedImage> {
   img.crossOrigin = "anonymous";
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
-    img.onerror = (event) => reject(event instanceof ErrorEvent ? event.error : new Error("image_load_failed"));
+    img.onerror = (event) =>
+      reject(
+        event instanceof ErrorEvent
+          ? event.error
+          : new Error("image_load_failed")
+      );
     img.src = url;
   });
   const width = img.naturalWidth || img.width;
@@ -128,7 +133,10 @@ function extractBands(image: LoadedImage): SilhouetteBands {
   const bandWidths: Record<string, BandMetrics> = {};
 
   for (const [band, ratio] of Object.entries(BAND_MAP)) {
-    const y = Math.min(height - 1, Math.max(0, Math.round(subjectTop + bodyHeight * ratio)));
+    const y = Math.min(
+      height - 1,
+      Math.max(0, Math.round(subjectTop + bodyHeight * ratio))
+    );
     const left = rowLeft[y];
     const right = rowRight[y];
     bandWidths[band] = {
@@ -144,7 +152,8 @@ function extractBands(image: LoadedImage): SilhouetteBands {
 }
 
 function ellipseCircumference(aCm: number, bCm: number) {
-  if (!Number.isFinite(aCm) || !Number.isFinite(bCm) || aCm <= 0 || bCm <= 0) return NaN;
+  if (!Number.isFinite(aCm) || !Number.isFinite(bCm) || aCm <= 0 || bCm <= 0)
+    return NaN;
   const a = Math.max(aCm, bCm);
   const b = Math.min(aCm, bCm);
   const h = Math.pow((a - b) / (a + b), 2);
@@ -205,13 +214,33 @@ export async function estimateCircumferences(input: PhotoInputs) {
     !Number.isFinite(scale) || scale <= 0 ? NaN : widthPx / scale;
 
   const computeBand = (band: keyof typeof BAND_MAP) => {
-    const frontWidth = pixelsToCm(frontBands.bandWidths[band].widthPx, scaleFront);
-    const backWidth = images.back ? pixelsToCm(images.back.bandWidths[band].widthPx, images.back.subjectHeightPx / heightCm) : NaN;
+    const frontWidth = pixelsToCm(
+      frontBands.bandWidths[band].widthPx,
+      scaleFront
+    );
+    const backWidth = images.back
+      ? pixelsToCm(
+          images.back.bandWidths[band].widthPx,
+          images.back.subjectHeightPx / heightCm
+        )
+      : NaN;
     const sideWidth = pixelsToCm(sideBands.bandWidths[band].widthPx, scaleSide);
     const lateral: number[] = [sideWidth];
     if (mode === "4") {
-      if (images.left) lateral.push(pixelsToCm(images.left.bandWidths[band].widthPx, images.left.subjectHeightPx / heightCm));
-      if (images.right) lateral.push(pixelsToCm(images.right.bandWidths[band].widthPx, images.right.subjectHeightPx / heightCm));
+      if (images.left)
+        lateral.push(
+          pixelsToCm(
+            images.left.bandWidths[band].widthPx,
+            images.left.subjectHeightPx / heightCm
+          )
+        );
+      if (images.right)
+        lateral.push(
+          pixelsToCm(
+            images.right.bandWidths[band].widthPx,
+            images.right.subjectHeightPx / heightCm
+          )
+        );
     }
     const frontAvg = average([frontWidth, backWidth]);
     const sideAvg = average(lateral);
@@ -253,7 +282,9 @@ export async function estimateCircumferences(input: PhotoInputs) {
         qc.push(`${band.name}_out_of_range`);
         confidence -= 0.1;
       }
-      const widthSpread = Math.abs((band.value.frontWidth ?? 0) - (band.value.sideWidth ?? 0));
+      const widthSpread = Math.abs(
+        (band.value.frontWidth ?? 0) - (band.value.sideWidth ?? 0)
+      );
       if (Number.isFinite(widthSpread) && widthSpread > 10) {
         confidence -= 0.05;
         qc.push(`${band.name}_variance_high`);
@@ -269,9 +300,15 @@ export async function estimateCircumferences(input: PhotoInputs) {
   confidence = Math.max(0, Math.min(1, confidence));
 
   return {
-    neckCm: Number.isFinite(neck.circumference) ? Number((neck.circumference as number).toFixed(1)) : undefined,
-    waistCm: Number.isFinite(waist.circumference) ? Number((waist.circumference as number).toFixed(1)) : undefined,
-    hipCm: Number.isFinite(hip.circumference) ? Number((hip.circumference as number).toFixed(1)) : undefined,
+    neckCm: Number.isFinite(neck.circumference)
+      ? Number((neck.circumference as number).toFixed(1))
+      : undefined,
+    waistCm: Number.isFinite(waist.circumference)
+      ? Number((waist.circumference as number).toFixed(1))
+      : undefined,
+    hipCm: Number.isFinite(hip.circumference)
+      ? Number((hip.circumference as number).toFixed(1))
+      : undefined,
     confidence,
     qc,
   };

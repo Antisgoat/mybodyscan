@@ -26,14 +26,26 @@ describe("scan quality gate", () => {
   });
 
   it("flags low-resolution images", () => {
-    const result = evaluateGateMetrics({ ...baseMetrics, longEdge: 400, imageIndex: 1 });
+    const result = evaluateGateMetrics({
+      ...baseMetrics,
+      longEdge: 400,
+      imageIndex: 1,
+    });
     expect(result.score).toBeLessThan(1);
-    expect(result.reasons).toContain("Use a higher-resolution photo (long edge ≥1080px)");
+    expect(result.reasons).toContain(
+      "Use a higher-resolution photo (long edge ≥1080px)"
+    );
   });
 
   it("detects arms resting against torso", () => {
-    const result = evaluateGateMetrics({ ...baseMetrics, shoulderWidth: 320, waistWidth: 315 });
+    const result = evaluateGateMetrics({
+      ...baseMetrics,
+      shoulderWidth: 320,
+      waistWidth: 315,
+    });
     expect(result.score).toBeLessThan(0.9);
-    expect(result.reasons).toContain("Raise arms slightly so they are visible away from the torso");
+    expect(result.reasons).toContain(
+      "Raise arms slightly so they are visible away from the torso"
+    );
   });
 });

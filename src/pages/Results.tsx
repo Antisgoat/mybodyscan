@@ -35,24 +35,24 @@ const formatDate = (timestamp: any) => {
 const ProcessingUI = () => {
   const [progress, setProgress] = useState(0);
   const [messageIndex, setMessageIndex] = useState(0);
-  
+
   const messages = [
     "Lining up your measurements…",
     "Estimating body fat…",
     "Checking symmetry and posture…",
     "Crunching numbers…",
-    "Almost there!"
+    "Almost there!",
   ];
 
   useEffect(() => {
     // Progress bar: 0→100% over 90s
     const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + (100 / 90), 100));
+      setProgress((prev) => Math.min(prev + 100 / 90, 100));
     }, 1000);
 
     // Message rotation: every 8s
     const messageInterval = setInterval(() => {
-      setMessageIndex(prev => (prev + 1) % messages.length);
+      setMessageIndex((prev) => (prev + 1) % messages.length);
     }, 8000);
 
     return () => {
@@ -65,15 +65,19 @@ const ProcessingUI = () => {
     <div className="text-center py-8">
       <div className="max-w-xs mx-auto mb-6">
         <div className="w-full bg-muted rounded-full h-2 mb-3">
-          <div 
+          <div
             className="bg-primary h-2 rounded-full transition-all duration-1000 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
         <p className="text-sm font-medium mb-2">{Math.round(progress)}%</p>
       </div>
-      <p className="text-muted-foreground animate-fade-in">{messages[messageIndex]}</p>
-      <p className="text-xs text-muted-foreground mt-2">This usually takes ~1–2 minutes.</p>
+      <p className="text-muted-foreground animate-fade-in">
+        {messages[messageIndex]}
+      </p>
+      <p className="text-xs text-muted-foreground mt-2">
+        This usually takes ~1–2 minutes.
+      </p>
     </div>
   );
 };
@@ -97,13 +101,13 @@ const Results = () => {
 
   const onSaveNote = async () => {
     if (!user || !scan || !note.trim()) return;
-    
+
     setSaving(true);
     try {
       const scanRef = doc(db, "users", user.uid, "scans", scan.id);
       await updateDoc(scanRef, {
         note: note.trim(),
-        noteUpdatedAt: serverTimestamp()
+        noteUpdatedAt: serverTimestamp(),
       });
       toast({ title: "Note saved successfully" });
     } catch (err: any) {
@@ -118,13 +122,19 @@ const Results = () => {
   if (!user && !demo && !loading) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <Seo
+          title="Results – MyBodyScan"
+          description="Review your body scan results and add notes."
+          canonical={window.location.href}
+        />
         <DemoBanner />
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">Results</h1>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground mb-4">Sign in required to view your results.</p>
+              <p className="text-muted-foreground mb-4">
+                Sign in required to view your results.
+              </p>
               <Button onClick={() => navigate("/auth")} className="w-full">
                 Sign In
               </Button>
@@ -139,10 +149,14 @@ const Results = () => {
   if (loading && !demo) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <Seo
+          title="Results – MyBodyScan"
+          description="Review your body scan results and add notes."
+          canonical={window.location.href}
+        />
         <DemoBanner />
         <h1 className="text-2xl font-semibold mb-6">Results</h1>
-        
+
         <Card className="mb-6">
           <CardHeader>
             <Skeleton className="h-6 w-32" />
@@ -173,13 +187,23 @@ const Results = () => {
   if (error) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <Seo
+          title="Results – MyBodyScan"
+          description="Review your body scan results and add notes."
+          canonical={window.location.href}
+        />
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">Results</h1>
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground mb-4">Unable to load your results. Please try again.</p>
-              <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+              <p className="text-muted-foreground mb-4">
+                Unable to load your results. Please try again.
+              </p>
+              <Button
+                onClick={() => window.location.reload()}
+                variant="outline"
+                className="w-full"
+              >
                 Retry
               </Button>
             </CardContent>
@@ -193,12 +217,18 @@ const Results = () => {
   if (!activeScan) {
     return (
       <main className="min-h-screen p-6 max-w-md mx-auto">
-        <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+        <Seo
+          title="Results – MyBodyScan"
+          description="Review your body scan results and add notes."
+          canonical={window.location.href}
+        />
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">Results</h1>
           <Card>
             <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground mb-4">No scans yet. Start your first body scan to see results here.</p>
+              <p className="text-muted-foreground mb-4">
+                No scans yet. Start your first body scan to see results here.
+              </p>
               <Button onClick={() => navigate("/scan/new")} className="w-full">
                 Start Your First Scan
               </Button>
@@ -211,17 +241,24 @@ const Results = () => {
 
   const metrics = extractScanMetrics(activeScan);
   const summary = summarizeScanMetrics(metrics, units);
-  const bodyFatText = summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
+  const bodyFatText =
+    summary.bodyFatPercent != null
+      ? `${summary.bodyFatPercent.toFixed(1)}%`
+      : "—";
   const weightDisplay = summary.weightText;
   const bmiDisplay = summary.bmiText;
   const statusMeta = scanStatusLabel(
     activeScan.status,
-    activeScan.completedAt ?? activeScan.updatedAt ?? activeScan.createdAt,
+    activeScan.completedAt ?? activeScan.updatedAt ?? activeScan.createdAt
   );
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo title="Results – MyBodyScan" description="Review your body scan results and add notes." canonical={window.location.href} />
+      <Seo
+        title="Results – MyBodyScan"
+        description="Review your body scan results and add notes."
+        canonical={window.location.href}
+      />
       <DemoBanner />
 
       <h1 className="text-2xl font-semibold mb-6">Results</h1>
@@ -233,9 +270,7 @@ const Results = () => {
             <CardTitle className="text-lg">
               {formatDate(activeScan.completedAt || activeScan.createdAt)}
             </CardTitle>
-            <Badge variant={statusMeta.badgeVariant}>
-              {statusMeta.label}
-            </Badge>
+            <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
           </div>
         </CardHeader>
 
@@ -245,7 +280,10 @@ const Results = () => {
               <div className="text-center py-6 space-y-3">
                 <p className="text-destructive">{statusMeta.label}</p>
                 <p className="text-sm text-muted-foreground">
-                  {activeScan.error || activeScan.errorMessage || statusMeta.helperText || "We couldn't process your scan. Please try again."}
+                  {activeScan.error ||
+                    activeScan.errorMessage ||
+                    statusMeta.helperText ||
+                    "We couldn't process your scan. Please try again."}
                 </p>
                 <Button onClick={() => navigate("/scan/new")} variant="outline">
                   Try Again
@@ -254,7 +292,9 @@ const Results = () => {
             ) : (
               <div className="space-y-4">
                 <ProcessingUI />
-                <p className="text-center text-xs text-muted-foreground">{statusMeta.helperText}</p>
+                <p className="text-center text-xs text-muted-foreground">
+                  {statusMeta.helperText}
+                </p>
               </div>
             )
           ) : (
@@ -264,10 +304,12 @@ const Results = () => {
                   <p className="text-3xl font-semibold text-primary">
                     {bodyFatText}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">Body Fat %</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Body Fat %
+                  </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardContent className="pt-4 pb-4">
                   <p className="text-3xl font-semibold text-primary">
@@ -299,7 +341,11 @@ const Results = () => {
           <CardContent>
             <div className="space-y-3">
               <Textarea
-                placeholder={readOnlyDemo ? "Demo preview — notes are read-only." : "Add a note about this scan..."}
+                placeholder={
+                  readOnlyDemo
+                    ? "Demo preview — notes are read-only."
+                    : "Add a note about this scan..."
+                }
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="min-h-[80px]"
@@ -309,11 +355,19 @@ const Results = () => {
               <DemoWriteButton
                 onClick={onSaveNote}
                 disabled={!note.trim() || saving || readOnlyDemo}
-                title={readOnlyDemo ? "Demo preview — sign up to save notes" : undefined}
+                title={
+                  readOnlyDemo
+                    ? "Demo preview — sign up to save notes"
+                    : undefined
+                }
                 variant="secondary"
                 className="w-full"
               >
-                {saving ? "Saving..." : readOnlyDemo ? "Sign up to save notes" : "Save Note"}
+                {saving
+                  ? "Saving..."
+                  : readOnlyDemo
+                    ? "Sign up to save notes"
+                    : "Save Note"}
               </DemoWriteButton>
             </div>
           </CardContent>

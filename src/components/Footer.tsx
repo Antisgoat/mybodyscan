@@ -34,22 +34,41 @@ export default function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
             <span>© 2024 MyBodyScan</span>
-            {buildLabel ? <span className="text-xs text-muted-foreground">• Build {buildLabel}</span> : null}
+            {buildLabel ? (
+              <span className="text-xs text-muted-foreground">
+                • Build {buildLabel}
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-4">
-            <Link to="/privacy" className="hover:text-foreground transition-colors">
+            <Link
+              to="/privacy"
+              className="hover:text-foreground transition-colors"
+            >
               Privacy
             </Link>
-            <Link to="/terms" className="hover:text-foreground transition-colors">
+            <Link
+              to="/terms"
+              className="hover:text-foreground transition-colors"
+            >
               Terms
             </Link>
-            <Link to="/system/check" className="hover:text-foreground transition-colors">
+            <Link
+              to="/system/check"
+              className="hover:text-foreground transition-colors"
+            >
               System check
             </Link>
-            <Link to="/legal/disclaimer" className="hover:text-foreground transition-colors">
+            <Link
+              to="/legal/disclaimer"
+              className="hover:text-foreground transition-colors"
+            >
               Health & Safety
             </Link>
-            <a href="mailto:support@mybodyscan.com" className="hover:text-foreground transition-colors">
+            <a
+              href="mailto:support@mybodyscan.com"
+              className="hover:text-foreground transition-colors"
+            >
               Support
             </a>
           </div>

@@ -34,11 +34,16 @@ export type Landmarks = {
 
 const DEFAULT_DIMENSION = 512;
 
-async function resolveDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+async function resolveDimensions(
+  blob: Blob
+): Promise<{ width: number; height: number }> {
   if (typeof createImageBitmap === "function") {
     try {
       const bitmap = await createImageBitmap(blob);
-      const dimensions = { width: bitmap.width || DEFAULT_DIMENSION, height: bitmap.height || DEFAULT_DIMENSION };
+      const dimensions = {
+        width: bitmap.width || DEFAULT_DIMENSION,
+        height: bitmap.height || DEFAULT_DIMENSION,
+      };
       bitmap.close?.();
       return dimensions;
     } catch (error) {
@@ -46,20 +51,26 @@ async function resolveDimensions(blob: Blob): Promise<{ width: number; height: n
     }
   }
 
-  if (typeof Image !== "undefined" && typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+  if (
+    typeof Image !== "undefined" &&
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function"
+  ) {
     try {
       const url = URL.createObjectURL(blob);
-      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          resolve({
-            width: img.naturalWidth || img.width || DEFAULT_DIMENSION,
-            height: img.naturalHeight || img.height || DEFAULT_DIMENSION,
-          });
-        };
-        img.onerror = (event) => reject(event);
-        img.src = url;
-      });
+      const dimensions = await new Promise<{ width: number; height: number }>(
+        (resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            resolve({
+              width: img.naturalWidth || img.width || DEFAULT_DIMENSION,
+              height: img.naturalHeight || img.height || DEFAULT_DIMENSION,
+            });
+          };
+          img.onerror = (event) => reject(event);
+          img.src = url;
+        }
+      );
       URL.revokeObjectURL(url);
       return dimensions;
     } catch (error) {
@@ -91,7 +102,10 @@ function round(value: number, decimals = 4): number {
   return Math.round(value * factor) / factor;
 }
 
-export async function analyzePhoto(blob: Blob, view: string): Promise<Landmarks> {
+export async function analyzePhoto(
+  blob: Blob,
+  view: string
+): Promise<Landmarks> {
   const { width, height } = await resolveDimensions(blob);
   const aspectRatio = height === 0 ? 1 : width / height;
   const normalizedAspect = clamp01(1 - Math.abs(aspectRatio - 0.6));

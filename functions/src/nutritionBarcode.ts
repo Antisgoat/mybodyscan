@@ -10,7 +10,11 @@ import type { Request, Response } from "express";
 
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import { fromOpenFoodFacts, fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
+import {
+  fromOpenFoodFacts,
+  fromUsdaFood,
+  type FoodItem,
+} from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
 import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
@@ -69,7 +73,9 @@ function extractBearerToken(req: Request): string {
   return token;
 }
 
-async function verifyAuthorization(req: Request): Promise<{ uid: string | null }> {
+async function verifyAuthorization(
+  req: Request
+): Promise<{ uid: string | null }> {
   const token = extractBearerToken(req);
   try {
     const decoded = await getAuth().verifyIdToken(token);
@@ -92,7 +98,11 @@ async function verifyAuthorization(req: Request): Promise<{ uid: string | null }
   }
 }
 
-async function requestJson(url: URL | string, init: RequestInit, label: string): Promise<any> {
+async function requestJson(
+  url: URL | string,
+  init: RequestInit,
+  label: string
+): Promise<any> {
   let lastError: HttpError | null = null;
   const target = typeof url === "string" ? url : url.toString();
 
@@ -108,12 +118,24 @@ async function requestJson(url: URL | string, init: RequestInit, label: string):
           throw new HttpError(503, "upstream_rate_limited", `${label}_429`);
         }
         if (response.status === 401 || response.status === 403) {
-          throw new HttpError(501, "nutrition_not_configured", `${label}_${response.status}`);
+          throw new HttpError(
+            501,
+            "nutrition_not_configured",
+            `${label}_${response.status}`
+          );
         }
         if (response.status >= 400 && response.status < 500) {
-          throw new HttpError(502, "upstream_4xx", `${label}_${response.status}`);
+          throw new HttpError(
+            502,
+            "upstream_4xx",
+            `${label}_${response.status}`
+          );
         }
-        lastError = new HttpError(502, "upstream_timeout", `${label}_${response.status}`);
+        lastError = new HttpError(
+          502,
+          "upstream_timeout",
+          `${label}_${response.status}`
+        );
         if (attempt === 1) {
           throw lastError;
         }
@@ -132,7 +154,11 @@ async function requestJson(url: URL | string, init: RequestInit, label: string):
 
       const message = error instanceof Error ? error.message : String(error);
       lastError = new HttpError(502, "upstream_timeout", `${label}_${message}`);
-      if (error instanceof Error && error.name === "AbortError" && attempt < 1) {
+      if (
+        error instanceof Error &&
+        error.name === "AbortError" &&
+        attempt < 1
+      ) {
         continue;
       }
       if (attempt === 1) {
@@ -151,11 +177,13 @@ async function fetchOff(code: string) {
     {
       headers: { "User-Agent": "mybodyscan-nutrition-barcode/1.0" },
     },
-    "off_product",
+    "off_product"
   )) as any;
   if (!data?.product) return null;
   const normalized = fromOpenFoodFacts(data.product);
-  return normalized ? { item: normalized, source: "Open Food Facts" as const } : null;
+  return normalized
+    ? { item: normalized, source: "Open Food Facts" as const }
+    : null;
 }
 
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
@@ -170,25 +198,30 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
       method: "GET",
       headers: { Accept: "application/json" },
     },
-    "usda_barcode",
+    "usda_barcode"
   )) as any;
   if (!Array.isArray(data?.foods) || !data.foods.length) return null;
   const normalized = data.foods
     .map((food: any) => fromUsdaFood(food))
     .filter(Boolean)
     .find((item: any) => item?.gtin === code) as FoodItem | undefined;
-  const fallback = data.foods.map((food: any) => fromUsdaFood(food)).find(Boolean) as FoodItem | undefined;
+  const fallback = data.foods
+    .map((food: any) => fromUsdaFood(food))
+    .find(Boolean) as FoodItem | undefined;
   const item = normalized || fallback || null;
   return item ? { item, source: "USDA" as const } : null;
 }
 
 type ProviderResult = { item: FoodItem; source: "Open Food Facts" | "USDA" };
-type ProviderOutcome = { result: ProviderResult | null; error?: HttpError | null };
+type ProviderOutcome = {
+  result: ProviderResult | null;
+  error?: HttpError | null;
+};
 
 async function runSafe(
   label: string,
   fn: () => Promise<ProviderResult | null>,
-  context: { requestId: string; uid: string | null },
+  context: { requestId: string; uid: string | null }
 ): Promise<ProviderOutcome> {
   try {
     const result = await fn();
@@ -227,11 +260,16 @@ function handleError(res: Response, error: unknown): void {
     return;
   }
 
-  console.error("nutrition_barcode_unhandled", { message: (error as Error)?.message || String(error) });
+  console.error("nutrition_barcode_unhandled", {
+    message: (error as Error)?.message || String(error),
+  });
   send(res, 502, { error: "upstream_unavailable" });
 }
 
-async function handleNutritionBarcode(req: Request, res: Response): Promise<void> {
+async function handleNutritionBarcode(
+  req: Request,
+  res: Response
+): Promise<void> {
   if (req.method === "OPTIONS") {
     send(res, 204, null);
     return;
@@ -267,12 +305,20 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
     const rawCode = String(req.query?.code || req.body?.code || "").trim();
     const code = normalizeBarcode(rawCode);
     if (!code) {
-      throw new HttpError(400, "invalid_request", rawCode ? "code_invalid" : "code_required");
+      throw new HttpError(
+        400,
+        "invalid_request",
+        rawCode ? "code_invalid" : "code_required"
+      );
     }
 
     const apiKey = getUsdaApiKey();
     if (!apiKey) {
-      throw new HttpError(501, "nutrition_not_configured", "USDA_FDC_API_KEY missing");
+      throw new HttpError(
+        501,
+        "nutrition_not_configured",
+        "USDA_FDC_API_KEY missing"
+      );
     }
 
     const now = Date.now();
@@ -280,19 +326,30 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
     if (cached && cached.expires > now) {
       if (!cached.value) {
         const cachedSource = cached.source === "USDA" ? "USDA" : "OFF";
-        send(res, 200, { results: [], source: cachedSource, message: "no_results", cached: true });
+        send(res, 200, {
+          results: [],
+          source: cachedSource,
+          message: "no_results",
+          cached: true,
+        });
         return;
       }
       const cachedSource = cached.value.source === "USDA" ? "USDA" : "OFF";
-      send(res, 200, { results: [cached.value.item], source: cachedSource, cached: true });
+      send(res, 200, {
+        results: [cached.value.item],
+        source: cachedSource,
+        cached: true,
+      });
       return;
     }
 
-    const requestId = (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() || randomUUID();
+    const requestId =
+      (req.get("x-request-id") || req.get("X-Request-Id") || "").trim() ||
+      randomUUID();
     const offOutcome = await runSafe(
       "nutrition_barcode_off",
       () => fetchOff(code),
-      { requestId, uid },
+      { requestId, uid }
     );
 
     let result = offOutcome.result;
@@ -301,24 +358,38 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
     usdaOutcome = await runSafe(
       "nutrition_barcode_usda",
       () => fetchUsdaByBarcode(apiKey, code),
-      { requestId, uid },
+      { requestId, uid }
     );
     result = result || usdaOutcome.result;
 
     if (result) {
-      cache.set(code, { value: result, source: result.source, expires: now + CACHE_TTL });
+      cache.set(code, {
+        value: result,
+        source: result.source,
+        expires: now + CACHE_TTL,
+      });
       const normalizedSource = result.source === "USDA" ? "USDA" : "OFF";
-      send(res, 200, { results: [result.item], source: normalizedSource, cached: false });
+      send(res, 200, {
+        results: [result.item],
+        source: normalizedSource,
+        cached: false,
+      });
       return;
     }
 
-    const errors = [offOutcome.error, usdaOutcome?.error].filter(Boolean) as HttpError[];
+    const errors = [offOutcome.error, usdaOutcome?.error].filter(
+      Boolean
+    ) as HttpError[];
     if (errors.length > 0) {
       throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
     }
 
     const fallbackSource: "Open Food Facts" | "USDA" = "USDA";
-    cache.set(code, { value: null, source: fallbackSource, expires: now + CACHE_TTL });
+    cache.set(code, {
+      value: null,
+      source: fallbackSource,
+      expires: now + CACHE_TTL,
+    });
     send(res, 200, {
       results: [],
       source: fallbackSource === "USDA" ? "USDA" : "OFF",
@@ -330,12 +401,24 @@ async function handleNutritionBarcode(req: Request, res: Response): Promise<void
   }
 }
 
-export async function nutritionBarcodeHandler(req: Request, res: Response): Promise<void> {
+export async function nutritionBarcodeHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
   await handleNutritionBarcode(req, res);
 }
 
 export const nutritionBarcode = onRequest(
-  { region: "us-central1", secrets: [usdaApiKeyParam], invoker: "public", concurrency: 20 },
+  {
+    region: "us-central1",
+    secrets: [usdaApiKeyParam],
+    invoker: "public",
+    concurrency: 20,
+  },
   (req: Request, res: Response) =>
-    chain(withCors, appCheckSoft)(req, res, () => void handleNutritionBarcode(req, res)),
+    chain(withCors, appCheckSoft)(
+      req,
+      res,
+      () => void handleNutritionBarcode(req, res)
+    )
 );

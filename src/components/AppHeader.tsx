@@ -5,7 +5,10 @@ import { useNavigate } from "react-router-dom";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { enableDemo as enableDemoMode, disableDemo as disableDemoMode } from "@/lib/demoFlag";
+import {
+  enableDemo as enableDemoMode,
+  disableDemo as disableDemoMode,
+} from "@/lib/demoFlag";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
@@ -194,7 +197,9 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const [devToolsOpen, setDevToolsOpen] = useState(false);
-  const [appCheckInfo, setAppCheckInfo] = useState<DevAppCheckInfo>({ status: "idle" });
+  const [appCheckInfo, setAppCheckInfo] = useState<DevAppCheckInfo>({
+    status: "idle",
+  });
   const showDevTools = import.meta.env.DEV || claims?.dev === true;
 
   useEffect(() => {
@@ -222,7 +227,10 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           if (typeof token === "string" && token) {
             setAppCheckInfo({ status: "available", suffix: token.slice(-8) });
           } else {
-            setAppCheckInfo({ status: "unavailable", error: "No token issued" });
+            setAppCheckInfo({
+              status: "unavailable",
+              error: "No token issued",
+            });
           }
         }
       } catch (error) {
@@ -248,9 +256,13 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Demo preview unavailable", description: exploreError, variant: "destructive" },
+          fallback: {
+            title: "Demo preview unavailable",
+            description: exploreError,
+            variant: "destructive",
+          },
           includeCodeInDev: false,
-        }),
+        })
       );
     } finally {
       setPending(false);
@@ -268,7 +280,9 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
       case "loading":
         return "Loading token…";
       case "available":
-        return appCheckInfo.suffix ? `Token available (…${appCheckInfo.suffix})` : "Token available";
+        return appCheckInfo.suffix
+          ? `Token available (…${appCheckInfo.suffix})`
+          : "Token available";
       case "unavailable":
         return appCheckInfo.error ?? "Not available";
       case "error":
@@ -323,7 +337,11 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
             <button
               type="button"
               onClick={onExploreDemo}
-              style={{ ...demoBtn, opacity: pending ? 0.7 : 1, pointerEvents: pending ? "none" : "auto" }}
+              style={{
+                ...demoBtn,
+                opacity: pending ? 0.7 : 1,
+                pointerEvents: pending ? "none" : "auto",
+              }}
               aria-label="Explore Demo"
               disabled={pending}
             >
@@ -348,10 +366,19 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
       </header>
 
       {showDevTools && devToolsOpen && (
-        <div id="dev-tools-drawer" style={drawerStyle} role="dialog" aria-label="Dev Tools">
+        <div
+          id="dev-tools-drawer"
+          style={drawerStyle}
+          role="dialog"
+          aria-label="Dev Tools"
+        >
           <div style={drawerHeaderStyle}>
             <strong style={drawerTitleStyle}>Dev Tools</strong>
-            <button type="button" style={drawerCloseButtonStyle} onClick={() => setDevToolsOpen(false)}>
+            <button
+              type="button"
+              style={drawerCloseButtonStyle}
+              onClick={() => setDevToolsOpen(false)}
+            >
               Close
             </button>
           </div>
@@ -359,7 +386,11 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           <div style={drawerSectionStyle}>
             <div style={drawerSectionHeaderStyle}>Claims</div>
             <pre style={drawerPreStyle}>{claimsJson}</pre>
-            <button type="button" style={drawerActionStyle} onClick={() => void refresh(true)}>
+            <button
+              type="button"
+              style={drawerActionStyle}
+              onClick={() => void refresh(true)}
+            >
               Refresh claims
             </button>
           </div>

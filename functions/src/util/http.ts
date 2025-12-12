@@ -19,7 +19,8 @@ export class HttpError extends Error {
 function applyCors(res: Response): boolean {
   const req = (res as Response & { req?: Request }).req;
   const method = req?.method ?? "";
-  const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : undefined;
+  const origin =
+    typeof req?.headers?.origin === "string" ? req.headers.origin : undefined;
 
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -29,7 +30,7 @@ function applyCors(res: Response): boolean {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Firebase-AppCheck,X-UAT",
+    "Content-Type,Authorization,X-Firebase-AppCheck,X-UAT"
   );
   res.setHeader("Vary", "Origin");
 

@@ -21,10 +21,12 @@ vi.mock("@/components/PolicyGate", () => ({
 }));
 
 vi.mock("@/lib/auth", async () => {
-  const actual = await vi.importActual<typeof import("./lib/auth")>("./lib/auth");
+  const actual =
+    await vi.importActual<typeof import("./lib/auth")>("./lib/auth");
   return {
     ...actual,
-    useAuthUser: () => ({ user: null, loading: false, authReady: true }) as const,
+    useAuthUser: () =>
+      ({ user: null, loading: false, authReady: true }) as const,
   };
 });
 
@@ -52,8 +54,8 @@ describe("AppProviders", () => {
       render(
         <AppProviders>
           <div />
-        </AppProviders>,
-      ),
+        </AppProviders>
+      )
     ).not.toThrow();
   });
 });

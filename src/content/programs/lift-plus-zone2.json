@@ -98,7 +98,12 @@
                     }
                   ]
                 },
-                { "name": "Single-Arm Row", "sets": 3, "reps": "10/side", "restSec": 90 }
+                {
+                  "name": "Single-Arm Row",
+                  "sets": 3,
+                  "reps": "10/side",
+                  "restSec": 90
+                }
               ]
             },
             {

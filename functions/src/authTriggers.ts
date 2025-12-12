@@ -24,10 +24,10 @@ function parseFounderEmails(): Set<string> {
 export const handleUserCreate = auth.user().onCreate(async (user: any) => {
   const email = user.email?.toLowerCase();
   const uid = user.uid;
-  
+
   // Update user claims (including unlimitedCredits for whitelisted users)
   await updateUserClaims(uid, email);
-  
+
   if (!email) return;
   const founders = parseFounderEmails();
   if (!founders.has(email)) return;

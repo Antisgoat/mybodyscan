@@ -25,11 +25,22 @@ import {
   isDeloadWeek,
   nextProgressionHint,
 } from "@/lib/coach/progression";
-import type { Day as ProgramDay, Exercise, ExerciseSubstitution } from "@/lib/coach/types";
+import type {
+  Day as ProgramDay,
+  Exercise,
+  ExerciseSubstitution,
+} from "@/lib/coach/types";
 import { loadAllPrograms, type CatalogEntry } from "@/lib/coach/catalog";
 import { workoutLogsCol } from "@/lib/db/coachPaths";
 import { addDoc, setDoc } from "@/lib/dbWrite";
-import { doc, getDocs, limit, orderBy, query, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
@@ -110,9 +121,11 @@ export default function CoachDay() {
   const [selectedSubstitutions, setSelectedSubstitutions] = useState<
     Record<number, ExerciseSubstitution>
   >({});
-  const [activeSwap, setActiveSwap] = useState<
-    { index: number; options: ExerciseSubstitution[]; originalName: string } | null
-  >(null);
+  const [activeSwap, setActiveSwap] = useState<{
+    index: number;
+    options: ExerciseSubstitution[];
+    originalName: string;
+  } | null>(null);
   const [nextTargets, setNextTargets] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -141,7 +154,10 @@ export default function CoachDay() {
   }, [programEntries]);
 
   const programIdParam = searchParams.get("programId") ?? DEFAULT_PROGRAM_ID;
-  const fallbackProgram = programMap[DEFAULT_PROGRAM_ID]?.program ?? programEntries[0]?.program ?? null;
+  const fallbackProgram =
+    programMap[DEFAULT_PROGRAM_ID]?.program ??
+    programEntries[0]?.program ??
+    null;
   const rawProgram = programMap[programIdParam]?.program ?? fallbackProgram;
 
   const weekParam = Number.parseInt(searchParams.get("week") ?? "0", 10);
@@ -151,9 +167,13 @@ export default function CoachDay() {
   const week = rawProgram?.weeks?.[safeWeekIdx];
 
   const dayParam = Number.parseInt(searchParams.get("day") ?? "0", 10);
-  const safeDayIdx = week?.days?.length ? clampIndex(dayParam, 0, week.days.length - 1) : 0;
+  const safeDayIdx = week?.days?.length
+    ? clampIndex(dayParam, 0, week.days.length - 1)
+    : 0;
   const day = week?.days?.[safeDayIdx];
-  const isCurrentWeekDeload = rawProgram ? isDeloadWeek(safeWeekIdx, rawProgram.deloadWeeks) : false;
+  const isCurrentWeekDeload = rawProgram
+    ? isDeloadWeek(safeWeekIdx, rawProgram.deloadWeeks)
+    : false;
   const effectiveDay = useMemo(() => {
     if (!day) return undefined;
     return isCurrentWeekDeload ? applyDeloadToDay(day) : day;
@@ -174,9 +194,13 @@ export default function CoachDay() {
     () => structureBlocks(effectiveDay, selectedSubstitutions),
     [effectiveDay, selectedSubstitutions]
   );
-  const baseFlattened = useMemo(() => (effectiveDay ? flattenDay(effectiveDay) : []), [effectiveDay]);
+  const baseFlattened = useMemo(
+    () => (effectiveDay ? flattenDay(effectiveDay) : []),
+    [effectiveDay]
+  );
   const flattened = useMemo(
-    () => (effectiveDay ? flattenDay(effectiveDay, substitutionDisplayMap) : []),
+    () =>
+      effectiveDay ? flattenDay(effectiveDay, substitutionDisplayMap) : [],
     [effectiveDay, substitutionDisplayMap]
   );
   const hasActiveTimers = Object.keys(activeTimers).length > 0;
@@ -231,11 +255,16 @@ export default function CoachDay() {
 
       try {
         const logsRef = workoutLogsCol(user.uid);
-        const recentQuery = query(logsRef, orderBy("completedAt", "desc"), limit(20));
+        const recentQuery = query(
+          logsRef,
+          orderBy("completedAt", "desc"),
+          limit(20)
+        );
         const snapshot = await getDocs(recentQuery);
         const entries = snapshot.docs.map((docSnap) => docSnap.data());
         const lastMatch = entries.find(
-          (entry) => entry?.programId === rawProgram.id && entry?.dayIdx === safeDayIdx
+          (entry) =>
+            entry?.programId === rawProgram.id && entry?.dayIdx === safeDayIdx
         );
 
         if (!lastMatch || !Array.isArray(lastMatch.sets)) {
@@ -247,7 +276,8 @@ export default function CoachDay() {
 
         const setMap = new Map<string, { reps: number; weight?: number }[]>();
         lastMatch.sets.forEach((item: any) => {
-          const planName = typeof item?.exercise === "string" ? item.exercise : "";
+          const planName =
+            typeof item?.exercise === "string" ? item.exercise : "";
           if (!planName) return;
           const repsValue = parseLoggedNumber(item?.reps);
           if (repsValue === null) return;
@@ -275,7 +305,11 @@ export default function CoachDay() {
             const { suggestion } = computeNextTargets({
               exerciseName: exercise.name,
               lastSets,
-              planTarget: { sets: exercise.sets, reps: exercise.reps, rir: exercise.rir },
+              planTarget: {
+                sets: exercise.sets,
+                reps: exercise.reps,
+                rir: exercise.rir,
+              },
             });
             suggestions.push(`${exercise.name} ${suggestion}`);
           });
@@ -329,7 +363,10 @@ export default function CoachDay() {
     if (!day || !rawProgram) return;
     const user = auth.currentUser;
     if (!user) {
-      toast({ title: "Please sign in", description: "You need an account to log workouts." });
+      toast({
+        title: "Please sign in",
+        description: "You need an account to log workouts.",
+      });
       return;
     }
 
@@ -396,7 +433,10 @@ export default function CoachDay() {
         { merge: true }
       );
 
-      toast({ title: "Workout logged", description: "Great job completing your session." });
+      toast({
+        title: "Workout logged",
+        description: "Great job completing your session.",
+      });
       navigate("/coach", { replace: true });
     } catch (error) {
       toast({
@@ -435,7 +475,9 @@ export default function CoachDay() {
               This workout day could not be found.
             </CardContent>
           </Card>
-          <Button variant="outline" onClick={() => navigate("/coach")}>Back to Coach</Button>
+          <Button variant="outline" onClick={() => navigate("/coach")}>
+            Back to Coach
+          </Button>
         </main>
         <BottomNav />
       </div>
@@ -444,7 +486,10 @@ export default function CoachDay() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title={`${day.name} – ${rawProgram.title}`} description="Log your sets and reps." />
+      <Seo
+        title={`${day.name} – ${rawProgram.title}`}
+        description="Log your sets and reps."
+      />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-6">
         <NotMedicalAdviceBanner />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -452,11 +497,16 @@ export default function CoachDay() {
             <ChevronLeft className="mr-1 h-4 w-4" /> Back
           </Button>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">{rawProgram.title}</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              {rawProgram.title}
+            </p>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold">{day.name}</h1>
               {isCurrentWeekDeload && (
-                <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] uppercase tracking-wide"
+                >
                   Deload week
                 </Badge>
               )}
@@ -472,7 +522,9 @@ export default function CoachDay() {
 
         {nextTargets !== null && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm leading-relaxed">
-            <span className="font-semibold text-primary">Next session targets:</span>{" "}
+            <span className="font-semibold text-primary">
+              Next session targets:
+            </span>{" "}
             {nextTargets.length
               ? nextTargets.join("; ")
               : "Complete this day once to generate personalized targets."}
@@ -481,107 +533,141 @@ export default function CoachDay() {
 
         {blocks.map((block, blockIdx) => (
           <section key={blockIdx} className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">{block.title}</h2>
-            {block.exercises.map(({ exercise, displayName, globalIndex, substitution }) => (
-              <Card key={globalIndex}>
-                <CardHeader className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-xl">{displayName}</CardTitle>
-                      {substitution ? (
-                        <p className="text-xs text-muted-foreground">Swapped from {exercise.name}</p>
-                      ) : null}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      className="h-auto px-0 text-xs"
-                      onClick={() =>
-                        setActiveSwap({
-                          index: globalIndex,
-                          options: exercise.substitutions ?? [],
-                          originalName: exercise.name,
-                        })
-                      }
-                    >
-                      Swap
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {exercise.sets} sets • {exercise.reps} target reps
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {nextProgressionHint(exercise)}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {Array.from({ length: exercise.sets }).map((_, setIndex) => {
-                    const setNumber = setIndex + 1;
-                    const key = `${globalIndex}-${setNumber}`;
-                    const entry = setData[key];
-                    const timerValue = activeTimers[key];
-                    return (
-                      <div
-                        key={key}
-                        className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`${key}-checkbox`}
-                            checked={entry?.done ?? false}
-                            onCheckedChange={(checked) => updateSet(key, { done: checked === true })}
-                          />
-                          <label htmlFor={`${key}-checkbox`} className="text-sm font-medium">
-                            Set {setNumber}
-                          </label>
-                        </div>
-                        <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={entry?.reps ?? ""}
-                              onChange={(event) => updateSet(key, { reps: event.target.value })}
-                              className="h-9 w-20"
-                            />
-                            <span className="text-xs text-muted-foreground">reps</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={entry?.weight ?? ""}
-                              onChange={(event) => updateSet(key, { weight: event.target.value })}
-                              placeholder="Weight"
-                              className="h-9 w-24"
-                            />
-                            <span className="text-xs text-muted-foreground">lb / kg</span>
-                          </div>
-                          {exercise.restSec ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => startTimer(key, exercise.restSec)}
-                            >
-                              <Timer className="mr-1 h-4 w-4" />
-                              {timerValue ? formatTimer(timerValue) : `Rest ${exercise.restSec}s`}
-                            </Button>
-                          ) : null}
-                        </div>
+            <h2 className="text-lg font-semibold text-foreground">
+              {block.title}
+            </h2>
+            {block.exercises.map(
+              ({ exercise, displayName, globalIndex, substitution }) => (
+                <Card key={globalIndex}>
+                  <CardHeader className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-xl">{displayName}</CardTitle>
+                        {substitution ? (
+                          <p className="text-xs text-muted-foreground">
+                            Swapped from {exercise.name}
+                          </p>
+                        ) : null}
                       </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            ))}
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0 text-xs"
+                        onClick={() =>
+                          setActiveSwap({
+                            index: globalIndex,
+                            options: exercise.substitutions ?? [],
+                            originalName: exercise.name,
+                          })
+                        }
+                      >
+                        Swap
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {exercise.sets} sets • {exercise.reps} target reps
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {nextProgressionHint(exercise)}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {Array.from({ length: exercise.sets }).map(
+                      (_, setIndex) => {
+                        const setNumber = setIndex + 1;
+                        const key = `${globalIndex}-${setNumber}`;
+                        const entry = setData[key];
+                        const timerValue = activeTimers[key];
+                        return (
+                          <div
+                            key={key}
+                            className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`${key}-checkbox`}
+                                checked={entry?.done ?? false}
+                                onCheckedChange={(checked) =>
+                                  updateSet(key, { done: checked === true })
+                                }
+                              />
+                              <label
+                                htmlFor={`${key}-checkbox`}
+                                className="text-sm font-medium"
+                              >
+                                Set {setNumber}
+                              </label>
+                            </div>
+                            <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={entry?.reps ?? ""}
+                                  onChange={(event) =>
+                                    updateSet(key, { reps: event.target.value })
+                                  }
+                                  className="h-9 w-20"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  reps
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={entry?.weight ?? ""}
+                                  onChange={(event) =>
+                                    updateSet(key, {
+                                      weight: event.target.value,
+                                    })
+                                  }
+                                  placeholder="Weight"
+                                  className="h-9 w-24"
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  lb / kg
+                                </span>
+                              </div>
+                              {exercise.restSec ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    startTimer(key, exercise.restSec)
+                                  }
+                                >
+                                  <Timer className="mr-1 h-4 w-4" />
+                                  {timerValue
+                                    ? formatTimer(timerValue)
+                                    : `Rest ${exercise.restSec}s`}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            )}
           </section>
         ))}
 
         <div className="flex justify-end">
-          <DemoWriteButton size="lg" onClick={handleComplete} disabled={isSaving}>
+          <DemoWriteButton
+            size="lg"
+            onClick={handleComplete}
+            disabled={isSaving}
+          >
             {isSaving ? "Saving..." : "Mark Day Complete"}
           </DemoWriteButton>
         </div>
 
-        <Dialog open={Boolean(activeSwap)} onOpenChange={(open) => !open && setActiveSwap(null)}>
+        <Dialog
+          open={Boolean(activeSwap)}
+          onOpenChange={(open) => !open && setActiveSwap(null)}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Swap exercise</DialogTitle>
@@ -615,12 +701,18 @@ export default function CoachDay() {
                       >
                         <span className="font-medium">{option.name}</span>
                         {option.reason ? (
-                          <span className="text-xs text-muted-foreground">{option.reason}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {option.reason}
+                          </span>
                         ) : null}
                         {option.equipment?.length ? (
                           <div className="flex flex-wrap gap-1">
                             {option.equipment.map((tag) => (
-                              <Badge key={tag} variant="secondary" className="text-[10px] uppercase tracking-wide">
+                              <Badge
+                                key={tag}
+                                variant="secondary"
+                                className="text-[10px] uppercase tracking-wide"
+                              >
                                 {tag}
                               </Badge>
                             ))}

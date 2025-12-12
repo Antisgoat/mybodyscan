@@ -11,7 +11,7 @@ Manual checks for this PR
 - Checkout button in Plans: blocked in demo; otherwise opens URL.
 - Build tag shows short commit and date from build.txt.
 - Auth config & IdentityToolkit probe:
-  - /auth loads without a red configuration banner when VITE_FIREBASE_* values are present.
+  - /auth loads without a red configuration banner when VITE*FIREBASE*\* values are present.
   - Console may log a single IdentityToolkit probe warning (404/403) if the current origin is not in Firebase Auth authorized domains; treat this as informational.
   - Red configuration cards only appear when required keys (apiKey/authDomain/projectId/appId) are missing or Firebase init throws.
 - 2025-12-03 smoke-test plan (manual verification needed):
@@ -21,17 +21,20 @@ Manual checks for this PR
   - Open `/plans`, click “Buy Now,” and confirm Stripe Checkout or the fallback URL opens without “Checkout unavailable.”
 
 # 2025-02-16 — Firebase auth stability hardening
+
 - ⚠️ `npm run build` (not run: node/npm unavailable in the execution environment)
 - ⚠️ `npm --prefix functions run build` (not run: node/npm unavailable in the execution environment)
 - ⚠️ Manual auth, meals, coach chat, scan, history, and checkout flows need verification on staging/production once a full runtime is available.
 
 ## 2025-12-04
+
 - ✅ `npm run lint`
 - ✅ `npm run build`
 - ✅ `npm --prefix functions run build`
 - ⚠️ Manual auth/billing, meals, coach chat, scan, and history flows still need a signed-in staging pass (not runnable in this headless workspace); changes were validated via local callable/API reasoning only.
 
 ## 2025-12-04 — history + meals hardening
+
 - ✅ `npm run build`
 - ✅ `npm --prefix functions run build`
 - ⚠️ Manual verification requires staging Firebase credentials; please run through the checklist below in a real environment:
@@ -43,6 +46,7 @@ Manual checks for this PR
   - [ ] Plans checkout opens Stripe session or URL fallback
 
 ## 2025-12-05 — scan API hardening
+
 - ✅ `bun run typecheck`
 - ✅ `bun run lint`
 - Hardened scan API helpers to return typed {ok,data,error} results with safe error parsing and Firestore timestamp normalization.
@@ -50,6 +54,7 @@ Manual checks for this PR
 - To repro previous issues: start a scan while signed out or with missing photos—UI now blocks submission with descriptive messaging instead of generic exceptions; open scan result/history with revoked access to see controlled error text instead of console traces.
 
 ## Release smoke test (quick reference)
+
 - Login/logout with email + password (and any enabled social providers).
 - Explore demo if available, ensuring it loads without sign-in.
 - Meals: search "chicken", add to today, and confirm calories/macros update.

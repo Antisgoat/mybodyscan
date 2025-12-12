@@ -18,10 +18,14 @@ export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
 
   try {
     await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      const snap = (await tx.get(
+        ref
+      )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       const data = snap.exists ? (snap.data() as any) : {};
       const events: Timestamp[] = Array.isArray(data.events)
-        ? data.events.filter((item: unknown): item is Timestamp => item instanceof Timestamp)
+        ? data.events.filter(
+            (item: unknown): item is Timestamp => item instanceof Timestamp
+          )
         : [];
       const recent = events.filter((event) => event.toMillis() >= windowStart);
       if (recent.length >= limit) {
@@ -45,7 +49,11 @@ export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
     if (err instanceof HttpsError) {
       throw err;
     }
-    console.error("rate_limit_error", { uid, key, message: (err as any)?.message });
+    console.error("rate_limit_error", {
+      uid,
+      key,
+      message: (err as any)?.message,
+    });
     throw new HttpsError("internal", "rate_limit_store_error");
   }
 }

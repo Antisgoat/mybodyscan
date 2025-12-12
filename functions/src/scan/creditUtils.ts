@@ -19,7 +19,8 @@ function normalizeBucket(raw: any, fallback: Timestamp): CreditBucket {
     amount: Number(raw?.amount || 0),
     grantedAt: raw?.grantedAt instanceof Timestamp ? raw.grantedAt : fallback,
     expiresAt: raw?.expiresAt instanceof Timestamp ? raw.expiresAt : null,
-    sourcePriceId: typeof raw?.sourcePriceId === "string" ? raw.sourcePriceId : null,
+    sourcePriceId:
+      typeof raw?.sourcePriceId === "string" ? raw.sourcePriceId : null,
     context: typeof raw?.context === "string" ? raw.context : null,
   };
 }
@@ -57,19 +58,35 @@ export async function consumeCreditBuckets(
   }
 
   const consumed = remaining <= 0;
-  const total = buckets.reduce((sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0), 0);
+  const total = buckets.reduce(
+    (sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0),
+    0
+  );
   return { buckets, consumed, total };
 }
 
-export async function refundCredit(tx: Transaction, ref: DocumentReference, context: string) {
+export async function refundCredit(
+  tx: Transaction,
+  ref: DocumentReference,
+  context: string
+) {
   const snap = await tx.get(ref);
   const now = Timestamp.now();
   const data = snap.exists ? snap.data() : {};
   const buckets: CreditBucket[] = Array.isArray(data?.creditBuckets)
     ? data.creditBuckets.map((bucket: any) => normalizeBucket(bucket, now))
     : [];
-  buckets.push({ amount: 1, grantedAt: now, expiresAt: null, sourcePriceId: null, context });
-  const total = buckets.reduce((sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0), 0);
+  buckets.push({
+    amount: 1,
+    grantedAt: now,
+    expiresAt: null,
+    sourcePriceId: null,
+    context,
+  });
+  const total = buckets.reduce(
+    (sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0),
+    0
+  );
   tx.set(
     ref,
     {

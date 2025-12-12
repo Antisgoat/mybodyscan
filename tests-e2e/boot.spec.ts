@@ -1,10 +1,19 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Boot diagnostics", () => {
-  test.skip(true, "Enable after hosting cache is purged and init.json matches rotated key");
+  test.skip(
+    true,
+    "Enable after hosting cache is purged and init.json matches rotated key"
+  );
 
-  test("init.json exposes apiKey and ITK responds", async ({ page, request, baseURL }) => {
-    const initRes = await request.get(`${baseURL}/__/firebase/init.json?ts=${Date.now()}`);
+  test("init.json exposes apiKey and ITK responds", async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    const initRes = await request.get(
+      `${baseURL}/__/firebase/init.json?ts=${Date.now()}`
+    );
     expect(initRes.ok()).toBeTruthy();
     const j = await initRes.json();
     expect(typeof j.apiKey).toBe("string");

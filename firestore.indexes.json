@@ -3,9 +3,7 @@
     {
       "collectionGroup": "scans",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     },
     {
       "collectionGroup": "scans",
@@ -19,16 +17,12 @@
     {
       "collectionId": "stripeEvents",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "created", "order": "DESCENDING" }
-      ]
+      "fields": [{ "fieldPath": "created", "order": "DESCENDING" }]
     },
     {
       "collectionId": "telemetryEvents",
       "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []

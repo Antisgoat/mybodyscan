@@ -5,7 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Seo } from "@/components/Seo";
 import type { ManualInputKey } from "./scanRefineStore";
-import { commitManualInput, setManualInput, useScanRefineStore } from "./scanRefineStore";
+import {
+  commitManualInput,
+  setManualInput,
+  useScanRefineStore,
+} from "./scanRefineStore";
 import { useUnits } from "@/hooks/useUnits";
 
 interface RefineMeasurementsFormProps {
@@ -13,13 +17,21 @@ interface RefineMeasurementsFormProps {
   footer?: ReactNode;
 }
 
-const FIELD_CONFIG: Array<{ key: ManualInputKey; id: string; help?: string; label: string }> = [
+const FIELD_CONFIG: Array<{
+  key: ManualInputKey;
+  id: string;
+  help?: string;
+  label: string;
+}> = [
   { key: "neck", label: "Neck", id: "refine-neck" },
   { key: "waist", label: "Waist", id: "refine-waist" },
   { key: "hip", label: "Hip", id: "refine-hip" },
 ];
 
-export function RefineMeasurementsForm({ onSubmit, footer }: RefineMeasurementsFormProps) {
+export function RefineMeasurementsForm({
+  onSubmit,
+  footer,
+}: RefineMeasurementsFormProps) {
   const { manualInputs } = useScanRefineStore();
   const { units } = useUnits();
   const unitLabel = units === "metric" ? "cm" : "in";
@@ -35,7 +47,9 @@ export function RefineMeasurementsForm({ onSubmit, footer }: RefineMeasurementsF
         <div key={key} className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor={id}>{`${label} (${unitLabel})`}</Label>
-            {help ? <span className="text-xs text-muted-foreground">{help}</span> : null}
+            {help ? (
+              <span className="text-xs text-muted-foreground">{help}</span>
+            ) : null}
           </div>
           <Input
             id={id}
@@ -59,16 +73,25 @@ export default function ScanRefine() {
 
   return (
     <div className="space-y-6">
-      <Seo title="Refine Estimate – MyBodyScan" description="Fine-tune your scan results with manual inputs." />
+      <Seo
+        title="Refine Estimate – MyBodyScan"
+        description="Fine-tune your scan results with manual inputs."
+      />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold">Refine measurements</h1>
-        <p className="text-muted-foreground">Adjust the estimate with quick manual measurements.</p>
+        <p className="text-muted-foreground">
+          Adjust the estimate with quick manual measurements.
+        </p>
       </div>
       <RefineMeasurementsForm
         onSubmit={() => navigate("/scan/result")}
         footer={
           <div className="flex flex-col-reverse items-stretch justify-end gap-2 sm:flex-row">
-            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate(-1)}
+            >
               Cancel
             </Button>
             <Button type="submit">Save and return</Button>

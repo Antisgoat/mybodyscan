@@ -1,4 +1,15 @@
-import { ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+} from "recharts";
 
 export interface NutritionDataPoint {
   date: string;
@@ -24,14 +35,28 @@ export function NutritionMacrosChart({ data }: NutritionMacrosChartProps) {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ top: 16, right: 12, bottom: 8, left: 0 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 16, right: 12, bottom: 8, left: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" className="text-muted" />
           <XAxis dataKey="date" tick={{ fontSize: 12 }} tickMargin={8} />
           <YAxis yAxisId="calories" tick={{ fontSize: 12 }} width={48} />
-          <YAxis yAxisId="macros" orientation="right" tick={{ fontSize: 12 }} width={48} />
-          <Tooltip contentStyle={{ fontSize: '0.75rem' }} />
-          <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
-          <Bar yAxisId="calories" dataKey="calories" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Calories" />
+          <YAxis
+            yAxisId="macros"
+            orientation="right"
+            tick={{ fontSize: 12 }}
+            width={48}
+          />
+          <Tooltip contentStyle={{ fontSize: "0.75rem" }} />
+          <Legend wrapperStyle={{ fontSize: "0.75rem" }} />
+          <Bar
+            yAxisId="calories"
+            dataKey="calories"
+            fill="hsl(var(--primary))"
+            radius={[4, 4, 0, 0]}
+            name="Calories"
+          />
           <Area
             yAxisId="macros"
             type="monotone"

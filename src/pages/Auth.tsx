@@ -4,12 +4,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
 import { consumeAuthRedirectError } from "@/lib/authRedirect";
-import { signInWithApple as startAppleSignIn, signInWithGoogle as startGoogleSignIn } from "@/lib/auth/providers";
+import {
+  signInWithApple as startAppleSignIn,
+  signInWithGoogle as startGoogleSignIn,
+} from "@/lib/auth/providers";
 import {
   auth,
   firebaseConfigMissingKeys,
@@ -34,7 +43,10 @@ const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M10.24 9.1c.01 2.16 1.86 2.88 1.88 2.89-.01.04-.3 1.03-1 2.03-.6.86-1.23 1.72-2.22 1.74-.97.02-1.28-.56-2.38-.56-1.1 0-1.44.54-2.35.58-.94.04-1.66-.93-2.27-1.79C.68 12.5-.2 10 0 7.66c.13-1.26.73-2.43 1.7-3.11.75-.51 1.67-.73 2.56-.6.6.12 1.1.36 1.48.56.38.2.68.37.88.36.18 0 .5-.18.88-.37.53-.28 1.13-.6 1.93-.6.01 0 .01 0 .02 0 .72.01 2.26.18 3.33 1.77-.09.06-1.98 1.15-1.93 3.43ZM7.3 1.62C7.9.88 8.97.33 9.88.32c.1.98-.29 1.96-.87 2.64C8.4 3.7 7.39 4.28 6.37 4.2c-.1-.96.4-1.98.93-2.58Z" fill="currentColor"/>
+    <path
+      d="M10.24 9.1c.01 2.16 1.86 2.88 1.88 2.89-.01.04-.3 1.03-1 2.03-.6.86-1.23 1.72-2.22 1.74-.97.02-1.28-.56-2.38-.56-1.1 0-1.44.54-2.35.58-.94.04-1.66-.93-2.27-1.79C.68 12.5-.2 10 0 7.66c.13-1.26.73-2.43 1.7-3.11.75-.51 1.67-.73 2.56-.6.6.12 1.1.36 1.48.56.38.2.68.37.88.36.18 0 .5-.18.88-.37.53-.28 1.13-.6 1.93-.6.01 0 .01 0 .02 0 .72.01 2.26.18 3.33 1.77-.09.06-1.98 1.15-1.93 3.43ZM7.3 1.62C7.9.88 8.97.33 9.88.32c.1.98-.29 1.96-.87 2.64C8.4 3.7 7.39 4.28 6.37 4.2c-.1-.96.4-1.98.93-2.58Z"
+      fill="currentColor"
+    />
   </svg>
 );
 
@@ -42,7 +54,10 @@ const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const from = (location.state as any)?.from || "/home";
-  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
   const nextParam = searchParams.get("next");
   const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -51,19 +66,24 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
-  const [identityProbe, setIdentityProbe] = useState<IdentityToolkitProbeStatus | null>(() =>
-    getIdentityToolkitProbeStatus(),
-  );
+  const [identityProbe, setIdentityProbe] =
+    useState<IdentityToolkitProbeStatus | null>(() =>
+      getIdentityToolkitProbeStatus()
+    );
   const { user } = useAuthUser();
-  const demoEnv = String(import.meta.env.VITE_DEMO_ENABLED ?? "true").toLowerCase();
-  const demoEnabled = demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
+  const demoEnv = String(
+    import.meta.env.VITE_DEMO_ENABLED ?? "true"
+  ).toLowerCase();
+  const demoEnabled =
+    demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
   const authClient = useMemo(() => getFirebaseAuth(), []);
   const canSubmit = !firebaseInitError;
   const onBrowseDemo = useCallback(() => {
     navigate("/welcome?demo=1", { replace: false });
   }, [navigate]);
-  const canonical = typeof window !== "undefined" ? window.location.href : undefined;
+  const canonical =
+    typeof window !== "undefined" ? window.location.href : undefined;
 
   useEffect(() => {
     if (!user) return;
@@ -80,7 +100,10 @@ const Auth = () => {
       if (cancelled || !redirectError) {
         return;
       }
-      const fallbackMessage = redirectError.friendlyMessage ?? redirectError.message ?? "Sign-in failed.";
+      const fallbackMessage =
+        redirectError.friendlyMessage ??
+        redirectError.message ??
+        "Sign-in failed.";
       const friendlyCode = redirectError.friendlyCode ?? redirectError.code;
       const message = formatError(fallbackMessage, friendlyCode);
       setAuthError(message);
@@ -113,7 +136,9 @@ const Auth = () => {
       return;
     }
     if (!authClient) {
-      setAuthError("Authentication is unavailable. Please refresh and try again.");
+      setAuthError(
+        "Authentication is unavailable. Please refresh and try again."
+      );
       return;
     }
     setLoading(true);
@@ -124,7 +149,10 @@ const Auth = () => {
           await signInWithEmailAndPassword(authClient, email, password);
           return;
         } catch (err: unknown) {
-          const error = err as FirebaseError & { code?: string; message?: string };
+          const error = err as FirebaseError & {
+            code?: string;
+            message?: string;
+          };
           const code = error?.code ?? "unknown";
           const rawMessage = error?.message ?? "";
 
@@ -140,7 +168,8 @@ const Auth = () => {
 
           switch (code) {
             case "auth/network-request-failed":
-              uiMessage = "Network error contacting Auth. Please check your connection and try again.";
+              uiMessage =
+                "Network error contacting Auth. Please check your connection and try again.";
               break;
             case "auth/invalid-email":
               uiMessage = "That email address looks invalid.";
@@ -154,7 +183,8 @@ const Auth = () => {
               uiMessage = "Too many attempts. Please wait a bit and try again.";
               break;
             case "auth/operation-not-allowed":
-              uiMessage = "Sign-in is not enabled for this project. Contact support.";
+              uiMessage =
+                "Sign-in is not enabled for this project. Contact support.";
               break;
             default:
               console.error("[Auth] Unhandled sign-in error", error);
@@ -173,8 +203,14 @@ const Auth = () => {
       }
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
-      const fallback = mode === "signin" ? "Email sign-in failed." : "Account creation failed.";
-      const message = formatError(normalized.message ?? fallback, normalized.code);
+      const fallback =
+        mode === "signin"
+          ? "Email sign-in failed."
+          : "Account creation failed.";
+      const message = formatError(
+        normalized.message ?? fallback,
+        normalized.code
+      );
       setAuthError(message);
       toast(message, "error");
     } finally {
@@ -231,10 +267,13 @@ const Auth = () => {
   }, [firebaseInitError, defaultTarget]);
 
   const host = typeof window !== "undefined" ? window.location.hostname : "";
-  const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
   const showDebugPanel =
-    import.meta.env.DEV || host.startsWith("localhost") || user?.email === "developer@adlrlabs.com";
+    import.meta.env.DEV ||
+    host.startsWith("localhost") ||
+    user?.email === "developer@adlrlabs.com";
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };
@@ -271,7 +310,9 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
           <div className="text-center">
-            <CardTitle className="text-2xl mb-2">{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
+            <CardTitle className="text-2xl mb-2">
+              {mode === "signin" ? "Welcome back" : "Create your account"}
+            </CardTitle>
             <CardDescription className="text-slate-600">
               Track body fat, weight and progress — private and secure.
             </CardDescription>
@@ -287,7 +328,9 @@ const Auth = () => {
                 className="h-7 px-2 text-xs"
                 onClick={() => setConfigDetailsOpen((open) => !open)}
               >
-                {configDetailsOpen ? "Hide config status" : "Show config status"}
+                {configDetailsOpen
+                  ? "Hide config status"
+                  : "Show config status"}
               </Button>
             </div>
           )}
@@ -297,22 +340,27 @@ const Auth = () => {
                 configStatus.tone === "warning"
                   ? "border-amber-300 bg-amber-50 text-amber-900"
                   : configStatus.tone === "ok"
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                  : "border-muted bg-muted/30 text-muted-foreground"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : "border-muted bg-muted/30 text-muted-foreground"
               }`}
             >
               <div className="font-semibold text-sm">
-                {configStatus.tone === "warning" ? "Config warning" : "Config status"}
+                {configStatus.tone === "warning"
+                  ? "Config warning"
+                  : "Config status"}
               </div>
               <div className="mt-1">{configStatus.message}</div>
               {identityProbe?.status === "warning" && (
                 <div className="mt-1 text-[11px] text-amber-800">
-                  IdentityToolkit clientConfig returned a warning (404/403). Login continues; add this origin to Firebase Auth
-                  authorized domains if needed.
+                  IdentityToolkit clientConfig returned a warning (404/403).
+                  Login continues; add this origin to Firebase Auth authorized
+                  domains if needed.
                 </div>
               )}
               {identityProbe == null && (
-                <div className="mt-1 text-[11px] text-muted-foreground">Probing runtime configuration…</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  Probing runtime configuration…
+                </div>
               )}
             </div>
           )}
@@ -328,14 +376,22 @@ const Auth = () => {
             </div>
           )}
           <div className="flex justify-center gap-2 mb-4">
-            <Button size="sm" variant={mode === "signin" ? "default" : "outline"} onClick={() => setMode("signin")}>
+            <Button
+              size="sm"
+              variant={mode === "signin" ? "default" : "outline"}
+              onClick={() => setMode("signin")}
+            >
               Sign in
             </Button>
-            <Button size="sm" variant={mode === "signup" ? "default" : "outline"} onClick={() => setMode("signup")}>
+            <Button
+              size="sm"
+              variant={mode === "signup" ? "default" : "outline"}
+              onClick={() => setMode("signup")}
+            >
               Create account
             </Button>
           </div>
-          
+
           <div className="mb-4 p-4 bg-slate-50 rounded-lg">
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
@@ -356,24 +412,59 @@ const Auth = () => {
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
             <div className="flex flex-col gap-2">
-              <Button type="submit" className="mbs-btn mbs-btn-primary w-full" disabled={loading || !canSubmit}>
-                {loading ? (mode === "signin" ? "Signing in..." : "Creating...") : (mode === "signin" ? "Sign in" : "Create account")}
+              <Button
+                type="submit"
+                className="mbs-btn mbs-btn-primary w-full"
+                disabled={loading || !canSubmit}
+              >
+                {loading
+                  ? mode === "signin"
+                    ? "Signing in..."
+                    : "Creating..."
+                  : mode === "signin"
+                    ? "Sign in"
+                    : "Create account"}
               </Button>
-              <Button type="button" variant="link" disabled={loading || !canSubmit} onClick={async () => {
-                try {
-                  await sendReset(email);
-                  notify({ title: "Reset link sent", description: "Check your email for reset instructions." });
-                } catch (err: any) {
-                  notify({ title: "Couldn't send reset", description: err?.message || "Please try again." });
-                }
-              }}>Forgot password?</Button>
+              <Button
+                type="button"
+                variant="link"
+                disabled={loading || !canSubmit}
+                onClick={async () => {
+                  try {
+                    await sendReset(email);
+                    notify({
+                      title: "Reset link sent",
+                      description: "Check your email for reset instructions.",
+                    });
+                  } catch (err: any) {
+                    notify({
+                      title: "Couldn't send reset",
+                      description: err?.message || "Please try again.",
+                    });
+                  }
+                }}
+              >
+                Forgot password?
+              </Button>
             </div>
           </form>
           <div className="space-y-3">
@@ -405,38 +496,68 @@ const Auth = () => {
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">
-                <Button type="button" variant="outline" className="w-full" onClick={onBrowseDemo}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={onBrowseDemo}
+                >
                   Just looking? Browse the demo
                 </Button>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Preview the experience with sample data. Sign up to save your progress.
+                  Preview the experience with sample data. Sign up to save your
+                  progress.
                 </p>
               </div>
             )}
             <div className="mt-4 text-center text-xs text-muted-foreground space-x-2">
-              <a href="/privacy" className="underline hover:no-underline">Privacy</a>
+              <a href="/privacy" className="underline hover:no-underline">
+                Privacy
+              </a>
               <span>?</span>
-              <a href="/terms" className="underline hover:no-underline">Terms</a>
+              <a href="/terms" className="underline hover:no-underline">
+                Terms
+              </a>
             </div>
             {showDebugPanel && (
               <div className="mt-6 rounded-lg border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground space-y-1">
-                <div className="font-semibold text-xs text-foreground">Debug info</div>
+                <div className="font-semibold text-xs text-foreground">
+                  Debug info
+                </div>
                 <div>Origin: {origin}</div>
-                <div>Project ID: {(authOptions.projectId as string) || "(unknown)"}</div>
-                <div>Auth domain: {(authOptions.authDomain as string) || "(unknown)"}</div>
-                <div>Has config: {String(hasFirebaseConfig)}</div>
-                <div>Missing config: {firebaseConfigMissingKeys.length ? firebaseConfigMissingKeys.join(", ") : "none"}</div>
                 <div>
-                  Optional missing: {firebaseConfigWarningKeys.length ? firebaseConfigWarningKeys.join(", ") : "none"}
+                  Project ID: {(authOptions.projectId as string) || "(unknown)"}
+                </div>
+                <div>
+                  Auth domain:{" "}
+                  {(authOptions.authDomain as string) || "(unknown)"}
+                </div>
+                <div>Has config: {String(hasFirebaseConfig)}</div>
+                <div>
+                  Missing config:{" "}
+                  {firebaseConfigMissingKeys.length
+                    ? firebaseConfigMissingKeys.join(", ")
+                    : "none"}
+                </div>
+                <div>
+                  Optional missing:{" "}
+                  {firebaseConfigWarningKeys.length
+                    ? firebaseConfigWarningKeys.join(", ")
+                    : "none"}
                 </div>
                 <div>
                   IdentityToolkit probe: {identityProbe?.status || "pending"}
-                  {identityProbe?.statusCode ? ` (${identityProbe.statusCode})` : ""}
+                  {identityProbe?.statusCode
+                    ? ` (${identityProbe.statusCode})`
+                    : ""}
                 </div>
                 <div>
-                  Current user: {auth?.currentUser?.email || "(none)"} · UID: {auth?.currentUser?.uid || "-"}
+                  Current user: {auth?.currentUser?.email || "(none)"} · UID:{" "}
+                  {auth?.currentUser?.uid || "-"}
                 </div>
-                <div>Last auth error: {authError || firebaseInitError || "none"}</div>
+                <div>
+                  Last auth error: {authError || firebaseInitError || "none"}
+                </div>
               </div>
             )}
           </div>
@@ -448,14 +569,18 @@ const Auth = () => {
 
 export default Auth;
 
-function normalizeFirebaseError(err: unknown): { message?: string; code?: string } {
+function normalizeFirebaseError(err: unknown): {
+  message?: string;
+  code?: string;
+} {
   if (!err) return {};
   if (typeof err === "string") {
     return { message: err };
   }
   if (typeof err === "object") {
     const record = err as Record<string, unknown>;
-    const message = typeof record.message === "string" ? record.message : undefined;
+    const message =
+      typeof record.message === "string" ? record.message : undefined;
     const code = typeof record.code === "string" ? record.code : undefined;
     return { message, code };
   }
@@ -470,10 +595,10 @@ function cleanFirebaseMessage(message?: string): string | undefined {
 }
 
 function formatError(message?: string, code?: string) {
-  const cleaned = cleanFirebaseMessage(message) ?? message ?? "Firebase sign-in failed.";
+  const cleaned =
+    cleanFirebaseMessage(message) ?? message ?? "Firebase sign-in failed.";
   if (code) {
     return `${cleaned} (${code})`;
   }
   return cleaned;
 }
-

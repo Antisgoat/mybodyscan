@@ -32,22 +32,30 @@ export function useDemoWireup() {
       setAuthed(false);
       return undefined;
     }
+    // Subscribe once. Re-subscribing on every navigation can cause re-entrant demo state toggles
+    // (and in production can surface as React max-update-depth / #185).
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setAuthed(Boolean(user));
       try {
-        clearStoredDemoFlags();
-        setDemo(false);
+        // Only wipe demo flags when a real authed user exists. When signed out, demo mode is allowed.
         if (user) {
-          if (location.search.includes("demo=")) {
-            navigate({ pathname: location.pathname, search: "" }, { replace: true });
-          }
+          clearStoredDemoFlags();
+          setDemo(false);
         }
       } catch (error) {
         console.warn("demo_wipe_failed", error);
       }
     });
     return () => unsubscribe();
-  }, [location.pathname, location.search, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // If we become authed, ensure any demo query param is removed to avoid leaking demo links into the authed app.
+    if (!authed) return;
+    if (!location.search.includes("demo=")) return;
+    navigate({ pathname: location.pathname, search: "" }, { replace: true });
+  }, [authed, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (authed) {

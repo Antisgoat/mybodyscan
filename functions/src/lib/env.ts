@@ -1,4 +1,8 @@
-import { getStripeSecret as resolveStripeSecret, getWebhookSecret, getOpenAiSecret } from "./config.js";
+import {
+  getStripeSecret as resolveStripeSecret,
+  getWebhookSecret,
+  getOpenAiSecret,
+} from "./config.js";
 
 // Hardened environment helpers - all env reads go through these functions
 // to prevent import-time crashes from undefined values
@@ -12,9 +16,9 @@ export const getEnvInt = (k: string, d: number): number => {
 };
 
 export const getEnvBool = (k: string, d = false): boolean => {
-  const v = (getEnv(k) || '').toLowerCase();
-  if (v === 'true' || v === '1' || v === 'yes') return true;
-  if (v === 'false' || v === '0' || v === 'no') return false;
+  const v = (getEnv(k) || "").toLowerCase();
+  if (v === "true" || v === "1" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "no") return false;
   return d;
 };
 
@@ -23,7 +27,10 @@ export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");
 export const getAllowedOrigins = (): string[] => {
   const raw = getEnv("APP_CHECK_ALLOWED_ORIGINS");
   if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 };
 
 export type AppCheckMode = "strict" | "soft" | "disabled";
@@ -36,7 +43,8 @@ export const getAppCheckMode = (): AppCheckMode => {
   return "soft";
 };
 
-export const getOpenAIKey = () => (getEnv("OPENAI_API_KEY") || "").trim() || getOpenAiSecret() || undefined;
+export const getOpenAIKey = () =>
+  (getEnv("OPENAI_API_KEY") || "").trim() || getOpenAiSecret() || undefined;
 
 export const getStripeSecret = () => resolveStripeSecret() ?? undefined;
 
@@ -47,7 +55,8 @@ export const hasOpenAI = () => {
   if (envKey) return true;
   return Boolean(getOpenAiSecret());
 };
-export const hasStripe = () => Boolean(resolveStripeSecret() && getWebhookSecret());
+export const hasStripe = () =>
+  Boolean(resolveStripeSecret() && getWebhookSecret());
 
 export function assertStripeConfigured() {
   if (!hasStripe()) throw new Error("stripe_not_configured");

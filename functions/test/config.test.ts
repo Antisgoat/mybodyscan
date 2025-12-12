@@ -1,11 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getStripeSecret, __resetConfigForTest, __setRuntimeConfigForTest } from "../src/lib/config.js";
+import {
+  getStripeSecret,
+  __resetConfigForTest,
+  __setRuntimeConfigForTest,
+} from "../src/lib/config.js";
 
-const SECRET_ENV_KEYS = ["STRIPE_SECRET", "STRIPE_API_KEY", "STRIPE_KEY"] as const;
+const SECRET_ENV_KEYS = [
+  "STRIPE_SECRET",
+  "STRIPE_API_KEY",
+  "STRIPE_KEY",
+] as const;
 
-type SecretSnapshot = Record<(typeof SECRET_ENV_KEYS)[number], string | undefined>;
+type SecretSnapshot = Record<
+  (typeof SECRET_ENV_KEYS)[number],
+  string | undefined
+>;
 
 function snapshotSecrets(): SecretSnapshot {
   const snapshot = {} as SecretSnapshot;

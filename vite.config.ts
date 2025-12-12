@@ -10,11 +10,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
-  ].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger()].filter(
+    Boolean
+  ),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -23,11 +21,11 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     exclude: [
-      'e2e/**',
-      'tests/e2e/**',
-      'tests/rules/**',
-      'node_modules/**',
-      'dist/**'
+      "e2e/**",
+      "tests/e2e/**",
+      "tests/rules/**",
+      "node_modules/**",
+      "dist/**",
     ],
   },
   build: {

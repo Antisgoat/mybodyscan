@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 
-const UNIVERSAL_ALLOWED_HEADERS = "Authorization, Content-Type, X-Firebase-AppCheck, X-Requested-With";
-const WRAPPED_ALLOWED_HEADERS = "Content-Type,Authorization,X-Firebase-AppCheck,X-TZ-Offset-Mins";
+const UNIVERSAL_ALLOWED_HEADERS =
+  "Authorization, Content-Type, X-Firebase-AppCheck, X-Requested-With";
+const WRAPPED_ALLOWED_HEADERS =
+  "Content-Type,Authorization,X-Firebase-AppCheck,X-TZ-Offset-Mins";
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
@@ -29,7 +31,10 @@ function middleware(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-function wrapHandler<T extends (req: Request, res: Response) => unknown>(handler: T, options: CorsOptions = {}) {
+function wrapHandler<T extends (req: Request, res: Response) => unknown>(
+  handler: T,
+  options: CorsOptions = {}
+) {
   const allowlist = new Set(options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS);
   const allowCredentials = options.allowCredentials ?? false;
 
@@ -40,7 +45,10 @@ function wrapHandler<T extends (req: Request, res: Response) => unknown>(handler
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", WRAPPED_ALLOWED_HEADERS);
-      res.setHeader("Access-Control-Allow-Credentials", allowCredentials ? "true" : "false");
+      res.setHeader(
+        "Access-Control-Allow-Credentials",
+        allowCredentials ? "true" : "false"
+      );
     }
 
     if (req.method === "OPTIONS") {
@@ -55,16 +63,23 @@ function wrapHandler<T extends (req: Request, res: Response) => unknown>(handler
 export function withCors(req: Request, res: Response, next: NextFunction): void;
 export function withCors<T extends (req: Request, res: Response) => unknown>(
   handler: T,
-  options?: CorsOptions,
+  options?: CorsOptions
 ): (req: Request, res: Response) => ReturnType<T>;
 export function withCors(
   reqOrHandler: Request | ((req: Request, res: Response) => unknown),
   resOrOptions?: Response | CorsOptions,
-  next?: NextFunction,
+  next?: NextFunction
 ) {
   if (typeof reqOrHandler === "function") {
-    return wrapHandler(reqOrHandler, (resOrOptions as CorsOptions | undefined) ?? {});
+    return wrapHandler(
+      reqOrHandler,
+      (resOrOptions as CorsOptions | undefined) ?? {}
+    );
   }
 
-  return middleware(reqOrHandler, resOrOptions as Response, next as NextFunction);
+  return middleware(
+    reqOrHandler,
+    resOrOptions as Response,
+    next as NextFunction
+  );
 }

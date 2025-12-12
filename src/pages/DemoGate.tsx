@@ -39,7 +39,11 @@ export default function DemoGate() {
       } catch (error: any) {
         console.error("demo_gate_error", error);
         if (mountedRef.current) {
-          toast({ title: "Unable to start demo", description: "Please try again.", variant: "destructive" });
+          toast({
+            title: "Unable to start demo",
+            description: "Please try again.",
+            variant: "destructive",
+          });
           setFailed(true);
         }
       } finally {
@@ -58,19 +62,34 @@ export default function DemoGate() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background text-center p-6">
       {loading && (
         <>
-          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+          <Loader2
+            className="h-8 w-8 animate-spin text-primary"
+            aria-hidden="true"
+          />
           <p className="text-sm text-muted-foreground">Loading demo…</p>
         </>
       )}
       {!loading && failed && (
         <>
-          <p className="text-sm text-muted-foreground">We couldn’t start demo right now.</p>
-          <Button onClick={() => { setFailed(false); setAttempt((n) => n + 1); }}>Try again</Button>
+          <p className="text-sm text-muted-foreground">
+            We couldn’t start demo right now.
+          </p>
+          <Button
+            onClick={() => {
+              setFailed(false);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </Button>
         </>
       )}
       {!loading && !failed && (
         <>
-          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+          <Loader2
+            className="h-8 w-8 animate-spin text-primary"
+            aria-hidden="true"
+          />
           <p className="text-sm text-muted-foreground">Starting demo…</p>
         </>
       )}
