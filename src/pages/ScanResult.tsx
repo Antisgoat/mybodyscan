@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getScan, type ScanDocument } from "@/lib/api/scan";
 import { scanStatusLabel } from "@/lib/scanStatus";
+import { formatTimestamp } from "@/lib/time";
 
 const REFRESH_INTERVAL_MS = 7000;
 
@@ -132,8 +133,7 @@ export default function ScanResultPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Scan result</h1>
         <p className="text-sm text-muted-foreground">
-          Generated on {scan.updatedAt.toLocaleString()} from your recent
-          photos.
+          Generated on {formatTimestamp(scan.updatedAt)} from your recent photos.
         </p>
       </header>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -407,6 +407,32 @@ export default function ScanFlowResult() {
     }
   };
 
+  const handleCancelUpload = async () => {
+    if (flowStatus !== "uploading" && flowStatus !== "starting") {
+      return;
+    }
+    try {
+      uploadAbortRef.current?.abort();
+    } catch {
+      // ignore
+    }
+    uploadAbortRef.current = null;
+
+    // Best effort cleanup to avoid leaving a pending scan forever.
+    const scanId = session?.scanId ?? null;
+    if (scanId) {
+      await deleteScanApi(scanId).catch(() => undefined);
+    }
+    setCaptureSession(null);
+    setSubmittedScanId(null);
+    setUploadProgress(0);
+    setUploadPose(null);
+    setUploadHasBytes(false);
+    setRetryAvailable(false);
+    setFlowStatus("error");
+    setFlowError("Upload cancelled. You can retry when ready.");
+  };
+
   useEffect(() => {
     if (flowStatus !== "uploading") {
       setRetryAvailable(false);
@@ -772,12 +798,22 @@ export default function ScanFlowResult() {
               variant="outline"
               size="sm"
               onClick={() => {
-                uploadAbortRef.current?.abort();
-                setFlowStatus("error");
-                setFlowError("Upload cancelled. Please retry.");
+                void handleCancelUpload();
               }}
             >
-              Retry upload
+              Cancel upload
+            </Button>
+          ) : null}
+          {flowStatus === "uploading" && !retryAvailable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleCancelUpload();
+              }}
+            >
+              Cancel upload
             </Button>
           ) : null}
           <div className="flex flex-wrap gap-2">

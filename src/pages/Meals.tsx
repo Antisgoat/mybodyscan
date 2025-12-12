@@ -58,6 +58,7 @@ import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { normalizeRichFoodItem } from "@/lib/nutrition/toFoodItem";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -72,7 +73,9 @@ function readRecents(): RecentItem[] {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, MAX_RECENTS);
+      return parsed
+        .slice(0, MAX_RECENTS)
+        .map((entry) => normalizeRichFoodItem(entry));
     }
   } catch (error) {
     console.warn("recents_parse_error", error);
@@ -242,7 +245,7 @@ export default function Meals() {
     qty = 1,
     unit: ServingUnit = "serving"
   ) => {
-    setEditorItem(item);
+    setEditorItem(normalizeRichFoodItem(item));
     setEditorQty(qty);
     setEditorUnit(unit);
     setEditorOpen(true);
@@ -390,7 +393,7 @@ export default function Meals() {
       for (const entry of template.items) {
         const unit = (entry.unit as ServingUnit) || "serving";
         const qty = entry.qty ?? 1;
-        const item = entry.item as FoodItem;
+        const item = normalizeRichFoodItem(entry.item as any);
         const result = calculateSelection(item, qty, unit);
         const meal = buildMealEntry(item, qty, unit, result, "template");
         await addMeal(todayISO, meal);

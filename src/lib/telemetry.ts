@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { scrubUndefined } from "@/lib/scrubUndefined";
 
 export type TelemetryPayload = {
   kind: string;
@@ -31,6 +32,22 @@ async function getAuthToken(): Promise<string | undefined> {
   }
 }
 
+export function sanitizeTelemetryBody(payload: TelemetryPayload): Record<string, unknown> {
+  const body = {
+    kind: payload.kind,
+    message: payload.message,
+    code: payload.code,
+    stack: payload.stack,
+    url:
+      payload.url ||
+      (typeof window !== "undefined" ? window.location.href : undefined),
+    component: payload.component,
+    extra: payload.extra || undefined,
+  };
+  // Avoid undefined in nested objects; keep payload JSON-safe.
+  return scrubUndefined(body);
+}
+
 export async function reportError(payload: TelemetryPayload): Promise<void> {
   if (!payload || !payload.kind) return;
   if (sessionCount >= MAX_SESSION_EVENTS) return;
@@ -45,17 +62,7 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
 
   sessionCount += 1;
 
-  const body = {
-    kind: payload.kind,
-    message: payload.message,
-    code: payload.code,
-    stack: payload.stack,
-    url:
-      payload.url ||
-      (typeof window !== "undefined" ? window.location.href : undefined),
-    component: payload.component,
-    extra: payload.extra || undefined,
-  };
+  const body = sanitizeTelemetryBody(payload);
 
   try {
     const headers: Record<string, string> = {

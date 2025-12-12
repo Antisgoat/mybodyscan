@@ -37,6 +37,7 @@ import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { normalizeRichFoodItem } from "@/lib/nutrition/toFoodItem";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -49,7 +50,9 @@ function readRecents(): FoodItem[] {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, MAX_RECENTS);
+      return parsed
+        .slice(0, MAX_RECENTS)
+        .map((entry) => normalizeRichFoodItem(entry));
     }
   } catch (error) {
     console.warn("recents_parse_error", error);
