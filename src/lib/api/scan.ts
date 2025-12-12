@@ -264,19 +264,21 @@ async function uploadPhoto(
       contentType: file.type || "image/jpeg",
     });
     let settled = false;
-    let lastBytes = 0;
-    let lastEventAt = Date.now();
+    // Stall detection must be based on *progress* (bytes increasing), not merely
+    // "state_changed" events. iOS Safari can emit repeated events at 0 bytes.
+    let lastProgressBytes = 0;
+    let lastProgressAt = Date.now();
 
     const stallTimeoutMs = options?.stallTimeoutMs ?? 60_000;
     const stallTimer =
       stallTimeoutMs > 0
         ? setInterval(() => {
             if (settled) return;
-            const elapsed = Date.now() - lastEventAt;
+            const elapsed = Date.now() - lastProgressAt;
             if (elapsed < stallTimeoutMs) return;
             try {
               options?.onStall?.({
-                reason: lastBytes > 0 ? "stalled" : "no_progress",
+                reason: lastProgressBytes > 0 ? "stalled" : "no_progress",
               });
             } catch {
               // ignore
@@ -318,8 +320,13 @@ async function uploadPhoto(
     task.on(
       "state_changed",
       (snapshot) => {
-        lastEventAt = Date.now();
-        lastBytes = Math.max(lastBytes, snapshot.bytesTransferred || 0);
+        const bytes = Math.max(0, snapshot.bytesTransferred || 0);
+        // Only treat *increasing bytes* as progress. A stream of 0-byte events
+        // should not reset the stall watchdog.
+        if (bytes > lastProgressBytes) {
+          lastProgressBytes = bytes;
+          lastProgressAt = Date.now();
+        }
         onProgress?.(snapshot);
       },
       (error) => {
@@ -348,6 +355,21 @@ async function uploadPhoto(
       }
     );
   });
+}
+
+export function isUploadStalled(params: {
+  lastProgressAtMs: number;
+  nowMs: number;
+  stallTimeoutMs: number;
+}): boolean {
+  const last = Number(params.lastProgressAtMs);
+  const now = Number(params.nowMs);
+  const timeout = Number(params.stallTimeoutMs);
+  if (!Number.isFinite(last) || !Number.isFinite(now) || !Number.isFinite(timeout)) {
+    return false;
+  }
+  if (timeout <= 0) return false;
+  return now - last >= timeout;
 }
 
 export type ScanUploadProgress = {
