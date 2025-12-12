@@ -45,6 +45,16 @@ function normalizeCheckoutError(error: unknown): Error {
   return new Error("We couldn't open checkout. Please try again.");
 }
 
+// Small pure helper used by tests and non-callable fallback clients.
+export function buildCheckoutHeaders(idToken?: string | null, appCheckToken?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const id = typeof idToken === "string" && idToken.trim().length ? idToken.trim() : "";
+  const app = typeof appCheckToken === "string" && appCheckToken.trim().length ? appCheckToken.trim() : "";
+  if (id) headers.Authorization = `Bearer ${id}`;
+  if (app) headers["X-Firebase-AppCheck"] = app;
+  return headers;
+}
+
 export async function startCheckout(
   priceId: string,
   mode: CheckoutMode = "subscription",

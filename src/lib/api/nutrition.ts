@@ -35,6 +35,12 @@ export interface NutritionHistoryResponse {
 
 const nutritionSearchCallable = httpsCallable<NutritionSearchRequest, NutritionSearchResponse>(functions, "nutritionSearch");
 
+// Legacy/test helper: normalize raw nutrition items (USDA/OFF/etc) into the lightweight FoodItem shape.
+// This is intentionally tolerant of missing fields and is safe to use in UI mapping.
+export function normalizeFoodItem(raw: unknown): FoodItem {
+  return sanitizeFoodItem(raw);
+}
+
 function extractDebugId(error: FirebaseError): string | undefined {
   const serverResponse = error.customData?.serverResponse;
   const details = (serverResponse as any)?.details;

@@ -1,18 +1,18 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import * as FirebaseAuth from "firebase/auth";
 import DemoBanner from "./DemoBanner";
 
-vi.mock("@/lib/firebase", () => ({
-  auth: { currentUser: null },
+let mockUser: any = null;
+let mockLoading = false;
+vi.mock("@/lib/useAuthUser", () => ({
+  useAuthUser: () => ({ user: mockUser, loading: mockLoading, authReady: true }),
 }));
 
-function mockOnAuthState(user: any) {
-  vi.spyOn(FirebaseAuth, "onAuthStateChanged").mockImplementation((_auth: any, cb: any) => {
-    cb(user);
-    return () => {};
-  });
-}
+const mockIsDemoActive = vi.fn();
+vi.mock("@/lib/demo", () => ({
+  isDemoActive: () => mockIsDemoActive(),
+}));
 
 describe("DemoBanner", () => {
   const origEnv = { ...import.meta.env };
@@ -21,25 +21,28 @@ describe("DemoBanner", () => {
     (import.meta as any).env = { ...origEnv };
     vi.restoreAllMocks();
     cleanup();
+    mockUser = null;
+    mockLoading = false;
+    mockIsDemoActive.mockReset();
   });
 
   it("shows when demo enabled and no user", () => {
-    (import.meta as any).env = { ...origEnv, VITE_DEMO_MODE: "true" };
-    mockOnAuthState(null);
+    mockUser = null;
+    mockIsDemoActive.mockReturnValue(true);
     render(<DemoBanner />);
     expect(screen.queryByTestId("demo-banner")).not.toBeNull();
   });
 
   it("hides after login even if demo enabled", () => {
-    (import.meta as any).env = { ...origEnv, VITE_DEMO_MODE: "true" };
-    mockOnAuthState({ uid: "123" });
+    mockUser = { uid: "123" };
+    mockIsDemoActive.mockReturnValue(false);
     render(<DemoBanner />);
     expect(screen.queryByTestId("demo-banner")).toBeNull();
   });
 
   it("hides when demo disabled (regardless of auth)", () => {
-    (import.meta as any).env = { ...origEnv, VITE_DEMO_MODE: "false" };
-    mockOnAuthState(null);
+    mockUser = null;
+    mockIsDemoActive.mockReturnValue(false);
     render(<DemoBanner />);
     expect(screen.queryByTestId("demo-banner")).toBeNull();
   });
