@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
-import { onSnapshot, query, orderBy, limit, collection } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth as firebaseAuth, db } from '@/lib/firebase';
-import { isDemo } from '@/lib/demoFlag';
-import { demoLatestScan } from '@/lib/demoDataset';
+import { useEffect, useState } from "react";
+import {
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+  collection,
+} from "firebase/firestore";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { isDemo } from "@/lib/demoFlag";
+import { demoLatestScan } from "@/lib/demoDataset";
 
 type ScanData = {
   id: string;

@@ -37,4 +37,3 @@ export class AndroidHealthConnectAdapter implements HealthAdapter {
     }
   }
 }
-

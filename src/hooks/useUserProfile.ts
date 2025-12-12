@@ -53,7 +53,7 @@ export function useUserProfile() {
   const [plan, setPlan] = useState<CoachPlan | null>(null);
   const { user, authReady } = useAuthUser();
   const appCheckReady = true;
-  const uid = authReady ? user?.uid ?? null : null;
+  const uid = authReady ? (user?.uid ?? null) : null;
   const demo = useDemoMode();
 
   useEffect(() => {
@@ -86,9 +86,14 @@ export function useUserProfile() {
           setPlan(null);
           return;
         }
-        const data = snap.data() as CoachPlan & { updatedAt?: { toDate?: () => Date } };
+        const data = snap.data() as CoachPlan & {
+          updatedAt?: { toDate?: () => Date };
+        };
         const updatedAt = data.updatedAt?.toDate?.() ?? data.updatedAt;
-        setPlan({ ...data, updatedAt: updatedAt instanceof Date ? updatedAt : undefined });
+        setPlan({
+          ...data,
+          updatedAt: updatedAt instanceof Date ? updatedAt : undefined,
+        });
       },
       () => {
         setPlan(null);
@@ -102,4 +107,3 @@ export function useUserProfile() {
 
   return { profile, plan };
 }
-

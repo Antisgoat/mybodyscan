@@ -14,7 +14,7 @@ import { isIOSWebKit } from "./ua";
  */
 export async function popupThenRedirect(
   auth: Auth,
-  provider: AuthProvider,
+  provider: AuthProvider
 ): Promise<UserCredential | undefined> {
   // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
   if (isIOSWebKit()) {

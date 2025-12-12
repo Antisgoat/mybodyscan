@@ -5,8 +5,15 @@ import { cn } from "@/lib/utils";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
-const PALETTE = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00c49f", "#0088fe"] as const;
-type ChartColor = typeof PALETTE[number];
+const PALETTE = [
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#ff7300",
+  "#00c49f",
+  "#0088fe",
+] as const;
+type ChartColor = (typeof PALETTE)[number];
 
 export type ChartConfig = {
   [k in string]: {

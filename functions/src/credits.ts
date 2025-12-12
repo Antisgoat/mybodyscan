@@ -39,19 +39,28 @@ function sanitizeBucket(raw: any, now: Timestamp): CreditBucket | null {
     amount,
     grantedAt,
     expiresAt,
-    sourcePriceId: typeof raw?.sourcePriceId === "string" ? raw.sourcePriceId : null,
+    sourcePriceId:
+      typeof raw?.sourcePriceId === "string" ? raw.sourcePriceId : null,
     context: typeof raw?.context === "string" ? raw.context : null,
   };
 }
 
 function normalizeBuckets(data: any, now: Timestamp): CreditBucket[] {
-  const rawBuckets = Array.isArray(data?.creditBuckets) ? data.creditBuckets : [];
+  const rawBuckets = Array.isArray(data?.creditBuckets)
+    ? data.creditBuckets
+    : [];
   const buckets = rawBuckets
     .map((bucket: unknown): CreditBucket | null => sanitizeBucket(bucket, now))
-    .filter((bucket: CreditBucket | null): bucket is CreditBucket => bucket !== null);
+    .filter(
+      (bucket: CreditBucket | null): bucket is CreditBucket => bucket !== null
+    );
   buckets.sort((a: CreditBucket, b: CreditBucket) => {
-    const aExpires = a.expiresAt ? a.expiresAt.toMillis() : Number.MAX_SAFE_INTEGER;
-    const bExpires = b.expiresAt ? b.expiresAt.toMillis() : Number.MAX_SAFE_INTEGER;
+    const aExpires = a.expiresAt
+      ? a.expiresAt.toMillis()
+      : Number.MAX_SAFE_INTEGER;
+    const bExpires = b.expiresAt
+      ? b.expiresAt.toMillis()
+      : Number.MAX_SAFE_INTEGER;
     if (aExpires !== bExpires) {
       return aExpires - bExpires;
     }
@@ -87,7 +96,9 @@ async function mutateBuckets(
   return runWithRetry(async () => {
     const ref = getSummaryRef(uid);
     return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const snap = (await tx.get(ref)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      const snap = (await tx.get(
+        ref
+      )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       const now = Timestamp.now();
       const buckets = snap.exists ? normalizeBuckets(snap.data(), now) : [];
       const beforeTotal = computeTotal(buckets);
@@ -125,7 +136,11 @@ async function mutateBuckets(
 }
 
 export async function refreshCreditsSummary(uid: string): Promise<void> {
-  await mutateBuckets(uid, (buckets) => ({ consumed: false, remaining: computeTotal(buckets), logEmpty: false }));
+  await mutateBuckets(uid, (buckets) => ({
+    consumed: false,
+    remaining: computeTotal(buckets),
+    logEmpty: false,
+  }));
 }
 
 export async function addCredits(
@@ -139,9 +154,10 @@ export async function addCredits(
   }
   const credits = Math.floor(amount);
   await mutateBuckets(uid, (buckets, now) => {
-    const expiresAt = monthsToExpire > 0
-      ? Timestamp.fromDate(addMonths(now.toDate(), monthsToExpire))
-      : null;
+    const expiresAt =
+      monthsToExpire > 0
+        ? Timestamp.fromDate(addMonths(now.toDate(), monthsToExpire))
+        : null;
     buckets.push({
       amount: credits,
       grantedAt: now,
@@ -149,7 +165,11 @@ export async function addCredits(
       sourcePriceId: null,
       context: reason,
     });
-    return { consumed: false, remaining: computeTotal(buckets), logEmpty: false };
+    return {
+      consumed: false,
+      remaining: computeTotal(buckets),
+      logEmpty: false,
+    };
   });
 }
 
@@ -190,9 +210,8 @@ export async function grantCredits(
     ? `${context}${sourcePriceId ? ` (${sourcePriceId})` : ""}`
     : "Credit grant";
   await mutateBuckets(uid, (buckets, now) => {
-    const expiresAt = months > 0
-      ? Timestamp.fromDate(addMonths(now.toDate(), months))
-      : null;
+    const expiresAt =
+      months > 0 ? Timestamp.fromDate(addMonths(now.toDate(), months)) : null;
     buckets.push({
       amount: Math.floor(amount),
       grantedAt: now,
@@ -200,7 +219,11 @@ export async function grantCredits(
       sourcePriceId: sourcePriceId || null,
       context: reason,
     });
-    return { consumed: false, remaining: computeTotal(buckets), logEmpty: false };
+    return {
+      consumed: false,
+      remaining: computeTotal(buckets),
+      logEmpty: false,
+    };
   });
 }
 

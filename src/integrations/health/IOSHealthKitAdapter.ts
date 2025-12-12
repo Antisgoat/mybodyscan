@@ -42,4 +42,3 @@ export class IOSHealthKitAdapter implements HealthAdapter {
     }
   }
 }
-

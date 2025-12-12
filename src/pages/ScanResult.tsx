@@ -31,7 +31,9 @@ export default function ScanResultPage() {
         const result = await getScan(scanId);
         if (cancelled) return;
         if (!result.ok) {
-          const debugSuffix = result.error.debugId ? ` (ref ${result.error.debugId.slice(0, 8)})` : "";
+          const debugSuffix = result.error.debugId
+            ? ` (ref ${result.error.debugId.slice(0, 8)})`
+            : "";
           setError(result.error.message + debugSuffix);
           setLoading(false);
           return;
@@ -73,23 +75,43 @@ export default function ScanResultPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
         <p className="text-sm text-red-700">{error || "Scan not found."}</p>
-        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Back to Scan</button>
+        <button
+          className="rounded border px-3 py-2 text-sm"
+          onClick={() => nav("/scan")}
+        >
+          Back to Scan
+        </button>
       </div>
     );
   }
 
-  const statusMeta = scanStatusLabel(scan.status, scan.completedAt ?? scan.updatedAt ?? scan.createdAt);
+  const statusMeta = scanStatusLabel(
+    scan.status,
+    scan.completedAt ?? scan.updatedAt ?? scan.createdAt
+  );
 
   if (statusMeta.canonical === "error" || statusMeta.recommendRescan) {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
         <p className="text-sm text-red-700">{statusMeta.label}</p>
         <p className="text-xs text-red-700/90">
-          {scan.errorMessage || statusMeta.helperText || "We couldn't complete this scan."}
+          {scan.errorMessage ||
+            statusMeta.helperText ||
+            "We couldn't complete this scan."}
         </p>
         <div className="flex gap-2">
-          <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>Try again</button>
-          <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/history")}>History</button>
+          <button
+            className="rounded border px-3 py-2 text-sm"
+            onClick={() => nav("/scan")}
+          >
+            Try again
+          </button>
+          <button
+            className="rounded border px-3 py-2 text-sm"
+            onClick={() => nav("/history")}
+          >
+            History
+          </button>
         </div>
       </div>
     );
@@ -110,7 +132,8 @@ export default function ScanResultPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Scan result</h1>
         <p className="text-sm text-muted-foreground">
-          Generated on {scan.updatedAt.toLocaleString()} from your recent photos.
+          Generated on {scan.updatedAt.toLocaleString()} from your recent
+          photos.
         </p>
       </header>
 
@@ -118,35 +141,69 @@ export default function ScanResultPage() {
         <section className="rounded-lg border p-4 shadow-sm">
           <h2 className="text-lg font-semibold">Body composition</h2>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Metric label="Body fat" value={formatNumber(scan.estimate.bodyFatPercent, { suffix: "%" })} />
-            <Metric label="BMI" value={formatNumber(scan.estimate.bmi, { decimals: 1 })} />
-            <Metric label="Goal" value={formatNumber(scan.input?.goalWeightKg, { decimals: 1, suffix: " kg" })} />
+            <Metric
+              label="Body fat"
+              value={formatNumber(scan.estimate.bodyFatPercent, {
+                suffix: "%",
+              })}
+            />
+            <Metric
+              label="BMI"
+              value={formatNumber(scan.estimate.bmi, { decimals: 1 })}
+            />
+            <Metric
+              label="Goal"
+              value={formatNumber(scan.input?.goalWeightKg, {
+                decimals: 1,
+                suffix: " kg",
+              })}
+            />
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">{typeof scan.estimate.notes === "string" ? scan.estimate.notes : ""}</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {typeof scan.estimate.notes === "string" ? scan.estimate.notes : ""}
+          </p>
         </section>
       )}
 
       {scan.workoutPlan && (
         <section className="space-y-3 rounded-lg border p-4 shadow-sm">
           <h2 className="text-lg font-semibold">Workout plan</h2>
-          <p className="text-sm text-muted-foreground">{scan.workoutPlan.summary}</p>
+          <p className="text-sm text-muted-foreground">
+            {scan.workoutPlan.summary}
+          </p>
           <div className="space-y-3">
             {scan.workoutPlan.weeks.map((week) => (
               <div key={week.weekNumber} className="rounded-md border p-3">
-                <h3 className="text-sm font-semibold">Week {week.weekNumber}</h3>
+                <h3 className="text-sm font-semibold">
+                  Week {week.weekNumber}
+                </h3>
                 <div className="mt-2 space-y-2">
                   {week.days.map((day) => (
-                    <div key={`${week.weekNumber}-${day.day}`} className="rounded border p-3">
+                    <div
+                      key={`${week.weekNumber}-${day.day}`}
+                      className="rounded border p-3"
+                    >
                       <div className="flex items-center justify-between text-sm font-medium">
                         <span>{day.day}</span>
-                        <span className="text-muted-foreground">{day.focus}</span>
+                        <span className="text-muted-foreground">
+                          {day.focus}
+                        </span>
                       </div>
                       <ul className="mt-2 space-y-1 text-sm">
                         {day.exercises.map((ex, idx) => (
-                          <li key={`${ex.name}-${idx}`} className="flex flex-col rounded bg-muted/40 p-2">
+                          <li
+                            key={`${ex.name}-${idx}`}
+                            className="flex flex-col rounded bg-muted/40 p-2"
+                          >
                             <span className="font-semibold">{ex.name}</span>
-                            <span className="text-xs text-muted-foreground">{ex.sets} sets · {ex.reps}</span>
-                            {ex.notes && <span className="text-xs text-muted-foreground">{ex.notes}</span>}
+                            <span className="text-xs text-muted-foreground">
+                              {ex.sets} sets · {ex.reps}
+                            </span>
+                            {ex.notes && (
+                              <span className="text-xs text-muted-foreground">
+                                {ex.notes}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -163,20 +220,35 @@ export default function ScanResultPage() {
         <section className="space-y-3 rounded-lg border p-4 shadow-sm">
           <h2 className="text-lg font-semibold">Nutrition plan</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="Calories" value={`${scan.nutritionPlan.caloriesPerDay} kcal`} />
-            <Metric label="Protein" value={`${scan.nutritionPlan.proteinGrams} g`} />
-            <Metric label="Carbs" value={`${scan.nutritionPlan.carbsGrams} g`} />
+            <Metric
+              label="Calories"
+              value={`${scan.nutritionPlan.caloriesPerDay} kcal`}
+            />
+            <Metric
+              label="Protein"
+              value={`${scan.nutritionPlan.proteinGrams} g`}
+            />
+            <Metric
+              label="Carbs"
+              value={`${scan.nutritionPlan.carbsGrams} g`}
+            />
             <Metric label="Fats" value={`${scan.nutritionPlan.fatsGrams} g`} />
           </div>
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Sample day</h3>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {scan.nutritionPlan.sampleDay.map((meal, idx) => (
-                <div key={`${meal.mealName}-${idx}`} className="rounded border p-3">
+                <div
+                  key={`${meal.mealName}-${idx}`}
+                  className="rounded border p-3"
+                >
                   <div className="text-sm font-semibold">{meal.mealName}</div>
-                  <p className="text-sm text-muted-foreground">{meal.description}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {meal.description}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {meal.calories} kcal · P {meal.proteinGrams}g · C {meal.carbsGrams}g · F {meal.fatsGrams}g
+                    {meal.calories} kcal · P {meal.proteinGrams}g · C{" "}
+                    {meal.carbsGrams}g · F {meal.fatsGrams}g
                   </p>
                 </div>
               ))}
@@ -186,8 +258,18 @@ export default function ScanResultPage() {
       )}
 
       <div className="flex gap-3">
-        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/scan")}>New scan</button>
-        <button className="rounded border px-3 py-2 text-sm" onClick={() => nav("/history")}>History</button>
+        <button
+          className="rounded border px-3 py-2 text-sm"
+          onClick={() => nav("/scan")}
+        >
+          New scan
+        </button>
+        <button
+          className="rounded border px-3 py-2 text-sm"
+          onClick={() => nav("/history")}
+        >
+          History
+        </button>
       </div>
     </div>
   );
@@ -196,7 +278,9 @@ export default function ScanResultPage() {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border p-3">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <p className="text-lg font-semibold">{value}</p>
     </div>
   );
@@ -204,11 +288,16 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function formatNumber(
   value: unknown,
-  options?: { decimals?: number; suffix?: string },
+  options?: { decimals?: number; suffix?: string }
 ): string {
   const decimals = options?.decimals ?? 1;
   const suffix = options?.suffix ?? "";
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(decimals)}${suffix}`;
 }

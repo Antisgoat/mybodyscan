@@ -5,7 +5,7 @@ import {
   updateDoc as _updateDoc,
   deleteDoc as _deleteDoc,
   type DocumentReference,
-  type DocumentData
+  type DocumentData,
 } from "firebase/firestore";
 
 export async function addDoc<T = DocumentData>(colRef: any, data: T) {
@@ -52,7 +52,9 @@ export async function updateDoc<T = DocumentData>(
   }
   return _updateDoc(docRef, data as any);
 }
-export async function deleteDoc<T = DocumentData>(docRef: DocumentReference<T>) {
+export async function deleteDoc<T = DocumentData>(
+  docRef: DocumentReference<T>
+) {
   try {
     assertWritable();
   } catch (e) {

@@ -58,8 +58,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Split Squat", "sets": 3, "reps": "10/leg", "restSec": 90 },
-                { "name": "Incline Dumbbell Press", "sets": 3, "reps": "10", "restSec": 90 }
+                {
+                  "name": "Split Squat",
+                  "sets": 3,
+                  "reps": "10/leg",
+                  "restSec": 90
+                },
+                {
+                  "name": "Incline Dumbbell Press",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 90
+                }
               ]
             }
           ]
@@ -101,7 +111,12 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Hip Thrust", "sets": 3, "reps": "8", "restSec": 120 },
+                {
+                  "name": "Hip Thrust",
+                  "sets": 3,
+                  "reps": "8",
+                  "restSec": 120
+                },
                 { "name": "Face Pull", "sets": 3, "reps": "15", "restSec": 60 }
               ]
             }
@@ -144,8 +159,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Seated Row", "sets": 3, "reps": "10", "restSec": 90 },
-                { "name": "Farmer Carry", "sets": 3, "reps": "40m", "restSec": 90 }
+                {
+                  "name": "Seated Row",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 90
+                },
+                {
+                  "name": "Farmer Carry",
+                  "sets": 3,
+                  "reps": "40m",
+                  "restSec": 90
+                }
               ]
             }
           ]

@@ -15,4 +15,3 @@ export class WebFallbackAdapter implements HealthAdapter {
     return { source: "web" };
   }
 }
-

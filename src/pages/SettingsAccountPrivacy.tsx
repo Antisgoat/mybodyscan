@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { auth } from "@/lib/firebase";
-import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup, GoogleAuthProvider, signOut, type User } from "firebase/auth";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  GoogleAuthProvider,
+  signOut,
+  type User,
+} from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
@@ -26,7 +33,10 @@ export default function SettingsAccountPrivacyPage() {
     const p = provider || "";
     if (p.includes("password")) {
       if (!password) throw new Error("Please enter your password");
-      const cred = EmailAuthProvider.credential(currentUser.email || "", password);
+      const cred = EmailAuthProvider.credential(
+        currentUser.email || "",
+        password
+      );
       await reauthenticateWithCredential(currentUser, cred);
     } else if (p.includes("google")) {
       await reauthenticateWithPopup(currentUser, new GoogleAuthProvider());
@@ -70,7 +80,9 @@ export default function SettingsAccountPrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl p-4 space-y-4">
       <header className="sticky top-0 z-40 -mx-4 mb-1 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
-        <a href="/settings" className="rounded border px-2 py-1 text-xs">Back</a>
+        <a href="/settings" className="rounded border px-2 py-1 text-xs">
+          Back
+        </a>
         <h1 className="text-sm font-medium">Account &amp; Privacy</h1>
         <div className="flex-1" />
       </header>
@@ -78,16 +90,23 @@ export default function SettingsAccountPrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Legal</h2>
         <div className="flex flex-col gap-2 text-sm">
-          <a className="underline" href="/legal/privacy">Privacy Policy</a>
-          <a className="underline" href="/legal/terms">Terms of Service</a>
-          <a className="underline" href="/legal/refund">Refund Policy</a>
+          <a className="underline" href="/legal/privacy">
+            Privacy Policy
+          </a>
+          <a className="underline" href="/legal/terms">
+            Terms of Service
+          </a>
+          <a className="underline" href="/legal/refund">
+            Refund Policy
+          </a>
         </div>
       </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Delete my account</h2>
         <p className="text-xs text-muted-foreground">
-          Deleting your account will permanently remove your scans, notes, and settings. This cannot be undone.
+          Deleting your account will permanently remove your scans, notes, and
+          settings. This cannot be undone.
         </p>
 
         {provider?.includes("password") && (

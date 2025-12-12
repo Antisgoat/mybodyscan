@@ -39,7 +39,9 @@ function formatLabel(parts: (string | number | null | undefined)[]) {
       if (part === null || part === undefined) return "";
       if (typeof part === "string") return part.trim();
       if (typeof part === "number") {
-        const rounded = Number.isInteger(part) ? part.toString() : part.toFixed(2);
+        const rounded = Number.isInteger(part)
+          ? part.toString()
+          : part.toFixed(2);
         return rounded.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
       }
       return "";
@@ -48,7 +50,10 @@ function formatLabel(parts: (string | number | null | undefined)[]) {
     .join(" ");
 }
 
-function convertToGrams(quantity: number | null | undefined, unit: string | null | undefined): number | null {
+function convertToGrams(
+  quantity: number | null | undefined,
+  unit: string | null | undefined
+): number | null {
   if (!quantity || quantity <= 0) return null;
   if (!unit) return null;
   const normalized = unit.trim().toLowerCase();
@@ -87,7 +92,7 @@ function addServingOption(
   servings: ServingOption[],
   option: ServingOption,
   seen: Map<string, ServingOption>,
-  _isDefault?: boolean,
+  _isDefault?: boolean
 ) {
   const gramsKey = round(option.grams, 3).toString();
   const key = `${option.label.toLowerCase()}-${gramsKey}`;
@@ -96,7 +101,9 @@ function addServingOption(
   servings.push(option);
 }
 
-function ensureBasePer100g(values: Partial<FoodNormalized["basePer100g"]>): FoodNormalized["basePer100g"] {
+function ensureBasePer100g(
+  values: Partial<FoodNormalized["basePer100g"]>
+): FoodNormalized["basePer100g"] {
   return {
     kcal: round(values.kcal ?? 0, 0),
     protein: round(values.protein ?? 0, 1),
@@ -108,7 +115,7 @@ function ensureBasePer100g(values: Partial<FoodNormalized["basePer100g"]>): Food
 function buildBaseFromLabel(
   label: any,
   servingGrams: number | null,
-  fallback: Partial<FoodNormalized["basePer100g"]>,
+  fallback: Partial<FoodNormalized["basePer100g"]>
 ) {
   if (!servingGrams || servingGrams <= 0) {
     return ensureBasePer100g(fallback);
@@ -129,11 +136,17 @@ function buildBaseFromLabel(
 export function fromUSDA(raw: any): FoodNormalized {
   const servings: ServingOption[] = [];
   const seen = new Map<string, ServingOption>();
-  addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen);
+  addServingOption(
+    servings,
+    { id: "100g", label: "100 g", grams: 100, isDefault: true },
+    seen
+  );
 
   const portions = Array.isArray(raw?.foodPortions) ? raw.foodPortions : [];
   const sortedPortions = portions
-    .filter((portion: any) => ensurePositive(toNumber(portion?.gramWeight)) !== null)
+    .filter(
+      (portion: any) => ensurePositive(toNumber(portion?.gramWeight)) !== null
+    )
     .sort((a: any, b: any) => {
       const aSeq = toNumber(a?.sequenceNumber) ?? 0;
       const bSeq = toNumber(b?.sequenceNumber) ?? 0;
@@ -144,11 +157,19 @@ export function fromUSDA(raw: any): FoodNormalized {
     const grams = ensurePositive(toNumber(portion?.gramWeight));
     if (!grams) return;
     const amount = toNumber(portion?.amount) ?? 1;
-    const modifier = typeof portion?.modifier === "string" ? portion.modifier.trim() : "";
-    const description = typeof portion?.portionDescription === "string" ? portion.portionDescription.trim() : "";
+    const modifier =
+      typeof portion?.modifier === "string" ? portion.modifier.trim() : "";
+    const description =
+      typeof portion?.portionDescription === "string"
+        ? portion.portionDescription.trim()
+        : "";
     const measureUnit = portion?.measureUnit;
-    const measureName = typeof measureUnit?.name === "string" ? measureUnit.name.trim() : "";
-    const measureAbbr = typeof measureUnit?.abbreviation === "string" ? measureUnit.abbreviation.trim() : "";
+    const measureName =
+      typeof measureUnit?.name === "string" ? measureUnit.name.trim() : "";
+    const measureAbbr =
+      typeof measureUnit?.abbreviation === "string"
+        ? measureUnit.abbreviation.trim()
+        : "";
 
     const label = formatLabel([
       amount !== 1 ? amount : null,
@@ -162,17 +183,19 @@ export function fromUSDA(raw: any): FoodNormalized {
         label: label || `${round(amount ?? 1, 2)} serving`,
         grams,
       },
-      seen,
+      seen
     );
   });
 
   if (servings.length === 1) {
     const servingSize = ensurePositive(toNumber(raw?.servingSize));
-    const servingUnit = typeof raw?.servingSizeUnit === "string" ? raw.servingSizeUnit : null;
+    const servingUnit =
+      typeof raw?.servingSizeUnit === "string" ? raw.servingSizeUnit : null;
     const grams = convertToGrams(servingSize, servingUnit);
     if (grams) {
       const labelText =
-        typeof raw?.householdServingFullText === "string" && raw.householdServingFullText.trim().length
+        typeof raw?.householdServingFullText === "string" &&
+        raw.householdServingFullText.trim().length
           ? raw.householdServingFullText.trim()
           : formatLabel([servingSize, servingUnit]);
       addServingOption(
@@ -182,7 +205,7 @@ export function fromUSDA(raw: any): FoodNormalized {
           label: labelText || `${servingSize} ${servingUnit ?? "serving"}`,
           grams,
         },
-        seen,
+        seen
       );
     }
   }
@@ -191,11 +214,13 @@ export function fromUSDA(raw: any): FoodNormalized {
   const nutrients = Array.isArray(raw?.foodNutrients) ? raw.foodNutrients : [];
   const findNutrient = (name: string, unit?: string) => {
     const match = nutrients.find((n: any) => {
-      const nutrientName = typeof n?.nutrientName === "string" ? n.nutrientName.toLowerCase() : "";
+      const nutrientName =
+        typeof n?.nutrientName === "string" ? n.nutrientName.toLowerCase() : "";
       if (!nutrientName) return false;
       if (!nutrientName.includes(name.toLowerCase())) return false;
       if (unit) {
-        const unitName = typeof n?.unitName === "string" ? n.unitName.toLowerCase() : "";
+        const unitName =
+          typeof n?.unitName === "string" ? n.unitName.toLowerCase() : "";
         return unitName === unit.toLowerCase();
       }
       return true;
@@ -213,19 +238,27 @@ export function fromUSDA(raw: any): FoodNormalized {
   if (fat100 !== null) baseFallback.fat = round(fat100, 1);
 
   const servingSize = ensurePositive(toNumber(raw?.servingSize));
-  const servingUnit = typeof raw?.servingSizeUnit === "string" ? raw.servingSizeUnit : null;
+  const servingUnit =
+    typeof raw?.servingSizeUnit === "string" ? raw.servingSizeUnit : null;
   const servingGrams = convertToGrams(servingSize, servingUnit);
-  const basePer100g = buildBaseFromLabel(raw?.labelNutrients ?? raw?.labelNutrientsOld ?? {}, servingGrams, baseFallback);
+  const basePer100g = buildBaseFromLabel(
+    raw?.labelNutrients ?? raw?.labelNutrientsOld ?? {},
+    servingGrams,
+    baseFallback
+  );
 
   return {
     id: raw?.fdcId ? `usda-${raw.fdcId}` : String(raw?.id ?? "usda-food"),
-    name: typeof raw?.description === "string" && raw.description.trim().length ? raw.description.trim() : "USDA Food",
+    name:
+      typeof raw?.description === "string" && raw.description.trim().length
+        ? raw.description.trim()
+        : "USDA Food",
     brand:
       typeof raw?.brandOwner === "string" && raw.brandOwner.trim().length
         ? raw.brandOwner.trim()
         : typeof raw?.brandName === "string" && raw.brandName.trim().length
-        ? raw.brandName.trim()
-        : null,
+          ? raw.brandName.trim()
+          : null,
     source: "USDA",
     basePer100g,
     servings,
@@ -261,7 +294,7 @@ export function fromSearchItem(data: {
           isDefault: option?.isDefault,
         },
         seen,
-        Boolean(option?.isDefault),
+        Boolean(option?.isDefault)
       );
     });
   }
@@ -269,9 +302,14 @@ export function fromSearchItem(data: {
   if (!servings.some((option) => Math.abs(option.grams - 100) < 0.001)) {
     addServingOption(
       servings,
-      { id: "100g", label: "100 g", grams: 100, isDefault: servings.length === 0 },
+      {
+        id: "100g",
+        label: "100 g",
+        grams: 100,
+        isDefault: servings.length === 0,
+      },
       seen,
-      servings.length === 0,
+      servings.length === 0
     );
   }
 
@@ -279,7 +317,12 @@ export function fromSearchItem(data: {
     if (servings.length) {
       servings[0].isDefault = true;
     } else {
-      addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen, true);
+      addServingOption(
+        servings,
+        { id: "100g", label: "100 g", grams: 100, isDefault: true },
+        seen,
+        true
+      );
     }
   }
 
@@ -293,9 +336,12 @@ export function fromSearchItem(data: {
   };
 }
 
-function parseOffServingSize(raw: any): { label: string; grams: number } | null {
+function parseOffServingSize(
+  raw: any
+): { label: string; grams: number } | null {
   const quantity = ensurePositive(toNumber(raw?.serving_quantity));
-  const unit = typeof raw?.serving_size_unit === "string" ? raw.serving_size_unit : null;
+  const unit =
+    typeof raw?.serving_size_unit === "string" ? raw.serving_size_unit : null;
   let grams = convertToGrams(quantity, unit);
   let label: string | null = null;
 
@@ -324,7 +370,11 @@ function parseOffServingSize(raw: any): { label: string; grams: number } | null 
 export function fromOFF(raw: any): FoodNormalized {
   const servings: ServingOption[] = [];
   const seen = new Map<string, ServingOption>();
-  addServingOption(servings, { id: "100g", label: "100 g", grams: 100, isDefault: true }, seen);
+  addServingOption(
+    servings,
+    { id: "100g", label: "100 g", grams: 100, isDefault: true },
+    seen
+  );
 
   const parsedServing = parseOffServingSize(raw);
   if (parsedServing) {
@@ -335,14 +385,16 @@ export function fromOFF(raw: any): FoodNormalized {
         label: parsedServing.label,
         grams: parsedServing.grams,
       },
-      seen,
+      seen
     );
   }
 
   const nutriments = raw?.nutriments ?? {};
   const energyPer100 =
     ensurePositive(toNumber(nutriments["energy-kcal_100g"])) ??
-    ensurePositive(toNumber(nutriments.energy_100g ? nutriments.energy_100g / 4.184 : null));
+    ensurePositive(
+      toNumber(nutriments.energy_100g ? nutriments.energy_100g / 4.184 : null)
+    );
   const basePer100g = ensureBasePer100g({
     kcal: energyPer100 ?? undefined,
     protein: ensurePositive(toNumber(nutriments.proteins_100g)) ?? undefined,
@@ -355,15 +407,16 @@ export function fromOFF(raw: any): FoodNormalized {
     name:
       typeof raw?.product_name === "string" && raw.product_name.trim().length
         ? raw.product_name.trim()
-        : typeof raw?.generic_name === "string" && raw.generic_name.trim().length
-        ? raw.generic_name.trim()
-        : "Food",
+        : typeof raw?.generic_name === "string" &&
+            raw.generic_name.trim().length
+          ? raw.generic_name.trim()
+          : "Food",
     brand:
       typeof raw?.brands === "string" && raw.brands.trim().length
         ? raw.brands.trim()
         : typeof raw?.brand_owner === "string" && raw.brand_owner.trim().length
-        ? raw.brand_owner.trim()
-        : null,
+          ? raw.brand_owner.trim()
+          : null,
     source: "Open Food Facts",
     basePer100g,
     servings,
@@ -372,7 +425,7 @@ export function fromOFF(raw: any): FoodNormalized {
 
 export function calcMacrosFromGrams(
   base: FoodNormalized["basePer100g"],
-  grams: number,
+  grams: number
 ): { kcal: number; protein: number; carbs: number; fat: number } {
   const safeGrams = grams > 0 ? grams : 0;
   const factor = safeGrams / 100;

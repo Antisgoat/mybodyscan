@@ -1,8 +1,21 @@
 import { useMemo, useState } from "react";
 
-import { findRangeForValue, getSexAgeBands, type LabeledRange, type Sex } from "@/content/referenceRanges";
+import {
+  findRangeForValue,
+  getSexAgeBands,
+  type LabeledRange,
+  type Sex,
+} from "@/content/referenceRanges";
 import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface ReferenceChartProps {
   sex?: Sex | string | null;
@@ -21,12 +34,14 @@ export function ReferenceChart({ sex, age, bfPct }: ReferenceChartProps) {
   }, [age, sex]);
 
   const chartMin = ranges.length ? ranges[0].min : 0;
-  const chartMax = ranges.length ? Math.max(...ranges.map((range) => range.max)) : 1;
+  const chartMax = ranges.length
+    ? Math.max(...ranges.map((range) => range.max))
+    : 1;
   const usableMax = chartMax > chartMin ? chartMax : chartMin + 1;
 
   const markerPosition = useMemo(() => {
     if (!Number.isFinite(bfPct ?? NaN)) return null;
-    const clamped = Math.min(Math.max((bfPct as number), chartMin), usableMax);
+    const clamped = Math.min(Math.max(bfPct as number, chartMin), usableMax);
     const span = usableMax - chartMin;
     if (span <= 0) return 0;
     return ((clamped - chartMin) / span) * 100;
@@ -49,13 +64,16 @@ export function ReferenceChart({ sex, age, bfPct }: ReferenceChartProps) {
             <div className="flex h-full w-full">
               {ranges.map((range) => {
                 const span = range.max - range.min;
-                const percent = usableMax - chartMin > 0 ? (span / (usableMax - chartMin)) * 100 : 0;
+                const percent =
+                  usableMax - chartMin > 0
+                    ? (span / (usableMax - chartMin)) * 100
+                    : 0;
                 return (
                   <div
                     key={`${range.band}-${range.label}`}
                     className={cn(
                       "flex items-center justify-center px-1 text-[10px] font-medium uppercase tracking-wide text-white",
-                      range.color,
+                      range.color
                     )}
                     style={{ width: `${percent}%` }}
                   >
@@ -78,7 +96,9 @@ export function ReferenceChart({ sex, age, bfPct }: ReferenceChartProps) {
             ) : null}
           </div>
           {currentRange ? (
-            <span className="text-[11px] text-muted-foreground">Current range: {currentRange.label}</span>
+            <span className="text-[11px] text-muted-foreground">
+              Current range: {currentRange.label}
+            </span>
           ) : null}
         </div>
         <button

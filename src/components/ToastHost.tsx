@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 
-type ToastItem = { id: number; message: string; level: "info" | "error" | "success" | "warn" };
+type ToastItem = {
+  id: number;
+  message: string;
+  level: "info" | "error" | "success" | "warn";
+};
 
 export default function ToastHost() {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -10,7 +14,9 @@ export default function ToastHost() {
     const timeouts = new Map<number, number>();
 
     function onToast(event: Event) {
-      const detail = (event as CustomEvent)?.detail as { message?: string; level?: ToastItem["level"] } | undefined;
+      const detail = (event as CustomEvent)?.detail as
+        | { message?: string; level?: ToastItem["level"] }
+        | undefined;
       const message = String(detail?.message || "").trim();
       if (!message) return;
       const level = (detail?.level || "info") as ToastItem["level"];
@@ -34,9 +40,14 @@ export default function ToastHost() {
   return (
     <div style={wrap} aria-live="polite">
       {items.map((toast) => {
-        const role: "alert" | "status" = toast.level === "error" ? "alert" : "status";
+        const role: "alert" | "status" =
+          toast.level === "error" ? "alert" : "status";
         return (
-          <div key={toast.id} role={role} style={{ ...card, ...stylesByLevel(toast.level) }}>
+          <div
+            key={toast.id}
+            role={role}
+            style={{ ...card, ...stylesByLevel(toast.level) }}
+          >
             {toast.message}
           </div>
         );

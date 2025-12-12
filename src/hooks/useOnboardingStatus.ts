@@ -93,7 +93,7 @@ export function useOnboardingStatus() {
               personalizationCompleted: false,
               hasDraft: false,
             }));
-          },
+          }
         );
 
         void getDoc(doc(db, "users", user.uid))
@@ -122,7 +122,7 @@ export function useOnboardingStatus() {
           hasDraft: false,
           hasRootData: false,
         });
-      },
+      }
     );
 
     return () => {

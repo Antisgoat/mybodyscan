@@ -21,7 +21,10 @@ function parseAuthorizedDomains(payload: any): string[] {
   if (!payload) return [];
   const domains = payload.authorizedDomains;
   if (Array.isArray(domains)) {
-    return domains.filter((domain): domain is string => typeof domain === "string" && domain.length > 0);
+    return domains.filter(
+      (domain): domain is string =>
+        typeof domain === "string" && domain.length > 0
+    );
   }
   return [];
 }
@@ -99,11 +102,20 @@ function parseProviders(payload: any): string[] {
   return Array.from(ids);
 }
 
-function withEnvFallback(config: FirebaseAuthClientConfig): FirebaseAuthClientConfig {
-  const rawEnv = (import.meta.env.VITE_ENABLE_APPLE ?? import.meta.env.VITE_APPLE_ENABLED) as string | undefined;
-  const normalized = typeof rawEnv === "string" ? rawEnv.trim().toLowerCase() : undefined;
-  const forceOn = normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
-  const forceOff = normalized === "false" || normalized === "0" || normalized === "off";
+function withEnvFallback(
+  config: FirebaseAuthClientConfig
+): FirebaseAuthClientConfig {
+  const rawEnv = (import.meta.env.VITE_ENABLE_APPLE ??
+    import.meta.env.VITE_APPLE_ENABLED) as string | undefined;
+  const normalized =
+    typeof rawEnv === "string" ? rawEnv.trim().toLowerCase() : undefined;
+  const forceOn =
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "on";
+  const forceOff =
+    normalized === "false" || normalized === "0" || normalized === "off";
 
   if (forceOn && !config.providerIds.includes("apple.com")) {
     config.providerIds = [...config.providerIds, "apple.com"];
@@ -137,7 +149,8 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
   if (!apiKey || !projectId) {
     lastClientConfigProbe = {
       status: "warning",
-      message: "Missing apiKey or projectId; IdentityToolkit clientConfig probe skipped",
+      message:
+        "Missing apiKey or projectId; IdentityToolkit clientConfig probe skipped",
     };
     cachedConfigPromise = Promise.resolve(
       withEnvFallback({ authorizedDomains: [], providerIds: [] })
@@ -151,7 +164,7 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
       message: "IdentityToolkit clientConfig probe disabled in this build",
     };
     cachedConfigPromise = Promise.resolve(
-      withEnvFallback({ authorizedDomains: [], providerIds: [] }),
+      withEnvFallback({ authorizedDomains: [], providerIds: [] })
     );
     return cachedConfigPromise;
   }
@@ -162,7 +175,9 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
     try {
       const res = await fetch(url, { mode: "cors" });
       if (!res) {
-        throw new Error("IdentityToolkit clientConfig returned an empty response");
+        throw new Error(
+          "IdentityToolkit clientConfig returned an empty response"
+        );
       }
       if (!res.ok) {
         const status = res.status;
@@ -170,23 +185,28 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
           status === 404
             ? "clientConfig not provisioned for this origin"
             : status === 403
-            ? "clientConfig blocked (403)"
-            : `clientConfig responded ${status}`;
+              ? "clientConfig blocked (403)"
+              : `clientConfig responded ${status}`;
         lastClientConfigProbe = {
           status: status === 404 || status === 403 ? "warning" : "error",
           statusCode: status,
           message: reason,
         };
-        const logFn = status === 404 || status === 403 ? console.info : console.warn;
+        const logFn =
+          status === 404 || status === 403 ? console.info : console.warn;
         if (!warned) {
           logFn("[probe] IdentityToolkit clientConfig", { status, reason });
           warned = true;
         }
         return withEnvFallback({ authorizedDomains: [], providerIds: [] });
       }
-      const payload = await res
-        .json()
-        .catch(() => ({ authorizedDomains: [], providerIds: [] } as FirebaseAuthClientConfig));
+      const payload = await res.json().catch(
+        () =>
+          ({
+            authorizedDomains: [],
+            providerIds: [],
+          }) as FirebaseAuthClientConfig
+      );
       const authorizedDomains = parseAuthorizedDomains(payload);
       const providerIds = parseProviders(payload);
       lastClientConfigProbe = { status: "ok", statusCode: res.status };
@@ -196,7 +216,10 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
         console.info("[probe] IdentityToolkit fetch error", err);
         warned = true;
       }
-      lastClientConfigProbe = { status: "warning", message: "IdentityToolkit clientConfig fetch failed" };
+      lastClientConfigProbe = {
+        status: "warning",
+        message: "IdentityToolkit clientConfig fetch failed",
+      };
       // NOTE: IdentityToolkit returns 404 when the current origin isn't in Firebase Auth's
       // authorized domains list. This must be fixed in the Firebase console, not here.
       return withEnvFallback({ authorizedDomains: [], providerIds: [] });
@@ -222,7 +245,9 @@ export function warnIfDomainUnauthorized(): void {
   void loadFirebaseAuthClientConfig().then((config) => {
     if (!config.authorizedDomains.length) return;
     const host = window.location.hostname;
-    const isAuthorized = config.authorizedDomains.some((domain) => domainMatches(host, domain));
+    const isAuthorized = config.authorizedDomains.some((domain) =>
+      domainMatches(host, domain)
+    );
     if (!isAuthorized) {
       console.warn(
         `[auth] ${window.location.origin} is not in your Firebase authorized domains. Add it via Firebase Console → Auth → Settings → Authorized domains.`
@@ -231,7 +256,9 @@ export function warnIfDomainUnauthorized(): void {
   });
 }
 
-export function isProviderEnabled(providerId: string, config: FirebaseAuthClientConfig): boolean {
+export function isProviderEnabled(
+  providerId: string,
+  config: FirebaseAuthClientConfig
+): boolean {
   return config.providerIds.includes(providerId);
 }
-

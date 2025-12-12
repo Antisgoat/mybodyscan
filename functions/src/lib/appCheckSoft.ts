@@ -35,10 +35,16 @@ async function verifyToken(token: string, ctx: SoftAppCheckContext) {
 
 export async function ensureSoftAppCheckFromCallable(
   request: CallableRequest<any>,
-  ctx: SoftAppCheckContext,
+  ctx: SoftAppCheckContext
 ): Promise<void> {
-  const requestAny = request as CallableRequest<any> & { appCheck?: { token?: string } };
-  const token = (requestAny.appCheck?.token || request.rawRequest?.get?.("x-firebase-appcheck") || "").trim();
+  const requestAny = request as CallableRequest<any> & {
+    appCheck?: { token?: string };
+  };
+  const token = (
+    requestAny.appCheck?.token ||
+    request.rawRequest?.get?.("x-firebase-appcheck") ||
+    ""
+  ).trim();
   const context = { ...ctx, source: "callable" as const };
   if (!token) {
     logger.warn("appcheck.soft.missing", buildContext(context));
@@ -47,8 +53,15 @@ export async function ensureSoftAppCheckFromCallable(
   await verifyToken(token, context);
 }
 
-export async function ensureSoftAppCheckFromRequest(req: Request, ctx: SoftAppCheckContext): Promise<void> {
-  const token = (req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "").trim();
+export async function ensureSoftAppCheckFromRequest(
+  req: Request,
+  ctx: SoftAppCheckContext
+): Promise<void> {
+  const token = (
+    req.get("x-firebase-appcheck") ||
+    req.get("X-Firebase-AppCheck") ||
+    ""
+  ).trim();
   const context = { ...ctx, source: "http" as const };
   if (!token) {
     logger.warn("appcheck.soft.missing", buildContext(context));

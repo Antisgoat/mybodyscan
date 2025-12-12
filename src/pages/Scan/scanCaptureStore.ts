@@ -85,7 +85,10 @@ export function clearCaptureFiles() {
 export function pruneCaptureFiles(validViews: CaptureView[]) {
   const validSet = new Set(validViews);
   const nextFiles: Partial<Record<CaptureView, File>> = {};
-  for (const [view, file] of Object.entries(state.files) as [CaptureView, File][]) {
+  for (const [view, file] of Object.entries(state.files) as [
+    CaptureView,
+    File,
+  ][]) {
     if (validSet.has(view)) {
       nextFiles[view] = file;
     }
@@ -96,7 +99,10 @@ export function pruneCaptureFiles(validViews: CaptureView[]) {
   });
 }
 
-export function setCaptureWeights(weights: { currentWeightKg: number; goalWeightKg: number }) {
+export function setCaptureWeights(weights: {
+  currentWeightKg: number;
+  goalWeightKg: number;
+}) {
   setState({
     ...state,
     weights: {
@@ -111,7 +117,7 @@ export function setCaptureSession(
   session: {
     scanId: string;
     storagePaths: Record<PoseKey, string>;
-  } | null,
+  } | null
 ) {
   setState({
     ...state,

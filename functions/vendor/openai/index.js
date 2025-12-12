@@ -46,7 +46,8 @@ class OpenAI {
     this.apiKey = options.apiKey ?? "";
     this.chat = {
       completions: {
-        create: (params = {}) => requestChatCompletion(this.apiKey, params, params.signal),
+        create: (params = {}) =>
+          requestChatCompletion(this.apiKey, params, params.signal),
       },
     };
   }

@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FoodItem } from "@/lib/nutrition/types";
@@ -20,7 +26,12 @@ interface ServingEditorProps {
   defaultQty?: number;
   defaultUnit?: ServingUnit;
   confirmLabel?: string;
-  onConfirm: (payload: { qty: number; unit: ServingUnit; result: ReturnType<typeof calculateSelection>; meal: MealEntry }) => void;
+  onConfirm: (payload: {
+    qty: number;
+    unit: ServingUnit;
+    result: ReturnType<typeof calculateSelection>;
+    meal: MealEntry;
+  }) => void;
   onCancel?: () => void;
   busy?: boolean;
   entrySource?: MealEntry["entrySource"];
@@ -50,7 +61,10 @@ export function ServingEditor({
     setNotes("");
   }, [item, defaultQty, defaultUnit]);
 
-  const result = useMemo(() => calculateSelection(item, quantity, unit), [item, quantity, unit]);
+  const result = useMemo(
+    () => calculateSelection(item, quantity, unit),
+    [item, quantity, unit]
+  );
   const servingWeight = useMemo(() => estimateServingWeight(item), [item]);
 
   const submit = () => {
@@ -81,7 +95,10 @@ export function ServingEditor({
         </div>
         <div>
           <Label htmlFor="serving-unit">Unit</Label>
-          <Select value={unit} onValueChange={(value) => setUnit(value as ServingUnit)}>
+          <Select
+            value={unit}
+            onValueChange={(value) => setUnit(value as ServingUnit)}
+          >
             <SelectTrigger id="serving-unit">
               <SelectValue />
             </SelectTrigger>
@@ -101,12 +118,15 @@ export function ServingEditor({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>Calories</Label>
-          <div className="text-lg font-semibold">{result.calories ?? "—"} kcal</div>
+          <div className="text-lg font-semibold">
+            {result.calories ?? "—"} kcal
+          </div>
         </div>
         <div>
           <Label>Macros</Label>
           <div className="text-sm text-muted-foreground">
-            {result.protein ?? "—"}g P • {result.carbs ?? "—"}g C • {result.fat ?? "—"}g F
+            {result.protein ?? "—"}g P • {result.carbs ?? "—"}g C •{" "}
+            {result.fat ?? "—"}g F
           </div>
           <div className="text-xs text-muted-foreground">
             {result.grams ? `${result.grams} g` : ""}
@@ -125,14 +145,24 @@ export function ServingEditor({
           rows={2}
         />
         <p className="text-xs text-muted-foreground">
-          Database serving: {item.serving.text || `${item.serving.qty ?? "?"} ${item.serving.unit ?? "unit"}`} ·
-          approx {servingWeight ? `${servingWeight} g / ${gramsToOunces(servingWeight) ?? "?"} oz` : "weight unknown"}
+          Database serving:{" "}
+          {item.serving.text ||
+            `${item.serving.qty ?? "?"} ${item.serving.unit ?? "unit"}`}{" "}
+          · approx{" "}
+          {servingWeight
+            ? `${servingWeight} g / ${gramsToOunces(servingWeight) ?? "?"} oz`
+            : "weight unknown"}
         </p>
       </div>
 
       <div className="flex justify-end gap-2">
         {onCancel && (
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={busy}
+          >
             Cancel
           </Button>
         )}

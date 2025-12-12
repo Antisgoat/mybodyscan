@@ -8,12 +8,17 @@ import { useEffect, useRef, useState } from "react";
 import { POSES, POSE_LABEL, type Pose } from "./poses";
 import { resizeImageFile } from "./resizeImage";
 
-export type CaptureReady = { front: File | Blob; back: File | Blob; left: File | Blob; right: File | Blob; };
+export type CaptureReady = {
+  front: File | Blob;
+  back: File | Blob;
+  left: File | Blob;
+  right: File | Blob;
+};
 type Props = {
   onReady: (payload: CaptureReady) => void;
 };
 
-type PosePick = { file: File; blob: Blob; url: string; };
+type PosePick = { file: File; blob: Blob; url: string };
 
 export default function ScanCapture({ onReady }: Props) {
   const [picks, setPicks] = useState<Partial<Record<Pose, PosePick>>>({});
@@ -49,7 +54,7 @@ export default function ScanCapture({ onReady }: Props) {
       const blob = await resizeImageFile(file, 1600, 0.9);
       const url = URL.createObjectURL(blob);
       const pick: PosePick = { file, blob, url };
-      setPicks(prev => {
+      setPicks((prev) => {
         // Revoke previous preview URL for this pose to avoid leaks
         const prevPick = prev[activePose];
         if (prevPick?.url) URL.revokeObjectURL(prevPick.url);
@@ -64,7 +69,7 @@ export default function ScanCapture({ onReady }: Props) {
   }
 
   function removePose(pose: Pose) {
-    setPicks(prev => {
+    setPicks((prev) => {
       const next = { ...prev };
       const prevPick = next[pose];
       if (prevPick?.url) URL.revokeObjectURL(prevPick.url);
@@ -77,15 +82,18 @@ export default function ScanCapture({ onReady }: Props) {
     picksRef.current = picks;
   }, [picks]);
 
-  useEffect(() => () => {
-    Object.values(picksRef.current).forEach(pick => {
-      if (pick?.url) {
-        URL.revokeObjectURL(pick.url);
-      }
-    });
-  }, []);
+  useEffect(
+    () => () => {
+      Object.values(picksRef.current).forEach((pick) => {
+        if (pick?.url) {
+          URL.revokeObjectURL(pick.url);
+        }
+      });
+    },
+    []
+  );
 
-  const ready = POSES.every(p => picks[p]);
+  const ready = POSES.every((p) => picks[p]);
   async function onContinue() {
     if (!ready) return;
     onReady({
@@ -99,18 +107,22 @@ export default function ScanCapture({ onReady }: Props) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Add four photos: Front, Back, Left, Right. Tip: good lighting, full body in frame.
+        Add four photos: Front, Back, Left, Right. Tip: good lighting, full body
+        in frame.
       </p>
 
       <div className="grid grid-cols-2 gap-3">
-        {POSES.map(pose => {
+        {POSES.map((pose) => {
           const pick = picks[pose];
           return (
             <div key={pose} className="rounded-md border p-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium">{POSE_LABEL[pose]}</span>
                 {pick ? (
-                  <button onClick={() => removePose(pose)} className="text-[11px] underline">
+                  <button
+                    onClick={() => removePose(pose)}
+                    className="text-[11px] underline"
+                  >
                     Remove
                   </button>
                 ) : null}
@@ -124,7 +136,9 @@ export default function ScanCapture({ onReady }: Props) {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-xs text-muted-foreground">No photo</span>
+                  <span className="text-xs text-muted-foreground">
+                    No photo
+                  </span>
                 )}
               </div>
 
@@ -149,8 +163,16 @@ export default function ScanCapture({ onReady }: Props) {
         })}
       </div>
 
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      {busy && <p role="status" className="text-sm text-muted-foreground">Processing image…</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-700">
+          {error}
+        </p>
+      )}
+      {busy && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Processing image…
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         <button
@@ -162,7 +184,11 @@ export default function ScanCapture({ onReady }: Props) {
         >
           {busy ? "Please wait…" : "Continue"}
         </button>
-        {!ready && <span className="text-xs text-muted-foreground">Add all four photos to continue</span>}
+        {!ready && (
+          <span className="text-xs text-muted-foreground">
+            Add all four photos to continue
+          </span>
+        )}
       </div>
 
       {/* Hidden file inputs */}

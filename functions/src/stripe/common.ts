@@ -50,19 +50,27 @@ export async function incCredits(uid: string, amount: number) {
   });
 }
 
-export async function setSubscriptionStatus(uid: string, status: string, product?: string, price?: string) {
+export async function setSubscriptionStatus(
+  uid: string,
+  status: string,
+  product?: string,
+  price?: string
+) {
   const db = getFirestore();
-  await db.collection("users").doc(uid).set(
-    {
-      subscription: {
-        status,
-        product: product || null,
-        price: price || null,
-        updatedAt: new Date().toISOString(),
+  await db
+    .collection("users")
+    .doc(uid)
+    .set(
+      {
+        subscription: {
+          status,
+          product: product || null,
+          price: price || null,
+          updatedAt: new Date().toISOString(),
+        },
       },
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
 }
 
 export function appJson(handler: (req: any, res: any) => Promise<void>) {
@@ -71,8 +79,15 @@ export function appJson(handler: (req: any, res: any) => Promise<void>) {
       res.set("Content-Type", "application/json");
       await handler(req, res);
     } catch (e: any) {
-      const code = e?.message === "missing_auth" ? 401 : e?.message === "stripe_unconfigured" ? 501 : 500;
-      res.status(code).send(JSON.stringify({ error: e?.message || "internal_error" }));
+      const code =
+        e?.message === "missing_auth"
+          ? 401
+          : e?.message === "stripe_unconfigured"
+            ? 501
+            : 500;
+      res
+        .status(code)
+        .send(JSON.stringify({ error: e?.message || "internal_error" }));
     }
   });
 }

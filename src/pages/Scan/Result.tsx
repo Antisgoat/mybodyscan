@@ -22,9 +22,24 @@ import type { Landmarks } from "@/lib/vision/landmarks";
 import { analyzePhoto } from "@/lib/vision/landmarks";
 import { cmToIn, kgToLb, lbToKg, CM_PER_IN } from "@/lib/units";
 import { getLastWeight } from "@/lib/userState";
-import { findRangeForValue, getSexAgeBands, type LabeledRange } from "@/content/referenceRanges";
-import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
-import { CAPTURE_VIEW_SETS, type CaptureView, resetCaptureFlow, setCaptureSession, useScanCaptureStore } from "./scanCaptureStore";
+import {
+  findRangeForValue,
+  getSexAgeBands,
+  type LabeledRange,
+} from "@/content/referenceRanges";
+import {
+  deleteScanApi,
+  startScanSessionClient,
+  submitScanClient,
+  type ScanUploadProgress,
+} from "@/lib/api/scan";
+import {
+  CAPTURE_VIEW_SETS,
+  type CaptureView,
+  resetCaptureFlow,
+  setCaptureSession,
+  useScanCaptureStore,
+} from "./scanCaptureStore";
 import { RefineMeasurementsForm } from "./Refine";
 import { setPhotoCircumferences, useScanRefineStore } from "./scanRefineStore";
 import type { ManualCircumferences } from "./scanRefineStore";
@@ -68,7 +83,10 @@ function formatDecimal(value: number | null | undefined): string | null {
   return numeric.toFixed(1);
 }
 
-async function createThumbnailDataUrl(file: File, maxSize = 128): Promise<string | null> {
+async function createThumbnailDataUrl(
+  file: File,
+  maxSize = 128
+): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onerror = () => resolve(null);
@@ -76,7 +94,11 @@ async function createThumbnailDataUrl(file: File, maxSize = 128): Promise<string
       const image = new Image();
       image.onerror = () => resolve(null);
       image.onload = () => {
-        const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
+        const scale = Math.min(
+          maxSize / image.width,
+          maxSize / image.height,
+          1
+        );
         const width = Math.max(1, Math.round(image.width * scale));
         const height = Math.max(1, Math.round(image.height * scale));
         const canvas = document.createElement("canvas");
@@ -96,7 +118,10 @@ async function createThumbnailDataUrl(file: File, maxSize = 128): Promise<string
   });
 }
 
-function toInches(value?: number | null, scale?: number | null): number | undefined {
+function toInches(
+  value?: number | null,
+  scale?: number | null
+): number | undefined {
   if (!Number.isFinite(value ?? NaN) || !Number.isFinite(scale ?? NaN)) {
     return undefined;
   }
@@ -106,7 +131,10 @@ function toInches(value?: number | null, scale?: number | null): number | undefi
   return value * (scale as number);
 }
 
-function parseManualCircumference(value: string, units: "us" | "metric"): number | undefined {
+function parseManualCircumference(
+  value: string,
+  units: "us" | "metric"
+): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const parsed = Number(trimmed);
@@ -121,7 +149,9 @@ export default function ScanFlowResult() {
   const { profile } = useUserProfile();
   const [refineOpen, setRefineOpen] = useState(false);
   const { manualInputs, photoCircumferences } = useScanRefineStore();
-  const [photoFeatures, setPhotoFeatures] = useState<PhotoFeatures | null>(null);
+  const [photoFeatures, setPhotoFeatures] = useState<PhotoFeatures | null>(
+    null
+  );
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [lastWeight] = useState<number | null>(() => getLastWeight());
@@ -142,7 +172,8 @@ export default function ScanFlowResult() {
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false;
   const scanOfflineMessage = scanOffline
-    ? systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
+    ? systemHealth?.openaiConfigured === false ||
+      systemHealth?.openaiKeyPresent === false
       ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before results can be finalized."
       : "Scan services are offline until the Cloud Functions base URL is configured."
     : null;
@@ -150,12 +181,14 @@ export default function ScanFlowResult() {
   const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
   const capturedShots = useMemo(
     () => shots.filter((view) => Boolean(files[view])),
-    [shots, files],
+    [shots, files]
   );
   const allCaptured = capturedShots.length === shots.length;
   const poseFiles = useMemo(() => {
     const map: Partial<Record<Pose, File>> = {};
-    for (const [view, file] of Object.entries(files) as Array<[CaptureView, File]>) {
+    for (const [view, file] of Object.entries(files) as Array<
+      [CaptureView, File]
+    >) {
       const pose = VIEW_TO_POSE[view];
       if (pose && file) {
         map[pose] = file;
@@ -173,8 +206,10 @@ export default function ScanFlowResult() {
           if (!file) return null;
           return { key: VIEW_NAME_MAP[view], file };
         })
-        .filter((entry): entry is { key: ViewName; file: File } => Boolean(entry)),
-    [shots, files],
+        .filter((entry): entry is { key: ViewName; file: File } =>
+          Boolean(entry)
+        ),
+    [shots, files]
   );
 
   useEffect(() => {
@@ -193,7 +228,10 @@ export default function ScanFlowResult() {
     (async () => {
       try {
         const results = await Promise.all(
-          tasks.map(async ({ key, file }) => ({ key, data: await analyzePhoto(file, key) })),
+          tasks.map(async ({ key, file }) => ({
+            key,
+            data: await analyzePhoto(file, key),
+          }))
         );
         if (cancelled) return;
 
@@ -201,7 +239,13 @@ export default function ScanFlowResult() {
         for (const result of results) {
           views[result.key] = result.data;
         }
-        const combined = combineLandmarks(views.front, views.side, views.left, views.right, views.back);
+        const combined = combineLandmarks(
+          views.front,
+          views.side,
+          views.left,
+          views.right,
+          views.back
+        );
         setPhotoFeatures(combined);
         setAnalyzing(false);
       } catch (error) {
@@ -234,11 +278,16 @@ export default function ScanFlowResult() {
           ? "Secure uploads require App Check. Refresh and try again."
           : "We'll upload your photos securely and notify you when the result is ready.";
   const finalizeDisabled =
-    !readyForSubmission || flowStatus === "starting" || flowStatus === "uploading" || flowStatus === "processing";
+    !readyForSubmission ||
+    flowStatus === "starting" ||
+    flowStatus === "uploading" ||
+    flowStatus === "processing";
 
   const handleFinalize = async () => {
     if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) {
-      setFlowError("Add all photos and confirm your weights before continuing.");
+      setFlowError(
+        "Add all photos and confirm your weights before continuing."
+      );
       return;
     }
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
@@ -250,7 +299,9 @@ export default function ScanFlowResult() {
       return;
     }
     if (appCheck.status === "missing") {
-      setFlowError("Secure uploads require App Check. Refresh this page and try again.");
+      setFlowError(
+        "Secure uploads require App Check. Refresh this page and try again."
+      );
       return;
     }
     setFlowStatus("starting");
@@ -261,9 +312,14 @@ export default function ScanFlowResult() {
     let cleanupScanId: string | null = activeSession?.scanId ?? null;
     try {
       if (!activeSession) {
-        const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
+        const start = await startScanSessionClient({
+          currentWeightKg,
+          goalWeightKg,
+        });
         if (!start.ok) {
-          const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
+          const debugSuffix = start.error.debugId
+            ? ` (ref ${start.error.debugId.slice(0, 8)})`
+            : "";
           throw new Error(start.error.message + debugSuffix);
         }
         setCaptureSession(start.data);
@@ -293,10 +349,12 @@ export default function ScanFlowResult() {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
           },
-        },
+        }
       );
       if (!submit.ok) {
-        const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        const debugSuffix = submit.error.debugId
+          ? ` (ref ${submit.error.debugId.slice(0, 8)})`
+          : "";
         if (cleanupScanId && submit.error.reason === "upload_failed") {
           await deleteScanApi(cleanupScanId).catch(() => undefined);
         }
@@ -308,7 +366,8 @@ export default function ScanFlowResult() {
       setSubmittedScanId(activeSession.scanId);
       toast({
         title: "Scan uploaded",
-        description: "We’re processing your analysis. This can take a couple of minutes.",
+        description:
+          "We’re processing your analysis. This can take a couple of minutes.",
       });
       resetCaptureFlow();
       navigate(`/scan/${activeSession.scanId}`);
@@ -323,15 +382,24 @@ export default function ScanFlowResult() {
       setFlowError(message);
       setCaptureSession(null);
       setSubmittedScanId(null);
-      toast({ title: "Unable to submit scan", description: message, variant: "destructive" });
+      toast({
+        title: "Unable to submit scan",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
-
-  const sex = profile?.sex === "male" || profile?.sex === "female" ? profile.sex : undefined;
-  const age = profile?.age && Number.isFinite(profile.age) ? profile.age : undefined;
+  const sex =
+    profile?.sex === "male" || profile?.sex === "female"
+      ? profile.sex
+      : undefined;
+  const age =
+    profile?.age && Number.isFinite(profile.age) ? profile.age : undefined;
   const heightIn = profile?.height_cm ? cmToIn(profile.height_cm) : undefined;
-  const profileWeightLb = profile?.weight_kg ? kgToLb(profile.weight_kg) : undefined;
+  const profileWeightLb = profile?.weight_kg
+    ? kgToLb(profile.weight_kg)
+    : undefined;
   const weightLb = lastWeight ?? profileWeightLb ?? undefined;
 
   useEffect(() => {
@@ -342,7 +410,10 @@ export default function ScanFlowResult() {
 
     const averages = photoFeatures.averages;
     const heightPixels = averages?.heightPixels;
-    if (!Number.isFinite(heightPixels ?? NaN) || (heightPixels as number) <= 0) {
+    if (
+      !Number.isFinite(heightPixels ?? NaN) ||
+      (heightPixels as number) <= 0
+    ) {
       setPhotoCircumferences(null);
       return;
     }
@@ -427,10 +498,13 @@ export default function ScanFlowResult() {
   }, [age, sex]);
   const ageBandLabel = referenceRanges[0]?.band ?? null;
   const currentReferenceRange =
-    bodyFatPctNumber != null ? findRangeForValue(referenceRanges, bodyFatPctNumber) : null;
+    bodyFatPctNumber != null
+      ? findRangeForValue(referenceRanges, bodyFatPctNumber)
+      : null;
   const sexLabel = sex ? `${sex.charAt(0).toUpperCase()}${sex.slice(1)}` : null;
   const rangeLabel = currentReferenceRange?.label ?? null;
-  const percentText = bodyFatPctNumber != null ? bodyFatPctNumber.toFixed(1) : null;
+  const percentText =
+    bodyFatPctNumber != null ? bodyFatPctNumber.toFixed(1) : null;
   const referenceContextText =
     sexLabel && ageBandLabel && percentText && rangeLabel
       ? `For ${sexLabel} age ${ageBandLabel}, ${percentText}% places you in the ${rangeLabel} range.`
@@ -450,7 +524,7 @@ export default function ScanFlowResult() {
       waist: photoCircumferences?.waistIn ?? null,
       hip: photoCircumferences?.hipIn ?? null,
     }),
-    [photoCircumferences],
+    [photoCircumferences]
   );
 
   const userCircumPayload = useMemo(
@@ -459,7 +533,7 @@ export default function ScanFlowResult() {
       waist: manualCircumferences?.waistIn ?? null,
       hip: manualCircumferences?.hipIn ?? null,
     }),
-    [manualCircumferences],
+    [manualCircumferences]
   );
 
   const bmiNumber = useMemo(() => {
@@ -489,11 +563,14 @@ export default function ScanFlowResult() {
         ? `Uploading ${uploadPose} photo (${progressPct}% complete)…`
         : "Uploading encrypted photos…";
     }
-    if (flowStatus === "processing") return "Photos uploaded. Processing your scan…";
+    if (flowStatus === "processing")
+      return "Photos uploaded. Processing your scan…";
     if (flowError) return flowError;
     if (submittedScanId) return "Scan uploaded. Opening your result…";
-    if (!allCaptured) return "Capture every required angle to analyze the scan.";
-    if (!heightIn || !sex) return "Add your height and sex in Settings to unlock the preview.";
+    if (!allCaptured)
+      return "Capture every required angle to analyze the scan.";
+    if (!heightIn || !sex)
+      return "Add your height and sex in Settings to unlock the preview.";
     if (!bodyFatValue) return "Add your weight to see the full estimate.";
     return "Scan preview based on your latest photos.";
   }, [
@@ -512,7 +589,10 @@ export default function ScanFlowResult() {
 
   return (
     <div className="space-y-6">
-      <Seo title="Scan Result Preview – MyBodyScan" description="Review the draft estimate before finalizing." />
+      <Seo
+        title="Scan Result Preview – MyBodyScan"
+        description="Review the draft estimate before finalizing."
+      />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold">Preview Result</h1>
         <p className="text-muted-foreground">{estimateStatus}</p>
@@ -520,7 +600,9 @@ export default function ScanFlowResult() {
       {appCheck.status === "checking" ? (
         <Alert className="border-dashed">
           <AlertTitle>Checking secure access…</AlertTitle>
-          <AlertDescription>Ensuring App Check is ready before rendering your scan preview.</AlertDescription>
+          <AlertDescription>
+            Ensuring App Check is ready before rendering your scan preview.
+          </AlertDescription>
         </Alert>
       ) : null}
       {scanOfflineMessage ? (
@@ -533,7 +615,8 @@ export default function ScanFlowResult() {
         <Alert variant="destructive">
           <AlertTitle>App Check required</AlertTitle>
           <AlertDescription>
-            Secure access failed. Refresh the page or contact support before finalizing your scan.
+            Secure access failed. Refresh the page or contact support before
+            finalizing your scan.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -544,29 +627,45 @@ export default function ScanFlowResult() {
         <CardContent className="space-y-6">
           <div className="space-y-3 rounded-lg border p-4">
             <div>
-              <p className="text-sm text-muted-foreground">Estimated Body Fat</p>
-              <p className="text-3xl font-semibold">{bodyFatValue ? `${bodyFatValue}%` : "—"}</p>
+              <p className="text-sm text-muted-foreground">
+                Estimated Body Fat
+              </p>
+              <p className="text-3xl font-semibold">
+                {bodyFatValue ? `${bodyFatValue}%` : "—"}
+              </p>
             </div>
             <p className="text-sm">
-              Estimated BMI: {bmiValue ?? "—"} · Weight: {weightValue ? `${weightValue} ${units === "metric" ? "kg" : "lb"}` : "—"}
+              Estimated BMI: {bmiValue ?? "—"} · Weight:{" "}
+              {weightValue
+                ? `${weightValue} ${units === "metric" ? "kg" : "lb"}`
+                : "—"}
             </p>
-            <p className="text-xs text-muted-foreground">Estimates only. Not a medical diagnosis.</p>
+            <p className="text-xs text-muted-foreground">
+              Estimates only. Not a medical diagnosis.
+            </p>
             {referenceContextText ? (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">{referenceContextText}</p>
+                <p className="text-sm text-muted-foreground">
+                  {referenceContextText}
+                </p>
                 <ReferenceChart sex={sex} age={age} bfPct={bodyFatPctNumber} />
               </div>
             ) : null}
             <Dialog open={refineOpen} onOpenChange={setRefineOpen}>
               <DialogTrigger asChild>
-                <button type="button" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
                   Refine measurements
                 </button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Refine estimate</DialogTitle>
-                  <DialogDescription>Enter manual measurements to update the result preview.</DialogDescription>
+                  <DialogDescription>
+                    Enter manual measurements to update the result preview.
+                  </DialogDescription>
                 </DialogHeader>
                 <RefineMeasurementsForm
                   onSubmit={() => setRefineOpen(false)}
@@ -586,7 +685,10 @@ export default function ScanFlowResult() {
               {shots.map((view) => {
                 const file = files[view];
                 return (
-                  <li key={view} className="flex items-center justify-between rounded-md border p-3">
+                  <li
+                    key={view}
+                    className="flex items-center justify-between rounded-md border p-3"
+                  >
                     <span className="font-medium">{view}</span>
                     {file ? (
                       <span className="text-sm text-muted-foreground">
@@ -607,8 +709,12 @@ export default function ScanFlowResult() {
           <CardTitle>Finalize scan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">{finalizeHelperMessage}</p>
-          {flowError ? <p className="text-sm text-destructive">{flowError}</p> : null}
+          <p className="text-sm text-muted-foreground">
+            {finalizeHelperMessage}
+          </p>
+          {flowError ? (
+            <p className="text-sm text-destructive">{flowError}</p>
+          ) : null}
           {flowStatus === "uploading" ? (
             <div className="space-y-1">
               <div className="h-2 w-full rounded-full bg-secondary">
@@ -625,7 +731,11 @@ export default function ScanFlowResult() {
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={handleFinalize} disabled={finalizeDisabled}>
+            <Button
+              type="button"
+              onClick={handleFinalize}
+              disabled={finalizeDisabled}
+            >
               {flowStatus === "uploading"
                 ? "Uploading…"
                 : flowStatus === "processing"
@@ -634,7 +744,11 @@ export default function ScanFlowResult() {
                     ? "Preparing…"
                     : "Finalize with AI"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => navigate("/scan/capture")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/scan/capture")}
+            >
               Retake photos
             </Button>
           </div>
@@ -646,7 +760,8 @@ export default function ScanFlowResult() {
             <div>
               <p className="text-sm font-medium">Scan submitted</p>
               <p className="text-sm text-muted-foreground">
-                We’re processing the analysis now. You can review it in your history at any time.
+                We’re processing the analysis now. You can review it in your
+                history at any time.
               </p>
             </div>
             <Button asChild variant="outline" size="sm">

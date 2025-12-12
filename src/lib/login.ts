@@ -18,31 +18,55 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
   const code = getErrorCode(err);
   switch (code) {
     case "auth/api-key-not-valid":
-      return { code, message: "Firebase Web API key is invalid for this project. Verify Hosting init.json and GCP restrictions." };
+      return {
+        code,
+        message:
+          "Firebase Web API key is invalid for this project. Verify Hosting init.json and GCP restrictions.",
+      };
     case "auth/internal-error":
       return {
         code,
-        message: "Sign-in failed due to an Auth service error. Try again in a moment or contact support if it persists.",
+        message:
+          "Sign-in failed due to an Auth service error. Try again in a moment or contact support if it persists.",
       };
     case "auth/network-request-failed":
-      return { code, message: "Network error contacting Auth. Check your connection and try again." };
+      return {
+        code,
+        message:
+          "Network error contacting Auth. Check your connection and try again.",
+      };
     case "auth/operation-not-allowed":
-      return { code, message: "Sign-in provider is disabled in Firebase Auth." };
+      return {
+        code,
+        message: "Sign-in provider is disabled in Firebase Auth.",
+      };
     case "auth/popup-blocked":
       return { code, message: "Popup was blocked. Retrying via redirect…" };
     case "auth/popup-closed-by-user":
       return { code, message: "Popup was closed before completing sign-in." };
     case "auth/cancelled-popup-request":
-      return { code, message: "Another popup was already open. Redirect will continue." };
+      return {
+        code,
+        message: "Another popup was already open. Redirect will continue.",
+      };
     case "auth/unauthorized-domain":
       return {
         code,
-        message: "This domain isn't authorized for Firebase Auth. Add it in Firebase Console -> Auth -> Settings -> Authorized domains.",
+        message:
+          "This domain isn't authorized for Firebase Auth. Add it in Firebase Console -> Auth -> Settings -> Authorized domains.",
       };
     case "auth/invalid-client":
-      return { code, message: "Apple credentials invalid. Check Services ID, Key ID, and private key." };
+      return {
+        code,
+        message:
+          "Apple credentials invalid. Check Services ID, Key ID, and private key.",
+      };
     case "auth/redirect-uri-mismatch":
-      return { code, message: "Apple return URL mismatch. Add your domain(s) to the Services ID." };
+      return {
+        code,
+        message:
+          "Apple return URL mismatch. Add your domain(s) to the Services ID.",
+      };
     case "auth/invalid-email":
       return { code, message: "That email looks invalid." };
     case "auth/user-not-found":
@@ -51,7 +75,8 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
     case "auth/account-exists-with-different-credential":
       return {
         code,
-        message: "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.",
+        message:
+          "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.",
       };
     default:
       return { code, message: "Sign-in failed. Please try again." };
@@ -84,7 +109,8 @@ export async function googleSignIn(auth: Auth) {
     }
   };
 
-  const constrainedWebView = isIOSWebView() || isCapacitor() || isInAppBrowser() || isIOSSafari();
+  const constrainedWebView =
+    isIOSWebView() || isCapacitor() || isInAppBrowser() || isIOSSafari();
   if (constrainedWebView) {
     if (import.meta.env.DEV) {
       toast("Using redirect for Google sign-in (WebView detected).");
@@ -182,7 +208,10 @@ function getErrorCode(err: unknown): string | undefined {
 function debugAuthFailure(err: unknown): void {
   if (!import.meta.env.DEV) return;
   const code = getErrorCode(err) ?? "unknown";
-  const message = typeof (err as { message?: string }).message === "string" ? (err as { message?: string }).message : undefined;
+  const message =
+    typeof (err as { message?: string }).message === "string"
+      ? (err as { message?: string }).message
+      : undefined;
   const detailsCandidate =
     (err as { customData?: { details?: string } })?.customData?.details ??
     (err as { details?: string }).details;
@@ -194,7 +223,10 @@ function debugAuthFailure(err: unknown): void {
   console.debug("auth failure", payload);
 }
 
-export async function describeAuthErrorAsync(auth: Auth, error: unknown): Promise<NormalizedAuthError> {
+export async function describeAuthErrorAsync(
+  auth: Auth,
+  error: unknown
+): Promise<NormalizedAuthError> {
   const code = getErrorCode(error);
   if (code === "auth/account-exists-with-different-credential") {
     const collisionMessage = await buildAccountExistsMessage(auth, error);
@@ -203,9 +235,13 @@ export async function describeAuthErrorAsync(auth: Auth, error: unknown): Promis
   return describeAuthError(error);
 }
 
-async function buildAccountExistsMessage(auth: Auth, error: unknown): Promise<string> {
-  const fallback = "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.";
-  const fbError = error as (NormalizedFirebaseError | undefined);
+async function buildAccountExistsMessage(
+  auth: Auth,
+  error: unknown
+): Promise<string> {
+  const fallback =
+    "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.";
+  const fbError = error as NormalizedFirebaseError | undefined;
   const email = fbError?.customData?.email;
   if (!email) {
     return fallback;

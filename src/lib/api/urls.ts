@@ -18,12 +18,12 @@ const REWRITE_PATH: Record<Key, string> = {
 };
 
 const DIRECT_FN: Record<Key, string> = {
-  systemHealth:        `${DEFAULT_FN_BASE}/systemHealth`,
-  coachChat:           `${DEFAULT_FN_BASE}/coachChat`,
-  nutritionSearch:     `${DEFAULT_FN_BASE}/nutritionSearch`,
-  createCheckout:      `${DEFAULT_FN_BASE}/createCheckout`,
-  createCustomerPortal:`${DEFAULT_FN_BASE}/createCustomerPortal`,
-  deleteAccount:       `${DEFAULT_FN_BASE}/deleteAccount`,
+  systemHealth: `${DEFAULT_FN_BASE}/systemHealth`,
+  coachChat: `${DEFAULT_FN_BASE}/coachChat`,
+  nutritionSearch: `${DEFAULT_FN_BASE}/nutritionSearch`,
+  createCheckout: `${DEFAULT_FN_BASE}/createCheckout`,
+  createCustomerPortal: `${DEFAULT_FN_BASE}/createCustomerPortal`,
+  deleteAccount: `${DEFAULT_FN_BASE}/deleteAccount`,
 };
 
 function storage(): Storage | null {
@@ -36,7 +36,9 @@ function storage(): Storage | null {
   }
 }
 
-function cacheKey(k: Key) { return `mbs_url_${k}`; }
+function cacheKey(k: Key) {
+  return `mbs_url_${k}`;
+}
 
 export function preferRewriteUrl(k: Key): string {
   const store = storage();
@@ -58,8 +60,16 @@ export function fallbackDirectUrl(k: Key): string {
   return DIRECT_FN[k];
 }
 
-export function looksLikeHtml(body: string, contentType?: string | null): boolean {
+export function looksLikeHtml(
+  body: string,
+  contentType?: string | null
+): boolean {
   if (contentType && contentType.includes("text/html")) return true;
   const s = body.trim().slice(0, 200).toLowerCase();
-  return s.startsWith("<!doctype") || s.startsWith("<html") || s.includes("<head") || s.includes("<body");
+  return (
+    s.startsWith("<!doctype") ||
+    s.startsWith("<html") ||
+    s.includes("<head") ||
+    s.includes("<body")
+  );
 }

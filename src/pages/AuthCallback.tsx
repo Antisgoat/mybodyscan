@@ -15,7 +15,9 @@ export default function AuthCallbackPage() {
       setMsg("Signed in. Redirecting…");
       setTimeout(() => nav(next), 10);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [nav]);
 
   return (

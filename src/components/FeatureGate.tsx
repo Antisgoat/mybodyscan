@@ -9,7 +9,11 @@ type FeatureGateProps = {
   children?: ReactNode;
 };
 
-export function FeatureGate({ name, fallback = null, children }: FeatureGateProps) {
+export function FeatureGate({
+  name,
+  fallback = null,
+  children,
+}: FeatureGateProps) {
   const { flags } = useFlags();
   const remoteAllowed =
     name === "coach"

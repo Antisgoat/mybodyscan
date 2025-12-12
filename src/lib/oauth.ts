@@ -1,4 +1,9 @@
-import { getCanonicalOAuthReturnUrl, isCapacitor, isInAppBrowser, isWeb } from "./platform";
+import {
+  getCanonicalOAuthReturnUrl,
+  isCapacitor,
+  isInAppBrowser,
+  isWeb,
+} from "./platform";
 
 export function buildRedirectUri(): string {
   const fallback = getCanonicalOAuthReturnUrl();

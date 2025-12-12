@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Section } from "@/components/ui/section";
 import { setDoc } from "@/lib/dbWrite";
@@ -34,7 +40,13 @@ const SEX_OPTIONS = ["male", "female", "other"] as const;
 const GOAL_OPTIONS = ["lose-fat", "gain-muscle", "maintain", "recomp"] as const;
 const EQUIPMENT_OPTIONS = ["gym", "home-basic", "bodyweight", "none"] as const;
 const EXPERIENCE_OPTIONS = ["beginner", "intermediate", "advanced"] as const;
-const DIET_OPTIONS = ["balanced", "low-carb", "vegetarian", "vegan", "keto"] as const;
+const DIET_OPTIONS = [
+  "balanced",
+  "low-carb",
+  "vegetarian",
+  "vegan",
+  "keto",
+] as const;
 
 type Sex = (typeof SEX_OPTIONS)[number];
 type Goal = (typeof GOAL_OPTIONS)[number];
@@ -86,14 +98,24 @@ type DraftErrorState = {
 };
 
 const DEFAULT_FORM: OnboardingForm = {};
-const NETWORK_ERROR_CODES = new Set(["unavailable", "deadline-exceeded", "cancelled"]);
-const PERMISSION_ERROR_CODES = new Set(["permission-denied", "unauthenticated"]);
+const NETWORK_ERROR_CODES = new Set([
+  "unavailable",
+  "deadline-exceeded",
+  "cancelled",
+]);
+const PERMISSION_ERROR_CODES = new Set([
+  "permission-denied",
+  "unauthenticated",
+]);
 
 const describeDraftError = (error: unknown): DraftErrorState => {
   const rawCode = (error as { code?: unknown } | undefined)?.code;
   const code = typeof rawCode === "string" ? rawCode : null;
   const rawMessage = (error as { message?: unknown } | undefined)?.message;
-  const message = typeof rawMessage === "string" && rawMessage.trim().length ? rawMessage : null;
+  const message =
+    typeof rawMessage === "string" && rawMessage.trim().length
+      ? rawMessage
+      : null;
   if (code && PERMISSION_ERROR_CODES.has(code)) {
     return {
       title: "Permission required",
@@ -115,17 +137,25 @@ const describeDraftError = (error: unknown): DraftErrorState => {
   };
 };
 
-const clampStep = (value: number) => Math.min(Math.max(value, 0), STEP_TITLES.length - 1);
+const clampStep = (value: number) =>
+  Math.min(Math.max(value, 0), STEP_TITLES.length - 1);
 
-const isAllowedSex = (value: unknown): value is Sex => SEX_OPTIONS.includes(value as Sex);
-const isAllowedGoal = (value: unknown): value is Goal => GOAL_OPTIONS.includes(value as Goal);
+const isAllowedSex = (value: unknown): value is Sex =>
+  SEX_OPTIONS.includes(value as Sex);
+const isAllowedGoal = (value: unknown): value is Goal =>
+  GOAL_OPTIONS.includes(value as Goal);
 const isAllowedEquipment = (value: unknown): value is Equipment =>
   EQUIPMENT_OPTIONS.includes(value as Equipment);
 const isAllowedExperience = (value: unknown): value is Experience =>
   EXPERIENCE_OPTIONS.includes(value as Experience);
-const isAllowedDiet = (value: unknown): value is Diet => DIET_OPTIONS.includes(value as Diet);
+const isAllowedDiet = (value: unknown): value is Diet =>
+  DIET_OPTIONS.includes(value as Diet);
 
-const coerceNumber = (value: unknown, min?: number, max?: number): number | undefined => {
+const coerceNumber = (
+  value: unknown,
+  min?: number,
+  max?: number
+): number | undefined => {
   if (typeof value !== "number" || Number.isNaN(value)) return undefined;
   if (min != null && value < min) return undefined;
   if (max != null && value > max) return undefined;
@@ -135,7 +165,7 @@ const coerceNumber = (value: unknown, min?: number, max?: number): number | unde
 const normalizeInteger = (
   value: number | undefined,
   min: number,
-  max: number,
+  max: number
 ): number | undefined => {
   if (typeof value !== "number" || Number.isNaN(value)) return undefined;
   const rounded = Math.round(value);
@@ -159,26 +189,36 @@ const coerceFormFromStored = (raw: unknown): OnboardingForm => {
     heightCm: coerceNumber(data.height, 90, 260),
     goal: isAllowedGoal(data.goal) ? (data.goal as Goal) : undefined,
     timeline: coerceNumber(data.timeline, 1, 36),
-    equipment: isAllowedEquipment(data.equipment) ? (data.equipment as Equipment) : undefined,
+    equipment: isAllowedEquipment(data.equipment)
+      ? (data.equipment as Equipment)
+      : undefined,
     injuries: sanitizeText(data.injuries),
     activities: sanitizeText(data.activities),
-    experience: isAllowedExperience(data.experience) ? (data.experience as Experience) : undefined,
+    experience: isAllowedExperience(data.experience)
+      ? (data.experience as Experience)
+      : undefined,
     diet: isAllowedDiet(data.diet) ? (data.diet as Diet) : undefined,
     likes: sanitizeText(data.likes),
-    notifications: typeof data.notifications === "boolean" ? (data.notifications as boolean) : undefined,
+    notifications:
+      typeof data.notifications === "boolean"
+        ? (data.notifications as boolean)
+        : undefined,
   };
 };
 
 const mergeForms = (...forms: OnboardingForm[]): OnboardingForm =>
   forms.reduce<OnboardingForm>((acc, current) => {
     const next = { ...acc };
-    (Object.entries(current) as [keyof OnboardingForm, OnboardingForm[keyof OnboardingForm]][]).forEach(
-      ([key, value]) => {
-        if (value !== undefined) {
-          next[key] = value;
-        }
-      },
-    );
+    (
+      Object.entries(current) as [
+        keyof OnboardingForm,
+        OnboardingForm[keyof OnboardingForm],
+      ][]
+    ).forEach(([key, value]) => {
+      if (value !== undefined) {
+        next[key] = value;
+      }
+    });
     return next;
   }, {});
 
@@ -193,10 +233,15 @@ const normalizeForm = (form: OnboardingForm): OnboardingPayload => {
   if (goal) payload.goal = goal;
   const timeline = normalizeInteger(form.timeline, 1, 36);
   if (timeline != null) payload.timeline = timeline;
-  const equipment = form.equipment && isAllowedEquipment(form.equipment) ? form.equipment : undefined;
+  const equipment =
+    form.equipment && isAllowedEquipment(form.equipment)
+      ? form.equipment
+      : undefined;
   if (equipment) payload.equipment = equipment;
   const experience =
-    form.experience && isAllowedExperience(form.experience) ? form.experience : undefined;
+    form.experience && isAllowedExperience(form.experience)
+      ? form.experience
+      : undefined;
   if (experience) payload.experience = experience;
   const diet = form.diet && isAllowedDiet(form.diet) ? form.diet : undefined;
   if (diet) payload.diet = diet;
@@ -206,7 +251,8 @@ const normalizeForm = (form: OnboardingForm): OnboardingPayload => {
   if (activities) payload.activities = activities;
   const likes = sanitizeText(form.likes);
   if (likes) payload.likes = likes;
-  if (typeof form.notifications === "boolean") payload.notifications = form.notifications;
+  if (typeof form.notifications === "boolean")
+    payload.notifications = form.notifications;
   return payload;
 };
 
@@ -218,16 +264,19 @@ const validateStep = (step: number, form: OnboardingForm): string | null => {
     case 0:
       if (normalizeInteger(form.age, 13, 100) == null) return "Add your age.";
       if (!isAllowedSex(form.sex)) return "Select your sex.";
-      if (normalizeInteger(form.heightCm, 90, 260) == null) return "Enter your height.";
+      if (normalizeInteger(form.heightCm, 90, 260) == null)
+        return "Enter your height.";
       return null;
     case 1:
       if (!isAllowedGoal(form.goal)) return "Pick your primary goal.";
       return null;
     case 2:
-      if (!isAllowedEquipment(form.equipment)) return "Tell us about your equipment access.";
+      if (!isAllowedEquipment(form.equipment))
+        return "Tell us about your equipment access.";
       return null;
     case 3:
-      if (!isAllowedExperience(form.experience)) return "Select your experience level.";
+      if (!isAllowedExperience(form.experience))
+        return "Select your experience level.";
       return null;
     default:
       return null;
@@ -267,19 +316,20 @@ export default function Onboarding() {
 
   const returnToTarget = useMemo(
     () => sanitizeReturnTo(searchParams.get("returnTo")),
-    [searchParams],
+    [searchParams]
   );
 
   const destinationAfterOnboarding = returnToTarget ?? POST_ONBOARDING_ROUTE;
 
   const userDocRef = useMemo(
     () => (user?.uid && db ? doc(db, "users", user.uid) : null),
-    [user?.uid, db],
+    [user?.uid, db]
   );
 
   const onboardingDocRef = useMemo(
-    () => (user?.uid && db ? doc(db, "users", user.uid, "meta", "onboarding") : null),
-    [user?.uid, db],
+    () =>
+      user?.uid && db ? doc(db, "users", user.uid, "meta", "onboarding") : null,
+    [user?.uid, db]
   );
 
   useEffect(() => {
@@ -312,16 +362,23 @@ export default function Onboarding() {
           }
 
           const metaStep =
-            typeof metaData.step === "number" ? clampStep(metaData.step) : clampStep(step);
+            typeof metaData.step === "number"
+              ? clampStep(metaData.step)
+              : clampStep(step);
           const rootForm = userSnap.exists()
-            ? coerceFormFromStored((userSnap.data() as Record<string, unknown>).onboarding)
+            ? coerceFormFromStored(
+                (userSnap.data() as Record<string, unknown>).onboarding
+              )
             : DEFAULT_FORM;
           const metaDraft = coerceFormFromStored(metaData.draft);
           const merged = mergeForms(DEFAULT_FORM, rootForm, metaDraft);
           setForm(merged);
           setStep(metaStep);
           const sanitized = normalizeForm(merged);
-          lastPersistedPayloadRef.current = serializeProgress(metaStep, sanitized);
+          lastPersistedPayloadRef.current = serializeProgress(
+            metaStep,
+            sanitized
+          );
           const updatedAt =
             metaData.updatedAt && typeof metaData.updatedAt === "object"
               ? (metaData.updatedAt as { toDate?: () => Date })
@@ -332,7 +389,9 @@ export default function Onboarding() {
         } else {
           metaInitializedRef.current = false;
           const rootForm = userSnap.exists()
-            ? coerceFormFromStored((userSnap.data() as Record<string, unknown>).onboarding)
+            ? coerceFormFromStored(
+                (userSnap.data() as Record<string, unknown>).onboarding
+              )
             : DEFAULT_FORM;
           setForm(rootForm);
           setStep(0);
@@ -354,7 +413,15 @@ export default function Onboarding() {
     return () => {
       cancelled = true;
     };
-  }, [user?.uid, userDocRef, onboardingDocRef, navigate, reloadToken, db, destinationAfterOnboarding]);
+  }, [
+    user?.uid,
+    userDocRef,
+    onboardingDocRef,
+    navigate,
+    reloadToken,
+    db,
+    destinationAfterOnboarding,
+  ]);
 
   const persistMeta = useCallback(
     async (payload: PersistMetaPayload, opts: { silent?: boolean } = {}) => {
@@ -391,11 +458,18 @@ export default function Onboarding() {
         throw error;
       }
     },
-    [onboardingDocRef],
+    [onboardingDocRef]
   );
 
   useEffect(() => {
-    if (!onboardingDocRef || initializing || !user || completedRef.current || !db) return;
+    if (
+      !onboardingDocRef ||
+      initializing ||
+      !user ||
+      completedRef.current ||
+      !db
+    )
+      return;
     const sanitized = normalizeForm(form);
     const serialized = serializeProgress(step, sanitized);
     if (serialized === lastPersistedPayloadRef.current) return;
@@ -418,7 +492,11 @@ export default function Onboarding() {
     const error = validateStep(step, form);
     if (error) {
       setStepMessage(error);
-      toast({ title: "Almost there", description: error, variant: "destructive" });
+      toast({
+        title: "Almost there",
+        description: error,
+        variant: "destructive",
+      });
       return;
     }
     setStepMessage(null);
@@ -434,7 +512,11 @@ export default function Onboarding() {
     const validation = validateForCompletion(form);
     if (validation) {
       setStepMessage(validation);
-      toast({ title: "Missing details", description: validation, variant: "destructive" });
+      toast({
+        title: "Missing details",
+        description: validation,
+        variant: "destructive",
+      });
       return;
     }
     if (!userDocRef || !onboardingDocRef) {
@@ -449,7 +531,8 @@ export default function Onboarding() {
     if (Object.keys(sanitized).length === 0) {
       toast({
         title: "Add your details",
-        description: "Share at least one preference before completing onboarding.",
+        description:
+          "Share at least one preference before completing onboarding.",
         variant: "destructive",
       });
       return;
@@ -467,7 +550,7 @@ export default function Onboarding() {
               completedAt: timestamp,
             },
           },
-          { merge: true },
+          { merge: true }
         ),
         persistMeta(
           {
@@ -476,12 +559,18 @@ export default function Onboarding() {
             completedAt: timestamp,
             draft: sanitized,
           },
-          { silent: false },
+          { silent: false }
         ),
       ]);
-      lastPersistedPayloadRef.current = serializeProgress(STEP_TITLES.length - 1, sanitized);
+      lastPersistedPayloadRef.current = serializeProgress(
+        STEP_TITLES.length - 1,
+        sanitized
+      );
       completedRef.current = true;
-      toast({ title: "Profile complete!", description: "Welcome to MyBodyScan" });
+      toast({
+        title: "Profile complete!",
+        description: "Welcome to MyBodyScan",
+      });
       navigate(destinationAfterOnboarding, { replace: true });
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : null;
@@ -492,7 +581,11 @@ export default function Onboarding() {
       } else if (code === "unauthenticated") {
         description = "Please sign in again to finish onboarding.";
       }
-      toast({ title: "Error saving profile", description, variant: "destructive" });
+      toast({
+        title: "Error saving profile",
+        description,
+        variant: "destructive",
+      });
     } finally {
       setSavingFinal(false);
     }
@@ -529,7 +622,12 @@ export default function Onboarding() {
                   placeholder="25"
                   value={form.age ?? ""}
                   onChange={(event) =>
-                    updateForm({ age: event.target.value === "" ? undefined : Number(event.target.value) })
+                    updateForm({
+                      age:
+                        event.target.value === ""
+                          ? undefined
+                          : Number(event.target.value),
+                    })
                   }
                 />
               </div>
@@ -545,7 +643,9 @@ export default function Onboarding() {
                   <SelectContent>
                     {SEX_OPTIONS.map((option) => (
                       <SelectItem key={option} value={option}>
-                        {option === "other" ? "Other" : option.charAt(0).toUpperCase() + option.slice(1)}
+                        {option === "other"
+                          ? "Other"
+                          : option.charAt(0).toUpperCase() + option.slice(1)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -556,7 +656,9 @@ export default function Onboarding() {
                 <div className="mt-1">
                   <HeightInputUS
                     valueCm={form.heightCm}
-                    onChangeCm={(cm) => updateForm({ heightCm: cm && cm > 0 ? cm : undefined })}
+                    onChangeCm={(cm) =>
+                      updateForm({ heightCm: cm && cm > 0 ? cm : undefined })
+                    }
                   />
                 </div>
               </div>
@@ -596,7 +698,10 @@ export default function Onboarding() {
                   value={form.timeline ?? ""}
                   onChange={(event) =>
                     updateForm({
-                      timeline: event.target.value === "" ? undefined : Number(event.target.value),
+                      timeline:
+                        event.target.value === ""
+                          ? undefined
+                          : Number(event.target.value),
                     })
                   }
                 />
@@ -612,7 +717,9 @@ export default function Onboarding() {
                 <Label htmlFor="equipment">Available equipment</Label>
                 <Select
                   value={form.equipment ?? ""}
-                  onValueChange={(value) => updateForm({ equipment: value as Equipment })}
+                  onValueChange={(value) =>
+                    updateForm({ equipment: value as Equipment })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select equipment access" />
@@ -631,7 +738,9 @@ export default function Onboarding() {
                   id="injuries"
                   placeholder="e.g., Lower back, knee issues (optional)"
                   value={form.injuries ?? ""}
-                  onChange={(event) => updateForm({ injuries: event.target.value })}
+                  onChange={(event) =>
+                    updateForm({ injuries: event.target.value })
+                  }
                 />
               </div>
             </div>
@@ -647,22 +756,32 @@ export default function Onboarding() {
                   id="activities"
                   placeholder="e.g., Running, weight training, yoga"
                   value={form.activities ?? ""}
-                  onChange={(event) => updateForm({ activities: event.target.value })}
+                  onChange={(event) =>
+                    updateForm({ activities: event.target.value })
+                  }
                 />
               </div>
               <div>
                 <Label htmlFor="experience">Experience level</Label>
                 <Select
                   value={form.experience ?? ""}
-                  onValueChange={(value) => updateForm({ experience: value as Experience })}
+                  onValueChange={(value) =>
+                    updateForm({ experience: value as Experience })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select experience level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="beginner">Beginner (0-6 months)</SelectItem>
-                    <SelectItem value="intermediate">Intermediate (6 months - 2 years)</SelectItem>
-                    <SelectItem value="advanced">Advanced (2+ years)</SelectItem>
+                    <SelectItem value="beginner">
+                      Beginner (0-6 months)
+                    </SelectItem>
+                    <SelectItem value="intermediate">
+                      Intermediate (6 months - 2 years)
+                    </SelectItem>
+                    <SelectItem value="advanced">
+                      Advanced (2+ years)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -697,7 +816,9 @@ export default function Onboarding() {
                   id="likes"
                   placeholder="e.g., Chicken, fish, vegetables"
                   value={form.likes ?? ""}
-                  onChange={(event) => updateForm({ likes: event.target.value })}
+                  onChange={(event) =>
+                    updateForm({ likes: event.target.value })
+                  }
                 />
               </div>
               <div className="flex items-center space-x-2">
@@ -705,10 +826,14 @@ export default function Onboarding() {
                   id="notifications"
                   checked={!!form.notifications}
                   onCheckedChange={(checked) =>
-                    updateForm({ notifications: checked === true ? true : false })
+                    updateForm({
+                      notifications: checked === true ? true : false,
+                    })
                   }
                 />
-                <Label htmlFor="notifications">Enable scan reminders and coaching tips</Label>
+                <Label htmlFor="notifications">
+                  Enable scan reminders and coaching tips
+                </Label>
               </div>
             </div>
           </Section>
@@ -720,7 +845,9 @@ export default function Onboarding() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-md space-y-6 p-6">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-foreground">Setup Your Profile</h1>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Setup Your Profile
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Step {step + 1} of {STEP_TITLES.length}: {STEP_TITLES[step]}
           </p>
@@ -731,7 +858,11 @@ export default function Onboarding() {
             <AlertTitle>We couldn&apos;t load everything</AlertTitle>
             <AlertDescription className="mt-2 flex items-center justify-between gap-2">
               <span>{loadError}</span>
-              <Button size="sm" variant="outline" onClick={() => setReloadToken((prev) => prev + 1)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setReloadToken((prev) => prev + 1)}
+              >
                 Retry
               </Button>
             </AlertDescription>
@@ -744,7 +875,9 @@ export default function Onboarding() {
           </CardHeader>
           <CardContent className="space-y-4">
             {renderStep()}
-            {stepMessage && <p className="text-sm text-destructive">{stepMessage}</p>}
+            {stepMessage && (
+              <p className="text-sm text-destructive">{stepMessage}</p>
+            )}
             <p className="text-xs text-muted-foreground">{progressLabel}</p>
             {draftError && (
               <Alert variant="destructive">
@@ -766,7 +899,11 @@ export default function Onboarding() {
               Next
             </Button>
           ) : (
-            <DemoWriteButton className="flex-1" disabled={savingFinal} onClick={handleFinish}>
+            <DemoWriteButton
+              className="flex-1"
+              disabled={savingFinal}
+              onClick={handleFinish}
+            >
               {savingFinal ? "Saving…" : "Complete Setup"}
             </DemoWriteButton>
           )}

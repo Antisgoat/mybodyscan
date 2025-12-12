@@ -10,14 +10,14 @@ const config = {
   bundledWebRuntime: false,
   server: {
     androidScheme: "https",
-    cleartext: false
+    cleartext: false,
   },
   ios: {
-    contentInset: "automatic"
+    contentInset: "automatic",
   },
   android: {
-    allowMixedContent: false
-  }
+    allowMixedContent: false,
+  },
 } as const;
 
 export default config;

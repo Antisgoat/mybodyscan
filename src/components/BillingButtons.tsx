@@ -26,10 +26,16 @@ export default function BillingButtons({ className }: Props) {
     (async () => {
       const shimEnabled = isHostingShimEnabled();
       const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
-        { url: getPaymentFunctionUrl("createCustomerPortal"), kind: "function" },
+        {
+          url: getPaymentFunctionUrl("createCustomerPortal"),
+          kind: "function",
+        },
       ];
       if (shimEnabled) {
-        endpoints.push({ url: getPaymentHostingPath("createCustomerPortal"), kind: "hosting" });
+        endpoints.push({
+          url: getPaymentHostingPath("createCustomerPortal"),
+          kind: "hosting",
+        });
       }
 
       for (const endpoint of endpoints) {
@@ -68,7 +74,8 @@ export default function BillingButtons({ className }: Props) {
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
       const message = describeCheckoutError(code);
-      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
+      const description =
+        import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
         title: "Unable to start checkout",
         description,
@@ -91,7 +98,8 @@ export default function BillingButtons({ className }: Props) {
     } catch (err: any) {
       const code = typeof err?.code === "string" ? err.code : undefined;
       const message = describePortalError(code);
-      const description = import.meta.env.DEV && code ? `${message} (${code})` : message;
+      const description =
+        import.meta.env.DEV && code ? `${message} (${code})` : message;
       toast({
         title: "Unable to open billing portal",
         description,
@@ -123,10 +131,18 @@ export default function BillingButtons({ className }: Props) {
           disabled={!enabled || busy || !portalAvailable}
           aria-label="Manage billing"
         >
-          {pending === "portal" ? "Loading…" : portalAvailable ? "Manage Billing" : "Portal unavailable"}
+          {pending === "portal"
+            ? "Loading…"
+            : portalAvailable
+              ? "Manage Billing"
+              : "Portal unavailable"}
         </Button>
       </div>
-      {!enabled && <div className="mt-1 text-xs text-muted-foreground">Billing disabled (no Stripe key).</div>}
+      {!enabled && (
+        <div className="mt-1 text-xs text-muted-foreground">
+          Billing disabled (no Stripe key).
+        </div>
+      )}
     </div>
   );
 }

@@ -160,7 +160,10 @@ async function fetchProfile(uid: string): Promise<CoachProfile | null> {
     if (!snap.exists) return null;
     return snap.data() as CoachProfile;
   } catch (err) {
-    console.warn("coach_plan_profile_error", { uid, message: (err as any)?.message });
+    console.warn("coach_plan_profile_error", {
+      uid,
+      message: (err as any)?.message,
+    });
     return null;
   }
 }
@@ -179,22 +182,26 @@ function buildPlan(profile: CoachProfile | null): GeneratedPlan {
     progression: { deloadEvery: 4 },
     calorieTarget,
     proteinFloor,
-    disclaimer: "Training and nutrition guidance for education only – not medical advice.",
+    disclaimer:
+      "Training and nutrition guidance for education only – not medical advice.",
     updatedAt: Timestamp.now(),
   };
 }
 
-export const generatePlan = onCall({ region: "us-central1" }, async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "Sign in to generate a plan");
+export const generatePlan = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in to generate a plan");
+    }
+
+    const profile = await fetchProfile(uid);
+    const plan = buildPlan(profile);
+
+    // Write to single document at users/{uid}/coachPlans/current
+    await db.doc(coachPlanDocPath(uid)).set(plan);
+
+    return { plan: { ...plan, updatedAt: plan.updatedAt.toMillis() } };
   }
-
-  const profile = await fetchProfile(uid);
-  const plan = buildPlan(profile);
-
-  // Write to single document at users/{uid}/coachPlans/current
-  await db.doc(coachPlanDocPath(uid)).set(plan);
-
-  return { plan: { ...plan, updatedAt: plan.updatedAt.toMillis() } };
-});
+);

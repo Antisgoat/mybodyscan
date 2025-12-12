@@ -1,5 +1,12 @@
 import { deleteDoc, setDoc } from "@/lib/dbWrite";
-import { collection, doc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
 import { getCachedAuth } from "@/lib/auth";
@@ -56,7 +63,10 @@ export function templatesQuery(uid?: string) {
   return query(templatesCollection(userId), orderBy("updatedAt", "desc"));
 }
 
-export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => void, uid?: string) {
+export function subscribeFavorites(
+  callback: (items: FavoriteDocWithId[]) => void,
+  uid?: string
+) {
   return onSnapshot(
     favoritesQuery(uid),
     (snap) => {
@@ -68,13 +78,19 @@ export function subscribeFavorites(callback: (items: FavoriteDocWithId[]) => voi
       callback(list);
     },
     (error) => {
-      console.warn("favorites_subscribe_error", { code: (error as { code?: string })?.code, message: (error as Error)?.message });
+      console.warn("favorites_subscribe_error", {
+        code: (error as { code?: string })?.code,
+        message: (error as Error)?.message,
+      });
       callback([]);
-    },
+    }
   );
 }
 
-export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => void, uid?: string) {
+export function subscribeTemplates(
+  callback: (items: TemplateDocWithId[]) => void,
+  uid?: string
+) {
   return onSnapshot(
     templatesQuery(uid),
     (snap) => {
@@ -86,9 +102,12 @@ export function subscribeTemplates(callback: (items: TemplateDocWithId[]) => voi
       callback(list);
     },
     (error) => {
-      console.warn("templates_subscribe_error", { code: (error as { code?: string })?.code, message: (error as Error)?.message });
+      console.warn("templates_subscribe_error", {
+        code: (error as { code?: string })?.code,
+        message: (error as Error)?.message,
+      });
       callback([]);
-    },
+    }
   );
 }
 
@@ -115,7 +134,12 @@ export interface TemplateDocWithId extends TemplateDoc {
   id: string;
 }
 
-export async function saveTemplate(id: string | null, name: string, items: TemplateItem[], uid?: string) {
+export async function saveTemplate(
+  id: string | null,
+  name: string,
+  items: TemplateItem[],
+  uid?: string
+) {
   const templateId =
     id ??
     (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"

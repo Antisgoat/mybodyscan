@@ -19,8 +19,19 @@ export type NutritionSearchRequest = {
 };
 
 export type NutritionSearchResponse =
-  | { status: "ok"; results: FoodItem[]; source?: string | null; message?: string | null; debugId?: string | null }
-  | { status: "upstream_error"; results: FoodItem[]; message?: string | null; debugId?: string | null };
+  | {
+      status: "ok";
+      results: FoodItem[];
+      source?: string | null;
+      message?: string | null;
+      debugId?: string | null;
+    }
+  | {
+      status: "upstream_error";
+      results: FoodItem[];
+      message?: string | null;
+      debugId?: string | null;
+    };
 
 export interface DailyLogResponse {
   date: string;
@@ -33,7 +44,10 @@ export interface NutritionHistoryResponse {
   days: { date: string; totals: DailyLogResponse["totals"] }[];
 }
 
-const nutritionSearchCallable = httpsCallable<NutritionSearchRequest, NutritionSearchResponse>(functions, "nutritionSearch");
+const nutritionSearchCallable = httpsCallable<
+  NutritionSearchRequest,
+  NutritionSearchResponse
+>(functions, "nutritionSearch");
 
 // Legacy/test helper: normalize raw nutrition items (USDA/OFF/etc) into the lightweight FoodItem shape.
 // This is intentionally tolerant of missing fields and is safe to use in UI mapping.
@@ -59,11 +73,14 @@ function normalizeNutritionError(error: unknown): Error {
     } else if (code.includes("resource-exhausted")) {
       message = "You’re searching too quickly. Please slow down.";
     } else if (code.includes("unavailable") || code.includes("internal")) {
-      message = "Food database temporarily unavailable; please try again later.";
+      message =
+        "Food database temporarily unavailable; please try again later.";
     }
     const err = new Error(message);
-    (err as Error & { code?: string; debugId?: string }).code = code || error.name;
-    (err as Error & { code?: string; debugId?: string }).debugId = extractDebugId(error);
+    (err as Error & { code?: string; debugId?: string }).code =
+      code || error.name;
+    (err as Error & { code?: string; debugId?: string }).debugId =
+      extractDebugId(error);
     return err;
   }
   if (error instanceof Error) return error;
@@ -72,7 +89,11 @@ function normalizeNutritionError(error: unknown): Error {
 
 export async function nutritionSearch(
   term: string,
-  init?: { page?: number; pageSize?: number; sourcePreference?: "usda-first" | "off-first" | "combined" },
+  init?: {
+    page?: number;
+    pageSize?: number;
+    sourcePreference?: "usda-first" | "off-first" | "combined";
+  }
 ): Promise<NutritionSearchResponse> {
   const trimmed = term.trim();
   if (!trimmed) {
@@ -97,7 +118,9 @@ export async function nutritionSearch(
       return {
         status: "upstream_error",
         results: normalized,
-        message: payload?.message ?? "Food database temporarily unavailable; please try again later.",
+        message:
+          payload?.message ??
+          "Food database temporarily unavailable; please try again later.",
         debugId: payload?.debugId ?? null,
       };
     }
@@ -122,10 +145,15 @@ export async function fetchDailyLog(date?: string): Promise<DailyLogResponse> {
     params.set("date", date);
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return apiFetchJson<DailyLogResponse>(`/nutrition/daily-log${suffix}`, { method: "GET" });
+  return apiFetchJson<DailyLogResponse>(`/nutrition/daily-log${suffix}`, {
+    method: "GET",
+  });
 }
 
-export async function fetchNutritionHistory(days?: number, anchorDate?: string): Promise<NutritionHistoryResponse> {
+export async function fetchNutritionHistory(
+  days?: number,
+  anchorDate?: string
+): Promise<NutritionHistoryResponse> {
   const params = new URLSearchParams();
   if (days != null) {
     params.set("days", String(days));
@@ -134,5 +162,7 @@ export async function fetchNutritionHistory(days?: number, anchorDate?: string):
     params.set("anchorDate", anchorDate);
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return apiFetchJson<NutritionHistoryResponse>(`/nutrition/history${suffix}`, { method: "GET" });
+  return apiFetchJson<NutritionHistoryResponse>(`/nutrition/history${suffix}`, {
+    method: "GET",
+  });
 }

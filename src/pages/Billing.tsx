@@ -74,7 +74,8 @@ export default function Billing() {
     <div className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-bold mb-4">Billing</h1>
       <p className="mb-4 text-sm text-gray-600">
-        Credits let you run body scans. Subscriptions deposit credits every billing cycle.
+        Credits let you run body scans. Subscriptions deposit credits every
+        billing cycle.
       </p>
       <div className="mb-4">
         Current credits: <b>{credits ?? "…"}</b>
@@ -88,12 +89,17 @@ export default function Billing() {
             go(async () => {
               const priceId = PRICE_IDS.one;
               if (!priceId) throw new Error("Plan unavailable");
-              const { sessionId, url } = await startCheckout(priceId, MODES.one);
+              const { sessionId, url } = await startCheckout(
+                priceId,
+                MODES.one
+              );
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
                 if (result.error) {
-                  throw new Error(result.error.message || "Stripe redirect failed");
+                  throw new Error(
+                    result.error.message || "Stripe redirect failed"
+                  );
                 }
                 return;
               }
@@ -115,12 +121,17 @@ export default function Billing() {
             go(async () => {
               const priceId = PRICE_IDS.monthly;
               if (!priceId) throw new Error("Plan unavailable");
-              const { sessionId, url } = await startCheckout(priceId, MODES.monthly);
+              const { sessionId, url } = await startCheckout(
+                priceId,
+                MODES.monthly
+              );
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
                 if (result.error) {
-                  throw new Error(result.error.message || "Stripe redirect failed");
+                  throw new Error(
+                    result.error.message || "Stripe redirect failed"
+                  );
                 }
                 return;
               }
@@ -142,12 +153,17 @@ export default function Billing() {
             go(async () => {
               const priceId = PRICE_IDS.yearly;
               if (!priceId) throw new Error("Plan unavailable");
-              const { sessionId, url } = await startCheckout(priceId, MODES.yearly);
+              const { sessionId, url } = await startCheckout(
+                priceId,
+                MODES.yearly
+              );
               const stripe = stripePromise ? await stripePromise : null;
               if (stripe && sessionId) {
                 const result = await stripe.redirectToCheckout({ sessionId });
                 if (result.error) {
-                  throw new Error(result.error.message || "Stripe redirect failed");
+                  throw new Error(
+                    result.error.message || "Stripe redirect failed"
+                  );
                 }
                 return;
               }

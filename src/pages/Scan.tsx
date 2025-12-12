@@ -8,7 +8,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteScanApi, startScanSessionClient, submitScanClient, type ScanUploadProgress } from "@/lib/api/scan";
+import {
+  deleteScanApi,
+  startScanSessionClient,
+  submitScanClient,
+  type ScanUploadProgress,
+} from "@/lib/api/scan";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
@@ -31,8 +36,15 @@ export default function ScanPage() {
   const nav = useNavigate();
   const [currentWeight, setCurrentWeight] = useState("");
   const [goalWeight, setGoalWeight] = useState("");
-  const [photos, setPhotos] = useState<PhotoInputs>({ front: null, back: null, left: null, right: null });
-  const [status, setStatus] = useState<"idle" | "starting" | "uploading" | "analyzing">("idle");
+  const [photos, setPhotos] = useState<PhotoInputs>({
+    front: null,
+    back: null,
+    left: null,
+    right: null,
+  });
+  const [status, setStatus] = useState<
+    "idle" | "starting" | "uploading" | "analyzing"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [delayNotice, setDelayNotice] = useState<string | null>(null);
@@ -43,14 +55,23 @@ export default function ScanPage() {
   const sessionFinalizedRef = useRef<boolean>(false);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
-  const openaiMissing = systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false;
+  const openaiMissing =
+    systemHealth?.openaiConfigured === false ||
+    systemHealth?.openaiKeyPresent === false;
 
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
 
   const missingFields = useMemo(() => {
-    return !currentWeight || !goalWeight || !photos.front || !photos.back || !photos.left || !photos.right;
+    return (
+      !currentWeight ||
+      !goalWeight ||
+      !photos.front ||
+      !photos.back ||
+      !photos.left ||
+      !photos.right
+    );
   }, [currentWeight, goalWeight, photos]);
 
   useEffect(() => {
@@ -58,11 +79,15 @@ export default function ScanPage() {
     if (status === "uploading") {
       timer = setTimeout(() => {
         // FIX: Surface long-running uploads with actionable guidance instead of leaving users guessing.
-        setDelayNotice("Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls.");
+        setDelayNotice(
+          "Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls."
+        );
       }, 60000);
     } else if (status === "analyzing") {
       timer = setTimeout(() => {
-        setDelayNotice("Analysis is still running. We'll notify you as soon as your scan finishes.");
+        setDelayNotice(
+          "Analysis is still running. We'll notify you as soon as your scan finishes."
+        );
       }, 90000);
     } else {
       setDelayNotice(null);
@@ -79,7 +104,11 @@ export default function ScanPage() {
     setStatusDetail(null);
     setUploadProgress(null);
     setUploadPose(null);
-    toast({ title: "Scan paused", description: message, variant: "destructive" });
+    toast({
+      title: "Scan paused",
+      description: message,
+      variant: "destructive",
+    });
   };
 
   const cleanupPendingScan = useCallback(
@@ -93,7 +122,7 @@ export default function ScanPage() {
         setActiveScanId((prev) => (prev === scanId ? null : prev));
       }
     },
-    [setActiveScanId],
+    [setActiveScanId]
   );
 
   async function handleSubmit(event: React.FormEvent) {
@@ -122,16 +151,21 @@ export default function ScanPage() {
       setError(
         openaiMissing
           ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
-          : "Body scans are offline until the functions URL is configured.",
+          : "Body scans are offline until the functions URL is configured."
       );
       return;
     }
     try {
       setStatus("starting");
       setStatusDetail("Verifying credits and reserving secure compute…");
-      const start = await startScanSessionClient({ currentWeightKg, goalWeightKg });
+      const start = await startScanSessionClient({
+        currentWeightKg,
+        goalWeightKg,
+      });
       if (!start.ok) {
-        const debugSuffix = start.error.debugId ? ` (ref ${start.error.debugId.slice(0, 8)})` : "";
+        const debugSuffix = start.error.debugId
+          ? ` (ref ${start.error.debugId.slice(0, 8)})`
+          : "";
         failFlow(start.error.message + debugSuffix);
         return;
       }
@@ -164,15 +198,17 @@ export default function ScanPage() {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
             setStatusDetail(
-              `Uploading ${info.pose} photo (${filePercent}% of this file · ${overallPercent}% total)… keep this tab open.`,
+              `Uploading ${info.pose} photo (${filePercent}% of this file · ${overallPercent}% total)… keep this tab open.`
             );
           },
-        },
+        }
       );
       sessionFinalizedRef.current = true;
 
       if (!submit.ok) {
-        const debugSuffix = submit.error.debugId ? ` (ref ${submit.error.debugId.slice(0, 8)})` : "";
+        const debugSuffix = submit.error.debugId
+          ? ` (ref ${submit.error.debugId.slice(0, 8)})`
+          : "";
         if (submit.error.reason === "upload_failed") {
           await cleanupPendingScan(startedScanId);
           sessionScanId = null;
@@ -184,13 +220,17 @@ export default function ScanPage() {
       setUploadProgress(null);
       setUploadPose(null);
       setStatus("analyzing");
-      setStatusDetail("Photos uploaded. Waiting for AI analysis—this can take a couple of minutes.");
+      setStatusDetail(
+        "Photos uploaded. Waiting for AI analysis—this can take a couple of minutes."
+      );
       sessionScanId = null;
       setActiveScanId(null);
       nav(`/scans/${startedScanId}`);
     } catch (err) {
       console.error("scan.submit.unexpected", err);
-      failFlow("We hit an unexpected error while starting your scan. Please try again.");
+      failFlow(
+        "We hit an unexpected error while starting your scan. Please try again."
+      );
       if (sessionScanId) {
         await cleanupPendingScan(sessionScanId);
       }
@@ -225,8 +265,8 @@ export default function ScanPage() {
     <div className="mx-auto max-w-2xl space-y-6 p-4">
       <h1 className="text-xl font-semibold">AI Body Scan</h1>
       <p className="text-sm text-muted-foreground">
-        Upload four photos and your current/goal weight. We&apos;ll analyze your body composition and build a personalized workout
-        and nutrition plan.
+        Upload four photos and your current/goal weight. We&apos;ll analyze your
+        body composition and build a personalized workout and nutrition plan.
       </p>
 
       {!scanConfigured && (
@@ -269,22 +309,31 @@ export default function ScanPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {(["front", "back", "left", "right"] as Array<keyof PhotoInputs>).map((pose) => (
-            <label key={pose} className="flex flex-col gap-2 rounded border p-3 text-sm font-medium capitalize">
-              {pose}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => onFileChange(pose, e.target.files)}
-                className="text-xs"
-              />
-              {photos[pose] ? (
-                <span className="text-xs text-muted-foreground">{photos[pose]?.name}</span>
-              ) : (
-                <span className="text-xs text-muted-foreground">Upload a clear {pose} photo</span>
-              )}
-            </label>
-          ))}
+          {(["front", "back", "left", "right"] as Array<keyof PhotoInputs>).map(
+            (pose) => (
+              <label
+                key={pose}
+                className="flex flex-col gap-2 rounded border p-3 text-sm font-medium capitalize"
+              >
+                {pose}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => onFileChange(pose, e.target.files)}
+                  className="text-xs"
+                />
+                {photos[pose] ? (
+                  <span className="text-xs text-muted-foreground">
+                    {photos[pose]?.name}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Upload a clear {pose} photo
+                  </span>
+                )}
+              </label>
+            )
+          )}
         </div>
 
         {error && <p className="text-sm text-red-700">{error}</p>}
@@ -308,7 +357,10 @@ export default function ScanPage() {
               />
             </div>
             {uploadPose && (
-              <p className="text-[11px] text-muted-foreground" aria-live="polite">
+              <p
+                className="text-[11px] text-muted-foreground"
+                aria-live="polite"
+              >
                 {`Uploading ${uploadPose}… ${toVisiblePercent(uploadProgress)}% complete`}
               </p>
             )}

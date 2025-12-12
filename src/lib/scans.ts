@@ -74,15 +74,17 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
     measurements.weight_lbs
   );
 
-  const weightLb = weightLbDirect ?? (weightKg != null ? kgToLb(weightKg) : null);
+  const weightLb =
+    weightLbDirect ?? (weightKg != null ? kgToLb(weightKg) : null);
 
-  const method = typeof metrics.method === "string"
-    ? metrics.method
-    : typeof fallback.method === "string"
-      ? fallback.method
-      : typeof results.method === "string"
-        ? results.method
-        : null;
+  const method =
+    typeof metrics.method === "string"
+      ? metrics.method
+      : typeof fallback.method === "string"
+        ? fallback.method
+        : typeof results.method === "string"
+          ? results.method
+          : null;
 
   const confidence = firstNumber(
     metrics.confidence,
@@ -100,7 +102,12 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   };
 }
 
-export type ScanStatus = "pending" | "processing" | "complete" | "error" | "unknown";
+export type ScanStatus =
+  | "pending"
+  | "processing"
+  | "complete"
+  | "error"
+  | "unknown";
 
 export type ScanDoc = {
   id?: string;
@@ -124,7 +131,9 @@ export type ScanMetrics = {
   bmi: number | null;
 };
 
-export function normalizeScanMetrics(d: ScanDoc | null | undefined): ScanMetrics {
+export function normalizeScanMetrics(
+  d: ScanDoc | null | undefined
+): ScanMetrics {
   if (!d) return { bodyFatPct: null, weightLb: null, bmi: null };
   const r = d.results || {};
 

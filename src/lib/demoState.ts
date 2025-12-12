@@ -1,4 +1,8 @@
-import { disableDemoEverywhere as disableDemoAll, enableDemo, get } from "@/state/demo";
+import {
+  disableDemoEverywhere as disableDemoAll,
+  enableDemo,
+  get,
+} from "@/state/demo";
 
 export const DEMO_KEYS = ["mbs_demo"] as const;
 

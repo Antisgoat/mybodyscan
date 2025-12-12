@@ -7,7 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
@@ -54,7 +59,10 @@ function readRecents(): FoodItem[] {
 
 function storeRecents(items: FoodItem[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, MAX_RECENTS)));
+  window.localStorage.setItem(
+    RECENTS_KEY,
+    JSON.stringify(items.slice(0, MAX_RECENTS))
+  );
 }
 
 function roundTo(value: number, decimals = 1) {
@@ -87,7 +95,8 @@ function findCupServing(servings: ServingOption[]): ServingOption | undefined {
 }
 
 function adaptSearchItem(raw: any): FoodItem {
-  const calories = Number(raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? 0) || 0;
+  const calories =
+    Number(raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? 0) || 0;
   const protein = Number(raw?.protein ?? raw?.protein_g ?? 0) || 0;
   const carbs = Number(raw?.carbs ?? raw?.carbs_g ?? 0) || 0;
   const fat = Number(raw?.fat ?? raw?.fat_g ?? 0) || 0;
@@ -157,17 +166,26 @@ interface ServingModalProps {
   onConfirm: (payload: { grams: number; quantity: number }) => void;
 }
 
-function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProps) {
+function ServingModal({
+  item,
+  open,
+  busy,
+  onClose,
+  onConfirm,
+}: ServingModalProps) {
   const defaultServing = useMemo(() => {
     if (!item.servings?.length) return null;
-    return item.servings.find((serving) => serving.isDefault) ?? item.servings[0]!;
+    return (
+      item.servings.find((serving) => serving.isDefault) ?? item.servings[0]!
+    );
   }, [item.servings]);
 
   const [grams, setGrams] = useState<number>(defaultServing?.grams ?? 100);
   const [quantity, setQuantity] = useState<number>(1);
 
   useEffect(() => {
-    const initial = item.servings?.find((option) => option.isDefault) ?? item.servings?.[0];
+    const initial =
+      item.servings?.find((option) => option.isDefault) ?? item.servings?.[0];
     setGrams(initial?.grams ?? 100);
     setQuantity(1);
   }, [item]);
@@ -175,7 +193,10 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
   const totalGrams = Math.max(0, grams * quantity);
   const macros = calculateMacros(item.basePer100g, totalGrams);
   const ounces = ouncesDisplay(totalGrams);
-  const cupServing = useMemo(() => findCupServing(item.servings ?? []), [item.servings]);
+  const cupServing = useMemo(
+    () => findCupServing(item.servings ?? []),
+    [item.servings]
+  );
 
   const presets: { label: string; grams: number }[] = [
     { label: "100 g", grams: 100 },
@@ -188,7 +209,12 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
   const disableAdd = !grams || grams <= 0 || !quantity || quantity <= 0;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-1">
@@ -260,7 +286,12 @@ function ServingModal({ item, open, busy, onClose, onConfirm }: ServingModalProp
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              disabled={busy}
+            >
               Cancel
             </Button>
             <DemoWriteButton
@@ -281,14 +312,16 @@ export default function MealsSearch() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
   const appCheckReady = true;
-  const uid = authReady ? user?.uid ?? null : null;
+  const uid = authReady ? (user?.uid ?? null) : null;
   const location = useLocation();
   const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const readOnlyDemo = demo && !user;
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
-  const [primarySource, setPrimarySource] = useState<"USDA" | "Open Food Facts" | null>(null);
+  const [primarySource, setPrimarySource] = useState<
+    "USDA" | "Open Food Facts" | null
+  >(null);
   const [recents, setRecents] = useState<FoodItem[]>(() => readRecents());
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
@@ -298,10 +331,14 @@ export default function MealsSearch() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const debouncedQuery = useDebouncedValue(query, 350);
   const { health: systemHealth } = useSystemHealth();
-  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { nutritionConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const nutritionEnabled = nutritionConfigured !== false;
-  const offlineReason = "Nutrition search is offline until nutrition API keys or rate limits are configured.";
-  const demoReason = "Nutrition search is disabled in demo mode. Sign in to use it.";
+  const offlineReason =
+    "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+  const demoReason =
+    "Nutrition search is disabled in demo mode. Sign in to use it.";
   const searchBlockReason = demo ? demoReason : offlineReason;
   const searchDisabled = demo || !nutritionEnabled;
 
@@ -359,7 +396,8 @@ export default function MealsSearch() {
         const response = await nutritionSearchClient(term);
         if (cancelled) return;
         if (!response || response.status === "upstream_error") {
-          const message = response?.message ?? "Food database temporarily busy; try again.";
+          const message =
+            response?.message ?? "Food database temporarily busy; try again.";
           setResults([]);
           setPrimarySource(null);
           setStatus(message);
@@ -368,21 +406,39 @@ export default function MealsSearch() {
         }
         const mapped = (response.results ?? []).map(adaptSearchItem);
         setResults(mapped);
-        setPrimarySource(mapped.length ? (mapped[0]!.source as "USDA" | "Open Food Facts" | null) : null);
-        setStatus(mapped.length ? `Found ${mapped.length} item${mapped.length === 1 ? "" : "s"}` : "No matches found.");
-        setSearchWarning(mapped.length ? null : "No foods matched. Try a different term.");
+        setPrimarySource(
+          mapped.length
+            ? (mapped[0]!.source as "USDA" | "Open Food Facts" | null)
+            : null
+        );
+        setStatus(
+          mapped.length
+            ? `Found ${mapped.length} item${mapped.length === 1 ? "" : "s"}`
+            : "No matches found."
+        );
+        setSearchWarning(
+          mapped.length ? null : "No foods matched. Try a different term."
+        );
       } catch (error: any) {
         if (cancelled) return;
         console.error("nutritionSearch error", error);
         toast(
           buildErrorToast(error, {
-            fallback: { title: "Search failed", description: "Food database temporarily busy; try again.", variant: "destructive" },
-          }),
+            fallback: {
+              title: "Search failed",
+              description: "Food database temporarily busy; try again.",
+              variant: "destructive",
+            },
+          })
         );
         setResults([]);
         setPrimarySource(null);
-        const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
-        const message = errMessage || "Food database temporarily busy; try again.";
+        const errMessage =
+          typeof error?.message === "string" && error.message.length
+            ? error.message
+            : String(error);
+        const message =
+          errMessage || "Food database temporarily busy; try again.";
         setStatus(message);
         setSearchWarning(message);
         try {
@@ -407,7 +463,10 @@ export default function MealsSearch() {
   }, [debouncedQuery, demo, nutritionEnabled, toast]);
 
   const updateRecents = (item: FoodItem) => {
-    const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
+    const next = [
+      item,
+      ...recents.filter((recent) => recent.id !== item.id),
+    ].slice(0, MAX_RECENTS);
     setRecents(next);
     storeRecents(next);
   };
@@ -429,13 +488,25 @@ export default function MealsSearch() {
     setStatus(`Looking up barcode ${normalized}…`);
     setSearchWarning(null);
     try {
-      const { item, items } = await backend.nutritionBarcode({ upc: normalized });
+      const { item, items } = await backend.nutritionBarcode({
+        upc: normalized,
+      });
       const list = items ?? (item ? [item] : []);
-      const adaptedList = list.map(adaptSearchItem).filter(Boolean) as FoodItem[];
+      const adaptedList = list
+        .map(adaptSearchItem)
+        .filter(Boolean) as FoodItem[];
       if (adaptedList.length) {
         setResults(adaptedList);
-        setPrimarySource(adaptedList[0]?.source === "Open Food Facts" ? "Open Food Facts" : "USDA");
-        setStatus(adaptedList.length > 1 ? `Found ${adaptedList.length} matches` : "Barcode match found");
+        setPrimarySource(
+          adaptedList[0]?.source === "Open Food Facts"
+            ? "Open Food Facts"
+            : "USDA"
+        );
+        setStatus(
+          adaptedList.length > 1
+            ? `Found ${adaptedList.length} matches`
+            : "Barcode match found"
+        );
         setSearchWarning(null);
       } else {
         setResults([]);
@@ -445,7 +516,10 @@ export default function MealsSearch() {
       }
     } catch (error: any) {
       console.error("nutritionBarcode error", error);
-      const errMessage = typeof error?.message === "string" && error.message.length ? error.message : String(error);
+      const errMessage =
+        typeof error?.message === "string" && error.message.length
+          ? error.message
+          : String(error);
       const message = errMessage || "Scan failed. Try again.";
       setResults([]);
       setPrimarySource(null);
@@ -478,7 +552,11 @@ export default function MealsSearch() {
 
   const toggleFavorite = async (item: FoodItem) => {
     if (!authReady || !appCheckReady || !uid) {
-      toast({ title: "Initializing", description: "Secure favorites are almost ready. Try again in a moment." });
+      toast({
+        title: "Initializing",
+        description:
+          "Secure favorites are almost ready. Try again in a moment.",
+      });
       return;
     }
     try {
@@ -493,20 +571,32 @@ export default function MealsSearch() {
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Favorite update failed", description: "Try again", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Favorite update failed",
+            description: "Try again",
+            variant: "destructive",
+          },
+        })
       );
     }
   };
 
-  const handleLogFood = async (item: FoodItem, grams: number, quantity: number) => {
+  const handleLogFood = async (
+    item: FoodItem,
+    grams: number,
+    quantity: number
+  ) => {
     if (demo) {
       toast({ title: "Demo mode: sign in to save" });
       return;
     }
 
     if (!authReady || !user) {
-      toast({ title: "Sign in required", description: "Sign in to log meals.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to log meals.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -546,8 +636,12 @@ export default function MealsSearch() {
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Unable to log", description: "Try again", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Unable to log",
+            description: "Try again",
+            variant: "destructive",
+          },
+        })
       );
     } finally {
       setLogging(false);
@@ -561,18 +655,30 @@ export default function MealsSearch() {
         ? "USDA primary · OFF fallback"
         : "USDA + OFF search";
 
-  const favoritesMap = useMemo(() => new Map(favorites.map((fav) => [fav.id, fav])), [favorites]);
+  const favoritesMap = useMemo(
+    () => new Map(favorites.map((fav) => [fav.id, fav])),
+    [favorites]
+  );
   const searchNotice = null;
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0" data-testid="route-meals">
-      <Seo title="Food Search" description="Find foods from USDA and OpenFoodFacts" />
+    <div
+      className="min-h-screen bg-background pb-20 md:pb-0"
+      data-testid="route-meals"
+    >
+      <Seo
+        title="Food Search"
+        description="Find foods from USDA and OpenFoodFacts"
+      />
       {readOnlyDemo && (
         <div className="px-6">
           <Alert variant="default" className="border-primary/40 bg-primary/5">
             <AlertTitle>Demo preview</AlertTitle>
             <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span>Sign up to log meals, save favorites, and sync nutrition to your account.</span>
+              <span>
+                Sign up to log meals, save favorites, and sync nutrition to your
+                account.
+              </span>
               <Button asChild size="sm" variant="outline">
                 <a href={signUpHref}>Sign up to use this feature</a>
               </Button>
@@ -583,8 +689,12 @@ export default function MealsSearch() {
       <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Search className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-2xl font-semibold text-foreground">Search Foods</h1>
-          <p className="text-sm text-muted-foreground">Tap a result to adjust servings and log it to your meals.</p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Search Foods
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Tap a result to adjust servings and log it to your meals.
+          </p>
         </div>
 
         {!nutritionEnabled && !demo && (
@@ -594,7 +704,10 @@ export default function MealsSearch() {
           </Alert>
         )}
 
-        <form className="flex gap-2" onSubmit={(event) => event.preventDefault()}>
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => event.preventDefault()}
+        >
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -616,7 +729,9 @@ export default function MealsSearch() {
           </Button>
         </form>
         {demo && (
-          <p className="text-xs text-muted-foreground">Search is disabled in demo. Sign in to use.</p>
+          <p className="text-xs text-muted-foreground">
+            Search is disabled in demo. Sign in to use.
+          </p>
         )}
 
         <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
@@ -624,7 +739,10 @@ export default function MealsSearch() {
             <DialogHeader>
               <DialogTitle>Scan a barcode</DialogTitle>
             </DialogHeader>
-            <BarcodeScanner onResult={handleBarcodeSuccess} onError={handleBarcodeError} />
+            <BarcodeScanner
+              onResult={handleBarcodeSuccess}
+              onError={handleBarcodeError}
+            />
           </DialogContent>
         </Dialog>
 
@@ -637,7 +755,12 @@ export default function MealsSearch() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {favorites.map((fav) => (
-                <Button key={fav.id} variant="secondary" size="sm" onClick={() => setSelectedItem(fav.item)}>
+                <Button
+                  key={fav.id}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedItem(fav.item)}
+                >
                   {fav.item.name}
                 </Button>
               ))}
@@ -648,11 +771,18 @@ export default function MealsSearch() {
         {recents.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">Recent</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-base">
+                Recent
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {recents.slice(0, 8).map((item) => (
-                <Button key={item.id} variant="outline" size="sm" onClick={() => setSelectedItem(item)}>
+                <Button
+                  key={item.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedItem(item)}
+                >
                   {item.name}
                 </Button>
               ))}
@@ -663,17 +793,24 @@ export default function MealsSearch() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Results</CardTitle>
-            <div className="text-xs text-muted-foreground">{primaryCaption}</div>
+            <div className="text-xs text-muted-foreground">
+              {primaryCaption}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {status && (
-              <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+              <p
+                className="text-xs text-muted-foreground"
+                role="status"
+                aria-live="polite"
+              >
                 {status}
               </p>
             )}
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Searching databases…
+                <Loader2 className="h-4 w-4 animate-spin" /> Searching
+                databases…
               </div>
             )}
             {loading && searchNotice && (
@@ -682,13 +819,18 @@ export default function MealsSearch() {
               </p>
             )}
 
-            {loading && !searchNotice && results?.length === 0 && query.trim().length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
-              </p>
-            )}
+            {loading &&
+              !searchNotice &&
+              results?.length === 0 &&
+              query.trim().length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
+                </p>
+              )}
             {!loading && !query.trim() && (
-              <p className="text-sm text-muted-foreground">Enter a food name to begin.</p>
+              <p className="text-sm text-muted-foreground">
+                Enter a food name to begin.
+              </p>
             )}
             {!loading && searchWarning && (
               <p className="text-sm text-muted-foreground">{searchWarning}</p>
@@ -702,10 +844,16 @@ export default function MealsSearch() {
                   <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{subtitle}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {subtitle}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}g P · {roundGrams(base.carbs)}g C · {roundGrams(base.fat)}g F
-                        &nbsp;<span className="text-[10px] text-muted-foreground">per 100 g</span>
+                        {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}
+                        g P · {roundGrams(base.carbs)}g C ·{" "}
+                        {roundGrams(base.fat)}g F &nbsp;
+                        <span className="text-[10px] text-muted-foreground">
+                          per 100 g
+                        </span>
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -713,7 +861,11 @@ export default function MealsSearch() {
                         size="sm"
                         variant="ghost"
                         onClick={() => toggleFavorite(item)}
-                        aria-label={favorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+                        aria-label={
+                          favorite
+                            ? `Remove ${item.name} from favorites`
+                            : `Add ${item.name} to favorites`
+                        }
                         aria-pressed={Boolean(favorite)}
                       >
                         {favorite ? (
@@ -741,7 +893,9 @@ export default function MealsSearch() {
           open={Boolean(selectedItem)}
           busy={logging}
           onClose={() => (!logging ? setSelectedItem(null) : undefined)}
-          onConfirm={({ grams, quantity }) => handleLogFood(selectedItem, grams, quantity)}
+          onConfirm={({ grams, quantity }) =>
+            handleLogFood(selectedItem, grams, quantity)
+          }
         />
       )}
     </div>

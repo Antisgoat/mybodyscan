@@ -2,12 +2,25 @@ import { useCallback, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { format, subDays, addDays } from "date-fns";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -15,7 +28,12 @@ import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useAuthUser } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
-import { addMeal as logMeal, getDailyLog, getNutritionHistory, type MealEntry } from "@/lib/nutritionBackend";
+import {
+  addMeal as logMeal,
+  getDailyLog,
+  getNutritionHistory,
+  type MealEntry,
+} from "@/lib/nutritionBackend";
 
 type ChartPoint = { date: string; calories: number };
 const EMPTY_LOG = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
@@ -161,7 +179,9 @@ const CoachTracker = () => {
       return;
     }
 
-    const mealName = isToday ? "Manual meal" : `Manual meal (${format(selectedDate, "MMM dd")})`;
+    const mealName = isToday
+      ? "Manual meal"
+      : `Manual meal (${format(selectedDate, "MMM dd")})`;
     const meal: MealEntry = {
       name: mealName,
       calories,
@@ -175,7 +195,9 @@ const CoachTracker = () => {
       await logMeal(dateStr, meal);
       toast({
         title: "Meal logged",
-        description: isToday ? "Added to today’s totals." : `Added to ${format(selectedDate, "MMM dd")}.`,
+        description: isToday
+          ? "Added to today’s totals."
+          : `Added to ${format(selectedDate, "MMM dd")}.`,
       });
       setMealForm({ calories: "", protein_g: "", carbs_g: "", fat_g: "" });
       setShowMealDialog(false);
@@ -193,10 +215,14 @@ const CoachTracker = () => {
 
   const total = log.calories || 0;
   const target = plan?.calorieTarget || 0;
-  const adjusted = offset ? target + (yesterday?.activeEnergyKcal || 0) : target;
+  const adjusted = offset
+    ? target + (yesterday?.activeEnergyKcal || 0)
+    : target;
 
-  const progressPercent = target > 0 ? Math.min((total / adjusted) * 100, 100) : 0;
-  const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+  const progressPercent =
+    target > 0 ? Math.min((total / adjusted) * 100, 100) : 0;
+  const isToday =
+    format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
   return (
     <div className="space-y-6">
@@ -233,7 +259,10 @@ const CoachTracker = () => {
               variant="ghost"
               size="sm"
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-              disabled={format(selectedDate, "yyyy-MM-dd") >= format(new Date(), "yyyy-MM-dd")}
+              disabled={
+                format(selectedDate, "yyyy-MM-dd") >=
+                format(new Date(), "yyyy-MM-dd")
+              }
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -258,7 +287,9 @@ const CoachTracker = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>{total} / {adjusted} calories</span>
+              <span>
+                {total} / {adjusted} calories
+              </span>
               <span>{Math.round(progressPercent)}%</span>
             </div>
             <Progress value={progressPercent} />
@@ -266,21 +297,29 @@ const CoachTracker = () => {
 
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-lg font-semibold text-primary">{log.protein_g}g</div>
+              <div className="text-lg font-semibold text-primary">
+                {log.protein_g}g
+              </div>
               <div className="text-xs text-muted-foreground">Protein</div>
               {plan && (
-                <div className="text-xs text-muted-foreground">Goal: {plan.proteinFloor}g</div>
+                <div className="text-xs text-muted-foreground">
+                  Goal: {plan.proteinFloor}g
+                </div>
               )}
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-accent">{log.fat_g}g</div>
+              <div className="text-lg font-semibold text-accent">
+                {log.fat_g}g
+              </div>
               <div className="text-xs text-muted-foreground">Fat</div>
               {plan && (
                 <div className="text-xs text-muted-foreground">Goal: —g</div>
               )}
             </div>
             <div className="text-center">
-              <div className="text-lg font-semibold text-warning">{log.carbs_g}g</div>
+              <div className="text-lg font-semibold text-warning">
+                {log.carbs_g}g
+              </div>
               <div className="text-xs text-muted-foreground">Carbs</div>
               {plan && (
                 <div className="text-xs text-muted-foreground">Goal: —g</div>
@@ -306,7 +345,9 @@ const CoachTracker = () => {
                     <Input
                       type="number"
                       value={mealForm.calories}
-                      onChange={(e) => setMealForm({ ...mealForm, calories: e.target.value })}
+                      onChange={(e) =>
+                        setMealForm({ ...mealForm, calories: e.target.value })
+                      }
                       placeholder="0"
                     />
                   </div>
@@ -315,7 +356,9 @@ const CoachTracker = () => {
                     <Input
                       type="number"
                       value={mealForm.protein_g}
-                      onChange={(e) => setMealForm({ ...mealForm, protein_g: e.target.value })}
+                      onChange={(e) =>
+                        setMealForm({ ...mealForm, protein_g: e.target.value })
+                      }
                       placeholder="0"
                     />
                   </div>
@@ -326,7 +369,9 @@ const CoachTracker = () => {
                     <Input
                       type="number"
                       value={mealForm.carbs_g}
-                      onChange={(e) => setMealForm({ ...mealForm, carbs_g: e.target.value })}
+                      onChange={(e) =>
+                        setMealForm({ ...mealForm, carbs_g: e.target.value })
+                      }
                       placeholder="0"
                     />
                   </div>
@@ -335,7 +380,9 @@ const CoachTracker = () => {
                     <Input
                       type="number"
                       value={mealForm.fat_g}
-                      onChange={(e) => setMealForm({ ...mealForm, fat_g: e.target.value })}
+                      onChange={(e) =>
+                        setMealForm({ ...mealForm, fat_g: e.target.value })
+                      }
                       placeholder="0"
                     />
                   </div>
@@ -358,26 +405,28 @@ const CoachTracker = () => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chart}>
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   tickFormatter={(date) => format(new Date(date), "MMM dd")}
                   fontSize={12}
                 />
                 <YAxis fontSize={12} />
-                <Tooltip 
-                  labelFormatter={(date) => format(new Date(date), "MMM dd, yyyy")}
+                <Tooltip
+                  labelFormatter={(date) =>
+                    format(new Date(date), "MMM dd, yyyy")
+                  }
                   formatter={(value, name) => [`${value} kcal`, "Calories"]}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="calories" 
-                  stroke="hsl(var(--primary))" 
+                <Line
+                  type="monotone"
+                  dataKey="calories"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
                 />
                 {target > 0 && (
-                  <Line 
-                    type="monotone" 
+                  <Line
+                    type="monotone"
                     dataKey={() => target}
                     stroke="hsl(var(--muted-foreground))"
                     strokeDasharray="5 5"
@@ -394,4 +443,3 @@ const CoachTracker = () => {
 };
 
 export default CoachTracker;
-

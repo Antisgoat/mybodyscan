@@ -12,7 +12,10 @@ import type { Firestore } from "firebase/firestore";
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
-export async function ensureDemoData(db: Firestore, uid: string): Promise<void> {
+export async function ensureDemoData(
+  db: Firestore,
+  uid: string
+): Promise<void> {
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
   if (!userSnap.exists()) {
@@ -24,7 +27,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         isDemo: true,
         lastDemoVisitAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   } else {
     const data = userSnap.data() as Record<string, unknown> | undefined;
@@ -51,7 +54,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         isDemo: true,
         startedAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -70,7 +73,10 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
               {
                 title: "Warm-up",
                 focus: "Mobility",
-                work: ["5 min incline walk", "World's greatest stretch 2×8/side"],
+                work: [
+                  "5 min incline walk",
+                  "World's greatest stretch 2×8/side",
+                ],
               },
               {
                 title: "Strength",
@@ -85,7 +91,11 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
               {
                 title: "Lower body",
                 focus: "Posterior chain",
-                work: ["Romanian deadlift 3×10", "Walking lunge 3×12/side", "Glute bridge 3×15"],
+                work: [
+                  "Romanian deadlift 3×10",
+                  "Walking lunge 3×12/side",
+                  "Glute bridge 3×15",
+                ],
               },
               {
                 title: "Finisher",
@@ -100,7 +110,11 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
               {
                 title: "Upper body",
                 focus: "Push / pull",
-                work: ["Overhead press 3×8", "Lat pull-down 3×12", "Face pull 3×15"],
+                work: [
+                  "Overhead press 3×8",
+                  "Lat pull-down 3×12",
+                  "Face pull 3×15",
+                ],
               },
               {
                 title: "Conditioning",
@@ -116,7 +130,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         disclaimer: "Demo plan — educational only.",
         updatedAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -131,7 +145,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -175,7 +189,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         },
         createdAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -194,7 +208,7 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         ],
         createdAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -207,11 +221,15 @@ export async function ensureDemoData(db: Firestore, uid: string): Promise<void> 
         welcomeDelivered: true,
         updatedAt: serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
-  await setDoc(userRef, { lastDemoVisitAt: serverTimestamp() }, { merge: true });
+  await setDoc(
+    userRef,
+    { lastDemoVisitAt: serverTimestamp() },
+    { merge: true }
+  );
 
   const chatCollectionRef = collection(chatMetaRef, "chat");
   const chatSnapshot = await getDocs(query(chatCollectionRef, limit(1)));

@@ -23,12 +23,18 @@ function makeError(code: string, message: string): ScannerError {
 
 export function cameraAvailable(): boolean {
   if (typeof navigator === "undefined") return false;
-  return !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function");
+  return !!(
+    navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === "function"
+  );
 }
 
 export function isSecureContextOrLocal(): boolean {
   if (typeof window === "undefined") return false;
-  return Boolean(window.isSecureContext) || (typeof location !== "undefined" && location.hostname === "localhost");
+  return (
+    Boolean(window.isSecureContext) ||
+    (typeof location !== "undefined" && location.hostname === "localhost")
+  );
 }
 
 export async function startVideoScan(
@@ -40,10 +46,16 @@ export async function startVideoScan(
     throw makeError("zxing_unavailable", "Scanner dependency failed to load.");
   }
   if (!cameraAvailable()) {
-    throw makeError("camera_unsupported", "Camera API unavailable in this browser.");
+    throw makeError(
+      "camera_unsupported",
+      "Camera API unavailable in this browser."
+    );
   }
   if (!isSecureContextOrLocal()) {
-    throw makeError("insecure_context", "Camera access requires HTTPS or localhost.");
+    throw makeError(
+      "insecure_context",
+      "Camera access requires HTTPS or localhost."
+    );
   }
 
   const { BrowserMultiFormatReader } = ZX;
@@ -54,11 +66,13 @@ export async function startVideoScan(
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
-      audio: false
+      audio: false,
     });
   } catch (error: any) {
     const err = makeError(
-      error?.name === "NotAllowedError" ? "camera_permission_denied" : "camera_start_failed",
+      error?.name === "NotAllowedError"
+        ? "camera_permission_denied"
+        : "camera_start_failed",
       error?.message || "Camera access was blocked."
     );
     throw err;
@@ -68,15 +82,22 @@ export async function startVideoScan(
 
   let controls: any;
   try {
-    controls = reader.decodeFromVideoDevice(undefined, videoEl, (result: any) => {
-      if (result && typeof result.getText === "function") {
-        onText(result.getText());
+    controls = reader.decodeFromVideoDevice(
+      undefined,
+      videoEl,
+      (result: any) => {
+        if (result && typeof result.getText === "function") {
+          onText(result.getText());
+        }
       }
-    });
+    );
   } catch (error: any) {
     stream.getTracks().forEach((t) => t.stop());
     videoEl.srcObject = null;
-    throw makeError("scanner_start_failed", error?.message || "Scanner failed to initialize.");
+    throw makeError(
+      "scanner_start_failed",
+      error?.message || "Scanner failed to initialize."
+    );
   }
 
   const stop: StopFn = () => {
@@ -85,8 +106,9 @@ export async function startVideoScan(
     } catch (error) {
       console.warn("zxing_stop_failed", error);
     }
-    const tracks = (videoEl.srcObject as MediaStream | null)?.getTracks?.() ?? [];
-    tracks.forEach(t => t.stop());
+    const tracks =
+      (videoEl.srcObject as MediaStream | null)?.getTracks?.() ?? [];
+    tracks.forEach((t) => t.stop());
     videoEl.srcObject = null;
   };
 

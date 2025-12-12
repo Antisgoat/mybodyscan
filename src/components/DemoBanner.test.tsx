@@ -6,7 +6,11 @@ import DemoBanner from "./DemoBanner";
 let mockUser: any = null;
 let mockLoading = false;
 vi.mock("@/lib/useAuthUser", () => ({
-  useAuthUser: () => ({ user: mockUser, loading: mockLoading, authReady: true }),
+  useAuthUser: () => ({
+    user: mockUser,
+    loading: mockLoading,
+    authReady: true,
+  }),
 }));
 
 const mockIsDemoActive = vi.fn();

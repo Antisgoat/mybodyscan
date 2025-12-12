@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 export type AuthUser = { uid: string; email: string } | null;
@@ -12,7 +18,9 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<AuthUser>(null);
 
   useEffect(() => {
@@ -48,7 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
-  const value = useMemo(() => ({ user, signIn, signInWithGoogle, signOut }), [user]);
+  const value = useMemo(
+    () => ({ user, signIn, signInWithGoogle, signOut }),
+    [user]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
@@ -59,12 +70,20 @@ export const useAuth = () => {
   return ctx;
 };
 
-export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { user } = useAuth();
   const location = useLocation();
   if (!user) {
     const nextTarget = `${location.pathname}${location.search}`;
-    return <Navigate to={`/auth?next=${encodeURIComponent(nextTarget)}`} replace state={{ from: nextTarget }} />;
+    return (
+      <Navigate
+        to={`/auth?next=${encodeURIComponent(nextTarget)}`}
+        replace
+        state={{ from: nextTarget }}
+      />
+    );
   }
   return <>{children}</>;
 };

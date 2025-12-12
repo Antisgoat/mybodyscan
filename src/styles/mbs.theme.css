@@ -1,49 +1,49 @@
 :root {
-  --mbs-bg: #F7FAFF;
-  --mbs-text: #0F172A;
-  --mbs-muted: #66758A;
-  --mbs-brand: #3A8DFF;
-  --mbs-brand-600: #3A8DFF;
+  --mbs-bg: #f7faff;
+  --mbs-text: #0f172a;
+  --mbs-muted: #66758a;
+  --mbs-brand: #3a8dff;
+  --mbs-brand-600: #3a8dff;
   --mbs-radius: 16px;
   --mbs-gap: 24px;
 }
 
-.mbs-card { 
-  background: #ffffff; 
-  border: 1px solid #CFE4FF; 
-  border-radius: var(--mbs-radius); 
+.mbs-card {
+  background: #ffffff;
+  border: 1px solid #cfe4ff;
+  border-radius: var(--mbs-radius);
 }
 
-.mbs-shadow { 
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06); 
+.mbs-shadow {
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
-.mbs-btn { 
-  display: inline-flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 8px; 
-  padding: 10px 16px; 
-  border-radius: 12px; 
-  font-weight: 600; 
+.mbs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
   transition: all 0.2s ease;
 }
 
-.mbs-btn-primary { 
-  color: #fff; 
-  background: var(--mbs-brand); 
+.mbs-btn-primary {
+  color: #fff;
+  background: var(--mbs-brand);
 }
 
-.mbs-btn-primary:hover { 
-  background: #2B7DE8; 
+.mbs-btn-primary:hover {
+  background: #2b7de8;
 }
 
-.mbs-btn-ghost { 
-  color: var(--mbs-text); 
-  background: #fff; 
-  border: 1px solid #CFE4FF; 
+.mbs-btn-ghost {
+  color: var(--mbs-text);
+  background: #fff;
+  border: 1px solid #cfe4ff;
 }
 
 .mbs-btn-ghost:hover {
-  background: #E6F0FF;
+  background: #e6f0ff;
 }

@@ -70,7 +70,10 @@ export function BarcodeScanner({ onResult, onError }: Props) {
 
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      const result = await reader.decodeOnceFromVideoDevice(undefined, videoRef.current!);
+      const result = await reader.decodeOnceFromVideoDevice(
+        undefined,
+        videoRef.current!
+      );
       stop();
       onResult(result.getText());
     } catch (error) {
@@ -96,10 +99,21 @@ export function BarcodeScanner({ onResult, onError }: Props) {
         style={{ minHeight: 200 }}
       />
       <div className="flex gap-2">
-        <Button type="button" onClick={start} disabled={running} className="flex-1">
+        <Button
+          type="button"
+          onClick={start}
+          disabled={running}
+          className="flex-1"
+        >
           Start
         </Button>
-        <Button type="button" onClick={stop} disabled={!running} variant="secondary" className="flex-1">
+        <Button
+          type="button"
+          onClick={stop}
+          disabled={!running}
+          variant="secondary"
+          className="flex-1"
+        >
           Stop
         </Button>
       </div>

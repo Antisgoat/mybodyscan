@@ -63,7 +63,10 @@ interface SubmitPayload {
 }
 
 export async function startLiveScan(): Promise<ScanStartResponse> {
-  const endpoint = resolveFunctionUrl("VITE_SCAN_START_URL", "startScanSession");
+  const endpoint = resolveFunctionUrl(
+    "VITE_SCAN_START_URL",
+    "startScanSession"
+  );
   const data = await apiFetchJson(endpoint, {
     method: "POST",
     body: JSON.stringify({}),
@@ -75,8 +78,11 @@ function isSupportedImage(file: File): boolean {
   if (!file.type && !file.name) return false;
   const type = (file.type || "").toLowerCase();
   const name = file.name.toLowerCase();
-  if (type === "image/jpeg" || type === "image/pjpeg" || type === "image/png") return true;
-  return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png");
+  if (type === "image/jpeg" || type === "image/pjpeg" || type === "image/png")
+    return true;
+  return (
+    name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png")
+  );
 }
 
 function ensureValidFile(file: File, pose: PoseKey): void {
@@ -116,9 +122,13 @@ export async function uploadScanImages(
   uploadUrls: Record<PoseKey, string>,
   files: Record<PoseKey, File>,
   options: {
-    onProgress?: (info: { pose: PoseKey; index: number; total: number }) => void;
+    onProgress?: (info: {
+      pose: PoseKey;
+      index: number;
+      total: number;
+    }) => void;
     signal?: AbortSignal;
-  } = {},
+  } = {}
 ): Promise<void> {
   const { onProgress, signal } = options;
   throwIfAborted(signal);
@@ -175,7 +185,9 @@ export async function uploadScanImages(
   }
 }
 
-export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResultResponse> {
+export async function submitLiveScan(
+  payload: SubmitPayload
+): Promise<ScanResultResponse> {
   const endpoint = resolveFunctionUrl("VITE_SCAN_SUBMIT_URL", "submitScan");
   const data = await apiFetchJson(endpoint, {
     method: "POST",
@@ -187,7 +199,7 @@ export async function submitLiveScan(payload: SubmitPayload): Promise<ScanResult
 export function listenToScan(
   scanId: string,
   handler: (snapshot: ScanStatus | null) => void,
-  onError?: (error: Error) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const user = firebaseAuth?.currentUser;
   if (!user) {
@@ -201,24 +213,36 @@ export function listenToScan(
         handler(null);
         return;
       }
-      handler(normalizeScanStatus(snap.id, snap.data() as Record<string, unknown>));
+      handler(
+        normalizeScanStatus(snap.id, snap.data() as Record<string, unknown>)
+      );
     },
-    onError,
+    onError
   );
 }
 
-function normalizeScanStatus(id: string, raw: Record<string, unknown>): ScanStatus {
+function normalizeScanStatus(
+  id: string,
+  raw: Record<string, unknown>
+): ScanStatus {
   const createdAt = timestampToMillis(raw.createdAt) ?? Date.now();
   const completedAt = timestampToMillis(raw.completedAt);
   const status = typeof raw.status === "string" ? raw.status : "processing";
   const engine = typeof raw.engine === "string" ? raw.engine : null;
   const provider = typeof raw.provider === "string" ? raw.provider : null;
   const creditsRemaining = toNumber(raw.creditsRemaining);
-  const inputs = raw.inputs && typeof raw.inputs === "object" ? (raw.inputs as Record<string, unknown>) : {};
-  const metadataRaw = raw.metadata && typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : {};
-  const sessionId = typeof metadataRaw.sessionId === "string" && metadataRaw.sessionId
-    ? metadataRaw.sessionId
-    : id;
+  const inputs =
+    raw.inputs && typeof raw.inputs === "object"
+      ? (raw.inputs as Record<string, unknown>)
+      : {};
+  const metadataRaw =
+    raw.metadata && typeof raw.metadata === "object"
+      ? (raw.metadata as Record<string, unknown>)
+      : {};
+  const sessionId =
+    typeof metadataRaw.sessionId === "string" && metadataRaw.sessionId
+      ? metadataRaw.sessionId
+      : id;
   const imagesRaw = Array.isArray(metadataRaw.images) ? metadataRaw.images : [];
   const images = imagesRaw.map((entry: any) => ({
     pose: normalizePose(entry?.pose),
@@ -243,16 +267,23 @@ function normalizeScanStatus(id: string, raw: Record<string, unknown>): ScanStat
   };
 }
 
-function normalizeResult(raw: unknown): ScanResultResponse["result"] | undefined {
+function normalizeResult(
+  raw: unknown
+): ScanResultResponse["result"] | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const source = raw as Record<string, unknown>;
   const bfPercent = toNumber(source.bfPercent ?? source.bf_percent);
   if (bfPercent == null) return undefined;
   const low = toNumber(source.low ?? source.lower) ?? bfPercent;
   const high = toNumber(source.high ?? source.upper) ?? bfPercent;
-  const confidenceRaw = typeof source.confidence === "string" ? source.confidence.toLowerCase() : "";
+  const confidenceRaw =
+    typeof source.confidence === "string"
+      ? source.confidence.toLowerCase()
+      : "";
   const confidence: "low" | "medium" | "high" =
-    confidenceRaw === "high" || confidenceRaw === "medium" || confidenceRaw === "low"
+    confidenceRaw === "high" ||
+    confidenceRaw === "medium" ||
+    confidenceRaw === "low"
       ? (confidenceRaw as "low" | "medium" | "high")
       : "medium";
   const notes = typeof source.notes === "string" ? source.notes : "";

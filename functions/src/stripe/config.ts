@@ -15,7 +15,11 @@ export function getStripeSecret(): string {
   try {
     return getStripeKey();
   } catch (error) {
-    if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "payments_disabled"
+    ) {
       throw new PaymentsDisabledError("Stripe secret missing");
     }
     throw error;
@@ -41,7 +45,11 @@ export function hasStripeSecret(): boolean {
     getStripeKey();
     return true;
   } catch (error) {
-    if (error && typeof error === "object" && (error as { code?: string }).code === "payments_disabled") {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "payments_disabled"
+    ) {
       return false;
     }
     throw error;

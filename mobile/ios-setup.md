@@ -10,7 +10,7 @@ These steps assume you already ran `npx cap add ios` from the repository root.
    - Choose the correct development team
    - Update the app version/build before each TestFlight/App Store upload
 3. **Capabilities**
-   - Enable *Associated Domains* and add `applinks:mybodyscanapp.com`
+   - Enable _Associated Domains_ and add `applinks:mybodyscanapp.com`
    - If push notifications or background modes are added later, enable them here
 4. **Info.plist adjustments**
    - Ensure `NSCameraUsageDescription` exists (camera capture relies on the native permission dialog)
@@ -26,5 +26,6 @@ These steps assume you already ran `npx cap add ios` from the repository root.
    - Upload via the Organizer, attach release notes describing the redirect-based Google sign-in and external Stripe browser jump
 
 Troubleshooting:
+
 - If Google sign-in loops, confirm the redirect URI `https://mybodyscanapp.com/oauth/return` is listed in Firebase Auth
 - If the camera does not appear, check the `NSCameraUsageDescription` string and ensure the device has granted permission

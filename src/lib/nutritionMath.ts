@@ -1,7 +1,14 @@
 import type { FoodItem } from "@/lib/nutrition/types";
 import type { MealEntry, MealItemSnapshot } from "@/lib/nutritionBackend";
 
-export const SERVING_UNITS = ["serving", "g", "oz", "cups", "slices", "pieces"] as const;
+export const SERVING_UNITS = [
+  "serving",
+  "g",
+  "oz",
+  "cups",
+  "slices",
+  "pieces",
+] as const;
 export type ServingUnit = (typeof SERVING_UNITS)[number];
 
 const GRAMS_PER_OUNCE = 28.3495;
@@ -17,7 +24,12 @@ export function gramsToOunces(grams?: number | null) {
   return round(grams / GRAMS_PER_OUNCE, 2);
 }
 
-export function kcalFromMacros(macros: { protein?: number | null; carbs?: number | null; fat?: number | null; alcohol?: number | null }): number {
+export function kcalFromMacros(macros: {
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  alcohol?: number | null;
+}): number {
   const p = Number(macros.protein || 0);
   const c = Number(macros.carbs || 0);
   const f = Number(macros.fat || 0);
@@ -50,8 +62,11 @@ export function estimateServingWeight(item: FoodItem): number | null {
   if (defaultServing?.grams) {
     return round(defaultServing.grams, 2);
   }
-  const servingUnit = normalizeUnit(item.serving?.unit || item.serving?.text || null);
-  const servingQty = typeof item.serving?.qty === "number" ? item.serving.qty : null;
+  const servingUnit = normalizeUnit(
+    item.serving?.unit || item.serving?.text || null
+  );
+  const servingQty =
+    typeof item.serving?.qty === "number" ? item.serving.qty : null;
   if (servingQty && servingUnit === "g") {
     return servingQty;
   }
@@ -79,7 +94,11 @@ export function estimateServingWeight(item: FoodItem): number | null {
   return round(grams, 2);
 }
 
-function gramsForSelection(item: FoodItem, qty: number, unit: ServingUnit): number | null {
+function gramsForSelection(
+  item: FoodItem,
+  qty: number,
+  unit: ServingUnit
+): number | null {
   switch (unit) {
     case "g":
       return qty;
@@ -108,7 +127,7 @@ export interface SelectionResult {
 export function calculateSelection(
   item: FoodItem,
   qty: number,
-  unit: ServingUnit,
+  unit: ServingUnit
 ): SelectionResult {
   const grams = gramsForSelection(item, qty, unit);
   const perServing = item.per_serving;
@@ -120,7 +139,8 @@ export function calculateSelection(
     return {
       grams: round(grams, 2),
       calories: per100.kcal != null ? round(per100.kcal * factor, 0) : null,
-      protein: per100.protein_g != null ? round(per100.protein_g * factor, 2) : null,
+      protein:
+        per100.protein_g != null ? round(per100.protein_g * factor, 2) : null,
       carbs: per100.carbs_g != null ? round(per100.carbs_g * factor, 2) : null,
       fat: per100.fat_g != null ? round(per100.fat_g * factor, 2) : null,
     };
@@ -128,10 +148,22 @@ export function calculateSelection(
 
   return {
     grams: grams != null ? round(grams, 2) : null,
-    calories: perServing.kcal != null ? round(perServing.kcal * servingsFactor, 0) : null,
-    protein: perServing.protein_g != null ? round(perServing.protein_g * servingsFactor, 2) : null,
-    carbs: perServing.carbs_g != null ? round(perServing.carbs_g * servingsFactor, 2) : null,
-    fat: perServing.fat_g != null ? round(perServing.fat_g * servingsFactor, 2) : null,
+    calories:
+      perServing.kcal != null
+        ? round(perServing.kcal * servingsFactor, 0)
+        : null,
+    protein:
+      perServing.protein_g != null
+        ? round(perServing.protein_g * servingsFactor, 2)
+        : null,
+    carbs:
+      perServing.carbs_g != null
+        ? round(perServing.carbs_g * servingsFactor, 2)
+        : null,
+    fat:
+      perServing.fat_g != null
+        ? round(perServing.fat_g * servingsFactor, 2)
+        : null,
   };
 }
 
@@ -200,7 +232,7 @@ export function buildMealEntry(
   qty: number,
   unit: ServingUnit,
   result: SelectionResult,
-  entrySource: MealEntry["entrySource"] = "search",
+  entrySource: MealEntry["entrySource"] = "search"
 ): MealEntry {
   return {
     name: item.name,

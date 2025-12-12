@@ -9,17 +9,20 @@ export function CrashBanner() {
 
   useEffect(() => {
     const shouldIgnore = (detail: unknown) => {
-      const source = (detail as any)?.reason ?? (detail as any)?.error ?? detail;
+      const source =
+        (detail as any)?.reason ?? (detail as any)?.error ?? detail;
       if (!source || typeof source !== "object") return false;
       const status = (source as any).status;
       const code = (source as any).code;
-      if (typeof status === "number" && status >= 400 && status < 600) return true;
+      if (typeof status === "number" && status >= 400 && status < 600)
+        return true;
       if (typeof code === "string" && status !== undefined) return true;
       return false;
     };
 
     const handleError = (event: ErrorEvent | PromiseRejectionEvent) => {
-      const detail = event instanceof PromiseRejectionEvent ? event.reason : event.error;
+      const detail =
+        event instanceof PromiseRejectionEvent ? event.reason : event.error;
       if (shouldIgnore(detail)) {
         return;
       }

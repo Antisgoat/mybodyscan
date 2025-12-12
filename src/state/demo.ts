@@ -108,7 +108,10 @@ export function disableDemo(): void {
 }
 
 export function disableDemoEverywhere(
-  navigate?: (to: { pathname?: string; search?: string }, options?: { replace?: boolean }) => void,
+  navigate?: (
+    to: { pathname?: string; search?: string },
+    options?: { replace?: boolean }
+  ) => void
 ): void {
   disableDemo();
   if (typeof window !== "undefined") {
@@ -126,12 +129,19 @@ export function disableDemoEverywhere(
     return;
   }
 
-  if (typeof window !== "undefined" && typeof window.history?.replaceState === "function") {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.history?.replaceState === "function"
+  ) {
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has(QUERY_PARAM)) {
         url.searchParams.delete(QUERY_PARAM);
-        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+        window.history.replaceState(
+          {},
+          "",
+          `${url.pathname}${url.search}${url.hash}`
+        );
       }
     } catch {
       // ignore URL cleanup failures
@@ -164,4 +174,3 @@ export function isDemoAllowed(user: User | null): boolean {
   if (user) return false;
   return get().demo;
 }
-

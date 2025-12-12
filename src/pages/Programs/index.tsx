@@ -7,7 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import {
   DropdownMenu,
@@ -15,8 +21,18 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { loadAllPrograms, matchScore, type CatalogEntry, type ProgramMeta } from "@/lib/coach/catalog";
-import type { Program, ProgramEquipment, ProgramGoal, ProgramLevel } from "@/lib/coach/types";
+import {
+  loadAllPrograms,
+  matchScore,
+  type CatalogEntry,
+  type ProgramMeta,
+} from "@/lib/coach/catalog";
+import type {
+  Program,
+  ProgramEquipment,
+  ProgramGoal,
+  ProgramLevel,
+} from "@/lib/coach/types";
 
 const goalLabels: Record<ProgramGoal, string> = {
   hypertrophy: "Hypertrophy",
@@ -65,7 +81,9 @@ export default function ProgramsCatalog() {
   const [goalFilter, setGoalFilter] = useState<GoalFilter>("all");
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
   const [daysFilter, setDaysFilter] = useState<number | null>(null);
-  const [equipmentFilter, setEquipmentFilter] = useState<ProgramEquipment[]>([]);
+  const [equipmentFilter, setEquipmentFilter] = useState<ProgramEquipment[]>(
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -85,7 +103,10 @@ export default function ProgramsCatalog() {
   }, []);
 
   const hasActiveFilters =
-    goalFilter !== "all" || levelFilter !== "all" || daysFilter !== null || equipmentFilter.length > 0;
+    goalFilter !== "all" ||
+    levelFilter !== "all" ||
+    daysFilter !== null ||
+    equipmentFilter.length > 0;
 
   const rankedPrograms = useMemo<RankedProgram[]>(() => {
     if (!entries.length) return [];
@@ -100,11 +121,19 @@ export default function ProgramsCatalog() {
         }),
       }))
       .filter(({ entry }) => {
-        if (goalFilter !== "all" && entry.meta.goal !== goalFilter) return false;
-        if (levelFilter !== "all" && entry.meta.level !== levelFilter) return false;
-        if (daysFilter !== null && Math.abs(entry.meta.daysPerWeek - daysFilter) > 1) return false;
+        if (goalFilter !== "all" && entry.meta.goal !== goalFilter)
+          return false;
+        if (levelFilter !== "all" && entry.meta.level !== levelFilter)
+          return false;
+        if (
+          daysFilter !== null &&
+          Math.abs(entry.meta.daysPerWeek - daysFilter) > 1
+        )
+          return false;
         if (equipmentFilter.length) {
-          const required = entry.meta.equipment.filter((item) => item !== "none");
+          const required = entry.meta.equipment.filter(
+            (item) => item !== "none"
+          );
           if (required.some((item) => !equipmentFilter.includes(item))) {
             return false;
           }
@@ -116,7 +145,9 @@ export default function ProgramsCatalog() {
 
   const toggleEquipment = (value: ProgramEquipment) => {
     setEquipmentFilter((prev) =>
-      prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
+      prev.includes(value)
+        ? prev.filter((item) => item !== value)
+        : [...prev, value]
     );
   };
 
@@ -129,12 +160,18 @@ export default function ProgramsCatalog() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Programs – MyBodyScan" description="Browse structured training programs." />
+      <Seo
+        title="Programs – MyBodyScan"
+        description="Browse structured training programs."
+      />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-foreground">Training Programs</h1>
+          <h1 className="text-3xl font-semibold text-foreground">
+            Training Programs
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Compare programs, filter by your schedule, and find the block that fits your goals.
+            Compare programs, filter by your schedule, and find the block that
+            fits your goals.
           </p>
         </div>
 
@@ -153,8 +190,13 @@ export default function ProgramsCatalog() {
           <CardContent className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Goal</span>
-                <Select value={goalFilter} onValueChange={(value) => setGoalFilter(value as GoalFilter)}>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Goal
+                </span>
+                <Select
+                  value={goalFilter}
+                  onValueChange={(value) => setGoalFilter(value as GoalFilter)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All goals" />
                   </SelectTrigger>
@@ -169,8 +211,15 @@ export default function ProgramsCatalog() {
                 </Select>
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Level</span>
-                <Select value={levelFilter} onValueChange={(value) => setLevelFilter(value as LevelFilter)}>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Level
+                </span>
+                <Select
+                  value={levelFilter}
+                  onValueChange={(value) =>
+                    setLevelFilter(value as LevelFilter)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All levels" />
                   </SelectTrigger>
@@ -186,7 +235,9 @@ export default function ProgramsCatalog() {
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium uppercase tracking-wide text-muted-foreground">Days / Week</span>
+                  <span className="font-medium uppercase tracking-wide text-muted-foreground">
+                    Days / Week
+                  </span>
                   <button
                     type="button"
                     className="text-muted-foreground underline-offset-2 hover:underline"
@@ -211,11 +262,17 @@ export default function ProgramsCatalog() {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Equipment</span>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Equipment
+                </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="justify-between">
-                      <span>{equipmentFilter.length ? `${equipmentFilter.length} selected` : "Any equipment"}</span>
+                      <span>
+                        {equipmentFilter.length
+                          ? `${equipmentFilter.length} selected`
+                          : "Any equipment"}
+                      </span>
                       <Filter className="h-4 w-4 opacity-60" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -234,9 +291,16 @@ export default function ProgramsCatalog() {
                 {equipmentFilter.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {equipmentFilter.map((item) => {
-                      const label = EQUIPMENT_OPTIONS.find((option) => option.value === item)?.label ?? item;
+                      const label =
+                        EQUIPMENT_OPTIONS.find(
+                          (option) => option.value === item
+                        )?.label ?? item;
                       return (
-                        <Badge key={item} variant="secondary" className="capitalize">
+                        <Badge
+                          key={item}
+                          variant="secondary"
+                          className="capitalize"
+                        >
                           {label}
                         </Badge>
                       );
@@ -250,7 +314,9 @@ export default function ProgramsCatalog() {
 
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
-            {isLoading ? "Loading programs..." : `${rankedPrograms.length} program${rankedPrograms.length === 1 ? "" : "s"}`}
+            {isLoading
+              ? "Loading programs..."
+              : `${rankedPrograms.length} program${rankedPrograms.length === 1 ? "" : "s"}`}
           </span>
           {hasActiveFilters && <span>Sorted by best match</span>}
         </div>
@@ -263,8 +329,12 @@ export default function ProgramsCatalog() {
               ? `${meta.durationPerSessionMin} min`
               : "~45 min";
             const scheduleCaption = `${meta.daysPerWeek} d/wk • ${meta.weeks} ${weeksLabel} • ${sessionLengthLabel}`;
-            const hasDeload = Boolean(program.deloadWeeks && program.deloadWeeks.length);
-            const equipmentSummary = Array.from(new Set(meta.equipment)).map((item) => equipmentLabel(item)).join(" • ");
+            const hasDeload = Boolean(
+              program.deloadWeeks && program.deloadWeeks.length
+            );
+            const equipmentSummary = Array.from(new Set(meta.equipment))
+              .map((item) => equipmentLabel(item))
+              .join(" • ");
             return (
               <Card
                 key={meta.id}
@@ -305,7 +375,9 @@ export default function ProgramsCatalog() {
                 </div>
                 <div className="flex flex-1 flex-col gap-4 p-5">
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-foreground">{program.title}</h3>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {program.title}
+                    </h3>
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {scheduleCaption}
                     </p>
@@ -316,7 +388,10 @@ export default function ProgramsCatalog() {
                   {program.tags && program.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       {program.tags.map((tag) => (
-                        <span key={tag} className="rounded-full bg-muted px-2 py-1 text-[11px]">
+                        <span
+                          key={tag}
+                          className="rounded-full bg-muted px-2 py-1 text-[11px]"
+                        >
                           {tag}
                         </span>
                       ))}
@@ -324,9 +399,15 @@ export default function ProgramsCatalog() {
                   )}
                   <div className="mt-auto flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     <span>{equipmentSummary}</span>
-                    {hasDeload && <span className="rounded-full bg-muted px-2 py-1 text-[10px] uppercase">Deload built-in</span>}
+                    {hasDeload && (
+                      <span className="rounded-full bg-muted px-2 py-1 text-[10px] uppercase">
+                        Deload built-in
+                      </span>
+                    )}
                     {hasActiveFilters && (
-                      <span className="ml-auto font-medium text-primary">Match score: {score}%</span>
+                      <span className="ml-auto font-medium text-primary">
+                        Match score: {score}%
+                      </span>
                     )}
                   </div>
                 </div>
@@ -336,7 +417,8 @@ export default function ProgramsCatalog() {
           {!isLoading && !rankedPrograms.length && (
             <Card className="col-span-full border-dashed">
               <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                No programs match these filters yet. Try widening your equipment or schedule preferences.
+                No programs match these filters yet. Try widening your equipment
+                or schedule preferences.
               </CardContent>
             </Card>
           )}

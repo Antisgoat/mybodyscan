@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { toast } from "@/lib/toast";
 import {
@@ -23,7 +30,10 @@ export type SocialButtonsProps = {
   onBusyChange?: (busy: boolean) => void;
   onBeforeSignIn?: (provider: SocialProvider) => void;
   onSignInSuccess?: (provider: SocialProvider) => void;
-  onSignInError?: (provider: SocialProvider, error: NormalizedAuthError) => void;
+  onSignInError?: (
+    provider: SocialProvider,
+    error: NormalizedAuthError
+  ) => void;
   renderGoogle?: (context: SocialButtonRenderContext) => ReactNode;
   renderApple?: (context: SocialButtonRenderContext) => ReactNode;
 };
@@ -39,10 +49,18 @@ export function SocialButtons({
   renderGoogle,
   renderApple,
 }: SocialButtonsProps) {
-  const googleEnabled = useMemo(() => parseBoolean(import.meta.env.VITE_ENABLE_GOOGLE), []);
-  const appleEnabled = useMemo(() => parseBoolean(import.meta.env.VITE_ENABLE_APPLE), []);
+  const googleEnabled = useMemo(
+    () => parseBoolean(import.meta.env.VITE_ENABLE_GOOGLE),
+    []
+  );
+  const appleEnabled = useMemo(
+    () => parseBoolean(import.meta.env.VITE_ENABLE_APPLE),
+    []
+  );
 
-  const [activeProvider, setActiveProvider] = useState<SocialProvider | null>(null);
+  const [activeProvider, setActiveProvider] = useState<SocialProvider | null>(
+    null
+  );
 
   useEffect(() => {
     onBusyChange?.(activeProvider !== null);
@@ -56,7 +74,7 @@ export function SocialButtons({
       }
       toast(error.message, "error");
     },
-    [onSignInError],
+    [onSignInError]
   );
 
   const startSignIn = useCallback(
@@ -69,9 +87,15 @@ export function SocialButtons({
       onBeforeSignIn?.(provider);
 
       try {
-        const result = provider === "google" ? await googleSignInWithFirebase() : await appleSignIn();
+        const result =
+          provider === "google"
+            ? await googleSignInWithFirebase()
+            : await appleSignIn();
         if (!result.ok) {
-          const fallbackMessage = provider === "google" ? "Google sign-in failed." : "Apple sign-in failed.";
+          const fallbackMessage =
+            provider === "google"
+              ? "Google sign-in failed."
+              : "Apple sign-in failed.";
           handleResultError(provider, {
             code: result.code,
             message: result.message ?? fallbackMessage,
@@ -86,7 +110,13 @@ export function SocialButtons({
         setActiveProvider(null);
       }
     },
-    [activeProvider, handleResultError, loading, onBeforeSignIn, onSignInSuccess],
+    [
+      activeProvider,
+      handleResultError,
+      loading,
+      onBeforeSignIn,
+      onSignInSuccess,
+    ]
   );
 
   const isBusy = activeProvider !== null;
@@ -96,7 +126,7 @@ export function SocialButtons({
       loading: activeProvider === "google",
       disabled: loading || isBusy,
     }),
-    [activeProvider, isBusy, loading, startSignIn],
+    [activeProvider, isBusy, loading, startSignIn]
   );
 
   const appleContext: SocialButtonRenderContext = useMemo(
@@ -105,28 +135,56 @@ export function SocialButtons({
       loading: activeProvider === "apple",
       disabled: loading || isBusy,
     }),
-    [activeProvider, isBusy, loading, startSignIn],
+    [activeProvider, isBusy, loading, startSignIn]
   );
 
   return (
     <div className={className} style={style}>
-      {googleEnabled && (renderGoogle ? renderGoogle(googleContext) : <DefaultGoogleButton context={googleContext} />)}
-      {appleEnabled && (renderApple ? renderApple(appleContext) : <DefaultAppleButton context={appleContext} />)}
+      {googleEnabled &&
+        (renderGoogle ? (
+          renderGoogle(googleContext)
+        ) : (
+          <DefaultGoogleButton context={googleContext} />
+        ))}
+      {appleEnabled &&
+        (renderApple ? (
+          renderApple(appleContext)
+        ) : (
+          <DefaultAppleButton context={appleContext} />
+        ))}
     </div>
   );
 }
 
-function DefaultGoogleButton({ context }: { context: SocialButtonRenderContext }) {
+function DefaultGoogleButton({
+  context,
+}: {
+  context: SocialButtonRenderContext;
+}) {
   return (
-    <button type="button" onClick={context.onClick} disabled={context.disabled} className="mbs-btn mbs-btn-secondary w-full">
+    <button
+      type="button"
+      onClick={context.onClick}
+      disabled={context.disabled}
+      className="mbs-btn mbs-btn-secondary w-full"
+    >
       {context.loading ? "Continuing…" : "Continue with Google"}
     </button>
   );
 }
 
-function DefaultAppleButton({ context }: { context: SocialButtonRenderContext }) {
+function DefaultAppleButton({
+  context,
+}: {
+  context: SocialButtonRenderContext;
+}) {
   return (
-    <button type="button" onClick={context.onClick} disabled={context.disabled} className="mbs-btn mbs-btn-secondary w-full">
+    <button
+      type="button"
+      onClick={context.onClick}
+      disabled={context.disabled}
+      className="mbs-btn mbs-btn-secondary w-full"
+    >
       {context.loading ? "Continuing…" : "Continue with Apple"}
     </button>
   );

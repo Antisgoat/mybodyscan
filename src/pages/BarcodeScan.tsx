@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Flashlight, FlashlightOff, Square, Play, Loader2 } from "lucide-react";
+import {
+  Camera,
+  Flashlight,
+  FlashlightOff,
+  Square,
+  Play,
+  Loader2,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +37,7 @@ async function loadZXing() {
 function buildFoodItemFromSanitized(
   code: string,
   raw: any,
-  normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>,
+  normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>
 ): FoodItem {
   const basePer100g = {
     kcal: normalized?.kcal ?? 0,
@@ -47,7 +54,10 @@ function buildFoodItemFromSanitized(
   const rawId = typeof raw?.id === "string" ? raw.id.trim() : "";
   const rawCode = typeof raw?.code === "string" ? raw.code.trim() : "";
   const id = rawId || rawCode || `barcode:${code}`;
-  const source = typeof raw?.source === "string" && raw.source.trim().length ? raw.source : "Barcode";
+  const source =
+    typeof raw?.source === "string" && raw.source.trim().length
+      ? raw.source
+      : "Barcode";
   return {
     id,
     name: normalized?.name || `Barcode ${code}`,
@@ -77,7 +87,9 @@ export default function BarcodeScan() {
   const scanningRef = useRef(false);
   const demo = useDemoMode();
   const { health: systemHealth } = useSystemHealth();
-  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { nutritionConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const nutritionOffline = nutritionConfigured === false;
   const lookupsBlocked = demo || nutritionOffline;
   const blockedMessage = demo
@@ -99,8 +111,11 @@ export default function BarcodeScan() {
   const insecureMessage = "Camera not available — enter barcode manually.";
 
   const defaultCountry = useMemo(
-    () => defaultCountryFromLocale(typeof navigator !== "undefined" ? navigator.language : undefined),
-    [],
+    () =>
+      defaultCountryFromLocale(
+        typeof navigator !== "undefined" ? navigator.language : undefined
+      ),
+    []
   );
 
   const fetchItem = useCallback(
@@ -117,35 +132,62 @@ export default function BarcodeScan() {
         const normalizedCode = sanitizeNutritionQuery(code);
         if (!normalizedCode) {
           setStatus("Invalid barcode");
-          toast({ title: "Invalid barcode", description: "Enter a valid UPC/EAN." });
+          toast({
+            title: "Invalid barcode",
+            description: "Enter a valid UPC/EAN.",
+          });
           return;
         }
         setStatus(`Looking up barcode ${normalizedCode}…`);
-        const { item, items } = await backend.nutritionBarcode({ upc: normalizedCode });
+        const { item, items } = await backend.nutritionBarcode({
+          upc: normalizedCode,
+        });
         const list = items ?? (item ? [item] : []);
         const normalized = list
-          .map((entry: any) => ({ raw: entry, normalized: sanitizeFoodRecord(entry) }))
+          .map((entry: any) => ({
+            raw: entry,
+            normalized: sanitizeFoodRecord(entry),
+          }))
           .filter(
-            (entry): entry is { raw: any; normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>> } =>
-              Boolean(entry.normalized),
+            (
+              entry
+            ): entry is {
+              raw: any;
+              normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>;
+            } => Boolean(entry.normalized)
           );
         if (!normalized.length) {
           setStatus("No match found.");
-          toast({ title: "No match", description: "Try manual entry or search." });
+          toast({
+            title: "No match",
+            description: "Try manual entry or search.",
+          });
           return;
         }
         const { raw: rawItem, normalized: normalizedItem } = normalized[0];
-        const food = buildFoodItemFromSanitized(normalizedCode, rawItem, normalizedItem);
+        const food = buildFoodItemFromSanitized(
+          normalizedCode,
+          rawItem,
+          normalizedItem
+        );
         setItem(food);
-        setStatus(typeof rawItem?.message === "string" ? rawItem.message : "Lookup complete");
+        setStatus(
+          typeof rawItem?.message === "string"
+            ? rawItem.message
+            : "Lookup complete"
+        );
       } catch (error: any) {
-        toast({ title: "Lookup failed", description: error?.message || "Try again", variant: "destructive" });
+        toast({
+          title: "Lookup failed",
+          description: error?.message || "Try again",
+          variant: "destructive",
+        });
         setStatus("Lookup failed. Try again.");
       } finally {
         setLoadingItem(false);
       }
     },
-    [blockedMessage, lookupsBlocked, toast],
+    [blockedMessage, lookupsBlocked, toast]
   );
 
   const stopScanner = useCallback(() => {
@@ -178,22 +220,26 @@ export default function BarcodeScan() {
   const handleDetected = useCallback(
     (code: string) => {
       if (!code) return;
-       if (lookupsBlocked) {
-         setStatus(blockedMessage);
-         return;
-       }
+      if (lookupsBlocked) {
+        setStatus(blockedMessage);
+        return;
+      }
       setDetectedCode(code);
       stopScanner();
       void fetchItem(code);
     },
-    [blockedMessage, fetchItem, lookupsBlocked, stopScanner],
+    [blockedMessage, fetchItem, lookupsBlocked, stopScanner]
   );
 
   const startWithBarcodeDetector = useCallback(async () => {
     const Detector = (window as any).BarcodeDetector;
     if (!Detector) throw new Error("detector_unavailable");
-    const detector = new Detector({ formats: ["ean_13", "ean_8", "upc_a", "code_128", "code_39"] });
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const detector = new Detector({
+      formats: ["ean_13", "ean_8", "upc_a", "code_128", "code_39"],
+    });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+    });
     streamRef.current = stream;
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
@@ -238,14 +284,18 @@ export default function BarcodeScan() {
     }
     try {
       const reader = new mod.BrowserMultiFormatReader();
-      const controls = await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err, ctrl) => {
-        if (result) {
-          handleDetected(result.getText());
-          ctrl?.stop?.();
-        } else if (err && !(err instanceof mod.NotFoundException)) {
-          console.error("zxing_scan_error", err);
+      const controls = await reader.decodeFromVideoDevice(
+        null,
+        videoRef.current!,
+        (result, err, ctrl) => {
+          if (result) {
+            handleDetected(result.getText());
+            ctrl?.stop?.();
+          } else if (err && !(err instanceof mod.NotFoundException)) {
+            console.error("zxing_scan_error", err);
+          }
         }
-      });
+      );
       zxingControlsRef.current = controls;
       streamRef.current = (controls as any)?.stream ?? streamRef.current;
       setTorchAvailable(false);
@@ -309,7 +359,10 @@ export default function BarcodeScan() {
       setTorchOn((prev) => !prev);
     } catch (error) {
       console.error("torch_toggle_error", error);
-      toast({ title: "Torch unsupported", description: "Use additional light if needed." });
+      toast({
+        title: "Torch unsupported",
+        description: "Use additional light if needed.",
+      });
     }
   };
 
@@ -327,10 +380,17 @@ export default function BarcodeScan() {
     if (!item) return;
     setProcessing(true);
     try {
-      await addMeal(new Date().toISOString().slice(0, 10), { ...meal, entrySource: "barcode" });
+      await addMeal(new Date().toISOString().slice(0, 10), {
+        ...meal,
+        entrySource: "barcode",
+      });
       toast({ title: "Logged", description: `${item.name} added to today` });
     } catch (error: any) {
-      toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Unable to log",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     } finally {
       setProcessing(false);
     }
@@ -361,7 +421,9 @@ export default function BarcodeScan() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Barcode Scanner</h1>
         <p className="text-muted-foreground">
-          Align the barcode within the frame. Scanning defaults to region {defaultCountry}. Use the torch in low light or enter the code manually.
+          Align the barcode within the frame. Scanning defaults to region{" "}
+          {defaultCountry}. Use the torch in low light or enter the code
+          manually.
         </p>
       </header>
       {lookupsBlocked && (
@@ -394,24 +456,38 @@ export default function BarcodeScan() {
                 </>
               )}
             </Button>
-            <Button size="sm" variant="ghost" onClick={toggleTorch} disabled={!torchAvailable || lookupsBlocked}>
-              {torchOn ? <FlashlightOff className="h-4 w-4" /> : <Flashlight className="h-4 w-4" />}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={toggleTorch}
+              disabled={!torchAvailable || lookupsBlocked}
+            >
+              {torchOn ? (
+                <FlashlightOff className="h-4 w-4" />
+              ) : (
+                <Flashlight className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="relative h-72 w-full overflow-hidden rounded-lg bg-black">
-            <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
+            <video
+              ref={videoRef}
+              className="h-full w-full object-cover"
+              muted
+              playsInline
+            />
             <div className="pointer-events-none absolute inset-0 border-2 border-white/40" />
           </div>
           <p className="text-xs text-muted-foreground">
             {running
               ? "Scanning…"
               : scannerError
-              ? scannerError
-              : scannerUnavailable
-              ? unavailableMessage
-              : "Tap start to begin scanning"}
+                ? scannerError
+                : scannerUnavailable
+                  ? unavailableMessage
+                  : "Tap start to begin scanning"}
             {detectedCode ? ` • Last detected: ${detectedCode}` : ""}
           </p>
         </CardContent>
@@ -457,18 +533,33 @@ export default function BarcodeScan() {
               <Loader2 className="h-4 w-4 animate-spin" /> Looking up food…
             </div>
           )}
-          {!loadingItem && !item && <p className="text-sm text-muted-foreground">No food selected yet.</p>}
+          {!loadingItem && !item && (
+            <p className="text-sm text-muted-foreground">
+              No food selected yet.
+            </p>
+          )}
           {item && (
             <div className="space-y-3">
               <div>
-                <p className="text-lg font-semibold text-foreground">{item.name}</p>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.brand || item.source}</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {item.name}
+                </p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {item.brand || item.source}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {item.per_serving.kcal ?? "—"} kcal • {item.per_serving.protein_g ?? "—"}g P • {item.per_serving.carbs_g ?? "—"}g C •
+                  {item.per_serving.kcal ?? "—"} kcal •{" "}
+                  {item.per_serving.protein_g ?? "—"}g P •{" "}
+                  {item.per_serving.carbs_g ?? "—"}g C •
                   {item.per_serving.fat_g ?? "—"}g F
                 </p>
               </div>
-              <ServingEditor item={item} entrySource="barcode" onConfirm={handleLog} busy={processing} />
+              <ServingEditor
+                item={item}
+                entrySource="barcode"
+                onConfirm={handleLog}
+                busy={processing}
+              />
             </div>
           )}
         </CardContent>

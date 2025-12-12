@@ -1,13 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
-import { collection, query, orderBy, limit as limitFn, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  limit as limitFn,
+  onSnapshot,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
 import { extractScanMetrics } from "@/lib/scans";
@@ -52,7 +68,9 @@ function toDateOrNull(value: any): Date | null {
 function buildDemoLastScan(): LastScan {
   return {
     id: demoLatestScan.id,
-    createdAt: demoLatestScan.completedAt?.toDate ? demoLatestScan.completedAt.toDate() : new Date(),
+    createdAt: demoLatestScan.completedAt?.toDate
+      ? demoLatestScan.completedAt.toDate()
+      : new Date(),
     status: demoLatestScan.status,
     raw: demoLatestScan,
   };
@@ -63,7 +81,9 @@ function scanSortMillis(scan: LastScan): number {
   const completedAt = toDateOrNull(raw?.completedAt);
   const updatedAt = toDateOrNull(raw?.updatedAt);
   const createdAt = scan.createdAt ?? toDateOrNull(raw?.createdAt);
-  return completedAt?.getTime() ?? updatedAt?.getTime() ?? createdAt?.getTime() ?? 0;
+  return (
+    completedAt?.getTime() ?? updatedAt?.getTime() ?? createdAt?.getTime() ?? 0
+  );
 }
 
 const Home = () => {
@@ -73,7 +93,9 @@ const Home = () => {
   const { units } = useUnits();
   const onboardingStatus = useOnboardingStatus();
   const initialDemoScan = isDemo() ? buildDemoLastScan() : null;
-  const [recentScans, setRecentScans] = useState<LastScan[]>(initialDemoScan ? [initialDemoScan] : []);
+  const [recentScans, setRecentScans] = useState<LastScan[]>(
+    initialDemoScan ? [initialDemoScan] : []
+  );
   const [statusTick, bumpStatusTick] = useState(0);
   const loggedOnce = useRef(false);
 
@@ -81,7 +103,9 @@ const Home = () => {
     if (recentScans.length <= 1) {
       return recentScans;
     }
-    return [...recentScans].sort((a, b) => scanSortMillis(b) - scanSortMillis(a));
+    return [...recentScans].sort(
+      (a, b) => scanSortMillis(b) - scanSortMillis(a)
+    );
   }, [recentScans]);
 
   const latestAttempt = sortedScans[0] ?? null;
@@ -89,7 +113,10 @@ const Home = () => {
   const lastScan = useMemo<LastScan | null>(() => {
     if (!sortedScans.length) return null;
     for (const scan of sortedScans) {
-      const meta = scanStatusLabel(scan.status, scan.raw?.updatedAt ?? scan.raw?.completedAt ?? scan.raw?.createdAt);
+      const meta = scanStatusLabel(
+        scan.status,
+        scan.raw?.updatedAt ?? scan.raw?.completedAt ?? scan.raw?.createdAt
+      );
       if (meta.showMetrics) {
         return scan;
       }
@@ -100,21 +127,38 @@ const Home = () => {
   const metrics = lastScan ? extractScanMetrics(lastScan.raw) : null;
   const summary = summarizeScanMetrics(metrics, units);
   const statusMeta = lastScan
-    ? scanStatusLabel(lastScan.status, lastScan.raw?.updatedAt ?? lastScan.raw?.completedAt ?? lastScan.raw?.createdAt)
+    ? scanStatusLabel(
+        lastScan.status,
+        lastScan.raw?.updatedAt ??
+          lastScan.raw?.completedAt ??
+          lastScan.raw?.createdAt
+      )
     : null;
   const latestStatusMeta = latestAttempt
     ? scanStatusLabel(
         latestAttempt.status,
-        latestAttempt.raw?.updatedAt ?? latestAttempt.raw?.completedAt ?? latestAttempt.raw?.createdAt,
+        latestAttempt.raw?.updatedAt ??
+          latestAttempt.raw?.completedAt ??
+          latestAttempt.raw?.createdAt
       )
     : null;
-  const latestAttemptIsDisplayed = Boolean(lastScan && latestAttempt && lastScan.id === latestAttempt.id);
+  const latestAttemptIsDisplayed = Boolean(
+    lastScan && latestAttempt && lastScan.id === latestAttempt.id
+  );
   const showLatestErrorBanner = latestStatusMeta?.canonical === "error";
-  const showLatestStuckNotice = !showLatestErrorBanner && latestStatusMeta?.stale && !latestStatusMeta?.showMetrics;
-  const latestAttemptTimestamp = latestAttempt?.createdAt ? latestAttempt.createdAt.toLocaleString() : null;
+  const showLatestStuckNotice =
+    !showLatestErrorBanner &&
+    latestStatusMeta?.stale &&
+    !latestStatusMeta?.showMetrics;
+  const latestAttemptTimestamp = latestAttempt?.createdAt
+    ? latestAttempt.createdAt.toLocaleString()
+    : null;
   const done = statusMeta?.showMetrics ?? false;
-  const created = lastScan?.createdAt ? lastScan.createdAt.toLocaleDateString() : "—";
-  const bf = summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
+  const created = lastScan?.createdAt
+    ? lastScan.createdAt.toLocaleDateString()
+    : "—";
+  const bf =
+    summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
   const weight = summary.weightText;
   const bmi = summary.bmiText;
   const showOnboardingNudge =
@@ -124,7 +168,7 @@ const Home = () => {
     : "Share your goals once to unlock personalized scans and workouts.";
   const onboardingCtaTarget = useMemo(
     () => `/onboarding?returnTo=${encodeURIComponent("/home")}`,
-    [],
+    []
   );
 
   useEffect(() => {
@@ -150,7 +194,7 @@ const Home = () => {
     const q = query(
       collection(db, "users", uid, "scans"),
       orderBy("updatedAt", "desc"),
-      limitFn(5),
+      limitFn(5)
     );
 
     const unsub = onSnapshot(
@@ -187,7 +231,12 @@ const Home = () => {
     return () => unsub();
   }, [user, demo, navigate]);
 
-  const renderStartButton = (props: { variant?: "default" | "secondary" | "outline"; className?: string } = {}) => {
+  const renderStartButton = (
+    props: {
+      variant?: "default" | "secondary" | "outline";
+      className?: string;
+    } = {}
+  ) => {
     if (!demo || user) {
       return (
         <Button
@@ -199,8 +248,12 @@ const Home = () => {
         </Button>
       );
     }
-    const spanClass = props.className ? `inline-flex ${props.className}` : "inline-flex";
-    const buttonClass = props.className ? `${props.className} pointer-events-none` : "pointer-events-none";
+    const spanClass = props.className
+      ? `inline-flex ${props.className}`
+      : "inline-flex";
+    const buttonClass = props.className
+      ? `${props.className} pointer-events-none`
+      : "pointer-events-none";
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -217,11 +270,19 @@ const Home = () => {
 
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto">
-      <Seo title="Home – MyBodyScan" description="Your latest body scan and quick actions." canonical={window.location.href} />
+      <Seo
+        title="Home – MyBodyScan"
+        description="Your latest body scan and quick actions."
+        canonical={window.location.href}
+      />
       <div className="mb-4 flex justify-center">
         <Card className="w-40">
           <CardContent className="p-4 text-center">
-            <img src="/logo.svg" alt="MyBodyScan Logo" className="mx-auto h-10 w-auto max-w-full object-contain" />
+            <img
+              src="/logo.svg"
+              alt="MyBodyScan Logo"
+              className="mx-auto h-10 w-auto max-w-full object-contain"
+            />
           </CardContent>
         </Card>
       </div>
@@ -245,16 +306,23 @@ const Home = () => {
         <Card>
           <CardHeader>
             <CardTitle>Last scan</CardTitle>
-            <CardDescription>The most recent result for your account</CardDescription>
+            <CardDescription>
+              The most recent result for your account
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {showLatestErrorBanner && (
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                <p className="text-sm font-semibold text-destructive">Last scan failed to complete</p>
-                <p className="text-xs text-destructive/80">
-                  {latestAttempt?.raw?.errorMessage || "Start a new scan to try again."}
+                <p className="text-sm font-semibold text-destructive">
+                  Last scan failed to complete
                 </p>
-                <div className="mt-2">{renderStartButton({ className: "w-full" })}</div>
+                <p className="text-xs text-destructive/80">
+                  {latestAttempt?.raw?.errorMessage ||
+                    "Start a new scan to try again."}
+                </p>
+                <div className="mt-2">
+                  {renderStartButton({ className: "w-full" })}
+                </div>
               </div>
             )}
             {showLatestStuckNotice && (
@@ -264,14 +332,18 @@ const Home = () => {
                   {latestAttemptIsDisplayed
                     ? "We haven't received the final result. Start a new scan to continue."
                     : `Your most recent scan${
-                        latestAttemptTimestamp ? ` from ${latestAttemptTimestamp}` : ""
+                        latestAttemptTimestamp
+                          ? ` from ${latestAttemptTimestamp}`
+                          : ""
                       } looks stuck. Showing the last completed result below.`}
                 </p>
               </div>
             )}
             {!lastScan && (
               <div>
-                <p className="text-muted-foreground">No scans yet — Start a Scan to see your first result.</p>
+                <p className="text-muted-foreground">
+                  No scans yet — Start a Scan to see your first result.
+                </p>
               </div>
             )}
             {lastScan && (
@@ -301,7 +373,11 @@ const Home = () => {
                       {statusMeta?.helperText ?? "Check History for progress."}
                     </p>
                     {statusMeta?.recommendRescan && (
-                      <Button size="sm" variant="outline" onClick={() => navigate("/scan")}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate("/scan")}
+                      >
                         Rescan
                       </Button>
                     )}
@@ -309,7 +385,12 @@ const Home = () => {
                 )}
                 <div className="flex gap-2 pt-2">
                   {renderStartButton()}
-                  <Button variant="secondary" onClick={() => navigate("/history")}>View History</Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigate("/history")}
+                  >
+                    View History
+                  </Button>
                 </div>
               </div>
             )}
@@ -324,9 +405,15 @@ const Home = () => {
           >
             Personalize results (1 min)
           </a>
-          <Button variant="secondary" onClick={() => navigate("/history")}>History</Button>
-          <Button variant="outline" onClick={() => navigate("/plans")}>Plans</Button>
-          <Button variant="outline" onClick={() => navigate("/settings")}>Settings</Button>
+          <Button variant="secondary" onClick={() => navigate("/history")}>
+            History
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/plans")}>
+            Plans
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/settings")}>
+            Settings
+          </Button>
         </div>
       </section>
     </main>

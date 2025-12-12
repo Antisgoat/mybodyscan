@@ -19,7 +19,9 @@ function parseAdminEmails() {
 
 export const refreshClaims = onCallWithOptionalAppCheck(async (req) => {
   const uid = req.auth?.uid;
-  const email = String(req.auth?.token?.email || "").trim().toLowerCase();
+  const email = String(req.auth?.token?.email || "")
+    .trim()
+    .toLowerCase();
   if (!uid) return { ok: false };
 
   const adminEmails = parseAdminEmails();

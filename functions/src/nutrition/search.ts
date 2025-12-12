@@ -7,7 +7,10 @@ import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { HttpsError } from "firebase-functions/v2/https";
 import fetch from "node-fetch";
 
-const OFF_UA = process.env.OFF_USER_AGENT || process.env.OFF_APP_USER_AGENT || "MyBodyScan/1.0";
+const OFF_UA =
+  process.env.OFF_USER_AGENT ||
+  process.env.OFF_APP_USER_AGENT ||
+  "MyBodyScan/1.0";
 const USDA_KEY = process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY;
 
 const sanitize = (s: unknown) =>
@@ -30,11 +33,16 @@ function normalize(items: any[]) {
       id: raw?.id || raw?.fdcId || raw?.code || raw?._id || "",
       name: raw?.name || raw?.description || raw?.product_name || "",
       brand: raw?.brand || raw?.brandOwner || raw?.brands || "",
-      calories: raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? raw?.nutrients?.kcal ?? null,
+      calories:
+        raw?.calories ??
+        raw?.kcal ??
+        raw?.energyKcal ??
+        raw?.nutrients?.kcal ??
+        null,
       protein: raw?.protein ?? raw?.nutrients?.protein ?? null,
       carbs: raw?.carbs ?? raw?.nutrients?.carbohydrates ?? null,
       fat: raw?.fat ?? raw?.nutrients?.fat ?? null,
-      serving: raw?.serving ?? (raw?.servingSize ?? ""),
+      serving: raw?.serving ?? raw?.servingSize ?? "",
       source:
         typeof raw?.source === "string"
           ? raw.source
@@ -60,7 +68,7 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
   try {
     if (USDA_KEY) {
       const usda = await fetch(
-        `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_KEY}&query=${encodeURIComponent(q)}&pageSize=20`,
+        `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_KEY}&query=${encodeURIComponent(q)}&pageSize=20`
       );
       if (usda.ok) {
         const json: any = await usda.json();
@@ -88,7 +96,7 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
   try {
     const off = await fetch(
       `https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&json=1&page_size=20&search_terms=${encodeURIComponent(q)}`,
-      { headers: { "User-Agent": OFF_UA } },
+      { headers: { "User-Agent": OFF_UA } }
     );
     if (!off.ok) throw new Error(`off_status_${off.status}`);
     const json: any = await off.json();
@@ -107,6 +115,9 @@ export const nutritionSearch = onCallWithOptionalAppCheck(async (req) => {
     const normalized = normalize(items);
     return { items: normalized };
   } catch (error: any) {
-    throw new HttpsError("unknown", error?.message || "Nutrition service unavailable");
+    throw new HttpsError(
+      "unknown",
+      error?.message || "Nutrition service unavailable"
+    );
   }
 });

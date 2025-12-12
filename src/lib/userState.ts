@@ -6,7 +6,9 @@ interface StoredProfileState {
 }
 
 function isBrowser(): boolean {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  return (
+    typeof window !== "undefined" && typeof window.localStorage !== "undefined"
+  );
 }
 
 function readProfileState(): StoredProfileState {
@@ -19,7 +21,9 @@ function readProfileState(): StoredProfileState {
       return {};
     }
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as StoredProfileState) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as StoredProfileState)
+      : {};
   } catch {
     return {};
   }
@@ -56,12 +60,17 @@ function writeWeight(next: number | null, key: keyof StoredProfileState) {
 
 export function getLastWeight(): number | null {
   const { lastWeightLb } = readProfileState();
-  return typeof lastWeightLb === "number" && Number.isFinite(lastWeightLb) ? lastWeightLb : null;
+  return typeof lastWeightLb === "number" && Number.isFinite(lastWeightLb)
+    ? lastWeightLb
+    : null;
 }
 
 export function getLastGoalWeight(): number | null {
   const { lastGoalWeightLb } = readProfileState();
-  return typeof lastGoalWeightLb === "number" && Number.isFinite(lastGoalWeightLb) ? lastGoalWeightLb : null;
+  return typeof lastGoalWeightLb === "number" &&
+    Number.isFinite(lastGoalWeightLb)
+    ? lastGoalWeightLb
+    : null;
 }
 
 export function setLastWeight(lb: number) {

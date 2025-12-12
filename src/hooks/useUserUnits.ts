@@ -61,7 +61,7 @@ export function useUserUnits() {
 
   const updateUnits = async (newUnits: UnitSystem) => {
     if (!uid || !db) return;
-    
+
     try {
       const unitsRef = doc(db, "users", uid, "settings", "units");
       await setDoc(unitsRef, { system: newUnits }, { merge: true });
@@ -75,6 +75,6 @@ export function useUserUnits() {
     units,
     useMetric: units === "metric",
     loading,
-    updateUnits
+    updateUnits,
   };
 }

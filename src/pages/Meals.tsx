@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Utensils, Plus, History, Copy, Barcode, ListPlus, Star, Trash } from "lucide-react";
+import {
+  Utensils,
+  Plus,
+  History,
+  Copy,
+  Barcode,
+  ListPlus,
+  Star,
+  Trash,
+} from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -7,7 +16,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { DEMO_FAVORITES, DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG, DEMO_TEMPLATES } from "@/lib/demoContent";
+import {
+  DEMO_FAVORITES,
+  DEMO_NUTRITION_HISTORY,
+  DEMO_NUTRITION_LOG,
+  DEMO_TEMPLATES,
+} from "@/lib/demoContent";
 import {
   addMeal,
   deleteMeal,
@@ -32,7 +46,12 @@ import {
   normalizedFromSnapshot,
 } from "@/lib/nutritionMath";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
 import NutritionSearch from "@/features/meals/NutritionSearch";
 import { useAuthUser } from "@/lib/useAuthUser";
@@ -63,7 +82,10 @@ function readRecents(): RecentItem[] {
 
 function storeRecents(items: RecentItem[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, MAX_RECENTS)));
+  window.localStorage.setItem(
+    RECENTS_KEY,
+    JSON.stringify(items.slice(0, MAX_RECENTS))
+  );
 }
 
 function formatServingQuantity(value: number): string {
@@ -74,22 +96,35 @@ function formatServingQuantity(value: number): string {
 export default function Meals() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
-  const uid = authReady ? user?.uid ?? null : null;
+  const uid = authReady ? (user?.uid ?? null) : null;
   const { health: systemHealth } = useSystemHealth();
-  const { nutritionConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
+  const { nutritionConfigured } = computeFeatureStatuses(
+    systemHealth ?? undefined
+  );
   const nutritionUnavailable = nutritionConfigured === false;
   const nutritionOfflineMessage =
     "Nutrition search is offline until nutrition API keys or rate limits are configured.";
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
-    demo ? { totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] } : { totals: { calories: 0 }, meals: [] }
+    demo
+      ? {
+          totals: DEMO_NUTRITION_LOG.totals,
+          meals: DEMO_NUTRITION_LOG.meals as MealEntry[],
+        }
+      : { totals: { calories: 0 }, meals: [] }
   );
-  const [history7, setHistory7] = useState<NutritionHistoryDay[]>(() => (demo ? DEMO_NUTRITION_HISTORY : []));
+  const [history7, setHistory7] = useState<NutritionHistoryDay[]>(() =>
+    demo ? DEMO_NUTRITION_HISTORY : []
+  );
   const [loading, setLoading] = useState(!demo);
   const [processing, setProcessing] = useState(false);
   const [recents, setRecents] = useState<RecentItem[]>(() => readRecents());
-  const [favorites, setFavorites] = useState<FavoriteDocWithId[]>(() => (demo ? DEMO_FAVORITES : []));
-  const [templates, setTemplates] = useState<TemplateDocWithId[]>(() => (demo ? DEMO_TEMPLATES : []));
+  const [favorites, setFavorites] = useState<FavoriteDocWithId[]>(() =>
+    demo ? DEMO_FAVORITES : []
+  );
+  const [templates, setTemplates] = useState<TemplateDocWithId[]>(() =>
+    demo ? DEMO_TEMPLATES : []
+  );
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
@@ -97,7 +132,10 @@ export default function Meals() {
 
   const refreshLog = useCallback(() => {
     if (demo) {
-      setLog({ totals: DEMO_NUTRITION_LOG.totals, meals: DEMO_NUTRITION_LOG.meals as MealEntry[] });
+      setLog({
+        totals: DEMO_NUTRITION_LOG.totals,
+        meals: DEMO_NUTRITION_LOG.meals as MealEntry[],
+      });
       setLoading(false);
       return;
     }
@@ -108,7 +146,10 @@ export default function Meals() {
           setLog({ totals: { calories: 0 }, meals: [] });
           return;
         }
-        const totals = typeof data.totals === "object" && data.totals !== null ? data.totals : { calories: 0 };
+        const totals =
+          typeof data.totals === "object" && data.totals !== null
+            ? data.totals
+            : { calories: 0 };
         const meals = Array.isArray(data.meals) ? data.meals : [];
         setLog({ totals, meals });
       })
@@ -176,11 +217,14 @@ export default function Meals() {
 
   const updateRecents = useCallback(
     (item: FoodItem) => {
-      const next = [item, ...recents.filter((recent) => recent.id !== item.id)].slice(0, MAX_RECENTS);
+      const next = [
+        item,
+        ...recents.filter((recent) => recent.id !== item.id),
+      ].slice(0, MAX_RECENTS);
       setRecents(next);
       storeRecents(next);
     },
-    [recents],
+    [recents]
   );
 
   const handleSearchLogged = useCallback(
@@ -190,10 +234,14 @@ export default function Meals() {
       refreshLog();
       refreshHistory();
     },
-    [refreshHistory, refreshLog, updateRecents],
+    [refreshHistory, refreshLog, updateRecents]
   );
 
-  const openEditor = (item: FoodItem, qty = 1, unit: ServingUnit = "serving") => {
+  const openEditor = (
+    item: FoodItem,
+    qty = 1,
+    unit: ServingUnit = "serving"
+  ) => {
     setEditorItem(item);
     setEditorQty(qty);
     setEditorUnit(unit);
@@ -215,7 +263,11 @@ export default function Meals() {
       refreshLog();
       refreshHistory();
     } catch (error: any) {
-      toast({ title: "Unable to log", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Unable to log",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     } finally {
       setProcessing(false);
       setEditorOpen(false);
@@ -251,7 +303,9 @@ export default function Meals() {
       return;
     }
     try {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .slice(0, 10);
       const prior = await getDailyLog(yesterday);
       if (!prior.meals.length) {
         toast({ title: "No meals yesterday", description: "Nothing to copy." });
@@ -281,12 +335,21 @@ export default function Meals() {
       return;
     }
     if (!uid) {
-      toast({ title: "Sign in required", description: "Sign in to save templates.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to save templates.",
+        variant: "destructive",
+      });
       return;
     }
-    const eligible = log.meals.filter((meal) => meal.item && meal.serving?.qty && meal.serving.unit);
+    const eligible = log.meals.filter(
+      (meal) => meal.item && meal.serving?.qty && meal.serving.unit
+    );
     if (!eligible.length) {
-      toast({ title: "No template items", description: "Log meals with nutrition data to save templates." });
+      toast({
+        title: "No template items",
+        description: "Log meals with nutrition data to save templates.",
+      });
       return;
     }
     const name = window.prompt("Template name?");
@@ -300,7 +363,11 @@ export default function Meals() {
       await saveTemplate(null, name, items, uid ?? undefined);
       toast({ title: "Template saved", description: name });
     } catch (error: any) {
-      toast({ title: "Unable to save", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Unable to save",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     }
   };
 
@@ -311,7 +378,11 @@ export default function Meals() {
       return;
     }
     if (!uid) {
-      toast({ title: "Sign in required", description: "Sign in to apply templates.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to apply templates.",
+        variant: "destructive",
+      });
       return;
     }
     setProcessing(true);
@@ -329,7 +400,11 @@ export default function Meals() {
       refreshLog();
       refreshHistory();
     } catch (error: any) {
-      toast({ title: "Template failed", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Template failed",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     } finally {
       setProcessing(false);
     }
@@ -341,14 +416,22 @@ export default function Meals() {
       return;
     }
     if (!uid) {
-      toast({ title: "Sign in required", description: "Sign in to manage templates.", variant: "destructive" });
+      toast({
+        title: "Sign in required",
+        description: "Sign in to manage templates.",
+        variant: "destructive",
+      });
       return;
     }
     try {
       await deleteTemplate(id, uid ?? undefined);
       toast({ title: "Template removed" });
     } catch (error: any) {
-      toast({ title: "Delete failed", description: error?.message || "Try again", variant: "destructive" });
+      toast({
+        title: "Delete failed",
+        description: error?.message || "Try again",
+        variant: "destructive",
+      });
     }
   };
 
@@ -357,7 +440,10 @@ export default function Meals() {
   const ringCircumference = 2 * Math.PI * 54;
 
   const chartData = history7.map((day) => ({
-    date: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    date: new Date(day.date).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
     calories: day.totals.calories || 0,
     protein: day.totals.protein || 0,
     carbs: day.totals.carbs || 0,
@@ -366,12 +452,20 @@ export default function Meals() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <Seo title="Meals - MyBodyScan" description="Track your daily nutrition" />
+      <Seo
+        title="Meals - MyBodyScan"
+        description="Track your daily nutrition"
+      />
       <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-3xl font-semibold text-foreground">Today's Meals</h1>
-          <p className="text-sm text-muted-foreground">Log foods from search, barcode, favorites, and templates. Macros shown in kcal and US units.</p>
+          <h1 className="text-3xl font-semibold text-foreground">
+            Today's Meals
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Log foods from search, barcode, favorites, and templates. Macros
+            shown in kcal and US units.
+          </p>
         </div>
 
         {nutritionUnavailable && (
@@ -390,7 +484,13 @@ export default function Meals() {
           <CardContent className="grid gap-6 md:grid-cols-[200px_1fr] md:items-center">
             <div className="flex flex-col items-center justify-center">
               <svg className="h-40 w-40" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="54" strokeWidth="8" className="fill-none stroke-muted" />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  strokeWidth="8"
+                  className="fill-none stroke-muted"
+                />
                 <circle
                   cx="60"
                   cy="60"
@@ -401,21 +501,32 @@ export default function Meals() {
                   strokeDashoffset={`${ringCircumference - ringCircumference * ringProgress}`}
                   strokeLinecap="round"
                 />
-                <text x="60" y="60" textAnchor="middle" dominantBaseline="central" className="text-2xl font-semibold fill-foreground">
+                <text
+                  x="60"
+                  y="60"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="text-2xl font-semibold fill-foreground"
+                >
                   {Math.round(totalCalories)}
                 </text>
               </svg>
-              <p className="text-xs text-muted-foreground">Target {DAILY_TARGET} kcal</p>
+              <p className="text-xs text-muted-foreground">
+                Target {DAILY_TARGET} kcal
+              </p>
             </div>
             <div className="space-y-3 text-sm">
               <p>
-                Protein: <span className="font-medium">{log.totals.protein ?? 0} g</span>
+                Protein:{" "}
+                <span className="font-medium">{log.totals.protein ?? 0} g</span>
               </p>
               <p>
-                Carbs: <span className="font-medium">{log.totals.carbs ?? 0} g</span>
+                Carbs:{" "}
+                <span className="font-medium">{log.totals.carbs ?? 0} g</span>
               </p>
               <p>
-                Fat: <span className="font-medium">{log.totals.fat ?? 0} g</span>
+                Fat:{" "}
+                <span className="font-medium">{log.totals.fat ?? 0} g</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {nutritionUnavailable ? (
@@ -430,7 +541,12 @@ export default function Meals() {
                   </Button>
                 )}
                 {nutritionUnavailable ? (
-                  <Button size="sm" variant="outline" disabled title={nutritionOfflineMessage}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled
+                    title={nutritionOfflineMessage}
+                  >
                     <Barcode className="mr-1 h-4 w-4" /> Scan barcode
                   </Button>
                 ) : (
@@ -463,7 +579,13 @@ export default function Meals() {
           <CardHeader>
             <CardTitle>7-day chart</CardTitle>
           </CardHeader>
-          <CardContent>{chartData.length ? <NutritionMacrosChart data={chartData} /> : <p className="text-sm text-muted-foreground">No data yet.</p>}</CardContent>
+          <CardContent>
+            {chartData.length ? (
+              <NutritionMacrosChart data={chartData} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No data yet.</p>
+            )}
+          </CardContent>
         </Card>
 
         {favorites.length > 0 && (
@@ -475,7 +597,12 @@ export default function Meals() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {favorites.map((fav) => (
-                <Button key={fav.id} size="sm" variant="secondary" onClick={() => openEditor(fav.item)}>
+                <Button
+                  key={fav.id}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => openEditor(fav.item)}
+                >
                   {fav.item.name}
                 </Button>
               ))}
@@ -492,7 +619,12 @@ export default function Meals() {
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {recents.slice(0, 8).map((item) => (
-                <Button key={item.id} variant="outline" size="sm" onClick={() => openEditor(item)}>
+                <Button
+                  key={item.id}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditor(item)}
+                >
                   {item.name}
                 </Button>
               ))}
@@ -518,10 +650,17 @@ export default function Meals() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {templates.map((template) => (
-                <div key={template.id} className="flex items-center justify-between rounded-md border p-3">
+                <div
+                  key={template.id}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
                   <div>
-                    <p className="font-medium text-foreground">{template.name}</p>
-                    <p className="text-xs text-muted-foreground">{template.items?.length ?? 0} items</p>
+                    <p className="font-medium text-foreground">
+                      {template.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {template.items?.length ?? 0} items
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -554,7 +693,9 @@ export default function Meals() {
               <CardTitle>Templates</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
-              <p className="text-muted-foreground">Save recurring meals and apply them in one tap.</p>
+              <p className="text-muted-foreground">
+                Save recurring meals and apply them in one tap.
+              </p>
               <Button
                 size="sm"
                 variant="outline"
@@ -573,27 +714,43 @@ export default function Meals() {
             <CardTitle>Logged meals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {loading && <p className="text-sm text-muted-foreground">Loading meals…</p>}
-            {!loading && !log.meals.length && <p className="text-sm text-muted-foreground">No meals logged yet. Start with search or barcode.</p>}
+            {loading && (
+              <p className="text-sm text-muted-foreground">Loading meals…</p>
+            )}
+            {!loading && !log.meals.length && (
+              <p className="text-sm text-muted-foreground">
+                No meals logged yet. Start with search or barcode.
+              </p>
+            )}
             {log.meals.map((meal) => {
               const item = meal.item ? normalizedFromSnapshot(meal.item) : null;
               const qty = meal.serving?.qty ?? 1;
               const unit = (meal.serving?.unit as ServingUnit) || "serving";
               const qtyDisplay =
-                typeof meal.serving?.qty === "number" ? formatServingQuantity(meal.serving.qty) : null;
-              const unitLabel = typeof meal.serving?.unit === "string" ? meal.serving.unit : null;
+                typeof meal.serving?.qty === "number"
+                  ? formatServingQuantity(meal.serving.qty)
+                  : null;
+              const unitLabel =
+                typeof meal.serving?.unit === "string"
+                  ? meal.serving.unit
+                  : null;
               return (
                 <Card key={meal.id || meal.name} className="border">
                   <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{meal.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P • {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
+                        {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P •{" "}
+                        {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
                       </p>
                       {(qtyDisplay || unitLabel || meal.serving?.grams) && (
                         <p className="text-xs text-muted-foreground">
-                          {qtyDisplay && unitLabel ? `${qtyDisplay} × ${unitLabel}` : qtyDisplay || unitLabel || ""}
-                          {meal.serving?.grams ? ` · approx ${Math.round(meal.serving.grams)} g` : ""}
+                          {qtyDisplay && unitLabel
+                            ? `${qtyDisplay} × ${unitLabel}`
+                            : qtyDisplay || unitLabel || ""}
+                          {meal.serving?.grams
+                            ? ` · approx ${Math.round(meal.serving.grams)} g`
+                            : ""}
                         </p>
                       )}
                     </div>
@@ -604,7 +761,9 @@ export default function Meals() {
                           variant="outline"
                           onClick={() => openEditor(item, qty, unit)}
                           disabled={demo}
-                          title={demo ? "Demo mode: sign in to save" : undefined}
+                          title={
+                            demo ? "Demo mode: sign in to save" : undefined
+                          }
                         >
                           Edit
                         </Button>
@@ -631,7 +790,9 @@ export default function Meals() {
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{editorItem ? `Log ${editorItem.name}` : "Log food"}</DialogTitle>
+            <DialogTitle>
+              {editorItem ? `Log ${editorItem.name}` : "Log food"}
+            </DialogTitle>
           </DialogHeader>
           {editorItem && (
             <ServingEditor

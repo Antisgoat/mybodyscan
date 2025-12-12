@@ -37,7 +37,8 @@ export async function refreshClaimsAndAdminBoost() {
 
   const info = await auth?.currentUser?.getIdTokenResult();
   const isAdmin = !!info?.claims?.admin;
-  const isUnlimited = !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
+  const isUnlimited =
+    !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
 
   const email = auth?.currentUser?.email || "";
   if (!isUnlimited && email.toLowerCase() === "developer@adlrlabs.com") {
@@ -89,7 +90,8 @@ export function useClaims(): {
       setUser(u);
       setLoading(true);
       const currentUid = u?.uid ?? null;
-      const shouldForce = currentUid != null && lastUidRef.current !== currentUid;
+      const shouldForce =
+        currentUid != null && lastUidRef.current !== currentUid;
       const c = await readClaims(u, shouldForce);
       if (!alive) return;
       lastUidRef.current = currentUid;
@@ -110,7 +112,9 @@ export function useClaims(): {
                 lastUidRef.current = u.uid;
                 setClaims(refreshed);
               } else if (typeof result.credits === "number") {
-                setClaims((prev) => (prev ? { ...prev, credits: result.credits } : prev));
+                setClaims((prev) =>
+                  prev ? { ...prev, credits: result.credits } : prev
+                );
               }
             } catch (error) {
               console.error("claims_bootstrap_error", error);
@@ -147,7 +151,9 @@ export function useClaims(): {
             return refreshed;
           }
           if (result && typeof result.credits === "number") {
-            setClaims((prev) => (prev ? { ...prev, credits: result.credits } : prev));
+            setClaims((prev) =>
+              prev ? { ...prev, credits: result.credits } : prev
+            );
           }
         } catch (error) {
           console.error("claims_refresh_bootstrap_error", error);

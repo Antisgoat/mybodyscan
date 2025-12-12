@@ -5,7 +5,11 @@ export type AuthedJsonOptions = {
   signal?: AbortSignal;
 };
 
-export async function authedJsonPost<T>(path: string, body: unknown, options: AuthedJsonOptions = {}): Promise<T> {
+export async function authedJsonPost<T>(
+  path: string,
+  body: unknown,
+  options: AuthedJsonOptions = {}
+): Promise<T> {
   const user = auth.currentUser;
   const idToken = user ? await user.getIdToken() : null;
   const headers = new Headers({ "Content-Type": "application/json" });

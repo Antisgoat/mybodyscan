@@ -42,7 +42,9 @@ export default function AdminQuick() {
   return (
     <div className="mx-auto max-w-xl p-6">
       <h1 className="text-lg font-semibold">Admin tools</h1>
-      <p className="text-xs text-muted-foreground">Quick credit adjustments for support.</p>
+      <p className="text-xs text-muted-foreground">
+        Quick credit adjustments for support.
+      </p>
       <div className="mt-4 flex gap-2">
         <button
           type="button"

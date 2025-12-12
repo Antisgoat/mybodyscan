@@ -36,7 +36,7 @@ function isAppCheckLikeError(err: any): boolean {
 
 export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
   spec: FallbackSpec,
-  payload?: TReq,
+  payload?: TReq
 ): Promise<TRes> {
   try {
     await ensureAppCheck();
@@ -48,7 +48,9 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
     callableHttpFallbackActive = true;
     notifyFallbackListeners();
     const method = spec.method || "POST";
-    const httpPayload = spec.mapRequestToHttp ? spec.mapRequestToHttp(payload) : payload;
+    const httpPayload = spec.mapRequestToHttp
+      ? spec.mapRequestToHttp(payload)
+      : payload;
     const init: RequestInit = {
       method,
       headers: { "Content-Type": "application/json" },
@@ -56,12 +58,18 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
     let path = spec.httpPath;
     if (method === "POST") {
       (init as any).body = JSON.stringify(httpPayload ?? {});
-    } else if (method === "GET" && httpPayload && typeof httpPayload === "object") {
+    } else if (
+      method === "GET" &&
+      httpPayload &&
+      typeof httpPayload === "object"
+    ) {
       const params = new URLSearchParams();
-      Object.entries(httpPayload as Record<string, unknown>).forEach(([key, value]) => {
-        if (value == null) return;
-        params.append(key, String(value));
-      });
+      Object.entries(httpPayload as Record<string, unknown>).forEach(
+        ([key, value]) => {
+          if (value == null) return;
+          params.append(key, String(value));
+        }
+      );
       const qs = params.toString();
       if (qs) {
         path = `${path}${path.includes("?") ? "&" : "?"}${qs}`;
@@ -80,8 +88,11 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
         : await response.text();
       return spec.mapHttpToClient(payloadJson);
     } catch (httpError) {
-      const error = httpError instanceof Error ? httpError : new Error(String(httpError));
-      (error as Error & { httpFallbackAttempted?: boolean }).httpFallbackAttempted = true;
+      const error =
+        httpError instanceof Error ? httpError : new Error(String(httpError));
+      (
+        error as Error & { httpFallbackAttempted?: boolean }
+      ).httpFallbackAttempted = true;
       throw error;
     }
   }
@@ -91,7 +102,9 @@ export function isCallableHttpFallbackActive() {
   return callableHttpFallbackActive;
 }
 
-export function subscribeCallableHttpFallback(listener: (active: boolean) => void) {
+export function subscribeCallableHttpFallback(
+  listener: (active: boolean) => void
+) {
   fallbackListeners.add(listener);
   listener(callableHttpFallbackActive);
   return () => {
@@ -105,7 +118,10 @@ export const backend = {
     mode: "payment" | "subscription";
     promoCode?: string;
   }) {
-    return callWithHttpFallback<typeof input, { sessionId?: string; url?: string }>(
+    return callWithHttpFallback<
+      typeof input,
+      { sessionId?: string; url?: string }
+    >(
       {
         callableName: "createCheckout",
         httpPath: "/api/createCheckout",
@@ -115,7 +131,7 @@ export const backend = {
           url: json?.url ?? null,
         }),
       },
-      input,
+      input
     );
   },
 
@@ -125,9 +141,11 @@ export const backend = {
         callableName: "coachChat",
         httpPath: "/api/coach/chat",
         method: "POST",
-        mapHttpToClient: (json: any) => ({ text: json?.text ?? json?.answer ?? json?.reply ?? "" }),
+        mapHttpToClient: (json: any) => ({
+          text: json?.text ?? json?.answer ?? json?.reply ?? "",
+        }),
       },
-      input,
+      input
     );
   },
 
@@ -137,9 +155,11 @@ export const backend = {
         callableName: "nutritionSearch",
         httpPath: "/api/nutrition/search",
         method: "GET",
-        mapHttpToClient: (json: any) => ({ items: json?.items ?? json?.results ?? [] }),
+        mapHttpToClient: (json: any) => ({
+          items: json?.items ?? json?.results ?? [],
+        }),
       },
-      input,
+      input
     );
   },
 
@@ -153,9 +173,12 @@ export const backend = {
           const body = (payload as { upc?: string })?.upc;
           return body ? { code: body } : undefined;
         },
-        mapHttpToClient: (json: any) => ({ item: json?.item, items: json?.items ?? json?.results }),
+        mapHttpToClient: (json: any) => ({
+          item: json?.item,
+          items: json?.items ?? json?.results,
+        }),
       },
-      input,
+      input
     );
   },
 };

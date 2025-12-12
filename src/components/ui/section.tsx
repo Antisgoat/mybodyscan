@@ -1,13 +1,19 @@
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 interface SectionProps extends React.HTMLAttributes<HTMLElement> {
-  title?: string
-  description?: string
-  children: React.ReactNode
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
 }
 
-function Section({ title, description, className, children, ...props }: SectionProps) {
+function Section({
+  title,
+  description,
+  className,
+  children,
+  ...props
+}: SectionProps) {
   return (
     <section className={cn("space-y-4", className)} {...props}>
       {(title || description) && (
@@ -18,15 +24,13 @@ function Section({ title, description, className, children, ...props }: SectionP
             </h2>
           )}
           {description && (
-            <p className="text-sm text-muted-foreground">
-              {description}
-            </p>
+            <p className="text-sm text-muted-foreground">{description}</p>
           )}
         </div>
       )}
       <div>{children}</div>
     </section>
-  )
+  );
 }
 
-export { Section }
+export { Section };

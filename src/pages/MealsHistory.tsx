@@ -5,7 +5,10 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NutritionMacrosChart } from "@/components/charts/NutritionMacrosChart";
-import { getNutritionHistory, type NutritionHistoryDay } from "@/lib/nutritionBackend";
+import {
+  getNutritionHistory,
+  type NutritionHistoryDay,
+} from "@/lib/nutritionBackend";
 
 export default function MealsHistory() {
   const [range, setRange] = useState<7 | 30>(30);
@@ -28,13 +31,19 @@ export default function MealsHistory() {
       acc.fat += day.totals.fat || 0;
       return acc;
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
   const divisor = data.length || 1;
-  const maxCalories = Math.max(...data.map((day) => day.totals.calories || 0), 1);
+  const maxCalories = Math.max(
+    ...data.map((day) => day.totals.calories || 0),
+    1
+  );
   const chartData = data.map((day) => ({
-    date: new Date(day.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    date: new Date(day.date).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
     calories: day.totals.calories || 0,
     protein: day.totals.protein || 0,
     carbs: day.totals.carbs || 0,
@@ -43,12 +52,19 @@ export default function MealsHistory() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Meal History - MyBodyScan" description="Review your recent nutrition trends" />
+      <Seo
+        title="Meal History - MyBodyScan"
+        description="Review your recent nutrition trends"
+      />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <CalendarRange className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-2xl font-semibold text-foreground">Nutrition History</h1>
-          <p className="text-sm text-muted-foreground">Compare 7-day and 30-day trends with adherence heatmap.</p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Nutrition History
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Compare 7-day and 30-day trends with adherence heatmap.
+          </p>
         </div>
 
         <div className="flex justify-center gap-2">
@@ -85,20 +101,34 @@ export default function MealsHistory() {
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <div className="text-xs uppercase text-muted-foreground">Calories</div>
-              <div className="text-lg font-semibold">{Math.round(totals.calories / divisor)}</div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Calories
+              </div>
+              <div className="text-lg font-semibold">
+                {Math.round(totals.calories / divisor)}
+              </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-muted-foreground">Protein</div>
-              <div className="text-lg font-semibold">{Math.round(totals.protein / divisor)}g</div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Protein
+              </div>
+              <div className="text-lg font-semibold">
+                {Math.round(totals.protein / divisor)}g
+              </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-muted-foreground">Carbs</div>
-              <div className="text-lg font-semibold">{Math.round(totals.carbs / divisor)}g</div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Carbs
+              </div>
+              <div className="text-lg font-semibold">
+                {Math.round(totals.carbs / divisor)}g
+              </div>
             </div>
             <div>
               <div className="text-xs uppercase text-muted-foreground">Fat</div>
-              <div className="text-lg font-semibold">{Math.round(totals.fat / divisor)}g</div>
+              <div className="text-lg font-semibold">
+                {Math.round(totals.fat / divisor)}g
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -118,7 +148,9 @@ export default function MealsHistory() {
                   className="flex h-12 flex-col items-center justify-center rounded-md text-foreground"
                   style={{ background }}
                 >
-                  <span className="font-medium">{new Date(day.date).getDate()}</span>
+                  <span className="font-medium">
+                    {new Date(day.date).getDate()}
+                  </span>
                   <span className="text-[10px]">{Math.round(calories)}</span>
                 </div>
               );

@@ -76,8 +76,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Weighted Chin-Up", "sets": 3, "reps": "6-8", "restSec": 120 },
-                { "name": "Dumbbell Incline Press", "sets": 3, "reps": "8-10", "restSec": 90 }
+                {
+                  "name": "Weighted Chin-Up",
+                  "sets": 3,
+                  "reps": "6-8",
+                  "restSec": 120
+                },
+                {
+                  "name": "Dumbbell Incline Press",
+                  "sets": 3,
+                  "reps": "8-10",
+                  "restSec": 90
+                }
               ]
             }
           ]
@@ -119,8 +129,18 @@
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Walking Lunge", "sets": 3, "reps": "12/leg", "restSec": 90 },
-                { "name": "Hanging Leg Raise", "sets": 3, "reps": "12-15", "restSec": 60 }
+                {
+                  "name": "Walking Lunge",
+                  "sets": 3,
+                  "reps": "12/leg",
+                  "restSec": 90
+                },
+                {
+                  "name": "Hanging Leg Raise",
+                  "sets": 3,
+                  "reps": "12-15",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -157,8 +177,18 @@
                     }
                   ]
                 },
-                { "name": "Lateral Raise", "sets": 3, "reps": "12-15", "restSec": 60 },
-                { "name": "Cable Triceps Pressdown", "sets": 3, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Lateral Raise",
+                  "sets": 3,
+                  "reps": "12-15",
+                  "restSec": 60
+                },
+                {
+                  "name": "Cable Triceps Pressdown",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]

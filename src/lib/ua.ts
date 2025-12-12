@@ -13,7 +13,9 @@ export function isSafari(): boolean {
   const ua = navigator.userAgent || "";
   // Safari on macOS or iOS: userAgent contains Safari but not Chrome/Edge/Opera variants
   const isSafariTokenPresent = /Safari\//.test(ua);
-  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(ua);
+  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(
+    ua
+  );
   return isSafariTokenPresent && !isNonSafariEngine;
 }
 
@@ -22,7 +24,9 @@ export function isSafariDesktop(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
   const isSafariTokenPresent = /Safari\//.test(ua);
-  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(ua);
+  const isNonSafariEngine = /(Chrome|CriOS|FxiOS|Edg|EdgiOS|OPR|OPiOS)/.test(
+    ua
+  );
   const isIOS = /(iPhone|iPad|iPod)/.test(ua);
   return isSafariTokenPresent && !isNonSafariEngine && !isIOS;
 }

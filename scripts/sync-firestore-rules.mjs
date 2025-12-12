@@ -11,7 +11,10 @@ function read(path) {
   try {
     return readFileSync(path, "utf8");
   } catch (error) {
-    console.error(`Unable to read ${path}:`, error instanceof Error ? error.message : error);
+    console.error(
+      `Unable to read ${path}:`,
+      error instanceof Error ? error.message : error
+    );
     process.exitCode = 1;
     return "";
   }
@@ -24,7 +27,9 @@ const checkOnly = process.argv.includes("--check");
 
 if (checkOnly) {
   if (!matches) {
-    console.error("firestore.rules is out of sync with database.rules.json. Run npm run rules:sync.");
+    console.error(
+      "firestore.rules is out of sync with database.rules.json. Run npm run rules:sync."
+    );
     process.exit(1);
   }
   console.log("firestore.rules matches database.rules.json");

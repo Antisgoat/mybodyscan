@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { getFirebaseAuth } from "../lib/firebase";
-import { GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];

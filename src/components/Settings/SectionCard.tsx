@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReactNode } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SectionCardProps {
   title: string;
@@ -7,7 +7,11 @@ interface SectionCardProps {
   children: ReactNode;
 }
 
-export function SectionCard({ title, description, children }: SectionCardProps) {
+export function SectionCard({
+  title,
+  description,
+  children,
+}: SectionCardProps) {
   return (
     <Card>
       <CardHeader>

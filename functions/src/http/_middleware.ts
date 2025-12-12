@@ -21,24 +21,34 @@ function makeDocId(key: string, identifier: string): string {
   return `${key}_${hash}`.slice(0, 120);
 }
 
-async function recordAttempt(options: RateLimitOptions): Promise<RateLimitResult> {
+async function recordAttempt(
+  options: RateLimitOptions
+): Promise<RateLimitResult> {
   const { key, identifier, limit, windowSeconds } = options;
   const docId = makeDocId(key, identifier);
-  const ref = db.doc(`rateLimits/${docId}`) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
+  const ref = db.doc(
+    `rateLimits/${docId}`
+  ) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
   const now = Timestamp.now();
   const windowStart = now.toMillis() - windowSeconds * 1000;
 
   return await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(ref)) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const snap = (await tx.get(
+      ref
+    )) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     const data = snap.exists ? (snap.data() as Record<string, unknown>) : {};
     const events: Timestamp[] = Array.isArray(data.events)
-      ? data.events.filter((item): item is Timestamp => item instanceof Timestamp)
+      ? data.events.filter(
+          (item): item is Timestamp => item instanceof Timestamp
+        )
       : [];
     const recent = events.filter((event) => event.toMillis() >= windowStart);
 
     if (recent.length >= limit) {
       const oldest = recent[0];
-      const retryAfterMs = oldest ? oldest.toMillis() + windowSeconds * 1000 - now.toMillis() : windowSeconds * 1000;
+      const retryAfterMs = oldest
+        ? oldest.toMillis() + windowSeconds * 1000 - now.toMillis()
+        : windowSeconds * 1000;
       const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
       return { allowed: false, retryAfterSeconds };
     }
@@ -58,14 +68,16 @@ async function recordAttempt(options: RateLimitOptions): Promise<RateLimitResult
         lastAttempt: FieldValue.serverTimestamp(),
         count: FieldValue.increment(1),
       },
-      { merge: true },
+      { merge: true }
     );
 
     return { allowed: true };
   });
 }
 
-export async function ensureRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
+export async function ensureRateLimit(
+  options: RateLimitOptions
+): Promise<RateLimitResult> {
   try {
     return await recordAttempt(options);
   } catch (error) {
@@ -79,9 +91,13 @@ export async function ensureRateLimit(options: RateLimitOptions): Promise<RateLi
 }
 
 export function withRateLimit(
-  optionsFactory: (req: Request) => RateLimitOptions | null | undefined,
+  optionsFactory: (req: Request) => RateLimitOptions | null | undefined
 ) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       const config = optionsFactory(req);
       if (!config) {
@@ -90,7 +106,10 @@ export function withRateLimit(
       }
       const result = await ensureRateLimit(config);
       if (!result.allowed) {
-        res.status(429).json({ error: "rate_limited", retryAfter: result.retryAfterSeconds ?? null });
+        res.status(429).json({
+          error: "rate_limited",
+          retryAfter: result.retryAfterSeconds ?? null,
+        });
         return;
       }
       next();

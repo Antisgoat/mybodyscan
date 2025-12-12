@@ -1,28 +1,51 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { FoodNormalized, ServingOption } from "@/lib/nutrition/measureMap";
 import { calcMacrosFromGrams } from "@/lib/nutrition/measureMap";
 
 interface ServingChooserProps {
   food: FoodNormalized;
-  onConfirm: (payload: { grams: number; label: string; quantity: number }) => void;
+  onConfirm: (payload: {
+    grams: number;
+    label: string;
+    quantity: number;
+  }) => void;
   onClose: () => void;
 }
 
-export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps) {
+export function ServingChooser({
+  food,
+  onConfirm,
+  onClose,
+}: ServingChooserProps) {
   const defaultServing = useMemo(() => {
     if (!food.servings.length) {
       return undefined;
     }
-    return food.servings.find((serving) => serving.isDefault) ?? food.servings[0];
+    return (
+      food.servings.find((serving) => serving.isDefault) ?? food.servings[0]
+    );
   }, [food.servings]);
 
   const [quantity, setQuantity] = useState<number>(1);
-  const [servingId, setServingId] = useState<string | undefined>(defaultServing?.id);
+  const [servingId, setServingId] = useState<string | undefined>(
+    defaultServing?.id
+  );
   const quantityRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,7 +55,9 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
 
   const selectedServing: ServingOption | undefined = useMemo(() => {
     if (!servingId) return defaultServing;
-    return food.servings.find((option) => option.id === servingId) ?? defaultServing;
+    return (
+      food.servings.find((option) => option.id === servingId) ?? defaultServing
+    );
   }, [defaultServing, food.servings, servingId]);
 
   const grams = useMemo(() => {
@@ -41,7 +66,10 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
     return total > 0 ? Number(total.toFixed(2)) : 0;
   }, [quantity, selectedServing]);
 
-  const macros = useMemo(() => calcMacrosFromGrams(food.basePer100g, grams), [food.basePer100g, grams]);
+  const macros = useMemo(
+    () => calcMacrosFromGrams(food.basePer100g, grams),
+    [food.basePer100g, grams]
+  );
 
   const confirm = () => {
     if (!selectedServing) return;
@@ -50,7 +78,12 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent
         className="max-w-md"
         onOpenAutoFocus={(event) => {
@@ -65,7 +98,11 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-1">
             <span>{food.name}</span>
-            {food.brand && <span className="text-sm font-normal text-muted-foreground">{food.brand}</span>}
+            {food.brand && (
+              <span className="text-sm font-normal text-muted-foreground">
+                {food.brand}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -120,7 +157,8 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
             <div>
               <Label>Macros</Label>
               <p className="text-sm text-muted-foreground">
-                {macros.kcal} kcal • {macros.protein}g P • {macros.carbs}g C • {macros.fat}g F
+                {macros.kcal} kcal • {macros.protein}g P • {macros.carbs}g C •{" "}
+                {macros.fat}g F
               </p>
             </div>
           </div>
@@ -129,7 +167,11 @@ export function ServingChooser({ food, onConfirm, onClose }: ServingChooserProps
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={confirm} disabled={!selectedServing || quantity < 0.25}>
+            <Button
+              type="button"
+              onClick={confirm}
+              disabled={!selectedServing || quantity < 0.25}
+            >
               Add
             </Button>
           </div>

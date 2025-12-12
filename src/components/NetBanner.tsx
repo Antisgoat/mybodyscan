@@ -5,7 +5,9 @@ type NetState = { offline: boolean; msg?: string; t?: number };
 type NetEventDetail = { message?: string };
 
 export default function NetBanner() {
-  const [state, setState] = useState<NetState>({ offline: typeof navigator !== "undefined" ? !navigator.onLine : false });
+  const [state, setState] = useState<NetState>({
+    offline: typeof navigator !== "undefined" ? !navigator.onLine : false,
+  });
   const timerRef = useRef<number>();
 
   useEffect(() => {
@@ -31,13 +33,16 @@ export default function NetBanner() {
     function onNet(event: Event) {
       const detail = (event as CustomEvent<NetEventDetail>)?.detail;
       const message = detail?.message || "Network request failed.";
-      const offline = typeof navigator !== "undefined" ? !navigator.onLine : false;
+      const offline =
+        typeof navigator !== "undefined" ? !navigator.onLine : false;
       const timestamp = Date.now();
       setState({ offline, msg: message, t: timestamp });
       if (!offline) {
         clearTimer();
         timerRef.current = window.setTimeout(() => {
-          setState((prev) => (prev.t === timestamp ? { offline: false } : prev));
+          setState((prev) =>
+            prev.t === timestamp ? { offline: false } : prev
+          );
         }, 4000);
       }
     }
@@ -59,7 +64,7 @@ export default function NetBanner() {
 
   const text = state.offline
     ? "You’re offline. Some features won’t work."
-    : state.msg ?? "";
+    : (state.msg ?? "");
 
   return (
     <div style={bar} role="status" aria-live="polite">

@@ -14,7 +14,8 @@ export const deleteAccount = onRequest(
     memory: "1GiB",
   },
   async (req, res) => {
-    if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
+    if (req.method !== "POST")
+      return res.status(405).json({ error: "method_not_allowed" });
 
     try {
       const authz = String(req.headers.authorization || "");
@@ -40,7 +41,9 @@ export const deleteAccount = onRequest(
 
       return res.json({ ok: true });
     } catch (err: any) {
-      logger.error("deleteAccount_failed", { err: String(err?.message || err) });
+      logger.error("deleteAccount_failed", {
+        err: String(err?.message || err),
+      });
       return res.status(500).json({ error: "internal" });
     }
   }
@@ -51,7 +54,9 @@ async function runSoftAppCheck(req: Request, res: Response): Promise<void> {
     try {
       appCheckSoft(req, res, () => resolve());
     } catch (error) {
-      logger.warn("deleteAccount_appcheck_error", { message: (error as Error)?.message });
+      logger.warn("deleteAccount_appcheck_error", {
+        message: (error as Error)?.message,
+      });
       resolve();
     }
   });
@@ -71,13 +76,20 @@ async function deleteUserData(uid: string) {
     await deleteCollectionBatched(db, path, 200);
   }
 
-  await db.doc(`users/${uid}`).delete().catch(() => {});
+  await db
+    .doc(`users/${uid}`)
+    .delete()
+    .catch(() => {});
 
   const bucket = getStorage().bucket();
   await bucket.deleteFiles({ prefix: `scans/${uid}/` }).catch(() => {});
 }
 
-async function deleteCollectionBatched(db: Firestore, collectionPath: string, batchSize = 200) {
+async function deleteCollectionBatched(
+  db: Firestore,
+  collectionPath: string,
+  batchSize = 200
+) {
   while (true) {
     const snap = await db.collection(collectionPath).limit(batchSize).get();
     if (snap.empty) return;

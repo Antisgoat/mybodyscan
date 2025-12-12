@@ -1,4 +1,4 @@
-import type { ConsoleMessage, Page } from '@playwright/test';
+import type { ConsoleMessage, Page } from "@playwright/test";
 
 const benignConsolePatterns: Array<RegExp> = [
   /Extensions are not allowed/, // browser-specific noise
@@ -13,8 +13,8 @@ function isBenign(message: ConsoleMessage): boolean {
 }
 
 export function attachConsoleGuard(page: Page): void {
-  page.on('console', (message) => {
-    if (message.type() !== 'error') {
+  page.on("console", (message) => {
+    if (message.type() !== "error") {
       return;
     }
 

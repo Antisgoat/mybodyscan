@@ -1,22 +1,22 @@
 import path from "path";
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     include: [
-      'src/**/*.{test,spec}.{ts,tsx}',
-      'src/**/__tests__/**/*.{test,spec}.{ts,tsx}',
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "src/**/__tests__/**/*.{test,spec}.{ts,tsx}",
     ],
     exclude: [
-      'node_modules/**',
-      'functions/**',
-      'tests/**',
-      'e2e/**',
-      'dist/**',
-      'build/**',
-      '.{git,github,husky,vscode}/**',
+      "node_modules/**",
+      "functions/**",
+      "tests/**",
+      "e2e/**",
+      "dist/**",
+      "build/**",
+      ".{git,github,husky,vscode}/**",
     ],
-    environment: 'node',
+    environment: "node",
   },
   resolve: {
     alias: {

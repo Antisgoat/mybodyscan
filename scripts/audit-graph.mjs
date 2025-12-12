@@ -11,12 +11,27 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = process.cwd();
 const SRC_DIR = path.join(ROOT, "src");
-const SUPPORTED_EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
+const SUPPORTED_EXTS = [
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
+];
 
 // ---------- helpers ----------
 const normalize = (p) => path.resolve(p).split(path.sep).join(path.posix.sep);
 const rel = (p) => normalize(path.relative(ROOT, p));
-const readJsonIfExists = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
+const readJsonIfExists = (p) => {
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+};
 
 function walk(dir) {
   const out = [];
@@ -29,19 +44,23 @@ function walk(dir) {
   return out;
 }
 
-function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // ---------- tsconfig paths ----------
 const tsconfig = readJsonIfExists(path.join(ROOT, "tsconfig.json")) || {};
 const baseUrl = tsconfig?.compilerOptions?.baseUrl
   ? path.resolve(ROOT, tsconfig.compilerOptions.baseUrl)
   : ROOT;
-const pathsMap = Object.entries(tsconfig?.compilerOptions?.paths || {}).map(([alias, targets]) => {
-  const hasStar = alias.endsWith("/*");
-  const prefix = hasStar ? alias.slice(0, -2) : alias;
-  const t = Array.isArray(targets) ? targets : [targets];
-  return { alias, prefix, hasStar, targets: t };
-});
+const pathsMap = Object.entries(tsconfig?.compilerOptions?.paths || {}).map(
+  ([alias, targets]) => {
+    const hasStar = alias.endsWith("/*");
+    const prefix = hasStar ? alias.slice(0, -2) : alias;
+    const t = Array.isArray(targets) ? targets : [targets];
+    return { alias, prefix, hasStar, targets: t };
+  }
+);
 
 function candidateFilesForBase(base) {
   const c = [base];
@@ -95,8 +114,10 @@ const files = filesAbs.map(normalize);
 const fileSet = new Set(files);
 
 // regexes (simple, not full parser)
-const importFromRegex = /\bimport(?:\s+[^"'()]*)?\s*from\s*["'`](.+?)["'`]|^\s*import\s*["'`](.+?)["'`]/gm;
-const exportFromRegex = /\bexport\s+(?:\*|\{[^}]*\})\s+from\s*["'`](.+?)["'`]/gm;
+const importFromRegex =
+  /\bimport(?:\s+[^"'()]*)?\s*from\s*["'`](.+?)["'`]|^\s*import\s*["'`](.+?)["'`]/gm;
+const exportFromRegex =
+  /\bexport\s+(?:\*|\{[^}]*\})\s+from\s*["'`](.+?)["'`]/gm;
 const dynamicImportRegex = /import\(\s*["'`](.+?)["'`]\s*\)/g;
 const importMetaGlobRegex = /import\.meta\.glob\(\s*["'`](.+?)["'`]/g;
 
@@ -117,7 +138,10 @@ function globToRegExp(absPattern) {
   for (let i = 0; i < g.length; i++) {
     const ch = g[i];
     if (ch === "*") {
-      if (g[i + 1] === "*") { out += ".*"; i++; } else out += "[^/]*";
+      if (g[i + 1] === "*") {
+        out += ".*";
+        i++;
+      } else out += "[^/]*";
     } else if (ch === "?") out += ".";
     else out += escapeRe(ch);
   }
@@ -129,7 +153,7 @@ function resolveGlob(pattern, fromFile) {
     ? normalize(path.join(ROOT, pattern))
     : normalize(path.resolve(path.dirname(fromFile), pattern));
   const re = globToRegExp(base);
-  return files.filter(f => re.test(f));
+  return files.filter((f) => re.test(f));
 }
 
 // ---------- build graph ----------
@@ -149,16 +173,23 @@ for (const abs of filesAbs) {
 
 // ---------- entry files ----------
 const entryCandidates = [
-  "src/main.tsx", "src/main.ts", "src/main.jsx",
-  "src/index.tsx", "src/index.ts", "src/index.jsx",
-  "src/App.tsx", "src/app.tsx", "src/router.tsx", "src/routes.tsx"
+  "src/main.tsx",
+  "src/main.ts",
+  "src/main.jsx",
+  "src/index.tsx",
+  "src/index.ts",
+  "src/index.jsx",
+  "src/App.tsx",
+  "src/app.tsx",
+  "src/router.tsx",
+  "src/routes.tsx",
 ].map(normalize);
 const entrySet = new Set(entryCandidates);
 
 // ---------- dead files ----------
 const deadFiles = files
-  .filter(f => !entrySet.has(rel(f)))
-  .filter(f => !(importers.get(f)?.size));
+  .filter((f) => !entrySet.has(rel(f)))
+  .filter((f) => !importers.get(f)?.size);
 
 // ---------- case conflicts ----------
 const caseKey = (f) => {
@@ -172,17 +203,22 @@ for (const f of files) {
   if (!byKey.has(k)) byKey.set(k, []);
   byKey.get(k).push(f);
 }
-const caseConflicts = Array.from(byKey.values()).filter(list => list.length > 1);
+const caseConflicts = Array.from(byKey.values()).filter(
+  (list) => list.length > 1
+);
 
 // ---------- stray fetch() calls ----------
 const strayFetchCalls = [];
 for (const abs of filesAbs) {
   const f = normalize(abs);
   const content = fs.readFileSync(abs, "utf8");
-  const alsoUnified = /apiFetchWithFallback|apiFetchJson|apiFetch|api(Get|Post|Put|Delete)/.test(content);
+  const alsoUnified =
+    /apiFetchWithFallback|apiFetchJson|apiFetch|api(Get|Post|Put|Delete)/.test(
+      content
+    );
   const lines = content.split(/\r?\n/);
   const apiRe = /fetch\s*\(\s*(['"])\/api\//;
-  const fnRe  = /fetch\s*\(\s*(['"]).*?(cloudfunctions\.net|a\.run\.app)/;
+  const fnRe = /fetch\s*\(\s*(['"]).*?(cloudfunctions\.net|a\.run\.app)/;
   lines.forEach((line, idx) => {
     if (!/fetch\s*\(/.test(line)) return;
     if (apiRe.test(line) || fnRe.test(line)) {
@@ -205,14 +241,14 @@ const result = {
   importGraphSummary: {
     totalFiles: files.length,
     totalEdges: edges.length,
-    entryFilesPresent: entryCandidates.filter(f => fileSet.has(f)),
-    aliasRules: pathsMap.map(p => p.alias),
+    entryFilesPresent: entryCandidates.filter((f) => fileSet.has(f)),
+    aliasRules: pathsMap.map((p) => p.alias),
   },
   graph: {
     edges: edges.map(([from, to]) => [rel(from), rel(to)]),
   },
   deadFiles: deadFiles.map(rel).sort(),
-  caseConflicts: caseConflicts.map(group => group.map(rel).sort()),
+  caseConflicts: caseConflicts.map((group) => group.map(rel).sort()),
   strayFetchCalls,
 };
 

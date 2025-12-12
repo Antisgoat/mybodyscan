@@ -12,7 +12,10 @@ import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
 import { requireAuth } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
-import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
+import type {
+  Request as ExpressRequest,
+  Response as ExpressResponse,
+} from "express";
 import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { hasOpenAI } from "./lib/env.js";
 import { scrubUndefined } from "./lib/scrub.js";
@@ -26,7 +29,15 @@ const ADJUST_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const ADJUST_TIMEOUT_MS = 8_000;
 const PLAN_TIMEOUT_MS = 10_000;
 const MAX_NOTE_LENGTH = 400;
-const VALID_CATALOG_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const VALID_CATALOG_DAYS = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun",
+] as const;
 const VALID_CATALOG_DAY_SET = new Set<string>(VALID_CATALOG_DAYS);
 
 type AdjustmentMods = {
@@ -60,7 +71,10 @@ function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
   const limit = Math.max(2, Math.min(prefs.daysPerWeek || 4, 6));
   return days.slice(0, limit).map((day, index) => ({
     day,
-    exercises: baseExercises.map((ex, idx) => ({ ...ex, id: `${ex.id}-${index}-${idx}` })),
+    exercises: baseExercises.map((ex, idx) => ({
+      ...ex,
+      id: `${ex.id}-${index}-${idx}`,
+    })),
   }));
 }
 
@@ -78,17 +92,37 @@ function describeDay(day: WorkoutDay | null): string {
     return `Day ${day.day}: no exercises recorded.`;
   }
   const items = day.exercises.map((exercise, index) => {
-    const name = typeof exercise?.name === "string" && exercise.name.trim().length ? exercise.name : `Movement ${index + 1}`;
+    const name =
+      typeof exercise?.name === "string" && exercise.name.trim().length
+        ? exercise.name
+        : `Movement ${index + 1}`;
     const sets = typeof exercise?.sets === "number" ? exercise.sets : "-";
-    const reps = typeof exercise?.reps === "string" || typeof exercise?.reps === "number" ? exercise.reps : "-";
+    const reps =
+      typeof exercise?.reps === "string" || typeof exercise?.reps === "number"
+        ? exercise.reps
+        : "-";
     return `${index + 1}. ${name} – ${sets} x ${reps}`;
   });
   return `Day ${day.day}: ${items.join("; ")}`;
 }
 
 function parseAdjustmentPayload(raw: any): AdjustmentMods {
-  const intensity = clampDelta(Number(raw?.intensity ?? raw?.intensityDelta ?? raw?.intensity_delta ?? raw?.intensityAdjustment));
-  const volume = clampDelta(Number(raw?.volume ?? raw?.volumeDelta ?? raw?.volume_delta ?? raw?.volumeAdjustment));
+  const intensity = clampDelta(
+    Number(
+      raw?.intensity ??
+        raw?.intensityDelta ??
+        raw?.intensity_delta ??
+        raw?.intensityAdjustment
+    )
+  );
+  const volume = clampDelta(
+    Number(
+      raw?.volume ??
+        raw?.volumeDelta ??
+        raw?.volume_delta ??
+        raw?.volumeAdjustment
+    )
+  );
   const summarySource =
     typeof raw?.summary === "string"
       ? raw.summary
@@ -111,7 +145,9 @@ function validateAdjustmentResponse(raw: unknown): Record<string, unknown> {
 function normalizeBodyFeel(value: unknown): BodyFeel | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
-  return BODY_FEEL_SET.has(normalized as BodyFeel) ? (normalized as BodyFeel) : null;
+  return BODY_FEEL_SET.has(normalized as BodyFeel)
+    ? (normalized as BodyFeel)
+    : null;
 }
 
 function sanitizeNotes(value: unknown): string | null {
@@ -121,14 +157,26 @@ function sanitizeNotes(value: unknown): string | null {
   return trimmed.slice(0, MAX_NOTE_LENGTH);
 }
 
-function fallbackMods(bodyFeel: BodyFeel): { intensity: number; volume: number } {
+function fallbackMods(bodyFeel: BodyFeel): {
+  intensity: number;
+  volume: number;
+} {
   return {
-    intensity: bodyFeel === "great" ? 1 : bodyFeel === "tired" || bodyFeel === "sore" ? -1 : 0,
+    intensity:
+      bodyFeel === "great"
+        ? 1
+        : bodyFeel === "tired" || bodyFeel === "sore"
+          ? -1
+          : 0,
     volume: bodyFeel === "great" ? 1 : bodyFeel === "sore" ? -1 : 0,
   };
 }
 
-type CatalogExercisePayload = { name?: string; sets?: number; reps?: number | string };
+type CatalogExercisePayload = {
+  name?: string;
+  sets?: number;
+  reps?: number | string;
+};
 type CatalogDayPayload = { day?: string; exercises?: CatalogExercisePayload[] };
 
 function sanitizeCatalogPlan(payload: any): {
@@ -149,14 +197,25 @@ function sanitizeCatalogPlan(payload: any): {
     throw new HttpsError("invalid-argument", "programId is required.");
   }
   const title =
-    typeof payload.title === "string" && payload.title.trim().length ? payload.title.trim().slice(0, 80) : undefined;
+    typeof payload.title === "string" && payload.title.trim().length
+      ? payload.title.trim().slice(0, 80)
+      : undefined;
   const goal =
-    typeof payload.goal === "string" && payload.goal.trim().length ? payload.goal.trim().slice(0, 40) : undefined;
+    typeof payload.goal === "string" && payload.goal.trim().length
+      ? payload.goal.trim().slice(0, 40)
+      : undefined;
   const level =
-    typeof payload.level === "string" && payload.level.trim().length ? payload.level.trim().slice(0, 40) : undefined;
-  const rawDays: CatalogDayPayload[] = Array.isArray(payload.days) ? payload.days : [];
+    typeof payload.level === "string" && payload.level.trim().length
+      ? payload.level.trim().slice(0, 40)
+      : undefined;
+  const rawDays: CatalogDayPayload[] = Array.isArray(payload.days)
+    ? payload.days
+    : [];
   if (!rawDays.length) {
-    throw new HttpsError("invalid-argument", "At least one training day is required.");
+    throw new HttpsError(
+      "invalid-argument",
+      "At least one training day is required."
+    );
   }
   if (rawDays.length > 7) {
     throw new HttpsError("invalid-argument", "Too many training days.");
@@ -164,11 +223,19 @@ function sanitizeCatalogPlan(payload: any): {
   const days: WorkoutDay[] = rawDays.map((day, index) => {
     const dayName = typeof day?.day === "string" ? day.day.trim() : "";
     if (!VALID_CATALOG_DAY_SET.has(dayName)) {
-      throw new HttpsError("invalid-argument", `Invalid day value at index ${index}.`);
+      throw new HttpsError(
+        "invalid-argument",
+        `Invalid day value at index ${index}.`
+      );
     }
-    const rawExercises: CatalogExercisePayload[] = Array.isArray(day?.exercises) ? day.exercises : [];
+    const rawExercises: CatalogExercisePayload[] = Array.isArray(day?.exercises)
+      ? day.exercises
+      : [];
     if (!rawExercises.length) {
-      throw new HttpsError("invalid-argument", `Each day requires at least one exercise (${dayName}).`);
+      throw new HttpsError(
+        "invalid-argument",
+        `Each day requires at least one exercise (${dayName}).`
+      );
     }
     const exercises = rawExercises.slice(0, 12).map((exercise, exerciseIdx) => {
       const name =
@@ -176,7 +243,8 @@ function sanitizeCatalogPlan(payload: any): {
           ? exercise.name.trim().slice(0, 80)
           : `Exercise ${exerciseIdx + 1}`;
       const setsRaw = Number(exercise?.sets);
-      const sets = Number.isFinite(setsRaw) && setsRaw > 0 ? Math.min(setsRaw, 10) : 3;
+      const sets =
+        Number.isFinite(setsRaw) && setsRaw > 0 ? Math.min(setsRaw, 10) : 3;
       const reps =
         typeof exercise?.reps === "string" && exercise.reps.trim().length
           ? exercise.reps.trim().slice(0, 40)
@@ -221,7 +289,7 @@ async function requestAiAdjustment(input: {
 
   const { data } = await structuredJsonChat<Record<string, unknown>>({
     systemPrompt:
-      "You fine-tune strength training plans. Respond with compact JSON shaped as {\"intensity\":-2..2,\"volume\":-2..2,\"summary\":\"<=160 chars\"}. Positive numbers increase stress, negative ease up.",
+      'You fine-tune strength training plans. Respond with compact JSON shaped as {"intensity":-2..2,"volume":-2..2,"summary":"<=160 chars"}. Positive numbers increase stress, negative ease up.',
     userContent: prompt,
     temperature: 0.2,
     maxTokens: 320,
@@ -238,7 +306,7 @@ async function requestAiAdjustment(input: {
 const PLAN_SYSTEM_PROMPT = [
   "You design pragmatic progressive overload workout plans.",
   'Respond with JSON matching {"days":[{"day":"Mon","exercises":[{"name":"Goblet Squat","sets":3,"reps":"10"}]}]}.',
-  "Provide 3-6 days max, each with 3-5 exercises. Keep reps as short strings (e.g. \"8-12\" or \"10\").",
+  'Provide 3-6 days max, each with 3-5 exercises. Keep reps as short strings (e.g. "8-12" or "10").',
   "Return JSON only with no markdown fences or prose.",
 ].join("\n");
 
@@ -261,7 +329,10 @@ function buildPlanPrompt(prefs: PlanPrefs): string {
   const focus = prefs.focus || "balanced";
   const equipment = prefs.equipment || "bodyweight";
   const daysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 6));
-  const injuries = Array.isArray(prefs.injuries) && prefs.injuries.length ? prefs.injuries.join(", ") : "none";
+  const injuries =
+    Array.isArray(prefs.injuries) && prefs.injuries.length
+      ? prefs.injuries.join(", ")
+      : "none";
   return [
     `Goal focus: ${focus}`,
     `Equipment: ${equipment}`,
@@ -273,15 +344,23 @@ function buildPlanPrompt(prefs: PlanPrefs): string {
 
 function adaptAiPlanDays(days: unknown[]): WorkoutDay[] {
   return days
-    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null
+    )
     .map((item) => {
       const exercisesRaw = Array.isArray(item.exercises) ? item.exercises : [];
       const exercises = exercisesRaw
-        .filter((ex): ex is Record<string, unknown> => typeof ex === "object" && ex !== null)
+        .filter(
+          (ex): ex is Record<string, unknown> =>
+            typeof ex === "object" && ex !== null
+        )
         .map((ex) => ({
           id: randomUUID(),
           name: String(ex.name || "Exercise").slice(0, 80),
-          sets: Number.isFinite(ex.sets) ? Math.max(1, Math.min(Number(ex.sets), 10)) : 3,
+          sets: Number.isFinite(ex.sets)
+            ? Math.max(1, Math.min(Number(ex.sets), 10))
+            : 3,
           reps:
             typeof ex.reps === "number" && Number.isFinite(ex.reps)
               ? Number(ex.reps).toString()
@@ -318,7 +397,9 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
   }
 }
 
-async function resolvePlanDays(prefs: PlanPrefs): Promise<{ days: WorkoutDay[]; source: string }> {
+async function resolvePlanDays(
+  prefs: PlanPrefs
+): Promise<{ days: WorkoutDay[]; source: string }> {
   const aiPlan = await generateAiPlan(prefs);
   if (aiPlan && aiPlan.length) {
     return { days: aiPlan, source: "openai" };
@@ -363,7 +444,10 @@ async function fetchCurrentPlan(uid: string) {
 
 async function handleGenerate(req: Request, res: Response) {
   const uid = await requireAuth(req);
-  await ensureSoftAppCheckFromRequest(req as any, { fn: "generateWorkoutPlan", uid });
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "generateWorkoutPlan",
+    uid,
+  });
   const prefs = (req.body?.prefs || {}) as PlanPrefs;
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
@@ -374,7 +458,10 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
   const uid = await requireAuth(req);
-  await ensureSoftAppCheckFromRequest(req as any, { fn: "applyCatalogPlan", uid });
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "applyCatalogPlan",
+    uid,
+  });
   const plan = sanitizeCatalogPlan(req.body);
   const planId = randomUUID();
   const now = Timestamp.now();
@@ -396,7 +483,7 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
       activePlanId: planId,
       updatedAt: now,
     }),
-    { merge: true },
+    { merge: true }
   );
   res.json({ planId });
 }
@@ -410,17 +497,27 @@ async function handleGetPlan(req: Request, res: Response) {
 
 async function handleMarkDone(req: Request, res: Response) {
   const uid = await requireAuth(req);
-  await ensureSoftAppCheckFromRequest(req as any, { fn: "markExerciseDone", uid });
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "markExerciseDone",
+    uid,
+  });
   const body = req.body as {
     planId?: string;
     dayIndex?: number;
     exerciseId?: string;
     done?: boolean;
   };
-  if (!body.planId || body.dayIndex === undefined || !body.exerciseId || typeof body.done !== "boolean") {
+  if (
+    !body.planId ||
+    body.dayIndex === undefined ||
+    !body.exerciseId ||
+    typeof body.done !== "boolean"
+  ) {
     throw new HttpsError("invalid-argument", "Invalid payload");
   }
-  const planSnap = await db.doc(`users/${uid}/workoutPlans/${body.planId}`).get();
+  const planSnap = await db
+    .doc(`users/${uid}/workoutPlans/${body.planId}`)
+    .get();
   if (!planSnap.exists) {
     throw new HttpsError("not-found", "Plan not found");
   }
@@ -433,8 +530,12 @@ async function handleMarkDone(req: Request, res: Response) {
   );
   let ratio = 0;
   await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(progressRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-    const completed: string[] = snap.exists ? (snap.data()?.completed as string[]) || [] : [];
+    const snap = (await tx.get(
+      progressRef
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const completed: string[] = snap.exists
+      ? (snap.data()?.completed as string[]) || []
+      : [];
     const idx = completed.indexOf(body.exerciseId!);
     if (body.done && idx < 0) {
       completed.push(body.exerciseId!);
@@ -482,17 +583,17 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
     withCors(async (req, res) => {
       try {
         await handler(req as unknown as Request, res as unknown as Response);
-    } catch (err: any) {
-      const code = errorCode(err);
-      const status =
-        code === "unauthenticated"
-          ? 401
-          : code === "invalid-argument"
-          ? 400
-          : code === "not-found"
-          ? 404
-          : statusFromCode(code);
-      res.status(status).json({ error: err.message || "error" });
+      } catch (err: any) {
+        const code = errorCode(err);
+        const status =
+          code === "unauthenticated"
+            ? 401
+            : code === "invalid-argument"
+              ? 400
+              : code === "not-found"
+                ? 404
+                : statusFromCode(code);
+        res.status(status).json({ error: err.message || "error" });
       }
     })
   );
@@ -521,9 +622,14 @@ export const adjustWorkout = onRequest(
     const requestId = req.get("x-request-id")?.trim() || randomUUID();
     try {
       const uid = await requireAuth(req as any);
-      await ensureSoftAppCheckFromRequest(req as any, { fn: "adjustWorkout", uid, requestId });
+      await ensureSoftAppCheckFromRequest(req as any, {
+        fn: "adjustWorkout",
+        uid,
+        requestId,
+      });
       const payload = (req.body as any) || {};
-      const dayId = typeof payload?.dayId === "string" ? payload.dayId.trim() : "";
+      const dayId =
+        typeof payload?.dayId === "string" ? payload.dayId.trim() : "";
       const normalizedBodyFeel = normalizeBodyFeel(payload?.bodyFeel);
       if (!uid || !dayId || !normalizedBodyFeel) {
         res.status(400).json({ error: "bad_request", debugId: requestId });
@@ -564,7 +670,10 @@ export const adjustWorkout = onRequest(
         debugId: requestId,
       });
     } catch (error: any) {
-      console.error("workout_adjust_failed", { message: error?.message, requestId });
+      console.error("workout_adjust_failed", {
+        message: error?.message,
+        requestId,
+      });
       if (!res.headersSent) {
         if (error instanceof HttpsError) {
           res.status(statusFromCode((error as HttpsError).code)).json({
@@ -578,4 +687,3 @@ export const adjustWorkout = onRequest(
     }
   })
 );
-

@@ -10,4 +10,3 @@ const DebugPlan = () => {
 };
 
 export default DebugPlan;
-

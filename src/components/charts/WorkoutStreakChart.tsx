@@ -1,4 +1,12 @@
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 export interface WorkoutStreakPoint {
   date: string;
@@ -26,16 +34,30 @@ export function WorkoutStreakChart({ data }: WorkoutStreakChartProps) {
   return (
     <div className="h-40 w-full">
       <ResponsiveContainer>
-        <BarChart data={formatted} margin={{ top: 12, right: 16, bottom: 8, left: 0 }}>
+        <BarChart
+          data={formatted}
+          margin={{ top: 12, right: 16, bottom: 8, left: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={1} angle={-35} textAnchor="end" height={48} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10 }}
+            interval={1}
+            angle={-35}
+            textAnchor="end"
+            height={48}
+          />
           <YAxis hide domain={[0, 1]} />
           <Tooltip
-            formatter={(value: unknown) => (value ? 'Completed' : 'Missed')}
+            formatter={(value: unknown) => (value ? "Completed" : "Missed")}
             labelFormatter={(label) => new Date(label).toLocaleDateString()}
-            contentStyle={{ fontSize: '0.75rem' }}
+            contentStyle={{ fontSize: "0.75rem" }}
           />
-          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+          <Bar
+            dataKey="value"
+            fill="hsl(var(--primary))"
+            radius={[4, 4, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

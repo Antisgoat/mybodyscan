@@ -47,7 +47,12 @@
                     }
                   ]
                 },
-                { "name": "Side Plank", "sets": 3, "reps": "30s/side", "restSec": 30 }
+                {
+                  "name": "Side Plank",
+                  "sets": 3,
+                  "reps": "30s/side",
+                  "restSec": 30
+                }
               ]
             }
           ]
@@ -98,7 +103,12 @@
                     }
                   ]
                 },
-                { "name": "Hollow Body Hold", "sets": 3, "reps": "30s", "restSec": 45 }
+                {
+                  "name": "Hollow Body Hold",
+                  "sets": 3,
+                  "reps": "30s",
+                  "restSec": 45
+                }
               ]
             }
           ]

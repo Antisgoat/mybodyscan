@@ -12,7 +12,11 @@ import { requireAuthWithClaims } from "../http.js";
 import { hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
-import { OpenAIClientError, structuredJsonChat, type ChatContentPart } from "../openai/client.js";
+import {
+  OpenAIClientError,
+  structuredJsonChat,
+  type ChatContentPart,
+} from "../openai/client.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -49,14 +53,22 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate {
+function sanitizeEstimate(
+  raw: Partial<ScanEstimate> | undefined
+): ScanEstimate {
   const source = raw as any;
-  const bodyFatPercent = clamp(Number(raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat), 3, 60);
+  const bodyFatPercent = clamp(
+    Number(raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat),
+    3,
+    60
+  );
   const bmiRaw = Number(source?.bmi);
-  const bmi = Number.isFinite(bmiRaw) && bmiRaw > 0 ? Number(bmiRaw.toFixed(1)) : null;
-  const notes = typeof source?.notes === "string" && source.notes.trim()
-    ? source.notes.trim().slice(0, 400)
-    : "Visual estimate only. Not medical advice.";
+  const bmi =
+    Number.isFinite(bmiRaw) && bmiRaw > 0 ? Number(bmiRaw.toFixed(1)) : null;
+  const notes =
+    typeof source?.notes === "string" && source.notes.trim()
+      ? source.notes.trim().slice(0, 400)
+      : "Visual estimate only. Not medical advice.";
   return {
     bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
     bmi,
@@ -67,9 +79,15 @@ function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate 
 function sanitizeWorkout(raw: Partial<WorkoutPlan> | undefined): WorkoutPlan {
   const weeks = Array.isArray(raw?.weeks) ? raw.weeks : [];
   return {
-    summary: typeof raw?.summary === "string" && raw.summary.trim() ? raw.summary.trim() : "Personalized training plan",
+    summary:
+      typeof raw?.summary === "string" && raw.summary.trim()
+        ? raw.summary.trim()
+        : "Personalized training plan",
     weeks: weeks.map((week, index) => ({
-      weekNumber: typeof (week as any)?.weekNumber === "number" ? (week as any).weekNumber : index + 1,
+      weekNumber:
+        typeof (week as any)?.weekNumber === "number"
+          ? (week as any).weekNumber
+          : index + 1,
       days: Array.isArray((week as any)?.days)
         ? (week as any).days.map((day: any) => ({
             day: typeof day?.day === "string" ? day.day : "Day",
@@ -88,18 +106,32 @@ function sanitizeWorkout(raw: Partial<WorkoutPlan> | undefined): WorkoutPlan {
   };
 }
 
-function sanitizeNutrition(raw: Partial<NutritionPlan> | undefined): NutritionPlan {
+function sanitizeNutrition(
+  raw: Partial<NutritionPlan> | undefined
+): NutritionPlan {
   const source = raw as any;
-  const calories = clamp(Number(raw?.caloriesPerDay ?? source?.calories_per_day), 1000, 6000);
-  const protein = Math.max(0, Number(raw?.proteinGrams ?? source?.protein_grams ?? 0));
-  const carbs = Math.max(0, Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0));
+  const calories = clamp(
+    Number(raw?.caloriesPerDay ?? source?.calories_per_day),
+    1000,
+    6000
+  );
+  const protein = Math.max(
+    0,
+    Number(raw?.proteinGrams ?? source?.protein_grams ?? 0)
+  );
+  const carbs = Math.max(
+    0,
+    Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0)
+  );
   const fats = Math.max(0, Number(raw?.fatsGrams ?? source?.fats_grams ?? 0));
   const sampleDayRaw = Array.isArray(raw?.sampleDay) ? raw?.sampleDay : [];
   const sampleDay = sampleDayRaw.map((meal: any) => ({
     mealName: typeof meal?.mealName === "string" ? meal.mealName : "Meal",
     description: typeof meal?.description === "string" ? meal.description : "",
     calories: Number.isFinite(meal?.calories) ? Number(meal.calories) : 0,
-    proteinGrams: Number.isFinite(meal?.proteinGrams) ? Number(meal.proteinGrams) : 0,
+    proteinGrams: Number.isFinite(meal?.proteinGrams)
+      ? Number(meal.proteinGrams)
+      : 0,
     carbsGrams: Number.isFinite(meal?.carbsGrams) ? Number(meal.carbsGrams) : 0,
     fatsGrams: Number.isFinite(meal?.fatsGrams) ? Number(meal.fatsGrams) : 0,
   }));
@@ -116,7 +148,10 @@ function sanitizeNutrition(raw: Partial<NutritionPlan> | undefined): NutritionPl
 function parsePayload(body: any): SubmitPayload | null {
   if (!body || typeof body !== "object") return null;
   const scanId = typeof body.scanId === "string" ? body.scanId.trim() : "";
-  const photoPathsRaw = body.photoPaths && typeof body.photoPaths === "object" ? body.photoPaths : null;
+  const photoPathsRaw =
+    body.photoPaths && typeof body.photoPaths === "object"
+      ? body.photoPaths
+      : null;
   const currentWeightKg = Number(body.currentWeightKg);
   const goalWeightKg = Number(body.goalWeightKg);
   if (!scanId || !photoPathsRaw) return null;
@@ -126,12 +161,22 @@ function parsePayload(body: any): SubmitPayload | null {
     left: typeof photoPathsRaw.left === "string" ? photoPathsRaw.left : "",
     right: typeof photoPathsRaw.right === "string" ? photoPathsRaw.right : "",
   };
-  if (!photoPaths.front || !photoPaths.back || !photoPaths.left || !photoPaths.right) return null;
-  if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) return null;
+  if (
+    !photoPaths.front ||
+    !photoPaths.back ||
+    !photoPaths.left ||
+    !photoPaths.right
+  )
+    return null;
+  if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg))
+    return null;
   return { scanId, photoPaths, currentWeightKg, goalWeightKg };
 }
 
-async function buildImageInputs(uid: string, paths: Record<Pose, string>): Promise<Array<{ pose: Pose; url: string }>> {
+async function buildImageInputs(
+  uid: string,
+  paths: Record<Pose, string>
+): Promise<Array<{ pose: Pose; url: string }>> {
   const bucket = storage.bucket();
   const entries: Array<{ pose: Pose; url: string }> = [];
   for (const pose of POSES) {
@@ -159,7 +204,10 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
     throw new Error("invalid_analysis_payload");
   }
   const payload = raw as Record<string, unknown>;
-  const coerce = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : undefined);
+  const coerce = (value: unknown) =>
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : undefined;
   return {
     estimate: coerce(payload.estimate),
     workoutPlan: coerce(payload.workoutPlan),
@@ -170,7 +218,7 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
 async function callOpenAI(
   images: Array<{ pose: Pose; url: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
-  requestId: string,
+  requestId: string
 ): Promise<OpenAIResult> {
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
@@ -192,7 +240,10 @@ async function callOpenAI(
     type: "image_url" as const,
     image_url: { url, detail: "high" as const },
   }));
-  const userContent: ChatContentPart[] = [{ type: "text", text: userText }, ...imageParts];
+  const userContent: ChatContentPart[] = [
+    { type: "text", text: userText },
+    ...imageParts,
+  ];
 
   const { data } = await structuredJsonChat<OpenAIResult>({
     systemPrompt,
@@ -216,17 +267,23 @@ function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
     const nutritionPlan = sanitizeNutrition(raw.nutritionPlan);
     return { estimate, workoutPlan, nutritionPlan };
   } catch (error) {
-    throw new Error(`openai_parse_failed:${(error as Error)?.message ?? "unknown"}`);
+    throw new Error(
+      `openai_parse_failed:${(error as Error)?.message ?? "unknown"}`
+    );
   }
 }
 
 export const submitScan = onRequest(
   { invoker: "public", concurrency: 10, region: "us-central1" },
   async (req, res) => {
-    let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null = null;
+    let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null =
+      null;
     const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
     res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+    res.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Firebase-AppCheck"
+    );
     res.set("X-Request-Id", requestId);
 
     if (req.method === "OPTIONS") {
@@ -243,41 +300,68 @@ export const submitScan = onRequest(
       }
 
       const authContext = await requireAuthWithClaims(req as Request);
-      await ensureSoftAppCheckFromRequest(req as Request, { fn: "submitScan", uid: authContext.uid, requestId });
+      await ensureSoftAppCheckFromRequest(req as Request, {
+        fn: "submitScan",
+        uid: authContext.uid,
+        requestId,
+      });
 
       const payload = parsePayload(req.body);
       if (!payload) {
-        throw new HttpsError("invalid-argument", "Missing or invalid scan data.", {
-          debugId: requestId,
-          reason: "invalid_scan_request",
-        });
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing or invalid scan data.",
+          {
+            debugId: requestId,
+            reason: "invalid_scan_request",
+          }
+        );
       }
 
       const { uid } = authContext;
-      const docRef = db.doc(`users/${uid}/scans/${payload.scanId}`) as FirebaseFirestore.DocumentReference<ScanDocument>;
+      const docRef = db.doc(
+        `users/${uid}/scans/${payload.scanId}`
+      ) as FirebaseFirestore.DocumentReference<ScanDocument>;
       const snap = await docRef.get();
       if (!snap.exists) {
-        throw new HttpsError("not-found", "Scan not found.", { debugId: requestId, reason: "scan_not_found" });
+        throw new HttpsError("not-found", "Scan not found.", {
+          debugId: requestId,
+          reason: "scan_not_found",
+        });
       }
       const existing = snap.data() as ScanDocument;
       if (existing.uid && existing.uid !== uid) {
-        throw new HttpsError("permission-denied", "Scan does not belong to this user.", {
-          debugId: requestId,
-          reason: "scan_wrong_owner",
-        });
+        throw new HttpsError(
+          "permission-denied",
+          "Scan does not belong to this user.",
+          {
+            debugId: requestId,
+            reason: "scan_wrong_owner",
+          }
+        );
       }
       scanRef = docRef;
 
       if (!hasOpenAI()) {
-        throw new HttpsError("failed-precondition", "Scan engine not configured.", {
-          debugId: requestId,
-          reason: "openai_not_configured",
-        });
+        throw new HttpsError(
+          "failed-precondition",
+          "Scan engine not configured.",
+          {
+            debugId: requestId,
+            reason: "openai_not_configured",
+          }
+        );
       }
 
       await scanRef.set(
-        { status: "processing", updatedAt: serverTimestamp(), completedAt: null, errorMessage: null, errorReason: null },
-        { merge: true },
+        {
+          status: "processing",
+          updatedAt: serverTimestamp(),
+          completedAt: null,
+          errorMessage: null,
+          errorReason: null,
+        },
+        { merge: true }
       );
 
       let analysis: ParsedAnalysis;
@@ -287,42 +371,74 @@ export const submitScan = onRequest(
         analysis = buildAnalysisFromResult(result);
       } catch (error: any) {
         const message = error?.message ?? "Unknown";
-        console.error("scan_submit_processing_failed", { message, stack: error?.stack, uid, scanId: payload.scanId, requestId });
-        if (typeof message === "string" && message.startsWith("missing_photo_")) {
+        console.error("scan_submit_processing_failed", {
+          message,
+          stack: error?.stack,
+          uid,
+          scanId: payload.scanId,
+          requestId,
+        });
+        if (
+          typeof message === "string" &&
+          message.startsWith("missing_photo_")
+        ) {
           throw new HttpsError(
             "failed-precondition",
             "We could not find your uploaded photos. Please re-upload each angle and try again.",
-            { debugId: requestId, reason: "missing_photos" },
+            { debugId: requestId, reason: "missing_photos" }
           );
         }
-        if (typeof message === "string" && message.startsWith("invalid_photo_path_")) {
-          throw new HttpsError("invalid-argument", "Invalid photo path supplied.", {
-            debugId: requestId,
-            reason: "invalid_photo_paths",
-          });
+        if (
+          typeof message === "string" &&
+          message.startsWith("invalid_photo_path_")
+        ) {
+          throw new HttpsError(
+            "invalid-argument",
+            "Invalid photo path supplied.",
+            {
+              debugId: requestId,
+              reason: "invalid_photo_paths",
+            }
+          );
         }
         if (error instanceof OpenAIClientError) {
           if (error.code === "openai_missing_key") {
-            throw new HttpsError("failed-precondition", "Scan engine not configured.", {
-              debugId: requestId,
-              reason: "openai_not_configured",
-            });
+            throw new HttpsError(
+              "failed-precondition",
+              "Scan engine not configured.",
+              {
+                debugId: requestId,
+                reason: "openai_not_configured",
+              }
+            );
           }
           if (error.status === 429) {
-            throw new HttpsError("unavailable", "Scan engine is busy. Please try again shortly.", {
-              debugId: requestId,
-              reason: "openai_rate_limited",
-            });
+            throw new HttpsError(
+              "unavailable",
+              "Scan engine is busy. Please try again shortly.",
+              {
+                debugId: requestId,
+                reason: "openai_rate_limited",
+              }
+            );
           }
-          throw new HttpsError("unavailable", "Scan engine is temporarily unavailable. Please try again.", {
-            debugId: requestId,
-            reason: "openai_unavailable",
-          });
+          throw new HttpsError(
+            "unavailable",
+            "Scan engine is temporarily unavailable. Please try again.",
+            {
+              debugId: requestId,
+              reason: "openai_unavailable",
+            }
+          );
         }
-        throw new HttpsError("internal", "Unexpected error while processing scan.", {
-          debugId: requestId,
-          reason: "openai_processing_failed",
-        });
+        throw new HttpsError(
+          "internal",
+          "Unexpected error while processing scan.",
+          {
+            debugId: requestId,
+            reason: "openai_processing_failed",
+          }
+        );
       }
 
       const update: Partial<ScanDocument> = {
@@ -343,7 +459,11 @@ export const submitScan = onRequest(
 
       await scanRef.set(update, { merge: true });
 
-      console.info("scan_submit_complete", { uid, scanId: payload.scanId, requestId });
+      console.info("scan_submit_complete", {
+        uid,
+        scanId: payload.scanId,
+        requestId,
+      });
 
       res.json({
         scanId: payload.scanId,
@@ -355,7 +475,9 @@ export const submitScan = onRequest(
     } catch (error) {
       if (scanRef) {
         const errorMessage =
-          error instanceof HttpsError ? error.message : "Unexpected error while processing scan.";
+          error instanceof HttpsError
+            ? error.message
+            : "Unexpected error while processing scan.";
         const errorReason = deriveErrorReason(error);
         await scanRef
           .set(
@@ -366,16 +488,20 @@ export const submitScan = onRequest(
               updatedAt: serverTimestamp(),
               completedAt: serverTimestamp(),
             },
-            { merge: true },
+            { merge: true }
           )
           .catch(() => undefined);
       }
       respondWithSubmitError(res, error, requestId);
     }
-  },
+  }
 );
 
-function respondWithSubmitError(res: any, error: unknown, requestId: string): void {
+function respondWithSubmitError(
+  res: any,
+  error: unknown,
+  requestId: string
+): void {
   if (error instanceof HttpsError) {
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
@@ -391,7 +517,11 @@ function respondWithSubmitError(res: any, error: unknown, requestId: string): vo
     });
     return;
   }
-  console.error("scan_submit_unhandled", { message: (error as Error)?.message, stack: (error as Error)?.stack, requestId });
+  console.error("scan_submit_unhandled", {
+    message: (error as Error)?.message,
+    stack: (error as Error)?.stack,
+    requestId,
+  });
   res.status(500).json({
     code: "scan_internal_error",
     message: "Unexpected error while processing scan.",
@@ -403,7 +533,11 @@ function respondWithSubmitError(res: any, error: unknown, requestId: string): vo
 function deriveErrorReason(error: unknown): string {
   if (error instanceof HttpsError) {
     const details = (error as { details?: any }).details;
-    if (details && typeof details === "object" && typeof details.reason === "string") {
+    if (
+      details &&
+      typeof details === "object" &&
+      typeof details.reason === "string"
+    ) {
       return details.reason;
     }
     return error.code;
@@ -412,7 +546,9 @@ function deriveErrorReason(error: unknown): string {
     return error.code;
   }
   const message = (error as Error)?.message;
-  return typeof message === "string" && message ? message.slice(0, 80) : "unknown_error";
+  return typeof message === "string" && message
+    ? message.slice(0, 80)
+    : "unknown_error";
 }
 
 function statusFromHttpsError(error: HttpsError): number {

@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { listenLatest, loadMore, type ScanItem } from "@/features/history/useScansPage";
+import {
+  listenLatest,
+  loadMore,
+  type ScanItem,
+} from "@/features/history/useScansPage";
 import { normalizeScanMetrics } from "@/lib/scans";
 import { getFrontThumbUrl } from "@/lib/scanMedia";
 import { deleteScanApi } from "@/lib/api/scan";
@@ -16,7 +20,7 @@ export default function HistoryPage() {
   const { toast } = useToast();
   const { user, authReady } = useAuthUser();
   const { units } = useUnits();
-  const uid = authReady ? user?.uid ?? null : null;
+  const uid = authReady ? (user?.uid ?? null) : null;
   const [items, setItems] = useState<ScanItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
@@ -36,7 +40,8 @@ export default function HistoryPage() {
       setError(null);
       return () => unsub();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to load scans.";
+      const message =
+        err instanceof Error ? err.message : "Unable to load scans.";
       setError(message);
       return undefined;
     }
@@ -46,7 +51,9 @@ export default function HistoryPage() {
     // Lazy-fetch thumbnails for newly visible items
     items.forEach((it) => {
       if (thumbs[it.id] === undefined) {
-        getFrontThumbUrl(it.id).then((url) => setThumbs((t) => ({ ...t, [it.id]: url })));
+        getFrontThumbUrl(it.id).then((url) =>
+          setThumbs((t) => ({ ...t, [it.id]: url }))
+        );
       }
     });
   }, [items]); // eslint-disable-line
@@ -84,7 +91,10 @@ export default function HistoryPage() {
         description: "This scan has been removed from your history.",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to delete scan. Please try again.";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to delete scan. Please try again.";
       toast({
         title: "Delete failed",
         description: message,
@@ -113,7 +123,10 @@ export default function HistoryPage() {
       {authReady && !uid && (
         <Alert className="mt-3 border-amber-200 bg-amber-50 text-amber-900">
           <AlertTitle>Sign in to view scans</AlertTitle>
-          <AlertDescription>Log in to review your scan history, delete results, or compare progress.</AlertDescription>
+          <AlertDescription>
+            Log in to review your scan history, delete results, or compare
+            progress.
+          </AlertDescription>
         </Alert>
       )}
       {error && (
@@ -122,14 +135,16 @@ export default function HistoryPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {items.length === 0 && <p className="text-sm text-muted-foreground mt-2">No scans yet.</p>}
+      {items.length === 0 && (
+        <p className="text-sm text-muted-foreground mt-2">No scans yet.</p>
+      )}
       <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((it) => {
           const m = normalizeScanMetrics(it as any);
           const sel = selected.includes(it.id);
           const statusMeta = scanStatusLabel(
             it.status as string | undefined,
-            (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt,
+            (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt
           );
           const weightValue =
             m.weightLb != null
@@ -138,13 +153,26 @@ export default function HistoryPage() {
                 : m.weightLb
               : null;
           const weightText =
-            weightValue != null ? `${weightValue.toFixed(1)} ${units === "metric" ? "kg" : "lb"}` : "—";
+            weightValue != null
+              ? `${weightValue.toFixed(1)} ${units === "metric" ? "kg" : "lb"}`
+              : "—";
           return (
-            <li key={it.id} className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}>
-              <button className="block w-full text-left" onClick={() => toggle(it.id)}>
+            <li
+              key={it.id}
+              className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}
+            >
+              <button
+                className="block w-full text-left"
+                onClick={() => toggle(it.id)}
+              >
                 <div className="aspect-[3/4] bg-black/5 overflow-hidden">
                   {thumbs[it.id] ? (
-                    <img src={thumbs[it.id]!} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <img
+                      src={thumbs[it.id]!}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="h-full w-full animate-pulse" />
                   )}
@@ -152,7 +180,9 @@ export default function HistoryPage() {
                 <div className="p-2 space-y-1">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate">
-                      {new Date(it.createdAt?.toMillis?.() ?? Date.now()).toLocaleString()}
+                      {new Date(
+                        it.createdAt?.toMillis?.() ?? Date.now()
+                      ).toLocaleString()}
                     </span>
                     <span>
                       <span
@@ -170,23 +200,38 @@ export default function HistoryPage() {
                   </div>
                   {statusMeta.showMetrics ? (
                     <div className="text-sm font-medium">
-                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} · {weightText}
+                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} ·{" "}
+                      {weightText}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">{statusMeta.helperText}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {statusMeta.helperText}
+                    </p>
                   )}
                 </div>
               </button>
               <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
                 <div className="flex gap-2">
-                  <button onClick={() => nav(`/scans/${it.id}`)} className="text-[11px] underline">Open</button>
+                  <button
+                    onClick={() => nav(`/scans/${it.id}`)}
+                    className="text-[11px] underline"
+                  >
+                    Open
+                  </button>
                   {statusMeta.recommendRescan && (
-                    <button onClick={() => nav("/scan")} className="text-[11px] underline text-primary">
+                    <button
+                      onClick={() => nav("/scan")}
+                      className="text-[11px] underline text-primary"
+                    >
                       Rescan
                     </button>
                   )}
                 </div>
-                <button onClick={() => onDelete(it.id)} className="text-[11px] text-red-700 underline" disabled={busyDelete === it.id}>
+                <button
+                  onClick={() => onDelete(it.id)}
+                  className="text-[11px] text-red-700 underline"
+                  disabled={busyDelete === it.id}
+                >
                   {busyDelete === it.id ? "Deleting…" : "Delete"}
                 </button>
               </div>
@@ -197,7 +242,11 @@ export default function HistoryPage() {
 
       {lastId && (
         <div className="mt-3">
-          <button onClick={onLoadMore} disabled={loadingMore} className="rounded border px-3 py-2 text-sm w-full">
+          <button
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="rounded border px-3 py-2 text-sm w-full"
+          >
             {loadingMore ? "Loading…" : "Load more"}
           </button>
         </div>

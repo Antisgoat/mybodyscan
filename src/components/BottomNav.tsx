@@ -15,7 +15,12 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 
-const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?: FeatureName }> = [
+const navItems: Array<{
+  path: string;
+  icon: LucideIcon;
+  label: string;
+  feature?: FeatureName;
+}> = [
   { path: "/home", icon: HomeIcon, label: "Home" },
   { path: "/scan", icon: Camera, label: "Scan", feature: "scan" },
   { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
@@ -29,14 +34,17 @@ const navItems: Array<{ path: string; icon: LucideIcon; label: string; feature?:
 
 export function BottomNav() {
   const location = useLocation();
-  const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
+  const filteredNavItems = navItems.filter(
+    (item) => !item.feature || isFeatureEnabled(item.feature)
+  );
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden">
       <div className="flex items-center justify-around">
         {filteredNavItems.map(({ path, icon: Icon, label }) => {
           const isActive =
-            location.pathname === path || location.pathname.startsWith(`${path}/`);
+            location.pathname === path ||
+            location.pathname.startsWith(`${path}/`);
           return (
             <Link
               key={path}
@@ -44,9 +52,7 @@ export function BottomNav() {
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-2 min-h-[44px] text-xs transition-colors",
                 "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isActive
-                  ? "text-primary font-medium"
-                  : "text-muted-foreground"
+                isActive ? "text-primary font-medium" : "text-muted-foreground"
               )}
             >
               <Icon size={20} />

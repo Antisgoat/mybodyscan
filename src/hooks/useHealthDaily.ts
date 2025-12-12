@@ -3,7 +3,10 @@ import { useMemo } from "react";
 import { auth as firebaseAuth, db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
-import type { DailySummary, HealthAdapter } from "@/integrations/health/HealthAdapter";
+import type {
+  DailySummary,
+  HealthAdapter,
+} from "@/integrations/health/HealthAdapter";
 import { WebFallbackAdapter } from "@/integrations/health/WebFallbackAdapter";
 import { IOSHealthKitAdapter } from "@/integrations/health/IOSHealthKitAdapter";
 import { AndroidHealthConnectAdapter } from "@/integrations/health/AndroidHealthConnectAdapter";
@@ -37,4 +40,3 @@ export function useHealthDaily() {
 
   return { platform, connect, syncDay };
 }
-

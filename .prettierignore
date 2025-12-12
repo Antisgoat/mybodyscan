@@ -1,0 +1,9 @@
+# Files that are not valid JSON/JS but use a .json extension
+# (Firestore / Realtime Database rules syntax)
+database.rules.json
+
+# Build artifacts
+node_modules
+functions/node_modules
+functions/lib
+dist

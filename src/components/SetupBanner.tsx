@@ -32,7 +32,9 @@ export default function SetupBanner() {
       .then((payload) => {
         if (!payload) return;
         if (payload.identityToolkitReachable === false) {
-          setMessage(describeIdentityToolkitIssue(payload.identityToolkitReason));
+          setMessage(
+            describeIdentityToolkitIssue(payload.identityToolkitReason)
+          );
         }
       })
       .catch(() => {

@@ -39,7 +39,10 @@ let cachedPrograms: CatalogEntry[] | null = null;
 function averageDaysPerWeek(program: Program): number {
   const weeks = program.weeks.length;
   if (!weeks) return 0;
-  const totalDays = program.weeks.reduce((acc, week) => acc + (week.days?.length ?? 0), 0);
+  const totalDays = program.weeks.reduce(
+    (acc, week) => acc + (week.days?.length ?? 0),
+    0
+  );
   if (!totalDays) return 0;
   return Math.max(1, Math.round(totalDays / weeks));
 }

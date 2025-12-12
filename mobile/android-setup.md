@@ -4,7 +4,7 @@ These steps assume `npx cap add android` has been executed from the repository r
 
 1. **Sync & open the project**
    - Run `npx cap sync android`
-   - Open `android/` in Android Studio (use *Open an existing project*)
+   - Open `android/` in Android Studio (use _Open an existing project_)
 2. **Package & versions**
    - Confirm the applicationId in `android/app/build.gradle` is `com.adlrlabs.mybodyscan`
    - Increment `versionCode`/`versionName` before each release build
@@ -21,7 +21,7 @@ These steps assume `npx cap add android` has been executed from the repository r
    - Capacitor Camera plugin is not in use; the web app triggers the native picker via `<input type="file" capture>`
    - No extra runtime permissions are needed beyond the system dialog Android shows for camera/gallery access
 7. **Build artifacts**
-   - Use *Build > Build Bundle(s)/APK(s) > Build Bundle(s)* to create an `.aab`
+   - Use _Build > Build Bundle(s)/APK(s) > Build Bundle(s)_ to create an `.aab`
    - Upload the bundle to Play Console, supply release notes about redirect-based Google sign-in and browser hand-off for Stripe
 8. **Testing checklist**
    - Verify Google sign-in triggers a redirect (no popups)
@@ -29,5 +29,6 @@ These steps assume `npx cap add android` has been executed from the repository r
    - Check Android hardware back during scan upload/processing shows the confirmation dialog
 
 Troubleshooting:
+
 - If Stripe opens inside the WebView, confirm the app was built after the `openExternal` helper landed
 - If the back confirmation does not appear, ensure the WebView is not overriding the history stack (Capacitor default is fine)

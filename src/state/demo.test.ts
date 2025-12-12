@@ -1,6 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-import { disableDemo, enableDemo, isDemo, setDemo, subscribeDemo } from "./demo";
+import {
+  disableDemo,
+  enableDemo,
+  isDemo,
+  setDemo,
+  subscribeDemo,
+} from "./demo";
 
 type StorageLike = {
   getItem(key: string): string | null;
@@ -31,10 +37,19 @@ function installWindowStubs() {
   const mockWindow = {
     sessionStorage,
     localStorage,
-    location: { search: "", pathname: "/", href: "https://example.test/", hash: "" },
+    location: {
+      search: "",
+      pathname: "/",
+      href: "https://example.test/",
+      hash: "",
+    },
     history: { replaceState: vi.fn() },
   } as any;
-  Object.assign(globalThis, { window: mockWindow, sessionStorage, localStorage });
+  Object.assign(globalThis, {
+    window: mockWindow,
+    sessionStorage,
+    localStorage,
+  });
 }
 
 function teardownWindowStubs() {

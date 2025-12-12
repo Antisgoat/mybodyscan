@@ -16,15 +16,15 @@ export function ConsentGate({ children }: ConsentGateProps) {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   useEffect(() => {
-    const consent = localStorage.getItem('mbs-consent');
-    if (consent === 'accepted') {
+    const consent = localStorage.getItem("mbs-consent");
+    if (consent === "accepted") {
       setHasConsented(true);
     }
   }, []);
 
   const handleAccept = () => {
     if (acceptedTerms && acceptedPrivacy && acceptedDisclaimer) {
-      localStorage.setItem('mbs-consent', 'accepted');
+      localStorage.setItem("mbs-consent", "accepted");
       setHasConsented(true);
     }
   };
@@ -43,57 +43,75 @@ export function ConsentGate({ children }: ConsentGateProps) {
           <p className="text-sm text-muted-foreground text-center">
             Before using our app, please review and accept our policies
           </p>
-          
+
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
-              <Checkbox 
+              <Checkbox
                 checked={acceptedTerms}
-                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                onCheckedChange={(checked) =>
+                  setAcceptedTerms(checked === true)
+                }
                 className="mt-1"
               />
               <div className="text-sm">
                 <span>I accept the </span>
-                <a href="/legal/terms" target="_blank" className="text-primary underline hover:no-underline">
+                <a
+                  href="/legal/terms"
+                  target="_blank"
+                  className="text-primary underline hover:no-underline"
+                >
                   Terms of Service
                 </a>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
-              <Checkbox 
+              <Checkbox
                 checked={acceptedPrivacy}
-                onCheckedChange={(checked) => setAcceptedPrivacy(checked === true)}
+                onCheckedChange={(checked) =>
+                  setAcceptedPrivacy(checked === true)
+                }
                 className="mt-1"
               />
               <div className="text-sm">
                 <span>I accept the </span>
-                <a href="/legal/privacy" target="_blank" className="text-primary underline hover:no-underline">
+                <a
+                  href="/legal/privacy"
+                  target="_blank"
+                  className="text-primary underline hover:no-underline"
+                >
                   Privacy Policy
                 </a>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
-              <Checkbox 
+              <Checkbox
                 checked={acceptedDisclaimer}
-                onCheckedChange={(checked) => setAcceptedDisclaimer(checked === true)}
+                onCheckedChange={(checked) =>
+                  setAcceptedDisclaimer(checked === true)
+                }
                 className="mt-1"
               />
               <div className="text-sm">
                 <span>I understand the </span>
-                <a href="/legal/disclaimer" target="_blank" className="text-primary underline hover:no-underline">
+                <a
+                  href="/legal/disclaimer"
+                  target="_blank"
+                  className="text-primary underline hover:no-underline"
+                >
                   Medical Disclaimer
                 </a>
               </div>
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             onClick={handleAccept}
             disabled={!acceptedTerms || !acceptedPrivacy || !acceptedDisclaimer}
             className="w-full"
           >
-            {t('legal.accept')}
+            {t("legal.accept")}
           </Button>
         </CardContent>
       </Card>

@@ -19,7 +19,8 @@ export const ENV = new Proxy(e, {
   get(_, key: string) {
     const value = e[key];
     if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (typeof value === "number" || typeof value === "boolean")
+      return String(value);
     return "";
   },
 }) as unknown as Env;
@@ -27,15 +28,24 @@ export const ENV = new Proxy(e, {
 function readEnv(key: string): string {
   const fromImport = e[key];
   if (typeof fromImport === "string") return fromImport;
-  if (typeof fromImport === "number" || typeof fromImport === "boolean") return String(fromImport);
-  if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+  if (typeof fromImport === "number" || typeof fromImport === "boolean")
+    return String(fromImport);
+  if (
+    typeof process !== "undefined" &&
+    process.env &&
+    typeof process.env[key] === "string"
+  ) {
     return process.env[key] as string;
   }
   return "";
 }
 
 export function assertEnv(): void {
-  const required = ["VITE_FIREBASE_API_KEY", "VITE_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_PROJECT_ID"];
+  const required = [
+    "VITE_FIREBASE_API_KEY",
+    "VITE_FIREBASE_AUTH_DOMAIN",
+    "VITE_FIREBASE_PROJECT_ID",
+  ];
   const missing = required.filter((key) => !readEnv(key).trim());
   const isProd = Boolean((import.meta as any)?.env?.PROD);
   if (missing.length && isProd) {
@@ -43,32 +53,50 @@ export function assertEnv(): void {
   }
 }
 
-const publishableKey = readEnv("VITE_STRIPE_PK") || readEnv("VITE_STRIPE_PUBLISHABLE_KEY");
-const commitSha = readEnv("VITE_BUILD_SHA") || readEnv("VITE_COMMIT_SHA") || readEnv("COMMIT_SHA");
+const publishableKey =
+  readEnv("VITE_STRIPE_PK") || readEnv("VITE_STRIPE_PUBLISHABLE_KEY");
+const commitSha =
+  readEnv("VITE_BUILD_SHA") ||
+  readEnv("VITE_COMMIT_SHA") ||
+  readEnv("COMMIT_SHA");
 const fallbackVersion = readEnv("VITE_APP_VERSION");
 const buildTimeEnv = readEnv("VITE_BUILD_TIME") || readEnv("BUILD_TIME");
-const functionsUrlEnv = readEnv("VITE_FUNCTIONS_URL") || readEnv("FUNCTIONS_URL");
-const functionsOriginEnv = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("FUNCTIONS_ORIGIN");
-const functionsBaseEnv = readEnv("VITE_FUNCTIONS_BASE_URL") || readEnv("FUNCTIONS_BASE_URL");
-const functionsRegionEnv = readEnv("VITE_FUNCTIONS_REGION") || readEnv("FUNCTIONS_REGION") || "us-central1";
-const projectIdEnv = (ENV.VITE_FIREBASE_PROJECT_ID || readEnv("FIREBASE_PROJECT_ID")).trim();
+const functionsUrlEnv =
+  readEnv("VITE_FUNCTIONS_URL") || readEnv("FUNCTIONS_URL");
+const functionsOriginEnv =
+  readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("FUNCTIONS_ORIGIN");
+const functionsBaseEnv =
+  readEnv("VITE_FUNCTIONS_BASE_URL") || readEnv("FUNCTIONS_BASE_URL");
+const functionsRegionEnv =
+  readEnv("VITE_FUNCTIONS_REGION") ||
+  readEnv("FUNCTIONS_REGION") ||
+  "us-central1";
+const projectIdEnv = (
+  ENV.VITE_FIREBASE_PROJECT_ID || readEnv("FIREBASE_PROJECT_ID")
+).trim();
 
 const trim = (value: string) => value.trim();
 
 export const isStripeTest = publishableKey.startsWith("pk_test_");
 export const isStripeLive = publishableKey.startsWith("pk_live_");
-export const publishableKeySuffix = publishableKey ? publishableKey.slice(-6) : "";
+export const publishableKeySuffix = publishableKey
+  ? publishableKey.slice(-6)
+  : "";
 
 export const buildHash =
   commitSha && commitSha.length >= 7
     ? commitSha.slice(0, 7)
     : fallbackVersion && fallbackVersion.length >= 4
-    ? fallbackVersion
-    : "dev";
+      ? fallbackVersion
+      : "dev";
 
 export const buildTimestamp = buildTimeEnv || "";
 
-export function describeStripeEnvironment(): "test" | "live" | "custom" | "missing" {
+export function describeStripeEnvironment():
+  | "test"
+  | "live"
+  | "custom"
+  | "missing" {
   if (isStripeTest) return "test";
   if (isStripeLive) return "live";
   if (publishableKey) return "custom";

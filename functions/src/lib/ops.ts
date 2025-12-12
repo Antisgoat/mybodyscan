@@ -18,34 +18,40 @@ export async function runUserOperation(
   uid: string,
   opId: string,
   metadata: OperationMetadata,
-  runner: () => Promise<void>,
+  runner: () => Promise<void>
 ): Promise<OperationResult> {
   const safeOpId = opId.trim();
   if (!safeOpId) {
     throw new Error("operation_id_required");
   }
-  const ref = db.doc(`users/${uid}/private/ops/${safeOpId}`) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
+  const ref = db.doc(
+    `users/${uid}/private/ops/${safeOpId}`
+  ) as FirebaseFirestore.DocumentReference<FirebaseFirestore.DocumentData>;
 
-  const txResult = await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    const snap = (await tx.get(ref)) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
-    if (snap.exists) {
-      const data = snap.data();
-      const status = typeof data?.status === "string" ? data.status : "";
-      if (status === "error") {
-        // Allow retry by clearing the failed document
-        tx.delete(ref);
-        return { status: "retry" as const, data: data ?? null };
+  const txResult = await db.runTransaction(
+    async (tx: FirebaseFirestore.Transaction) => {
+      const snap = (await tx.get(
+        ref
+      )) as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      if (snap.exists) {
+        const data = snap.data();
+        const status = typeof data?.status === "string" ? data.status : "";
+        if (status === "error") {
+          // Allow retry by clearing the failed document
+          tx.delete(ref);
+          return { status: "retry" as const, data: data ?? null };
+        }
+        return { status: "existing" as const, data: data ?? null };
       }
-      return { status: "existing" as const, data: data ?? null };
-    }
 
-    tx.create(ref, {
-      status: "pending",
-      createdAt: Timestamp.now(),
-      ...metadata,
-    });
-    return { status: "created" as const };
-  });
+      tx.create(ref, {
+        status: "pending",
+        createdAt: Timestamp.now(),
+        ...metadata,
+      });
+      return { status: "created" as const };
+    }
+  );
 
   if (txResult.status === "existing") {
     return { alreadyCompleted: true, data: txResult.data ?? null };
@@ -64,7 +70,7 @@ export async function runUserOperation(
         completedAt: Timestamp.now(),
         lastUpdated: FieldValue.serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
     return { alreadyCompleted: false };
   } catch (error) {
@@ -76,7 +82,7 @@ export async function runUserOperation(
         failedAt: Timestamp.now(),
         lastUpdated: FieldValue.serverTimestamp(),
       },
-      { merge: true },
+      { merge: true }
     );
     await ref.delete().catch(() => undefined);
     throw error;

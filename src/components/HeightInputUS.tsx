@@ -8,7 +8,11 @@ type Props = {
   disabled?: boolean;
 };
 
-export default function HeightInputUS({ valueCm, onChangeCm, disabled }: Props) {
+export default function HeightInputUS({
+  valueCm,
+  onChangeCm,
+  disabled,
+}: Props) {
   const [ft, setFt] = useState<number>(0);
   const [inch, setInch] = useState<number>(0);
 
@@ -50,14 +54,19 @@ export default function HeightInputUS({ valueCm, onChangeCm, disabled }: Props) 
           value={Number.isFinite(inch) ? inch : 0}
           onChange={(e) => {
             const raw = parseInt(e.target.value || "0", 10);
-            const clamped = Math.min(11, Math.max(0, Number.isNaN(raw) ? 0 : raw));
+            const clamped = Math.min(
+              11,
+              Math.max(0, Number.isNaN(raw) ? 0 : raw)
+            );
             setInch(clamped);
           }}
           className="w-20"
           disabled={disabled}
         />
       </div>
-      <div className="text-xs opacity-70 ml-2">{formatHeightFromCm(valueCm)}</div>
+      <div className="text-xs opacity-70 ml-2">
+        {formatHeightFromCm(valueCm)}
+      </div>
     </div>
   );
 }

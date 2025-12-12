@@ -19,7 +19,9 @@ async function handler(req: Request, res: Response) {
   const body = req.body as { scanId?: string };
   const scanId = body?.scanId || (req.query?.scanId as string | undefined);
   if (!scanId) {
-    res.status(400).json({ ok: false, refunded: false, reason: "invalid_request" });
+    res
+      .status(400)
+      .json({ ok: false, refunded: false, reason: "invalid_request" });
     return;
   }
 
@@ -30,15 +32,19 @@ async function handler(req: Request, res: Response) {
   let refunded = false;
   try {
     await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const snap = (await tx.get(scanRef)) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+      const snap = (await tx.get(
+        scanRef
+      )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
       if (!snap.exists) {
         throw new HttpsError("not-found", "scan_not_found");
       }
       const data = snap.data() as any;
       const charged = Boolean(data.charged);
-      const statusValue = typeof data.status === "string" ? data.status.toLowerCase() : "";
+      const statusValue =
+        typeof data.status === "string" ? data.status.toLowerCase() : "";
       const completed =
-        (statusValue === "complete" || statusValue === "completed") && data.result?.bf_percent != null;
+        (statusValue === "complete" || statusValue === "completed") &&
+        data.result?.bf_percent != null;
       if (!charged || completed) {
         return;
       }
@@ -58,11 +64,18 @@ async function handler(req: Request, res: Response) {
   } catch (error: any) {
     if (error instanceof HttpsError) {
       const code = errorCode(error);
-      const status = code === "not-found" ? 404 : code === "unauthenticated" ? 401 : statusFromCode(code);
+      const status =
+        code === "not-found"
+          ? 404
+          : code === "unauthenticated"
+            ? 401
+            : statusFromCode(code);
       res.status(status).json({ ok: false, refunded: false, reason: code });
       return;
     }
-    res.status(500).json({ ok: false, refunded: false, reason: "server_error" });
+    res
+      .status(500)
+      .json({ ok: false, refunded: false, reason: "server_error" });
     return;
   }
 
@@ -81,7 +94,9 @@ export const refundIfNoResult = onRequest(
         res.status(status).json({ ok: false, refunded: false, reason: code });
         return;
       }
-      res.status(500).json({ ok: false, refunded: false, reason: "server_error" });
+      res
+        .status(500)
+        .json({ ok: false, refunded: false, reason: "server_error" });
     }
   })
 );

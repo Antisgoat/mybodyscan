@@ -8,19 +8,24 @@ export async function resizeImageFile(
 ): Promise<Blob> {
   try {
     const bitmap = await (window.createImageBitmap
-      ? window.createImageBitmap(file, { imageOrientation: "from-image" as any })
+      ? window.createImageBitmap(file, {
+          imageOrientation: "from-image" as any,
+        })
       : null);
     const imgEl = bitmap ? null : await fileToImage(file); // fallback
 
     const w = bitmap ? bitmap.width : (imgEl as HTMLImageElement).naturalWidth;
-    const h = bitmap ? bitmap.height : (imgEl as HTMLImageElement).naturalHeight;
+    const h = bitmap
+      ? bitmap.height
+      : (imgEl as HTMLImageElement).naturalHeight;
 
     const scale = Math.min(1, maxW / Math.max(w, h));
     const outW = Math.max(1, Math.round(w * scale));
     const outH = Math.max(1, Math.round(h * scale));
 
     const canvas = document.createElement("canvas");
-    canvas.width = outW; canvas.height = outH;
+    canvas.width = outW;
+    canvas.height = outH;
     const ctx = canvas.getContext("2d");
     if (!ctx) return file;
 
@@ -43,8 +48,14 @@ function fileToImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
     img.src = url;
   });
 }

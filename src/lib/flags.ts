@@ -13,9 +13,16 @@ function bool(v: unknown, def = false): boolean {
   return s === "1" || s === "true" || s === "yes" || s === "on";
 }
 
-export const APPCHECK_SITE_KEY: string | undefined = env.VITE_APPCHECK_SITE_KEY || undefined;
-export const DEMO_ENABLED: boolean = bool(env.VITE_ENABLE_DEMO ?? env.VITE_DEMO_MODE ?? env.VITE_DEMO_ENABLED, false);
-export const SHOW_APPLE_WEB: boolean = bool(env.VITE_ENABLE_APPLE ?? env.VITE_SHOW_APPLE ?? env.VITE_SHOW_APPLE_WEB, false);
+export const APPCHECK_SITE_KEY: string | undefined =
+  env.VITE_APPCHECK_SITE_KEY || undefined;
+export const DEMO_ENABLED: boolean = bool(
+  env.VITE_ENABLE_DEMO ?? env.VITE_DEMO_MODE ?? env.VITE_DEMO_ENABLED,
+  false
+);
+export const SHOW_APPLE_WEB: boolean = bool(
+  env.VITE_ENABLE_APPLE ?? env.VITE_SHOW_APPLE ?? env.VITE_SHOW_APPLE_WEB,
+  false
+);
 
 export const STRIPE_PUBLISHABLE_KEY: string | undefined =
   env.VITE_STRIPE_PK || env.VITE_STRIPE_PUBLISHABLE_KEY || undefined;
@@ -26,7 +33,10 @@ export const SW_ENABLED: boolean = bool(env.VITE_SW_ENABLED, false); // stays di
 /* Marketing/public experience */
 export const MBS_FLAGS = {
   ...CONFIG_FLAGS,
-  ENABLE_PUBLIC_MARKETING_PAGE: bool(env.VITE_ENABLE_PUBLIC_MARKETING_PAGE, false),
+  ENABLE_PUBLIC_MARKETING_PAGE: bool(
+    env.VITE_ENABLE_PUBLIC_MARKETING_PAGE,
+    false
+  ),
 } as const;
 
 /* Scan polling defaults (safe, overridable later) */
@@ -72,8 +82,12 @@ function inferStripeMode(): "test" | "live" {
 }
 
 function updateCache(partial: Partial<RemoteFlagState>) {
-  const nextFlags = partial.flags ? { ...cache.flags, ...partial.flags } : cache.flags;
-  const nextEnv = partial.environment ? { ...cache.environment, ...partial.environment } : cache.environment;
+  const nextFlags = partial.flags
+    ? { ...cache.flags, ...partial.flags }
+    : cache.flags;
+  const nextEnv = partial.environment
+    ? { ...cache.environment, ...partial.environment }
+    : cache.environment;
   cache = { ...cache, ...partial, flags: nextFlags, environment: nextEnv };
   for (const listener of listeners) {
     try {
@@ -97,9 +111,20 @@ async function fetchPublicConfig(): Promise<void> {
         return;
       }
       const data = snap.data() as Record<string, unknown>;
-      const remoteFlags = data?.flags && typeof data.flags === "object" ? (data.flags as Record<string, unknown>) : {};
-      const remoteEnv = data?.environment && typeof data.environment === "object" ? (data.environment as Record<string, unknown>) : {};
-      const stripeMode = remoteEnv?.stripeMode === "live" ? "live" : remoteEnv?.stripeMode === "test" ? "test" : inferStripeMode();
+      const remoteFlags =
+        data?.flags && typeof data.flags === "object"
+          ? (data.flags as Record<string, unknown>)
+          : {};
+      const remoteEnv =
+        data?.environment && typeof data.environment === "object"
+          ? (data.environment as Record<string, unknown>)
+          : {};
+      const stripeMode =
+        remoteEnv?.stripeMode === "live"
+          ? "live"
+          : remoteEnv?.stripeMode === "test"
+            ? "test"
+            : inferStripeMode();
       updateCache({
         flags: {
           enableApple: remoteFlags.enableApple === true,

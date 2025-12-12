@@ -2,7 +2,11 @@ import type { NextFunction, Request, Response } from "express";
 
 type Middleware = (req: Request, res: Response, next: NextFunction) => unknown;
 
-export function runMiddleware(req: Request, res: Response, middleware: Middleware): Promise<void> {
+export function runMiddleware(
+  req: Request,
+  res: Response,
+  middleware: Middleware
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
 

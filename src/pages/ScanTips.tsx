@@ -30,8 +30,8 @@ export default function ScanTips() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Photo Tips</h1>
         <p className="text-muted-foreground">
-          Better lighting, distance, and framing lead to more accurate body-fat estimates. Follow this checklist before each
-          scan.
+          Better lighting, distance, and framing lead to more accurate body-fat
+          estimates. Follow this checklist before each scan.
         </p>
       </header>
 
@@ -58,11 +58,13 @@ export default function ScanTips() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            Face a window or soft light source. Avoid overhead lights that cast harsh shadows. If possible, ask someone to take
-            the photos or use a tripod at chest height.
+            Face a window or soft light source. Avoid overhead lights that cast
+            harsh shadows. If possible, ask someone to take the photos or use a
+            tripod at chest height.
           </p>
           <p>
-            Mark a standing spot with tape so each scan uses the same distance. A consistent setup improves comparisons over time.
+            Mark a standing spot with tape so each scan uses the same distance.
+            A consistent setup improves comparisons over time.
           </p>
         </CardContent>
       </Card>
@@ -81,7 +83,9 @@ export default function ScanTips() {
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium">{item.label}</p>
-                <p className="text-xs text-muted-foreground">{item.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.description}
+                </p>
               </div>
             </div>
           ))}
@@ -95,8 +99,9 @@ export default function ScanTips() {
           </CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Share these tips with whoever is taking your photos. For the best accuracy, retake any photo that fails the gate or
-          looks blurry before submitting your scan.
+          Share these tips with whoever is taking your photos. For the best
+          accuracy, retake any photo that fails the gate or looks blurry before
+          submitting your scan.
         </CardContent>
       </Card>
     </main>

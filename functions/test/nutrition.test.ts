@@ -35,7 +35,10 @@ test("scrubUndefined removes undefined serving metadata", () => {
     ],
   };
   const scrubbed = scrubUndefined(payload);
-  const serving = (scrubbed.meals[0]?.item as any)?.serving as Record<string, unknown>;
+  const serving = (scrubbed.meals[0]?.item as any)?.serving as Record<
+    string,
+    unknown
+  >;
   assert.ok(serving);
   assert.equal("originalQty" in serving, false);
   assert.equal("originalUnit" in serving, false);

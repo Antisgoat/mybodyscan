@@ -112,9 +112,13 @@ const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 
 const queryClient = new QueryClient();
 
-const PageSuspense = ({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) => (
-  <Suspense fallback={fallback ?? <PageSkeleton />}>{children}</Suspense>
-);
+const PageSuspense = ({
+  children,
+  fallback,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) => <Suspense fallback={fallback ?? <PageSkeleton />}>{children}</Suspense>;
 
 const withPublicLayout = (content: ReactNode, fallback?: ReactNode) => (
   <PageSuspense fallback={fallback}>
@@ -148,10 +152,14 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
         console.warn("claims_refresh_failed", error);
         claimsErrorCountRef.current += 1;
         const now = Date.now();
-        if (claimsErrorCountRef.current > 1 && now - claimsToastAtRef.current > 10_000) {
+        if (
+          claimsErrorCountRef.current > 1 &&
+          now - claimsToastAtRef.current > 10_000
+        ) {
           toast({
             title: "We’re having trouble refreshing your access",
-            description: "If this continues, sign out and back in or contact support.",
+            description:
+              "If this continues, sign out and back in or contact support.",
             variant: "destructive",
           });
           claimsToastAtRef.current = now;
@@ -186,7 +194,9 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
             <BrowserRouter>
               <DemoModeProvider>
                 <DemoWireup />
-                <div id="main-content" role="main">{children}</div>
+                <div id="main-content" role="main">
+                  {children}
+                </div>
               </DemoModeProvider>
             </BrowserRouter>
           </AppCheckProvider>
@@ -200,794 +210,956 @@ const App = () => (
   <AppProviders>
     <Suspense fallback={null}>
       <Routes>
-            {/* Root route - flag-controlled */}
-            <Route
-              path="/"
-              element={
-                MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE
-                  ? withPublicLayout(<PublicLanding />)
-                  : <Index />
-              }
-            />
-            <Route path="/__previewframe/*" element={<PreviewFrame />} />
-            <Route path="/demo" element={<DemoGate />} />
-            {/* Marketing page */}
-            <Route path="/welcome" element={withPublicLayout(<WelcomeRedirect />)} />
-            {/* Public pages */}
-            <Route path="/privacy" element={withPublicLayout(<Privacy />)} />
-            <Route path="/terms" element={withPublicLayout(<Terms />)} />
-            <Route path="/legal/disclaimer" element={withPublicLayout(<Disclaimer />)} />
-            <Route path="/support" element={withPublicLayout(<Support />)} />
-            <Route path="/help" element={withPublicLayout(<Help />)} />
-            <Route path="/legal/privacy" element={withPublicLayout(<LegalPrivacy />)} />
-            <Route path="/legal/terms" element={withPublicLayout(<LegalTerms />)} />
-            <Route path="/legal/refund" element={withPublicLayout(<LegalRefund />)} />
-            <Route path="/system-check" element={<PageSuspense><SystemCheckPage /></PageSuspense>} />
-            <Route path="/system-check-pro" element={<PageSuspense><SystemCheckPro /></PageSuspense>} />
-            {/* Checkout result pages (public) */}
-            <Route path="/checkout/success" element={withPublicLayout(<CheckoutSuccess />)} />
-            <Route path="/checkout/canceled" element={withPublicLayout(<CheckoutCanceled />)} />
-            {/* Auth */}
-            <Route path="/auth" element={
-              <Suspense fallback={<PageSkeleton />}>
-                <Auth />
-              </Suspense>
-            } />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
-            <Route path="/oauth/return" element={<OAuthReturn />} />
-            <Route path="/login" element={<Login />} />
-            {/* Protected app */}
-            <Route path="/home" element={<ProtectedRoute><AuthedLayout><Home /></AuthedLayout></ProtectedRoute>} />
-            <Route path="/billing" element={<ProtectedRoute><AuthedLayout><Billing /></AuthedLayout></ProtectedRoute>} />
-            <Route
-              path="/today"
-              element={
-                <FeatureGate name="health" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <Today />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/onboarding"
-              element={
-                <ProtectedRoute>
+        {/* Root route - flag-controlled */}
+        <Route
+          path="/"
+          element={
+            MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE ? (
+              withPublicLayout(<PublicLanding />)
+            ) : (
+              <Index />
+            )
+          }
+        />
+        <Route path="/__previewframe/*" element={<PreviewFrame />} />
+        <Route path="/demo" element={<DemoGate />} />
+        {/* Marketing page */}
+        <Route
+          path="/welcome"
+          element={withPublicLayout(<WelcomeRedirect />)}
+        />
+        {/* Public pages */}
+        <Route path="/privacy" element={withPublicLayout(<Privacy />)} />
+        <Route path="/terms" element={withPublicLayout(<Terms />)} />
+        <Route
+          path="/legal/disclaimer"
+          element={withPublicLayout(<Disclaimer />)}
+        />
+        <Route path="/support" element={withPublicLayout(<Support />)} />
+        <Route path="/help" element={withPublicLayout(<Help />)} />
+        <Route
+          path="/legal/privacy"
+          element={withPublicLayout(<LegalPrivacy />)}
+        />
+        <Route path="/legal/terms" element={withPublicLayout(<LegalTerms />)} />
+        <Route
+          path="/legal/refund"
+          element={withPublicLayout(<LegalRefund />)}
+        />
+        <Route
+          path="/system-check"
+          element={
+            <PageSuspense>
+              <SystemCheckPage />
+            </PageSuspense>
+          }
+        />
+        <Route
+          path="/system-check-pro"
+          element={
+            <PageSuspense>
+              <SystemCheckPro />
+            </PageSuspense>
+          }
+        />
+        {/* Checkout result pages (public) */}
+        <Route
+          path="/checkout/success"
+          element={withPublicLayout(<CheckoutSuccess />)}
+        />
+        <Route
+          path="/checkout/canceled"
+          element={withPublicLayout(<CheckoutCanceled />)}
+        />
+        {/* Auth */}
+        <Route
+          path="/auth"
+          element={
+            <Suspense fallback={<PageSkeleton />}>
+              <Auth />
+            </Suspense>
+          }
+        />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/oauth/return" element={<OAuthReturn />} />
+        <Route path="/login" element={<Login />} />
+        {/* Protected app */}
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <Home />
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <Billing />
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/today"
+          element={
+            <FeatureGate
+              name="health"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <Today />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <Suspense
+                  fallback={<LoadingOverlay label="Preparing onboarding?" />}
+                >
+                  <Onboarding />
+                </Suspense>
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {/* New main pages */}
+        <Route
+          path="/scan"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
                   <AuthedLayout>
-                    <Suspense fallback={<LoadingOverlay label="Preparing onboarding?" />}>
-                      <Onboarding />
-                    </Suspense>
-                  </AuthedLayout>
-                </ProtectedRoute>
-              }
-            />
-            {/* New main pages */}
-            <Route
-              path="/scan"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <DataBoundary page="scan">
-                            <PageSuspense>
-                              <Scan />
-                            </PageSuspense>
-                          </DataBoundary>
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/coach"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <DataBoundary page="coach">
-                            <PageSuspense>
-                              <Coach />
-                            </PageSuspense>
-                          </DataBoundary>
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/coach/chat"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <CoachChat />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/coach/day"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <CoachDay />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/programs"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ProgramsCatalog />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/programs/quiz"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ProgramsQuiz />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/programs/:id"
-              element={
-                <FeatureGate name="coach" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ProgramDetail />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/nutrition"
-              element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <DataBoundary page="nutrition">
-                            <PageSuspense>
-                              <Nutrition />
-                            </PageSuspense>
-                          </DataBoundary>
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/workouts"
-              element={
-                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <Workouts />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/workouts/library"
-              element={
-                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <WorkoutsLibrary />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/workouts/completed"
-              element={
-                <FeatureGate name="workouts" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <WorkoutsCompleted />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/meals"
-              element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <PageSuspense>
-                            <Meals />
-                          </PageSuspense>
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/meals/search"
-              element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <MealsSearch />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/barcode"
-              element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <BarcodeScan />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route path="/meals/barcode" element={<Navigate to="/barcode" replace />} />
-            <Route
-              path="/meals/history"
-              element={
-                <FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <MealsHistory />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            {/* Capture routes (old + new kept) */}
-            <Route
-              path="/capture"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <CapturePicker />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/capture/photos"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<CaptureSkeleton />}>
-                        <PhotoCapture />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/capture-picker"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <CapturePicker />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/photo-capture"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <PhotoCapture />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            {/* Processing routes (old + new kept) */}
-            <Route
-              path="/processing/:uid/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <Processing />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/processing/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <Processing />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scans/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <ScanResult />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scans/compare/:leftId/:rightId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <ScanComparePage />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            {/* Results */}
-            <Route
-              path="/results/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Suspense fallback={<PageSkeleton />}>
-                        <Results />
-                      </Suspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            {/* Other */}
-            <Route
-              path="/history"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <HistoryPage />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/plans"
-              element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
+                    <RouteBoundary>
+                      <DataBoundary page="scan">
                         <PageSuspense>
-                          <Plans />
+                          <Scan />
                         </PageSuspense>
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <Settings />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/settings/account"
-              element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <SettingsAccountPrivacyPage />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/settings/system-check"
-              element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <SystemCheckPage />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/settings/system-check-pro"
-              element={
-                <FeatureGate name="account" fallback={<Navigate to="/home" replace />}> 
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <SystemCheckPro />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/health"
-              element={
-                <FeatureGate name="health" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <AuthedLayout>
-                      <RouteBoundary>
-                        <HealthSync />
-                      </RouteBoundary>
-                    </AuthedLayout>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route path="/settings/units" element={<ProtectedRoute><AuthedLayout><SettingsUnits /></AuthedLayout></ProtectedRoute>} />
-            <Route
-              path="/coach/onboarding"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <CoachOnboarding />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/coach/tracker"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <CoachTracker />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/settings/health" element={<ProtectedRoute><AuthedLayout><SettingsHealth /></AuthedLayout></ProtectedRoute>} />
-            {/* New scan routes */}
-            <Route
-              path="/scan/start"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanStart />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/capture"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanCapture />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/flow"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanFlowPage />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/result"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanFlowResult />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/refine"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanRefine />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/history"
-              element={
-                <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-                  <ProtectedRoute>
-                    <PersonalizationGate>
-                      <AuthedLayout>
-                        <RouteBoundary>
-                          <ScanFlowHistory />
-                        </RouteBoundary>
-                      </AuthedLayout>
-                    </PersonalizationGate>
-                  </ProtectedRoute>
-                </FeatureGate>
-              }
-            />
-            <Route
-              path="/scan/new"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <ScanNew />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scan/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
+                      </DataBoundary>
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/coach"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <DataBoundary page="coach">
+                        <PageSuspense>
+                          <Coach />
+                        </PageSuspense>
+                      </DataBoundary>
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/coach/chat"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <CoachChat />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/coach/day"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <CoachDay />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/programs"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ProgramsCatalog />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/programs/quiz"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ProgramsQuiz />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/programs/:id"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ProgramDetail />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/nutrition"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <DataBoundary page="nutrition">
+                        <PageSuspense>
+                          <Nutrition />
+                        </PageSuspense>
+                      </DataBoundary>
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/workouts"
+          element={
+            <FeatureGate
+              name="workouts"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <Workouts />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/workouts/library"
+          element={
+            <FeatureGate
+              name="workouts"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <WorkoutsLibrary />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/workouts/completed"
+          element={
+            <FeatureGate
+              name="workouts"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <WorkoutsCompleted />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/meals"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
                       <PageSuspense>
-                        <ScanResult />
+                        <Meals />
                       </PageSuspense>
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scan/tips"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <ScanTips />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            {/* Report routes */}
-            <Route
-              path="/report"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Report />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/report/:scanId"
-              element={
-                <ProtectedRoute>
-                  <PersonalizationGate>
-                    <AuthedLayout>
-                      <Report />
-                    </AuthedLayout>
-                  </PersonalizationGate>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/dev/audit" element={<PageSuspense><DevAudit /></PageSuspense>} />
-            <Route path="/diagnostics" element={<PageSuspense><Diagnostics /></PageSuspense>} />
-            <Route path="/__diag" element={<PageSuspense><Diagnostics /></PageSuspense>} />
-            <Route
-              path="/__admin"
-              element={
-                <ProtectedRoute>
-                  <PageSuspense>
-                    <AdminConsole />
-                  </PageSuspense>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/__admin/quick"
-              element={
-                <ProtectedRoute>
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/meals/search"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
                   <AuthedLayout>
+                    <RouteBoundary>
+                      <MealsSearch />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/barcode"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <BarcodeScan />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/meals/barcode"
+          element={<Navigate to="/barcode" replace />}
+        />
+        <Route
+          path="/meals/history"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <MealsHistory />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        {/* Capture routes (old + new kept) */}
+        <Route
+          path="/capture"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <CapturePicker />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/capture/photos"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<CaptureSkeleton />}>
+                    <PhotoCapture />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/capture-picker"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <CapturePicker />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/photo-capture"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <PhotoCapture />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        {/* Processing routes (old + new kept) */}
+        <Route
+          path="/processing/:uid/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/processing/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Processing />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scans/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <ScanResult />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scans/compare/:leftId/:rightId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <ScanComparePage />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        {/* Results */}
+        <Route
+          path="/results/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Results />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        {/* Other */}
+        <Route
+          path="/history"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <HistoryPage />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
                     <PageSuspense>
-                      <AdminQuick />
+                      <Plans />
                     </PageSuspense>
-                  </AuthedLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/__smoke"
-              element={
-                <ProtectedRoute>
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <Settings />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/settings/account"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <SettingsAccountPrivacyPage />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/settings/system-check"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <SystemCheckPage />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/settings/system-check-pro"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <SystemCheckPro />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/health"
+          element={
+            <FeatureGate
+              name="health"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <HealthSync />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/settings/units"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <SettingsUnits />
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/coach/onboarding"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <CoachOnboarding />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/coach/tracker"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <CoachTracker />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/health"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <SettingsHealth />
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {/* New scan routes */}
+        <Route
+          path="/scan/start"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
                   <AuthedLayout>
-                      <RouteBoundary>
-                        <PageSuspense>
-                          <SmokeKit />
-                        </PageSuspense>
-                      </RouteBoundary>
+                    <RouteBoundary>
+                      <ScanStart />
+                    </RouteBoundary>
                   </AuthedLayout>
-                </ProtectedRoute>
-              }
-            />
-            {import.meta.env.DEV && <Route path="/__uat" element={<UATPage />} />}
-            <Route path="/debug/credits" element={<DebugCredits />} />
-            <Route path="/debug/plan" element={<DebugPlan />} />
-            <Route path="/debug/health" element={<DebugHealth />} />
-            {/* MBS Onboarding */}
-            <Route
-              path="/onboarding-mbs"
-              element={
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/capture"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ScanCapture />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/flow"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ScanFlowPage />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/result"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ScanFlowResult />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/refine"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ScanRefine />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/history"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <ScanFlowHistory />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/new"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <ScanNew />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scan/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <PageSuspense>
+                    <ScanResult />
+                  </PageSuspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scan/tips"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <ScanTips />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        {/* Report routes */}
+        <Route
+          path="/report"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Report />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/report/:scanId"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Report />
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dev/audit"
+          element={
+            <PageSuspense>
+              <DevAudit />
+            </PageSuspense>
+          }
+        />
+        <Route
+          path="/diagnostics"
+          element={
+            <PageSuspense>
+              <Diagnostics />
+            </PageSuspense>
+          }
+        />
+        <Route
+          path="/__diag"
+          element={
+            <PageSuspense>
+              <Diagnostics />
+            </PageSuspense>
+          }
+        />
+        <Route
+          path="/__admin"
+          element={
+            <ProtectedRoute>
+              <PageSuspense>
+                <AdminConsole />
+              </PageSuspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/__admin/quick"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
                 <PageSuspense>
-                  <OnboardingMBS />
+                  <AdminQuick />
                 </PageSuspense>
-              }
-            />
-            {/* Friendly not-found route and wildcard */}
-            <Route path="/not-found" element={<NotFound />} />
-            <Route path="*" element={<NotFound />} />
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/__smoke"
+          element={
+            <ProtectedRoute>
+              <AuthedLayout>
+                <RouteBoundary>
+                  <PageSuspense>
+                    <SmokeKit />
+                  </PageSuspense>
+                </RouteBoundary>
+              </AuthedLayout>
+            </ProtectedRoute>
+          }
+        />
+        {import.meta.env.DEV && <Route path="/__uat" element={<UATPage />} />}
+        <Route path="/debug/credits" element={<DebugCredits />} />
+        <Route path="/debug/plan" element={<DebugPlan />} />
+        <Route path="/debug/health" element={<DebugHealth />} />
+        {/* MBS Onboarding */}
+        <Route
+          path="/onboarding-mbs"
+          element={
+            <PageSuspense>
+              <OnboardingMBS />
+            </PageSuspense>
+          }
+        />
+        {/* Friendly not-found route and wildcard */}
+        <Route path="/not-found" element={<NotFound />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   </AppProviders>

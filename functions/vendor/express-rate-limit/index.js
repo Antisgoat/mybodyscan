@@ -11,7 +11,8 @@ const defaultKeyGenerator = (req) => {
   if (Array.isArray(forwarded) && forwarded.length > 0) {
     return forwarded[0] || "anonymous";
   }
-  const ip = req?.ip || req?.socket?.remoteAddress || req?.connection?.remoteAddress;
+  const ip =
+    req?.ip || req?.socket?.remoteAddress || req?.connection?.remoteAddress;
   if (typeof ip === "string" && ip.length > 0) return ip;
   return "anonymous";
 };
@@ -31,13 +32,25 @@ export default function rateLimit(options = {}) {
   const windowMs = toInt(options.windowMs, 60_000);
   const limitOption = options.limit ?? options.max;
   const limit = toInt(limitOption, 60);
-  const standardHeaders = options.standardHeaders !== undefined ? Boolean(options.standardHeaders) : false;
-  const legacyHeaders = options.legacyHeaders !== undefined ? Boolean(options.legacyHeaders) : true;
+  const standardHeaders =
+    options.standardHeaders !== undefined
+      ? Boolean(options.standardHeaders)
+      : false;
+  const legacyHeaders =
+    options.legacyHeaders !== undefined ? Boolean(options.legacyHeaders) : true;
   const skip = typeof options.skip === "function" ? options.skip : () => false;
-  const keyGenerator = typeof options.keyGenerator === "function" ? options.keyGenerator : defaultKeyGenerator;
-  const message = options.message ?? "Too many requests, please try again later.";
-  const onLimitReached = typeof options.onLimitReached === "function" ? options.onLimitReached : null;
-  const handler = typeof options.handler === "function" ? options.handler : null;
+  const keyGenerator =
+    typeof options.keyGenerator === "function"
+      ? options.keyGenerator
+      : defaultKeyGenerator;
+  const message =
+    options.message ?? "Too many requests, please try again later.";
+  const onLimitReached =
+    typeof options.onLimitReached === "function"
+      ? options.onLimitReached
+      : null;
+  const handler =
+    typeof options.handler === "function" ? options.handler : null;
 
   const hits = new Map();
 
@@ -54,13 +67,27 @@ export default function rateLimit(options = {}) {
 
       if (!current || current.reset <= now) {
         hits.set(key, { count: 1, reset: resetTime });
-        applyHeaders(res, limit, limit - 1, resetTime, standardHeaders, legacyHeaders);
+        applyHeaders(
+          res,
+          limit,
+          limit - 1,
+          resetTime,
+          standardHeaders,
+          legacyHeaders
+        );
         return next?.();
       }
 
       current.count += 1;
       const remaining = Math.max(limit - current.count, 0);
-      applyHeaders(res, limit, remaining, current.reset, standardHeaders, legacyHeaders);
+      applyHeaders(
+        res,
+        limit,
+        remaining,
+        current.reset,
+        standardHeaders,
+        legacyHeaders
+      );
 
       if (current.count > limit) {
         if (onLimitReached) {
@@ -73,7 +100,11 @@ export default function rateLimit(options = {}) {
         if (handler) {
           return handler(req, res, next, options);
         }
-        if (res && typeof res.status === "function" && typeof res.send === "function") {
+        if (
+          res &&
+          typeof res.status === "function" &&
+          typeof res.send === "function"
+        ) {
           res.status(429).send(message);
           return;
         }
@@ -89,7 +120,14 @@ export default function rateLimit(options = {}) {
   };
 }
 
-function applyHeaders(res, limit, remaining, resetTime, standardHeaders, legacyHeaders) {
+function applyHeaders(
+  res,
+  limit,
+  remaining,
+  resetTime,
+  standardHeaders,
+  legacyHeaders
+) {
   if (standardHeaders) {
     setHeader(res, "RateLimit-Limit", String(limit));
     setHeader(res, "RateLimit-Remaining", String(remaining));

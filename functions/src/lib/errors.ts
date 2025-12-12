@@ -8,13 +8,20 @@ export function errorCode(err: AnyErr): string {
 
 export function statusFromCode(code: string): number {
   switch (code) {
-    case "unauthenticated": return 401;
-    case "permission-denied": return 403;
-    case "not-found": return 404;
+    case "unauthenticated":
+      return 401;
+    case "permission-denied":
+      return 403;
+    case "not-found":
+      return 404;
     case "invalid-argument":
-    case "failed-precondition": return 400;
-    case "resource-exhausted": return 429;
-    case "unavailable": return 503;
-    default: return 500;
+    case "failed-precondition":
+      return 400;
+    case "resource-exhausted":
+      return 429;
+    case "unavailable":
+      return 503;
+    default:
+      return 500;
   }
 }

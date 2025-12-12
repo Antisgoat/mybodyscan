@@ -3,8 +3,11 @@ import { apiFetchJson } from "./apiFetch";
 
 type ErrorPayload = { error: string; code?: string };
 
-const STRIPE_PUBLISHABLE_KEY =
-  (import.meta.env.VITE_STRIPE_PK || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
+const STRIPE_PUBLISHABLE_KEY = (
+  import.meta.env.VITE_STRIPE_PK ||
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+  ""
+).trim();
 
 let loggedStripeWarning = false;
 
@@ -15,18 +18,29 @@ function ensureStripePublishableKey(): string {
 
   if (import.meta.env.DEV && !loggedStripeWarning) {
     loggedStripeWarning = true;
-    console.warn("[payments] Stripe publishable key missing. Set VITE_STRIPE_PK for checkout.");
+    console.warn(
+      "[payments] Stripe publishable key missing. Set VITE_STRIPE_PK for checkout."
+    );
   }
 
-  throw { error: "stripe_config_missing", code: "stripe_config_missing" } satisfies ErrorPayload;
+  throw {
+    error: "stripe_config_missing",
+    code: "stripe_config_missing",
+  } satisfies ErrorPayload;
 }
 
-const checkoutFunctionUrl = (import.meta.env.VITE_CHECKOUT_FUNCTION_URL ?? "").trim();
-const portalFunctionUrl = (import.meta.env.VITE_CUSTOMER_PORTAL_FUNCTION_URL ?? "").trim();
+const checkoutFunctionUrl = (
+  import.meta.env.VITE_CHECKOUT_FUNCTION_URL ?? ""
+).trim();
+const portalFunctionUrl = (
+  import.meta.env.VITE_CUSTOMER_PORTAL_FUNCTION_URL ?? ""
+).trim();
 
 const PAYMENT_FUNCTION_URLS = {
-  createCheckout: checkoutFunctionUrl || "https://createcheckout-534gpapj7q-uc.a.run.app",
-  createCustomerPortal: portalFunctionUrl || "https://createcustomerportal-534gpapj7q-uc.a.run.app",
+  createCheckout:
+    checkoutFunctionUrl || "https://createcheckout-534gpapj7q-uc.a.run.app",
+  createCustomerPortal:
+    portalFunctionUrl || "https://createcustomerportal-534gpapj7q-uc.a.run.app",
 } as const;
 
 const HOSTING_ENDPOINTS = {
@@ -100,12 +114,14 @@ const CHECKOUT_ERROR_COPY: Record<string, string> = {
   payments_disabled: "Billing is temporarily unavailable.",
   no_secret: "Billing is temporarily unavailable.",
   stripe_unavailable: "Billing is having issues; please try again.",
-  stripe_customer_error: "We couldn't sync your billing details. Contact support if it persists.",
+  stripe_customer_error:
+    "We couldn't sync your billing details. Contact support if it persists.",
   missing_email: "Add an email to your account before purchasing.",
   invalid_price: "Invalid plan, contact support.",
   auth_required: "Sign in to purchase a plan.",
   origin_not_allowed: "Open checkout from the MyBodyScan app or site.",
-  network_error: "We couldn't reach billing right now. Check your connection and try again.",
+  network_error:
+    "We couldn't reach billing right now. Check your connection and try again.",
 };
 
 const PORTAL_ERROR_COPY: Record<string, string> = {
@@ -114,28 +130,40 @@ const PORTAL_ERROR_COPY: Record<string, string> = {
   payments_disabled: "Billing is currently offline. Try again shortly.",
   no_secret: "Billing is currently offline. Try again shortly.",
   stripe_unavailable: "Billing is having issues; please try again.",
-  stripe_customer_error: "We couldn't open the portal. Contact support if the issue continues.",
+  stripe_customer_error:
+    "We couldn't open the portal. Contact support if the issue continues.",
   auth_required: "Sign in to manage billing.",
-  network_error: "We couldn't reach billing right now. Check your connection and try again.",
+  network_error:
+    "We couldn't reach billing right now. Check your connection and try again.",
 };
 
 export function describeCheckoutError(code?: string): string {
   if (!code) return "We couldn't open checkout. Please try again.";
-  return CHECKOUT_ERROR_COPY[code] ?? "We couldn't open checkout. Please try again.";
+  return (
+    CHECKOUT_ERROR_COPY[code] ?? "We couldn't open checkout. Please try again."
+  );
 }
 
 export function describePortalError(code?: string): string {
   if (!code) return "We couldn't open the billing portal. Please try again.";
-  return PORTAL_ERROR_COPY[code] ?? "We couldn't open the billing portal. Please try again.";
+  return (
+    PORTAL_ERROR_COPY[code] ??
+    "We couldn't open the billing portal. Please try again."
+  );
 }
 
 type CheckoutOptions = {
   navigate?: boolean;
 };
 
-type CheckoutInput = string | PlanKey | { priceId?: string | null; plan?: string | null };
+type CheckoutInput =
+  | string
+  | PlanKey
+  | { priceId?: string | null; plan?: string | null };
 
-function resolveCheckoutRequest(input: CheckoutInput): { priceId: string; plan: string | null } | null {
+function resolveCheckoutRequest(
+  input: CheckoutInput
+): { priceId: string; plan: string | null } | null {
   if (typeof input === "string") {
     const trimmed = input.trim();
     if (!trimmed) return null;
@@ -147,7 +175,8 @@ function resolveCheckoutRequest(input: CheckoutInput): { priceId: string; plan: 
   }
 
   if (typeof input === "object" && input !== null) {
-    const direct = typeof input.priceId === "string" ? input.priceId.trim() : "";
+    const direct =
+      typeof input.priceId === "string" ? input.priceId.trim() : "";
     const planRaw = typeof input.plan === "string" ? input.plan.trim() : "";
     const planKey = planRaw ? planRaw.toLowerCase() : "";
     if (direct) {
@@ -164,18 +193,35 @@ function resolveCheckoutRequest(input: CheckoutInput): { priceId: string; plan: 
 function normalizeError(error: unknown, fallback: string): never {
   if (error && typeof error === "object") {
     const payload = error as Partial<ErrorPayload> & { message?: string };
-    const code = typeof payload.code === "string" ? payload.code : typeof payload.error === "string" ? payload.error : payload.message;
-    const err = typeof payload.error === "string" ? payload.error : payload.message || fallback;
-    throw { error: err ?? fallback, code: code ?? err ?? fallback } satisfies ErrorPayload;
+    const code =
+      typeof payload.code === "string"
+        ? payload.code
+        : typeof payload.error === "string"
+          ? payload.error
+          : payload.message;
+    const err =
+      typeof payload.error === "string"
+        ? payload.error
+        : payload.message || fallback;
+    throw {
+      error: err ?? fallback,
+      code: code ?? err ?? fallback,
+    } satisfies ErrorPayload;
   }
   const message = typeof error === "string" ? error : fallback;
   throw { error: message, code: message } satisfies ErrorPayload;
 }
 
-export async function startCheckout(input: CheckoutInput, options?: CheckoutOptions) {
+export async function startCheckout(
+  input: CheckoutInput,
+  options?: CheckoutOptions
+) {
   const request = resolveCheckoutRequest(input);
   if (!request) {
-    throw { error: "invalid_price", code: "invalid_price" } satisfies ErrorPayload;
+    throw {
+      error: "invalid_price",
+      code: "invalid_price",
+    } satisfies ErrorPayload;
   }
 
   let result: { sessionId?: string; url?: string };
@@ -188,7 +234,8 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
     normalizeError(error, "network_error");
   }
 
-  const sessionId = typeof result?.sessionId === "string" ? result.sessionId : "";
+  const sessionId =
+    typeof result?.sessionId === "string" ? result.sessionId : "";
   const url = typeof result?.url === "string" ? result.url : "";
 
   if (options?.navigate === false) {
@@ -198,7 +245,10 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
   ensureStripePublishableKey();
   const stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
   if (!stripe) {
-    throw { error: "stripe_not_loaded", code: "stripe_not_loaded" } satisfies ErrorPayload;
+    throw {
+      error: "stripe_not_loaded",
+      code: "stripe_not_loaded",
+    } satisfies ErrorPayload;
   }
 
   if (!sessionId) {
@@ -206,7 +256,10 @@ export async function startCheckout(input: CheckoutInput, options?: CheckoutOpti
       window.location.assign(url);
       return { sessionId: null, url } as const;
     }
-    throw { error: "invalid_response", code: "invalid_response" } satisfies ErrorPayload;
+    throw {
+      error: "invalid_response",
+      code: "invalid_response",
+    } satisfies ErrorPayload;
   }
 
   const { error } = await stripe.redirectToCheckout({ sessionId });
@@ -228,7 +281,10 @@ export async function openCustomerPortal(options?: CheckoutOptions) {
 
   const url = typeof result?.url === "string" ? result.url : "";
   if (!url) {
-    throw { error: "invalid_response", code: "invalid_response" } satisfies ErrorPayload;
+    throw {
+      error: "invalid_response",
+      code: "invalid_response",
+    } satisfies ErrorPayload;
   }
 
   if (options?.navigate === false) {

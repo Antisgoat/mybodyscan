@@ -39,7 +39,12 @@
                     }
                   ]
                 },
-                { "name": "Dip on Bench", "sets": 3, "reps": "12", "restSec": 30 },
+                {
+                  "name": "Dip on Bench",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 30
+                },
                 {
                   "name": "Plank",
                   "sets": 3,
@@ -74,8 +79,18 @@
                     }
                   ]
                 },
-                { "name": "Bodyweight Squat", "sets": 4, "reps": "20", "restSec": 30 },
-                { "name": "Glute Bridge", "sets": 3, "reps": "20", "restSec": 30 }
+                {
+                  "name": "Bodyweight Squat",
+                  "sets": 4,
+                  "reps": "20",
+                  "restSec": 30
+                },
+                {
+                  "name": "Glute Bridge",
+                  "sets": 3,
+                  "reps": "20",
+                  "restSec": 30
+                }
               ]
             }
           ]
@@ -98,7 +113,12 @@
                     }
                   ]
                 },
-                { "name": "Jumping Jack", "sets": 5, "reps": "40", "restSec": 0 },
+                {
+                  "name": "Jumping Jack",
+                  "sets": 5,
+                  "reps": "40",
+                  "restSec": 0
+                },
                 { "name": "V-Sit Hold", "sets": 5, "reps": "30s", "restSec": 0 }
               ]
             }

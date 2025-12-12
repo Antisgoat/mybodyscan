@@ -18,4 +18,3 @@ export function isIOSSafari(): boolean {
 }
 
 export default isIOSWeb;
-

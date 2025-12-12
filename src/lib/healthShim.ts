@@ -4,10 +4,15 @@ const NOT_AVAILABLE_ERROR =
   "Health integrations are not live yet. This screen is gated until Apple Health/Google Fit connectors ship.";
 
 function logShim(method: string) {
-  console.info(`[shim-disabled] ${method}() – real connector pending. TODO: ${TODO_LINK}`);
+  console.info(
+    `[shim-disabled] ${method}() – real connector pending. TODO: ${TODO_LINK}`
+  );
 }
 
-export type HealthProvider = "apple-health" | "google-health-connect" | "manual";
+export type HealthProvider =
+  | "apple-health"
+  | "google-health-connect"
+  | "manual";
 
 /**
  * Placeholder helpers that make it explicit we do NOT connect to any health provider yet.

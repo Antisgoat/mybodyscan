@@ -1,10 +1,24 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { setDoc } from "@/lib/dbWrite";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +31,7 @@ import {
   formatMeasurement,
   type UserProfile,
   type MacroBreakdown,
-  type EnergyMetrics
+  type EnergyMetrics,
 } from "@/lib/metrics";
 import { extractScanMetrics } from "@/lib/scans";
 import { DEMO_MODE } from "@/env";
@@ -43,7 +57,7 @@ interface ReportData {
   };
   waistHeightRatio?: {
     ratio: number;
-    riskLevel: 'Low' | 'Moderate' | 'High';
+    riskLevel: "Low" | "Moderate" | "High";
   };
   changes?: {
     deltaWeight: number | null;
@@ -82,7 +96,9 @@ export default function Report() {
             if (
               metrics.bodyFatPercent != null &&
               data?.charged &&
-              (status === "completed" || status === "complete" || status === "done")
+              (status === "completed" ||
+                status === "complete" ||
+                status === "done")
             ) {
               return { id: docSnap.id, data };
             }
@@ -90,7 +106,10 @@ export default function Report() {
           return null;
         };
 
-        const redirectToHistory = (message: { title: string; description?: string }) => {
+        const redirectToHistory = (message: {
+          title: string;
+          description?: string;
+        }) => {
           toast(message);
           navigate("/history", { replace: true });
         };
@@ -209,7 +228,10 @@ export default function Report() {
 
         let waistRatio;
         if (measurements.waistIn) {
-          waistRatio = waistHeightRatio(measurements.waistIn, userProfile.heightIn);
+          waistRatio = waistHeightRatio(
+            measurements.waistIn,
+            userProfile.heightIn
+          );
         }
 
         const newReportData: ReportData = {
@@ -230,7 +252,6 @@ export default function Report() {
           await setDoc(reportRef, newReportData);
         }
         setReportData(newReportData);
-
       } catch (err: any) {
         console.error("Error loading report:", err);
         setError(err.message || "Failed to load report");
@@ -289,19 +310,31 @@ export default function Report() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{reportData.bodyFatPct.toFixed(1)}%</p>
+            <p className="text-2xl font-bold">
+              {Number.isFinite(reportData.bodyFatPct)
+                ? `${reportData.bodyFatPct.toFixed(1)}%`
+                : "—"}
+            </p>
             <p className="text-sm text-muted-foreground">Body Fat</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{reportData.leanMassLbs.toFixed(1)} lbs</p>
+            <p className="text-2xl font-bold">
+              {Number.isFinite(reportData.leanMassLbs)
+                ? `${reportData.leanMassLbs.toFixed(1)} lbs`
+                : "—"}
+            </p>
             <p className="text-sm text-muted-foreground">Lean Mass</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold">{reportData.fatMassLbs.toFixed(1)} lbs</p>
+            <p className="text-2xl font-bold">
+              {Number.isFinite(reportData.fatMassLbs)
+                ? `${reportData.fatMassLbs.toFixed(1)} lbs`
+                : "—"}
+            </p>
             <p className="text-sm text-muted-foreground">Fat Mass</p>
           </CardContent>
         </Card>
@@ -316,30 +349,40 @@ export default function Report() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div className="text-center">
               <p className="text-lg font-semibold">{energy.bmr} kcal/day</p>
-              <p className="text-sm text-muted-foreground">BMR (Basal Metabolic Rate)</p>
+              <p className="text-sm text-muted-foreground">
+                BMR (Basal Metabolic Rate)
+              </p>
             </div>
             <div className="text-center">
               <p className="text-lg font-semibold">{energy.tdee} kcal/day</p>
-              <p className="text-sm text-muted-foreground">TDEE (Total Daily Energy)</p>
+              <p className="text-sm text-muted-foreground">
+                TDEE (Total Daily Energy)
+              </p>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="bg-red-50">
               <CardContent className="p-4 text-center">
-                <p className="text-xl font-bold text-red-700">{energy.cutCalories}</p>
+                <p className="text-xl font-bold text-red-700">
+                  {energy.cutCalories}
+                </p>
                 <p className="text-sm text-red-600">Cut (kcal/day)</p>
               </CardContent>
             </Card>
             <Card className="bg-blue-50">
               <CardContent className="p-4 text-center">
-                <p className="text-xl font-bold text-blue-700">{energy.maintainCalories}</p>
+                <p className="text-xl font-bold text-blue-700">
+                  {energy.maintainCalories}
+                </p>
                 <p className="text-sm text-blue-600">Maintain (kcal/day)</p>
               </CardContent>
             </Card>
             <Card className="bg-green-50">
               <CardContent className="p-4 text-center">
-                <p className="text-xl font-bold text-green-700">{energy.gainCalories}</p>
+                <p className="text-xl font-bold text-green-700">
+                  {energy.gainCalories}
+                </p>
                 <p className="text-sm text-green-600">Gain (kcal/day)</p>
               </CardContent>
             </Card>
@@ -359,24 +402,34 @@ export default function Report() {
               <TabsTrigger value="maintain">Maintain</TabsTrigger>
               <TabsTrigger value="gain">Gain</TabsTrigger>
             </TabsList>
-            
-            {(['cut', 'maintain', 'gain'] as const).map((target) => (
+
+            {(["cut", "maintain", "gain"] as const).map((target) => (
               <TabsContent key={target} value={target}>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center p-4 border rounded-lg">
-                    <p className="text-2xl font-bold">{macros[target].proteinG}g</p>
+                    <p className="text-2xl font-bold">
+                      {macros[target].proteinG}g
+                    </p>
                     <p className="text-sm text-muted-foreground">Protein</p>
-                    <p className="text-xs text-muted-foreground">({macros[target].proteinKcal} kcal)</p>
+                    <p className="text-xs text-muted-foreground">
+                      ({macros[target].proteinKcal} kcal)
+                    </p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
                     <p className="text-2xl font-bold">{macros[target].fatG}g</p>
                     <p className="text-sm text-muted-foreground">Fat</p>
-                    <p className="text-xs text-muted-foreground">({macros[target].fatKcal} kcal)</p>
+                    <p className="text-xs text-muted-foreground">
+                      ({macros[target].fatKcal} kcal)
+                    </p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
-                    <p className="text-2xl font-bold">{macros[target].carbsG}g</p>
+                    <p className="text-2xl font-bold">
+                      {macros[target].carbsG}g
+                    </p>
                     <p className="text-sm text-muted-foreground">Carbs</p>
-                    <p className="text-xs text-muted-foreground">({macros[target].carbsKcal} kcal)</p>
+                    <p className="text-xs text-muted-foreground">
+                      ({macros[target].carbsKcal} kcal)
+                    </p>
                   </div>
                 </div>
               </TabsContent>
@@ -395,23 +448,33 @@ export default function Report() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <p className="font-medium">Waist</p>
-                <p className="text-muted-foreground">{formatMeasurement(reportData.measurements.waistIn)}</p>
+                <p className="text-muted-foreground">
+                  {formatMeasurement(reportData.measurements.waistIn)}
+                </p>
               </div>
               <div>
                 <p className="font-medium">Hip</p>
-                <p className="text-muted-foreground">{formatMeasurement(reportData.measurements.hipIn)}</p>
+                <p className="text-muted-foreground">
+                  {formatMeasurement(reportData.measurements.hipIn)}
+                </p>
               </div>
               <div>
                 <p className="font-medium">Chest</p>
-                <p className="text-muted-foreground">{formatMeasurement(reportData.measurements.chestIn)}</p>
+                <p className="text-muted-foreground">
+                  {formatMeasurement(reportData.measurements.chestIn)}
+                </p>
               </div>
               <div>
                 <p className="font-medium">Thigh</p>
-                <p className="text-muted-foreground">{formatMeasurement(reportData.measurements.thighIn)}</p>
+                <p className="text-muted-foreground">
+                  {formatMeasurement(reportData.measurements.thighIn)}
+                </p>
               </div>
               <div>
                 <p className="font-medium">Arm</p>
-                <p className="text-muted-foreground">{formatMeasurement(reportData.measurements.armIn)}</p>
+                <p className="text-muted-foreground">
+                  {formatMeasurement(reportData.measurements.armIn)}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -427,13 +490,22 @@ export default function Report() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{reportData.waistHeightRatio.ratio.toFixed(3)}</p>
+                <p className="text-2xl font-bold">
+                  {Number.isFinite(reportData.waistHeightRatio.ratio)
+                    ? reportData.waistHeightRatio.ratio.toFixed(3)
+                    : "—"}
+                </p>
                 <p className="text-sm text-muted-foreground">Ratio</p>
               </div>
-              <Badge variant={
-                reportData.waistHeightRatio.riskLevel === 'Low' ? 'default' :
-                reportData.waistHeightRatio.riskLevel === 'Moderate' ? 'secondary' : 'destructive'
-              }>
+              <Badge
+                variant={
+                  reportData.waistHeightRatio.riskLevel === "Low"
+                    ? "default"
+                    : reportData.waistHeightRatio.riskLevel === "Moderate"
+                      ? "secondary"
+                      : "destructive"
+                }
+              >
                 {reportData.waistHeightRatio.riskLevel} Risk
               </Badge>
             </div>
@@ -443,7 +515,9 @@ export default function Report() {
 
       {/* Disclaimer */}
       <div className="text-center text-sm text-muted-foreground pt-4 border-t">
-        <p>Image-based estimates are approximations, not medical diagnostics.</p>
+        <p>
+          Image-based estimates are approximations, not medical diagnostics.
+        </p>
       </div>
     </div>
   );

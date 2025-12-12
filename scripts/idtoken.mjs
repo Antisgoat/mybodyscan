@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'url';
+import { pathToFileURL } from "url";
 
-const SIGN_UP_ENDPOINT = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
+const SIGN_UP_ENDPOINT =
+  "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
 
 function hrefForModule(path) {
   try {
@@ -15,7 +16,7 @@ export async function mintIdToken(options = {}) {
   const apiKey = options.apiKey ?? process.env.FIREBASE_WEB_API_KEY;
 
   if (!apiKey) {
-    throw new Error('FIREBASE_WEB_API_KEY is required to mint an ID token.');
+    throw new Error("FIREBASE_WEB_API_KEY is required to mint an ID token.");
   }
 
   const endpoint = `${SIGN_UP_ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
@@ -23,9 +24,9 @@ export async function mintIdToken(options = {}) {
   let response;
   try {
     response = await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ returnSecureToken: true }),
     });
@@ -50,7 +51,7 @@ export async function mintIdToken(options = {}) {
 
   const token = payload.idToken;
   if (!token) {
-    throw new Error('Identity Toolkit response did not include idToken.');
+    throw new Error("Identity Toolkit response did not include idToken.");
   }
 
   return {
@@ -60,7 +61,7 @@ export async function mintIdToken(options = {}) {
   };
 }
 
-const isMainModule = import.meta.url === hrefForModule(process.argv[1] ?? '');
+const isMainModule = import.meta.url === hrefForModule(process.argv[1] ?? "");
 
 if (isMainModule) {
   mintIdToken()

@@ -1,6 +1,12 @@
 import type { Landmarks } from "./landmarks";
 
-export type ViewName = "front" | "side" | "left" | "right" | "back" | (string & {});
+export type ViewName =
+  | "front"
+  | "side"
+  | "left"
+  | "right"
+  | "back"
+  | (string & {});
 
 export type PhotoFeatures = {
   /**
@@ -27,8 +33,12 @@ function mean(values: number[]): number {
   return Math.round((total / values.length) * 10_000) / 10_000;
 }
 
-function collectDefined<T>(entries: Array<[ViewName, T | undefined]>): Array<[ViewName, T]> {
-  return entries.filter((entry): entry is [ViewName, T] => entry[1] !== undefined);
+function collectDefined<T>(
+  entries: Array<[ViewName, T | undefined]>
+): Array<[ViewName, T]> {
+  return entries.filter(
+    (entry): entry is [ViewName, T] => entry[1] !== undefined
+  );
 }
 
 export function combineLandmarks(
@@ -36,7 +46,7 @@ export function combineLandmarks(
   side?: Landmarks,
   left?: Landmarks,
   right?: Landmarks,
-  back?: Landmarks,
+  back?: Landmarks
 ): PhotoFeatures {
   const defined = collectDefined([
     ["front", front],

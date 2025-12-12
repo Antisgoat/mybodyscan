@@ -1,44 +1,44 @@
 #!/usr/bin/env node
-import { mintIdToken } from './idtoken.mjs';
+import { mintIdToken } from "./idtoken.mjs";
 
-const DEFAULT_REGION = 'us-central1';
+const DEFAULT_REGION = "us-central1";
 const DEFAULT_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 15000);
 
 const ENDPOINTS = [
   {
-    name: 'systemHealth',
-    path: '/api/system/health',
-    method: 'GET',
+    name: "systemHealth",
+    path: "/api/system/health",
+    method: "GET",
   },
   {
-    name: 'coachChat',
-    path: '/api/coach/chat',
-    method: 'POST',
-    body: { question: 'probe' },
+    name: "coachChat",
+    path: "/api/coach/chat",
+    method: "POST",
+    body: { question: "probe" },
   },
   {
-    name: 'nutritionSearch',
-    path: '/api/nutrition/search?q=chicken breast',
-    method: 'GET',
+    name: "nutritionSearch",
+    path: "/api/nutrition/search?q=chicken breast",
+    method: "GET",
   },
   {
-    name: 'createCheckout',
-    path: '/api/createCheckout',
-    method: 'POST',
-    body: { priceId: process.env.TEST_PRICE_ID || 'price_xxx' },
+    name: "createCheckout",
+    path: "/api/createCheckout",
+    method: "POST",
+    body: { priceId: process.env.TEST_PRICE_ID || "price_xxx" },
   },
 ];
 
 function ensureTrailingSlash(value) {
-  return value.endsWith('/') ? value : `${value}/`;
+  return value.endsWith("/") ? value : `${value}/`;
 }
 
 function expandBaseTemplates(tokens, { projectId, region }) {
   const replacements = {
-    '{{projectId}}': projectId,
-    '{projectId}': projectId,
-    '{{region}}': region,
-    '{region}': region,
+    "{{projectId}}": projectId,
+    "{projectId}": projectId,
+    "{{region}}": region,
+    "{region}": region,
   };
 
   return tokens
@@ -51,9 +51,9 @@ function expandBaseTemplates(tokens, { projectId, region }) {
         base = base.split(needle).join(replacement);
       }
 
-      if (base === 'cloudfunctions.net') {
+      if (base === "cloudfunctions.net") {
         base = `${region}-${projectId}.cloudfunctions.net`;
-      } else if (base === 'a.run.app') {
+      } else if (base === "a.run.app") {
         base = `${projectId}-${region}.a.run.app`;
       }
 
@@ -61,7 +61,7 @@ function expandBaseTemplates(tokens, { projectId, region }) {
         base = `https://${base}`;
       }
 
-      return base.replace(/\/+$/, '');
+      return base.replace(/\/+$/, "");
     });
 }
 
@@ -96,16 +96,19 @@ async function fetchWithTimeout(url, options) {
 }
 
 async function probeEndpoint(base, endpoint, token) {
-  const url = new URL(endpoint.path.replace(/^\//, ''), ensureTrailingSlash(base));
+  const url = new URL(
+    endpoint.path.replace(/^\//, ""),
+    ensureTrailingSlash(base)
+  );
 
   const headers = {
     Authorization: `Bearer ${token}`,
-    Accept: 'application/json',
+    Accept: "application/json",
   };
 
   let body;
-  if (endpoint.method === 'POST') {
-    headers['Content-Type'] = 'application/json';
+  if (endpoint.method === "POST") {
+    headers["Content-Type"] = "application/json";
     body = JSON.stringify(endpoint.body ?? {});
   }
 
@@ -117,12 +120,14 @@ async function probeEndpoint(base, endpoint, token) {
       body,
     });
   } catch (error) {
-    console.error(`[probe] ${endpoint.method} ${url.href} failed: ${error.message}`);
+    console.error(
+      `[probe] ${endpoint.method} ${url.href} failed: ${error.message}`
+    );
     return { ok: false };
   }
 
   const text = await response.text();
-  const snippet = text.slice(0, 200) || '<empty>';
+  const snippet = text.slice(0, 200) || "<empty>";
 
   let parsed;
   let parsedOk = false;
@@ -140,12 +145,18 @@ async function probeEndpoint(base, endpoint, token) {
 
   if (status === 200 && parsedOk) {
     ok = true;
-  } else if (status >= 400 && status < 600 && parsedOk && parsed && typeof parsed.error !== 'undefined') {
+  } else if (
+    status >= 400 &&
+    status < 600 &&
+    parsedOk &&
+    parsed &&
+    typeof parsed.error !== "undefined"
+  ) {
     ok = true;
   }
 
-  const prefix = ok ? '[ok]' : '[fail]';
-  const statusText = response.statusText ? ` ${response.statusText}` : '';
+  const prefix = ok ? "[ok]" : "[fail]";
+  const statusText = response.statusText ? ` ${response.statusText}` : "";
   const logLine = `${prefix} ${endpoint.method} ${url.href} -> ${status}${statusText} :: ${snippet}`;
 
   if (ok) {
@@ -164,13 +175,15 @@ async function probeEndpoint(base, endpoint, token) {
 async function main() {
   const projectId = process.env.PROJECT_ID;
   if (!projectId) {
-    throw new Error('PROJECT_ID is required.');
+    throw new Error("PROJECT_ID is required.");
   }
 
   const region = process.env.REGION || DEFAULT_REGION;
   const bases = buildBases({ projectId, region, basesEnv: process.env.BASES });
 
-  console.log(`[probe] Target project ${projectId} (${region}). Using bases: ${bases.join(', ')}`);
+  console.log(
+    `[probe] Target project ${projectId} (${region}). Using bases: ${bases.join(", ")}`
+  );
 
   const { token } = await mintIdToken();
 
@@ -185,7 +198,7 @@ async function main() {
   }
 
   if (!allOk) {
-    throw new Error('One or more probes failed.');
+    throw new Error("One or more probes failed.");
   }
 }
 

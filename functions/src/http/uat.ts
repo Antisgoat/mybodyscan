@@ -36,17 +36,29 @@ function applyCors(req: Request, res: Response): { ended: boolean } {
   return { ended: false };
 }
 
-async function requireStaff(req: Request): Promise<{ uid: string; email: string | null }> {
+async function requireStaff(
+  req: Request
+): Promise<{ uid: string; email: string | null }> {
   const { uid, claims } = await requireAuthWithClaims(req);
-  const tokenEmail = typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
-  if (claims?.staff === true || claims?.dev === true || (tokenEmail && STAFF_EMAIL_ALLOWLIST.has(tokenEmail))) {
+  const tokenEmail =
+    typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
+  if (
+    claims?.staff === true ||
+    claims?.dev === true ||
+    (tokenEmail && STAFF_EMAIL_ALLOWLIST.has(tokenEmail))
+  ) {
     return { uid, email: tokenEmail };
   }
   const record = await getAuth().getUser(uid);
-  const recordClaims = record.customClaims as Record<string, unknown> | undefined;
+  const recordClaims = record.customClaims as
+    | Record<string, unknown>
+    | undefined;
   const staffFromRecord = recordClaims?.staff === true;
   const recordEmail = record.email ? record.email.toLowerCase() : tokenEmail;
-  if (staffFromRecord || (recordEmail && STAFF_EMAIL_ALLOWLIST.has(recordEmail))) {
+  if (
+    staffFromRecord ||
+    (recordEmail && STAFF_EMAIL_ALLOWLIST.has(recordEmail))
+  ) {
     return { uid, email: recordEmail || null };
   }
   throw new Error("not_staff");
@@ -58,7 +70,9 @@ function normalizePath(req: Request): string {
 }
 
 function invalidMethod(res: Response) {
-  res.status(405).json({ error: "method_not_allowed", code: "method_not_allowed" });
+  res
+    .status(405)
+    .json({ error: "method_not_allowed", code: "method_not_allowed" });
 }
 
 function invalidAccess(res: Response) {
@@ -69,46 +83,64 @@ function invalidPrice(res: Response) {
   res.status(400).json({ error: "invalid_price", code: "invalid_price" });
 }
 
-export const uatHelper = onRequest({ region: "us-central1" }, async (req: Request, res: Response) => {
-  const cors = applyCors(req, res);
-  if (cors.ended) return;
+export const uatHelper = onRequest(
+  { region: "us-central1" },
+  async (req: Request, res: Response) => {
+    const cors = applyCors(req, res);
+    if (cors.ended) return;
 
-  let staff: { uid: string; email: string | null };
-  try {
-    staff = await requireStaff(req);
-  } catch (error) {
-    console.warn("uat_access_denied", { path: req.path || req.url, message: (error as Error)?.message });
-    invalidAccess(res);
-    return;
-  }
-
-  const path = normalizePath(req);
-
-  if (path === "uat/ping") {
-    if (req.method !== "GET") {
-      invalidMethod(res);
+    let staff: { uid: string; email: string | null };
+    try {
+      staff = await requireStaff(req);
+    } catch (error) {
+      console.warn("uat_access_denied", {
+        path: req.path || req.url,
+        message: (error as Error)?.message,
+      });
+      invalidAccess(res);
       return;
     }
-    res.json({ ok: true, ts: Date.now(), iso: new Date().toISOString(), uid: staff.uid });
-    return;
-  }
 
-  if (path === "uat/checkoutEcho") {
-    if (req.method !== "POST") {
-      invalidMethod(res);
+    const path = normalizePath(req);
+
+    if (path === "uat/ping") {
+      if (req.method !== "GET") {
+        invalidMethod(res);
+        return;
+      }
+      res.json({
+        ok: true,
+        ts: Date.now(),
+        iso: new Date().toISOString(),
+        uid: staff.uid,
+      });
       return;
     }
-    const body = (typeof req.body === "object" && req.body) ? (req.body as Record<string, unknown>) : {};
-    const priceIdRaw = typeof body.priceId === "string" ? body.priceId.trim() : "";
-    const priceId = priceIdRaw || (typeof body.plan === "string" ? body.plan.trim() : "");
-    if (!priceId || !PRICE_ALLOWLIST.has(priceId)) {
-      invalidPrice(res);
+
+    if (path === "uat/checkoutEcho") {
+      if (req.method !== "POST") {
+        invalidMethod(res);
+        return;
+      }
+      const body =
+        typeof req.body === "object" && req.body
+          ? (req.body as Record<string, unknown>)
+          : {};
+      const priceIdRaw =
+        typeof body.priceId === "string" ? body.priceId.trim() : "";
+      const priceId =
+        priceIdRaw || (typeof body.plan === "string" ? body.plan.trim() : "");
+      if (!priceId || !PRICE_ALLOWLIST.has(priceId)) {
+        invalidPrice(res);
+        return;
+      }
+      const mode = SUBSCRIPTION_PRICE_IDS.has(priceId)
+        ? "subscription"
+        : "payment";
+      res.json({ ok: true, priceId, mode, uid: staff.uid });
       return;
     }
-    const mode = SUBSCRIPTION_PRICE_IDS.has(priceId) ? "subscription" : "payment";
-    res.json({ ok: true, priceId, mode, uid: staff.uid });
-    return;
-  }
 
-  res.status(404).json({ error: "not_found", code: "not_found" });
-});
+    res.status(404).json({ error: "not_found", code: "not_found" });
+  }
+);

@@ -3,7 +3,12 @@ import { useNavigate, NavLink, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Menu, User } from "lucide-react";
 import { signOutToAuth, useAuthUser } from "@/lib/auth";
 import CreditBadge from "@/components/CreditBadge";
@@ -55,7 +60,9 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const isAuthed = Boolean(user);
   const showDemo = !isAuthed && demoMode && isDemoAllowed(user);
 
-  const filteredNavItems = navItems.filter((item) => !item.feature || isFeatureEnabled(item.feature));
+  const filteredNavItems = navItems.filter(
+    (item) => !item.feature || isFeatureEnabled(item.feature)
+  );
 
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
     <>
@@ -100,7 +107,10 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6 text-sm" data-testid="app-nav">
+          <nav
+            className="hidden md:flex items-center gap-6 text-sm"
+            data-testid="app-nav"
+          >
             <NavLinks />
           </nav>
 
@@ -125,7 +135,9 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <DropdownMenuItem onClick={() => navigate("/settings")}>
                     Settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exitDemo}>Exit demo</DropdownMenuItem>
+                  <DropdownMenuItem onClick={exitDemo}>
+                    Exit demo
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={signOutToAuth}>
                     Sign out
                   </DropdownMenuItem>
@@ -188,11 +200,17 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
               <span>Demo preview — read-only experience.</span>
               <div className="flex items-center gap-3">
                 {showDemo ? (
-                  <Link to="/plans" className="underline-offset-4 hover:underline font-medium">
+                  <Link
+                    to="/plans"
+                    className="underline-offset-4 hover:underline font-medium"
+                  >
                     Sign up to save progress
                   </Link>
                 ) : null}
-                <Link to="/system/check" className="underline-offset-4 hover:underline">
+                <Link
+                  to="/system/check"
+                  className="underline-offset-4 hover:underline"
+                >
                   Diagnostics
                 </Link>
               </div>

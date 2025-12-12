@@ -1,5 +1,5 @@
 // Ambient type declarations for Firebase Functions dependencies
-declare module 'firebase-admin' {
+declare module "firebase-admin" {
   export const apps: any[];
   export function initializeApp(config?: any): any;
   export function app(name?: string): any;
@@ -8,18 +8,18 @@ declare module 'firebase-admin' {
   export const appCheck: any;
 }
 
-declare module 'firebase-admin/app' {
+declare module "firebase-admin/app" {
   export function initializeApp(config?: any): any;
   export function getApp(name?: string): any;
   export function getApps(): any[];
   export const apps: any[];
 }
 
-declare module 'firebase-admin/auth' {
+declare module "firebase-admin/auth" {
   export function getAuth(app?: any): any;
 }
 
-declare module 'firebase-admin/firestore' {
+declare module "firebase-admin/firestore" {
   export function getFirestore(app?: any): any;
   export type Firestore = any;
   export type Transaction = any;
@@ -58,15 +58,15 @@ declare namespace FirebaseFirestore {
   type QueryDocumentSnapshot<T = DocumentData> = any;
 }
 
-declare module 'firebase-admin/app-check' {
+declare module "firebase-admin/app-check" {
   export function getAppCheck(app?: any): any;
 }
 
-declare module 'firebase-admin/storage' {
+declare module "firebase-admin/storage" {
   export function getStorage(app?: any): any;
 }
 
-declare module 'firebase-functions' {
+declare module "firebase-functions" {
   export const config: {
     (): any;
   };
@@ -81,14 +81,14 @@ declare module 'firebase-functions' {
   };
 }
 
-declare module 'firebase-functions/v1' {
+declare module "firebase-functions/v1" {
   export const auth: any;
   export namespace firestore {
     export function document(path: string): any;
   }
 }
 
-declare module 'firebase-functions/v2/https' {
+declare module "firebase-functions/v2/https" {
   interface Request {
     body: any;
     headers: any;
@@ -100,7 +100,7 @@ declare module 'firebase-functions/v2/https' {
     get(name: string): string | undefined;
     header(name: string): string | undefined;
   }
-  
+
   interface Response {
     status(code: number): Response;
     send(body?: any): Response;
@@ -131,22 +131,31 @@ declare module 'firebase-functions/v2/https' {
   }
 
   export function onRequest(handler: (req: Request, res: Response) => any): any;
-  export function onRequest(opts: HttpsOptions, handler: (req: Request, res: Response) => any): any;
+  export function onRequest(
+    opts: HttpsOptions,
+    handler: (req: Request, res: Response) => any
+  ): any;
   export function onCall(handler: (request: CallableRequest) => any): any;
-  export function onCall(opts: HttpsOptions, handler: (request: CallableRequest) => any): any;
+  export function onCall(
+    opts: HttpsOptions,
+    handler: (request: CallableRequest) => any
+  ): any;
   export function onCall<T>(handler: (request: CallableRequest<T>) => any): any;
-  export function onCall<T>(opts: HttpsOptions, handler: (request: CallableRequest<T>) => any): any;
+  export function onCall<T>(
+    opts: HttpsOptions,
+    handler: (request: CallableRequest<T>) => any
+  ): any;
   export class HttpsError extends Error {
     constructor(code: string, message: string, details?: any);
   }
 }
 
-declare module 'firebase-functions/params' {
+declare module "firebase-functions/params" {
   export function defineString(name: string): any;
   export function defineSecret(name: string): any;
 }
 
-declare module 'express' {
+declare module "express" {
   export interface Request {
     body: any;
     headers: any;
@@ -205,7 +214,10 @@ declare const process: NodeJS.Process;
 type Buffer = any;
 
 declare const Buffer: {
-  from(data: string, encoding?: string): { toString(encoding?: string): string };
+  from(
+    data: string,
+    encoding?: string
+  ): { toString(encoding?: string): string };
 };
 
 type Stripe = any;
@@ -218,7 +230,11 @@ declare const console: {
 };
 
 declare function fetch(input: any, init?: any): Promise<any>;
-declare function setTimeout(handler: (...args: any[]) => any, timeout?: number, ...args: any[]): any;
+declare function setTimeout(
+  handler: (...args: any[]) => any,
+  timeout?: number,
+  ...args: any[]
+): any;
 declare function clearTimeout(timeoutId: any): void;
 
 interface RequestInit {
@@ -257,7 +273,7 @@ declare class URL {
 
 type BinaryLike = string | ArrayBufferView | ArrayBuffer;
 
-declare module 'node:crypto' {
+declare module "node:crypto" {
   export function randomUUID(): string;
   export function createHash(algorithm: string): {
     update(data: BinaryLike): any;
@@ -266,7 +282,7 @@ declare module 'node:crypto' {
 }
 
 // Generic fallbacks for external modules when type packages are unavailable
-declare module 'stripe' {
+declare module "stripe" {
   type Stripe = any;
   namespace Stripe {
     namespace Checkout {
@@ -305,7 +321,7 @@ declare module 'stripe' {
   export default Stripe;
 }
 
-declare module 'firebase-functions/logger' {
+declare module "firebase-functions/logger" {
   export const log: (...args: any[]) => void;
   export const info: (...args: any[]) => void;
   export const warn: (...args: any[]) => void;
@@ -313,7 +329,7 @@ declare module 'firebase-functions/logger' {
   export const debug: (...args: any[]) => void;
 }
 
-declare module 'crypto' {
+declare module "crypto" {
   export function randomUUID(): string;
   export function createHash(algorithm: string): {
     update(data: BinaryLike): any;
@@ -321,7 +337,7 @@ declare module 'crypto' {
   };
 }
 
-declare module '@google-cloud/storage' {
+declare module "@google-cloud/storage" {
   export type File = any;
   const Storage: any;
   export default Storage;
@@ -371,7 +387,7 @@ interface ScanDocument {
   uid: string;
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
-    completedAt?: FirebaseFirestore.Timestamp | null;
+  completedAt?: FirebaseFirestore.Timestamp | null;
   status: "pending" | "processing" | "complete" | "error";
   errorMessage?: string;
   photoPaths: {

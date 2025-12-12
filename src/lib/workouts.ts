@@ -1,5 +1,13 @@
 import { auth as firebaseAuth, db } from "./firebase";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
@@ -90,9 +98,13 @@ async function fetchPlanFromFirestore() {
   if (!uid) throw new Error("auth");
   try {
     const metaSnap = await getDoc(doc(db, `users/${uid}/workoutPlans_meta`));
-    const planId = metaSnap.exists() ? (metaSnap.data()?.activePlanId as string | undefined) : undefined;
+    const planId = metaSnap.exists()
+      ? (metaSnap.data()?.activePlanId as string | undefined)
+      : undefined;
     if (!planId) return null;
-    const planSnap = await getDoc(doc(db, `users/${uid}/workoutPlans/${planId}`));
+    const planSnap = await getDoc(
+      doc(db, `users/${uid}/workoutPlans/${planId}`)
+    );
     if (!planSnap.exists()) return null;
     const data = planSnap.data() as Record<string, any>;
     return { id: planId, ...data };
@@ -106,13 +118,18 @@ async function fetchProgressFromFirestore(planId: string) {
   const uid = firebaseAuth?.currentUser?.uid;
   if (!uid) throw new Error("auth");
   try {
-    const progressRef = collection(db, `users/${uid}/workoutPlans/${planId}/progress`);
+    const progressRef = collection(
+      db,
+      `users/${uid}/workoutPlans/${planId}/progress`
+    );
     const q = query(progressRef, orderBy("updatedAt", "desc"), limit(14));
     const snaps = await getDocs(q);
     const progress: Record<string, string[]> = {};
     snaps.docs.forEach((docSnap) => {
       const data = docSnap.data() as { completed?: string[] };
-      progress[docSnap.id] = Array.isArray(data?.completed) ? data.completed : [];
+      progress[docSnap.id] = Array.isArray(data?.completed)
+        ? data.completed
+        : [];
     });
     return progress;
   } catch (error) {
@@ -129,7 +146,10 @@ export async function generateWorkoutPlan(prefs?: Record<string, any>) {
   try {
     return await callFn("/generateWorkoutPlan", { prefs });
   } catch (error: any) {
-    if (typeof error?.message === "string" && error.message.startsWith("fn_not_found")) {
+    if (
+      typeof error?.message === "string" &&
+      error.message.startsWith("fn_not_found")
+    ) {
       throw new Error("workouts_disabled_missing_fn");
     }
     throw error;
@@ -164,7 +184,11 @@ export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
 
 export async function getWorkouts(): Promise<WorkoutSummary | null> {
   if (isDemoActive()) {
-    return { planId: DEMO_WORKOUT_PLAN.id ?? "demo-plan", days: DEMO_WORKOUT_PLAN.days, progress: {} };
+    return {
+      planId: DEMO_WORKOUT_PLAN.id ?? "demo-plan",
+      days: DEMO_WORKOUT_PLAN.days,
+      progress: {},
+    };
   }
   try {
     const res = await callFn("/getWorkouts", {});
@@ -178,13 +202,24 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
       const fallback = await fetchPlanFromFirestore();
       if (!fallback) throw new Error("workouts_disabled_missing_fn");
       const progress = await fetchProgressFromFirestore(fallback.id as string);
-      return { planId: fallback.id ?? null, days: Array.isArray(fallback.days) ? (fallback.days as WorkoutDay[]) : [], progress };
+      return {
+        planId: fallback.id ?? null,
+        days: Array.isArray(fallback.days)
+          ? (fallback.days as WorkoutDay[])
+          : [],
+        progress,
+      };
     }
     return null;
   }
 }
 
-export async function markExerciseDone(planId: string, dayIndex: number, exerciseId: string, done: boolean) {
+export async function markExerciseDone(
+  planId: string,
+  dayIndex: number,
+  exerciseId: string,
+  done: boolean
+) {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_done" });
     throw new Error("demo-blocked");
@@ -214,9 +249,14 @@ export async function getWeeklyCompletion(planId: string) {
     d.setDate(monday.getDate() + i);
     const iso = d.toISOString().slice(0, 10);
     const docSnap = snaps.docs.find((s) => s.id === iso);
-    const planDay = plan?.days?.find((p: any) => p.day === dayNames[d.getDay()]);
-    if (planDay) {
-      total += planDay.exercises.length;
+    const planDay = plan?.days?.find(
+      (p: any) => p.day === dayNames[d.getDay()]
+    );
+    const exercises = Array.isArray((planDay as any)?.exercises)
+      ? ((planDay as any).exercises as any[])
+      : [];
+    if (exercises.length) {
+      total += exercises.length;
       if (docSnap) completed += (docSnap.data()?.completed || []).length;
     }
   }

@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { auth, db, firebaseReady } from "@/lib/firebase";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
-import { PRICE_IDS, getPaymentFunctionUrl, getPaymentHostingPath, isHostingShimEnabled } from "@/lib/payments";
+import {
+  PRICE_IDS,
+  getPaymentFunctionUrl,
+  getPaymentHostingPath,
+  isHostingShimEnabled,
+} from "@/lib/payments";
 import { BUILD } from "@/lib/buildInfo";
 import { STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
 import { Seo } from "@/components/Seo";
@@ -91,7 +102,9 @@ type ExportProbeState = {
   error?: string;
 };
 
-async function authedHeaders(includeJson = true): Promise<Record<string, string>> {
+async function authedHeaders(
+  includeJson = true
+): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) throw new Error("auth_required");
   const headers: Record<string, string> = {};
@@ -115,8 +128,22 @@ function formatJson(value: unknown): string {
   }
 }
 
-function describeStatus(probe: HttpProbeResult | NutritionProbe | BarcodeProbe | ScanProbe | CoachProbe) {
-  const base = probe.status === "idle" ? "Idle" : probe.status === "running" ? "Running" : probe.status === "success" ? "OK" : "Error";
+function describeStatus(
+  probe:
+    | HttpProbeResult
+    | NutritionProbe
+    | BarcodeProbe
+    | ScanProbe
+    | CoachProbe
+) {
+  const base =
+    probe.status === "idle"
+      ? "Idle"
+      : probe.status === "running"
+        ? "Running"
+        : probe.status === "success"
+          ? "OK"
+          : "Error";
   if (probe.httpStatus) {
     return `${base} • HTTP ${probe.httpStatus}`;
   }
@@ -125,11 +152,20 @@ function describeStatus(probe: HttpProbeResult | NutritionProbe | BarcodeProbe |
 
 function PublishableBadge() {
   const pk = STRIPE_PUBLISHABLE_KEY || "";
-  const label = pk.startsWith("pk_live") ? "LIVE" : pk.startsWith("pk_test") ? "TEST" : pk ? "CUSTOM" : "MISSING";
-  const tone = label === "LIVE" ? "bg-red-500/10 text-red-500" : label === "TEST" ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground";
-  return (
-    <Badge className={cn("uppercase tracking-wide", tone)}>{label}</Badge>
-  );
+  const label = pk.startsWith("pk_live")
+    ? "LIVE"
+    : pk.startsWith("pk_test")
+      ? "TEST"
+      : pk
+        ? "CUSTOM"
+        : "MISSING";
+  const tone =
+    label === "LIVE"
+      ? "bg-red-500/10 text-red-500"
+      : label === "TEST"
+        ? "bg-emerald-500/10 text-emerald-500"
+        : "bg-muted text-muted-foreground";
+  return <Badge className={cn("uppercase tracking-wide", tone)}>{label}</Badge>;
 }
 
 function BuildSummary() {
@@ -140,9 +176,18 @@ function BuildSummary() {
       <div className="flex items-center gap-2">
         <span>Stripe key:</span>
         <PublishableBadge />
-        <code className="px-2 py-0.5 bg-muted rounded text-xs">{STRIPE_PUBLISHABLE_KEY ? `${STRIPE_PUBLISHABLE_KEY.slice(0, 6)}…` : "not set"}</code>
+        <code className="px-2 py-0.5 bg-muted rounded text-xs">
+          {STRIPE_PUBLISHABLE_KEY
+            ? `${STRIPE_PUBLISHABLE_KEY.slice(0, 6)}…`
+            : "not set"}
+        </code>
       </div>
-      <div>Origin: <code>{typeof window !== "undefined" ? window.location.origin : ""}</code></div>
+      <div>
+        Origin:{" "}
+        <code>
+          {typeof window !== "undefined" ? window.location.origin : ""}
+        </code>
+      </div>
       <div>
         Build: <code>{commit}</code>
         {BUILD.branch ? ` on ${BUILD.branch}` : ""}
@@ -153,22 +198,48 @@ function BuildSummary() {
 }
 
 export default function SmokeKit() {
-  const { user, claims, loading: claimsLoading, refresh: refreshClaimsHook } = useClaims();
-  const [claimsState, setClaimsState] = useState<ClaimsState>({ status: "idle" });
-  const [appCheckState, setAppCheckState] = useState<AppCheckState>({ status: "idle", hasToken: false });
-  const [checkoutProbes, setCheckoutProbes] = useState<Record<string, HttpProbeResult>>({});
-  const [portalProbe, setPortalProbe] = useState<HttpProbeResult>({ status: "idle" });
+  const {
+    user,
+    claims,
+    loading: claimsLoading,
+    refresh: refreshClaimsHook,
+  } = useClaims();
+  const [claimsState, setClaimsState] = useState<ClaimsState>({
+    status: "idle",
+  });
+  const [appCheckState, setAppCheckState] = useState<AppCheckState>({
+    status: "idle",
+    hasToken: false,
+  });
+  const [checkoutProbes, setCheckoutProbes] = useState<
+    Record<string, HttpProbeResult>
+  >({});
+  const [portalProbe, setPortalProbe] = useState<HttpProbeResult>({
+    status: "idle",
+  });
   const [scanStart, setScanStart] = useState<ScanProbe>({ status: "idle" });
-  const [scanSubmit, setScanSubmit] = useState<HttpProbeResult>({ status: "idle" });
+  const [scanSubmit, setScanSubmit] = useState<HttpProbeResult>({
+    status: "idle",
+  });
   const [coachProbe, setCoachProbe] = useState<CoachProbe>({ status: "idle" });
-  const [nutritionSearchProbe, setNutritionSearchProbe] = useState<NutritionProbe>({ status: "idle" });
-  const [barcodeProbe, setBarcodeProbe] = useState<BarcodeProbe>({ status: "idle" });
+  const [nutritionSearchProbe, setNutritionSearchProbe] =
+    useState<NutritionProbe>({ status: "idle" });
+  const [barcodeProbe, setBarcodeProbe] = useState<BarcodeProbe>({
+    status: "idle",
+  });
   const [cacheState, setCacheState] = useState<CacheState>({ status: "idle" });
-  const [rulesProbe, setRulesProbe] = useState<RulesProbeState>({ status: "idle" });
-  const [exportProbe, setExportProbe] = useState<ExportProbeState>({ status: "idle" });
+  const [rulesProbe, setRulesProbe] = useState<RulesProbeState>({
+    status: "idle",
+  });
+  const [exportProbe, setExportProbe] = useState<ExportProbeState>({
+    status: "idle",
+  });
   const [deleteProbe, setDeleteProbe] = useState<ProbeStatus>("idle");
   const [deleteText, setDeleteText] = useState("");
-  const [runtimeProbe, setRuntimeProbe] = useState<{ status: "idle" | "running" | "success" | "error"; message?: string }>({ status: "idle" });
+  const [runtimeProbe, setRuntimeProbe] = useState<{
+    status: "idle" | "running" | "success" | "error";
+    message?: string;
+  }>({ status: "idle" });
 
   const allowAccess = useMemo(() => {
     if (import.meta.env.DEV) return true;
@@ -177,7 +248,7 @@ export default function SmokeKit() {
       claims?.staff === true ||
         claims?.dev === true ||
         claims?.unlimited === true ||
-        claims?.unlimitedCredits === true,
+        claims?.unlimitedCredits === true
     );
   }, [claims]);
 
@@ -189,7 +260,8 @@ export default function SmokeKit() {
     return Boolean(claims?.staff === true || claims?.dev === true);
   }, [claims]);
 
-  const deleteReady = allowFinalDelete && deleteText.trim().toUpperCase() === "DELETE";
+  const deleteReady =
+    allowFinalDelete && deleteText.trim().toUpperCase() === "DELETE";
 
   const readableClaims = useMemo(() => {
     if (!claims) return "{}";
@@ -216,7 +288,10 @@ export default function SmokeKit() {
     setClaimsState({ status: "running" });
     try {
       const response = await call("refreshClaims", {});
-      const data = (response?.data || {}) as { ok?: boolean; claims?: { unlimited?: boolean; unlimitedCredits?: boolean } };
+      const data = (response?.data || {}) as {
+        ok?: boolean;
+        claims?: { unlimited?: boolean; unlimitedCredits?: boolean };
+      };
       const refreshed = await refreshClaimsHook(true);
       const updated = Boolean(data.claims && Object.keys(data.claims).length);
       const unlimitedClaim =
@@ -231,7 +306,10 @@ export default function SmokeKit() {
         updated,
       });
     } catch (error: any) {
-      setClaimsState({ status: "error", error: error?.code || error?.message || "claim_error" });
+      setClaimsState({
+        status: "error",
+        error: error?.code || error?.message || "claim_error",
+      });
     }
   }
 
@@ -241,12 +319,24 @@ export default function SmokeKit() {
       const headers = await appCheckHeaders(true);
       const token = headers["X-Firebase-AppCheck"];
       if (token) {
-        setAppCheckState({ status: "success", hasToken: true, suffix: token.slice(-6) });
+        setAppCheckState({
+          status: "success",
+          hasToken: true,
+          suffix: token.slice(-6),
+        });
       } else {
-        setAppCheckState({ status: "error", hasToken: false, error: "token_missing" });
+        setAppCheckState({
+          status: "error",
+          hasToken: false,
+          error: "token_missing",
+        });
       }
     } catch (error: any) {
-      setAppCheckState({ status: "error", hasToken: false, error: error?.message || "appcheck_error" });
+      setAppCheckState({
+        status: "error",
+        hasToken: false,
+        error: error?.message || "appcheck_error",
+      });
     }
   }
 
@@ -259,7 +349,10 @@ export default function SmokeKit() {
     setRulesProbe({ status: "running" });
     try {
       await firebaseReady();
-      const privateDoc = doc(db, `users/${currentUser.uid}/private/__rules_probe`);
+      const privateDoc = doc(
+        db,
+        `users/${currentUser.uid}/private/__rules_probe`
+      );
       let readError: string | undefined;
       try {
         await getDoc(privateDoc);
@@ -278,18 +371,36 @@ export default function SmokeKit() {
       }
 
       if (!writeBlocked) {
-        setRulesProbe({ status: "error", read: readError ? "denied" : "ok", write: "allowed", error: "write_not_blocked" });
+        setRulesProbe({
+          status: "error",
+          read: readError ? "denied" : "ok",
+          write: "allowed",
+          error: "write_not_blocked",
+        });
         return;
       }
 
       if (readError) {
-        setRulesProbe({ status: "error", read: "denied", write: "blocked", error: readError });
+        setRulesProbe({
+          status: "error",
+          read: "denied",
+          write: "blocked",
+          error: readError,
+        });
         return;
       }
 
-      setRulesProbe({ status: "success", read: "ok", write: "blocked", error: writeError });
+      setRulesProbe({
+        status: "success",
+        read: "ok",
+        write: "blocked",
+        error: writeError,
+      });
     } catch (error: any) {
-      setRulesProbe({ status: "error", error: error?.code || error?.message || "rules_probe_failed" });
+      setRulesProbe({
+        status: "error",
+        error: error?.code || error?.message || "rules_probe_failed",
+      });
     }
   }
 
@@ -309,7 +420,10 @@ export default function SmokeKit() {
         expiresAt: payload.expiresAt,
       });
     } catch (error: any) {
-      setExportProbe({ status: "error", error: error?.code || error?.message || "export_failed" });
+      setExportProbe({
+        status: "error",
+        error: error?.code || error?.message || "export_failed",
+      });
     }
   }
 
@@ -328,16 +442,25 @@ export default function SmokeKit() {
   async function probeCheckout(priceId: string) {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      setCheckoutProbes((prev) => ({ ...prev, [priceId]: { status: "error", error: "auth_required" } }));
+      setCheckoutProbes((prev) => ({
+        ...prev,
+        [priceId]: { status: "error", error: "auth_required" },
+      }));
       return;
     }
-    setCheckoutProbes((prev) => ({ ...prev, [priceId]: { status: "running" } }));
+    setCheckoutProbes((prev) => ({
+      ...prev,
+      [priceId]: { status: "running" },
+    }));
     const shimEnabled = isHostingShimEnabled();
     const endpoints: Array<{ url: string; kind: "function" | "hosting" }> = [
       { url: getPaymentFunctionUrl("createCheckout"), kind: "function" },
     ];
     if (shimEnabled) {
-      endpoints.push({ url: getPaymentHostingPath("createCheckout"), kind: "hosting" });
+      endpoints.push({
+        url: getPaymentHostingPath("createCheckout"),
+        kind: "hosting",
+      });
     }
 
     const headers = await authedHeaders();
@@ -396,7 +519,10 @@ export default function SmokeKit() {
       { url: getPaymentFunctionUrl("createCustomerPortal"), kind: "function" },
     ];
     if (shimEnabled) {
-      endpoints.push({ url: getPaymentHostingPath("createCustomerPortal"), kind: "hosting" });
+      endpoints.push({
+        url: getPaymentHostingPath("createCustomerPortal"),
+        kind: "hosting",
+      });
     }
 
     const headers = await authedHeaders();
@@ -465,7 +591,10 @@ export default function SmokeKit() {
         setScanSubmit({ status: "idle" });
       }
     } catch (error: any) {
-      setScanStart({ status: "error", error: error?.message || "scan_start_failed" });
+      setScanStart({
+        status: "error",
+        error: error?.message || "scan_start_failed",
+      });
       setScanSubmit({ status: "idle" });
     }
   }
@@ -484,7 +613,10 @@ export default function SmokeKit() {
     try {
       const json = await apiFetchJson("/scan/submit", {
         method: "POST",
-        body: JSON.stringify({ scanId: scanStart.scanId, idempotencyKey: `smoke-${Date.now()}` }),
+        body: JSON.stringify({
+          scanId: scanStart.scanId,
+          idempotencyKey: `smoke-${Date.now()}`,
+        }),
       });
       setScanSubmit({
         status: "success",
@@ -494,7 +626,10 @@ export default function SmokeKit() {
         code: typeof json?.code === "string" ? json.code : undefined,
       });
     } catch (error: any) {
-      setScanSubmit({ status: "error", error: error?.message || "scan_submit_failed" });
+      setScanSubmit({
+        status: "error",
+        error: error?.message || "scan_submit_failed",
+      });
     }
   }
 
@@ -508,7 +643,10 @@ export default function SmokeKit() {
     try {
       const json = await apiFetchJson("/coach/chat", {
         method: "POST",
-        body: JSON.stringify({ message: "ping from smoke", text: "ping from smoke" }),
+        body: JSON.stringify({
+          message: "ping from smoke",
+          text: "ping from smoke",
+        }),
       });
       const reply = typeof json?.reply === "string" ? json.reply : undefined;
       const ok = Boolean(reply);
@@ -516,13 +654,20 @@ export default function SmokeKit() {
         status: ok ? "success" : "error",
         httpStatus: ok ? 200 : undefined,
         payload: json,
-        error: ok ? undefined : (typeof json?.error === "string" ? json.error : undefined),
+        error: ok
+          ? undefined
+          : typeof json?.error === "string"
+            ? json.error
+            : undefined,
         code: typeof json?.code === "string" ? json.code : undefined,
         replySnippet: reply ? reply.slice(0, 120) : undefined,
         usedLLM: typeof json?.usedLLM === "boolean" ? json.usedLLM : undefined,
       });
     } catch (error: any) {
-      setCoachProbe({ status: "error", error: error?.message || "coach_failed" });
+      setCoachProbe({
+        status: "error",
+        error: error?.message || "coach_failed",
+      });
     }
   }
 
@@ -535,7 +680,11 @@ export default function SmokeKit() {
     setNutritionSearchProbe({ status: "running" });
     try {
       const raw = await nutritionSearch("chicken breast");
-      const items = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+      const items = Array.isArray(raw?.items)
+        ? raw.items
+        : Array.isArray(raw)
+          ? raw
+          : [];
       const sanitized = items.map(sanitizeFoodItem).filter(Boolean);
       setNutritionSearchProbe({
         status: sanitized.length > 0 ? "success" : "error",
@@ -543,10 +692,16 @@ export default function SmokeKit() {
         payload: raw,
         error: typeof raw?.error === "string" ? raw.error : undefined,
         count: sanitized.length,
-        source: typeof raw?.primarySource === "string" ? raw.primarySource : undefined,
+        source:
+          typeof raw?.primarySource === "string"
+            ? raw.primarySource
+            : undefined,
       });
     } catch (error: any) {
-      setNutritionSearchProbe({ status: "error", error: error?.message || "nutrition_search_failed" });
+      setNutritionSearchProbe({
+        status: "error",
+        error: error?.message || "nutrition_search_failed",
+      });
     }
   }
 
@@ -559,19 +714,34 @@ export default function SmokeKit() {
     setBarcodeProbe({ status: "running" });
     try {
       const code = "044000030785";
-      const json = await apiFetchJson(`/nutrition/barcode?code=${encodeURIComponent(code)}`, {
-        method: "GET",
-      });
-      const ok = Boolean(json && typeof json === "object" && (json as any).item);
+      const json = await apiFetchJson(
+        `/nutrition/barcode?code=${encodeURIComponent(code)}`,
+        {
+          method: "GET",
+        }
+      );
+      const ok = Boolean(
+        json && typeof json === "object" && (json as any).item
+      );
       setBarcodeProbe({
         status: ok ? "success" : "error",
         httpStatus: ok ? 200 : undefined,
         payload: json,
-        error: ok ? undefined : (typeof (json as any)?.error === "string" ? (json as any).error : undefined),
-        source: typeof (json as any)?.source === "string" ? (json as any).source : undefined,
+        error: ok
+          ? undefined
+          : typeof (json as any)?.error === "string"
+            ? (json as any).error
+            : undefined,
+        source:
+          typeof (json as any)?.source === "string"
+            ? (json as any).source
+            : undefined,
       });
     } catch (error: any) {
-      setBarcodeProbe({ status: "error", error: error?.message || "barcode_failed" });
+      setBarcodeProbe({
+        status: "error",
+        error: error?.message || "barcode_failed",
+      });
     }
   }
 
@@ -582,7 +752,9 @@ export default function SmokeKit() {
   async function handleRuntimeConfigCheck() {
     setRuntimeProbe({ status: "running" });
     try {
-      const response = await fetch(`/__/firebase/init.json?ts=${Date.now()}`, { cache: "no-store" });
+      const response = await fetch(`/__/firebase/init.json?ts=${Date.now()}`, {
+        cache: "no-store",
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -594,7 +766,10 @@ export default function SmokeKit() {
         message: `projectId ${projectIdPresent ? "✅" : "❌"} • apiKey ${apiKeyPresent ? "✅" : "❌"}`,
       });
     } catch (error: any) {
-      setRuntimeProbe({ status: "error", message: error?.message || "runtime_check_failed" });
+      setRuntimeProbe({
+        status: "error",
+        message: error?.message || "runtime_check_failed",
+      });
     }
   }
 
@@ -620,20 +795,24 @@ export default function SmokeKit() {
         void error; // ignore session storage clear failures
       }
       try {
-        if (typeof indexedDB !== "undefined" && typeof (indexedDB as any).databases === "function") {
+        if (
+          typeof indexedDB !== "undefined" &&
+          typeof (indexedDB as any).databases === "function"
+        ) {
           const dbs = await (indexedDB as any).databases();
           await Promise.allSettled(
             dbs
               .map((db: { name?: string } | undefined) => db?.name)
               .filter(Boolean)
-              .map((name) =>
-                new Promise<void>((resolve) => {
-                  const request = indexedDB.deleteDatabase(name!);
-                  request.onsuccess = () => resolve();
-                  request.onerror = () => resolve();
-                  request.onblocked = () => resolve();
-                }),
-              ),
+              .map(
+                (name) =>
+                  new Promise<void>((resolve) => {
+                    const request = indexedDB.deleteDatabase(name!);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => resolve();
+                    request.onblocked = () => resolve();
+                  })
+              )
           );
         }
       } catch (error) {
@@ -641,7 +820,10 @@ export default function SmokeKit() {
       }
       setCacheState({ status: "success", message: "Reloading…" });
     } catch (error: any) {
-      setCacheState({ status: "error", message: error?.message || "cache_clear_failed" });
+      setCacheState({
+        status: "error",
+        message: error?.message || "cache_clear_failed",
+      });
       return;
     }
     setTimeout(() => {
@@ -667,11 +849,14 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Access restricted</CardTitle>
-            <CardDescription>This page is limited to staff or unlimited credit accounts.</CardDescription>
+            <CardDescription>
+              This page is limited to staff or unlimited credit accounts.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Sign in with an authorized account or run the app in development mode to view the smoke toolkit.
+              Sign in with an authorized account or run the app in development
+              mode to view the smoke toolkit.
             </p>
           </CardContent>
         </Card>
@@ -686,14 +871,17 @@ export default function SmokeKit() {
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold">Smoke Kit</h1>
           <p className="text-sm text-muted-foreground">
-            Browser-first verification for auth, payments, App Check, scans, coach, and nutrition.
+            Browser-first verification for auth, payments, App Check, scans,
+            coach, and nutrition.
           </p>
         </header>
 
         <Card>
           <CardHeader>
             <CardTitle>Environment</CardTitle>
-            <CardDescription>Deployment details and Stripe publishable key.</CardDescription>
+            <CardDescription>
+              Deployment details and Stripe publishable key.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <BuildSummary />
@@ -704,7 +892,9 @@ export default function SmokeKit() {
           <Card>
             <CardHeader>
               <CardTitle>Dev helpers</CardTitle>
-              <CardDescription>Quick utilities for manual smoke testing.</CardDescription>
+              <CardDescription>
+                Quick utilities for manual smoke testing.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -716,18 +906,26 @@ export default function SmokeKit() {
                   onClick={handleRuntimeConfigCheck}
                   disabled={runtimeProbe.status === "running"}
                 >
-                  {runtimeProbe.status === "running" ? "Checking…" : "Check runtime config"}
+                  {runtimeProbe.status === "running"
+                    ? "Checking…"
+                    : "Check runtime config"}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={clearCaches}
                   disabled={cacheState.status === "running"}
                 >
-                  {cacheState.status === "running" ? "Clearing…" : "Clear SW + caches"}
+                  {cacheState.status === "running"
+                    ? "Clearing…"
+                    : "Clear SW + caches"}
                 </Button>
               </div>
               {runtimeProbe.status !== "idle" && (
-                <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+                <p
+                  className="text-sm text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                >
                   {runtimeProbe.status === "success"
                     ? runtimeProbe.message
                     : runtimeProbe.status === "error"
@@ -742,25 +940,83 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Data lifecycle</CardTitle>
-            <CardDescription>Security rules, export callable, and delete callable.</CardDescription>
+            <CardDescription>
+              Security rules, export callable, and delete callable.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="border rounded-lg p-3 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium">Rules probe</p>
-                  <p className="text-xs text-muted-foreground">Read private doc, block write</p>
+                  <p className="text-xs text-muted-foreground">
+                    Read private doc, block write
+                  </p>
                 </div>
-                <Button size="sm" variant="outline" onClick={probeRules} disabled={rulesProbe.status === "running"}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={probeRules}
+                  disabled={rulesProbe.status === "running"}
+                >
                   {rulesProbe.status === "running" ? "Probing…" : "Probe rules"}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Status: {rulesProbe.status === "idle" ? "Idle" : rulesProbe.status === "running" ? "Running" : rulesProbe.status === "success" ? "Read ok, write blocked" : rulesProbe.error || "Error"}
+                Status:{" "}
+                {rulesProbe.status === "idle"
+                  ? "Idle"
+                  : rulesProbe.status === "running"
+                    ? "Running"
+                    : rulesProbe.status === "success"
+                      ? "Read ok, write blocked"
+                      : rulesProbe.error || "Error"}
               </p>
-              {rulesProbe.status !== "idle" && rulesProbe.status !== "running" && (
+              {rulesProbe.status !== "idle" &&
+                rulesProbe.status !== "running" && (
+                  <p className="text-xs text-muted-foreground">
+                    Read: {rulesProbe.read || "unknown"} • Write:{" "}
+                    {rulesProbe.write || "unknown"}
+                  </p>
+                )}
+            </div>
+
+            <div className="border rounded-lg p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Export probe</p>
+                  <p className="text-xs text-muted-foreground">
+                    Callable JSON + signed URLs
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={probeExportData}
+                  disabled={exportProbe.status === "running"}
+                >
+                  {exportProbe.status === "running"
+                    ? "Preparing…"
+                    : "Export preview"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Status:{" "}
+                {exportProbe.status === "idle"
+                  ? "Idle"
+                  : exportProbe.status === "running"
+                    ? "Running"
+                    : exportProbe.status === "success"
+                      ? `OK (${exportProbe.count ?? 0} scans)`
+                      : exportProbe.error || "Error"}
+              </p>
+              {exportProbe.firstId && (
+                <p className="text-xs">First scan id: {exportProbe.firstId}</p>
+              )}
+              {exportProbe.expiresAt && (
                 <p className="text-xs text-muted-foreground">
-                  Read: {rulesProbe.read || "unknown"} • Write: {rulesProbe.write || "unknown"}
+                  Links expire{" "}
+                  {new Date(exportProbe.expiresAt).toLocaleTimeString()}
                 </p>
               )}
             </div>
@@ -768,29 +1024,12 @@ export default function SmokeKit() {
             <div className="border rounded-lg p-3 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-medium">Export probe</p>
-                  <p className="text-xs text-muted-foreground">Callable JSON + signed URLs</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={probeExportData} disabled={exportProbe.status === "running"}>
-                  {exportProbe.status === "running" ? "Preparing…" : "Export preview"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Status: {exportProbe.status === "idle" ? "Idle" : exportProbe.status === "running" ? "Running" : exportProbe.status === "success" ? `OK (${exportProbe.count ?? 0} scans)` : exportProbe.error || "Error"}
-              </p>
-              {exportProbe.firstId && (
-                <p className="text-xs">First scan id: {exportProbe.firstId}</p>
-              )}
-              {exportProbe.expiresAt && (
-                <p className="text-xs text-muted-foreground">Links expire {new Date(exportProbe.expiresAt).toLocaleTimeString()}</p>
-              )}
-            </div>
-
-            <div className="border rounded-lg p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-destructive">Final delete (callable)</p>
-                  <p className="text-xs text-muted-foreground">Requires typing DELETE (dev/staff only)</p>
+                  <p className="text-sm font-medium text-destructive">
+                    Final delete (callable)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Requires typing DELETE (dev/staff only)
+                  </p>
                 </div>
                 <Button
                   size="sm"
@@ -803,7 +1042,8 @@ export default function SmokeKit() {
               </div>
               {!allowFinalDelete && (
                 <p className="text-xs text-muted-foreground">
-                  Enable in development or with staff claims to allow final delete.
+                  Enable in development or with staff claims to allow final
+                  delete.
                 </p>
               )}
               <Input
@@ -819,7 +1059,14 @@ export default function SmokeKit() {
                 disabled={!allowFinalDelete}
               />
               <p className="text-xs text-muted-foreground">
-                Status: {deleteProbe === "idle" ? "Idle" : deleteProbe === "success" ? "Deleted" : deleteProbe === "running" ? "Running" : "Error"}
+                Status:{" "}
+                {deleteProbe === "idle"
+                  ? "Idle"
+                  : deleteProbe === "success"
+                    ? "Deleted"
+                    : deleteProbe === "running"
+                      ? "Running"
+                      : "Error"}
               </p>
             </div>
           </CardContent>
@@ -829,21 +1076,45 @@ export default function SmokeKit() {
           <CardHeader className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
               <CardTitle>Auth &amp; Claims</CardTitle>
-              <Button size="sm" onClick={handleRefreshClaims} disabled={claimsState.status === "running"}>
-                {claimsState.status === "running" ? "Refreshing…" : "Refresh Claims"}
+              <Button
+                size="sm"
+                onClick={handleRefreshClaims}
+                disabled={claimsState.status === "running"}
+              >
+                {claimsState.status === "running"
+                  ? "Refreshing…"
+                  : "Refresh Claims"}
               </Button>
             </div>
-            <CardDescription>Signed in as {user?.email || "unknown"} ({user?.uid || "no uid"}).</CardDescription>
+            <CardDescription>
+              Signed in as {user?.email || "unknown"} ({user?.uid || "no uid"}).
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm">Status: {claimsState.status === "idle" ? "Idle" : claimsState.status === "running" ? "Refreshing" : claimsState.status === "success" ? claimsState.message || "OK" : claimsState.error || "Error"}</p>
+            <p className="text-sm">
+              Status:{" "}
+              {claimsState.status === "idle"
+                ? "Idle"
+                : claimsState.status === "running"
+                  ? "Refreshing"
+                  : claimsState.status === "success"
+                    ? claimsState.message || "OK"
+                    : claimsState.error || "Error"}
+            </p>
             {typeof claimsState.unlimited === "boolean" && (
-              <p className="text-sm">unlimitedCredits: <strong>{claimsState.unlimited ? "true" : "false"}</strong></p>
+              <p className="text-sm">
+                unlimitedCredits:{" "}
+                <strong>{claimsState.unlimited ? "true" : "false"}</strong>
+              </p>
             )}
             <div>
-              <p className="text-xs uppercase text-muted-foreground mb-1">Claims</p>
+              <p className="text-xs uppercase text-muted-foreground mb-1">
+                Claims
+              </p>
               <ScrollArea className="h-40 rounded border bg-muted/30 p-2">
-                <pre className="text-xs whitespace-pre-wrap break-all leading-5">{readableClaims}</pre>
+                <pre className="text-xs whitespace-pre-wrap break-all leading-5">
+                  {readableClaims}
+                </pre>
               </ScrollArea>
             </div>
           </CardContent>
@@ -853,21 +1124,40 @@ export default function SmokeKit() {
           <CardHeader className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4">
               <CardTitle>App Check</CardTitle>
-              <Button size="sm" onClick={handleAppCheckProbe} disabled={appCheckState.status === "running"}>
-                {appCheckState.status === "running" ? "Requesting…" : "Fetch Token"}
+              <Button
+                size="sm"
+                onClick={handleAppCheckProbe}
+                disabled={appCheckState.status === "running"}
+              >
+                {appCheckState.status === "running"
+                  ? "Requesting…"
+                  : "Fetch Token"}
               </Button>
             </div>
-            <CardDescription>Ensures App Check token is issued in this browser.</CardDescription>
+            <CardDescription>
+              Ensures App Check token is issued in this browser.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-sm">
-              Status: {appCheckState.status === "idle" ? "Idle" : appCheckState.status === "running" ? "Requesting" : appCheckState.status === "success" ? "Token active" : appCheckState.error || "Error"}
+              Status:{" "}
+              {appCheckState.status === "idle"
+                ? "Idle"
+                : appCheckState.status === "running"
+                  ? "Requesting"
+                  : appCheckState.status === "success"
+                    ? "Token active"
+                    : appCheckState.error || "Error"}
             </p>
             {appCheckState.hasToken && (
-              <p className="text-sm">Token suffix: <code>…{appCheckState.suffix}</code></p>
+              <p className="text-sm">
+                Token suffix: <code>…{appCheckState.suffix}</code>
+              </p>
             )}
             {!hasAppCheck() && (
-              <p className="text-sm text-muted-foreground">App Check is disabled in this environment.</p>
+              <p className="text-sm text-muted-foreground">
+                App Check is disabled in this environment.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -875,29 +1165,60 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Payments</CardTitle>
-            <CardDescription>Checkout sessions and customer portal.</CardDescription>
+            <CardDescription>
+              Checkout sessions and customer portal.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               {checkoutPrices.map((priceId) => {
                 const result = checkoutProbes[priceId] || { status: "idle" };
                 return (
-                  <div key={priceId} className="border rounded-lg p-3 space-y-2">
+                  <div
+                    key={priceId}
+                    className="border rounded-lg p-3 space-y-2"
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-medium">{PRICE_LABELS[priceId] || priceId}</p>
-                        <p className="text-xs text-muted-foreground">{priceId}</p>
+                        <p className="text-sm font-medium">
+                          {PRICE_LABELS[priceId] || priceId}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {priceId}
+                        </p>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => probeCheckout(priceId)} disabled={result.status === "running"}>
-                        {result.status === "running" ? "Probing…" : "Probe Checkout"}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => probeCheckout(priceId)}
+                        disabled={result.status === "running"}
+                      >
+                        {result.status === "running"
+                          ? "Probing…"
+                          : "Probe Checkout"}
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">{describeStatus(result)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {describeStatus(result)}
+                    </p>
                     {result.url && (
-                      <p className="text-xs">URL: <a href={result.url} className="text-primary underline" target="_blank" rel="noreferrer">Go</a></p>
+                      <p className="text-xs">
+                        URL:{" "}
+                        <a
+                          href={result.url}
+                          className="text-primary underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Go
+                        </a>
+                      </p>
                     )}
                     {result.error && (
-                      <p className="text-xs text-destructive">Error: {result.error}{result.code ? ` (${result.code})` : ""}</p>
+                      <p className="text-xs text-destructive">
+                        Error: {result.error}
+                        {result.code ? ` (${result.code})` : ""}
+                      </p>
                     )}
                   </div>
                 );
@@ -907,18 +1228,42 @@ export default function SmokeKit() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium">Customer Portal</p>
-                  <p className="text-xs text-muted-foreground">Stripe billing portal access</p>
+                  <p className="text-xs text-muted-foreground">
+                    Stripe billing portal access
+                  </p>
                 </div>
-                <Button size="sm" variant="outline" onClick={probePortal} disabled={portalProbe.status === "running"}>
-                  {portalProbe.status === "running" ? "Probing…" : "Probe Portal"}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={probePortal}
+                  disabled={portalProbe.status === "running"}
+                >
+                  {portalProbe.status === "running"
+                    ? "Probing…"
+                    : "Probe Portal"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{describeStatus(portalProbe)}</p>
+              <p className="text-xs text-muted-foreground">
+                {describeStatus(portalProbe)}
+              </p>
               {portalProbe.url && (
-                <p className="text-xs">URL: <a href={portalProbe.url} className="text-primary underline" target="_blank" rel="noreferrer">Go</a></p>
+                <p className="text-xs">
+                  URL:{" "}
+                  <a
+                    href={portalProbe.url}
+                    className="text-primary underline"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Go
+                  </a>
+                </p>
               )}
               {portalProbe.error && (
-                <p className="text-xs text-destructive">Error: {portalProbe.error}{portalProbe.code ? ` (${portalProbe.code})` : ""}</p>
+                <p className="text-xs text-destructive">
+                  Error: {portalProbe.error}
+                  {portalProbe.code ? ` (${portalProbe.code})` : ""}
+                </p>
               )}
             </div>
           </CardContent>
@@ -927,31 +1272,60 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Scan API</CardTitle>
-            <CardDescription>Start session and optional dry submit.</CardDescription>
+            <CardDescription>
+              Start session and optional dry submit.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={probeScanStart} disabled={scanStart.status === "running"}>
-                {scanStart.status === "running" ? "Starting…" : "Probe Scan Start"}
+              <Button
+                size="sm"
+                onClick={probeScanStart}
+                disabled={scanStart.status === "running"}
+              >
+                {scanStart.status === "running"
+                  ? "Starting…"
+                  : "Probe Scan Start"}
               </Button>
-              <Button size="sm" variant="outline" onClick={probeScanSubmit} disabled={!scanStart.scanId || scanSubmit.status === "running"}>
-                {scanSubmit.status === "running" ? "Submitting…" : "Fake Submit"}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={probeScanSubmit}
+                disabled={!scanStart.scanId || scanSubmit.status === "running"}
+              >
+                {scanSubmit.status === "running"
+                  ? "Submitting…"
+                  : "Fake Submit"}
               </Button>
-              {scanStart.scanId && <Badge variant="secondary">scanId: {scanStart.scanId.slice(0, 8)}…</Badge>}
+              {scanStart.scanId && (
+                <Badge variant="secondary">
+                  scanId: {scanStart.scanId.slice(0, 8)}…
+                </Badge>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="border rounded-lg p-3 space-y-2">
                 <p className="text-sm font-medium">Start</p>
-                <p className="text-xs text-muted-foreground">{describeStatus(scanStart)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {describeStatus(scanStart)}
+                </p>
                 {scanStart.error && (
-                  <p className="text-xs text-destructive">Error: {scanStart.error}{scanStart.code ? ` (${scanStart.code})` : ""}</p>
+                  <p className="text-xs text-destructive">
+                    Error: {scanStart.error}
+                    {scanStart.code ? ` (${scanStart.code})` : ""}
+                  </p>
                 )}
               </div>
               <div className="border rounded-lg p-3 space-y-2">
                 <p className="text-sm font-medium">Submit</p>
-                <p className="text-xs text-muted-foreground">{describeStatus(scanSubmit)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {describeStatus(scanSubmit)}
+                </p>
                 {scanSubmit.error && (
-                  <p className="text-xs text-destructive">Error: {scanSubmit.error}{scanSubmit.code ? ` (${scanSubmit.code})` : ""}</p>
+                  <p className="text-xs text-destructive">
+                    Error: {scanSubmit.error}
+                    {scanSubmit.code ? ` (${scanSubmit.code})` : ""}
+                  </p>
                 )}
               </div>
             </div>
@@ -961,20 +1335,32 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Coach</CardTitle>
-            <CardDescription>Ping the coach endpoint and show reply.</CardDescription>
+            <CardDescription>
+              Ping the coach endpoint and show reply.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button size="sm" onClick={probeCoach} disabled={coachProbe.status === "running"}>
+            <Button
+              size="sm"
+              onClick={probeCoach}
+              disabled={coachProbe.status === "running"}
+            >
               {coachProbe.status === "running" ? "Requesting…" : "Probe Coach"}
             </Button>
             <p className="text-sm">{describeStatus(coachProbe)}</p>
             {coachProbe.replySnippet && (
               <p className="text-sm text-muted-foreground">
-                Reply preview: “{coachProbe.replySnippet}” {typeof coachProbe.usedLLM === "boolean" ? `(usedLLM=${String(coachProbe.usedLLM)})` : ""}
+                Reply preview: “{coachProbe.replySnippet}”{" "}
+                {typeof coachProbe.usedLLM === "boolean"
+                  ? `(usedLLM=${String(coachProbe.usedLLM)})`
+                  : ""}
               </p>
             )}
             {coachProbe.error && (
-              <p className="text-sm text-destructive">Error: {coachProbe.error}{coachProbe.code ? ` (${coachProbe.code})` : ""}</p>
+              <p className="text-sm text-destructive">
+                Error: {coachProbe.error}
+                {coachProbe.code ? ` (${coachProbe.code})` : ""}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -989,37 +1375,68 @@ export default function SmokeKit() {
               <div className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium">Search “chicken breast”</p>
-                    <p className="text-xs text-muted-foreground">Ensures USDA/OPENFF reachable</p>
+                    <p className="text-sm font-medium">
+                      Search “chicken breast”
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Ensures USDA/OPENFF reachable
+                    </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={probeNutritionSearch} disabled={nutritionSearchProbe.status === "running"}>
-                    {nutritionSearchProbe.status === "running" ? "Searching…" : "Probe"}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={probeNutritionSearch}
+                    disabled={nutritionSearchProbe.status === "running"}
+                  >
+                    {nutritionSearchProbe.status === "running"
+                      ? "Searching…"
+                      : "Probe"}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">{describeStatus(nutritionSearchProbe)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {describeStatus(nutritionSearchProbe)}
+                </p>
                 {typeof nutritionSearchProbe.count === "number" && (
-                  <p className="text-xs">Items: {nutritionSearchProbe.count}{nutritionSearchProbe.source ? ` • Source: ${nutritionSearchProbe.source}` : ""}</p>
+                  <p className="text-xs">
+                    Items: {nutritionSearchProbe.count}
+                    {nutritionSearchProbe.source
+                      ? ` • Source: ${nutritionSearchProbe.source}`
+                      : ""}
+                  </p>
                 )}
                 {nutritionSearchProbe.error && (
-                  <p className="text-xs text-destructive">Error: {nutritionSearchProbe.error}</p>
+                  <p className="text-xs text-destructive">
+                    Error: {nutritionSearchProbe.error}
+                  </p>
                 )}
               </div>
               <div className="border rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium">Barcode 044000030785</p>
-                    <p className="text-xs text-muted-foreground">Oreo cookies (OFF → USDA fallback)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Oreo cookies (OFF → USDA fallback)
+                    </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={probeBarcode} disabled={barcodeProbe.status === "running"}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={probeBarcode}
+                    disabled={barcodeProbe.status === "running"}
+                  >
                     {barcodeProbe.status === "running" ? "Querying…" : "Probe"}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">{describeStatus(barcodeProbe)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {describeStatus(barcodeProbe)}
+                </p>
                 {barcodeProbe.source && (
                   <p className="text-xs">Source: {barcodeProbe.source}</p>
                 )}
                 {barcodeProbe.error && (
-                  <p className="text-xs text-destructive">Error: {barcodeProbe.error}</p>
+                  <p className="text-xs text-destructive">
+                    Error: {barcodeProbe.error}
+                  </p>
                 )}
               </div>
             </div>
@@ -1029,13 +1446,25 @@ export default function SmokeKit() {
         <Card>
           <CardHeader>
             <CardTitle>Cache Tools</CardTitle>
-            <CardDescription>Reset caches and reload to clear persistent state.</CardDescription>
+            <CardDescription>
+              Reset caches and reload to clear persistent state.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="destructive" onClick={clearCaches} disabled={cacheState.status === "running"}>
-              {cacheState.status === "running" ? "Clearing…" : "Unregister SW + Clear caches"}
+            <Button
+              variant="destructive"
+              onClick={clearCaches}
+              disabled={cacheState.status === "running"}
+            >
+              {cacheState.status === "running"
+                ? "Clearing…"
+                : "Unregister SW + Clear caches"}
             </Button>
-            {cacheState.message && <p className="text-sm text-muted-foreground">{cacheState.message}</p>}
+            {cacheState.message && (
+              <p className="text-sm text-muted-foreground">
+                {cacheState.message}
+              </p>
+            )}
           </CardContent>
         </Card>
       </main>

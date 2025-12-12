@@ -18,7 +18,8 @@ export function supportMailto(extra?: Record<string, string>) {
   const crumbs =
     (window as any).__breadcrumbs ||
     (window as any).__mbsBreadcrumbs ||
-    (window as any).__mbsLogs || [];
+    (window as any).__mbsLogs ||
+    [];
   if (Array.isArray(crumbs) && crumbs.length) {
     lines.push("logs=" + crumbs.slice(-5).join(" | "));
   }

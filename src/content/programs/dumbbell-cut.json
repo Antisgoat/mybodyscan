@@ -51,7 +51,12 @@
                     }
                   ]
                 },
-                { "name": "Single-Arm Row", "sets": 3, "reps": "12/side", "restSec": 60 }
+                {
+                  "name": "Single-Arm Row",
+                  "sets": 3,
+                  "reps": "12/side",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -62,9 +67,24 @@
             {
               "title": "AMRAP Circuit (20 min)",
               "exercises": [
-                { "name": "Dumbbell Thruster", "sets": 3, "reps": "12", "restSec": 0 },
-                { "name": "Renegade Row", "sets": 3, "reps": "10", "restSec": 0 },
-                { "name": "Mountain Climber", "sets": 3, "reps": "40", "restSec": 0 }
+                {
+                  "name": "Dumbbell Thruster",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 0
+                },
+                {
+                  "name": "Renegade Row",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 0
+                },
+                {
+                  "name": "Mountain Climber",
+                  "sets": 3,
+                  "reps": "40",
+                  "restSec": 0
+                }
               ]
             }
           ]
@@ -98,8 +118,18 @@
             {
               "title": "Upper Body",
               "exercises": [
-                { "name": "Dumbbell Push Press", "sets": 3, "reps": "12", "restSec": 75 },
-                { "name": "Hammer Curl", "sets": 3, "reps": "15", "restSec": 60 }
+                {
+                  "name": "Dumbbell Push Press",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 75
+                },
+                {
+                  "name": "Hammer Curl",
+                  "sets": 3,
+                  "reps": "15",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -110,8 +140,18 @@
             {
               "title": "Intervals",
               "exercises": [
-                { "name": "Alternating Snatch", "sets": 4, "reps": "12/side", "restSec": 45 },
-                { "name": "Dumbbell Swing", "sets": 4, "reps": "20", "restSec": 45 },
+                {
+                  "name": "Alternating Snatch",
+                  "sets": 4,
+                  "reps": "12/side",
+                  "restSec": 45
+                },
+                {
+                  "name": "Dumbbell Swing",
+                  "sets": 4,
+                  "reps": "20",
+                  "restSec": 45
+                },
                 { "name": "Plank", "sets": 3, "reps": "60s", "restSec": 30 }
               ]
             }

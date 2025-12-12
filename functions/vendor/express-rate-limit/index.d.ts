@@ -9,10 +9,21 @@ export interface RateLimitRequestHandlerOptions {
   skip?: (req: Request, res: Response) => boolean;
   keyGenerator?: (req: Request, res: Response) => string;
   message?: unknown;
-  handler?: (req: Request, res: Response, next: NextFunction, options: RateLimitRequestHandlerOptions) => void;
-  onLimitReached?: (req: Request, res: Response, options: RateLimitRequestHandlerOptions) => void;
+  handler?: (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    options: RateLimitRequestHandlerOptions
+  ) => void;
+  onLimitReached?: (
+    req: Request,
+    res: Response,
+    options: RateLimitRequestHandlerOptions
+  ) => void;
 }
 
-export declare function rateLimit(options?: RateLimitRequestHandlerOptions): RequestHandler;
+export declare function rateLimit(
+  options?: RateLimitRequestHandlerOptions
+): RequestHandler;
 
 export default rateLimit;

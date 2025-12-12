@@ -43,19 +43,25 @@ interface ChatMessage {
   suggestions?: string[] | null;
 }
 
-const DEMO_CHAT_MESSAGES: ChatMessage[] = demoCoach.messages.map((msg, index) => {
-  const created = new Date(Date.now() - (demoCoach.messages.length - index) * 60 * 60 * 1000);
-  return {
-    id: msg.id,
-    text: msg.message,
-    response: msg.reply,
-    createdAt: created,
-    usedLLM: true,
-  } satisfies ChatMessage;
-});
+const DEMO_CHAT_MESSAGES: ChatMessage[] = demoCoach.messages.map(
+  (msg, index) => {
+    const created = new Date(
+      Date.now() - (demoCoach.messages.length - index) * 60 * 60 * 1000
+    );
+    return {
+      id: msg.id,
+      text: msg.message,
+      response: msg.reply,
+      createdAt: created,
+      usedLLM: true,
+    } satisfies ChatMessage;
+  }
+);
 
 function sortMessages(messages: ChatMessage[]): ChatMessage[] {
-  return [...messages].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return [...messages].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+  );
 }
 
 function PlanSession({ session }: { session: CoachPlanSession }) {
@@ -82,7 +88,9 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => (demo ? DEMO_CHAT_MESSAGES : []));
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    demo ? DEMO_CHAT_MESSAGES : []
+  );
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -90,14 +98,18 @@ export default function CoachChatPage() {
   const [hydratingHistory, setHydratingHistory] = useState(false);
   const [listening, setListening] = useState(false);
   const [recognizer, setRecognizer] = useState<any | null>(null);
-  const getSpeechRecognitionCtor = () => (typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null);
+  const getSpeechRecognitionCtor = () =>
+    typeof window !== "undefined"
+      ? window.SpeechRecognition || window.webkitSpeechRecognition
+      : null;
   const supportsSpeech = Boolean(getSpeechRecognitionCtor());
   const { health: systemHealth } = useSystemHealth();
   const { coachConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const coachPrereqMessage =
     systemHealth?.coachRpmPresent === false
       ? "Coach chat is disabled until COACH_RPM is configured on Cloud Functions."
-      : systemHealth?.openaiConfigured === false || systemHealth?.openaiKeyPresent === false
+      : systemHealth?.openaiConfigured === false ||
+          systemHealth?.openaiKeyPresent === false
         ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
         : coachConfigured === false
           ? "Coach chat is offline until the backend configuration is completed."
@@ -108,14 +120,21 @@ export default function CoachChatPage() {
     if (!supportsSpeech || listening) return;
     const Ctor: any = getSpeechRecognitionCtor();
     const rec = new Ctor();
-    rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = true;
     rec.onresult = (e: any) => {
-      let t = ""; for (let i = e.resultIndex; i < e.results.length; i++) { t += e.results[i][0].transcript; }
+      let t = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        t += e.results[i][0].transcript;
+      }
       setInput((prev) => (prev ? prev + " " : "") + t.trim());
     };
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
-    rec.start(); setRecognizer(rec); setListening(true);
+    rec.start();
+    setRecognizer(rec);
+    setListening(true);
   };
   const stopListening = () => {
     try {
@@ -125,13 +144,16 @@ export default function CoachChatPage() {
     }
     setListening(false);
   };
-  useEffect(() => () => {
-    try {
-      recognizer?.stop?.();
-    } catch {
-      // ignore
-    }
-  }, [recognizer]);
+  useEffect(
+    () => () => {
+      try {
+        recognizer?.stop?.();
+      } catch {
+        // ignore
+      }
+    },
+    [recognizer]
+  );
 
   // auth + app check from PR2 (keep!)
   const { user, authReady } = useAuthUser();
@@ -154,43 +176,67 @@ export default function CoachChatPage() {
       return;
     }
     setHydratingHistory(true);
+    let warned = false;
     const chatPath = coachChatCollectionPath(uid);
     if (import.meta.env.DEV) {
       const segmentCount = chatPath.split("/").length;
-      console.assert(segmentCount === 5, `[coach-chat] expected 5 segments, received ${segmentCount}`);
+      console.assert(
+        segmentCount === 5,
+        `[coach-chat] expected 5 segments, received ${segmentCount}`
+      );
     }
     const chatQuery = query(
       coachChatCollection(uid),
       orderBy("createdAt", "desc"),
       limit(10)
     );
-    const unsubscribe = onSnapshot(chatQuery, (snapshot) => {
-      const next = snapshot.docs.map((doc) => {
-        const data = doc.data() as {
-          text?: string;
-          response?: string;
-          createdAt?: { toDate?: () => Date };
-          usedLLM?: boolean;
-          suggestions?: unknown;
-        };
-        const created = data.createdAt?.toDate?.() ?? new Date();
-        const suggestions = Array.isArray(data.suggestions)
-          ? data.suggestions
-              .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-              .filter((entry) => entry.length > 0)
-          : undefined;
-        return {
-          id: doc.id,
-          text: data.text ?? "",
-          response: data.response ?? "",
-          createdAt: created,
-          usedLLM: Boolean(data.usedLLM),
-          suggestions,
-        } satisfies ChatMessage;
-      });
-      setMessages(sortMessages(next));
-      setHydratingHistory(false);
-    });
+    const unsubscribe = onSnapshot(
+      chatQuery,
+      (snapshot) => {
+        const next = snapshot.docs.map((doc) => {
+          const data = doc.data() as {
+            text?: string;
+            response?: string;
+            createdAt?: { toDate?: () => Date };
+            usedLLM?: boolean;
+            suggestions?: unknown;
+          };
+          const created = data.createdAt?.toDate?.() ?? new Date();
+          const suggestions = Array.isArray(data.suggestions)
+            ? data.suggestions
+                .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+                .filter((entry) => entry.length > 0)
+            : undefined;
+          return {
+            id: doc.id,
+            text: data.text ?? "",
+            response: data.response ?? "",
+            createdAt: created,
+            usedLLM: Boolean(data.usedLLM),
+            suggestions,
+          } satisfies ChatMessage;
+        });
+        setMessages(sortMessages(next));
+        setHydratingHistory(false);
+      },
+      (err) => {
+        console.warn("coachChat.snapshot_failed", err);
+        setHydratingHistory(false);
+        if (!warned) {
+          warned = true;
+          setCoachError("Unable to load recent coach messages.");
+          toast(
+            buildErrorToast(err, {
+              fallback: {
+                title: "Unable to load coach messages",
+                description: "Please try again in a moment.",
+                variant: "destructive",
+              },
+            })
+          );
+        }
+      }
+    );
     return () => unsubscribe();
   }, [authReady, uid, demo]);
 
@@ -203,9 +249,15 @@ export default function CoachChatPage() {
       return;
     }
     if (!coachAvailable) {
-      const message = coachPrereqMessage ?? "Coach chat is disabled until it is fully configured.";
+      const message =
+        coachPrereqMessage ??
+        "Coach chat is disabled until it is fully configured.";
       setCoachError(message);
-      toast({ title: "Coach unavailable", description: message, variant: "destructive" });
+      toast({
+        title: "Coach unavailable",
+        description: message,
+        variant: "destructive",
+      });
       return;
     }
     if (!demo && !demoGuard("coach chat")) {
@@ -241,7 +293,10 @@ export default function CoachChatPage() {
     try {
       const payload: CoachChatRequest = { message: sanitized };
       const response = await coachChatApi(payload);
-      const answer = typeof response?.replyText === "string" && response.replyText ? response.replyText : "No answer.";
+      const answer =
+        typeof response?.replyText === "string" && response.replyText
+          ? response.replyText
+          : "No answer.";
       setInput("");
       const localMessage: ChatMessage = {
         id: `local-${Date.now()}`,
@@ -255,14 +310,24 @@ export default function CoachChatPage() {
     } catch (error: any) {
       console.error("coachChat error", error);
       const code = (error as any)?.code as string | undefined;
-      const errMessage = typeof error?.message === "string" && error.message !== "Bad Request" ? error.message : "";
-      const fallback = code === "invalid_message"
-        ? "Please enter a question for the coach."
-        : "Coach is unavailable right now; please try again shortly.";
+      const errMessage =
+        typeof error?.message === "string" && error.message !== "Bad Request"
+          ? error.message
+          : "";
+      const fallback =
+        code === "invalid_message"
+          ? "Please enter a question for the coach."
+          : "Coach is unavailable right now; please try again shortly.";
       const debugId = (error as any)?.debugId;
-      const message = debugId ? `${errMessage || fallback} (ref ${debugId.slice(0, 8)})` : errMessage || fallback;
+      const message = debugId
+        ? `${errMessage || fallback} (ref ${debugId.slice(0, 8)})`
+        : errMessage || fallback;
       setCoachError(message);
-      toast({ title: "Coach unavailable", description: message, variant: "destructive" });
+      toast({
+        title: "Coach unavailable",
+        description: message,
+        variant: "destructive",
+      });
       try {
         await call("telemetryLog", {
           fn: "coachChat",
@@ -283,18 +348,28 @@ export default function CoachChatPage() {
       return;
     }
     if (!authReady) {
-      toast({ title: "Initializing", description: "Secure services are almost ready. Try again in a moment." });
+      toast({
+        title: "Initializing",
+        description: "Secure services are almost ready. Try again in a moment.",
+      });
       return;
     }
     setRegenerating(true);
     try {
       await call("generatePlan", {});
-      toast({ title: "Weekly plan updated", description: "Your coach plan was regenerated." });
+      toast({
+        title: "Weekly plan updated",
+        description: "Your coach plan was regenerated.",
+      });
     } catch (error) {
       toast(
         buildErrorToast(error, {
-          fallback: { title: "Unable to regenerate", description: "Please try again in a moment.", variant: "destructive" },
-        }),
+          fallback: {
+            title: "Unable to regenerate",
+            description: "Please try again in a moment.",
+            variant: "destructive",
+          },
+        })
       );
     } finally {
       setRegenerating(false);
@@ -304,9 +379,18 @@ export default function CoachChatPage() {
   const formattedMessages = useMemo(() => sortMessages(messages), [messages]);
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0" data-testid="route-coach">
-      <Seo title="Coach Chat ? MyBodyScan" description="Talk to your AI coach and refresh your weekly plan." />
-      <ErrorBoundary title="Coach chat crashed" description="Retry to reload your recent messages.">
+    <div
+      className="min-h-screen bg-background pb-16 md:pb-0"
+      data-testid="route-coach"
+    >
+      <Seo
+        title="Coach Chat ? MyBodyScan"
+        description="Talk to your AI coach and refresh your weekly plan."
+      />
+      <ErrorBoundary
+        title="Coach chat crashed"
+        description="Retry to reload your recent messages."
+      >
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
           {readOnlyDemo ? (
@@ -324,18 +408,24 @@ export default function CoachChatPage() {
             <Alert variant="default" data-testid="coach-plan-missing">
               <AlertTitle>No plan yet ? create one</AlertTitle>
               <AlertDescription>
-                Start a conversation or regenerate the weekly plan below to get your first program.
+                Start a conversation or regenerate the weekly plan below to get
+                your first program.
               </AlertDescription>
             </Alert>
           ) : null}
           {initializing && (
             <Card className="border border-dashed border-primary/40 bg-primary/5">
               <CardContent className="text-sm text-primary">
-                Preparing secure chat? replies will appear once verification completes.
+                Preparing secure chat? replies will appear once verification
+                completes.
               </CardContent>
             </Card>
           )}
-          {!demo && authReady && appCheckReady && !hasMessages && hydratingHistory ? (
+          {!demo &&
+          authReady &&
+          appCheckReady &&
+          !hasMessages &&
+          hydratingHistory ? (
             <Card className="border border-dashed">
               <CardContent className="text-sm text-muted-foreground">
                 Loading your recent coach messages…
@@ -343,151 +433,207 @@ export default function CoachChatPage() {
             </Card>
           ) : null}
           <div className="grid gap-6 lg:grid-cols-[1.75fr,1fr]">
-          <Card className="border bg-card/60">
-            <CardHeader>
-              <CardTitle className="text-xl">Coach chat</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div
-                className="rounded-lg border bg-background/60 p-4"
-                data-testid="coach-chat-path"
-            data-path={uid ? coachChatCollectionPath(uid) : ""}
-              >
-                {hasMessages ? (
-                  <div className="space-y-4">
-                    {formattedMessages.map((message) => (
-                      <div key={message.id} className="space-y-2">
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                          You ? {formatDistanceToNow(message.createdAt, { addSuffix: true })}
-                        </div>
-                        <div className="rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm">
-                          {message.text}
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>Coach response</span>
-                          <Badge variant={message.usedLLM ? "default" : "secondary"} className="uppercase tracking-wide">
-                            {message.usedLLM ? "LLM" : "Rules"}
-                          </Badge>
-                        </div>
-                        <div className="rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground">
-                          {message.response}
-                        </div>
-                        {message.suggestions && message.suggestions.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {message.suggestions.map((suggestion, suggestionIndex) => (
-                              <span
-                                key={`${message.id}-suggestion-${suggestionIndex}`}
-                                className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
-                              >
-                                {suggestion}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Ask a question to get personalized training and nutrition tips.</p>
-                )}
-              </div>
-              <div className="space-y-3">
-                {(coachError || !coachAvailable) && (
-                  <Alert variant="destructive">
-                    <AlertTitle>{coachAvailable ? "Coach unavailable" : "Coach setup incomplete"}</AlertTitle>
-                    <AlertDescription>
-                      {coachError ?? coachPrereqMessage ?? "Coach chat is unavailable right now."}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Textarea
-                  value={input}
-                  onChange={(event) => {
-                    setInput(event.target.value);
-                    if (coachError) {
-                      setCoachError(null);
-                    }
-                  }}
-                  placeholder={readOnlyDemo ? "Demo preview — chat is read-only." : "Share wins or ask for tweaks..."}
-                  rows={4}
-                  disabled={pending || readOnlyDemo || initializing || !coachAvailable}
-                  data-testid="coach-message-input"
-                />
-                <div className="flex justify-end">
-                  <div className="flex gap-2 items-center">
-                    <Button
-                      variant="secondary"
-                      onClick={listening ? stopListening : startListening}
-                      disabled={!supportsSpeech || pending || readOnlyDemo || initializing || !coachAvailable}
-                      data-testid="coach-mic"
-                    >
-                      {supportsSpeech ? (listening ? "? Stop" : "?? Speak") : "?? N/A"}
-                    </Button>
-                    {pending ? (
-                      <Button disabled data-testid="coach-send-button">
-                        Sending...
-                      </Button>
-                    ) : readOnlyDemo ? (
-                      <Button asChild data-testid="coach-send-button">
-                        <a href={signUpHref}>Sign up to chat</a>
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleSend}
-                        disabled={pending || !input.trim() || initializing || !coachAvailable}
-                        data-testid="coach-send-button"
-                      >
-                        Send
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
             <Card className="border bg-card/60">
-              <CardHeader className="space-y-2">
-                <CardTitle className="text-xl">Weekly plan</CardTitle>
-                {plan ? (
-                  <p className="text-sm text-muted-foreground">
-                    {plan.days} days ? {plan.split} ? Protein ? {plan.proteinFloor} g ? Calories ? {plan.calorieTarget}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Generate a plan to see your structured week.</p>
-                )}
+              <CardHeader>
+                <CardTitle className="text-xl">Coach chat</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {readOnlyDemo ? (
-                  <Button asChild className="w-full" variant="outline">
-                    <a href={signUpHref}>Sign up to use this feature</a>
-                  </Button>
-                ) : (
-                  <Button onClick={regeneratePlan} disabled={regenerating || initializing} className="w-full">
-                    {regenerating ? (plan ? "Regenerating..." : "Creating...") : (plan ? "Regenerate weekly plan" : "Create plan")}
-                  </Button>
-                )}
-                {plan ? (
-                  <div className="space-y-3 text-sm text-muted-foreground">
-                    <p>
-                      {plan.disclaimer ?? "Training guidance for educational use only. Estimates only ? not medical advice."}
-                    </p>
-                    <div className="space-y-3">
-                      {plan.sessions.slice(0, plan.days).map((session) => (
-                        <PlanSession key={session.day} session={session} />
+                <div
+                  className="rounded-lg border bg-background/60 p-4"
+                  data-testid="coach-chat-path"
+                  data-path={uid ? coachChatCollectionPath(uid) : ""}
+                >
+                  {hasMessages ? (
+                    <div className="space-y-4">
+                      {formattedMessages.map((message) => (
+                        <div key={message.id} className="space-y-2">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                            You ?{" "}
+                            {formatDistanceToNow(message.createdAt, {
+                              addSuffix: true,
+                            })}
+                          </div>
+                          <div className="rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm">
+                            {message.text}
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Coach response</span>
+                            <Badge
+                              variant={
+                                message.usedLLM ? "default" : "secondary"
+                              }
+                              className="uppercase tracking-wide"
+                            >
+                              {message.usedLLM ? "LLM" : "Rules"}
+                            </Badge>
+                          </div>
+                          <div className="rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground">
+                            {message.response}
+                          </div>
+                          {message.suggestions &&
+                          message.suggestions.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {message.suggestions.map(
+                                (suggestion, suggestionIndex) => (
+                                  <span
+                                    key={`${message.id}-suggestion-${suggestionIndex}`}
+                                    className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                                  >
+                                    {suggestion}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Ask a question to get personalized training and nutrition
+                      tips.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {(coachError || !coachAvailable) && (
+                    <Alert variant="destructive">
+                      <AlertTitle>
+                        {coachAvailable
+                          ? "Coach unavailable"
+                          : "Coach setup incomplete"}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {coachError ??
+                          coachPrereqMessage ??
+                          "Coach chat is unavailable right now."}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <Textarea
+                    value={input}
+                    onChange={(event) => {
+                      setInput(event.target.value);
+                      if (coachError) {
+                        setCoachError(null);
+                      }
+                    }}
+                    placeholder={
+                      readOnlyDemo
+                        ? "Demo preview — chat is read-only."
+                        : "Share wins or ask for tweaks..."
+                    }
+                    rows={4}
+                    disabled={
+                      pending || readOnlyDemo || initializing || !coachAvailable
+                    }
+                    data-testid="coach-message-input"
+                  />
+                  <div className="flex justify-end">
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        variant="secondary"
+                        onClick={listening ? stopListening : startListening}
+                        disabled={
+                          !supportsSpeech ||
+                          pending ||
+                          readOnlyDemo ||
+                          initializing ||
+                          !coachAvailable
+                        }
+                        data-testid="coach-mic"
+                      >
+                        {supportsSpeech
+                          ? listening
+                            ? "? Stop"
+                            : "?? Speak"
+                          : "?? N/A"}
+                      </Button>
+                      {pending ? (
+                        <Button disabled data-testid="coach-send-button">
+                          Sending...
+                        </Button>
+                      ) : readOnlyDemo ? (
+                        <Button asChild data-testid="coach-send-button">
+                          <a href={signUpHref}>Sign up to chat</a>
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSend}
+                          disabled={
+                            pending ||
+                            !input.trim() ||
+                            initializing ||
+                            !coachAvailable
+                          }
+                          data-testid="coach-send-button"
+                        >
+                          Send
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Tap regenerate after onboarding to receive a day-by-day split with sets ? reps and RPE.
-                  </p>
-                )}
+                </div>
               </CardContent>
             </Card>
+
+            <div className="space-y-4">
+              <Card className="border bg-card/60">
+                <CardHeader className="space-y-2">
+                  <CardTitle className="text-xl">Weekly plan</CardTitle>
+                  {plan ? (
+                    <p className="text-sm text-muted-foreground">
+                      {plan.days} days ? {plan.split} ? Protein ?{" "}
+                      {plan.proteinFloor} g ? Calories ? {plan.calorieTarget}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Generate a plan to see your structured week.
+                    </p>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {readOnlyDemo ? (
+                    <Button asChild className="w-full" variant="outline">
+                      <a href={signUpHref}>Sign up to use this feature</a>
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={regeneratePlan}
+                      disabled={regenerating || initializing}
+                      className="w-full"
+                    >
+                      {regenerating
+                        ? plan
+                          ? "Regenerating..."
+                          : "Creating..."
+                        : plan
+                          ? "Regenerate weekly plan"
+                          : "Create plan"}
+                    </Button>
+                  )}
+                  {plan ? (
+                    <div className="space-y-3 text-sm text-muted-foreground">
+                      <p>
+                        {plan.disclaimer ??
+                          "Training guidance for educational use only. Estimates only ? not medical advice."}
+                      </p>
+                      <div className="space-y-3">
+                        {plan.sessions.slice(0, plan.days).map((session) => (
+                          <PlanSession key={session.day} session={session} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Tap regenerate after onboarding to receive a day-by-day
+                      split with sets ? reps and RPE.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
         </main>
         <BottomNav />
       </ErrorBoundary>

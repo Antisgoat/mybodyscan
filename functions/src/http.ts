@@ -2,7 +2,11 @@ import expressModule from "express";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getAppCheck, getAuth } from "./firebase.js";
-import { getAppCheckMode, getHostBaseUrl, type AppCheckMode } from "./lib/env.js";
+import {
+  getAppCheckMode,
+  getHostBaseUrl,
+  type AppCheckMode,
+} from "./lib/env.js";
 
 const ALLOW = [
   "https://mybodyscanapp.com",
@@ -19,13 +23,17 @@ const express = expressModule as any;
 export const allowCorsAndOptionalAppCheck: RequestHandler = (
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   const origin = req.get("Origin");
-  if (origin && ALLOW.includes(origin)) res.set("Access-Control-Allow-Origin", origin);
+  if (origin && ALLOW.includes(origin))
+    res.set("Access-Control-Allow-Origin", origin);
   res.set("Vary", "Origin");
   res.set("Access-Control-Allow-Credentials", "true");
-  res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Firebase-AppCheck");
+  res.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Authorization,X-Firebase-AppCheck"
+  );
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (!req.get("X-Firebase-AppCheck")) {
     console.warn("appcheck_missing_soft", { path: req.path || req.url });
@@ -53,12 +61,17 @@ export async function requireAuth(req: Request): Promise<string> {
     const decoded = await getAuth().verifyIdToken(match[1]);
     return decoded.uid;
   } catch (err) {
-    console.warn("auth_invalid_token", { path: req.path || req.url, message: (err as any)?.message });
+    console.warn("auth_invalid_token", {
+      path: req.path || req.url,
+      message: (err as any)?.message,
+    });
     throw new HttpsError("unauthenticated", "Invalid token");
   }
 }
 
-export async function requireAuthWithClaims(req: Request): Promise<{ uid: string; claims?: any }> {
+export async function requireAuthWithClaims(
+  req: Request
+): Promise<{ uid: string; claims?: any }> {
   const header = getAuthHeader(req);
   if (!header) {
     console.warn("auth_missing_header", { path: req.path || req.url });
@@ -73,13 +86,17 @@ export async function requireAuthWithClaims(req: Request): Promise<{ uid: string
     const decoded = await getAuth().verifyIdToken(match[1]);
     return { uid: decoded.uid, claims: decoded.claims };
   } catch (err) {
-    console.warn("auth_invalid_token", { path: req.path || req.url, message: (err as any)?.message });
+    console.warn("auth_invalid_token", {
+      path: req.path || req.url,
+      message: (err as any)?.message,
+    });
     throw new HttpsError("unauthenticated", "Invalid token");
   }
 }
 
 function readAppCheckToken(req: Request): string | null {
-  const header = req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "";
+  const header =
+    req.get("x-firebase-appcheck") || req.get("X-Firebase-AppCheck") || "";
   const trimmed = header.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
@@ -88,7 +105,10 @@ async function verifyToken(token: string): Promise<void> {
   await getAppCheck().verifyToken(token);
 }
 
-export async function verifyAppCheck(req: Request, mode: AppCheckMode = getAppCheckMode()): Promise<void> {
+export async function verifyAppCheck(
+  req: Request,
+  mode: AppCheckMode = getAppCheckMode()
+): Promise<void> {
   if (mode === "disabled") {
     return;
   }
@@ -102,7 +122,10 @@ export async function verifyAppCheck(req: Request, mode: AppCheckMode = getAppCh
   try {
     await verifyToken(token);
   } catch (err) {
-    console.warn("appcheck_invalid_soft", { path: req.path || req.url, message: (err as any)?.message });
+    console.warn("appcheck_invalid_soft", {
+      path: req.path || req.url,
+      message: (err as any)?.message,
+    });
     return;
   }
 }
@@ -120,8 +143,14 @@ export async function verifyAppCheckSoft(req: Request): Promise<void> {
   await verifyAppCheck(req, "soft");
 }
 
-export function publicBaseUrl(req: { protocol?: string; get?: (header: string) => string | undefined }): string {
-  const protocol = typeof req?.protocol === "string" && req.protocol.length > 0 ? req.protocol : "https";
+export function publicBaseUrl(req: {
+  protocol?: string;
+  get?: (header: string) => string | undefined;
+}): string {
+  const protocol =
+    typeof req?.protocol === "string" && req.protocol.length > 0
+      ? req.protocol
+      : "https";
   const host = typeof req?.get === "function" ? req.get("host") : undefined;
   const fallback = host ? `${protocol}://${host}` : "https://mybodyscanapp.com";
   return getHostBaseUrl() || fallback;

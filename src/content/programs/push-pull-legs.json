@@ -28,16 +28,43 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Bench Press", "sets": 4, "reps": "6", "restSec": 150, "rir": 2 },
-                { "name": "Overhead Press", "sets": 3, "reps": "8", "restSec": 120, "rir": 2 }
+                {
+                  "name": "Bench Press",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 150,
+                  "rir": 2
+                },
+                {
+                  "name": "Overhead Press",
+                  "sets": 3,
+                  "reps": "8",
+                  "restSec": 120,
+                  "rir": 2
+                }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Incline Dumbbell Press", "sets": 3, "reps": "10", "restSec": 120 },
-                { "name": "Lateral Raise", "sets": 3, "reps": "15", "restSec": 60 },
-                { "name": "Cable Triceps Pushdown", "sets": 3, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Incline Dumbbell Press",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 120
+                },
+                {
+                  "name": "Lateral Raise",
+                  "sets": 3,
+                  "reps": "15",
+                  "restSec": 60
+                },
+                {
+                  "name": "Cable Triceps Pushdown",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -48,16 +75,38 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Deadlift", "sets": 3, "reps": "5", "restSec": 180, "rir": 2 },
-                { "name": "Bent-Over Row", "sets": 4, "reps": "8", "restSec": 150, "rir": 2 }
+                {
+                  "name": "Deadlift",
+                  "sets": 3,
+                  "reps": "5",
+                  "restSec": 180,
+                  "rir": 2
+                },
+                {
+                  "name": "Bent-Over Row",
+                  "sets": 4,
+                  "reps": "8",
+                  "restSec": 150,
+                  "rir": 2
+                }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Lat Pulldown", "sets": 3, "reps": "12", "restSec": 90 },
+                {
+                  "name": "Lat Pulldown",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 90
+                },
                 { "name": "Face Pull", "sets": 3, "reps": "15", "restSec": 60 },
-                { "name": "Hammer Curl", "sets": 3, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Hammer Curl",
+                  "sets": 3,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -68,16 +117,37 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Back Squat", "sets": 4, "reps": "6", "restSec": 150, "rir": 2 },
+                {
+                  "name": "Back Squat",
+                  "sets": 4,
+                  "reps": "6",
+                  "restSec": 150,
+                  "rir": 2
+                },
                 { "name": "Leg Press", "sets": 3, "reps": "12", "restSec": 120 }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Romanian Deadlift", "sets": 3, "reps": "10", "restSec": 120 },
-                { "name": "Walking Lunge", "sets": 3, "reps": "12/leg", "restSec": 120 },
-                { "name": "Standing Calf Raise", "sets": 3, "reps": "15", "restSec": 60 }
+                {
+                  "name": "Romanian Deadlift",
+                  "sets": 3,
+                  "reps": "10",
+                  "restSec": 120
+                },
+                {
+                  "name": "Walking Lunge",
+                  "sets": 3,
+                  "reps": "12/leg",
+                  "restSec": 120
+                },
+                {
+                  "name": "Standing Calf Raise",
+                  "sets": 3,
+                  "reps": "15",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -92,16 +162,43 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Bench Press", "sets": 5, "reps": "5", "restSec": 150, "rir": 1 },
-                { "name": "Overhead Press", "sets": 4, "reps": "8", "restSec": 120, "rir": 1 }
+                {
+                  "name": "Bench Press",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 150,
+                  "rir": 1
+                },
+                {
+                  "name": "Overhead Press",
+                  "sets": 4,
+                  "reps": "8",
+                  "restSec": 120,
+                  "rir": 1
+                }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Incline Dumbbell Press", "sets": 4, "reps": "10", "restSec": 120 },
-                { "name": "Lateral Raise", "sets": 4, "reps": "15", "restSec": 60 },
-                { "name": "Cable Triceps Pushdown", "sets": 4, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Incline Dumbbell Press",
+                  "sets": 4,
+                  "reps": "10",
+                  "restSec": 120
+                },
+                {
+                  "name": "Lateral Raise",
+                  "sets": 4,
+                  "reps": "15",
+                  "restSec": 60
+                },
+                {
+                  "name": "Cable Triceps Pushdown",
+                  "sets": 4,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -112,16 +209,38 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Deadlift", "sets": 4, "reps": "4", "restSec": 180, "rir": 1 },
-                { "name": "Bent-Over Row", "sets": 4, "reps": "8", "restSec": 150, "rir": 1 }
+                {
+                  "name": "Deadlift",
+                  "sets": 4,
+                  "reps": "4",
+                  "restSec": 180,
+                  "rir": 1
+                },
+                {
+                  "name": "Bent-Over Row",
+                  "sets": 4,
+                  "reps": "8",
+                  "restSec": 150,
+                  "rir": 1
+                }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Lat Pulldown", "sets": 4, "reps": "12", "restSec": 90 },
+                {
+                  "name": "Lat Pulldown",
+                  "sets": 4,
+                  "reps": "12",
+                  "restSec": 90
+                },
                 { "name": "Face Pull", "sets": 4, "reps": "15", "restSec": 60 },
-                { "name": "Hammer Curl", "sets": 4, "reps": "12", "restSec": 60 }
+                {
+                  "name": "Hammer Curl",
+                  "sets": 4,
+                  "reps": "12",
+                  "restSec": 60
+                }
               ]
             }
           ]
@@ -132,16 +251,37 @@
             {
               "title": "Primary",
               "exercises": [
-                { "name": "Back Squat", "sets": 5, "reps": "5", "restSec": 150, "rir": 1 },
+                {
+                  "name": "Back Squat",
+                  "sets": 5,
+                  "reps": "5",
+                  "restSec": 150,
+                  "rir": 1
+                },
                 { "name": "Leg Press", "sets": 4, "reps": "12", "restSec": 120 }
               ]
             },
             {
               "title": "Assistance",
               "exercises": [
-                { "name": "Romanian Deadlift", "sets": 4, "reps": "10", "restSec": 120 },
-                { "name": "Walking Lunge", "sets": 4, "reps": "12/leg", "restSec": 120 },
-                { "name": "Standing Calf Raise", "sets": 4, "reps": "15", "restSec": 60 }
+                {
+                  "name": "Romanian Deadlift",
+                  "sets": 4,
+                  "reps": "10",
+                  "restSec": 120
+                },
+                {
+                  "name": "Walking Lunge",
+                  "sets": 4,
+                  "reps": "12/leg",
+                  "restSec": 120
+                },
+                {
+                  "name": "Standing Calf Raise",
+                  "sets": 4,
+                  "reps": "15",
+                  "restSec": 60
+                }
               ]
             }
           ]
