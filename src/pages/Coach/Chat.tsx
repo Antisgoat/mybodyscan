@@ -106,10 +106,8 @@ export default function CoachChatPage() {
   const { health: systemHealth } = useSystemHealth();
   const { coachConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const coachPrereqMessage =
-    systemHealth?.coachRpmPresent === false
-      ? "Coach chat is disabled until COACH_RPM is configured on Cloud Functions."
-      : systemHealth?.openaiConfigured === false ||
-          systemHealth?.openaiKeyPresent === false
+    systemHealth?.openaiConfigured === false ||
+    systemHealth?.openaiKeyPresent === false
         ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
         : coachConfigured === false
           ? "Coach chat is offline until the backend configuration is completed."

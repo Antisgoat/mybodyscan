@@ -160,8 +160,11 @@ export default function ScanFlowResult() {
   const [flowError, setFlowError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadPose, setUploadPose] = useState<string | null>(null);
+  const [uploadHasBytes, setUploadHasBytes] = useState(false);
+  const [retryAvailable, setRetryAvailable] = useState(false);
   const [submittedScanId, setSubmittedScanId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const appCheck = useAppCheckStatus();
   const { units } = useUnits();
   const { health: systemHealth } = useSystemHealth();
@@ -308,6 +311,8 @@ export default function ScanFlowResult() {
     setFlowError(null);
     setUploadProgress(0);
     setUploadPose(null);
+    setUploadHasBytes(false);
+    setRetryAvailable(false);
     let activeSession = session;
     let cleanupScanId: string | null = activeSession?.scanId ?? null;
     try {
@@ -336,6 +341,9 @@ export default function ScanFlowResult() {
         right: poseFiles.right!,
       };
       setFlowStatus("uploading");
+      uploadAbortRef.current?.abort();
+      const abortController = new AbortController();
+      uploadAbortRef.current = abortController;
       const submit = await submitScanClient(
         {
           scanId: activeSession.scanId,
@@ -348,9 +356,15 @@ export default function ScanFlowResult() {
           onUploadProgress: (info: ScanUploadProgress) => {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
+            if (info.hasBytesTransferred) {
+              setUploadHasBytes(true);
+            }
           },
+          signal: abortController.signal,
+          stallTimeoutMs: 60_000,
         }
       );
+      uploadAbortRef.current = null;
       if (!submit.ok) {
         const debugSuffix = submit.error.debugId
           ? ` (ref ${submit.error.debugId.slice(0, 8)})`
@@ -363,6 +377,8 @@ export default function ScanFlowResult() {
       }
       setFlowStatus("processing");
       setUploadPose(null);
+      setUploadHasBytes(false);
+      setRetryAvailable(false);
       setSubmittedScanId(activeSession.scanId);
       toast({
         title: "Scan uploaded",
@@ -375,6 +391,7 @@ export default function ScanFlowResult() {
       setFlowStatus("error");
       setUploadProgress(0);
       setUploadPose(null);
+      setUploadHasBytes(false);
       const message =
         typeof error?.message === "string" && error.message.length
           ? error.message
@@ -389,6 +406,15 @@ export default function ScanFlowResult() {
       });
     }
   };
+
+  useEffect(() => {
+    if (flowStatus !== "uploading") {
+      setRetryAvailable(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setRetryAvailable(true), 60_000);
+    return () => window.clearTimeout(timer);
+  }, [flowStatus]);
 
   const sex =
     profile?.sex === "male" || profile?.sex === "female"
@@ -719,16 +745,40 @@ export default function ScanFlowResult() {
             <div className="space-y-1">
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div
-                  className="h-2 rounded-full bg-primary transition-all"
-                  style={{ width: `${toProgressBarWidth(uploadProgress)}%` }}
+                  className={
+                    uploadHasBytes
+                      ? "h-2 rounded-full bg-primary transition-all"
+                      : "h-2 rounded-full bg-primary/60 animate-pulse"
+                  }
+                  style={{
+                    width: uploadHasBytes
+                      ? `${toProgressBarWidth(uploadProgress)}%`
+                      : "30%",
+                  }}
                 />
               </div>
               {uploadPose ? (
                 <p className="text-xs text-muted-foreground">
-                  Uploading {uploadPose} ({toVisiblePercent(uploadProgress)}%)
+                  {uploadHasBytes
+                    ? `Uploading ${uploadPose} (${toVisiblePercent(uploadProgress)}%)`
+                    : `Uploading ${uploadPose} (progress pending)`}
                 </p>
               ) : null}
             </div>
+          ) : null}
+          {flowStatus === "uploading" && retryAvailable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                uploadAbortRef.current?.abort();
+                setFlowStatus("error");
+                setFlowError("Upload cancelled. Please retry.");
+              }}
+            >
+              Retry upload
+            </Button>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Button

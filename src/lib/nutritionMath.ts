@@ -73,20 +73,22 @@ export function estimateServingWeight(item: FoodItem): number | null {
   if (servingQty && servingUnit === "oz") {
     return servingQty * GRAMS_PER_OUNCE;
   }
-  const perServing = item.per_serving;
-  const per100 = item.per_100g;
+  // Guardrail: some upstream nutrition sources have incomplete macro blocks.
+  // This function must NEVER throw (it is called during render).
+  const perServing = (item as any)?.per_serving ?? null;
+  const per100 = (item as any)?.per_100g ?? null;
   if (!per100) return null;
   const ratios: number[] = [];
-  if (perServing.protein_g && per100.protein_g) {
+  if (perServing?.protein_g && per100.protein_g) {
     ratios.push((perServing.protein_g / per100.protein_g) * 100);
   }
-  if (perServing.carbs_g && per100.carbs_g) {
+  if (perServing?.carbs_g && per100.carbs_g) {
     ratios.push((perServing.carbs_g / per100.carbs_g) * 100);
   }
-  if (perServing.fat_g && per100.fat_g) {
+  if (perServing?.fat_g && per100.fat_g) {
     ratios.push((perServing.fat_g / per100.fat_g) * 100);
   }
-  if (perServing.kcal && per100.kcal) {
+  if (perServing?.kcal && per100.kcal) {
     ratios.push((perServing.kcal / per100.kcal) * 100);
   }
   if (!ratios.length) return null;
@@ -130,8 +132,10 @@ export function calculateSelection(
   unit: ServingUnit
 ): SelectionResult {
   const grams = gramsForSelection(item, qty, unit);
-  const perServing = item.per_serving;
-  const per100 = item.per_100g;
+  // Guardrail: if upstream items are missing per-serving macros, treat as unknown (nulls),
+  // never throw during render.
+  const perServing = (item as any)?.per_serving ?? null;
+  const per100 = (item as any)?.per_100g ?? null;
   const servingsFactor = unit === "g" || unit === "oz" ? qty : qty;
 
   if (grams != null && per100) {
@@ -149,19 +153,19 @@ export function calculateSelection(
   return {
     grams: grams != null ? round(grams, 2) : null,
     calories:
-      perServing.kcal != null
+      perServing?.kcal != null
         ? round(perServing.kcal * servingsFactor, 0)
         : null,
     protein:
-      perServing.protein_g != null
+      perServing?.protein_g != null
         ? round(perServing.protein_g * servingsFactor, 2)
         : null,
     carbs:
-      perServing.carbs_g != null
+      perServing?.carbs_g != null
         ? round(perServing.carbs_g * servingsFactor, 2)
         : null,
     fat:
-      perServing.fat_g != null
+      perServing?.fat_g != null
         ? round(perServing.fat_g * servingsFactor, 2)
         : null,
   };

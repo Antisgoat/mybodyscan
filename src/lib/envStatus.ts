@@ -66,7 +66,6 @@ export function computeFeatureStatuses(
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
   const stripeKey =
     readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
-  const coachRpm = readEnv("VITE_COACH_RPM");
   const healthConnector = readEnv("VITE_HEALTH_CONNECT");
 
   const firebaseReady = firebaseConfigMissingKeys.length === 0;
@@ -87,7 +86,7 @@ export function computeFeatureStatuses(
   const coachConfigured =
     typeof remoteHealth?.coachConfigured === "boolean"
       ? remoteHealth.coachConfigured
-      : Boolean(remoteHealth?.coachRpmPresent || openaiConfigured || coachRpm);
+      : Boolean(openaiConfigured);
   const workoutsConfigured =
     typeof remoteHealth?.workoutsConfigured === "boolean"
       ? remoteHealth.workoutsConfigured
@@ -136,15 +135,12 @@ export function computeFeatureStatuses(
       : "AI adjustments disabled until OPENAI_API_KEY secret is configured."
     : "Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workout APIs.";
 
-  const coachWarnLabel =
-    openaiConfigured === false ? "OpenAI missing" : "Throttle missing";
+  const coachWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Needs config";
   const coachDetail = coachConfigured
     ? undefined
     : openaiConfigured === false
       ? "Add OPENAI_API_KEY via firebase functions:secrets:set."
-      : coachRpmPresent === false
-        ? "Set COACH_RPM secret to un-throttle chat completions."
-        : "Deploy coachChat Function and confirm /api/system/health passes.";
+      : "Deploy coachChat Function and confirm /api/system/health passes.";
 
   const nutritionDetail = nutritionConfigured
     ? undefined
