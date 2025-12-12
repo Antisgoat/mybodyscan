@@ -118,11 +118,11 @@ export default function ScanResultPage() {
         <section className="rounded-lg border p-4 shadow-sm">
           <h2 className="text-lg font-semibold">Body composition</h2>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Metric label="Body fat" value={`${scan.estimate.bodyFatPercent.toFixed(1)}%`} />
-            <Metric label="BMI" value={scan.estimate.bmi != null ? scan.estimate.bmi.toFixed(1) : "—"} />
-            <Metric label="Goal" value={`${scan.input.goalWeightKg.toFixed(1)} kg`} />
+            <Metric label="Body fat" value={formatNumber(scan.estimate.bodyFatPercent, { suffix: "%" })} />
+            <Metric label="BMI" value={formatNumber(scan.estimate.bmi, { decimals: 1 })} />
+            <Metric label="Goal" value={formatNumber(scan.input?.goalWeightKg, { decimals: 1, suffix: " kg" })} />
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">{scan.estimate.notes}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{typeof scan.estimate.notes === "string" ? scan.estimate.notes : ""}</p>
         </section>
       )}
 
@@ -200,4 +200,15 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-lg font-semibold">{value}</p>
     </div>
   );
+}
+
+function formatNumber(
+  value: unknown,
+  options?: { decimals?: number; suffix?: string },
+): string {
+  const decimals = options?.decimals ?? 1;
+  const suffix = options?.suffix ?? "";
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(n)) return "—";
+  return `${n.toFixed(decimals)}${suffix}`;
 }

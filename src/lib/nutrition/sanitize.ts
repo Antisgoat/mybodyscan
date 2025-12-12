@@ -39,25 +39,43 @@ export function sanitizeFoodItem(x: any): FoodItem {
   const calories = num(
     x?.calories ??
     x?.energyKcal ??
+    x?.nutrients?.energyKcal ??
+    x?.nutrients?.energy ??
+    // OFF variants
     x?.nutriments?.["energy-kcal_100g"] ??
+    x?.nutriments?.energy_kcal ??
+    x?.nutriments?.["energy-kcal"] ??
+    x?.nutriments?.energyKcal ??
     x?.nf_calories
   );
 
   const protein = num(
     x?.protein ??
+    x?.nutrients?.protein ??
+    // OFF variants
     x?.nutriments?.protein_100g ??
+    x?.nutriments?.proteins_100g ??
+    x?.nutriments?.proteins ??
+    x?.nutriments?.protein ??
     x?.nf_protein
   );
 
   const carbs = num(
     x?.carbs ??
+    x?.nutrients?.carbohydrates ??
+    // OFF variants
     x?.nutriments?.carbohydrates_100g ??
+    x?.nutriments?.carbohydrates ??
+    x?.nutriments?.carbs ??
     x?.nf_total_carbohydrate
   );
 
   const fat = num(
     x?.fat ??
+    x?.nutrients?.fat ??
+    // OFF variants
     x?.nutriments?.fat_100g ??
+    x?.nutriments?.fat ??
     x?.nf_total_fat
   );
 

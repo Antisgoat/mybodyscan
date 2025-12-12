@@ -171,6 +171,14 @@ export default function Workouts() {
   const handleToggle = async (exerciseId: string) => {
     if (!plan || !Array.isArray(plan.days)) return;
     const idx = plan.days.findIndex((d: any) => d.day === todayName);
+    if (idx < 0) {
+      toast({
+        title: "Workout day unavailable",
+        description: "We couldn’t find today in your plan. Try refreshing or starting a new program.",
+        variant: "destructive",
+      });
+      return;
+    }
     const done = !completed.includes(exerciseId);
     try {
       const res = await markExerciseDone(plan.id, idx, exerciseId, done);
@@ -402,7 +410,7 @@ export default function Workouts() {
                     <div className="flex-1">
                       <h3 className="font-medium text-foreground">{ex.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {ex.sets} sets × {ex.reps} reps
+                        {Number.isFinite(Number(ex.sets)) ? Number(ex.sets) : "—"} sets × {ex.reps ?? "—"} reps
                       </p>
                     </div>
                   </div>

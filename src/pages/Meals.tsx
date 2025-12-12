@@ -228,10 +228,21 @@ export default function Meals() {
       demoToast();
       return;
     }
-    await deleteMeal(todayISO, mealId);
-    toast({ title: "Meal removed" });
-    refreshLog();
-    refreshHistory();
+    setProcessing(true);
+    try {
+      await deleteMeal(todayISO, mealId);
+      toast({ title: "Meal removed" });
+      refreshLog();
+      refreshHistory();
+    } catch (error: any) {
+      toast({
+        title: "Unable to delete meal",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const copyYesterday = async () => {
@@ -239,20 +250,26 @@ export default function Meals() {
       demoToast();
       return;
     }
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const prior = await getDailyLog(yesterday);
-    if (!prior.meals.length) {
-      toast({ title: "No meals yesterday", description: "Nothing to copy." });
-      return;
-    }
-    setProcessing(true);
     try {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const prior = await getDailyLog(yesterday);
+      if (!prior.meals.length) {
+        toast({ title: "No meals yesterday", description: "Nothing to copy." });
+        return;
+      }
+      setProcessing(true);
       for (const meal of prior.meals) {
         await addMeal(todayISO, { ...meal, id: undefined });
       }
       toast({ title: "Copied", description: "Yesterday's meals added" });
       refreshLog();
       refreshHistory();
+    } catch (error: any) {
+      toast({
+        title: "Copy failed",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setProcessing(false);
     }

@@ -12,6 +12,20 @@
 - Removed the duplicate demo wireup from the public layout so demo wiring only happens once:
   - `src/components/PublicLayout.tsx`: removed `useDemoWireup()`
 
+## Additional hardening (core flows)
+- **Scan**: `src/pages/ScanResult.tsx` now guards against malformed/partial `estimate` payloads (avoids `toFixed()` crashes).
+- **Meals**: `src/pages/Meals.tsx` wraps delete/copy actions in try/catch with toasts so network/permission errors can’t surface as unhandled rejections.
+
+## Test & utility fixes
+- Restored/added lightweight normalization helpers used by tests:
+  - `src/lib/api/nutrition.ts`: export `normalizeFoodItem()` (tolerant mapping)
+  - `src/lib/api/billing.ts`: export `buildCheckoutHeaders()` (pure helper)
+- Expanded nutrition sanitization to accept more USDA/OFF field variants:
+  - `src/lib/nutrition/sanitize.ts`
+- Fixed jsdom test environments where needed:
+  - `src/features/scan/ScanCapture.test.tsx`
+  - `src/components/DemoBanner.test.tsx`
+
 ## Verification
 - **Production build boots** without `React error #185` and without rendering `AppErrorBoundary`:
   - Added/ran a local Playwright boot test (`tests-e2e/boot-local.spec.ts`) against `vite preview`.
@@ -19,10 +33,23 @@
 - **Builds:**
   - `npm run build` ✅
   - `npm --prefix functions run build` ✅
+  - `npm test` ✅
 
 ## Files changed
 - `src/components/PublicLayout.tsx`
   - Remove duplicate `useDemoWireup()` subscription.
+- `src/pages/ScanResult.tsx`
+  - Harden scan result rendering against malformed numeric fields.
+- `src/pages/Meals.tsx`
+  - Catch/log delete/copy errors with non-crashing toasts.
+- `src/pages/Workouts.tsx`
+  - Guard against missing “today” in plan before sending `dayIndex` to the backend.
+- `src/lib/nutrition/sanitize.ts`
+  - Accept additional USDA/OFF field variants for calories/macros.
+- `src/lib/api/nutrition.ts`
+  - Export `normalizeFoodItem` for tests/compat.
+- `src/lib/api/billing.ts`
+  - Export `buildCheckoutHeaders` for tests/compat.
 - `tests-e2e/boot-local.spec.ts`
   - Regression test: ensures `/` boots in production preview without React #185 or the global boundary.
 - `playwright.local.config.ts`
