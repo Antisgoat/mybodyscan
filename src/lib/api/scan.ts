@@ -251,18 +251,101 @@ export async function startScanSessionClient(params: {
 async function uploadPhoto(
   path: string,
   file: File,
-  onProgress?: (snapshot: UploadTaskSnapshot) => void
+  onProgress?: (snapshot: UploadTaskSnapshot) => void,
+  options?: {
+    signal?: AbortSignal;
+    stallTimeoutMs?: number;
+    onStall?: (details: { reason: "no_progress" | "stalled" }) => void;
+  }
 ): Promise<void> {
   const storageRef = ref(storage, path);
   await new Promise<void>((resolve, reject) => {
     const task = uploadBytesResumable(storageRef, file, {
       contentType: file.type || "image/jpeg",
     });
+    let settled = false;
+    let lastBytes = 0;
+    let lastEventAt = Date.now();
+
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 60_000;
+    const stallTimer =
+      stallTimeoutMs > 0
+        ? setInterval(() => {
+            if (settled) return;
+            const elapsed = Date.now() - lastEventAt;
+            if (elapsed < stallTimeoutMs) return;
+            try {
+              options?.onStall?.({
+                reason: lastBytes > 0 ? "stalled" : "no_progress",
+              });
+            } catch {
+              // ignore
+            }
+            try {
+              task.cancel();
+            } catch {
+              // ignore
+            }
+            const err: any = new Error("Upload stalled. Please retry.");
+            err.code = "upload_stalled";
+            settled = true;
+            clearInterval(stallTimer);
+            reject(err);
+          }, 5_000)
+        : null;
+
+    const abortHandler = () => {
+      if (settled) return;
+      try {
+        task.cancel();
+      } catch {
+        // ignore
+      }
+      const err: any = new Error("Upload cancelled.");
+      err.code = "upload_cancelled";
+      settled = true;
+      if (stallTimer) clearInterval(stallTimer);
+      reject(err);
+    };
+
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        abortHandler();
+        return;
+      }
+      options.signal.addEventListener("abort", abortHandler, { once: true });
+    }
     task.on(
       "state_changed",
-      (snapshot) => onProgress?.(snapshot),
-      (error) => reject(error),
-      () => resolve()
+      (snapshot) => {
+        lastEventAt = Date.now();
+        lastBytes = Math.max(lastBytes, snapshot.bytesTransferred || 0);
+        onProgress?.(snapshot);
+      },
+      (error) => {
+        settled = true;
+        if (stallTimer) clearInterval(stallTimer);
+        if (options?.signal) {
+          try {
+            options.signal.removeEventListener("abort", abortHandler);
+          } catch {
+            // ignore
+          }
+        }
+        reject(error);
+      },
+      () => {
+        settled = true;
+        if (stallTimer) clearInterval(stallTimer);
+        if (options?.signal) {
+          try {
+            options.signal.removeEventListener("abort", abortHandler);
+          } catch {
+            // ignore
+          }
+        }
+        resolve();
+      }
     );
   });
 }
@@ -275,6 +358,7 @@ export type ScanUploadProgress = {
   totalBytes: number;
   percent: number;
   overallPercent: number;
+  hasBytesTransferred: boolean;
 };
 
 const MIN_VISIBLE_PROGRESS = 0.01;
@@ -285,6 +369,46 @@ type UploadTarget = {
   file: File;
   size: number;
 };
+
+export function validateScanUploadInputs(params: {
+  storagePaths: { front: string; back: string; left: string; right: string };
+  photos: { front: File; back: File; left: File; right: File };
+}): ScanApiResult<{
+  uploadTargets: UploadTarget[];
+  totalBytes: number;
+}> {
+  const entries = Object.entries(params.storagePaths) as Array<
+    [keyof typeof params.storagePaths, string]
+  >;
+  if (!entries.length) {
+    return { ok: false, error: { message: "Missing upload targets for this scan." } };
+  }
+  const uploadTargets: UploadTarget[] = [];
+  for (const [pose, path] of entries) {
+    const file = params.photos[pose];
+    if (!file) {
+      return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
+    }
+    const size = Number.isFinite(file.size) ? Number(file.size) : 0;
+    uploadTargets.push({ pose, path, file, size });
+  }
+  if (!uploadTargets.length) {
+    return { ok: false, error: { message: "No photos selected for this scan.", reason: "upload_failed" } };
+  }
+  const zeroByteTargets = uploadTargets.filter((target) => target.size <= 0);
+  if (zeroByteTargets.length) {
+    const poses = zeroByteTargets.map((target) => target.pose).join(", ");
+    return {
+      ok: false,
+      error: {
+        message: `We couldn't read your ${poses} photo. Please retake and try again.`,
+        reason: "upload_failed",
+      },
+    };
+  }
+  const totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
+  return { ok: true, data: { uploadTargets, totalBytes } };
+}
 
 function clampProgressFraction(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -301,6 +425,42 @@ function ensureVisibleProgress(value: number, hasBytes: boolean): number {
   return clampProgressFraction(baseline);
 }
 
+function normalizeUploadError(err: unknown): ScanError | null {
+  const anyErr = err as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : undefined;
+  if (!code) return null;
+  if (code === "upload_stalled") {
+    return {
+      code,
+      message: "Upload stalled. Please retry.",
+      reason: "upload_failed",
+    };
+  }
+  if (code === "upload_cancelled") {
+    return {
+      code,
+      message: "Upload cancelled.",
+      reason: "upload_failed",
+    };
+  }
+  if (code.startsWith("storage/")) {
+    const message =
+      code === "storage/unauthorized"
+        ? "Upload blocked (unauthorized). Please sign in again and retry."
+        : code === "storage/canceled"
+          ? "Upload cancelled. Please retry."
+          : code === "storage/retry-limit-exceeded"
+            ? "Upload failed after retries. Check your connection and try again."
+            : "Upload failed. Please check your connection and retry.";
+    return {
+      code,
+      message,
+      reason: "upload_failed",
+    };
+  }
+  return null;
+}
+
 export async function submitScanClient(
   params: {
     scanId: string;
@@ -309,7 +469,11 @@ export async function submitScanClient(
     currentWeightKg: number;
     goalWeightKg: number;
   },
-  options?: { onUploadProgress?: (progress: ScanUploadProgress) => void }
+  options?: {
+    onUploadProgress?: (progress: ScanUploadProgress) => void;
+    signal?: AbortSignal;
+    stallTimeoutMs?: number;
+  }
 ): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
   if (!user)
@@ -319,77 +483,52 @@ export async function submitScanClient(
     };
   let uploadsCompleted = false;
   try {
-    const entries = Object.entries(params.storagePaths) as Array<
-      [keyof typeof params.storagePaths, string]
-    >;
-    if (!entries.length) {
-      return {
-        ok: false,
-        error: { message: "Missing upload targets for this scan." },
-      };
-    }
-    const uploadTargets: UploadTarget[] = [];
-    for (const [pose, path] of entries) {
-      const file = params.photos[pose];
-      if (!file)
-        return { ok: false, error: { message: `Missing ${pose} photo.` } };
-      const size = Number.isFinite(file.size) ? Number(file.size) : 0;
-      uploadTargets.push({ pose, path, file, size });
-    }
-    if (!uploadTargets.length) {
-      return {
-        ok: false,
-        error: { message: "No photos selected for this scan." },
-      };
-    }
-    const zeroByteTargets = uploadTargets.filter((target) => target.size <= 0);
-    if (zeroByteTargets.length) {
-      const poses = zeroByteTargets.map((target) => target.pose).join(", ");
-      return {
-        ok: false,
-        error: {
-          message: `We couldn't read your ${poses} photo. Please retake and try again.`,
-          reason: "upload_failed",
-        },
-      };
-    }
+    const validated = validateScanUploadInputs({
+      storagePaths: params.storagePaths,
+      photos: params.photos,
+    });
+    if (!validated.ok) return validated;
+    const uploadTargets = validated.data.uploadTargets;
 
     const fileCount = uploadTargets.length;
-    const totalBytes = uploadTargets.reduce(
-      (sum, target) => sum + target.size,
-      0
-    );
+    const totalBytes = validated.data.totalBytes;
     const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
     const fallbackDenominator = fileCount || 1;
     let uploadedBytes = 0;
 
     for (const [index, target] of uploadTargets.entries()) {
-      await uploadPhoto(target.path, target.file, (snapshot) => {
-        const snapshotTotal = snapshot.totalBytes || target.size || 1;
-        const snapshotBytes = snapshot.bytesTransferred || 0;
-        const hasTransferred = snapshotBytes > 0;
-        const filePercent = ensureVisibleProgress(
-          snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
-          hasTransferred
-        );
-        const bytesBasis =
-          safeTotalBytes > 0
-            ? (uploadedBytes + snapshotBytes) / safeTotalBytes
-            : (index + filePercent) / fallbackDenominator;
-        const overallPercent = ensureVisibleProgress(
-          bytesBasis,
-          hasTransferred
-        );
-        options?.onUploadProgress?.({
-          pose: target.pose,
-          fileIndex: index,
-          fileCount,
-          bytesTransferred: snapshotBytes,
-          totalBytes: snapshotTotal,
-          percent: filePercent,
-          overallPercent,
-        });
-      });
+      await uploadPhoto(
+        target.path,
+        target.file,
+        (snapshot) => {
+          const snapshotTotal = snapshot.totalBytes || target.size || 1;
+          const snapshotBytes = snapshot.bytesTransferred || 0;
+          const hasTransferred = snapshotBytes > 0;
+          const filePercent = ensureVisibleProgress(
+            snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
+            hasTransferred
+          );
+          const bytesBasis =
+            safeTotalBytes > 0
+              ? (uploadedBytes + snapshotBytes) / safeTotalBytes
+              : (index + filePercent) / fallbackDenominator;
+          const overallPercent = ensureVisibleProgress(bytesBasis, hasTransferred);
+          options?.onUploadProgress?.({
+            pose: target.pose,
+            fileIndex: index,
+            fileCount,
+            bytesTransferred: snapshotBytes,
+            totalBytes: snapshotTotal,
+            percent: filePercent,
+            overallPercent,
+            hasBytesTransferred: hasTransferred,
+          });
+        },
+        {
+          signal: options?.signal,
+          stallTimeoutMs: options?.stallTimeoutMs,
+        }
+      );
 
       uploadedBytes += target.size;
       const normalizedOverall =
@@ -404,6 +543,7 @@ export async function submitScanClient(
         totalBytes: target.size,
         percent: 1,
         overallPercent: clampProgressFraction(normalizedOverall),
+        hasBytesTransferred: true,
       });
     }
 
@@ -424,7 +564,11 @@ export async function submitScanClient(
     const fallback = uploadsCompleted
       ? "We couldn't process your scan. Please try again."
       : "Could not upload your photos. Please try again.";
-    return { ok: false, error: buildScanError(err, fallback, reason) };
+    const normalizedUpload = !uploadsCompleted ? normalizeUploadError(err) : null;
+    return {
+      ok: false,
+      error: normalizedUpload ?? buildScanError(err, fallback, reason),
+    };
   }
 }
 

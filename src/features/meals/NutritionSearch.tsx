@@ -26,6 +26,8 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
 import { demoToast } from "@/lib/demoToast";
+import type { FoodItem as RichFoodItem } from "@/lib/nutrition/types";
+import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
 
 type NutritionSearchProps = {
   onMealLogged?: (item: FoodItem) => void;
@@ -55,7 +57,7 @@ export default function NutritionSearch({
     reason?: "blocked" | "unsupported";
   } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
+  const [editorItem, setEditorItem] = useState<RichFoodItem | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorSource, setEditorSource] =
     useState<MealEntry["entrySource"]>("search");
@@ -156,7 +158,9 @@ export default function NutritionSearch({
       });
       return;
     }
-    setEditorItem(item);
+    // Guardrail: ServingEditor expects the rich `FoodItem` shape; convert the
+    // lightweight callable result into a safe, fully-populated item.
+    setEditorItem(toRichFoodItem(item));
     setEditorSource(source);
     setEditorOpen(true);
   }
@@ -190,7 +194,8 @@ export default function NutritionSearch({
         title: "Meal logged",
         description: `${editorItem.name} added to today.`,
       });
-      onMealLogged?.(editorItem);
+      // `onMealLogged` expects the lightweight search item; forward the raw snapshot if available.
+      onMealLogged?.((editorItem.raw ?? editorItem) as any);
       closeEditor();
     } catch (error: any) {
       const description =

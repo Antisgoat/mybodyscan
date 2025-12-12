@@ -50,9 +50,12 @@ export default function ScanPage() {
   const [delayNotice, setDelayNotice] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadPose, setUploadPose] = useState<string | null>(null);
+  const [uploadHasBytes, setUploadHasBytes] = useState(false);
+  const [retryAvailable, setRetryAvailable] = useState(false);
   const [activeScanId, setActiveScanId] = useState<string | null>(null);
   const activeScanRef = useRef<string | null>(null);
   const sessionFinalizedRef = useRef<boolean>(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing =
@@ -82,6 +85,7 @@ export default function ScanPage() {
         setDelayNotice(
           "Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls."
         );
+        setRetryAvailable(true);
       }, 60000);
     } else if (status === "analyzing") {
       timer = setTimeout(() => {
@@ -91,6 +95,7 @@ export default function ScanPage() {
       }, 90000);
     } else {
       setDelayNotice(null);
+      setRetryAvailable(false);
     }
     return () => {
       if (timer) clearTimeout(timer);
@@ -104,6 +109,8 @@ export default function ScanPage() {
     setStatusDetail(null);
     setUploadProgress(null);
     setUploadPose(null);
+    setUploadHasBytes(false);
+    setRetryAvailable(false);
     toast({
       title: "Scan paused",
       description: message,
@@ -178,6 +185,11 @@ export default function ScanPage() {
       setStatusDetail("Uploading encrypted photos… keep this tab open.");
       setUploadProgress(0);
       setUploadPose(null);
+      setUploadHasBytes(false);
+      setRetryAvailable(false);
+      uploadAbortRef.current?.abort();
+      const abortController = new AbortController();
+      uploadAbortRef.current = abortController;
       const submit = await submitScanClient(
         {
           scanId: startedScanId,
@@ -197,13 +209,19 @@ export default function ScanPage() {
             const overallPercent = toVisiblePercent(info.overallPercent);
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
+            if (info.hasBytesTransferred) {
+              setUploadHasBytes(true);
+            }
             setStatusDetail(
               `Uploading ${info.pose} photo (${filePercent}% of this file · ${overallPercent}% total)… keep this tab open.`
             );
           },
+          signal: abortController.signal,
+          stallTimeoutMs: 60_000,
         }
       );
       sessionFinalizedRef.current = true;
+      uploadAbortRef.current = null;
 
       if (!submit.ok) {
         const debugSuffix = submit.error.debugId
@@ -219,6 +237,8 @@ export default function ScanPage() {
 
       setUploadProgress(null);
       setUploadPose(null);
+      setUploadHasBytes(false);
+      setRetryAvailable(false);
       setStatus("analyzing");
       setStatusDetail(
         "Photos uploaded. Waiting for AI analysis—this can take a couple of minutes."
@@ -253,6 +273,8 @@ export default function ScanPage() {
     if (status !== "uploading") {
       setUploadProgress(null);
       setUploadPose(null);
+      setUploadHasBytes(false);
+      setRetryAvailable(false);
     }
   }, [status]);
 
@@ -352,8 +374,16 @@ export default function ScanPage() {
           <div className="space-y-1">
             <div className="w-full bg-secondary h-2 rounded-full">
               <div
-                className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: `${toProgressBarWidth(uploadProgress)}%` }}
+                className={
+                  uploadHasBytes
+                    ? "bg-primary h-2 rounded-full transition-all"
+                    : "bg-primary/60 h-2 rounded-full animate-pulse"
+                }
+                style={{
+                  width: uploadHasBytes
+                    ? `${toProgressBarWidth(uploadProgress)}%`
+                    : "30%",
+                }}
               />
             </div>
             {uploadPose && (
@@ -361,7 +391,9 @@ export default function ScanPage() {
                 className="text-[11px] text-muted-foreground"
                 aria-live="polite"
               >
-                {`Uploading ${uploadPose}… ${toVisiblePercent(uploadProgress)}% complete`}
+                {uploadHasBytes
+                  ? `Uploading ${uploadPose}… ${toVisiblePercent(uploadProgress)}% complete`
+                  : `Uploading ${uploadPose}… (progress pending)`}
               </p>
             )}
           </div>
@@ -371,7 +403,23 @@ export default function ScanPage() {
             {statusDetail}
           </p>
         )}
-        {delayNotice && <p className="text-xs text-amber-600">{delayNotice}</p>}
+        {delayNotice && (
+          <div className="space-y-2">
+            <p className="text-xs text-amber-600">{delayNotice}</p>
+            {status === "uploading" && retryAvailable && (
+              <button
+                type="button"
+                className="rounded border px-3 py-2 text-xs"
+                onClick={() => {
+                  uploadAbortRef.current?.abort();
+                  failFlow("Upload cancelled. Please retry.");
+                }}
+              >
+                Retry upload
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </div>
   );
