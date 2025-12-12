@@ -2,10 +2,8 @@ import { ReactNode } from "react";
 import Footer from "./Footer";
 import AppHeader from "./AppHeader";
 import DemoBanner from "@/components/DemoBanner";
-import { useDemoWireup } from "@/hooks/useDemo";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
-  useDemoWireup();
   return (
     <div className="min-h-screen flex flex-col">
       <AppHeader />
