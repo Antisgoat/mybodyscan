@@ -566,8 +566,13 @@ export async function submitScanClient(
     }
 
     uploadsCompleted = true;
+    // `submitScan` performs the full OpenAI analysis server-side and can take
+    // longer than the default 15s API timeout on mobile networks (especially iOS Safari).
+    // Use a longer timeout and avoid client retries that could duplicate work.
     await apiFetch(submitUrl(), {
       method: "POST",
+      timeoutMs: 180_000,
+      retries: 0,
       body: {
         scanId: params.scanId,
         photoPaths: params.storagePaths,

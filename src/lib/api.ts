@@ -428,7 +428,8 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
           method: "GET",
           signal: controller.signal,
           headers: fallbackHeaders,
-          credentials: "include",
+          // Cross-origin Functions fallback; avoid cookie-mode CORS failures.
+          credentials: "omit",
         });
         if (!response.ok) {
           const fallbackError: any = new Error(`fn_status_${response.status}`);
@@ -473,7 +474,10 @@ async function authedFetch(path: string, init?: RequestInit) {
   return fetch(url, {
     ...init,
     headers,
-    credentials: "include",
+    // These are bearer-token requests to Functions (often cross-origin); sending
+    // cookies triggers stricter CORS requirements and causes Safari "Load failed"
+    // when the function doesn't allow credentials.
+    credentials: "omit",
   });
 }
 

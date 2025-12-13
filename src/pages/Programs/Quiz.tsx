@@ -25,6 +25,8 @@ import { setDoc } from "@/lib/dbWrite";
 import { doc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { activateCatalogPlan } from "@/lib/workouts";
+import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
 
 const goalOptions: Array<{
   value: ProgramGoal;
@@ -194,6 +196,15 @@ export default function ProgramsQuiz() {
     }
     try {
       setIsSaving(true);
+      const submission = buildCatalogPlanSubmission(
+        topRecommendation.entry.program,
+        topRecommendation.entry.meta
+      );
+      const applied = await activateCatalogPlan(submission, {
+        attempts: 4,
+        confirmPolls: 5,
+        backoffMs: 500,
+      });
       await setDoc(
         doc(db, "users", user.uid, "coach", "profile"),
         {
@@ -209,13 +220,16 @@ export default function ProgramsQuiz() {
       );
       toast({
         title: "Program selected",
-        description: `${topRecommendation.entry.program.title} is ready in Coach.`,
+        description: `${topRecommendation.entry.program.title} is now active in Workouts.`,
       });
-      navigate("/coach", { replace: true });
+      navigate(`/workouts?plan=${applied.planId}&started=1`, { replace: true });
     } catch (error) {
       toast({
         title: "Unable to start program",
-        description: "Please try again.",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "Please try again.",
         variant: "destructive",
       });
     } finally {

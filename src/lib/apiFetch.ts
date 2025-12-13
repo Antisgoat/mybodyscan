@@ -34,7 +34,10 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   });
 
   const url = normalizeUrl(input);
-  return fetch(url, { ...init, headers, credentials: "include" });
+  // Default to same-origin credentials. Cross-origin requests (e.g. Functions
+  // direct URLs) should not force credentialed mode, which can trigger CORS
+  // failures in Safari.
+  return fetch(url, { ...init, headers, credentials: "same-origin" });
 }
 
 export async function apiFetchJson<T = any>(

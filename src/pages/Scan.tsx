@@ -212,6 +212,15 @@ export default function ScanPage() {
             if (info.hasBytesTransferred) {
               setUploadHasBytes(true);
             }
+            // If the last file has finished uploading, immediately move the UI into the
+            // "analyzing" phase so users don't feel stuck at 100% waiting on the server.
+            if (info.percent >= 0.999 && info.overallPercent >= 0.999) {
+              setStatus("analyzing");
+              setStatusDetail(
+                "Uploads complete. Starting AI analysis—this can take a couple of minutes."
+              );
+              return;
+            }
             setStatusDetail(
               `Uploading ${info.pose} photo (${filePercent}% of this file · ${overallPercent}% total)… keep this tab open.`
             );

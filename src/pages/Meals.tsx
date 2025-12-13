@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Utensils,
   Plus,
@@ -58,12 +58,25 @@ import { useAuthUser } from "@/lib/useAuthUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { useUnits } from "@/hooks/useUnits";
+import { gramsToOunces, roundGrams } from "@/lib/nutritionMath";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
 const DAILY_TARGET = 2200;
 
 type RecentItem = FoodItem;
+
+type DiaryMealType = "breakfast" | "lunch" | "dinner" | "snacks";
+const MEAL_TYPES: DiaryMealType[] = ["breakfast", "lunch", "dinner", "snacks"];
+const MEAL_LABELS: Record<DiaryMealType, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  snacks: "Snacks",
+};
 
 function readRecents(): RecentItem[] {
   if (typeof window === "undefined") return [];
@@ -93,9 +106,23 @@ function formatServingQuantity(value: number): string {
   return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toString();
 }
 
+function safeNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toMealType(value: unknown): DiaryMealType {
+  const v = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (v === "breakfast" || v === "lunch" || v === "dinner" || v === "snacks") {
+    return v;
+  }
+  return "snacks";
+}
+
 export default function Meals() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
+  const { units } = useUnits();
   const uid = authReady ? (user?.uid ?? null) : null;
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
@@ -129,6 +156,16 @@ export default function Meals() {
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
   const [editorQty, setEditorQty] = useState<number>(1);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addMealType, setAddMealType] = useState<DiaryMealType>("snacks");
+  const [highlightMealId, setHighlightMealId] = useState<string | null>(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddType, setQuickAddType] = useState<DiaryMealType>("snacks");
+  const [quickCalories, setQuickCalories] = useState<string>("");
+  const [quickProtein, setQuickProtein] = useState<string>("");
+  const [quickCarbs, setQuickCarbs] = useState<string>("");
+  const [quickFat, setQuickFat] = useState<string>("");
+  const highlightRef = useRef<string | null>(null);
 
   const refreshLog = useCallback(() => {
     if (demo) {
@@ -237,6 +274,46 @@ export default function Meals() {
     [refreshHistory, refreshLog, updateRecents]
   );
 
+  const applyAddResult = useCallback(
+    (payload: { meal?: MealEntry; totals?: any } | null | undefined) => {
+      if (!payload || typeof payload !== "object") return;
+      const meal = payload.meal as MealEntry | undefined;
+      const totals = payload.totals;
+      if (totals && typeof totals === "object") {
+        setLog((prev) => ({ ...prev, totals }));
+      }
+      if (meal && typeof meal === "object") {
+        setLog((prev) => {
+          const existing = Array.isArray(prev.meals) ? [...prev.meals] : [];
+          const idx = meal.id ? existing.findIndex((m) => m.id === meal.id) : -1;
+          if (idx >= 0) {
+            existing[idx] = meal;
+          } else {
+            existing.push(meal);
+          }
+          return { ...prev, meals: existing };
+        });
+        if (typeof meal.id === "string" && meal.id) {
+          setHighlightMealId(meal.id);
+          highlightRef.current = meal.id;
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!highlightMealId) return;
+    const el = document.getElementById(`meal-${highlightMealId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const t = setTimeout(() => {
+      setHighlightMealId((prev) => (prev === highlightMealId ? null : prev));
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [highlightMealId]);
+
   const openEditor = (
     item: FoodItem,
     qty = 1,
@@ -257,10 +334,10 @@ export default function Meals() {
 
     setProcessing(true);
     try {
-      await addMeal(todayISO, { ...meal, entrySource: "search" });
+      const result = await addMeal(todayISO, { ...meal, entrySource: "search" });
       toast({ title: "Meal logged", description: `${editorItem.name} added` });
       updateRecents(editorItem);
-      refreshLog();
+      applyAddResult(result);
       refreshHistory();
     } catch (error: any) {
       toast({
@@ -282,9 +359,13 @@ export default function Meals() {
     }
     setProcessing(true);
     try {
-      await deleteMeal(todayISO, mealId);
+      const result = await deleteMeal(todayISO, mealId);
       toast({ title: "Meal removed" });
-      refreshLog();
+      setLog((prev) => ({
+        ...prev,
+        meals: (prev.meals ?? []).filter((m) => m.id !== mealId),
+        totals: (result as any)?.totals ?? prev.totals,
+      }));
       refreshHistory();
     } catch (error: any) {
       toast({
@@ -328,6 +409,78 @@ export default function Meals() {
       setProcessing(false);
     }
   };
+
+  const openAddDialog = (type: DiaryMealType) => {
+    setAddMealType(type);
+    setAddDialogOpen(true);
+  };
+
+  const submitQuickAdd = async () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
+    const calories = safeNumber(quickCalories);
+    const protein = safeNumber(quickProtein);
+    const carbs = safeNumber(quickCarbs);
+    const fat = safeNumber(quickFat);
+    if (calories <= 0 && protein <= 0 && carbs <= 0 && fat <= 0) {
+      toast({
+        title: "Enter at least calories",
+        description: "Calories are required for quick add.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setProcessing(true);
+    try {
+      const id =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `meal-${Math.random().toString(36).slice(2, 10)}`;
+      const result = await addMeal(todayISO, {
+        id,
+        name: "Quick add",
+        mealType: quickAddType,
+        calories: calories > 0 ? calories : undefined,
+        protein: protein > 0 ? protein : undefined,
+        carbs: carbs > 0 ? carbs : undefined,
+        fat: fat > 0 ? fat : undefined,
+        entrySource: "quick_add",
+      });
+      applyAddResult(result);
+      refreshHistory();
+      toast({ title: "Added", description: "Quick add saved to Diary." });
+      setQuickAddOpen(false);
+      setQuickCalories("");
+      setQuickProtein("");
+      setQuickCarbs("");
+      setQuickFat("");
+      setQuickAddType("snacks");
+    } catch (error: any) {
+      toast({
+        title: "Quick add failed",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const mealsByType = useMemo(() => {
+    const grouped: Record<DiaryMealType, MealEntry[]> = {
+      breakfast: [],
+      lunch: [],
+      dinner: [],
+      snacks: [],
+    };
+    const meals = Array.isArray(log.meals) ? log.meals : [];
+    for (const meal of meals) {
+      grouped[toMealType((meal as any)?.mealType)].push(meal);
+    }
+    return grouped;
+  }, [log.meals]);
 
   const saveTodayAsTemplate = async () => {
     if (demo) {
@@ -460,11 +613,10 @@ export default function Meals() {
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-3xl font-semibold text-foreground">
-            Today's Meals
+            Diary
           </h1>
           <p className="text-sm text-muted-foreground">
-            Log foods from search, barcode, favorites, and templates. Macros
-            shown in kcal and US units.
+            Today • {todayISO}
           </p>
         </div>
 
@@ -475,7 +627,167 @@ export default function Meals() {
           </Alert>
         )}
 
-        <NutritionSearch onMealLogged={handleSearchLogged} />
+        <Card className="border bg-card/60">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Today</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setQuickAddOpen(true);
+                  setQuickAddType("snacks");
+                }}
+                disabled={processing || demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Quick add
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={copyYesterday}
+                disabled={processing || demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
+                <Copy className="mr-1 h-4 w-4" /> Copy yesterday
+              </Button>
+              <Button size="sm" variant="ghost" asChild>
+                <a href="/meals/history">
+                  <History className="mr-1 h-4 w-4" /> History
+                </a>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-md border p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Calories
+              </div>
+              <div className="mt-1 text-3xl font-semibold">
+                {Math.round(safeNumber(log.totals?.calories))}
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                P {Math.round(safeNumber(log.totals?.protein))}g · C{" "}
+                {Math.round(safeNumber(log.totals?.carbs))}g · F{" "}
+                {Math.round(safeNumber(log.totals?.fat))}g
+              </div>
+            </div>
+            <div className="rounded-md border p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Goal
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Target {DAILY_TARGET} kcal · {units === "metric" ? "Metric" : "US"} units
+              </div>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, ringProgress * 100))}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4">
+          {MEAL_TYPES.map((type) => {
+            const items = mealsByType[type] ?? [];
+            return (
+              <Card key={type} className="border bg-card/60">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">{MEAL_LABELS[type]}</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => openAddDialog(type)}
+                    disabled={processing || demo || nutritionUnavailable}
+                    title={
+                      nutritionUnavailable
+                        ? nutritionOfflineMessage
+                        : demo
+                          ? "Demo mode: sign in to save"
+                          : undefined
+                    }
+                  >
+                    <Plus className="mr-1 h-4 w-4" /> Add
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {!items.length && (
+                    <p className="text-sm text-muted-foreground">
+                      No items yet.
+                    </p>
+                  )}
+                  {items.map((meal) => {
+                    const id = meal.id || `${meal.name}-${Math.random()}`;
+                    const isHighlighted = highlightMealId === meal.id;
+                    const grams =
+                      typeof meal.serving?.grams === "number"
+                        ? meal.serving.grams
+                        : null;
+                    const gramsText =
+                      grams != null
+                        ? units === "metric"
+                          ? `${roundGrams(grams)} g`
+                          : `${gramsToOunces(grams) ?? "?"} oz`
+                        : null;
+                    const qtyDisplay =
+                      typeof meal.serving?.qty === "number"
+                        ? formatServingQuantity(meal.serving.qty)
+                        : null;
+                    const unitLabel =
+                      typeof meal.serving?.unit === "string"
+                        ? meal.serving.unit
+                        : null;
+                    const servingText =
+                      qtyDisplay && unitLabel
+                        ? `${qtyDisplay} × ${unitLabel}`
+                        : qtyDisplay || unitLabel || "";
+                    return (
+                      <div
+                        key={id}
+                        id={meal.id ? `meal-${meal.id}` : undefined}
+                        className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
+                          isHighlighted ? "border-primary bg-primary/5" : ""
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-foreground">
+                            {meal.name || "Meal"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {Math.round(safeNumber(meal.calories))} kcal · P{" "}
+                            {Math.round(safeNumber(meal.protein))}g · C{" "}
+                            {Math.round(safeNumber(meal.carbs))}g · F{" "}
+                            {Math.round(safeNumber(meal.fat))}g
+                          </div>
+                          {(servingText || gramsText) && (
+                            <div className="text-[11px] text-muted-foreground">
+                              {servingText}
+                              {servingText && gramsText ? " · " : ""}
+                              {gramsText}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => meal.id && handleDelete(meal.id)}
+                          disabled={processing || demo}
+                          title={demo ? "Demo mode: sign in to save" : undefined}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
 
         <Card>
           <CardHeader>
@@ -559,11 +871,17 @@ export default function Meals() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={copyYesterday}
-                  disabled={processing || demo}
-                  title={demo ? "Demo mode: sign in to save" : undefined}
+                  onClick={() => openAddDialog("snacks")}
+                  disabled={processing || demo || nutritionUnavailable}
+                  title={
+                    nutritionUnavailable
+                      ? nutritionOfflineMessage
+                      : demo
+                        ? "Demo mode: sign in to save"
+                        : undefined
+                  }
                 >
-                  <Copy className="mr-1 h-4 w-4" /> Copy yesterday
+                  <Plus className="mr-1 h-4 w-4" /> Search + add
                 </Button>
                 <Button size="sm" variant="ghost" asChild>
                   <a href="/meals/history">
@@ -806,6 +1124,109 @@ export default function Meals() {
               onDemoAttempt={demoToast}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
+          </DialogHeader>
+          <NutritionSearch
+            defaultMealType={addMealType}
+            onMealLogged={handleSearchLogged}
+            onMealAdded={(payload) => {
+              applyAddResult(payload);
+              setAddDialogOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Quick add</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="qa-type">Meal</Label>
+                <select
+                  id="qa-type"
+                  value={quickAddType}
+                  onChange={(e) => setQuickAddType(toMealType(e.target.value))}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                >
+                  {MEAL_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {MEAL_LABELS[t]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="qa-calories">Calories</Label>
+                <Input
+                  id="qa-calories"
+                  inputMode="numeric"
+                  value={quickCalories}
+                  onChange={(e) => setQuickCalories(e.target.value)}
+                  placeholder="e.g. 450"
+                />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="qa-protein">Protein (g)</Label>
+                <Input
+                  id="qa-protein"
+                  inputMode="numeric"
+                  value={quickProtein}
+                  onChange={(e) => setQuickProtein(e.target.value)}
+                  placeholder="optional"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="qa-carbs">Carbs (g)</Label>
+                <Input
+                  id="qa-carbs"
+                  inputMode="numeric"
+                  value={quickCarbs}
+                  onChange={(e) => setQuickCarbs(e.target.value)}
+                  placeholder="optional"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="qa-fat">Fat (g)</Label>
+                <Input
+                  id="qa-fat"
+                  inputMode="numeric"
+                  value={quickFat}
+                  onChange={(e) => setQuickFat(e.target.value)}
+                  placeholder="optional"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setQuickAddOpen(false)}
+                disabled={processing}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={submitQuickAdd}
+                disabled={processing || demo}
+                title={demo ? "Demo mode: sign in to save" : undefined}
+              >
+                {processing ? "Adding…" : "Add"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

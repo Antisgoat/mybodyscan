@@ -51,14 +51,28 @@ function computeCalories(meal: MealRecord) {
   const carbs = round(meal.carbs || 0, 1);
   const fat = round(meal.fat || 0, 1);
   const alcohol = round(meal.alcohol || 0, 1);
+  const macrosEnergy = protein * 4 + carbs * 4 + fat * 9 + alcohol * 7;
   const caloriesFromMacros = round(
-    protein * 4 + carbs * 4 + fat * 9 + alcohol * 7,
+    macrosEnergy,
     0
   );
   let calories = caloriesFromMacros;
   let caloriesInput: number | undefined;
   if (typeof meal.calories === "number") {
     caloriesInput = meal.calories;
+    // Quick add / calories-only entries: if macros are empty, trust the explicit calories.
+    if (macrosEnergy <= 0.1 && meal.calories > 0) {
+      calories = round(meal.calories, 0);
+      return {
+        protein,
+        carbs,
+        fat,
+        alcohol,
+        calories,
+        caloriesFromMacros,
+        caloriesInput,
+      };
+    }
     if (Math.abs(meal.calories - caloriesFromMacros) <= 5) {
       calories = round(meal.calories, 0);
     }
@@ -231,11 +245,23 @@ async function handleAddMeal(req: Request, res: Response) {
   if (!body?.dateISO || !body.meal?.name) {
     throw new HttpsError("invalid-argument", "dateISO and meal required");
   }
+  const rawMealType =
+    typeof (body.meal as any)?.mealType === "string"
+      ? ((body.meal as any).mealType as string).trim().toLowerCase()
+      : "";
+  const mealType =
+    rawMealType === "breakfast" ||
+    rawMealType === "lunch" ||
+    rawMealType === "dinner" ||
+    rawMealType === "snacks"
+      ? rawMealType
+      : undefined;
   const tz = parseInt(req.get("x-tz-offset-mins") || "0", 10);
   const day = normalizeDate(body.dateISO, tz);
   const meal: MealRecord = {
     id: body.meal.id || randomUUID(),
     name: body.meal.name,
+    mealType,
     protein: body.meal.protein,
     carbs: body.meal.carbs,
     fat: body.meal.fat,
