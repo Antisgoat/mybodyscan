@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Info } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,8 @@ import { toast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { applyCatalogPlan, type CatalogPlanSubmission } from "@/lib/workouts";
+import { activateCatalogPlan } from "@/lib/workouts";
+import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -101,6 +102,7 @@ export default function ProgramDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [entry, setEntry] = useState<CatalogEntry | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [activationNote, setActivationNote] = useState<string | null>(null);
   const demo = useDemoMode();
 
   useEffect(() => {
@@ -145,6 +147,7 @@ export default function ProgramDetail() {
     }
     try {
       setIsSaving(true);
+      setActivationNote("Activating program…");
       const profileRef = doc(db, "users", user.uid, "coach", "profile");
       const planRef = doc(db, "users", user.uid, "coachPlans", "current");
       const priorPlanSnap = await getDoc(planRef);
@@ -165,20 +168,17 @@ export default function ProgramDetail() {
 
       const catalogSubmission = buildCatalogPlanSubmission(program, meta);
       let workoutPlanId: string | null = null;
-      try {
-        const applied = await applyCatalogPlan(catalogSubmission);
-        workoutPlanId =
-          typeof applied?.planId === "string" ? applied.planId : null;
-      } catch (error: any) {
-        throw new Error(
-          typeof error?.message === "string" && error.message.length
-            ? error.message
-            : "Unable to apply the workout plan. Please try again."
-        );
-      }
+      setActivationNote("Contacting the server…");
+      const applied = await activateCatalogPlan(catalogSubmission, {
+        attempts: 4,
+        confirmPolls: 5,
+        backoffMs: 500,
+      });
+      workoutPlanId = typeof applied?.planId === "string" ? applied.planId : null;
       if (!workoutPlanId) {
         throw new Error("Unable to activate workout plan.");
       }
+      setActivationNote("Finalizing…");
 
       const fallbackCalorieTarget =
         typeof priorPlan?.calorieTarget === "number"
@@ -220,21 +220,24 @@ export default function ProgramDetail() {
         updatedAt: serverTimestamp(),
       };
 
-      await setDoc(planRef, nextPlan, { merge: true });
-      // FIX: Mirror the selected catalog program into the coach profile so downstream tabs immediately show the active plan.
-      await setDoc(
-        profileRef,
-        {
-          currentProgramId: program.id,
-          activeProgramId: program.id,
-          startedAt: serverTimestamp(),
-          currentWeekIdx: 0,
-          currentDayIdx: 0,
-          lastCompletedWeekIdx: -1,
-          lastCompletedDayIdx: -1,
-        },
-        { merge: true }
-      );
+      // Coach metadata writes should never block workout activation.
+      await Promise.allSettled([
+        setDoc(planRef, nextPlan, { merge: true }),
+        // Mirror selected catalog program into the coach profile so downstream tabs show the active plan.
+        setDoc(
+          profileRef,
+          {
+            currentProgramId: program.id,
+            activeProgramId: program.id,
+            startedAt: serverTimestamp(),
+            currentWeekIdx: 0,
+            currentDayIdx: 0,
+            lastCompletedWeekIdx: -1,
+            lastCompletedDayIdx: -1,
+          },
+          { merge: true }
+        ),
+      ]);
       toast({
         title: "Program started",
         description: `${program.title} is now your active plan.`,
@@ -267,6 +270,7 @@ export default function ProgramDetail() {
       });
     } finally {
       setIsSaving(false);
+      setActivationNote(null);
     }
   };
 
@@ -636,73 +640,23 @@ export default function ProgramDetail() {
                 disabled={isSaving || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
-                {demo ? "Demo only" : "Start program"}
+                {isSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                )}{" "}
+                {demo ? "Demo only" : isSaving ? "Activating…" : "Start program"}
               </DemoWriteButton>
             </div>
           </CardContent>
         </Card>
+        {activationNote && (
+          <p className="text-center text-xs text-muted-foreground">
+            {activationNote}
+          </p>
+        )}
       </main>
       <BottomNav />
     </div>
   );
-}
-
-const DAY_NAME_PRESETS: Record<number, string[]> = {
-  1: ["Mon"],
-  2: ["Mon", "Thu"],
-  3: ["Mon", "Wed", "Fri"],
-  4: ["Mon", "Tue", "Thu", "Fri"],
-  5: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  6: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-  7: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-};
-
-function pickWeekdays(count: number): string[] {
-  const clamped = Math.max(1, Math.min(count, 7));
-  return DAY_NAME_PRESETS[clamped] ?? DAY_NAME_PRESETS[5];
-}
-
-function flattenExercises(
-  day: Program["weeks"][number]["days"][number]
-): CatalogPlanSubmission["days"][number]["exercises"] {
-  const exercises = day.blocks?.flatMap((block) => block.exercises || []) ?? [];
-  if (!exercises.length) {
-    return [
-      {
-        name: "Session",
-        sets: 3,
-        reps: "10",
-      },
-    ];
-  }
-  return exercises.slice(0, 12).map((exercise, index) => ({
-    name: exercise.name || `Exercise ${index + 1}`,
-    sets:
-      Number.isFinite(exercise.sets) && exercise.sets > 0 ? exercise.sets : 3,
-    reps: exercise.reps ?? "10",
-  }));
-}
-
-function buildCatalogPlanSubmission(
-  program: Program,
-  meta: ProgramMeta
-): CatalogPlanSubmission {
-  const baseWeek = program.weeks?.[0];
-  const sourceDays = baseWeek?.days ?? [];
-  if (!sourceDays.length) {
-    throw new Error("Program days are missing a schedule.");
-  }
-  const weekdays = pickWeekdays(sourceDays.length);
-  const days = sourceDays.slice(0, weekdays.length).map((day, index) => ({
-    day: weekdays[index],
-    exercises: flattenExercises(day),
-  }));
-  return {
-    programId: program.id,
-    title: program.title,
-    goal: program.goal,
-    level: meta.level,
-    days,
-  };
 }

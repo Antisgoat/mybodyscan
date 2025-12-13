@@ -51,6 +51,35 @@ export interface CatalogPlanSubmission {
   days: CatalogPlanDay[];
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableActivationError(error: unknown): boolean {
+  const anyErr = error as any;
+  const message =
+    typeof anyErr?.message === "string" ? (anyErr.message as string) : "";
+  const status = typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
+  // Common transient cases:
+  // - Safari/Network: "Load failed", "Failed to fetch"
+  // - Functions transient: 429/502/503/504
+  if (
+    message.includes("Load failed") ||
+    message.includes("Failed to fetch") ||
+    message.includes("NetworkError") ||
+    message.includes("ECONN") ||
+    message.includes("timeout")
+  ) {
+    return true;
+  }
+  if ([429, 502, 503, 504].includes(status)) return true;
+  if (message.startsWith("fn_error_")) {
+    const maybe = Number(message.replace("fn_error_", ""));
+    if ([429, 502, 503, 504].includes(maybe)) return true;
+  }
+  return false;
+}
+
 async function callFn(path: string, body?: any) {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("auth");
@@ -79,7 +108,9 @@ async function callFn(path: string, body?: any) {
       parsed = null;
     }
     if (r.status === 404 && !parsed) {
-      throw new Error(`fn_not_found:${path}`);
+      const err: any = new Error(`fn_not_found:${path}`);
+      err.status = r.status;
+      throw err;
     }
     const message =
       typeof parsed?.error === "string"
@@ -87,7 +118,10 @@ async function callFn(path: string, body?: any) {
         : typeof parsed?.message === "string"
           ? parsed.message
           : payload?.trim() || `fn_error_${r.status}`;
-    throw new Error(message);
+    const err: any = new Error(message);
+    err.status = r.status;
+    err.payload = parsed ?? payload ?? null;
+    throw err;
   }
   return r.json();
 }
@@ -179,6 +213,70 @@ export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
     throw new Error("demo-blocked");
   }
   return callFn("/applyCatalogPlan", plan);
+}
+
+export async function activateCatalogPlan(
+  plan: CatalogPlanSubmission,
+  options?: {
+    /** Total attempts to call the function (includes first attempt). */
+    attempts?: number;
+    /** Polls to confirm activation has propagated to Firestore. */
+    confirmPolls?: number;
+    /** Base backoff used between attempts/polls. */
+    backoffMs?: number;
+  }
+): Promise<{ planId: string }> {
+  const attempts = Math.max(1, Math.min(5, options?.attempts ?? 4));
+  const confirmPolls = Math.max(1, Math.min(8, options?.confirmPolls ?? 5));
+  const backoffMs = Math.max(150, Math.min(3000, options?.backoffMs ?? 500));
+
+  const uid = firebaseAuth?.currentUser?.uid;
+  if (!uid) throw new Error("auth");
+
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const res = await applyCatalogPlan(plan);
+      const planId = typeof res?.planId === "string" ? res.planId : "";
+      if (!planId) {
+        throw new Error("workouts_apply_invalid_response");
+      }
+
+      // Confirm the meta/doc have landed so Workouts can deterministically load.
+      for (let poll = 0; poll < confirmPolls; poll++) {
+        const [metaSnap, planSnap] = await Promise.all([
+          getDoc(doc(db, `users/${uid}/workoutPlans_meta`)),
+          getDoc(doc(db, `users/${uid}/workoutPlans/${planId}`)),
+        ]);
+        const activePlanId = metaSnap.exists()
+          ? (metaSnap.data()?.activePlanId as string | undefined)
+          : undefined;
+        if (planSnap.exists() && activePlanId === planId) {
+          return { planId };
+        }
+        // Exponential-ish backoff (fast first, then slower).
+        await sleep(backoffMs * (poll + 1));
+      }
+
+      // Fallback: if the plan doc exists but meta hasn't caught up, still proceed.
+      // Workouts page already has a short activation retry loop on `?plan=...`.
+      const fallbackPlanSnap = await getDoc(
+        doc(db, `users/${uid}/workoutPlans/${planId}`)
+      );
+      if (fallbackPlanSnap.exists()) {
+        return { planId };
+      }
+      throw new Error("workouts_apply_pending");
+    } catch (err) {
+      lastErr = err;
+      if (attempt < attempts - 1 && isRetryableActivationError(err)) {
+        await sleep(backoffMs * Math.pow(2, attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("workouts_apply_failed");
 }
 
 export async function getWorkouts(): Promise<WorkoutSummary | null> {
