@@ -68,7 +68,6 @@ async function callFn(path: string, body?: any) {
   const r = await fetch(endpoint, {
     method: "POST",
     headers,
-    credentials: "include",
     body: JSON.stringify(body || {}),
   });
   if (!r.ok) {
