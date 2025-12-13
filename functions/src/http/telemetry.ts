@@ -9,8 +9,15 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  // Local dev / preview / emulators
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+  "http://localhost:5000",
+  "http://127.0.0.1:5000",
 ]);
 
 interface TelemetryBody {
@@ -32,7 +39,10 @@ function applyCors(req: Request, res: Response): { ended: boolean } {
   }
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,X-Firebase-AppCheck"
+    );
     res.status(204).end();
     return { ended: true };
   }

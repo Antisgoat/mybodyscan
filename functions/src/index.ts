@@ -31,7 +31,9 @@ export { legacyCreateCheckout } from "./createCheckout.js";
 export { createCheckout } from "./stripe/createCheckout.js";
 export { createCustomerPortal } from "./createCustomerPortal.js";
 export { adminGateway } from "./http/admin.js";
-export { telemetryLog } from "./system/telemetryLog.js";
+// NOTE: Hosting rewrites `/telemetry/log` -> `telemetryLog`.
+// Use the HTTP handler (not callable) so browser `fetch` works reliably.
+export { telemetryLog } from "./http/telemetry.js";
 export { uatHelper } from "./http/uat.js";
 export { refreshClaims } from "./auth/refreshClaims.js";
 export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";

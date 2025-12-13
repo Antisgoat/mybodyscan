@@ -33,10 +33,10 @@ import { buildErrorToast } from "@/lib/errorToasts";
 import { sanitizeNutritionQuery } from "@/lib/nutrition/sanitizeQuery";
 import { backend } from "@/lib/backendBridge";
 import { nutritionSearchClient } from "@/lib/nutritionApi";
-import { call } from "@/lib/callable";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { reportError } from "@/lib/telemetry";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -441,15 +441,12 @@ export default function MealsSearch() {
           errMessage || "Food database temporarily busy; try again.";
         setStatus(message);
         setSearchWarning(message);
-        try {
-          await call("telemetryLog", {
-            fn: "nutritionSearch",
-            code: error?.code || "client_error",
-            message: errMessage,
-          });
-        } catch (telemetryError) {
-          console.warn("telemetry_log_failed", telemetryError);
-        }
+        void reportError({
+          kind: "client_error",
+          message: errMessage || "nutritionSearch failed",
+          code: error?.code || "client_error",
+          extra: { fn: "nutritionSearch" },
+        });
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -525,15 +522,12 @@ export default function MealsSearch() {
       setPrimarySource(null);
       setStatus(message);
       setSearchWarning(message);
-      try {
-        await call("telemetryLog", {
-          fn: "nutritionBarcode",
-          code: error?.code || "client_error",
-          message: errMessage,
-        });
-      } catch (telemetryError) {
-        console.warn("telemetry_log_failed", telemetryError);
-      }
+      void reportError({
+        kind: "client_error",
+        message: errMessage || "nutritionBarcode failed",
+        code: error?.code || "client_error",
+        extra: { fn: "nutritionBarcode" },
+      });
     } finally {
       setLoading(false);
     }

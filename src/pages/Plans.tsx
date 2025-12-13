@@ -21,6 +21,7 @@ import { call } from "@/lib/callable";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
+import { reportError } from "@/lib/telemetry";
 
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
@@ -208,16 +209,12 @@ export default function Plans() {
           variant: "destructive",
         });
       }
-      try {
-        await call("telemetryLog", {
-          fn: "checkout",
-          code: err?.code || "client_error",
-          message: errMessage,
-          debugId,
-        });
-      } catch (telemetryError) {
-        console.warn("telemetry_log_failed", telemetryError);
-      }
+      void reportError({
+        kind: "client_error",
+        message: errMessage || "checkout failed",
+        code: err?.code || "client_error",
+        extra: { fn: "checkout", debugId },
+      });
     } finally {
       setPendingPlan(null);
     }

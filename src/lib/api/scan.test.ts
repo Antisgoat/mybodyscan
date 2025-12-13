@@ -1,5 +1,38 @@
-import { describe, it, expect } from "vitest";
-import { validateScanUploadInputs } from "@/lib/api/scan";
+import { describe, expect, it } from "vitest";
+import { getUploadStallReason, validateScanUploadInputs } from "@/lib/api/scan";
+
+describe("scan upload stall detection", () => {
+  it("returns null before stall timeout", () => {
+    expect(
+      getUploadStallReason({
+        lastBytes: 0,
+        lastEventAt: 1000,
+        now: 1500,
+        stallTimeoutMs: 1000,
+      })
+    ).toBeNull();
+  });
+
+  it("distinguishes no_progress vs stalled", () => {
+    expect(
+      getUploadStallReason({
+        lastBytes: 0,
+        lastEventAt: 0,
+        now: 60_000,
+        stallTimeoutMs: 30_000,
+      })
+    ).toBe("no_progress");
+
+    expect(
+      getUploadStallReason({
+        lastBytes: 123,
+        lastEventAt: 0,
+        now: 60_000,
+        stallTimeoutMs: 30_000,
+      })
+    ).toBe("stalled");
+  });
+});
 
 describe("scan client guardrails", () => {
   it("rejects zero-byte files with a clear message (prevents 0% upload stalls)", async () => {
