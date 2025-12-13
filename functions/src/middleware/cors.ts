@@ -9,6 +9,14 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  // Local dev + preview
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+  // iOS wrappers / WebViews (Capacitor/Ionic)
+  "capacitor://localhost",
+  "ionic://localhost",
 ] as const;
 
 type CorsOptions = {

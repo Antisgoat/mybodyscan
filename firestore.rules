@@ -145,6 +145,24 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
     }
 
+    function isValidCoachThreadWrite() {
+      let allowedKeys = ['createdAt', 'updatedAt', 'status'];
+      return request.resource.data.keys().hasOnly(allowedKeys)
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string);
+    }
+
+    function isValidCoachThreadMessageWrite() {
+      let allowedKeys = ['role', 'content', 'createdAt'];
+      return request.resource.data.keys().hasOnly(allowedKeys)
+        && request.resource.data.role is string
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 4000
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp);
+    }
+
     match /publicConfig/{docId} {
       allow read: if true;
       allow write: if false;
@@ -171,6 +189,20 @@ service cloud.firestore {
       allow create: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
       allow update: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
       allow delete: if false;
+
+      match /coachThreads/{threadId} {
+        allow read: if isOwner(uid);
+        allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite();
+        allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite();
+        allow delete: if false;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
+          allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow delete: if false;
+        }
+      }
 
       match /scans/{scanId} {
         allow create: if !isDemoUser() && isOwner(uid)

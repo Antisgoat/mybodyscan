@@ -3,8 +3,8 @@ import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { auth as firebaseAuth } from "@/lib/firebase";
-import { fnUrl } from "@/lib/env";
 import { scrubUndefined } from "@/lib/scrubUndefined";
+import { fnJson } from "@/lib/fnCall";
 
 export interface MealServingSelection {
   qty?: number;
@@ -104,24 +104,14 @@ export function computeCalories({
   };
 }
 
-async function callFn(path: string, body?: any, method = "POST") {
-  const user = firebaseAuth?.currentUser;
-  if (!user) throw new Error("auth");
-  const t = await user.getIdToken();
+async function callFn(path: string, body?: any, method: "GET" | "POST" = "POST") {
   const tzOffsetMins =
     typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
-  const endpoint = fnUrl(path);
-  const r = await fetch(endpoint, {
+  return fnJson(path, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${t}`,
-      "x-tz-offset-mins": String(tzOffsetMins),
-    },
-    body: method === "POST" ? JSON.stringify(body || {}) : undefined,
+    body: method === "POST" ? body || {} : undefined,
+    headers: { "x-tz-offset-mins": String(tzOffsetMins) },
   });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
 }
 
 export async function addMeal(dateISO: string, meal: MealEntry) {

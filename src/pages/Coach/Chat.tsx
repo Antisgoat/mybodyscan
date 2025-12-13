@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 import { BottomNav } from "@/components/BottomNav";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Seo } from "@/components/Seo";
@@ -20,13 +27,20 @@ import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
-import { coachChatCollection } from "@/lib/db/coachPaths";
+import {
+  coachChatCollection,
+  coachThreadDoc,
+  coachThreadMessagesCollection,
+  coachThreadsCollection,
+} from "@/lib/db/coachPaths";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { demoCoach } from "@/lib/demoDataset";
 import { demoGuard } from "@/lib/demoGuard";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { reportError } from "@/lib/telemetry";
+import { setDoc } from "@/lib/dbWrite";
+import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
 
 declare global {
   interface Window {
@@ -35,35 +49,48 @@ declare global {
   }
 }
 
-interface ChatMessage {
+type ChatRole = "user" | "assistant";
+interface ThreadMessage {
   id: string;
-  text: string;
-  response: string;
+  role: ChatRole;
+  content: string;
   createdAt: Date;
-  usedLLM: boolean;
   suggestions?: string[] | null;
+  usedLLM?: boolean;
 }
 
-const DEMO_CHAT_MESSAGES: ChatMessage[] = demoCoach.messages.map(
+interface ThreadMeta {
+  id: string;
+  updatedAt: Date;
+  createdAt: Date;
+  lastMessagePreview?: string | null;
+}
+
+const DEMO_THREAD_ID = "demo-thread";
+const DEMO_CHAT_MESSAGES: ThreadMessage[] = demoCoach.messages.flatMap(
   (msg, index) => {
     const created = new Date(
       Date.now() - (demoCoach.messages.length - index) * 60 * 60 * 1000
     );
-    return {
-      id: msg.id,
-      text: msg.message,
-      response: msg.reply,
-      createdAt: created,
-      usedLLM: true,
-    } satisfies ChatMessage;
+    return [
+      {
+        id: `${msg.id}-u`,
+        role: "user",
+        content: msg.message,
+        createdAt: created,
+      },
+      {
+        id: `${msg.id}-a`,
+        role: "assistant",
+        content: msg.reply,
+        createdAt: new Date(created.getTime() + 1000),
+        usedLLM: true,
+      },
+    ] satisfies ThreadMessage[];
   }
 );
 
-function sortMessages(messages: ChatMessage[]): ChatMessage[] {
-  return [...messages].sort(
-    (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-  );
-}
+const sortMessages = sortCoachThreadMessages;
 
 function PlanSession({ session }: { session: CoachPlanSession }) {
   return (
@@ -89,7 +116,22 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+  const [threads, setThreads] = useState<ThreadMeta[]>(() =>
+    demo
+      ? [
+          {
+            id: DEMO_THREAD_ID,
+            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            updatedAt: new Date(),
+            lastMessagePreview: "Demo conversation",
+          },
+        ]
+      : []
+  );
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(() =>
+    demo ? DEMO_THREAD_ID : null
+  );
+  const [messages, setMessages] = useState<ThreadMessage[]>(() =>
     demo ? DEMO_CHAT_MESSAGES : []
   );
   const [pending, setPending] = useState(false);
@@ -162,72 +204,96 @@ export default function CoachChatPage() {
   // derive uid only after auth is ready
   const uid = authReady ? (user?.uid ?? null) : null;
   const initializing = !authReady;
+  const threadStorageKey = uid ? `mbs_coach_active_thread_v1:${uid}` : null;
 
   useEffect(() => {
     if (demo) {
+      setThreads([
+        {
+          id: DEMO_THREAD_ID,
+          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          updatedAt: new Date(),
+          lastMessagePreview: "Demo conversation",
+        },
+      ]);
+      setActiveThreadId(DEMO_THREAD_ID);
       setMessages(DEMO_CHAT_MESSAGES);
       setHydratingHistory(false);
       return;
     }
     if (!authReady || !appCheckReady || !uid) {
+      setThreads([]);
+      setActiveThreadId(null);
       setMessages([]);
       setHydratingHistory(false);
       return;
     }
     setHydratingHistory(true);
     let warned = false;
-    const chatPath = coachChatCollectionPath(uid);
-    if (import.meta.env.DEV) {
-      const segmentCount = chatPath.split("/").length;
-      console.assert(
-        segmentCount === 5,
-        `[coach-chat] expected 5 segments, received ${segmentCount}`
-      );
-    }
-    const chatQuery = query(
-      coachChatCollection(uid),
-      orderBy("createdAt", "desc"),
-      limit(10)
+    const threadsQuery = query(
+      coachThreadsCollection(uid),
+      orderBy("updatedAt", "desc"),
+      limit(20)
     );
+
     const unsubscribe = onSnapshot(
-      chatQuery,
+      threadsQuery,
       (snapshot) => {
-        const next = snapshot.docs.map((doc) => {
-          const data = doc.data() as {
-            text?: string;
-            response?: string;
-            createdAt?: { toDate?: () => Date };
-            usedLLM?: boolean;
-            suggestions?: unknown;
-          };
-          const created = data.createdAt?.toDate?.() ?? new Date();
-          const suggestions = Array.isArray(data.suggestions)
-            ? data.suggestions
-                .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-                .filter((entry) => entry.length > 0)
-            : undefined;
+        const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
+          const data = snap.data() as any;
+          const createdAt = data?.createdAt?.toDate?.() ?? new Date();
+          const updatedAt = data?.updatedAt?.toDate?.() ?? createdAt;
           return {
-            id: doc.id,
-            text: data.text ?? "",
-            response: data.response ?? "",
-            createdAt: created,
-            usedLLM: Boolean(data.usedLLM),
-            suggestions,
-          } satisfies ChatMessage;
+            id: snap.id,
+            createdAt,
+            updatedAt,
+            lastMessagePreview:
+              typeof data?.lastMessagePreview === "string"
+                ? data.lastMessagePreview
+                : null,
+          };
         });
-        setMessages(sortMessages(next));
+
+        // If no threads exist yet, fall back to legacy chat history (read-only)
+        // so existing users don't "lose" their stored messages.
+        if (!nextThreads.length) {
+          setThreads([
+            {
+              id: "__legacy",
+              createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+              updatedAt: new Date(),
+              lastMessagePreview: "Previous chats",
+            },
+          ]);
+          setActiveThreadId((prev) => prev ?? "__legacy");
+          setHydratingHistory(false);
+          return;
+        }
+
+        setThreads(nextThreads);
         setHydratingHistory(false);
+
+        const stored =
+          threadStorageKey && typeof window !== "undefined"
+            ? window.localStorage.getItem(threadStorageKey)
+            : null;
+        const storedValid = stored && nextThreads.some((t) => t.id === stored);
+        setActiveThreadId((prev) => {
+          if (prev && nextThreads.some((t) => t.id === prev)) return prev;
+          if (storedValid) return stored!;
+          return nextThreads[0]!.id;
+        });
       },
       (err) => {
-        console.warn("coachChat.snapshot_failed", err);
+        console.warn("coachThreads.snapshot_failed", err);
         setHydratingHistory(false);
         if (!warned) {
           warned = true;
-          setCoachError("Unable to load recent coach messages.");
+          setCoachError("Unable to load coach chats.");
           toast(
             buildErrorToast(err, {
               fallback: {
-                title: "Unable to load coach messages",
+                title: "Unable to load coach chats",
                 description: "Please try again in a moment.",
                 variant: "destructive",
               },
@@ -237,11 +303,167 @@ export default function CoachChatPage() {
       }
     );
     return () => unsubscribe();
-  }, [authReady, uid, demo]);
+  }, [authReady, uid, demo, threadStorageKey, toast]);
+
+  useEffect(() => {
+    if (demo) {
+      setMessages(DEMO_CHAT_MESSAGES);
+      return;
+    }
+    if (!authReady || !uid || !activeThreadId) {
+      setMessages([]);
+      return;
+    }
+
+    // Legacy read-only view (previous schema).
+    if (activeThreadId === "__legacy") {
+      let warned = false;
+      const chatPath = coachChatCollectionPath(uid);
+      if (import.meta.env.DEV) {
+        const segmentCount = chatPath.split("/").length;
+        console.assert(
+          segmentCount === 5,
+          `[coach-chat] expected 5 segments, received ${segmentCount}`
+        );
+      }
+      const legacyQuery = query(
+        coachChatCollection(uid),
+        orderBy("createdAt", "desc"),
+        limit(10)
+      );
+      const unsubscribe = onSnapshot(
+        legacyQuery,
+        (snapshot) => {
+          const next = snapshot.docs.flatMap((snap) => {
+            const data = snap.data() as any;
+            const created = data?.createdAt?.toDate?.() ?? new Date();
+            const suggestions = Array.isArray(data?.suggestions)
+              ? data.suggestions
+                  .map((entry: any) =>
+                    typeof entry === "string" ? entry.trim() : ""
+                  )
+                  .filter((entry: string) => entry.length > 0)
+              : undefined;
+            const text = typeof data?.text === "string" ? data.text : "";
+            const response =
+              typeof data?.response === "string" ? data.response : "";
+            const usedLLM = Boolean(data?.usedLLM);
+            return [
+              {
+                id: `${snap.id}-u`,
+                role: "user" as const,
+                content: text,
+                createdAt: created,
+              },
+              {
+                id: `${snap.id}-a`,
+                role: "assistant" as const,
+                content: response,
+                createdAt: new Date(created.getTime() + 1000),
+                usedLLM,
+                suggestions: suggestions ?? null,
+              },
+            ] satisfies ThreadMessage[];
+          });
+          setMessages(sortMessages(next));
+        },
+        (err) => {
+          console.warn("coachChat.snapshot_failed", err);
+          if (!warned) {
+            warned = true;
+            setCoachError("Unable to load recent coach messages.");
+          }
+        }
+      );
+      return () => unsubscribe();
+    }
+
+    if (threadStorageKey && typeof window !== "undefined") {
+      window.localStorage.setItem(threadStorageKey, activeThreadId);
+    }
+
+    const messagesQuery = query(
+      coachThreadMessagesCollection(uid, activeThreadId),
+      orderBy("createdAt", "asc"),
+      limit(80)
+    );
+    const unsubscribe = onSnapshot(
+      messagesQuery,
+      (snapshot) => {
+        const next = snapshot.docs.map((snap) => {
+          const data = snap.data() as any;
+          const created = data?.createdAt?.toDate?.() ?? new Date();
+          const role = data?.role === "assistant" ? "assistant" : "user";
+          const suggestions = Array.isArray(data?.suggestions)
+            ? data.suggestions
+                .map((entry: any) =>
+                  typeof entry === "string" ? entry.trim() : ""
+                )
+                .filter((entry: string) => entry.length > 0)
+            : null;
+          return {
+            id: snap.id,
+            role,
+            content: typeof data?.content === "string" ? data.content : "",
+            createdAt: created,
+            usedLLM: role === "assistant",
+            suggestions,
+          } satisfies ThreadMessage;
+        });
+        setMessages(next);
+      },
+      (err) => {
+        console.warn("coachThread.messages.snapshot_failed", err);
+        setCoachError("Unable to load coach thread.");
+      }
+    );
+
+    return () => unsubscribe();
+  }, [authReady, uid, demo, activeThreadId, threadStorageKey]);
 
   const hasMessages = messages.length > 0;
   const readOnlyDemo = demo && !user;
   const showPlanMissing = !demo && !plan;
+
+  const handleNewChat = async () => {
+    if (demo) {
+      demoToast();
+      return;
+    }
+    if (!authReady || !uid) {
+      toast({
+        title: "Sign in required",
+        description: "Sign in to start a new coach chat.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const threadId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `thread-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    await setDoc(
+      coachThreadDoc(uid, threadId),
+      {
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: "active",
+      } as any,
+      { merge: true } as any
+    );
+    setThreads((prev) => [
+      {
+        id: threadId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastMessagePreview: null,
+      },
+      ...prev.filter((t) => t.id !== "__legacy" && t.id !== threadId),
+    ]);
+    setActiveThreadId(threadId);
+    setInput("");
+    setCoachError(null);
+  };
 
   const handleSend = async () => {
     if (pending) {
@@ -290,22 +512,61 @@ export default function CoachChatPage() {
     setPending(true);
     setCoachError(null);
     try {
-      const payload: CoachChatRequest = { message: sanitized };
-      const response = await coachChatApi(payload);
-      const answer =
-        typeof response?.replyText === "string" && response.replyText
-          ? response.replyText
-          : "No answer.";
+      if (!uid) {
+        throw new Error("auth_required");
+      }
+
+      const ensureId = () =>
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+      // If we're viewing legacy history, or no thread exists yet, start a new thread.
+      let threadId =
+        activeThreadId && activeThreadId !== "__legacy" ? activeThreadId : null;
+      if (!threadId) {
+        threadId = ensureId();
+        await setDoc(coachThreadDoc(uid, threadId), {
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          status: "active",
+        } as any);
+        setThreads((prev) => {
+          const next: ThreadMeta[] = [
+            {
+              id: threadId!,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              lastMessagePreview: null,
+            },
+            ...prev.filter((t) => t.id !== "__legacy"),
+          ];
+          return next;
+        });
+        setActiveThreadId(threadId);
+      }
+
+      const messageId = ensureId();
+      await setDoc(
+        doc(
+          coachThreadMessagesCollection(uid, threadId),
+          messageId
+        ) as any,
+        {
+          role: "user",
+          content: sanitized,
+          createdAt: serverTimestamp(),
+        } as any,
+        { merge: true } as any
+      );
+
+      const payload: CoachChatRequest = {
+        threadId,
+        messageId,
+        message: sanitized,
+      };
+      await coachChatApi(payload);
       setInput("");
-      const localMessage: ChatMessage = {
-        id: `local-${Date.now()}`,
-        text: sanitized,
-        response: answer,
-        createdAt: new Date(),
-        usedLLM: true,
-        suggestions: response.suggestions ?? undefined,
-      } satisfies ChatMessage;
-      setMessages((prev) => sortMessages([...prev, localMessage]));
     } catch (error: any) {
       console.error("coachChat error", error);
       const code = (error as any)?.code as string | undefined;
@@ -431,7 +692,47 @@ export default function CoachChatPage() {
           <div className="grid gap-6 lg:grid-cols-[1.75fr,1fr]">
             <Card className="border bg-card/60">
               <CardHeader>
-                <CardTitle className="text-xl">Coach chat</CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="text-xl">Coach chat</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="h-9 rounded-md border bg-background px-3 text-sm"
+                      value={activeThreadId ?? ""}
+                      onChange={(e) => {
+                        const next = e.target.value || null;
+                        setActiveThreadId(next);
+                        setCoachError(null);
+                      }}
+                      disabled={!threads.length || readOnlyDemo}
+                      aria-label="Select chat thread"
+                    >
+                      {threads.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.id === "__legacy"
+                            ? "Previous chats"
+                            : t.lastMessagePreview
+                              ? t.lastMessagePreview.slice(0, 28)
+                              : `Chat ${t.id.slice(0, 8)}`}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleNewChat}
+                      disabled={readOnlyDemo || initializing || !coachAvailable}
+                      title={
+                        readOnlyDemo
+                          ? "Demo preview"
+                          : !coachAvailable
+                            ? coachPrereqMessage ?? "Coach unavailable"
+                            : undefined
+                      }
+                    >
+                      New chat
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div
@@ -444,29 +745,33 @@ export default function CoachChatPage() {
                       {formattedMessages.map((message) => (
                         <div key={message.id} className="space-y-2">
                           <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            You ?{" "}
+                            {message.role === "user" ? "You" : "Coach"} ?{" "}
                             {formatDistanceToNow(message.createdAt, {
                               addSuffix: true,
                             })}
                           </div>
-                          <div className="rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm">
-                            {message.text}
+                          <div
+                            className={
+                              message.role === "user"
+                                ? "rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm"
+                                : "rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground"
+                            }
+                          >
+                            {message.content}
                           </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Coach response</span>
-                            <Badge
-                              variant={
-                                message.usedLLM ? "default" : "secondary"
-                              }
-                              className="uppercase tracking-wide"
-                            >
-                              {message.usedLLM ? "LLM" : "Rules"}
-                            </Badge>
-                          </div>
-                          <div className="rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground">
-                            {message.response}
-                          </div>
-                          {message.suggestions &&
+                          {message.role === "assistant" ? (
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>Coach</span>
+                              <Badge
+                                variant={message.usedLLM ? "default" : "secondary"}
+                                className="uppercase tracking-wide"
+                              >
+                                {message.usedLLM ? "LLM" : "Rules"}
+                              </Badge>
+                            </div>
+                          ) : null}
+                          {message.role === "assistant" &&
+                          message.suggestions &&
                           message.suggestions.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                               {message.suggestions.map(

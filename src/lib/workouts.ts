@@ -11,8 +11,7 @@ import {
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
-import { fnUrl } from "@/lib/env";
-import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
+import { fnJson } from "@/lib/fnCall";
 
 export interface WorkoutExercise {
   id: string;
@@ -81,49 +80,7 @@ function isRetryableActivationError(error: unknown): boolean {
 }
 
 async function callFn(path: string, body?: any) {
-  const user = firebaseAuth?.currentUser;
-  if (!user) throw new Error("auth");
-  const t = await user.getIdToken();
-  const endpoint = fnUrl(path);
-  await ensureAppCheck();
-  const appCheckHeaders = await getAppCheckTokenHeader();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${t}`,
-  };
-  Object.entries(appCheckHeaders).forEach(([key, value]) => {
-    headers[key] = value;
-  });
-  const r = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body || {}),
-  });
-  if (!r.ok) {
-    const payload = await r.text().catch(() => "");
-    let parsed: any = null;
-    try {
-      parsed = payload ? JSON.parse(payload) : null;
-    } catch {
-      parsed = null;
-    }
-    if (r.status === 404 && !parsed) {
-      const err: any = new Error(`fn_not_found:${path}`);
-      err.status = r.status;
-      throw err;
-    }
-    const message =
-      typeof parsed?.error === "string"
-        ? parsed.error
-        : typeof parsed?.message === "string"
-          ? parsed.message
-          : payload?.trim() || `fn_error_${r.status}`;
-    const err: any = new Error(message);
-    err.status = r.status;
-    err.payload = parsed ?? payload ?? null;
-    throw err;
-  }
-  return r.json();
+  return fnJson(path, { method: "POST", body: body || {} });
 }
 
 async function fetchPlanFromFirestore() {
