@@ -766,19 +766,35 @@ export default function ScanFlowResult() {
               ) : null}
             </div>
           ) : null}
-          {flowStatus === "uploading" && retryAvailable ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                uploadAbortRef.current?.abort();
-                setFlowStatus("error");
-                setFlowError("Upload cancelled. Please retry.");
-              }}
-            >
-              Retry upload
-            </Button>
+          {flowStatus === "uploading" ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  uploadAbortRef.current?.abort();
+                  setFlowStatus("error");
+                  setFlowError("Upload cancelled.");
+                }}
+              >
+                Cancel upload
+              </Button>
+              {retryAvailable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    uploadAbortRef.current?.abort();
+                    setFlowStatus("error");
+                    setFlowError("Upload cancelled. Please retry.");
+                  }}
+                >
+                  Retry upload
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Button

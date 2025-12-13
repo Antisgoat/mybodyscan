@@ -272,11 +272,16 @@ async function uploadPhoto(
       stallTimeoutMs > 0
         ? setInterval(() => {
             if (settled) return;
-            const elapsed = Date.now() - lastEventAt;
-            if (elapsed < stallTimeoutMs) return;
+            const reason = getUploadStallReason({
+              lastBytes,
+              lastEventAt,
+              now: Date.now(),
+              stallTimeoutMs,
+            });
+            if (!reason) return;
             try {
               options?.onStall?.({
-                reason: lastBytes > 0 ? "stalled" : "no_progress",
+                reason,
               });
             } catch {
               // ignore
@@ -369,6 +374,19 @@ type UploadTarget = {
   file: File;
   size: number;
 };
+
+export function getUploadStallReason(params: {
+  lastBytes: number;
+  lastEventAt: number;
+  now: number;
+  stallTimeoutMs: number;
+}): "no_progress" | "stalled" | null {
+  const stallTimeoutMs = Number(params.stallTimeoutMs);
+  if (!Number.isFinite(stallTimeoutMs) || stallTimeoutMs <= 0) return null;
+  const elapsed = params.now - params.lastEventAt;
+  if (!Number.isFinite(elapsed) || elapsed < stallTimeoutMs) return null;
+  return params.lastBytes > 0 ? "stalled" : "no_progress";
+}
 
 export function validateScanUploadInputs(params: {
   storagePaths: { front: string; back: string; left: string; right: string };

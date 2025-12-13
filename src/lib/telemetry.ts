@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { getAppCheckHeader } from "./appCheck";
 
 export type TelemetryPayload = {
   kind: string;
@@ -18,6 +19,42 @@ let listenersBound = false;
 
 function buildKey(message?: string | null, stack?: string | null): string {
   return `${message || ""}|${stack || ""}`.slice(0, 500);
+}
+
+function stripUndefinedDeep(value: unknown, depth = 0): unknown {
+  if (depth > 6) return undefined;
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    const arr = value
+      .map((v) => stripUndefinedDeep(v, depth + 1))
+      .filter((v) => v !== undefined);
+    return arr;
+  }
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const next = stripUndefinedDeep(v, depth + 1);
+      if (next !== undefined) out[k] = next;
+    }
+    return out;
+  }
+  return value;
+}
+
+export function buildTelemetryBody(payload: TelemetryPayload): Record<string, unknown> {
+  const body = {
+    kind: payload.kind,
+    message: payload.message,
+    code: payload.code,
+    stack: payload.stack,
+    url:
+      payload.url ||
+      (typeof window !== "undefined" ? window.location.href : undefined),
+    component: payload.component,
+    extra: payload.extra || undefined,
+  };
+  return (stripUndefinedDeep(body) as Record<string, unknown>) || {};
 }
 
 async function getAuthToken(): Promise<string | undefined> {
@@ -45,17 +82,7 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
 
   sessionCount += 1;
 
-  const body = {
-    kind: payload.kind,
-    message: payload.message,
-    code: payload.code,
-    stack: payload.stack,
-    url:
-      payload.url ||
-      (typeof window !== "undefined" ? window.location.href : undefined),
-    component: payload.component,
-    extra: payload.extra || undefined,
-  };
+  const body = buildTelemetryBody(payload);
 
   try {
     const headers: Record<string, string> = {
@@ -65,6 +92,10 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
+    // Soft-add AppCheck token if available (server does not require it, but helps
+    // in environments where upstream middleware is stricter).
+    const appCheckHeader = await getAppCheckHeader(false);
+    Object.assign(headers, appCheckHeader);
     const response = await fetch(TELEMETRY_ENDPOINT, {
       method: "POST",
       headers,

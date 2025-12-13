@@ -26,6 +26,7 @@ import { demoCoach } from "@/lib/demoDataset";
 import { demoGuard } from "@/lib/demoGuard";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { reportError } from "@/lib/telemetry";
 
 declare global {
   interface Window {
@@ -326,15 +327,12 @@ export default function CoachChatPage() {
         description: message,
         variant: "destructive",
       });
-      try {
-        await call("telemetryLog", {
-          fn: "coachChat",
-          code: error?.code || "client_error",
-          message: errMessage,
-        });
-      } catch (telemetryError) {
-        console.warn("telemetry_log_failed", telemetryError);
-      }
+      void reportError({
+        kind: "client_error",
+        message: errMessage || "coachChat failed",
+        code: error?.code || "client_error",
+        extra: { fn: "coachChat" },
+      });
     } finally {
       setPending(false);
     }

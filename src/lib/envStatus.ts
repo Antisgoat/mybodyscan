@@ -73,7 +73,11 @@ export function computeFeatureStatuses(
     functionsUrl || functionsOrigin || projectId
   );
   const openaiConfigured =
-    remoteHealth?.openaiConfigured ?? remoteHealth?.openaiKeyPresent;
+    typeof remoteHealth?.openaiConfigured === "boolean"
+      ? remoteHealth.openaiConfigured
+      : typeof remoteHealth?.openaiKeyPresent === "boolean"
+        ? remoteHealth.openaiKeyPresent
+        : undefined;
   const scanConfigured =
     typeof remoteHealth?.scanConfigured === "boolean"
       ? remoteHealth.scanConfigured
@@ -83,10 +87,15 @@ export function computeFeatureStatuses(
     stripeMode !== "missing" ||
     remoteHealth?.stripeSecretPresent === true ||
     Boolean(stripeKey);
+  // Coach should not hard-disable the UI when health is unknown.
+  // If the server explicitly reports "not configured", respect it; otherwise be optimistic
+  // when Functions look reachable, and let runtime errors surface via toasts.
   const coachConfigured =
     typeof remoteHealth?.coachConfigured === "boolean"
       ? remoteHealth.coachConfigured
-      : Boolean(openaiConfigured);
+      : typeof openaiConfigured === "boolean"
+        ? openaiConfigured
+        : functionsConfigured;
   const workoutsConfigured =
     typeof remoteHealth?.workoutsConfigured === "boolean"
       ? remoteHealth.workoutsConfigured
