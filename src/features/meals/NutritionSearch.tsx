@@ -4,7 +4,7 @@
  * - Allows barcode scan or manual search, then uses `ServingEditor` to capture servings.
  * - Calls `addMeal` Cloud Function so Firestore `nutritionLogs/{day}` stays authoritative and totals update instantly.
  */
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import {
   cameraAvailable,
@@ -31,10 +31,16 @@ import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
 
 type NutritionSearchProps = {
   onMealLogged?: (item: FoodItem) => void;
+  /** Default diary bucket to save into. */
+  defaultMealType?: MealEntry["mealType"];
+  /** Optional callback with the persisted meal + server totals. */
+  onMealAdded?: (payload: { meal: MealEntry; totals: any }) => void;
 };
 
 export default function NutritionSearch({
   onMealLogged,
+  defaultMealType,
+  onMealAdded,
 }: NutritionSearchProps = {}) {
   const { loading: authLoading, user } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
@@ -61,6 +67,7 @@ export default function NutritionSearch({
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorSource, setEditorSource] =
     useState<MealEntry["entrySource"]>("search");
+  const editorMealIdRef = useRef<string | null>(null);
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   async function onSubmit(e?: FormEvent) {
@@ -162,6 +169,10 @@ export default function NutritionSearch({
     // lightweight callable result into a safe, fully-populated item.
     setEditorItem(toRichFoodItem(item));
     setEditorSource(source);
+    editorMealIdRef.current =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `meal-${Math.random().toString(36).slice(2, 10)}`;
     setEditorOpen(true);
   }
 
@@ -170,6 +181,7 @@ export default function NutritionSearch({
     setEditorItem(null);
     setEditorBusy(false);
     setEditorSource("search");
+    editorMealIdRef.current = null;
   };
 
   async function handleConfirm({ meal }: { meal: MealEntry }) {
@@ -186,14 +198,19 @@ export default function NutritionSearch({
     setEditorBusy(true);
     try {
       // FIX: prior implementation rendered Add buttons with no handler, so nothing was persisted.
-      await addMeal(todayISO, {
+      const result = await addMeal(todayISO, {
         ...meal,
+        id: meal.id ?? editorMealIdRef.current ?? undefined,
+        mealType: meal.mealType ?? defaultMealType ?? undefined,
         entrySource: editorSource ?? "search",
       });
       toast({
         title: "Meal logged",
         description: `${editorItem.name} added to today.`,
       });
+      if (result?.meal && result?.totals) {
+        onMealAdded?.({ meal: result.meal as MealEntry, totals: result.totals });
+      }
       // `onMealLogged` expects the lightweight search item; forward the raw snapshot if available.
       onMealLogged?.((editorItem.raw ?? editorItem) as any);
       closeEditor();

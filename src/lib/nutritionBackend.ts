@@ -38,6 +38,8 @@ export interface MealItemSnapshot {
 export interface MealEntry {
   id?: string;
   name: string;
+  /** Optional diary grouping bucket. */
+  mealType?: "breakfast" | "lunch" | "dinner" | "snacks" | string;
   protein?: number;
   carbs?: number;
   fat?: number;
@@ -73,6 +75,19 @@ export function computeCalories({
   calories,
 }: MealEntry) {
   const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
+  const macrosEnergy = Number(protein || 0) * 4 +
+    Number(carbs || 0) * 4 +
+    Number(fat || 0) * 9 +
+    Number(alcohol || 0) * 7;
+  // Quick add / calories-only entries: if macros are empty, trust the explicit calories.
+  if (typeof calories === "number" && macrosEnergy <= 0.1 && calories > 0) {
+    return {
+      calories,
+      reconciled: false,
+      caloriesFromMacros: kcal,
+      caloriesInput: calories,
+    };
+  }
   if (typeof calories === "number" && Math.abs(calories - kcal) <= 5) {
     return {
       calories,
@@ -114,7 +129,10 @@ export async function addMeal(dateISO: string, meal: MealEntry) {
     throw new Error("demo-blocked");
   }
   const entry = scrubUndefined({ ...meal, ...computeCalories(meal) });
-  const result = await callFn("/addMeal", { dateISO, meal: entry });
+  const result = (await callFn("/addMeal", { dateISO, meal: entry })) as {
+    totals?: any;
+    meal?: any;
+  };
   return result;
 }
 

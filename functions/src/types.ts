@@ -104,6 +104,8 @@ export interface MealServingSelection {
 export interface MealRecord {
   id: string;
   name: string;
+  /** Optional diary grouping bucket. Backward compatible (older entries omit). */
+  mealType?: "breakfast" | "lunch" | "dinner" | "snacks" | string;
   protein?: number;
   carbs?: number;
   fat?: number;
