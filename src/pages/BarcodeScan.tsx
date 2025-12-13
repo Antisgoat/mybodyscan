@@ -548,10 +548,10 @@ export default function BarcodeScan() {
                   {item.brand || item.source}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {item.per_serving.kcal ?? "—"} kcal •{" "}
-                  {item.per_serving.protein_g ?? "—"}g P •{" "}
-                  {item.per_serving.carbs_g ?? "—"}g C •
-                  {item.per_serving.fat_g ?? "—"}g F
+                  {item.per_serving?.kcal ?? "—"} kcal •{" "}
+                  {item.per_serving?.protein_g ?? "—"}g P •{" "}
+                  {item.per_serving?.carbs_g ?? "—"}g C •{" "}
+                  {item.per_serving?.fat_g ?? "—"}g F
                 </p>
               </div>
               <ServingEditor
