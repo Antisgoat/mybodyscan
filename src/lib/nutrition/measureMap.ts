@@ -424,15 +424,21 @@ export function fromOFF(raw: any): FoodNormalized {
 }
 
 export function calcMacrosFromGrams(
-  base: FoodNormalized["basePer100g"],
+  base: FoodNormalized["basePer100g"] | null | undefined,
   grams: number
 ): { kcal: number; protein: number; carbs: number; fat: number } {
   const safeGrams = grams > 0 ? grams : 0;
   const factor = safeGrams / 100;
+  // Guardrail: upstream/legacy callers may pass an incomplete `FoodNormalized`.
+  // This function is called during render (ServingChooser), so it must never throw.
+  const kcal = Number((base as any)?.kcal);
+  const protein = Number((base as any)?.protein);
+  const carbs = Number((base as any)?.carbs);
+  const fat = Number((base as any)?.fat);
   return {
-    kcal: round((base.kcal || 0) * factor, 0),
-    protein: round((base.protein || 0) * factor, 1),
-    carbs: round((base.carbs || 0) * factor, 1),
-    fat: round((base.fat || 0) * factor, 1),
+    kcal: round((Number.isFinite(kcal) ? kcal : 0) * factor, 0),
+    protein: round((Number.isFinite(protein) ? protein : 0) * factor, 1),
+    carbs: round((Number.isFinite(carbs) ? carbs : 0) * factor, 1),
+    fat: round((Number.isFinite(fat) ? fat : 0) * factor, 1),
   };
 }
