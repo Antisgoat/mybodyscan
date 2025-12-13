@@ -37,13 +37,13 @@ export type ChatContentPart =
 
 export type ChatContent = string | ChatContentPart[];
 
-type ChatMessage = {
+export type OpenAIChatMessage = {
   role: "system" | "user" | "assistant";
   content: ChatContent;
 };
 
 type ChatRequest = {
-  messages: ChatMessage[];
+  messages: OpenAIChatMessage[];
   temperature?: number;
   maxTokens?: number;
   user?: string;
@@ -150,7 +150,7 @@ function normalizeContent(content: ChatContent): string | ChatContentPart[] {
 }
 
 function normalizeMessages(
-  messages: ChatMessage[]
+  messages: OpenAIChatMessage[]
 ): Array<{ role: string; content: string | ChatContentPart[] }> {
   if (!Array.isArray(messages) || !messages.length) {
     throw new OpenAIClientError("openai_failed", 400, "missing_messages");
@@ -317,6 +317,71 @@ export async function chatOnce(
         opts.requestId
       );
       return result.content;
+    } catch (error) {
+      if (error instanceof InvalidModelError) {
+        console.warn({
+          fn: "openai",
+          event: "model_unavailable",
+          requestId: opts.requestId ?? null,
+          model,
+        });
+        lastError = error;
+        continue;
+      }
+      lastError = error as Error;
+      break;
+    }
+  }
+
+  if (lastError instanceof OpenAIClientError) {
+    throw lastError;
+  }
+
+  throw new OpenAIClientError(
+    "openai_failed",
+    502,
+    lastError instanceof Error ? lastError.message : undefined
+  );
+}
+
+/**
+ * Chat using an explicit message list (for threaded conversations).
+ * - Keeps the same retry/model fallback behavior as `chatOnce`
+ * - Lets callers include prior assistant/user turns for context
+ */
+export async function chatWithMessages(
+  messages: OpenAIChatMessage[],
+  opts: {
+    userId?: string;
+    model?: string;
+    requestId?: string;
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+  } = {}
+): Promise<{ content: string; usage?: ChatResponse["usage"]; model: string }> {
+  const key = resolveOpenAIKey();
+  const models = buildModelList(opts.model);
+  let lastError: OpenAIClientError | Error | null = null;
+
+  for (const model of models) {
+    try {
+      const result = await executeChat(
+        model,
+        key,
+        {
+          messages,
+          user: opts.userId,
+          temperature:
+            typeof opts.temperature === "number"
+              ? opts.temperature
+              : DEFAULT_TEXT_TEMPERATURE,
+          maxTokens: opts.maxTokens ?? 512,
+          timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
+        },
+        opts.requestId
+      );
+      return { content: result.content, usage: result.usage, model };
     } catch (error) {
       if (error instanceof InvalidModelError) {
         console.warn({

@@ -18,7 +18,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:rules": "npm run test --prefix tests/rules",
+    "test:rules": "npm --prefix tests/rules install --no-audit --no-fund --prefer-online && npm run test --prefix tests/rules",
     "emulators": "firebase emulators:start --only firestore,auth,storage,functions --import ./emulator-data --export-on-exit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

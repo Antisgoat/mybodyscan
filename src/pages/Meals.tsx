@@ -8,6 +8,8 @@ import {
   ListPlus,
   Star,
   Trash,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -62,10 +64,11 @@ import { useUnits } from "@/hooks/useUnits";
 import { gramsToOunces, roundGrams } from "@/lib/nutritionMath";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
-const DAILY_TARGET = 2200;
+const DEFAULT_DAILY_TARGET = 2200;
 
 type RecentItem = FoodItem;
 
@@ -111,6 +114,13 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function toLocalISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function toMealType(value: unknown): DiaryMealType {
   const v = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (v === "breakfast" || v === "lunch" || v === "dinner" || v === "snacks") {
@@ -123,6 +133,7 @@ export default function Meals() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
   const { units } = useUnits();
+  const { plan } = useUserProfile();
   const uid = authReady ? (user?.uid ?? null) : null;
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
@@ -131,7 +142,8 @@ export default function Meals() {
   const nutritionUnavailable = nutritionConfigured === false;
   const nutritionOfflineMessage =
     "Nutrition search is offline until nutrition API keys or rate limits are configured.";
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const dateISO = useMemo(() => toLocalISODate(selectedDate), [selectedDate]);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>
     demo
       ? {
@@ -177,7 +189,7 @@ export default function Meals() {
       return;
     }
     setLoading(true);
-    getDailyLog(todayISO)
+    getDailyLog(dateISO)
       .then((data: any) => {
         if (!data || typeof data !== "object") {
           setLog({ totals: { calories: 0 }, meals: [] });
@@ -195,19 +207,19 @@ export default function Meals() {
         setLog({ totals: { calories: 0 }, meals: [] });
       })
       .finally(() => setLoading(false));
-  }, [demo, todayISO]);
+  }, [demo, dateISO]);
 
   const refreshHistory = useCallback(() => {
     if (demo) {
       setHistory7(DEMO_NUTRITION_HISTORY);
       return;
     }
-    getNutritionHistory(7)
+    getNutritionHistory(7, dateISO)
       .then((items) => {
         setHistory7(Array.isArray(items) ? items : []);
       })
       .catch(() => setHistory7([]));
-  }, [demo]);
+  }, [demo, dateISO]);
 
   useEffect(() => {
     refreshLog();
@@ -334,7 +346,7 @@ export default function Meals() {
 
     setProcessing(true);
     try {
-      const result = await addMeal(todayISO, { ...meal, entrySource: "search" });
+      const result = await addMeal(dateISO, { ...meal, entrySource: "search" });
       toast({ title: "Meal logged", description: `${editorItem.name} added` });
       updateRecents(editorItem);
       applyAddResult(result);
@@ -359,7 +371,7 @@ export default function Meals() {
     }
     setProcessing(true);
     try {
-      const result = await deleteMeal(todayISO, mealId);
+      const result = await deleteMeal(dateISO, mealId);
       toast({ title: "Meal removed" });
       setLog((prev) => ({
         ...prev,
@@ -384,9 +396,9 @@ export default function Meals() {
       return;
     }
     try {
-      const yesterday = new Date(Date.now() - 86400000)
-        .toISOString()
-        .slice(0, 10);
+      const yesterdayDate = new Date(selectedDate);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterday = toLocalISODate(yesterdayDate);
       const prior = await getDailyLog(yesterday);
       if (!prior.meals.length) {
         toast({ title: "No meals yesterday", description: "Nothing to copy." });
@@ -394,7 +406,7 @@ export default function Meals() {
       }
       setProcessing(true);
       for (const meal of prior.meals) {
-        await addMeal(todayISO, { ...meal, id: undefined });
+        await addMeal(dateISO, { ...meal, id: undefined });
       }
       toast({ title: "Copied", description: "Yesterday's meals added" });
       refreshLog();
@@ -438,7 +450,7 @@ export default function Meals() {
         typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
           ? crypto.randomUUID()
           : `meal-${Math.random().toString(36).slice(2, 10)}`;
-      const result = await addMeal(todayISO, {
+      const result = await addMeal(dateISO, {
         id,
         name: "Quick add",
         mealType: quickAddType,
@@ -546,7 +558,7 @@ export default function Meals() {
         const item = entry.item as FoodItem;
         const result = calculateSelection(item, qty, unit);
         const meal = buildMealEntry(item, qty, unit, result, "template");
-        await addMeal(todayISO, meal);
+        await addMeal(dateISO, meal);
         updateRecents(item);
       }
       toast({ title: "Template applied", description: template.name });
@@ -588,8 +600,34 @@ export default function Meals() {
     }
   };
 
-  const totalCalories = log.totals.calories || 0;
-  const ringProgress = Math.min(1, totalCalories / DAILY_TARGET);
+  const targetCalories =
+    typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)
+      ? plan.calorieTarget
+      : DEFAULT_DAILY_TARGET;
+  const targetProtein =
+    typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)
+      ? plan.proteinFloor
+      : 140;
+  // Derive carb/fat targets when explicit targets aren't stored yet.
+  const targetFat = Math.max(0, Math.round((targetCalories * 0.25) / 9));
+  const targetCarbs = Math.max(
+    0,
+    Math.round((targetCalories - targetProtein * 4 - targetFat * 9) / 4)
+  );
+
+  const consumedCalories = safeNumber(log.totals?.calories);
+  const consumedProtein = safeNumber(log.totals?.protein);
+  const consumedCarbs = safeNumber(log.totals?.carbs);
+  const consumedFat = safeNumber(log.totals?.fat);
+  const exerciseCalories = 0;
+  const remainingCalories = Math.round(
+    Math.max(0, targetCalories - consumedCalories + exerciseCalories)
+  );
+
+  const ringProgress = Math.min(
+    1,
+    targetCalories > 0 ? consumedCalories / targetCalories : 0
+  );
   const ringCircumference = 2 * Math.PI * 54;
 
   const chartData = history7.map((day) => ({
@@ -615,9 +653,43 @@ export default function Meals() {
           <h1 className="text-3xl font-semibold text-foreground">
             Diary
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Today • {todayISO}
-          </p>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(d);
+              }}
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="font-medium text-foreground">{dateISO}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(d);
+              }}
+              aria-label="Next day"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedDate(new Date())}
+            >
+              Today
+            </Button>
+          </div>
         </div>
 
         {nutritionUnavailable && (
@@ -662,23 +734,16 @@ export default function Meals() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="rounded-md border p-4">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Calories
+                Calories remaining
               </div>
               <div className="mt-1 text-3xl font-semibold">
-                {Math.round(safeNumber(log.totals?.calories))}
+                {remainingCalories.toLocaleString()}
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
-                P {Math.round(safeNumber(log.totals?.protein))}g · C{" "}
-                {Math.round(safeNumber(log.totals?.carbs))}g · F{" "}
-                {Math.round(safeNumber(log.totals?.fat))}g
-              </div>
-            </div>
-            <div className="rounded-md border p-4">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Goal
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Target {DAILY_TARGET} kcal · {units === "metric" ? "Metric" : "US"} units
+                Goal {targetCalories.toLocaleString()} - Food{" "}
+                {Math.round(consumedCalories).toLocaleString()} + Exercise{" "}
+                {exerciseCalories} = Remaining{" "}
+                {remainingCalories.toLocaleString()}
               </div>
               <div className="mt-3 h-2 w-full overflow-hidden rounded bg-muted">
                 <div
@@ -689,16 +754,88 @@ export default function Meals() {
                 />
               </div>
             </div>
+            <div className="rounded-md border p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Macros
+              </div>
+              <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Protein</span>
+                  <span>
+                    {Math.round(consumedProtein)} / {Math.round(targetProtein)} g
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded bg-muted">
+                  <div
+                    className="h-full bg-primary/80 transition-all"
+                    style={{
+                      width: `${
+                        targetProtein > 0
+                          ? Math.min(100, (consumedProtein / targetProtein) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Carbs</span>
+                  <span>
+                    {Math.round(consumedCarbs)} / {Math.round(targetCarbs)} g
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded bg-muted">
+                  <div
+                    className="h-full bg-primary/80 transition-all"
+                    style={{
+                      width: `${
+                        targetCarbs > 0
+                          ? Math.min(100, (consumedCarbs / targetCarbs) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Fat</span>
+                  <span>
+                    {Math.round(consumedFat)} / {Math.round(targetFat)} g
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded bg-muted">
+                  <div
+                    className="h-full bg-primary/80 transition-all"
+                    style={{
+                      width: `${
+                        targetFat > 0
+                          ? Math.min(100, (consumedFat / targetFat) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Units: {units === "metric" ? "Metric" : "US"}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-4">
           {MEAL_TYPES.map((type) => {
             const items = mealsByType[type] ?? [];
+            const mealCalories = Math.round(
+              items.reduce((sum, meal) => sum + safeNumber((meal as any)?.calories), 0)
+            );
             return (
               <Card key={type} className="border bg-card/60">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">{MEAL_LABELS[type]}</CardTitle>
+                  <CardTitle className="text-base">
+                    {MEAL_LABELS[type]}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      • {mealCalories} kcal
+                    </span>
+                  </CardTitle>
                   <Button
                     size="sm"
                     onClick={() => openAddDialog(type)}
@@ -711,7 +848,7 @@ export default function Meals() {
                           : undefined
                     }
                   >
-                    <Plus className="mr-1 h-4 w-4" /> Add
+                    <Plus className="mr-1 h-4 w-4" /> Add food
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -824,7 +961,7 @@ export default function Meals() {
                 </text>
               </svg>
               <p className="text-xs text-muted-foreground">
-                Target {DAILY_TARGET} kcal
+                Target {targetCalories} kcal
               </p>
             </div>
             <div className="space-y-3 text-sm">

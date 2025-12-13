@@ -5,6 +5,8 @@ import { functions } from "@/lib/firebase";
 
 export interface CoachChatRequest {
   message: string;
+  threadId?: string;
+  messageId?: string;
   goalType?: string;
   goalWeight?: number;
   currentWeight?: number;
@@ -26,11 +28,15 @@ export interface CoachChatResponse {
   metadata?: CoachChatMetadata;
   suggestions?: string[];
   debugId?: string;
+  threadId?: string;
+  assistantMessageId?: string;
 }
 
 type CoachChatCallableResponse = {
   reply?: string;
   suggestions?: unknown;
+  threadId?: string;
+  assistantMessageId?: string;
   meta?: {
     debugId?: string;
     metadata?: CoachChatMetadata;
@@ -113,6 +119,11 @@ export async function coachChatApi(
       metadata,
       suggestions,
       debugId,
+      threadId: typeof data?.threadId === "string" ? data.threadId : undefined,
+      assistantMessageId:
+        typeof data?.assistantMessageId === "string"
+          ? data.assistantMessageId
+          : undefined,
     };
   } catch (error) {
     throw normalizeError(error);

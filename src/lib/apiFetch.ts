@@ -28,6 +28,15 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
     console.warn("apiFetch.token_failed", error);
   }
 
+  // Server uses this to normalize "day" boundaries for diary/history queries.
+  if (!headers.has("x-tz-offset-mins")) {
+    try {
+      headers.set("x-tz-offset-mins", String(new Date().getTimezoneOffset()));
+    } catch {
+      // ignore
+    }
+  }
+
   const appCheckHeaders = await getAppCheckTokenHeader();
   Object.entries(appCheckHeaders).forEach(([key, value]) => {
     headers.set(key, value);
@@ -37,7 +46,14 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   // Default to same-origin credentials. Cross-origin requests (e.g. Functions
   // direct URLs) should not force credentialed mode, which can trigger CORS
   // failures in Safari.
-  return fetch(url, { ...init, headers, credentials: "same-origin" });
+  try {
+    return await fetch(url, { ...init, headers, credentials: "same-origin" });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("api_fetch_failed", { url, error });
+    }
+    throw error;
+  }
 }
 
 export async function apiFetchJson<T = any>(
@@ -55,7 +71,27 @@ export async function apiFetchJson<T = any>(
       typeof payload === "string"
         ? payload
         : payload?.error || `HTTP ${response.status}`;
-    const error = new Error(message);
+    const url =
+      typeof input === "string"
+        ? normalizeUrl(input)
+        : typeof (input as any)?.url === "string"
+          ? (input as any).url
+          : "unknown";
+    const error = new Error(message) as Error & {
+      status?: number;
+      url?: string;
+      payload?: unknown;
+    };
+    error.status = response.status;
+    error.url = url;
+    error.payload = payload;
+    if (import.meta.env.DEV) {
+      console.warn("api_http_error", {
+        url,
+        status: response.status,
+        payload,
+      });
+    }
     if (
       payload &&
       typeof payload === "object" &&

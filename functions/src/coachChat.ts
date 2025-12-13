@@ -2,16 +2,26 @@ import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { getAuth } from "./firebase.js";
-import { chatOnce, OpenAIClientError } from "./openai/client.js";
+import { FieldValue, getAuth, getFirestore } from "./firebase.js";
+import {
+  chatOnce,
+  chatWithMessages,
+  type OpenAIChatMessage,
+  OpenAIClientError,
+} from "./openai/client.js";
 import { identifierFromRequest } from "./http/_middleware.js";
 import {
   ensureSoftAppCheckFromCallable,
   ensureSoftAppCheckFromRequest,
 } from "./lib/appCheckSoft.js";
+import { scrubUndefined } from "./lib/scrub.js";
 
 export interface CoachChatRequest {
   message: string;
+  /** Optional thread support (ChatGPT-style). */
+  threadId?: string;
+  /** Optional deterministic message id written client-side (for dedupe). */
+  messageId?: string;
   goalType?: string;
   goalWeight?: number;
   currentWeight?: number;
@@ -30,6 +40,8 @@ interface CoachChatMetadata {
 export interface CoachChatResponsePayload {
   reply: string;
   suggestions?: string[];
+  threadId?: string;
+  assistantMessageId?: string;
   meta?: {
     debugId: string;
     metadata?: CoachChatMetadata;
@@ -43,6 +55,15 @@ type RequestContext = {
   identifier: string;
   requestId: string;
 };
+
+type ThreadMessage = {
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: FirebaseFirestore.Timestamp | null;
+};
+
+const db = getFirestore();
+const THREADS_COLLECTION = "coachThreads";
 
 function sanitizeMessage(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -75,6 +96,14 @@ function normalizePayload(data: unknown): CoachChatRequest {
   ) as Partial<CoachChatRequest>;
   return {
     message: sanitizeMessage(payload.message),
+    threadId:
+      typeof payload.threadId === "string" && payload.threadId.trim().length
+        ? payload.threadId.trim().slice(0, 120)
+        : undefined,
+    messageId:
+      typeof payload.messageId === "string" && payload.messageId.trim().length
+        ? payload.messageId.trim().slice(0, 120)
+        : undefined,
     goalType: sanitizeMessage(payload.goalType),
     goalWeight: toNumber(payload.goalWeight),
     currentWeight: toNumber(payload.currentWeight),
@@ -114,6 +143,31 @@ function buildPrompt(input: CoachChatRequest): string {
     'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.'
   );
   return lines.join("\n");
+}
+
+function buildContextLines(input: CoachChatRequest): string[] {
+  const context: string[] = [];
+  if (input.goalType) context.push(`Goal focus: ${input.goalType}`);
+  if (input.currentWeight) context.push(`Current weight: ${input.currentWeight} kg`);
+  if (input.goalWeight) context.push(`Goal weight: ${input.goalWeight} kg`);
+  if (input.heightCm) context.push(`Height: ${input.heightCm} cm`);
+  if (input.sex) context.push(`Sex: ${input.sex}`);
+  if (input.age) context.push(`Age: ${input.age}`);
+  if (input.activityLevel) context.push(`Activity level: ${input.activityLevel}`);
+  return context;
+}
+
+function buildThreadUserContent(input: CoachChatRequest): string {
+  const lines: string[] = [];
+  lines.push("User message:");
+  lines.push(input.message);
+  const context = buildContextLines(input);
+  if (context.length) {
+    lines.push("");
+    lines.push("Context:");
+    lines.push(...context);
+  }
+  return lines.join("\n").trim();
 }
 
 function parseMetadataLine(source: string): {
@@ -195,6 +249,192 @@ async function generateCoachResponse(
       debugId: context.requestId,
       metadata,
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    },
+  };
+}
+
+async function loadThreadHistory(uid: string, threadId: string, limitN = 18) {
+  const ref = db
+    .collection(`users/${uid}/${THREADS_COLLECTION}/${threadId}/messages`)
+    .orderBy("createdAt", "desc")
+    .limit(Math.max(1, Math.min(limitN, 30)));
+  const snap = await ref.get();
+  const items: ThreadMessage[] = snap.docs
+    .map((doc) => doc.data() as ThreadMessage)
+    .filter(
+      (msg) =>
+        msg &&
+        (msg.role === "user" || msg.role === "assistant") &&
+        typeof msg.content === "string" &&
+        msg.content.trim().length > 0
+    );
+  return items.reverse();
+}
+
+function threadMessagesToOpenAI(
+  history: ThreadMessage[],
+  nextUserContent: string
+): OpenAIChatMessage[] {
+  const messages: OpenAIChatMessage[] = [
+    {
+      role: "system",
+      content:
+        "You are MyBodyScan's virtual coach. Respond with concise, motivational guidance in under 150 words. Avoid medical advice.\n" +
+        'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.',
+    },
+  ];
+
+  history.forEach((msg) => {
+    messages.push({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.content.trim(),
+    });
+  });
+
+  messages.push({ role: "user", content: nextUserContent });
+  return messages;
+}
+
+async function ensureThread(uid: string, threadId: string) {
+  const ref = db.doc(`users/${uid}/${THREADS_COLLECTION}/${threadId}`);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    await ref.set(
+      scrubUndefined({
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        status: "active",
+      }),
+      { merge: true }
+    );
+  } else {
+    await ref.set(
+      scrubUndefined({ updatedAt: FieldValue.serverTimestamp() }),
+      { merge: true }
+    );
+  }
+  return ref;
+}
+
+async function upsertUserMessage(params: {
+  uid: string;
+  threadId: string;
+  messageId: string;
+  content: string;
+}) {
+  const ref = db.doc(
+    `users/${params.uid}/${THREADS_COLLECTION}/${params.threadId}/messages/${params.messageId}`
+  );
+  await ref.set(
+    scrubUndefined({
+      role: "user",
+      content: params.content,
+      createdAt: FieldValue.serverTimestamp(),
+    }),
+    { merge: true }
+  );
+  return ref;
+}
+
+async function writeAssistantMessage(params: {
+  uid: string;
+  threadId: string;
+  content: string;
+  suggestions?: string[];
+  meta: {
+    requestId: string;
+    model: string;
+    tokens?: number;
+    metadata?: CoachChatMetadata;
+  };
+}) {
+  const id = randomUUID();
+  const ref = db.doc(
+    `users/${params.uid}/${THREADS_COLLECTION}/${params.threadId}/messages/${id}`
+  );
+  await ref.set(
+    scrubUndefined({
+      role: "assistant",
+      content: params.content,
+      createdAt: FieldValue.serverTimestamp(),
+      suggestions: params.suggestions,
+      meta: scrubUndefined({
+        debugId: params.meta.requestId,
+        model: params.meta.model,
+        tokens: params.meta.tokens,
+        metadata: params.meta.metadata,
+      }),
+    }),
+    { merge: true }
+  );
+  return { id, ref };
+}
+
+async function generateCoachResponseForThread(
+  payload: CoachChatRequest,
+  context: RequestContext,
+  threadId: string
+): Promise<CoachChatResponsePayload> {
+  if (!context.uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+
+  await ensureThread(context.uid, threadId);
+
+  // Load recent history first, then append the current user message content so
+  // we don't depend on serverTimestamp propagation for context building.
+  const history = await loadThreadHistory(context.uid, threadId, 18);
+  const nextUserContent = buildThreadUserContent(payload);
+  const messages = threadMessagesToOpenAI(history, nextUserContent);
+
+  const { content, usage, model } = await chatWithMessages(messages, {
+    userId: context.uid,
+    requestId: context.requestId,
+  });
+  const { replyText, metadata } = parseMetadataLine(content);
+
+  const userMessageId = payload.messageId?.trim() || randomUUID();
+  await upsertUserMessage({
+    uid: context.uid,
+    threadId,
+    messageId: userMessageId,
+    content: payload.message,
+  });
+
+  const assistant = await writeAssistantMessage({
+    uid: context.uid,
+    threadId,
+    content: replyText,
+    suggestions: buildSuggestions(metadata),
+    meta: {
+      requestId: context.requestId,
+      model,
+      tokens:
+        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) || undefined,
+      metadata,
+    },
+  });
+
+  await db.doc(`users/${context.uid}/${THREADS_COLLECTION}/${threadId}`).set(
+    scrubUndefined({
+      updatedAt: FieldValue.serverTimestamp(),
+      lastMessageAt: FieldValue.serverTimestamp(),
+      lastMessagePreview: replyText.slice(0, 140),
+    }),
+    { merge: true }
+  );
+
+  return {
+    reply: replyText,
+    suggestions: buildSuggestions(metadata),
+    threadId,
+    assistantMessageId: assistant.id,
+    meta: {
+      debugId: context.requestId,
+      metadata,
+      model,
+      tokens:
+        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) || undefined,
     },
   };
 }
@@ -311,11 +551,15 @@ export const coachChat = onCall<CoachChatRequest>(
 
     const identifier = identifierFromRequest(request.rawRequest as Request);
     try {
-      return await generateCoachResponse(payload, {
+      const ctx: RequestContext = {
         uid: request.auth?.uid ?? null,
         identifier,
         requestId,
-      });
+      };
+      if (payload.threadId) {
+        return await generateCoachResponseForThread(payload, ctx, payload.threadId);
+      }
+      return await generateCoachResponse(payload, ctx);
     } catch (error) {
       logger.error("coachChat.callable.failed", {
         requestId,
@@ -363,11 +607,10 @@ export async function coachChatHandler(
   await ensureSoftAppCheckFromRequest(req, { fn: "coachChat", uid, requestId });
 
   try {
-    const response = await generateCoachResponse(payload, {
-      uid,
-      identifier,
-      requestId,
-    });
+    const ctx: RequestContext = { uid, identifier, requestId };
+    const response = payload.threadId
+      ? await generateCoachResponseForThread(payload, ctx, payload.threadId)
+      : await generateCoachResponse(payload, ctx);
     res.status(200).json(response);
   } catch (error) {
     const mapped = toHttpsError(error, requestId);

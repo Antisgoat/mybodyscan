@@ -8,6 +8,7 @@ import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { resizeImageFile } from "@/features/scan/resizeImage";
 import {
   ref,
   uploadBytesResumable,
@@ -501,9 +502,38 @@ export async function submitScanClient(
     };
   let uploadsCompleted = false;
   try {
+    // Preprocess photos (mobile Safari uploads are slower + progress is janky with huge images).
+    // If anything fails, we fall back to the original file for that pose.
+    const processedPhotos = await Promise.all(
+      (Object.keys(params.photos) as Array<keyof typeof params.photos>).map(
+        async (pose) => {
+          const original = params.photos[pose];
+          const blob = await resizeImageFile(original, 1600, 0.9);
+          try {
+            const type = blob.type || original.type || "image/jpeg";
+            const name = original.name || `${pose}.jpg`;
+            return [
+              pose,
+              new File([blob], name, { type }),
+            ] as const;
+          } catch {
+            // Older browsers can fail `new File(...)`; keep original.
+            return [pose, original] as const;
+          }
+        }
+      )
+    );
+    const photos = processedPhotos.reduce(
+      (acc, [pose, file]) => {
+        (acc as any)[pose] = file;
+        return acc;
+      },
+      { ...params.photos } as typeof params.photos
+    );
+
     const validated = validateScanUploadInputs({
       storagePaths: params.storagePaths,
-      photos: params.photos,
+      photos,
     });
     if (!validated.ok) return validated;
     const uploadTargets = validated.data.uploadTargets;

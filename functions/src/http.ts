@@ -10,12 +10,15 @@ import {
 
 const ALLOW = [
   "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:4173",
   "http://127.0.0.1:4173",
+  "capacitor://localhost",
+  "ionic://localhost",
 ];
 
 const express = expressModule as any;
