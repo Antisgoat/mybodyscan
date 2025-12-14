@@ -120,6 +120,9 @@ export function useCoachTodayAtAGlance() {
         }
         const bodyFatPercent = (() => {
           const n =
+            // Canonical scan output shape: users/{uid}/scans/{scanId}.estimate.bodyFatPercent
+            safeNum(data?.estimate?.bodyFatPercent) ||
+            // Backward/legacy fallbacks.
             safeNum(data?.bodyFatPercentage) ||
             safeNum(data?.body_fat) ||
             safeNum(data?.bodyfat);

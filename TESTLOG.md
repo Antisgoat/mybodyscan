@@ -66,33 +66,44 @@ Manual checks for this PR
 
 - ✅ `npm run build`
 - ✅ `npm run typecheck`
-- ✅ Firestore rules tests (local emulator): `npx firebase emulators:exec --only firestore "npm run test --prefix tests/rules"`
-- ✅ Coach “Today at a glance” panel added on `/coach` and verified builds cleanly.
-- ✅ Coach chat now sends optional “today context” (nutrition totals + plan goals + last scan) and backend merges/auto-fills context without failing requests.
-- ✅ Firestore rules updated to allow per-user workout session logs (`users/{uid}/workoutLogs/*`) used by `/coach/day`.
-- ✅ `applyCatalogPlan` hardened to be idempotent on fast retries/double-clicks (reuses active catalog plan when appropriate).
+- ✅ `npm --prefix functions run build`
+- ✅ `npm run rules:check` (rules are synced; deploy uses `database.rules.json` via `firebase.json`)
+- ✅ Meals targets now come from a shared `nutritionGoals` helper (consistent across Scan/Meals/Coach).
+- ✅ Scan results page (`/scan/:scanId`) upgraded to an Evolt-style report layout (body comp cards, gauges, nutrition panel, recommendations).
+- ✅ Scan processing (`submitScan`) now stores deterministic nutrition targets (aligned with Meals) and persists scan-time recommendations so the result page does not call OpenAI again.
 
 Manual verification (requires a real Firebase project + browser runtime):
 
-1. Auth
-   - [ ] Sign in with email + password.
-   - [ ] Sign out and sign back in.
-2. Coach
+1. Auth & config
+   - [ ] Sign in from `https://mybodyscanapp.com` (email/password).
+   - [ ] Sign in from the Firebase Hosting URL.
+   - [ ] No red “Missing Firebase config keys: appId” banners in normal production config.
+   - [ ] IdentityToolkit `clientConfig` warnings (404/403) are informational only; sign-in still works (authorized domains configured in console).
+2. Scan flow (end-to-end)
+   - [ ] Go to `/scan`, complete the capture flow, and finalize upload (see real progress during upload).
+   - [ ] Confirm all 4 images land in Storage under `user_uploads/{uid}/{scanId}/`.
+   - [ ] Confirm `submitScan` transitions `users/{uid}/scans/{scanId}` from `pending → processing → complete` (or `error` with a message).
+   - [ ] Confirm redirect to `/scan/:scanId` and the report renders an Evolt-style layout:
+     - Header + profile info (height/weight/age/sex/goal).
+     - Body composition cards (LBM, SMM estimate, BF%, BF mass, TBW estimate, BMR/TDEE).
+     - “Body age” and “Body score” gauges.
+     - “Your nutrition” panel (Calories + macros) matches Meals targets exactly.
+     - “Coach recommendations” shows stored bullets (no extra OpenAI calls).
+     - If a previous scan exists, deltas appear.
+3. Meals (MyFitnessPal-style stability)
+   - [ ] `/meals` loads without crashing and shows Today summary (Consumed / Goal / Remaining + macro bars).
+   - [ ] Add foods via search (`/meals/search`) and ensure totals update.
+   - [ ] Favorites/templates use valid paths (`users/{uid}/nutritionFavorites`, `users/{uid}/nutritionTemplates`) and don’t throw permission errors.
+   - [ ] No `ReferenceError: Can't find variable: totalCalories`.
+4. Coach chat + permissions
+   - [ ] `/coach` shows “Today at a glance” (calories/macros/last scan + workouts this week).
    - [ ] `/coach/chat` loads without crashes.
    - [ ] No Firestore `permission-denied` errors for `users/{uid}/coachThreads/*`.
-   - [ ] Start a new chat, send a message, and see an AI response (via `coachChat`).
-3. Programs
+   - [ ] Create a new thread, send a message, and receive a reply (via `coachChat`).
+5. Programs / workouts
    - [ ] `/programs` and `/programs/:id` load without error toasts.
-   - [ ] “Start program” activates a plan via `/applyCatalogPlan` and redirects to `/workouts?plan=...&started=1`.
+   - [ ] “Start program” activates via `/applyCatalogPlan` and redirects to `/workouts?plan=...&started=1`.
    - [ ] No `documentPath must point to a document` errors.
-4. Meals
-   - [ ] `/meals` loads without the route error boundary.
-   - [ ] Daily progress ring renders calories/macros (0-safe while loading).
-   - [ ] Logging foods updates totals.
-   - [ ] No `Can't find variable: totalCalories` errors.
-5. Scans
-   - [ ] Start → upload → submit scan works end-to-end.
-   - [ ] Results page loads without crashes and shows metrics + plan.
 6. General
-   - [ ] No unhandled exceptions in console on the main flows.
-   - [ ] No Firestore `permission-denied` errors for a valid signed-in user.
+   - [ ] No unhandled exceptions in console across Scan/Meals/Coach/Programs.
+   - [ ] No unexpected Firestore `permission-denied` errors for a valid signed-in user.

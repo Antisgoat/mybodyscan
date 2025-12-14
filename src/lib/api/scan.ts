@@ -67,6 +67,7 @@ export type ScanDocument = {
     | "failed"
     | "error";
   errorMessage?: string | null;
+  recommendations?: string[] | null;
   photoPaths: {
     front: string;
     back: string;
@@ -158,6 +159,12 @@ function toScanDocument(
     status: (data.status as ScanDocument["status"]) ?? "pending",
     errorMessage:
       typeof data.errorMessage === "string" ? data.errorMessage : null,
+    recommendations: Array.isArray((data as any).recommendations)
+      ? ((data as any).recommendations
+          .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+          .filter((v: string) => v.length > 0)
+          .slice(0, 8) as string[])
+      : null,
     photoPaths:
       fallbackPaths ??
       ({

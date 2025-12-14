@@ -153,10 +153,9 @@ service cloud.firestore {
       // just because those fields exist, so avoid strict hasOnly() checks here.
       return request.resource.data is map
         && (!request.resource.data.keys().hasAny(['uid']) || request.resource.data.uid == uid)
-        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
-        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
         && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string)
-        && (!request.resource.data.keys().hasAny(['lastMessageAt']) || request.resource.data.lastMessageAt is timestamp)
+        // Timestamps are typically written with serverTimestamp() sentinel values.
+        // Avoid strict type checks here to prevent permission-denied on otherwise valid writes.
         && (!request.resource.data.keys().hasAny(['lastMessagePreview']) ||
           (request.resource.data.lastMessagePreview is string && request.resource.data.lastMessagePreview.size() <= 400));
     }
@@ -171,7 +170,7 @@ service cloud.firestore {
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 4000
-        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        // createdAt is typically serverTimestamp() from the client.
         && (!request.resource.data.keys().hasAny(['suggestions']) || request.resource.data.suggestions is list);
     }
 

@@ -65,6 +65,7 @@ import { gramsToOunces, roundGrams } from "@/lib/nutritionMath";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -133,7 +134,7 @@ export default function Meals() {
   const demo = useDemoMode();
   const { user, authReady } = useAuthUser();
   const { units } = useUnits();
-  const { plan } = useUserProfile();
+  const { plan, profile } = useUserProfile();
   const uid = authReady ? (user?.uid ?? null) : null;
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
@@ -600,20 +601,29 @@ export default function Meals() {
     }
   };
 
-  const targetCalories =
-    typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)
-      ? plan.calorieTarget
-      : DEFAULT_DAILY_TARGET;
-  const targetProtein =
-    typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)
-      ? plan.proteinFloor
-      : 140;
-  // Derive carb/fat targets when explicit targets aren't stored yet.
-  const targetFat = Math.max(0, Math.round((targetCalories * 0.25) / 9));
-  const targetCarbs = Math.max(
-    0,
-    Math.round((targetCalories - targetProtein * 4 - targetFat * 9) / 4)
-  );
+  const computedGoals = useMemo(() => {
+    // Use persisted plan targets when available, but always derive a full macro set
+    // (carbs/fat) deterministically so all pages agree.
+    const overrides: { calories?: number; proteinGrams?: number } = {};
+    if (typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)) {
+      overrides.calories = plan.calorieTarget;
+    }
+    if (typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)) {
+      overrides.proteinGrams = plan.proteinFloor;
+    }
+    return deriveNutritionGoals({
+      weightKg: profile?.weight_kg ?? null,
+      goalWeightKg: undefined,
+      goal: profile?.goal === "lose_fat" ? "lose_fat" : profile?.goal === "gain_muscle" ? "gain_muscle" : null,
+      activityLevel: profile?.activity_level ?? null,
+      overrides,
+    });
+  }, [plan?.calorieTarget, plan?.proteinFloor, profile?.activity_level, profile?.goal, profile?.weight_kg]);
+
+  const targetCalories = computedGoals.calories || DEFAULT_DAILY_TARGET;
+  const targetProtein = computedGoals.proteinGrams || 140;
+  const targetCarbs = computedGoals.carbsGrams || 0;
+  const targetFat = computedGoals.fatGrams || 0;
 
   const consumedCalories = safeNumber(log.totals?.calories);
   const consumedProtein = safeNumber(log.totals?.protein);
