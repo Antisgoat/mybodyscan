@@ -296,6 +296,14 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Workout session logs written directly by the client Coach Day UI.
+      // Stored separately from workoutPlans progress so users can review recent performance.
+      match /workoutLogs/{logId} {
+        allow read: if isOwner(uid);
+        allow create: if !isDemoUser() && isOwner(uid);
+        allow update, delete: if false;
+      }
+
       match /nutritionLogs/{day} {
         allow read: if isOwner(uid);
         allow create: if !isDemoUser() && isOwner(uid) && isValidClientNutritionWrite();

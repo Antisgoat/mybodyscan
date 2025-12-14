@@ -69,6 +69,8 @@ Manual checks for this PR
 - ✅ Firestore rules tests (local emulator): `npx firebase emulators:exec --only firestore "npm run test --prefix tests/rules"`
 - ✅ Coach “Today at a glance” panel added on `/coach` and verified builds cleanly.
 - ✅ Coach chat now sends optional “today context” (nutrition totals + plan goals + last scan) and backend merges/auto-fills context without failing requests.
+- ✅ Firestore rules updated to allow per-user workout session logs (`users/{uid}/workoutLogs/*`) used by `/coach/day`.
+- ✅ `applyCatalogPlan` hardened to be idempotent on fast retries/double-clicks (reuses active catalog plan when appropriate).
 
 Manual verification (requires a real Firebase project + browser runtime):
 
