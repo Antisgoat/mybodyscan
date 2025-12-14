@@ -3,10 +3,26 @@ import { httpsCallable } from "firebase/functions";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
 
+export type CoachChatContext = {
+  todayCalories?: number;
+  todayCaloriesGoal?: number;
+  todayProteinGrams?: number;
+  todayCarbGrams?: number;
+  todayFatGrams?: number;
+  todayProteinGoalGrams?: number;
+  todayCarbGoalGrams?: number;
+  todayFatGoalGrams?: number;
+  lastScanDate?: string;
+  lastScanBodyFatPercent?: number;
+  nextWorkoutDayName?: string;
+};
+
 export interface CoachChatRequest {
   message: string;
   threadId?: string;
   messageId?: string;
+  context?: CoachChatContext;
+  // Legacy optional fields for older clients.
   goalType?: string;
   goalWeight?: number;
   currentWeight?: number;

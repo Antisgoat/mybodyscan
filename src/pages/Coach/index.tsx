@@ -35,6 +35,8 @@ import { disabledIfDemo } from "@/lib/demoGuard";
 import { useAuthUser } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
+import { formatDistanceToNow } from "date-fns";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -83,6 +85,9 @@ export default function CoachOverview() {
   const { disabled: demoDisabled, title: demoTitle } = disabledIfDemo();
   const readOnlyDemo = demo && !user;
   const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+  const { totals, latestScan } = useCoachTodayAtAGlance();
+  const todayCaloriesGoal = profile?.calorieTarget;
+  const todayProteinGoalGrams = profile?.proteinFloor;
 
   useEffect(() => {
     let isMounted = true;
@@ -284,6 +289,47 @@ export default function CoachOverview() {
       >
         <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
           <NotMedicalAdviceBanner />
+          <Card className="border bg-card/60">
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-lg">Today at a glance</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Real-time totals from today’s log.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Today’s calories</span>
+                <span className="font-medium">
+                  {Math.round(totals.calories)}{" "}
+                  {typeof todayCaloriesGoal === "number" && todayCaloriesGoal > 0
+                    ? ` / Goal ${Math.round(todayCaloriesGoal)}`
+                    : "/ Goal —"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-muted-foreground">Macros</span>
+                <span className="font-medium">
+                  Protein: {Math.round(totals.proteinGrams)}g
+                  {typeof todayProteinGoalGrams === "number" &&
+                  todayProteinGoalGrams > 0
+                    ? ` (Goal ${Math.round(todayProteinGoalGrams)}g)`
+                    : ""}
+                  {" · "}Carbs: {Math.round(totals.carbGrams)}g{" · "}Fat:{" "}
+                  {Math.round(totals.fatGrams)}g
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Last scan</span>
+                <span className="font-medium">
+                  {latestScan?.createdAt
+                    ? formatDistanceToNow(latestScan.createdAt, {
+                        addSuffix: true,
+                      })
+                    : "No scans yet"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
           {readOnlyDemo && (
             <Alert variant="default" className="border-primary/40 bg-primary/5">
               <AlertTitle>Demo preview</AlertTitle>

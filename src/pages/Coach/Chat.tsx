@@ -41,6 +41,8 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { reportError } from "@/lib/telemetry";
 import { setDoc } from "@/lib/dbWrite";
 import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
+import { toDateOrNull } from "@/lib/time";
+import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 
 declare global {
   interface Window {
@@ -91,24 +93,6 @@ const DEMO_CHAT_MESSAGES: ThreadMessage[] = demoCoach.messages.flatMap(
 );
 
 const sortMessages = sortCoachThreadMessages;
-
-function toDateSafe(value: any, fallback: Date) {
-  try {
-    if (!value) return fallback;
-    if (value instanceof Date) return value;
-    if (typeof value?.toDate === "function") {
-      const d = value.toDate();
-      return d instanceof Date ? d : fallback;
-    }
-    if (typeof value === "string" || typeof value === "number") {
-      const d = new Date(value);
-      return Number.isFinite(d.getTime()) ? d : fallback;
-    }
-    return fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 function isPermissionDenied(err: any) {
   return (
@@ -182,6 +166,7 @@ export default function CoachChatPage() {
           ? "Coach chat is offline until the backend configuration is completed."
           : null;
   const coachAvailable = coachConfigured && !coachPrereqMessage;
+  const { totals, latestScan } = useCoachTodayAtAGlance();
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
@@ -278,8 +263,8 @@ export default function CoachChatPage() {
           const now = new Date();
           const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
             const data = snap.data() as any;
-            const createdAt = toDateSafe(data?.createdAt, now);
-            const updatedAt = toDateSafe(data?.updatedAt, createdAt);
+            const createdAt = toDateOrNull(data?.createdAt) ?? now;
+            const updatedAt = toDateOrNull(data?.updatedAt) ?? createdAt;
             return {
               id: snap.id,
               createdAt,
@@ -380,7 +365,7 @@ export default function CoachChatPage() {
           (snapshot) => {
             const next = snapshot.docs.flatMap((snap) => {
               const data = snap.data() as any;
-              const created = data?.createdAt?.toDate?.() ?? new Date();
+              const created = toDateOrNull(data?.createdAt) ?? new Date();
               const suggestions = Array.isArray(data?.suggestions)
                 ? data.suggestions
                     .map((entry: any) =>
@@ -451,7 +436,7 @@ export default function CoachChatPage() {
         (snapshot) => {
           const next = snapshot.docs.map((snap) => {
             const data = snap.data() as any;
-            const created = data?.createdAt?.toDate?.() ?? new Date();
+            const created = toDateOrNull(data?.createdAt) ?? new Date();
             const role = data?.role === "assistant" ? "assistant" : "user";
             const suggestions = Array.isArray(data?.suggestions)
               ? data.suggestions
@@ -517,32 +502,41 @@ export default function CoachChatPage() {
         ? crypto.randomUUID()
         : `thread-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     try {
-      await setDoc(
-        coachThreadDoc(uid, threadId),
-        {
-          uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          status: "active",
-        } as any,
-        { merge: true } as any
-      );
-    } catch (err: any) {
-      if (isPermissionDenied(err)) {
-        await refreshAuthTokenSoft();
-        await setDoc(
-          coachThreadDoc(uid, threadId),
-          {
-            uid,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            status: "active",
-          } as any,
-          { merge: true } as any
-        );
-      } else {
-        throw err;
+      const payload = {
+        uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: "active",
+      } as any;
+      try {
+        await setDoc(coachThreadDoc(uid, threadId), payload, {
+          merge: true,
+        } as any);
+      } catch (err: any) {
+        if (isPermissionDenied(err)) {
+          await refreshAuthTokenSoft();
+          await setDoc(coachThreadDoc(uid, threadId), payload, {
+            merge: true,
+          } as any);
+        } else {
+          throw err;
+        }
       }
+    } catch (err: any) {
+      console.warn("coachChat.new_thread_failed", err);
+      toast({
+        title: "Unable to start a new chat",
+        description: isPermissionDenied(err)
+          ? "Coach is unavailable — Missing or insufficient permissions."
+          : "Please try again in a moment.",
+        variant: "destructive",
+      });
+      setCoachError(
+        isPermissionDenied(err)
+          ? "Coach unavailable — Missing or insufficient permissions."
+          : "Unable to start a new coach chat."
+      );
+      return;
     }
     setThreads((prev) => [
       {
@@ -685,6 +679,20 @@ export default function CoachChatPage() {
         threadId,
         messageId,
         message: sanitized,
+        // Optional context: keep the client thin by only sending values we already have
+        // (today totals + plan goals + last scan). The server will fill any missing fields.
+        context: demo
+          ? undefined
+          : {
+              todayCalories: totals.calories,
+              todayCaloriesGoal: plan?.calorieTarget,
+              todayProteinGrams: totals.proteinGrams,
+              todayCarbGrams: totals.carbGrams,
+              todayFatGrams: totals.fatGrams,
+              todayProteinGoalGrams: plan?.proteinFloor,
+              lastScanDate: latestScan?.createdAt?.toISOString(),
+              lastScanBodyFatPercent: latestScan?.bodyFatPercent,
+            },
       };
       await coachChatApi(payload);
       setInput("");
