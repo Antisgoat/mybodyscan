@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   doc,
@@ -61,8 +61,8 @@ interface ThreadMessage {
 
 interface ThreadMeta {
   id: string;
-  updatedAt: Date;
-  createdAt: Date;
+  updatedAt?: Date;
+  createdAt?: Date;
   lastMessagePreview?: string | null;
 }
 
@@ -91,6 +91,32 @@ const DEMO_CHAT_MESSAGES: ThreadMessage[] = demoCoach.messages.flatMap(
 );
 
 const sortMessages = sortCoachThreadMessages;
+
+function toDateSafe(value: any, fallback: Date) {
+  try {
+    if (!value) return fallback;
+    if (value instanceof Date) return value;
+    if (typeof value?.toDate === "function") {
+      const d = value.toDate();
+      return d instanceof Date ? d : fallback;
+    }
+    if (typeof value === "string" || typeof value === "number") {
+      const d = new Date(value);
+      return Number.isFinite(d.getTime()) ? d : fallback;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function isPermissionDenied(err: any) {
+  return (
+    err?.code === "permission-denied" ||
+    err?.code === "permission_denied" ||
+    String(err?.code || "").includes("permission-denied")
+  );
+}
 
 function PlanSession({ session }: { session: CoachPlanSession }) {
   return (
@@ -205,6 +231,15 @@ export default function CoachChatPage() {
   const uid = authReady ? (user?.uid ?? null) : null;
   const initializing = !authReady;
   const threadStorageKey = uid ? `mbs_coach_active_thread_v1:${uid}` : null;
+  const refreshAuthTokenSoft = useCallback(async () => {
+    try {
+      if (user && typeof (user as any).getIdToken === "function") {
+        await user.getIdToken(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
 
   useEffect(() => {
     if (demo) {
@@ -230,72 +265,87 @@ export default function CoachChatPage() {
     }
     setHydratingHistory(true);
     let warned = false;
+    let retriedAuth = false;
     const threadsQuery = query(
       coachThreadsCollection(uid),
       orderBy("updatedAt", "desc"),
       limit(20)
     );
+    const subscribe = () =>
+      onSnapshot(
+        threadsQuery,
+        (snapshot) => {
+          const now = new Date();
+          const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
+            const data = snap.data() as any;
+            const createdAt = toDateSafe(data?.createdAt, now);
+            const updatedAt = toDateSafe(data?.updatedAt, createdAt);
+            return {
+              id: snap.id,
+              createdAt,
+              updatedAt,
+              lastMessagePreview:
+                typeof data?.lastMessagePreview === "string"
+                  ? data.lastMessagePreview
+                  : null,
+            };
+          });
 
-    const unsubscribe = onSnapshot(
-      threadsQuery,
-      (snapshot) => {
-        const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
-          const data = snap.data() as any;
-          const createdAt = data?.createdAt?.toDate?.() ?? new Date();
-          const updatedAt = data?.updatedAt?.toDate?.() ?? createdAt;
-          return {
-            id: snap.id,
-            createdAt,
-            updatedAt,
-            lastMessagePreview:
-              typeof data?.lastMessagePreview === "string"
-                ? data.lastMessagePreview
-                : null,
-          };
-        });
+          // If no threads exist yet, fall back to legacy chat history (read-only)
+          // so existing users don't "lose" their stored messages.
+          if (!nextThreads.length) {
+            setThreads([
+              {
+                id: "__legacy",
+                createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+                updatedAt: new Date(),
+                lastMessagePreview: "Previous chats",
+              },
+            ]);
+            setActiveThreadId((prev) => prev ?? "__legacy");
+            setHydratingHistory(false);
+            return;
+          }
 
-        // If no threads exist yet, fall back to legacy chat history (read-only)
-        // so existing users don't "lose" their stored messages.
-        if (!nextThreads.length) {
-          setThreads([
-            {
-              id: "__legacy",
-              createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
-              updatedAt: new Date(),
-              lastMessagePreview: "Previous chats",
-            },
-          ]);
-          setActiveThreadId((prev) => prev ?? "__legacy");
+          setThreads(nextThreads);
           setHydratingHistory(false);
-          return;
-        }
 
-        setThreads(nextThreads);
-        setHydratingHistory(false);
-
-        const stored =
-          threadStorageKey && typeof window !== "undefined"
-            ? window.localStorage.getItem(threadStorageKey)
-            : null;
-        const storedValid = stored && nextThreads.some((t) => t.id === stored);
-        setActiveThreadId((prev) => {
-          if (prev && nextThreads.some((t) => t.id === prev)) return prev;
-          if (storedValid) return stored!;
-          return nextThreads[0]!.id;
-        });
-      },
-      (err) => {
-        console.warn("coachThreads.snapshot_failed", err);
-        setHydratingHistory(false);
-        if (!warned) {
-          warned = true;
-          // Keep this inline (not a scary global toast) so the rest of the page remains usable.
-          setCoachError("Unable to load coach chats. Please try again in a moment.");
+          const stored =
+            threadStorageKey && typeof window !== "undefined"
+              ? window.localStorage.getItem(threadStorageKey)
+              : null;
+          const storedValid = stored && nextThreads.some((t) => t.id === stored);
+          setActiveThreadId((prev) => {
+            if (prev && nextThreads.some((t) => t.id === prev)) return prev;
+            if (storedValid) return stored!;
+            return nextThreads[0]!.id;
+          });
+        },
+        async (err) => {
+          console.warn("coachThreads.snapshot_failed", err);
+          setHydratingHistory(false);
+          if (isPermissionDenied(err) && !retriedAuth) {
+            retriedAuth = true;
+            await refreshAuthTokenSoft();
+            unsubscribe();
+            unsubscribe = subscribe();
+            return;
+          }
+          if (!warned) {
+            warned = true;
+            // Keep this inline (not a scary global toast) so the rest of the page remains usable.
+            setCoachError(
+              isPermissionDenied(err)
+                ? "Coach unavailable — Missing or insufficient permissions."
+                : "Unable to load coach chats. Please try again in a moment."
+            );
+          }
         }
-      }
-    );
+      );
+
+    let unsubscribe = subscribe();
     return () => unsubscribe();
-  }, [authReady, uid, demo, threadStorageKey, toast]);
+  }, [authReady, uid, demo, threadStorageKey, toast, refreshAuthTokenSoft]);
 
   useEffect(() => {
     if (demo) {
@@ -310,6 +360,7 @@ export default function CoachChatPage() {
     // Legacy read-only view (previous schema).
     if (activeThreadId === "__legacy") {
       let warned = false;
+      let retriedAuth = false;
       const chatPath = coachChatCollectionPath(uid);
       if (import.meta.env.DEV) {
         const segmentCount = chatPath.split("/").length;
@@ -323,50 +374,63 @@ export default function CoachChatPage() {
         orderBy("createdAt", "desc"),
         limit(10)
       );
-      const unsubscribe = onSnapshot(
-        legacyQuery,
-        (snapshot) => {
-          const next = snapshot.docs.flatMap((snap) => {
-            const data = snap.data() as any;
-            const created = data?.createdAt?.toDate?.() ?? new Date();
-            const suggestions = Array.isArray(data?.suggestions)
-              ? data.suggestions
-                  .map((entry: any) =>
-                    typeof entry === "string" ? entry.trim() : ""
-                  )
-                  .filter((entry: string) => entry.length > 0)
-              : undefined;
-            const text = typeof data?.text === "string" ? data.text : "";
-            const response =
-              typeof data?.response === "string" ? data.response : "";
-            const usedLLM = Boolean(data?.usedLLM);
-            return [
-              {
-                id: `${snap.id}-u`,
-                role: "user" as const,
-                content: text,
-                createdAt: created,
-              },
-              {
-                id: `${snap.id}-a`,
-                role: "assistant" as const,
-                content: response,
-                createdAt: new Date(created.getTime() + 1000),
-                usedLLM,
-                suggestions: suggestions ?? null,
-              },
-            ] satisfies ThreadMessage[];
-          });
-          setMessages(sortMessages(next));
-        },
-        (err) => {
-          console.warn("coachChat.snapshot_failed", err);
-          if (!warned) {
-            warned = true;
-            setCoachError("Unable to load recent coach messages.");
+      const subscribeLegacy = () =>
+        onSnapshot(
+          legacyQuery,
+          (snapshot) => {
+            const next = snapshot.docs.flatMap((snap) => {
+              const data = snap.data() as any;
+              const created = data?.createdAt?.toDate?.() ?? new Date();
+              const suggestions = Array.isArray(data?.suggestions)
+                ? data.suggestions
+                    .map((entry: any) =>
+                      typeof entry === "string" ? entry.trim() : ""
+                    )
+                    .filter((entry: string) => entry.length > 0)
+                : undefined;
+              const text = typeof data?.text === "string" ? data.text : "";
+              const response =
+                typeof data?.response === "string" ? data.response : "";
+              const usedLLM = Boolean(data?.usedLLM);
+              return [
+                {
+                  id: `${snap.id}-u`,
+                  role: "user" as const,
+                  content: text,
+                  createdAt: created,
+                },
+                {
+                  id: `${snap.id}-a`,
+                  role: "assistant" as const,
+                  content: response,
+                  createdAt: new Date(created.getTime() + 1000),
+                  usedLLM,
+                  suggestions: suggestions ?? null,
+                },
+              ] satisfies ThreadMessage[];
+            });
+            setMessages(sortMessages(next));
+          },
+          async (err) => {
+            console.warn("coachChat.snapshot_failed", err);
+            if (isPermissionDenied(err) && !retriedAuth) {
+              retriedAuth = true;
+              await refreshAuthTokenSoft();
+              unsubscribe();
+              unsubscribe = subscribeLegacy();
+              return;
+            }
+            if (!warned) {
+              warned = true;
+              setCoachError(
+                isPermissionDenied(err)
+                  ? "Coach unavailable — Missing or insufficient permissions."
+                  : "Unable to load recent coach messages."
+              );
+            }
           }
-        }
-      );
+        );
+      let unsubscribe = subscribeLegacy();
       return () => unsubscribe();
     }
 
@@ -379,39 +443,57 @@ export default function CoachChatPage() {
       orderBy("createdAt", "asc"),
       limit(80)
     );
-    const unsubscribe = onSnapshot(
-      messagesQuery,
-      (snapshot) => {
-        const next = snapshot.docs.map((snap) => {
-          const data = snap.data() as any;
-          const created = data?.createdAt?.toDate?.() ?? new Date();
-          const role = data?.role === "assistant" ? "assistant" : "user";
-          const suggestions = Array.isArray(data?.suggestions)
-            ? data.suggestions
-                .map((entry: any) =>
-                  typeof entry === "string" ? entry.trim() : ""
-                )
-                .filter((entry: string) => entry.length > 0)
-            : null;
-          return {
-            id: snap.id,
-            role,
-            content: typeof data?.content === "string" ? data.content : "",
-            createdAt: created,
-            usedLLM: role === "assistant",
-            suggestions,
-          } satisfies ThreadMessage;
-        });
-        setMessages(next);
-      },
-      (err) => {
-        console.warn("coachThread.messages.snapshot_failed", err);
-        setCoachError("Unable to load coach thread.");
-      }
-    );
+    let warned = false;
+    let retriedAuth = false;
+    const subscribeMessages = () =>
+      onSnapshot(
+        messagesQuery,
+        (snapshot) => {
+          const next = snapshot.docs.map((snap) => {
+            const data = snap.data() as any;
+            const created = data?.createdAt?.toDate?.() ?? new Date();
+            const role = data?.role === "assistant" ? "assistant" : "user";
+            const suggestions = Array.isArray(data?.suggestions)
+              ? data.suggestions
+                  .map((entry: any) =>
+                    typeof entry === "string" ? entry.trim() : ""
+                  )
+                  .filter((entry: string) => entry.length > 0)
+              : null;
+            return {
+              id: snap.id,
+              role,
+              content: typeof data?.content === "string" ? data.content : "",
+              createdAt: created,
+              usedLLM: role === "assistant",
+              suggestions,
+            } satisfies ThreadMessage;
+          });
+          setMessages(next);
+        },
+        async (err) => {
+          console.warn("coachThread.messages.snapshot_failed", err);
+          if (isPermissionDenied(err) && !retriedAuth) {
+            retriedAuth = true;
+            await refreshAuthTokenSoft();
+            unsubscribe();
+            unsubscribe = subscribeMessages();
+            return;
+          }
+          if (!warned) {
+            warned = true;
+            setCoachError(
+              isPermissionDenied(err)
+                ? "Coach unavailable — Missing or insufficient permissions."
+                : "Unable to load coach thread."
+            );
+          }
+        }
+      );
+    let unsubscribe = subscribeMessages();
 
     return () => unsubscribe();
-  }, [authReady, uid, demo, activeThreadId, threadStorageKey]);
+  }, [authReady, uid, demo, activeThreadId, threadStorageKey, refreshAuthTokenSoft]);
 
   const hasMessages = messages.length > 0;
   const readOnlyDemo = demo && !user;
@@ -434,16 +516,34 @@ export default function CoachChatPage() {
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
         : `thread-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    await setDoc(
-      coachThreadDoc(uid, threadId),
-      {
-        uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        status: "active",
-      } as any,
-      { merge: true } as any
-    );
+    try {
+      await setDoc(
+        coachThreadDoc(uid, threadId),
+        {
+          uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          status: "active",
+        } as any,
+        { merge: true } as any
+      );
+    } catch (err: any) {
+      if (isPermissionDenied(err)) {
+        await refreshAuthTokenSoft();
+        await setDoc(
+          coachThreadDoc(uid, threadId),
+          {
+            uid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            status: "active",
+          } as any,
+          { merge: true } as any
+        );
+      } else {
+        throw err;
+      }
+    }
     setThreads((prev) => [
       {
         id: threadId,
@@ -560,7 +660,26 @@ export default function CoachChatPage() {
           createdAt: serverTimestamp(),
         } as any,
         { merge: true } as any
-      );
+      ).catch(async (err: any) => {
+        // Safari/Auth edge: if token is stale, refresh once then retry.
+        // (The messageId is deterministic so this is idempotent.)
+        if (isPermissionDenied(err)) {
+          await refreshAuthTokenSoft();
+          return setDoc(
+            doc(
+              coachThreadMessagesCollection(uid, threadId),
+              messageId
+            ) as any,
+            {
+              role: "user",
+              content: sanitized,
+              createdAt: serverTimestamp(),
+            } as any,
+            { merge: true } as any
+          );
+        }
+        throw err;
+      });
 
       const payload: CoachChatRequest = {
         threadId,

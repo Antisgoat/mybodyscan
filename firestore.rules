@@ -11,11 +11,15 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return request.auth != null && request.auth.token.staff == true;
+      return isSignedIn()
+        && request.auth.token.keys().hasAny(['staff'])
+        && request.auth.token.staff == true;
     }
 
     function isDemoByClaim() {
-      return isSignedIn() && (request.auth.token.demo == true);
+      return isSignedIn()
+        && request.auth.token.keys().hasAny(['demo'])
+        && (request.auth.token.demo == true);
     }
 
     function isDemoByUid() {
@@ -30,16 +34,14 @@ service cloud.firestore {
       return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId'];
     }
 
-    function clientPreservesServerFields() {
-      let incomingKeys = request.resource.data.keys();
-      let changedKeys = exists(resource.name)
-        ? request.resource.data.diff(resource.data).changedKeys()
-        : incomingKeys;
-      return !incomingKeys.hasAny(serverOwnedKeys()) && !changedKeys.hasAny(serverOwnedKeys());
+    function isWritingServerOwnedFieldsOnCreate() {
+      // For creates, simply block any server-owned keys in the incoming payload.
+      return request.resource.data.keys().hasAny(serverOwnedKeys());
     }
 
-    function isWritingServerOwnedFields() {
-      return !clientPreservesServerFields();
+    function isWritingServerOwnedFieldsOnUpdate() {
+      // For updates, only block if the client is attempting to change a server-owned key.
+      return request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys());
     }
 
     function onboardingFieldKeys() {
@@ -196,8 +198,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
-      allow update: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
+      allow create: if isOwner(uid) && !isWritingServerOwnedFieldsOnCreate() && isValidOnboardingUpdate();
+      allow update: if isOwner(uid) && !isWritingServerOwnedFieldsOnUpdate() && isValidOnboardingUpdate();
       allow delete: if false;
 
       match /coachThreads/{threadId} {
@@ -216,11 +218,11 @@ service cloud.firestore {
 
       match /scans/{scanId} {
         allow create: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.keys().hasOnly(['createdAt','notes','status'])
+          && request.resource.data.keys().hasOnly(['createdAt','note','notes','status'])
           && request.resource.data.status == 'queued';
 
         allow update: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notes']);
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['note','notes']);
 
         allow read: if isOwner(uid);
         allow write: if false;

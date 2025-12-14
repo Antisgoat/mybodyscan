@@ -87,7 +87,6 @@ d("Firestore security rules", () => {
     // Should fail with results field
     await assertFails(
       authed.doc(`users/${uid}/scans/scan2`).set({
-        uid,
         status: "queued",
         createdAt: new Date(),
         results: { fake: "data" },
@@ -97,7 +96,6 @@ d("Firestore security rules", () => {
     // Should succeed without sensitive fields
     await assertSucceeds(
       authed.doc(`users/${uid}/scans/scan2`).set({
-        uid,
         status: "queued",
         createdAt: new Date(),
       })

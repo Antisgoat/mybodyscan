@@ -11,11 +11,15 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return request.auth != null && request.auth.token.staff == true;
+      return isSignedIn()
+        && request.auth.token.keys().hasAny(['staff'])
+        && request.auth.token.staff == true;
     }
 
     function isDemoByClaim() {
-      return isSignedIn() && (request.auth.token.demo == true);
+      return isSignedIn()
+        && request.auth.token.keys().hasAny(['demo'])
+        && (request.auth.token.demo == true);
     }
 
     function isDemoByUid() {
@@ -30,16 +34,14 @@ service cloud.firestore {
       return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId'];
     }
 
-    function clientPreservesServerFields() {
-      let incomingKeys = request.resource.data.keys();
-      let changedKeys = exists(resource.name)
-        ? request.resource.data.diff(resource.data).changedKeys()
-        : incomingKeys;
-      return !incomingKeys.hasAny(serverOwnedKeys()) && !changedKeys.hasAny(serverOwnedKeys());
+    function isWritingServerOwnedFieldsOnCreate() {
+      // For creates, simply block any server-owned keys in the incoming payload.
+      return request.resource.data.keys().hasAny(serverOwnedKeys());
     }
 
-    function isWritingServerOwnedFields() {
-      return !clientPreservesServerFields();
+    function isWritingServerOwnedFieldsOnUpdate() {
+      // For updates, only block if the client is attempting to change a server-owned key.
+      return request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys());
     }
 
     function onboardingFieldKeys() {
@@ -131,6 +133,48 @@ service cloud.firestore {
         isValidOnboardingMap(request.resource.data.onboarding);
     }
 
+    function isValidMacroValue(value, max) {
+      return value is number && value >= 0 && value <= max;
+    }
+
+    function isValidClientNutritionWrite() {
+      let allowedKeys = ['calories', 'protein_g', 'carbs_g', 'fat_g', 'updatedAt'];
+      return request.resource.data.keys().hasOnly(allowedKeys)
+        && (!request.resource.data.keys().hasAny(['calories']) || isValidMacroValue(request.resource.data.calories, 10000))
+        && (!request.resource.data.keys().hasAny(['protein_g']) || isValidMacroValue(request.resource.data.protein_g, 2000))
+        && (!request.resource.data.keys().hasAny(['carbs_g']) || isValidMacroValue(request.resource.data.carbs_g, 2000))
+        && (!request.resource.data.keys().hasAny(['fat_g']) || isValidMacroValue(request.resource.data.fat_g, 1000))
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
+    }
+
+    function isValidCoachThreadWrite(uid) {
+      // NOTE: Thread docs may include server-maintained fields (e.g. lastMessagePreview)
+      // written by Cloud Functions (Admin SDK). Client updates should not be rejected
+      // just because those fields exist, so avoid strict hasOnly() checks here.
+      return request.resource.data is map
+        && (!request.resource.data.keys().hasAny(['uid']) || request.resource.data.uid == uid)
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string)
+        && (!request.resource.data.keys().hasAny(['lastMessageAt']) || request.resource.data.lastMessageAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['lastMessagePreview']) ||
+          (request.resource.data.lastMessagePreview is string && request.resource.data.lastMessagePreview.size() <= 400));
+    }
+
+    function isValidCoachThreadMessageWrite() {
+      // Allow optional assistant metadata fields to exist without blocking user writes.
+      // Cloud Functions (Admin SDK) may write suggestions/meta; rules don't apply to those,
+      // but the presence of extra keys would otherwise break merge updates.
+      return request.resource.data is map
+        && request.resource.data.role is string
+        && (request.resource.data.role == 'user' || request.resource.data.role == 'assistant')
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 4000
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['suggestions']) || request.resource.data.suggestions is list);
+    }
+
     match /publicConfig/{docId} {
       allow read: if true;
       allow write: if false;
@@ -154,17 +198,31 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid);
-      allow create: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
-      allow update: if isOwner(uid) && !isWritingServerOwnedFields() && isValidOnboardingUpdate();
+      allow create: if isOwner(uid) && !isWritingServerOwnedFieldsOnCreate() && isValidOnboardingUpdate();
+      allow update: if isOwner(uid) && !isWritingServerOwnedFieldsOnUpdate() && isValidOnboardingUpdate();
       allow delete: if false;
+
+      match /coachThreads/{threadId} {
+        allow read: if isOwner(uid);
+        allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite(uid);
+        allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite(uid);
+        allow delete: if false;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(uid);
+          allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow delete: if false;
+        }
+      }
 
       match /scans/{scanId} {
         allow create: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.keys().hasOnly(['createdAt','notes','status'])
+          && request.resource.data.keys().hasOnly(['createdAt','note','notes','status'])
           && request.resource.data.status == 'queued';
 
         allow update: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notes']);
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['note','notes']);
 
         allow read: if isOwner(uid);
         allow write: if false;
@@ -215,13 +273,17 @@ service cloud.firestore {
         }
       }
 
+      // Current active workout plan pointer (written by Cloud Functions; readable by user UI).
+      // Stored under a subcollection to keep the path a valid document reference.
+      match /workoutPlans_meta/{docId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       match /nutritionLogs/{day} {
         allow read: if isOwner(uid);
-        allow create: if !isDemoUser() && isOwner(uid);
-        allow update: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.calories is int
-          && request.resource.data.calories >= 0
-          && request.resource.data.calories <= 10000;
+        allow create: if !isDemoUser() && isOwner(uid) && isValidClientNutritionWrite();
+        allow update: if !isDemoUser() && isOwner(uid) && isValidClientNutritionWrite();
         allow delete: if false;
 
         match /entries/{entryId} {
