@@ -87,7 +87,9 @@ async function fetchPlanFromFirestore() {
   const uid = firebaseAuth?.currentUser?.uid;
   if (!uid) throw new Error("auth");
   try {
-    const metaSnap = await getDoc(doc(db, `users/${uid}/workoutPlans_meta`));
+    const metaSnap = await getDoc(
+      doc(db, "users", uid, "workoutPlans_meta", "current")
+    );
     const planId = metaSnap.exists()
       ? (metaSnap.data()?.activePlanId as string | undefined)
       : undefined;
@@ -202,7 +204,7 @@ export async function activateCatalogPlan(
       // Confirm the meta/doc have landed so Workouts can deterministically load.
       for (let poll = 0; poll < confirmPolls; poll++) {
         const [metaSnap, planSnap] = await Promise.all([
-          getDoc(doc(db, `users/${uid}/workoutPlans_meta`)),
+          getDoc(doc(db, "users", uid, "workoutPlans_meta", "current")),
           getDoc(doc(db, `users/${uid}/workoutPlans/${planId}`)),
         ]);
         const activePlanId = metaSnap.exists()

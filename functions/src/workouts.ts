@@ -423,7 +423,7 @@ async function persistPlan(uid: string, prefs: PlanPrefs) {
       source,
     })
   );
-  await db.doc(`users/${uid}/workoutPlans_meta`).set(
+  await db.doc(`users/${uid}/workoutPlans_meta/current`).set(
     scrubUndefined({
       activePlanId: planId,
       updatedAt: Timestamp.now(),
@@ -434,7 +434,7 @@ async function persistPlan(uid: string, prefs: PlanPrefs) {
 }
 
 async function fetchCurrentPlan(uid: string) {
-  const meta = await db.doc(`users/${uid}/workoutPlans_meta`).get();
+  const meta = await db.doc(`users/${uid}/workoutPlans_meta/current`).get();
   const planId = (meta.data()?.activePlanId as string) || null;
   if (!planId) return null;
   const snap = await db.doc(`users/${uid}/workoutPlans/${planId}`).get();
@@ -478,7 +478,7 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
       days: plan.days,
     })
   );
-  await db.doc(`users/${uid}/workoutPlans_meta`).set(
+  await db.doc(`users/${uid}/workoutPlans_meta/current`).set(
     scrubUndefined({
       activePlanId: planId,
       updatedAt: now,

@@ -145,22 +145,32 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
     }
 
-    function isValidCoachThreadWrite() {
-      let allowedKeys = ['createdAt', 'updatedAt', 'status'];
-      return request.resource.data.keys().hasOnly(allowedKeys)
+    function isValidCoachThreadWrite(uid) {
+      // NOTE: Thread docs may include server-maintained fields (e.g. lastMessagePreview)
+      // written by Cloud Functions (Admin SDK). Client updates should not be rejected
+      // just because those fields exist, so avoid strict hasOnly() checks here.
+      return request.resource.data is map
+        && (!request.resource.data.keys().hasAny(['uid']) || request.resource.data.uid == uid)
         && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
         && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
-        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string);
+        && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string)
+        && (!request.resource.data.keys().hasAny(['lastMessageAt']) || request.resource.data.lastMessageAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['lastMessagePreview']) ||
+          (request.resource.data.lastMessagePreview is string && request.resource.data.lastMessagePreview.size() <= 400));
     }
 
     function isValidCoachThreadMessageWrite() {
-      let allowedKeys = ['role', 'content', 'createdAt'];
-      return request.resource.data.keys().hasOnly(allowedKeys)
+      // Allow optional assistant metadata fields to exist without blocking user writes.
+      // Cloud Functions (Admin SDK) may write suggestions/meta; rules don't apply to those,
+      // but the presence of extra keys would otherwise break merge updates.
+      return request.resource.data is map
         && request.resource.data.role is string
+        && (request.resource.data.role == 'user' || request.resource.data.role == 'assistant')
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 4000
-        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp);
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        && (!request.resource.data.keys().hasAny(['suggestions']) || request.resource.data.suggestions is list);
     }
 
     match /publicConfig/{docId} {
@@ -192,8 +202,8 @@ service cloud.firestore {
 
       match /coachThreads/{threadId} {
         allow read: if isOwner(uid);
-        allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite();
-        allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite();
+        allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite(uid);
+        allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadWrite(uid);
         allow delete: if false;
 
         match /messages/{messageId} {
@@ -259,6 +269,13 @@ service cloud.firestore {
           allow read: if isOwner(uid);
           allow write: if false;
         }
+      }
+
+      // Current active workout plan pointer (written by Cloud Functions; readable by user UI).
+      // Stored under a subcollection to keep the path a valid document reference.
+      match /workoutPlans_meta/{docId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
       }
 
       match /nutritionLogs/{day} {

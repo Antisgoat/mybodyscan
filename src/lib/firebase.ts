@@ -145,7 +145,7 @@ export function getFirebaseInitError(): string | null {
   );
 }
 
-function initializeFirebaseApp(): FirebaseApp | null {
+function initializeFirebaseApp(): FirebaseApp {
   if (!hasFirebaseConfig && !firebaseInitError) {
     // Warn but continue booting with whatever partial config we have so the UI can render
     firebaseInitError = `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`;
@@ -160,39 +160,34 @@ function initializeFirebaseApp(): FirebaseApp | null {
     return getApp();
   } catch (error) {
     firebaseInitError = error instanceof Error ? error.message : String(error);
-    if (import.meta.env.DEV) {
-      console.warn("[firebase] initialization failed", error);
+    console.warn("[firebase] initialization failed; falling back to built-in config", error);
+    // This should be extremely rare; do not crash the UI at import time.
+    // Use a known-good config so auth can still load and the app can render.
+    if (!getApps().length) {
+      return initializeApp(FALLBACK_FIREBASE_CONFIG);
     }
-    return null;
+    return getApp();
   }
 }
 
-const app: FirebaseApp | null = initializeFirebaseApp();
+export const app: FirebaseApp = initializeFirebaseApp();
+export const firebaseApp: FirebaseApp = app;
+export const auth: Auth = getAuth(app);
+const persistenceReady: Promise<void> = setPersistence(
+  auth,
+  browserLocalPersistence
+).catch(() => undefined);
 
-export const firebaseApp: FirebaseApp | null = app;
-export const auth: Auth | null = app ? getAuth(app) : null;
-const persistenceReady: Promise<void> =
-  app && auth
-    ? setPersistence(auth, browserLocalPersistence).catch(() => undefined)
-    : Promise.resolve();
-
-export const db: Firestore = app
-  ? getFirestore(app)
-  : (null as unknown as Firestore);
+export const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
-export const functions: Functions = app
-  ? getFunctions(app, functionsRegion)
-  : (null as unknown as Functions);
-export const storage: FirebaseStorage = app
-  ? getStorage(app)
-  : (null as unknown as FirebaseStorage);
+export const functions: Functions = getFunctions(app, functionsRegion);
+export const storage: FirebaseStorage = getStorage(app);
 
 let analyticsInstance: Analytics | null = null;
 
 export async function getAnalyticsInstance(): Promise<Analytics | null> {
   if (typeof window === "undefined") return null;
   if (analyticsInstance) return analyticsInstance;
-  if (!app) return null;
   const supported = await isSupported();
   if (!supported) return null;
   analyticsInstance = getAnalytics(app);
@@ -220,23 +215,23 @@ export async function firebaseReady(): Promise<void> {
   await persistenceReady.catch(() => undefined);
 }
 
-export function getFirebaseApp(): FirebaseApp | null {
+export function getFirebaseApp(): FirebaseApp {
   return app;
 }
 
-export function getFirebaseAuth(): Auth | null {
+export function getFirebaseAuth(): Auth {
   return auth;
 }
 
-export function getFirebaseFirestore(): Firestore | null {
+export function getFirebaseFirestore(): Firestore {
   return db;
 }
 
-export function getFirebaseFunctions(): Functions | null {
+export function getFirebaseFunctions(): Functions {
   return functions;
 }
 
-export function getFirebaseStorage(): FirebaseStorage | null {
+export function getFirebaseStorage(): FirebaseStorage {
   return storage;
 }
 
@@ -287,31 +282,16 @@ export const envFlags = providerFlags;
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
-function ensureAuthAvailable(): Auth {
-  if (!auth || !app) {
-    const reason =
-      getFirebaseInitError() ??
-      (hasFirebaseConfig
-        ? "Firebase auth unavailable"
-        : "Firebase not initialized");
-    throw new Error(reason);
-  }
-  return auth;
-}
-
 export async function signInWithGoogle() {
-  const instance = ensureAuthAvailable();
-  return signInWithPopup(instance, googleProvider);
+  return signInWithPopup(auth, googleProvider);
 }
 
 export async function signInWithApple() {
-  const instance = ensureAuthAvailable();
-  return signInWithRedirect(instance, appleProvider);
+  return signInWithRedirect(auth, appleProvider);
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const instance = ensureAuthAvailable();
-  return signInWithEmailAndPassword(instance, email, password);
+  return signInWithEmailAndPassword(auth, email, password);
 }
 
 export function initFirebase() {

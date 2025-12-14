@@ -22,7 +22,9 @@ const db = getFirestore();
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
-const OPENAI_TIMEOUT_MS = 12000;
+// Vision + structured output can take longer on cold starts / busy periods.
+// Keep this comfortably below the function timeout so we can still map errors cleanly.
+const OPENAI_TIMEOUT_MS = 60000;
 
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
@@ -274,7 +276,7 @@ function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
 }
 
 export const submitScan = onRequest(
-  { invoker: "public", concurrency: 10, region: "us-central1" },
+  { invoker: "public", concurrency: 10, region: "us-central1", timeoutSeconds: 300 },
   async (req, res) => {
     let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null =
       null;

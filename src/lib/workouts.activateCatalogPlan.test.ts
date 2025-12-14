@@ -10,7 +10,13 @@ vi.mock("./fnCall", () => ({
 
 // Minimal firestore stubs used by activateCatalogPlan.
 const getDocMock = vi.fn();
-const docMock = vi.fn((_: any, path: string) => ({ path }));
+const docMock = vi.fn((_: any, ...rest: any[]) => {
+  const path =
+    rest.length === 1 && typeof rest[0] === "string" && rest[0].includes("/")
+      ? rest[0]
+      : rest.map((seg) => String(seg)).join("/");
+  return { path };
+});
 
 vi.mock("firebase/firestore", () => ({
   doc: (...args: any[]) => docMock(...args),

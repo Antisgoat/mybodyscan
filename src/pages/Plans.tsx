@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
-import { toast } from "@/hooks/use-toast";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
@@ -17,7 +16,6 @@ import { useCredits } from "@/hooks/useCredits";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PRICE_IDS } from "@/config/prices";
 import { startCheckout } from "@/lib/api/billing";
-import { call } from "@/lib/callable";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
@@ -56,6 +54,10 @@ export default function Plans() {
   const { t } = useI18n();
   const { user } = useAuthUser();
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [billingActionError, setBillingActionError] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const demoMode = useDemoMode();
   const { refresh: refreshCredits } = useCredits();
   const [refreshingCredits, setRefreshingCredits] = useState(false);
@@ -101,12 +103,14 @@ export default function Plans() {
       refreshCredits();
     } finally {
       dismissCheckoutState();
+      setBillingActionError(null);
       setRefreshingCredits(false);
     }
   };
 
   const handleRetryCheckout = () => {
     dismissCheckoutState();
+    setBillingActionError(null);
     try {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
@@ -116,25 +120,38 @@ export default function Plans() {
 
   const handleManageSubscription = async () => {
     if (!BILLING_CONFIGURED) {
-      toast({
+      setBillingActionError({
         title: "Billing unavailable",
-        description:
-          "Stripe is not configured. Add VITE_STRIPE_PUBLISHABLE_KEY to open the customer portal.",
-        variant: "destructive",
+        message:
+          "Stripe is not configured for this environment. Please try again later.",
+      });
+      void reportError({
+        kind: "client_error",
+        message: "billing_portal_missing_stripe_key",
+        code: "failed-precondition",
+        extra: { page: "Plans", action: "manageSubscription" },
       });
       return;
     }
     setManagingSubscription(true);
+    setBillingActionError(null);
     try {
       const url = await createCustomerPortalSession();
       await openExternalUrl(url);
     } catch (err: any) {
       const message =
-        err?.message || "Subscription management is unavailable right now.";
-      toast({
+        typeof err?.message === "string" && err.message.length
+          ? err.message
+          : "Subscription management is unavailable right now.";
+      setBillingActionError({
         title: "Can't open portal",
-        description: message,
-        variant: "destructive",
+        message: "Subscription management is currently unavailable. Please try again.",
+      });
+      void reportError({
+        kind: "client_error",
+        message,
+        code: err?.code || "client_error",
+        extra: { fn: "createCustomerPortalSession" },
       });
     } finally {
       setManagingSubscription(false);
@@ -150,11 +167,16 @@ export default function Plans() {
       return;
     }
     if (!BILLING_CONFIGURED) {
-      toast({
+      setBillingActionError({
         title: "Billing unavailable",
-        description:
-          "Stripe is not configured for this environment. Try again after billing is enabled.",
-        variant: "destructive",
+        message:
+          "Stripe is not configured for this environment. Please try again later.",
+      });
+      void reportError({
+        kind: "client_error",
+        message: "billing_checkout_missing_stripe_key",
+        code: "failed-precondition",
+        extra: { page: "Plans", action: "checkout" },
       });
       return;
     }
@@ -162,15 +184,15 @@ export default function Plans() {
       const description = plan.envKey
         ? `This plan is not configured yet. Set ${plan.envKey} before enabling checkout.`
         : "This plan is not configured yet.";
-      toast({
+      setBillingActionError({
         title: "Plan unavailable",
-        description,
-        variant: "destructive",
+        message: description,
       });
       return;
     }
 
     setPendingPlan(plan.plan);
+    setBillingActionError(null);
     try {
       track("checkout_start", { plan: plan.plan, priceId: plan.priceId });
       const { sessionId, url } = await startCheckout(plan.priceId, plan.mode);
@@ -193,22 +215,20 @@ export default function Plans() {
 
       throw new Error("Checkout unavailable");
     } catch (err: any) {
-      console.error("checkout_error", err);
       const errMessage =
         typeof err?.message === "string" && err.message.length
           ? err.message
           : String(err);
       const debugId = (err as { debugId?: string } | undefined)?.debugId;
-      const description = debugId
-        ? `${errMessage || "We couldn't open checkout. Please try again."} (ref ${debugId.slice(0, 8)})`
-        : errMessage || "We couldn't open checkout. Please try again.";
-      if (!err?.handled) {
-        toast({
-          title: "Checkout unavailable",
-          description,
-          variant: "destructive",
-        });
+      if (import.meta.env.DEV) {
+        console.warn("checkout_error", err);
       }
+      const ref = debugId ? ` (ref ${debugId.slice(0, 8)})` : "";
+      // Keep this small + non-scary (no raw "Bad Request" text).
+      setBillingActionError({
+        title: "Checkout unavailable",
+        message: `Checkout is currently unavailable; please try again.${ref}`,
+      });
       void reportError({
         kind: "client_error",
         message: errMessage || "checkout failed",
@@ -333,6 +353,30 @@ export default function Plans() {
           title="Plans - MyBodyScan"
           description="Choose your scanning plan"
         />
+        {billingActionError && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            <div className="flex w-full flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <AlertTitle>{billingActionError.title}</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {billingActionError.message}
+                  </AlertDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setBillingActionError(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </Alert>
+        )}
         {canceled && (
           <Alert
             variant="destructive"
