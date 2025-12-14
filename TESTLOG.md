@@ -61,3 +61,34 @@ Manual checks for this PR
 - AI coach: ask for a 3-day workout split and a sample meal; expect friendly replies or clear inline errors.
 - Scan flow: start a scan, upload or mock photos, submit, view the result, confirm it appears in History, and delete it.
 - Plans/Checkout: start a plan purchase against the test Stripe environment; confirm redirect and that access reflects in the UI when returning.
+
+## 2025-12-14: Post-fix smoke test (coach/programs/meals/rules)
+
+- ✅ `npm run build`
+- ✅ `npm run typecheck`
+- ✅ Firestore rules tests (local emulator): `npx firebase emulators:exec --only firestore "npm run test --prefix tests/rules"`
+
+Manual verification (requires a real Firebase project + browser runtime):
+
+1. Auth
+   - [ ] Sign in with email + password.
+   - [ ] Sign out and sign back in.
+2. Coach
+   - [ ] `/coach/chat` loads without crashes.
+   - [ ] No Firestore `permission-denied` errors for `users/{uid}/coachThreads/*`.
+   - [ ] Start a new chat, send a message, and see an AI response (via `coachChat`).
+3. Programs
+   - [ ] `/programs` and `/programs/:id` load without error toasts.
+   - [ ] “Start program” activates a plan via `/applyCatalogPlan` and redirects to `/workouts?plan=...&started=1`.
+   - [ ] No `documentPath must point to a document` errors.
+4. Meals
+   - [ ] `/meals` loads without the route error boundary.
+   - [ ] Daily progress ring renders calories/macros (0-safe while loading).
+   - [ ] Logging foods updates totals.
+   - [ ] No `Can't find variable: totalCalories` errors.
+5. Scans
+   - [ ] Start → upload → submit scan works end-to-end.
+   - [ ] Results page loads without crashes and shows metrics + plan.
+6. General
+   - [ ] No unhandled exceptions in console on the main flows.
+   - [ ] No Firestore `permission-denied` errors for a valid signed-in user.

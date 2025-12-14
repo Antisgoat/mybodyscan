@@ -957,7 +957,7 @@ export default function Meals() {
                   dominantBaseline="central"
                   className="text-2xl font-semibold fill-foreground"
                 >
-                  {Math.round(totalCalories)}
+                  {Math.round(consumedCalories)}
                 </text>
               </svg>
               <p className="text-xs text-muted-foreground">
@@ -967,15 +967,17 @@ export default function Meals() {
             <div className="space-y-3 text-sm">
               <p>
                 Protein:{" "}
-                <span className="font-medium">{log.totals.protein ?? 0} g</span>
+                <span className="font-medium">
+                  {Math.round(consumedProtein)} g
+                </span>
               </p>
               <p>
                 Carbs:{" "}
-                <span className="font-medium">{log.totals.carbs ?? 0} g</span>
+                <span className="font-medium">{Math.round(consumedCarbs)} g</span>
               </p>
               <p>
                 Fat:{" "}
-                <span className="font-medium">{log.totals.fat ?? 0} g</span>
+                <span className="font-medium">{Math.round(consumedFat)} g</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {nutritionUnavailable ? (
