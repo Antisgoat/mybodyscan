@@ -54,7 +54,24 @@ void (async () => {
     ReactDOM.createRoot(document.getElementById("root")!).render(
       <StrictMode>
         <AppErrorBoundary>
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  minHeight: "100vh",
+                  display: "grid",
+                  placeItems: "center",
+                  padding: 24,
+                  textAlign: "center",
+                  color: "#6b7280",
+                  fontFamily:
+                    'system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif',
+                }}
+              >
+                Loading…
+              </div>
+            }
+          >
             <App />
           </Suspense>
         </AppErrorBoundary>

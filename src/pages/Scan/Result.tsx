@@ -269,17 +269,14 @@ export default function ScanFlowResult() {
     poseUploadsReady &&
     currentWeightKg != null &&
     goalWeightKg != null &&
-    !scanOffline &&
-    appCheck.status !== "missing";
+    !scanOffline;
   const finalizeHelperMessage = !poseUploadsReady
     ? "Capture all four required angles before continuing."
     : currentWeightKg == null || goalWeightKg == null
       ? "Return to Start to confirm your current and goal weight."
       : scanOffline
         ? "Scan services are offline until the backend is configured."
-        : appCheck.status === "missing"
-          ? "Secure uploads require App Check. Refresh and try again."
-          : "We'll upload your photos securely and notify you when the result is ready.";
+        : "We'll upload your photos securely and notify you when the result is ready.";
   const finalizeDisabled =
     !readyForSubmission ||
     flowStatus === "starting" ||
@@ -299,12 +296,6 @@ export default function ScanFlowResult() {
     }
     if (scanOffline) {
       setFlowError("Scan services are offline. Try again later.");
-      return;
-    }
-    if (appCheck.status === "missing") {
-      setFlowError(
-        "Secure uploads require App Check. Refresh this page and try again."
-      );
       return;
     }
     setFlowStatus("starting");
@@ -627,7 +618,8 @@ export default function ScanFlowResult() {
         <Alert className="border-dashed">
           <AlertTitle>Checking secure access…</AlertTitle>
           <AlertDescription>
-            Ensuring App Check is ready before rendering your scan preview.
+            App Check is initializing (optional). You can still finalize your
+            scan if everything else is ready.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -635,15 +627,6 @@ export default function ScanFlowResult() {
         <Alert variant="destructive">
           <AlertTitle>Scan services offline</AlertTitle>
           <AlertDescription>{scanOfflineMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-      {appCheck.status === "missing" ? (
-        <Alert variant="destructive">
-          <AlertTitle>App Check required</AlertTitle>
-          <AlertDescription>
-            Secure access failed. Refresh the page or contact support before
-            finalizing your scan.
-          </AlertDescription>
         </Alert>
       ) : null}
       <Card>

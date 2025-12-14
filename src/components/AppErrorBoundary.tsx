@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 import { getCachedAuth } from "@/lib/auth";
+import { reportError } from "@/lib/telemetry";
 import { isDemoAllowed } from "@/state/demo";
 
 type Props = { children: ReactNode };
@@ -60,6 +61,18 @@ export class AppErrorBoundary extends Component<Props, State> {
         demoMode: demo,
       },
     });
+    void reportError({
+      kind: "app_crash",
+      message: normalizedError.message || "app crashed",
+      code: "app_crash",
+      stack: normalizedStack,
+      extra: {
+        componentStack: info?.componentStack,
+        location,
+        demoMode: demo,
+        uid: user?.uid,
+      },
+    });
     // TODO: add Sentry/logger here if available
   }
 
@@ -73,13 +86,17 @@ export class AppErrorBoundary extends Component<Props, State> {
             maxWidth: 520,
             margin: "0 auto",
             textAlign: "center",
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
           }}
         >
           <h2 style={{ fontSize: "1.5rem", marginBottom: 12 }}>
             We hit a snag.
           </h2>
           <p style={{ marginBottom: 16, color: "#475467" }}>
-            Try reload. If this persists, use “Explore demo” from the Auth page.
+            Try reload, or continue in demo mode while we fix it.
           </p>
           {this.state.message ? (
             <p
@@ -118,19 +135,42 @@ export class AppErrorBoundary extends Component<Props, State> {
               </pre>
             </details>
           ) : null}
-          <button
-            onClick={() => (window.location.href = "/")}
-            style={{
-              padding: "10px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            Reload
-          </button>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button
+              onClick={() => {
+                try {
+                  window.location.reload();
+                } catch {
+                  window.location.href = "/";
+                }
+              }}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: "#2563eb",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              Reload
+            </button>
+            <button
+              onClick={() => {
+                window.location.href = "/welcome?demo=1";
+              }}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 8,
+                border: "1px solid #d0d5dd",
+                background: "white",
+                color: "#111827",
+                cursor: "pointer",
+              }}
+            >
+              Explore demo
+            </button>
+          </div>
         </div>
       );
     }

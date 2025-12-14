@@ -78,7 +78,6 @@ const Auth = () => {
     demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
   const authClient = useMemo(() => getFirebaseAuth(), []);
-  const canSubmit = !firebaseInitError;
   const onBrowseDemo = useCallback(() => {
     navigate("/welcome?demo=1", { replace: false });
   }, [navigate]);
@@ -131,16 +130,8 @@ const Auth = () => {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (firebaseInitError) {
-      setAuthError(firebaseInitError);
-      return;
-    }
-    if (!authClient) {
-      setAuthError(
-        "Authentication is unavailable. Please refresh and try again."
-      );
-      return;
-    }
+    // IMPORTANT: Firebase config warnings should never block sign-in attempts.
+    // If Auth is misconfigured, the sign-in call will fail and we show a friendly error.
     setLoading(true);
     try {
       setAuthError(null);
@@ -219,10 +210,6 @@ const Auth = () => {
   };
 
   const handleGoogleSignIn = useCallback(async () => {
-    if (firebaseInitError) {
-      setAuthError(firebaseInitError);
-      return;
-    }
     setAuthError(null);
     setLoading(true);
     try {
@@ -240,13 +227,9 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [firebaseInitError, defaultTarget]);
+  }, [defaultTarget]);
 
   const handleAppleSignIn = useCallback(async () => {
-    if (firebaseInitError) {
-      setAuthError(firebaseInitError);
-      return;
-    }
     setAuthError(null);
     setLoading(true);
     try {
@@ -264,7 +247,7 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [firebaseInitError, defaultTarget]);
+  }, [defaultTarget]);
 
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin =
@@ -365,12 +348,12 @@ const Auth = () => {
             </div>
           )}
           {firebaseInitError && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTitle>Configuration error</AlertTitle>
+            <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
+              <AlertTitle>Configuration warning</AlertTitle>
               <AlertDescription>{firebaseInitError}</AlertDescription>
             </Alert>
           )}
-          {!firebaseInitError && authError && (
+          {authError && (
             <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {authError}
             </div>
@@ -434,7 +417,7 @@ const Auth = () => {
               <Button
                 type="submit"
                 className="mbs-btn mbs-btn-primary w-full"
-                disabled={loading || !canSubmit}
+                disabled={loading}
               >
                 {loading
                   ? mode === "signin"
@@ -447,7 +430,7 @@ const Auth = () => {
               <Button
                 type="button"
                 variant="link"
-                disabled={loading || !canSubmit}
+                disabled={loading}
                 onClick={async () => {
                   try {
                     await sendReset(email);
@@ -472,7 +455,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={loading || !canSubmit}
+                disabled={loading}
                 className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring"
                 data-testid="btn-google"
               >
@@ -483,7 +466,7 @@ const Auth = () => {
               <button
                 type="button"
                 onClick={handleAppleSignIn}
-                disabled={loading || !canSubmit}
+                disabled={loading}
                 className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring inline-flex items-center justify-center gap-2"
                 data-testid="btn-apple"
                 aria-label="Continue with Apple"

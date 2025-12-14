@@ -163,8 +163,17 @@ interface ServingModalProps {
   open: boolean;
   busy: boolean;
   onClose: () => void;
-  onConfirm: (payload: { grams: number; quantity: number }) => void;
+  onConfirm: (payload: { grams: number; quantity: number; mealType: MealType }) => void;
 }
+
+type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
+const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  snacks: "Snacks",
+};
 
 function ServingModal({
   item,
@@ -182,12 +191,14 @@ function ServingModal({
 
   const [grams, setGrams] = useState<number>(defaultServing?.grams ?? 100);
   const [quantity, setQuantity] = useState<number>(1);
+  const [mealType, setMealType] = useState<MealType>("snacks");
 
   useEffect(() => {
     const initial =
       item.servings?.find((option) => option.isDefault) ?? item.servings?.[0];
     setGrams(initial?.grams ?? 100);
     setQuantity(1);
+    setMealType("snacks");
   }, [item]);
 
   const totalGrams = Math.max(0, grams * quantity);
@@ -256,6 +267,22 @@ function ServingModal({
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="serving-mealType">Log to</Label>
+            <select
+              id="serving-mealType"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              value={mealType}
+              onChange={(event) => setMealType(event.target.value as MealType)}
+              disabled={busy}
+            >
+              {MEAL_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {MEAL_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             {presets.map((preset) => (
@@ -296,7 +323,7 @@ function ServingModal({
             </Button>
             <DemoWriteButton
               type="button"
-              onClick={() => onConfirm({ grams: grams, quantity })}
+              onClick={() => onConfirm({ grams: grams, quantity, mealType })}
               disabled={busy || disableAdd}
             >
               {busy ? "Adding…" : "Add"}
@@ -422,28 +449,19 @@ export default function MealsSearch() {
       } catch (error: any) {
         if (cancelled) return;
         console.error("nutritionSearch error", error);
-        toast(
-          buildErrorToast(error, {
-            fallback: {
-              title: "Search failed",
-              description: "Food database temporarily busy; try again.",
-              variant: "destructive",
-            },
-          })
-        );
         setResults([]);
         setPrimarySource(null);
         const errMessage =
           typeof error?.message === "string" && error.message.length
             ? error.message
             : String(error);
-        const message =
-          errMessage || "Food database temporarily busy; try again.";
+        const cleaned = errMessage === "Bad Request" ? "" : errMessage;
+        const message = cleaned || "Food database temporarily busy; try again.";
         setStatus(message);
         setSearchWarning(message);
         void reportError({
           kind: "client_error",
-          message: errMessage || "nutritionSearch failed",
+          message: cleaned || "nutritionSearch failed",
           code: error?.code || "client_error",
           extra: { fn: "nutritionSearch" },
         });
@@ -517,14 +535,15 @@ export default function MealsSearch() {
         typeof error?.message === "string" && error.message.length
           ? error.message
           : String(error);
-      const message = errMessage || "Scan failed. Try again.";
+      const cleaned = errMessage === "Bad Request" ? "" : errMessage;
+      const message = cleaned || "Scan failed. Try again.";
       setResults([]);
       setPrimarySource(null);
       setStatus(message);
       setSearchWarning(message);
       void reportError({
         kind: "client_error",
-        message: errMessage || "nutritionBarcode failed",
+        message: cleaned || "nutritionBarcode failed",
         code: error?.code || "client_error",
         extra: { fn: "nutritionBarcode" },
       });
@@ -578,7 +597,8 @@ export default function MealsSearch() {
   const handleLogFood = async (
     item: FoodItem,
     grams: number,
-    quantity: number
+    quantity: number,
+    mealType: MealType
   ) => {
     if (demo) {
       toast({ title: "Demo mode: sign in to save" });
@@ -602,6 +622,7 @@ export default function MealsSearch() {
     try {
       await addMeal(today, {
         name: item.name,
+        mealType,
         protein: roundGrams(macros.protein),
         carbs: roundGrams(macros.carbs),
         fat: roundGrams(macros.fat),
@@ -887,8 +908,8 @@ export default function MealsSearch() {
           open={Boolean(selectedItem)}
           busy={logging}
           onClose={() => (!logging ? setSelectedItem(null) : undefined)}
-          onConfirm={({ grams, quantity }) =>
-            handleLogFood(selectedItem, grams, quantity)
+          onConfirm={({ grams, quantity, mealType }) =>
+            handleLogFood(selectedItem, grams, quantity, mealType)
           }
         />
       )}

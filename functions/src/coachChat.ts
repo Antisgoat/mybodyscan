@@ -301,6 +301,7 @@ async function ensureThread(uid: string, threadId: string) {
   if (!snap.exists) {
     await ref.set(
       scrubUndefined({
+        uid,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         status: "active",
@@ -309,7 +310,8 @@ async function ensureThread(uid: string, threadId: string) {
     );
   } else {
     await ref.set(
-      scrubUndefined({ updatedAt: FieldValue.serverTimestamp() }),
+      // Keep uid present for older threads and always bump updatedAt so the UI can order threads reliably.
+      scrubUndefined({ uid, updatedAt: FieldValue.serverTimestamp() }),
       { merge: true }
     );
   }
@@ -417,6 +419,7 @@ async function generateCoachResponseForThread(
 
   await db.doc(`users/${context.uid}/${THREADS_COLLECTION}/${threadId}`).set(
     scrubUndefined({
+      uid: context.uid,
       updatedAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp(),
       lastMessagePreview: replyText.slice(0, 140),

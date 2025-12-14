@@ -8,7 +8,8 @@ import {
 type AppCheckState =
   | { status: "checking"; tokenPresent: boolean; message?: string }
   | { status: "ready"; tokenPresent: true; message?: string }
-  | { status: "missing"; tokenPresent: false; message?: string };
+  | { status: "disabled"; tokenPresent: false; message?: string }
+  | { status: "unavailable"; tokenPresent: false; message?: string };
 
 export function useAppCheckStatus(): AppCheckState {
   const [state, setState] = useState<AppCheckState>({
@@ -23,9 +24,10 @@ export function useAppCheckStatus(): AppCheckState {
         if (!hasAppCheck()) {
           if (active)
             setState({
-              status: "missing",
+              // App Check is optional: if no site key is configured, continue without it.
+              status: "disabled",
               tokenPresent: false,
-              message: "App Check is not configured.",
+              message: "App Check is not configured (optional).",
             });
           return;
         }
@@ -37,7 +39,8 @@ export function useAppCheckStatus(): AppCheckState {
           tokenPresent
             ? { status: "ready", tokenPresent: true }
             : {
-                status: "missing",
+                // Token failures should not block the app; treat as optional enhancement.
+                status: "unavailable",
                 tokenPresent: false,
                 message: "No App Check token was issued.",
               }
@@ -48,7 +51,7 @@ export function useAppCheckStatus(): AppCheckState {
           typeof error?.message === "string" && error.message.length
             ? error.message
             : undefined;
-        setState({ status: "missing", tokenPresent: false, message });
+        setState({ status: "unavailable", tokenPresent: false, message });
       }
     })();
     return () => {

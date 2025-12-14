@@ -1,6 +1,6 @@
 import { Component, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
+import { reportError } from "@/lib/telemetry";
 
 interface RouteBoundaryProps {
   children: ReactNode;
@@ -22,11 +22,14 @@ export class RouteBoundary extends Component<
   }
 
   componentDidCatch(error: Error) {
-    console.error("[route-boundary]", error);
-    toast({
-      title: "Something went wrong",
-      description: error.message,
-      variant: "destructive",
+    if (import.meta.env.DEV) {
+      console.warn("[route-boundary]", error);
+    }
+    void reportError({
+      kind: "route_crash",
+      message: error?.message || "route crashed",
+      code: "route_crash",
+      stack: error?.stack,
     });
   }
 

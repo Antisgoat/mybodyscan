@@ -208,7 +208,7 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
 
 const App = () => (
   <AppProviders>
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageSkeleton />}>
       <Routes>
         {/* Root route - flag-controlled */}
         <Route

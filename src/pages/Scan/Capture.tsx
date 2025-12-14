@@ -47,7 +47,7 @@ export default function ScanCapture() {
     systemHealth?.scanConfigured === false ||
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false;
-  const blocked = appCheck.status === "missing" || scanOffline;
+  const blocked = scanOffline;
   const scanPrereqMessage = scanOffline
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
@@ -106,8 +106,8 @@ export default function ScanCapture() {
             <Alert className="border-dashed">
               <AlertTitle>Preparing secure upload…</AlertTitle>
               <AlertDescription>
-                Waiting for App Check before enabling uploads. This usually
-                takes a few seconds.
+                App Check is initializing (optional). You can continue capturing
+                photos while this completes.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -118,21 +118,11 @@ export default function ScanCapture() {
               <AlertDescription>{scanPrereqMessage}</AlertDescription>
             </Alert>
           ) : null}
-          {appCheck.status === "missing" ? (
-            <Alert variant="destructive" className="mb-3">
-              <AlertTitle>App Check required</AlertTitle>
-              <AlertDescription>
-                Secure uploads are blocked because App Check is not available.
-                Refresh the page or contact support.
-              </AlertDescription>
-            </Alert>
-          ) : null}
           {!blocked ? (
             <ScanCaptureComponent onReady={handleReady} />
           ) : (
             <p className="text-sm text-muted-foreground">
-              Upload controls stay disabled until App Check is ready and the
-              scan service URL is configured.
+              Scan capture is disabled until the scan service is configured.
             </p>
           )}
         </CardContent>

@@ -289,16 +289,8 @@ export default function CoachChatPage() {
         setHydratingHistory(false);
         if (!warned) {
           warned = true;
-          setCoachError("Unable to load coach chats.");
-          toast(
-            buildErrorToast(err, {
-              fallback: {
-                title: "Unable to load coach chats",
-                description: "Please try again in a moment.",
-                variant: "destructive",
-              },
-            })
-          );
+          // Keep this inline (not a scary global toast) so the rest of the page remains usable.
+          setCoachError("Unable to load coach chats. Please try again in a moment.");
         }
       }
     );
@@ -445,6 +437,7 @@ export default function CoachChatPage() {
     await setDoc(
       coachThreadDoc(uid, threadId),
       {
+        uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: "active",
@@ -474,11 +467,6 @@ export default function CoachChatPage() {
         coachPrereqMessage ??
         "Coach chat is disabled until it is fully configured.";
       setCoachError(message);
-      toast({
-        title: "Coach unavailable",
-        description: message,
-        variant: "destructive",
-      });
       return;
     }
     if (!demo && !demoGuard("coach chat")) {
@@ -527,6 +515,7 @@ export default function CoachChatPage() {
       if (!threadId) {
         threadId = ensureId();
         await setDoc(coachThreadDoc(uid, threadId), {
+          uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           status: "active",
@@ -547,6 +536,19 @@ export default function CoachChatPage() {
       }
 
       const messageId = ensureId();
+      // Optimistic UI: add the user message immediately so the chat feels responsive.
+      // Firestore snapshot will reconcile this once the write lands.
+      setMessages((prev) =>
+        sortMessages([
+          ...prev,
+          {
+            id: messageId,
+            role: "user",
+            content: sanitized,
+            createdAt: new Date(),
+          },
+        ])
+      );
       await setDoc(
         doc(
           coachThreadMessagesCollection(uid, threadId),
@@ -583,11 +585,6 @@ export default function CoachChatPage() {
         ? `${errMessage || fallback} (ref ${debugId.slice(0, 8)})`
         : errMessage || fallback;
       setCoachError(message);
-      toast({
-        title: "Coach unavailable",
-        description: message,
-        variant: "destructive",
-      });
       void reportError({
         kind: "client_error",
         message: errMessage || "coachChat failed",
@@ -797,20 +794,20 @@ export default function CoachChatPage() {
                   )}
                 </div>
                 <div className="space-y-3">
-                  {(coachError || !coachAvailable) && (
-                    <Alert variant="destructive">
-                      <AlertTitle>
-                        {coachAvailable
-                          ? "Coach unavailable"
-                          : "Coach setup incomplete"}
-                      </AlertTitle>
+                  {!coachAvailable && (
+                    <Alert variant="default">
+                      <AlertTitle>Coach setup incomplete</AlertTitle>
                       <AlertDescription>
-                        {coachError ??
-                          coachPrereqMessage ??
+                        {coachPrereqMessage ??
                           "Coach chat is unavailable right now."}
                       </AlertDescription>
                     </Alert>
                   )}
+                  {coachError ? (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                      {coachError}
+                    </div>
+                  ) : null}
                   <Textarea
                     value={input}
                     onChange={(event) => {
