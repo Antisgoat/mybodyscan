@@ -109,8 +109,20 @@ for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
 // endpoint will respond with a 404 and browsers will surface a CORS warning. This must be
 // resolved in console configuration, not client code.
 
-const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
-const warningKeys = ["appId", "storageBucket", "measurementId"] as const;
+// Treat these as required for a production-ready web bundle:
+// - **storageBucket** is required for scan uploads.
+// - **messagingSenderId** and **appId** are part of the canonical web config for this project
+//   and are expected to be present for consistent Auth/session behavior across hosts.
+const requiredKeys = [
+  "apiKey",
+  "authDomain",
+  "projectId",
+  "storageBucket",
+  "messagingSenderId",
+  "appId",
+] as const;
+// MeasurementId is optional (analytics) and should never block boot.
+const warningKeys = ["measurementId"] as const;
 
 export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
   (key) => {
