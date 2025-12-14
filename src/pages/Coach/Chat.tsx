@@ -42,6 +42,7 @@ import { reportError } from "@/lib/telemetry";
 import { setDoc } from "@/lib/dbWrite";
 import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
 import { toDateOrNull } from "@/lib/time";
+import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 
 declare global {
   interface Window {
@@ -165,6 +166,7 @@ export default function CoachChatPage() {
           ? "Coach chat is offline until the backend configuration is completed."
           : null;
   const coachAvailable = coachConfigured && !coachPrereqMessage;
+  const { totals, latestScan } = useCoachTodayAtAGlance();
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;
@@ -677,6 +679,20 @@ export default function CoachChatPage() {
         threadId,
         messageId,
         message: sanitized,
+        // Optional context: keep the client thin by only sending values we already have
+        // (today totals + plan goals + last scan). The server will fill any missing fields.
+        context: demo
+          ? undefined
+          : {
+              todayCalories: totals.calories,
+              todayCaloriesGoal: plan?.calorieTarget,
+              todayProteinGrams: totals.proteinGrams,
+              todayCarbGrams: totals.carbGrams,
+              todayFatGrams: totals.fatGrams,
+              todayProteinGoalGrams: plan?.proteinFloor,
+              lastScanDate: latestScan?.createdAt?.toISOString(),
+              lastScanBodyFatPercent: latestScan?.bodyFatPercent,
+            },
       };
       await coachChatApi(payload);
       setInput("");

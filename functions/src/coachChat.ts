@@ -17,11 +17,18 @@ import {
 import { scrubUndefined } from "./lib/scrub.js";
 
 export interface CoachChatRequest {
-  message: string;
   /** Optional thread support (ChatGPT-style). */
   threadId?: string;
   /** Optional deterministic message id written client-side (for dedupe). */
   messageId?: string;
+  message: string;
+  /**
+   * Optional context for the model (today summary, goals, last scan, etc).
+   * The backend will also compute missing fields server-side when possible.
+   */
+  context?: CoachChatContext;
+
+  // Legacy fields (kept for backward compatibility with older clients).
   goalType?: string;
   goalWeight?: number;
   currentWeight?: number;
@@ -30,6 +37,20 @@ export interface CoachChatRequest {
   heightCm?: number;
   activityLevel?: string;
 }
+
+export type CoachChatContext = {
+  todayCalories?: number;
+  todayCaloriesGoal?: number;
+  todayProteinGrams?: number;
+  todayCarbGrams?: number;
+  todayFatGrams?: number;
+  todayProteinGoalGrams?: number;
+  todayCarbGoalGrams?: number;
+  todayFatGoalGrams?: number;
+  lastScanDate?: string; // ISO string
+  lastScanBodyFatPercent?: number;
+  nextWorkoutDayName?: string;
+};
 
 interface CoachChatMetadata {
   recommendedSplit?: string;
@@ -90,6 +111,37 @@ function toNumber(value: unknown): number | undefined {
   return Number.isFinite(num) ? Number(num) : undefined;
 }
 
+function sanitizeIsoString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return trimmed;
+}
+
+function normalizeContext(data: unknown): CoachChatContext | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const raw = data as Record<string, unknown>;
+  const nextWorkoutDayName =
+    typeof raw.nextWorkoutDayName === "string"
+      ? raw.nextWorkoutDayName.trim().slice(0, 20)
+      : undefined;
+  return scrubUndefined({
+    todayCalories: toNumber(raw.todayCalories),
+    todayCaloriesGoal: toNumber(raw.todayCaloriesGoal),
+    todayProteinGrams: toNumber(raw.todayProteinGrams),
+    todayCarbGrams: toNumber(raw.todayCarbGrams),
+    todayFatGrams: toNumber(raw.todayFatGrams),
+    todayProteinGoalGrams: toNumber(raw.todayProteinGoalGrams),
+    todayCarbGoalGrams: toNumber(raw.todayCarbGoalGrams),
+    todayFatGoalGrams: toNumber(raw.todayFatGoalGrams),
+    lastScanDate: sanitizeIsoString(raw.lastScanDate),
+    lastScanBodyFatPercent: toNumber(raw.lastScanBodyFatPercent),
+    nextWorkoutDayName: nextWorkoutDayName || undefined,
+  }) as CoachChatContext;
+}
+
 function normalizePayload(data: unknown): CoachChatRequest {
   const payload = (
     typeof data === "object" && data !== null ? data : {}
@@ -104,6 +156,7 @@ function normalizePayload(data: unknown): CoachChatRequest {
       typeof payload.messageId === "string" && payload.messageId.trim().length
         ? payload.messageId.trim().slice(0, 120)
         : undefined,
+    context: normalizeContext((payload as any)?.context),
     goalType: sanitizeMessage(payload.goalType),
     goalWeight: toNumber(payload.goalWeight),
     currentWeight: toNumber(payload.currentWeight),
@@ -112,6 +165,191 @@ function normalizePayload(data: unknown): CoachChatRequest {
     heightCm: toNumber(payload.heightCm),
     activityLevel: sanitizeMessage(payload.activityLevel),
   };
+}
+
+function mergeContext(
+  serverContext: CoachChatContext,
+  clientContext?: CoachChatContext
+): CoachChatContext {
+  if (!clientContext) return serverContext;
+  const merged: CoachChatContext = { ...serverContext };
+  const keys: Array<keyof CoachChatContext> = [
+    "todayCalories",
+    "todayCaloriesGoal",
+    "todayProteinGrams",
+    "todayCarbGrams",
+    "todayFatGrams",
+    "todayProteinGoalGrams",
+    "todayCarbGoalGrams",
+    "todayFatGoalGrams",
+    "lastScanDate",
+    "lastScanBodyFatPercent",
+    "nextWorkoutDayName",
+  ];
+  for (const key of keys) {
+    const value = clientContext[key];
+    if (value !== undefined) {
+      // Key list is fixed; this is a safe assignment.
+      (merged as any)[key] = value;
+    }
+  }
+  return merged;
+}
+
+function toDateOrNull(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  if (typeof value.toDate === "function") {
+    try {
+      const d = value.toDate();
+      return d instanceof Date && Number.isFinite(d.getTime()) ? d : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value.toMillis === "function") {
+    try {
+      const ms = value.toMillis();
+      if (!Number.isFinite(ms)) return null;
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+async function buildServerContext(params: {
+  uid: string;
+  requestId: string;
+  clientContext?: CoachChatContext;
+}): Promise<CoachChatContext> {
+  const { uid, requestId, clientContext } = params;
+
+  // Defaults: numeric totals should be stable even when a log doesn't exist.
+  const base: CoachChatContext = {
+    todayCalories: 0,
+    todayProteinGrams: 0,
+    todayCarbGrams: 0,
+    todayFatGrams: 0,
+  };
+
+  const serverComputed: CoachChatContext = { ...base };
+
+  // Today’s nutrition summary (single doc read).
+  try {
+    const day = new Date().toISOString().slice(0, 10); // UTC fallback
+    const snap = await db.doc(`users/${uid}/nutritionLogs/${day}`).get();
+    const data = snap.exists ? (snap.data() as any) : null;
+    const totals = (data?.totals as any) || null;
+    const calories = Number(totals?.calories ?? data?.calories) || 0;
+    const protein = Number(totals?.protein ?? totals?.protein_g ?? data?.protein_g) || 0;
+    const carbs = Number(totals?.carbs ?? totals?.carbs_g ?? data?.carbs_g) || 0;
+    const fat = Number(totals?.fat ?? totals?.fat_g ?? data?.fat_g) || 0;
+    serverComputed.todayCalories = calories;
+    serverComputed.todayProteinGrams = protein;
+    serverComputed.todayCarbGrams = carbs;
+    serverComputed.todayFatGrams = fat;
+  } catch (error) {
+    logger.warn("coachChat.context.nutrition_failed", {
+      requestId,
+      uid,
+      message: (error as Error)?.message,
+    });
+    // Keep the base defaults and continue.
+  }
+
+  // Read coach plan for calorie/protein goal if present (cheap single doc read).
+  try {
+    const planSnap = await db.doc(`users/${uid}/coachPlans/current`).get();
+    if (planSnap.exists) {
+      const plan = planSnap.data() as any;
+      const calorieTarget = toNumber(plan?.calorieTarget ?? plan?.targetCalories);
+      const proteinFloor = toNumber(plan?.proteinFloor ?? plan?.proteinTarget);
+      if (calorieTarget !== undefined) serverComputed.todayCaloriesGoal = calorieTarget;
+      if (proteinFloor !== undefined)
+        serverComputed.todayProteinGoalGrams = proteinFloor;
+      const macros = plan?.macros;
+      if (macros && typeof macros === "object") {
+        const carbsGoal = toNumber((macros as any).carbs ?? (macros as any).carb);
+        const fatGoal = toNumber((macros as any).fat);
+        if (carbsGoal !== undefined) serverComputed.todayCarbGoalGrams = carbsGoal;
+        if (fatGoal !== undefined) serverComputed.todayFatGoalGrams = fatGoal;
+      }
+    }
+  } catch (error) {
+    logger.warn("coachChat.context.plan_goal_failed", {
+      requestId,
+      uid,
+      message: (error as Error)?.message,
+    });
+  }
+
+  // Last scan: query most recent scan.
+  try {
+    const scansSnap = await db
+      .collection(`users/${uid}/scans`)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+    if (!scansSnap.empty) {
+      const doc = scansSnap.docs[0];
+      const scan = doc.data() as any;
+      const createdAt = toDateOrNull(scan?.createdAt) ?? toDateOrNull(scan?.completedAt);
+      if (createdAt) {
+        serverComputed.lastScanDate = createdAt.toISOString();
+      }
+      const bodyFat =
+        toNumber(scan?.bodyFatPercentage) ??
+        toNumber(scan?.body_fat) ??
+        toNumber(scan?.bodyfat);
+      if (bodyFat !== undefined) {
+        serverComputed.lastScanBodyFatPercent = bodyFat;
+      }
+    }
+  } catch (error) {
+    logger.warn("coachChat.context.last_scan_failed", {
+      requestId,
+      uid,
+      message: (error as Error)?.message,
+    });
+  }
+
+  // NOTE: nextWorkoutDayName intentionally omitted here to avoid heavier program queries.
+  // It can be computed client-side (or added later if we standardize a cheap server read).
+
+  // Client-provided values (if any) win per-field, but should not erase server defaults.
+  return mergeContext(serverComputed, clientContext);
+}
+
+function buildCoachContextBlock(context?: CoachChatContext): string | null {
+  if (!context) return null;
+  const hasAny =
+    Object.values(context).some((v) => v !== undefined) &&
+    (Number(context.todayCalories) > 0 ||
+      Number(context.todayProteinGrams) > 0 ||
+      Number(context.todayCarbGrams) > 0 ||
+      Number(context.todayFatGrams) > 0 ||
+      typeof context.lastScanDate === "string" ||
+      typeof context.todayCaloriesGoal === "number");
+  if (!hasAny) return null;
+
+  const safe = scrubUndefined({
+    todayCalories: context.todayCalories,
+    todayCaloriesGoal: context.todayCaloriesGoal,
+    todayProteinGrams: context.todayProteinGrams,
+    todayCarbGrams: context.todayCarbGrams,
+    todayFatGrams: context.todayFatGrams,
+    todayProteinGoalGrams: context.todayProteinGoalGrams,
+    todayCarbGoalGrams: context.todayCarbGoalGrams,
+    todayFatGoalGrams: context.todayFatGoalGrams,
+    lastScanDate: context.lastScanDate,
+    lastScanBodyFatPercent: context.lastScanBodyFatPercent,
+    nextWorkoutDayName: context.nextWorkoutDayName,
+  });
+
+  return `TODAY_AT_A_GLANCE: ${JSON.stringify(safe)}`;
 }
 
 function buildPrompt(input: CoachChatRequest): string {
@@ -130,6 +368,11 @@ function buildPrompt(input: CoachChatRequest): string {
   lines.push(
     "Provide a concise, motivational yet practical answer for the user below."
   );
+  const todayBlock = buildCoachContextBlock(input.context);
+  if (todayBlock) {
+    lines.push("Today at a glance:");
+    lines.push(todayBlock);
+  }
   if (context.length) {
     lines.push("Context:");
     lines.push(...context);
@@ -166,6 +409,12 @@ function buildThreadUserContent(input: CoachChatRequest): string {
     lines.push("");
     lines.push("Context:");
     lines.push(...context);
+  }
+  const todayBlock = buildCoachContextBlock(input.context);
+  if (todayBlock) {
+    lines.push("");
+    lines.push("Today at a glance:");
+    lines.push(todayBlock);
   }
   return lines.join("\n").trim();
 }
@@ -544,6 +793,11 @@ export const coachChat = onCall<CoachChatRequest>(
       requestId,
     });
 
+    const uid = request.auth?.uid ?? null;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
     const payload = normalizePayload(request.data);
     if (!payload.message) {
       throw new HttpsError(
@@ -554,8 +808,13 @@ export const coachChat = onCall<CoachChatRequest>(
 
     const identifier = identifierFromRequest(request.rawRequest as Request);
     try {
+      payload.context = await buildServerContext({
+        uid,
+        requestId,
+        clientContext: payload.context,
+      });
       const ctx: RequestContext = {
-        uid: request.auth?.uid ?? null,
+        uid,
         identifier,
         requestId,
       };
@@ -610,6 +869,14 @@ export async function coachChatHandler(
   await ensureSoftAppCheckFromRequest(req, { fn: "coachChat", uid, requestId });
 
   try {
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    payload.context = await buildServerContext({
+      uid,
+      requestId,
+      clientContext: payload.context,
+    });
     const ctx: RequestContext = { uid, identifier, requestId };
     const response = payload.threadId
       ? await generateCoachResponseForThread(payload, ctx, payload.threadId)

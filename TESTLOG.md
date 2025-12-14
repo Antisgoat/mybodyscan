@@ -67,6 +67,8 @@ Manual checks for this PR
 - ✅ `npm run build`
 - ✅ `npm run typecheck`
 - ✅ Firestore rules tests (local emulator): `npx firebase emulators:exec --only firestore "npm run test --prefix tests/rules"`
+- ✅ Coach “Today at a glance” panel added on `/coach` and verified builds cleanly.
+- ✅ Coach chat now sends optional “today context” (nutrition totals + plan goals + last scan) and backend merges/auto-fills context without failing requests.
 
 Manual verification (requires a real Firebase project + browser runtime):
 
