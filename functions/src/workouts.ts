@@ -463,8 +463,53 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     uid,
   });
   const plan = sanitizeCatalogPlan(req.body);
-  const planId = randomUUID();
   const now = Timestamp.now();
+
+  // Idempotency guard: if the user double-clicks "Start program" (or retries due to a transient network
+  // error) we should not create multiple catalog plans. If the currently-active plan is already the same
+  // catalog program and was created recently, just re-point meta and return it.
+  try {
+    const metaRef = db.doc(`users/${uid}/workoutPlans_meta/current`);
+    const metaSnap = await metaRef.get();
+    const activePlanId = (metaSnap.data()?.activePlanId as string) || "";
+    if (activePlanId) {
+      const activeSnap = await db.doc(`users/${uid}/workoutPlans/${activePlanId}`).get();
+      if (activeSnap.exists) {
+        const active = activeSnap.data() as any;
+        const isCatalog = active?.source === "catalog";
+        const sameProgram = active?.catalogProgramId === plan.programId;
+        const createdAt = active?.createdAt as any;
+        const createdMs =
+          typeof createdAt?.toMillis === "function"
+            ? Number(createdAt.toMillis())
+            : createdAt instanceof Date
+              ? createdAt.getTime()
+              : typeof createdAt?.seconds === "number"
+                ? createdAt.seconds * 1000
+                : NaN;
+        const isRecent = Number.isFinite(createdMs) && Date.now() - createdMs < 10 * 60 * 1000;
+        if (isCatalog && sameProgram && isRecent) {
+          await metaRef.set(
+            scrubUndefined({
+              activePlanId,
+              updatedAt: now,
+            }),
+            { merge: true }
+          );
+          res.json({ planId: activePlanId, reused: true });
+          return;
+        }
+      }
+    }
+  } catch (error: any) {
+    // Never block plan activation on idempotency checks.
+    console.warn("applyCatalogPlan.idempotency_check_failed", {
+      uid,
+      message: error?.message,
+    });
+  }
+
+  const planId = randomUUID();
   await db.doc(`users/${uid}/workoutPlans/${planId}`).set(
     scrubUndefined({
       id: planId,
