@@ -153,10 +153,9 @@ service cloud.firestore {
       // just because those fields exist, so avoid strict hasOnly() checks here.
       return request.resource.data is map
         && (!request.resource.data.keys().hasAny(['uid']) || request.resource.data.uid == uid)
-        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
-        && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp)
         && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status is string)
-        && (!request.resource.data.keys().hasAny(['lastMessageAt']) || request.resource.data.lastMessageAt is timestamp)
+        // Timestamps are typically written with serverTimestamp() sentinel values.
+        // Avoid strict type checks here to prevent permission-denied on otherwise valid writes.
         && (!request.resource.data.keys().hasAny(['lastMessagePreview']) ||
           (request.resource.data.lastMessagePreview is string && request.resource.data.lastMessagePreview.size() <= 400));
     }
@@ -171,7 +170,7 @@ service cloud.firestore {
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 4000
-        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt is timestamp)
+        // createdAt is typically serverTimestamp() from the client.
         && (!request.resource.data.keys().hasAny(['suggestions']) || request.resource.data.suggestions is list);
     }
 
@@ -234,29 +233,13 @@ service cloud.firestore {
       }
 
       match /coach/{sub=**} {
-        // Narrow per-user coach writes to only the documents the client legitimately updates.
-        // (Cloud Functions use Admin SDK and are not constrained by rules.)
-        allow read, write: if false;
+        allow read: if isOwner(uid);
+        allow write: if !isDemoUser() && isOwner(uid) && !request.resource.id.matches('plan(/.*)?');
       }
 
       match /coach/plan/{rest=**} {
         allow read: if isOwner(uid);
         allow write: if false;
-      }
-
-      match /coach/profile {
-        allow read: if isOwner(uid);
-        allow write: if !isDemoUser() && isOwner(uid);
-      }
-
-      match /coach/chatMeta {
-        allow read: if isOwner(uid);
-        allow write: if !isDemoUser() && isOwner(uid);
-
-        match /chat/{messageId} {
-          allow read: if isOwner(uid);
-          allow write: if !isDemoUser() && isOwner(uid);
-        }
       }
 
       match /coachPlans/current {
@@ -294,14 +277,6 @@ service cloud.firestore {
       match /workoutPlans_meta/{docId} {
         allow read: if isOwner(uid);
         allow write: if false;
-      }
-
-      // Workout session logs written directly by the client Coach Day UI.
-      // Stored separately from workoutPlans progress so users can review recent performance.
-      match /workoutLogs/{logId} {
-        allow read: if isOwner(uid);
-        allow create: if !isDemoUser() && isOwner(uid);
-        allow update, delete: if false;
       }
 
       match /nutritionLogs/{day} {

@@ -47,6 +47,8 @@ export interface ScanDocument {
   status: "pending" | "processing" | "complete" | "error";
   errorMessage?: string;
   errorReason?: string | null;
+  /** Stored once at scan time so the result page doesn't call OpenAI again. */
+  recommendations?: string[] | null;
   photoPaths: {
     front: string;
     back: string;

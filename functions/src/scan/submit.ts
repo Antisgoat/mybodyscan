@@ -11,6 +11,7 @@ import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
+import { deriveNutritionPlan } from "../lib/nutritionGoals.js";
 import type { ScanDocument } from "../types.js";
 import {
   OpenAIClientError,
@@ -42,12 +43,14 @@ type OpenAIResult = {
   estimate?: Partial<ScanEstimate>;
   workoutPlan?: Partial<WorkoutPlan>;
   nutritionPlan?: Partial<NutritionPlan>;
+  recommendations?: unknown;
 };
 
 type ParsedAnalysis = {
   estimate: ScanEstimate;
   workoutPlan: WorkoutPlan;
   nutritionPlan: NutritionPlan;
+  recommendations: string[];
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -147,6 +150,18 @@ function sanitizeNutrition(
   };
 }
 
+function sanitizeRecommendations(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const cleaned = list
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0)
+    .map((entry) => entry.replace(/^[\u2022\-*\d.]+\s*/, "").trim())
+    .filter((entry) => entry.length > 0)
+    .slice(0, 5)
+    .map((entry) => entry.slice(0, 180));
+  return cleaned;
+}
+
 function parsePayload(body: any): SubmitPayload | null {
   if (!body || typeof body !== "object") return null;
   const scanId = typeof body.scanId === "string" ? body.scanId.trim() : "";
@@ -214,6 +229,7 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
     estimate: coerce(payload.estimate),
     workoutPlan: coerce(payload.workoutPlan),
     nutritionPlan: coerce(payload.nutritionPlan),
+    recommendations: payload.recommendations,
   };
 }
 
@@ -224,7 +240,7 @@ async function callOpenAI(
 ): Promise<OpenAIResult> {
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
-    'Respond with JSON matching {"estimate": ScanEstimate, "workoutPlan": WorkoutPlan, "nutritionPlan": NutritionPlan}.',
+    'Respond with JSON matching {"estimate": ScanEstimate, "workoutPlan": WorkoutPlan, "nutritionPlan": NutritionPlan, "recommendations": string[]}.',
     "Use concise language and realistic programming for an intermediate trainee.",
   ].join("\n");
 
@@ -235,6 +251,7 @@ async function callOpenAI(
     "BMI can be null if unreliable. Notes must remind this is only an estimate.",
     "Workout plan should span multiple weeks with daily splits.",
     "Nutrition plan must include daily calories/macros and a sample day of meals.",
+    "Recommendations must be 3-5 short bullets (no numbering), focused on next steps for training and nutrition.",
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
@@ -267,7 +284,8 @@ function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
     const estimate = sanitizeEstimate(raw.estimate);
     const workoutPlan = sanitizeWorkout(raw.workoutPlan);
     const nutritionPlan = sanitizeNutrition(raw.nutritionPlan);
-    return { estimate, workoutPlan, nutritionPlan };
+    const recommendations = sanitizeRecommendations(raw.recommendations);
+    return { estimate, workoutPlan, nutritionPlan, recommendations };
   } catch (error) {
     throw new Error(
       `openai_parse_failed:${(error as Error)?.message ?? "unknown"}`
@@ -454,7 +472,22 @@ export const submitScan = onRequest(
         },
         estimate: analysis.estimate,
         workoutPlan: analysis.workoutPlan,
-        nutritionPlan: analysis.nutritionPlan,
+        nutritionPlan: (() => {
+          const derived = deriveNutritionPlan({
+            weightKg: payload.currentWeightKg,
+            bodyFatPercent: analysis.estimate.bodyFatPercent,
+            goalWeightKg: payload.goalWeightKg,
+          });
+          // Keep OpenAI's sample day (if provided) but enforce deterministic totals/macros.
+          return {
+            ...analysis.nutritionPlan,
+            caloriesPerDay: derived.caloriesPerDay,
+            proteinGrams: derived.proteinGrams,
+            carbsGrams: derived.carbsGrams,
+            fatsGrams: derived.fatsGrams,
+          };
+        })(),
+        recommendations: analysis.recommendations.length ? analysis.recommendations : null,
         errorMessage: null,
         errorReason: null,
       };
@@ -471,7 +504,8 @@ export const submitScan = onRequest(
         scanId: payload.scanId,
         estimate: analysis.estimate,
         workoutPlan: analysis.workoutPlan,
-        nutritionPlan: analysis.nutritionPlan,
+        nutritionPlan: update.nutritionPlan,
+        recommendations: update.recommendations,
         debugId: requestId,
       });
     } catch (error) {

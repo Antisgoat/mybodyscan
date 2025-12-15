@@ -37,6 +37,7 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 import { formatDistanceToNow } from "date-fns";
+import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -66,7 +67,7 @@ function nextTargetFor(program: Program, lastWeek: number, lastDay: number) {
 }
 
 export default function CoachOverview() {
-  const { profile } = useUserProfile();
+  const { profile, plan } = useUserProfile();
   const navigate = useNavigate();
   const location = useLocation();
   const [hydrated, setHydrated] = useState(false);
@@ -86,8 +87,24 @@ export default function CoachOverview() {
   const readOnlyDemo = demo && !user;
   const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const { totals, latestScan } = useCoachTodayAtAGlance();
-  const todayCaloriesGoal = profile?.calorieTarget;
-  const todayProteinGoalGrams = profile?.proteinFloor;
+  const computedGoals = useMemo(() => {
+    const overrides: { calories?: number; proteinGrams?: number } = {};
+    if (typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)) {
+      overrides.calories = plan.calorieTarget;
+    }
+    if (typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)) {
+      overrides.proteinGrams = plan.proteinFloor;
+    }
+    return deriveNutritionGoals({
+      weightKg: profile?.weight_kg ?? null,
+      goal: profile?.goal === "lose_fat" ? "lose_fat" : profile?.goal === "gain_muscle" ? "gain_muscle" : null,
+      activityLevel: profile?.activity_level ?? null,
+      overrides,
+    });
+  }, [plan?.calorieTarget, plan?.proteinFloor, profile?.activity_level, profile?.goal, profile?.weight_kg]);
+
+  const todayCaloriesGoal = computedGoals.calories;
+  const todayProteinGoalGrams = computedGoals.proteinGrams;
 
   useEffect(() => {
     let isMounted = true;
@@ -276,6 +293,15 @@ export default function CoachOverview() {
   const showEmptyState = !isLoadingPrograms && !program;
 
   const initializing = false;
+  const workoutsCompletedThisWeek = useMemo(() => {
+    if (!currentWeek?.days?.length) return 0;
+    return currentWeek.days.reduce((count, _day, idx) => {
+      const completed =
+        lastWeekForProgram > weekIdx ||
+        (lastWeekForProgram === weekIdx && lastDayForProgram >= idx);
+      return completed ? count + 1 : count;
+    }, 0);
+  }, [currentWeek?.days, lastWeekForProgram, weekIdx, lastDayForProgram]);
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -304,6 +330,12 @@ export default function CoachOverview() {
                   {typeof todayCaloriesGoal === "number" && todayCaloriesGoal > 0
                     ? ` / Goal ${Math.round(todayCaloriesGoal)}`
                     : "/ Goal —"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Workouts this week</span>
+                <span className="font-medium">
+                  {workoutsCompletedThisWeek} / {daysThisWeek || "—"}
                 </span>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
