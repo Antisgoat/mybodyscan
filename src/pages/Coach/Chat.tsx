@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   doc,
@@ -63,8 +63,8 @@ interface ThreadMessage {
 
 interface ThreadMeta {
   id: string;
-  updatedAt?: Date;
-  createdAt?: Date;
+  updatedAt: Date;
+  createdAt: Date;
   lastMessagePreview?: string | null;
 }
 
@@ -126,6 +126,8 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
+  const missingThreadUpdatedAtRef = useRef<Set<string>>(new Set());
+  const missingMessageCreatedAtRef = useRef<Set<string>>(new Set());
   const [threads, setThreads] = useState<ThreadMeta[]>(() =>
     demo
       ? [
@@ -263,8 +265,21 @@ export default function CoachChatPage() {
           const now = new Date();
           const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
             const data = snap.data() as any;
-            const createdAt = toDateOrNull(data?.createdAt) ?? now;
-            const updatedAt = toDateOrNull(data?.updatedAt) ?? createdAt;
+            const createdAtRaw = data?.createdAt;
+            const updatedAtRaw = data?.updatedAt;
+            const createdAt = toDateOrNull(createdAtRaw) ?? now;
+            const updatedAt = toDateOrNull(updatedAtRaw) ?? createdAt;
+            if (!toDateOrNull(updatedAtRaw)) {
+              const key = snap.id;
+              if (!missingThreadUpdatedAtRef.current.has(key)) {
+                missingThreadUpdatedAtRef.current.add(key);
+                void reportError({
+                  kind: "data_missing",
+                  message: "coachThread missing updatedAt",
+                  extra: { threadId: snap.id },
+                });
+              }
+            }
             return {
               id: snap.id,
               createdAt,
@@ -436,7 +451,19 @@ export default function CoachChatPage() {
         (snapshot) => {
           const next = snapshot.docs.map((snap) => {
             const data = snap.data() as any;
-            const created = toDateOrNull(data?.createdAt) ?? new Date();
+            const createdAtRaw = data?.createdAt;
+            const created = toDateOrNull(createdAtRaw) ?? new Date();
+            if (!toDateOrNull(createdAtRaw)) {
+              const key = `${activeThreadId}:${snap.id}`;
+              if (!missingMessageCreatedAtRef.current.has(key)) {
+                missingMessageCreatedAtRef.current.add(key);
+                void reportError({
+                  kind: "data_missing",
+                  message: "coachThread message missing createdAt",
+                  extra: { threadId: activeThreadId, messageId: snap.id },
+                });
+              }
+            }
             const role = data?.role === "assistant" ? "assistant" : "user";
             const suggestions = Array.isArray(data?.suggestions)
               ? data.suggestions
@@ -915,8 +942,8 @@ export default function CoachChatPage() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Ask a question to get personalized training and nutrition
-                      tips.
+                      No messages yet. Ask a question to get personalized training
+                      and nutrition tips.
                     </p>
                   )}
                 </div>
