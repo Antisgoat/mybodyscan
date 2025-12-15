@@ -92,7 +92,7 @@ async function identifyUid(req: Request): Promise<string | null> {
   }
 }
 
-export const telemetryLog = onRequest(
+export const telemetryLogHttp = onRequest(
   { region: "us-central1" },
   async (req: Request, res: Response) => {
     const cors = applyCors(req, res);
