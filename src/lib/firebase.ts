@@ -110,19 +110,13 @@ for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
 // resolved in console configuration, not client code.
 
 // Treat these as required for a production-ready web bundle:
-// - **storageBucket** is required for scan uploads.
-// - **messagingSenderId** and **appId** are part of the canonical web config for this project
-//   and are expected to be present for consistent Auth/session behavior across hosts.
 const requiredKeys = [
   "apiKey",
   "authDomain",
   "projectId",
-  "storageBucket",
-  "messagingSenderId",
-  "appId",
 ] as const;
 // MeasurementId is optional (analytics) and should never block boot.
-const warningKeys = ["measurementId"] as const;
+const warningKeys = ["storageBucket", "messagingSenderId", "appId", "measurementId"] as const;
 
 export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
   (key) => {
@@ -221,6 +215,42 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
     hasConfig: hasFirebaseConfig,
     missingKeys: firebaseConfigMissingKeys,
   });
+}
+
+let loggedConfigSummary = false;
+function buildFirebaseConfigSummary(): Record<string, string> {
+  const summary: Record<string, string> = {
+    projectId: String(firebaseConfig.projectId || "").trim(),
+    authDomain: String(firebaseConfig.authDomain || "").trim(),
+  };
+  const optional: Array<keyof FirebaseRuntimeConfig> = [
+    "storageBucket",
+    "messagingSenderId",
+    "appId",
+    "measurementId",
+  ];
+  for (const key of optional) {
+    const value = String((firebaseConfig as any)?.[key] || "").trim();
+    if (value) summary[key] = value;
+  }
+  return summary;
+}
+
+export function logFirebaseConfigSummary(): void {
+  if (loggedConfigSummary) return;
+  loggedConfigSummary = true;
+  try {
+    // Do not print apiKey; keep logs concise and non-sensitive.
+    console.info("[firebase] config", buildFirebaseConfigSummary());
+    if (firebaseConfigWarningKeys.length) {
+      console.warn(
+        "[firebase] Optional config keys missing; some features may be unavailable",
+        firebaseConfigWarningKeys
+      );
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export async function firebaseReady(): Promise<void> {

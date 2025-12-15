@@ -115,6 +115,11 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 function toLocalISODate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -640,6 +645,28 @@ export default function Meals() {
   );
   const ringCircumference = 2 * Math.PI * 54;
 
+  const macroCalories = {
+    protein: consumedProtein * 4,
+    carbs: consumedCarbs * 4,
+    fat: consumedFat * 9,
+  };
+  const macroTotalCalories =
+    macroCalories.protein + macroCalories.carbs + macroCalories.fat;
+  const macroPercents = {
+    protein:
+      macroTotalCalories > 0
+        ? clampPercent((macroCalories.protein / macroTotalCalories) * 100)
+        : 0,
+    carbs:
+      macroTotalCalories > 0
+        ? clampPercent((macroCalories.carbs / macroTotalCalories) * 100)
+        : 0,
+    fat:
+      macroTotalCalories > 0
+        ? clampPercent((macroCalories.fat / macroTotalCalories) * 100)
+        : 0,
+  };
+
   const chartData = history7.map((day) => ({
     date: new Date(day.date).toLocaleDateString(undefined, {
       month: "short",
@@ -744,9 +771,16 @@ export default function Meals() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="rounded-md border p-4">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Calories remaining
+                Calories
               </div>
               <div className="mt-1 text-3xl font-semibold">
+                {Math.round(consumedCalories).toLocaleString()} /{" "}
+                {targetCalories.toLocaleString()}
+              </div>
+              <div className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+                Calories remaining
+              </div>
+              <div className="mt-1 text-2xl font-semibold">
                 {remainingCalories.toLocaleString()}
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
@@ -772,7 +806,11 @@ export default function Meals() {
                 <div className="flex items-center justify-between">
                   <span>Protein</span>
                   <span>
-                    {Math.round(consumedProtein)} / {Math.round(targetProtein)} g
+                    {Math.round(consumedProtein)} g{" "}
+                    <span className="text-muted-foreground/80">
+                      ({Math.round(macroPercents.protein)}%)
+                    </span>{" "}
+                    · {Math.round(targetProtein)} g goal
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded bg-muted">
@@ -790,7 +828,11 @@ export default function Meals() {
                 <div className="flex items-center justify-between">
                   <span>Carbs</span>
                   <span>
-                    {Math.round(consumedCarbs)} / {Math.round(targetCarbs)} g
+                    {Math.round(consumedCarbs)} g{" "}
+                    <span className="text-muted-foreground/80">
+                      ({Math.round(macroPercents.carbs)}%)
+                    </span>{" "}
+                    · {Math.round(targetCarbs)} g goal
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded bg-muted">
@@ -808,7 +850,11 @@ export default function Meals() {
                 <div className="flex items-center justify-between">
                   <span>Fat</span>
                   <span>
-                    {Math.round(consumedFat)} / {Math.round(targetFat)} g
+                    {Math.round(consumedFat)} g{" "}
+                    <span className="text-muted-foreground/80">
+                      ({Math.round(macroPercents.fat)}%)
+                    </span>{" "}
+                    · {Math.round(targetFat)} g goal
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded bg-muted">

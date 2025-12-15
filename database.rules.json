@@ -213,6 +213,15 @@ service cloud.firestore {
           allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
           allow delete: if false;
         }
+
+        // Legacy alias (older clients / experiments).
+        // Keep permissions consistent with /messages to avoid hard-to-debug permission-denied errors.
+        match /coachMessages/{messageId} {
+          allow read: if isOwner(uid);
+          allow create: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow update: if !isDemoUser() && isOwner(uid) && isValidCoachThreadMessageWrite();
+          allow delete: if false;
+        }
       }
 
       match /scans/{scanId} {

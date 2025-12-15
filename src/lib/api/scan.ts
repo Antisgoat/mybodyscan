@@ -558,7 +558,12 @@ export async function submitScanClient(
         (snapshot) => {
           const snapshotTotal = snapshot.totalBytes || target.size || 1;
           const snapshotBytes = snapshot.bytesTransferred || 0;
-          const hasTransferred = snapshotBytes > 0;
+          // Some browsers (notably mobile Safari) can emit early progress events with 0 bytes transferred.
+          // Treat "running"/"paused" as started so the UI doesn't look stuck at 0%.
+          const hasTransferred =
+            snapshotBytes > 0 ||
+            snapshot.state === "running" ||
+            snapshot.state === "paused";
           const filePercent = ensureVisibleProgress(
             snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
             hasTransferred

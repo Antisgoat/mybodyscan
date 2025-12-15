@@ -107,3 +107,41 @@ Manual verification (requires a real Firebase project + browser runtime):
 6. General
    - [ ] No unhandled exceptions in console across Scan/Meals/Coach/Programs.
    - [ ] No unexpected Firestore `permission-denied` errors for a valid signed-in user.
+
+## 2025-12-15 — production reliability pass (coach/programs/meals/scan/telemetry)
+
+- ✅ `npm test`
+- ✅ `npm run build`
+- ✅ `npm --prefix functions run build`
+
+Changes validated in this branch:
+
+- Coach chat:
+  - Firestore rules now include a legacy alias for `users/{uid}/coachThreads/{threadId}/coachMessages/*` (same permissions as `/messages/*`).
+  - UI hardening: missing `updatedAt` / `createdAt` no longer crash rendering; missing fields emit deduped telemetry (`kind=data_missing`).
+- Meals:
+  - Diary summary now shows **Consumed / Goal** calories and macro **grams + %** breakdown.
+  - Firebase env checks no longer treat `storageBucket/messagingSenderId/appId` as required for boot; startup logs a concise Firebase config summary.
+- Scan:
+  - Upload progress no longer looks stuck at 0% on early 0-byte events (mobile Safari); progress UI starts at a small visible baseline.
+  - Scan result page shows **your uploaded photos** (signed-in owner reads from Storage) even when the scan ends in an error state.
+- Telemetry:
+  - Confirmed `telemetryLog` remains callable and `/telemetry/log` uses `telemetryLogHttp` via Hosting rewrites (avoids callable/HTTP type conflicts).
+
+Manual verification checklist (staging/prod browser):
+
+1. Coach chat happy path
+   - [ ] Sign in (non-demo), open `/coach/chat` and confirm threads load (no `permission-denied`).
+   - [ ] Create a new thread, send a message, see assistant reply.
+   - [ ] Verify UI does not crash if a thread/message is missing timestamps (should still render).
+2. Start program / weekly plan
+   - [ ] Open `/programs/:id`, click “Start program”.
+   - [ ] Confirm redirect to `/workouts?plan=...&started=1` and Workouts loads the active plan.
+   - [ ] Confirm no `documentPath must point to a document` errors in console.
+3. Meals daily log
+   - [ ] Open `/meals`, add items, confirm **Consumed/Goal/Remaining** and macros update.
+   - [ ] Reload page and confirm data persists.
+4. Scan
+   - [ ] Upload 4 photos, ensure Storage objects exist under `user_uploads/{uid}/{scanId}/`.
+   - [ ] Wait for result; confirm Scan Result renders metrics.
+   - [ ] If analysis fails, confirm the error card appears and photos are still viewable.

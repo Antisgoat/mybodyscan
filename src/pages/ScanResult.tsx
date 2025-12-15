@@ -20,7 +20,8 @@ import { useAuthUser } from "@/lib/auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
+import { getDownloadURL, ref } from "firebase/storage";
 import silhouetteFront from "@/assets/silhouette-front.png";
 
 const REFRESH_INTERVAL_MS = 7000;
@@ -30,6 +31,9 @@ export default function ScanResultPage() {
   const nav = useNavigate();
   const [scan, setScan] = useState<ScanDocument | null>(null);
   const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<
+    Partial<Record<keyof ScanDocument["photoPaths"], string>>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { units } = useUnits();
@@ -78,6 +82,46 @@ export default function ScanResultPage() {
       cancelled = true;
     };
   }, [scanId, needsRefresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPhotoUrls(next: ScanDocument | null) {
+      if (!next) {
+        setPhotoUrls({});
+        return;
+      }
+      const paths = next.photoPaths;
+      const entries = (Object.entries(paths) as Array<
+        [keyof ScanDocument["photoPaths"], string]
+      >).filter(([, path]) => typeof path === "string" && path.trim().length > 0);
+      if (!entries.length) {
+        setPhotoUrls({});
+        return;
+      }
+      const resolved = await Promise.all(
+        entries.map(async ([pose, path]) => {
+          try {
+            const url = await getDownloadURL(ref(storage, path));
+            return [pose, url] as const;
+          } catch (err) {
+            console.warn("scanResult.photo_url_failed", { pose, path });
+            return [pose, ""] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> =
+        {};
+      for (const [pose, url] of resolved) {
+        if (url) nextUrls[pose] = url;
+      }
+      setPhotoUrls(nextUrls);
+    }
+    void fetchPhotoUrls(scan);
+    return () => {
+      cancelled = true;
+    };
+  }, [scan]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +191,7 @@ export default function ScanResultPage() {
             statusMeta.helperText ||
             "We couldn't complete this scan."}
         </p>
+        <ScanPhotos photoUrls={photoUrls} />
         <div className="flex gap-2">
           <Button onClick={() => nav("/scan")}>Try again</Button>
           <Button variant="outline" onClick={() => nav("/scan/history")}>
@@ -362,6 +407,8 @@ export default function ScanResultPage() {
         </CardContent>
       </Card>
 
+      <ScanPhotos photoUrls={photoUrls} />
+
       <div className="grid gap-4 lg:grid-cols-[1.6fr,1fr]">
         <Card className="border bg-card/60">
           <CardHeader>
@@ -522,6 +569,52 @@ export default function ScanResultPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function ScanPhotos({
+  photoUrls,
+}: {
+  photoUrls: Partial<Record<"front" | "back" | "left" | "right", string>>;
+}) {
+  const entries = (Object.entries(photoUrls) as Array<
+    ["front" | "back" | "left" | "right", string]
+  >).filter(([, url]) => typeof url === "string" && url.length > 0);
+  if (!entries.length) return null;
+  const label: Record<string, string> = {
+    front: "Front",
+    back: "Back",
+    left: "Left",
+    right: "Right",
+  };
+  return (
+    <Card className="border bg-card/60">
+      <CardHeader>
+        <CardTitle className="text-lg">Your photos</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {entries.map(([pose, url]) => (
+          <a
+            key={pose}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="group overflow-hidden rounded-lg border bg-background/60"
+            aria-label={`Open ${label[pose] ?? pose} photo`}
+          >
+            <img
+              src={url}
+              alt={`${label[pose] ?? pose} photo`}
+              loading="lazy"
+              className="h-48 w-full object-cover transition group-hover:scale-[1.02]"
+            />
+            <div className="p-2 text-center text-xs font-medium text-muted-foreground">
+              {label[pose] ?? pose}
+            </div>
+          </a>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
