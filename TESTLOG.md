@@ -164,3 +164,11 @@ Notes:
 - ✅ Fixed a real production crash: `ReferenceError: index is not defined` on `/system-check` (caused by stray `:contentReference[...]` tokens).
 - ✅ Updated `SystemCheckPro` + `scripts/smoke.sh` to call coach chat with `{ "message": ... }` (server expects `message`, not `question`).
 - ⚠️ Playwright E2E against `https://mybodyscanapp.com` still requires a signed-in storage state for protected routes (Scan/Nutrition/Settings/Coach). Anonymous-auth-based smoke scripts also require Firebase Anonymous Auth to be enabled in the project.
+
+### 2025-12-16 production smoke (anon auth enabled)
+
+- ✅ `ops/idtk-smoke.sh` (anonymous signup returns an ID token)
+- ✅ `systemHealth` probe: HTTP 200
+- ⚠️ `nutritionSearch` probe: HTTP 501 `nutrition_not_configured` (missing `USDA_FDC_API_KEY` on backend)
+- ⚠️ `coachChat` probe: HTTP 400 `failed-precondition` (“Coach is not configured…”, indicates missing `OPENAI_API_KEY` / coach backend config)
+- ⚠️ Checkout probe skipped (no `VITE_PRICE_STARTER` set in CI env)

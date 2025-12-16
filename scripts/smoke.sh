@@ -8,7 +8,12 @@ FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
 if [[ -z "$FIREBASE_API_KEY" ]]; then
   for env_file in ".env.production" ".env.production.local" ".env.local" ".env"; do
     if [[ -f "$ROOT_DIR/$env_file" ]]; then
-      candidate=$(grep -E '^VITE_FIREBASE_API_KEY=' "$ROOT_DIR/$env_file" | tail -n1 | cut -d= -f2- | tr -d '\r')
+      candidate=$(
+        (grep -E '^VITE_FIREBASE_API_KEY=' "$ROOT_DIR/$env_file" || true) \
+          | tail -n1 \
+          | cut -d= -f2- \
+          | tr -d '\r'
+      )
       if [[ -n "$candidate" ]]; then
         FIREBASE_API_KEY="$candidate"
         break
@@ -32,7 +37,12 @@ PRICE_ID="${VITE_PRICE_STARTER:-}"
 if [[ -z "$PRICE_ID" ]]; then
   for env_file in ".env.production" ".env.production.local" ".env.local" ".env"; do
     if [[ -f "$ROOT_DIR/$env_file" ]]; then
-      candidate=$(grep -E '^VITE_PRICE_STARTER=' "$ROOT_DIR/$env_file" | tail -n1 | cut -d= -f2- | tr -d '\r')
+      candidate=$(
+        (grep -E '^VITE_PRICE_STARTER=' "$ROOT_DIR/$env_file" || true) \
+          | tail -n1 \
+          | cut -d= -f2- \
+          | tr -d '\r'
+      )
       if [[ -n "$candidate" ]]; then
         PRICE_ID="$candidate"
         break
