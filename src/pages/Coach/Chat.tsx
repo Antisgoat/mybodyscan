@@ -46,6 +46,7 @@ import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 import { useClaims } from "@/lib/claims";
 import { useSubscription } from "@/hooks/useSubscription";
 import { canUseCoach } from "@/lib/entitlements";
+import { recordPermissionDenied } from "@/lib/devDiagnostics";
 
 declare global {
   interface Window {
@@ -129,10 +130,11 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
-  const { claims } = useClaims();
+  const { claims, refresh: refreshClaimsHook } = useClaims();
   const { subscription } = useSubscription();
   const missingThreadUpdatedAtRef = useRef<Set<string>>(new Set());
   const missingMessageCreatedAtRef = useRef<Set<string>>(new Set());
+  const entitlementRefreshAttemptedRef = useRef(false);
   const [threads, setThreads] = useState<ThreadMeta[]>(() =>
     demo
       ? [
@@ -261,6 +263,25 @@ export default function CoachChatPage() {
       return;
     }
     if (!coachEntitled) {
+      // If claims are stale, refresh once before failing closed.
+      if (!entitlementRefreshAttemptedRef.current) {
+        entitlementRefreshAttemptedRef.current = true;
+        setHydratingHistory(true);
+        void (async () => {
+          try {
+            await call("refreshClaims");
+          } catch {
+            // ignore
+          }
+          await refreshAuthTokenSoft();
+          try {
+            await refreshClaimsHook(true);
+          } catch {
+            // ignore
+          }
+        })();
+        return;
+      }
       // Avoid noisy permission-denied loops when a user truly isn't eligible.
       setThreads([]);
       setActiveThreadId(null);
@@ -284,33 +305,45 @@ export default function CoachChatPage() {
         threadsQuery,
         (snapshot) => {
           const now = new Date();
-          const nextThreads: ThreadMeta[] = snapshot.docs.map((snap) => {
-            const data = snap.data() as any;
-            const createdAtRaw = data?.createdAt;
-            const updatedAtRaw = data?.updatedAt;
-            const createdAt = toDateOrNull(createdAtRaw) ?? now;
-            const updatedAt = toDateOrNull(updatedAtRaw) ?? createdAt;
-            if (!toDateOrNull(updatedAtRaw)) {
-              const key = snap.id;
-              if (!missingThreadUpdatedAtRef.current.has(key)) {
-                missingThreadUpdatedAtRef.current.add(key);
-                void reportError({
-                  kind: "data_missing",
-                  message: "coachThread missing updatedAt",
-                  extra: { threadId: snap.id },
-                });
+          const nextThreads: ThreadMeta[] = snapshot.docs
+            .map((snap) => {
+              const data = (snap.data?.() as any) ?? null;
+              if (!data) return null;
+              const createdAtRaw = data?.createdAt;
+              const updatedAtRaw = data?.updatedAt;
+              const createdAt = toDateOrNull(createdAtRaw) ?? now;
+              const updatedAt = toDateOrNull(updatedAtRaw) ?? createdAt;
+              if (!toDateOrNull(updatedAtRaw)) {
+                const key = snap.id;
+                if (!missingThreadUpdatedAtRef.current.has(key)) {
+                  missingThreadUpdatedAtRef.current.add(key);
+                  void reportError({
+                    kind: "data_missing",
+                    message: "coachThread missing updatedAt",
+                    extra: { threadId: snap.id },
+                  });
+                }
               }
-            }
-            return {
-              id: snap.id,
-              createdAt,
-              updatedAt,
-              lastMessagePreview:
-                typeof data?.lastMessagePreview === "string"
-                  ? data.lastMessagePreview
-                  : null,
-            };
-          });
+              return {
+                id: snap.id,
+                createdAt,
+                updatedAt,
+                lastMessagePreview:
+                  typeof data?.lastMessagePreview === "string"
+                    ? data.lastMessagePreview
+                    : null,
+              } satisfies ThreadMeta;
+            })
+            .filter((t): t is ThreadMeta => Boolean(t))
+            .sort((a, b) => {
+              const am = a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
+              const bm = b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
+              if (am !== bm) return bm - am;
+              const ac = a.createdAt?.getTime?.() ?? 0;
+              const bc = b.createdAt?.getTime?.() ?? 0;
+              if (ac !== bc) return bc - ac;
+              return a.id.localeCompare(b.id);
+            });
 
           // If no threads exist yet, fall back to legacy chat history (read-only)
           // so existing users don't "lose" their stored messages.
@@ -344,6 +377,10 @@ export default function CoachChatPage() {
         },
         async (err) => {
           console.warn("coachThreads.snapshot_failed", err);
+          recordPermissionDenied(err, {
+            op: "coachThreads.onSnapshot",
+            path: uid ? `users/${uid}/coachThreads` : undefined,
+          });
           void reportError({
             kind: "coach_threads_snapshot_failed",
             message: err?.message || "coachThreads snapshot failed",
@@ -448,6 +485,10 @@ export default function CoachChatPage() {
           },
           async (err) => {
             console.warn("coachChat.snapshot_failed", err);
+          recordPermissionDenied(err, {
+            op: "coachChatLegacy.onSnapshot",
+            path: uid ? coachChatCollectionPath(uid) : undefined,
+          });
             void reportError({
               kind: "coach_legacy_snapshot_failed",
               message: err?.message || "coachChat legacy snapshot failed",
@@ -526,6 +567,13 @@ export default function CoachChatPage() {
         },
         async (err) => {
           console.warn("coachThread.messages.snapshot_failed", err);
+          recordPermissionDenied(err, {
+            op: "coachThreadMessages.onSnapshot",
+            path:
+              uid && activeThreadId
+                ? `users/${uid}/coachThreads/${activeThreadId}/messages`
+                : undefined,
+          });
           void reportError({
             kind: "coach_thread_messages_snapshot_failed",
             message: err?.message || "coachThread messages snapshot failed",
@@ -780,6 +828,7 @@ export default function CoachChatPage() {
       setInput("");
     } catch (error: any) {
       console.error("coachChat error", error);
+      recordPermissionDenied(error, { op: "coachChat.callable" });
       const code = (error as any)?.code as string | undefined;
       const errMessage =
         typeof error?.message === "string" && error.message !== "Bad Request"

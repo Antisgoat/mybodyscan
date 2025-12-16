@@ -19,6 +19,10 @@ import type {
 import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { hasOpenAI } from "./lib/env.js";
 import { scrubUndefined } from "./lib/scrub.js";
+import {
+  hasActiveSubscriptionFromUserDoc,
+  hasUnlimitedAccessFromClaims,
+} from "./lib/entitlements.js";
 import { structuredJsonChat } from "./openai/client.js";
 
 const db = getFirestore();
@@ -466,15 +470,10 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
   // Eligibility: active subscription OR unlimited credits claim.
   // Keep this logic server-side so UI gating can't be bypassed.
   try {
-    const unlimited =
-      claims?.unlimitedCredits === true ||
-      claims?.unlimited === true ||
-      claims?.admin === true ||
-      claims?.staff === true;
+    const unlimited = hasUnlimitedAccessFromClaims(claims);
     if (!unlimited) {
       const userSnap = await db.doc(`users/${uid}`).get();
-      const status = String((userSnap.data() as any)?.subscription?.status || "").toLowerCase();
-      const active = status === "active" || status === "trialing";
+      const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
       if (!active) {
         throw new HttpsError(
           "permission-denied",

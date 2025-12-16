@@ -13,6 +13,14 @@ import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
+import { useSubscription } from "@/hooks/useSubscription";
+import { hasUnlimitedEntitlement } from "@/lib/entitlements";
+import {
+  coachChatCollectionPath,
+  coachThreadMessagesCollectionPath,
+  coachThreadsCollectionPath,
+} from "@/lib/paths";
+import { getLastPermissionDenied } from "@/lib/devDiagnostics";
 
 export type AppHeaderProps = {
   className?: string;
@@ -193,6 +201,7 @@ type DevAppCheckInfo = {
 function AppHeaderComponent({ className }: AppHeaderProps) {
   const { user, claims, refresh } = useClaims();
   const { credits, unlimited: creditsUnlimited } = useCredits();
+  const { subscription } = useSubscription();
   const demo = useDemoMode();
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
@@ -275,6 +284,23 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
       ? `${Math.max(0, Math.floor(Number(credits)))} available`
       : "—";
   const claimsJson = JSON.stringify(claims ?? {}, null, 2);
+  const uid = user?.uid ?? null;
+  const entitlementTier = (() => {
+    if (!user) return "signed-out";
+    if (demo) return "demo";
+    if (hasUnlimitedEntitlement((claims ?? undefined) as any)) return "unlimited";
+    const status = String(subscription?.status || "").toLowerCase();
+    if (status === "active" || status === "trialing") return "premium";
+    return "free";
+  })();
+  const coachPaths = uid
+    ? {
+        coachThreads: coachThreadsCollectionPath(uid),
+        coachMessagesExample: coachThreadMessagesCollectionPath(uid, "THREAD_ID"),
+        coachLegacyChat: coachChatCollectionPath(uid),
+      }
+    : null;
+  const lastDenied = getLastPermissionDenied();
   const appCheckLabel = (() => {
     switch (appCheckInfo.status) {
       case "loading":
@@ -393,6 +419,24 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
             >
               Refresh claims
             </button>
+          </div>
+
+          <div style={drawerSectionStyle}>
+            <div style={drawerSectionHeaderStyle}>System check</div>
+            <div style={drawerBodyTextStyle}>uid: {uid ?? "—"}</div>
+            <div style={drawerBodyTextStyle}>entitlement: {entitlementTier}</div>
+            <div style={drawerBodyTextStyle}>
+              coach paths:
+              <pre style={drawerPreStyle}>
+                {JSON.stringify(coachPaths ?? {}, null, 2)}
+              </pre>
+            </div>
+            <div style={drawerBodyTextStyle}>
+              last permission-denied:
+              <pre style={drawerPreStyle}>
+                {JSON.stringify(lastDenied ?? {}, null, 2)}
+              </pre>
+            </div>
           </div>
 
           <div style={drawerSectionStyle}>
