@@ -172,3 +172,8 @@ Notes:
 - ⚠️ `nutritionSearch` probe: HTTP 501 `nutrition_not_configured` (missing `USDA_FDC_API_KEY` on backend)
 - ⚠️ `coachChat` probe: HTTP 400 `failed-precondition` (“Coach is not configured…”, indicates missing `OPENAI_API_KEY` / coach backend config)
 - ⚠️ Checkout probe skipped (no `VITE_PRICE_STARTER` set in CI env)
+
+### 2025-12-16 smoke script behavior update
+
+- ✅ Updated `scripts/smoke.sh` to treat `nutrition_not_configured` (501) and coach `failed-precondition` (400) as **SKIP** instead of failing the whole smoke run.
+- ✅ `scripts/smoke.sh` now completes successfully on prod when optional backend keys are intentionally missing.
