@@ -131,7 +131,7 @@ call_endpoint() {
 
 call_endpoint "systemHealth" "GET" "$SYSTEM_URL"
 call_endpoint "nutritionSearch" "GET" "$NUTRITION_URL"
-call_endpoint "coachChat" "POST" "$COACH_URL" '{"question":"Diagnostics smoke test"}'
+call_endpoint "coachChat" "POST" "$COACH_URL" '{"message":"Diagnostics smoke test"}'
 
 if [[ -n "$PRICE_ID" ]]; then
   call_endpoint "createCheckout" "POST" "$CHECKOUT_URL" "{\"priceId\":\"${PRICE_ID}\"}"

@@ -158,3 +158,9 @@ Manual verification checklist (staging/prod browser):
 Notes:
 - This CI workspace is running Node `v22.21.1` (prod is Node 20). Builds/tests passed here; please also validate in the standard prod toolchain.
 - Manual smoke tests below still require a real browser + Firebase project environment.
+
+### 2025-12-16 follow-up: production console error fix + probe cleanup
+
+- ✅ Fixed a real production crash: `ReferenceError: index is not defined` on `/system-check` (caused by stray `:contentReference[...]` tokens).
+- ✅ Updated `SystemCheckPro` + `scripts/smoke.sh` to call coach chat with `{ "message": ... }` (server expects `message`, not `question`).
+- ⚠️ Playwright E2E against `https://mybodyscanapp.com` still requires a signed-in storage state for protected routes (Scan/Nutrition/Settings/Coach). Anonymous-auth-based smoke scripts also require Firebase Anonymous Auth to be enabled in the project.
