@@ -43,6 +43,9 @@ import { setDoc } from "@/lib/dbWrite";
 import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
 import { toDateOrNull } from "@/lib/time";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
+import { useClaims } from "@/lib/claims";
+import { useSubscription } from "@/hooks/useSubscription";
+import { canUseCoach } from "@/lib/entitlements";
 
 declare global {
   interface Window {
@@ -126,6 +129,8 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
+  const { claims } = useClaims();
+  const { subscription } = useSubscription();
   const missingThreadUpdatedAtRef = useRef<Set<string>>(new Set());
   const missingMessageCreatedAtRef = useRef<Set<string>>(new Set());
   const [threads, setThreads] = useState<ThreadMeta[]>(() =>
@@ -168,6 +173,11 @@ export default function CoachChatPage() {
           ? "Coach chat is offline until the backend configuration is completed."
           : null;
   const coachAvailable = coachConfigured && !coachPrereqMessage;
+  const coachEntitled = canUseCoach({
+    demo,
+    claims: (claims || undefined) as any,
+    subscription: subscription || undefined,
+  });
   const { totals, latestScan } = useCoachTodayAtAGlance();
 
   const startListening = () => {
@@ -250,6 +260,17 @@ export default function CoachChatPage() {
       setHydratingHistory(false);
       return;
     }
+    if (!coachEntitled) {
+      // Avoid noisy permission-denied loops when a user truly isn't eligible.
+      setThreads([]);
+      setActiveThreadId(null);
+      setMessages([]);
+      setHydratingHistory(false);
+      setCoachError(
+        "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+      );
+      return;
+    }
     setHydratingHistory(true);
     let warned = false;
     let retriedAuth = false;
@@ -323,6 +344,12 @@ export default function CoachChatPage() {
         },
         async (err) => {
           console.warn("coachThreads.snapshot_failed", err);
+          void reportError({
+            kind: "coach_threads_snapshot_failed",
+            message: err?.message || "coachThreads snapshot failed",
+            code: err?.code || "snapshot_failed",
+            extra: { uid, entitled: coachEntitled },
+          });
           setHydratingHistory(false);
           if (isPermissionDenied(err) && !retriedAuth) {
             retriedAuth = true;
@@ -336,7 +363,7 @@ export default function CoachChatPage() {
             // Keep this inline (not a scary global toast) so the rest of the page remains usable.
             setCoachError(
               isPermissionDenied(err)
-                ? "We couldn’t load your coach chats. Please try again, and contact support if this continues."
+                ? "Coach is temporarily unavailable. Please try again later or contact support."
                 : "Unable to load coach chats. Please try again in a moment."
             );
           }
@@ -345,7 +372,15 @@ export default function CoachChatPage() {
 
     let unsubscribe = subscribe();
     return () => unsubscribe();
-  }, [authReady, uid, demo, threadStorageKey, toast, refreshAuthTokenSoft]);
+  }, [
+    authReady,
+    uid,
+    demo,
+    threadStorageKey,
+    toast,
+    refreshAuthTokenSoft,
+    coachEntitled,
+  ]);
 
   useEffect(() => {
     if (demo) {
@@ -413,6 +448,12 @@ export default function CoachChatPage() {
           },
           async (err) => {
             console.warn("coachChat.snapshot_failed", err);
+            void reportError({
+              kind: "coach_legacy_snapshot_failed",
+              message: err?.message || "coachChat legacy snapshot failed",
+              code: err?.code || "snapshot_failed",
+              extra: { uid, entitled: coachEntitled },
+            });
             if (isPermissionDenied(err) && !retriedAuth) {
               retriedAuth = true;
               await refreshAuthTokenSoft();
@@ -424,7 +465,7 @@ export default function CoachChatPage() {
               warned = true;
               setCoachError(
                 isPermissionDenied(err)
-                  ? "We couldn’t load your coach chats. Please try again, and contact support if this continues."
+                  ? "Coach is temporarily unavailable. Please try again later or contact support."
                   : "Unable to load recent coach messages."
               );
             }
@@ -485,6 +526,12 @@ export default function CoachChatPage() {
         },
         async (err) => {
           console.warn("coachThread.messages.snapshot_failed", err);
+          void reportError({
+            kind: "coach_thread_messages_snapshot_failed",
+            message: err?.message || "coachThread messages snapshot failed",
+            code: err?.code || "snapshot_failed",
+            extra: { uid, threadId: activeThreadId, entitled: coachEntitled },
+          });
           if (isPermissionDenied(err) && !retriedAuth) {
             retriedAuth = true;
             await refreshAuthTokenSoft();
@@ -496,7 +543,7 @@ export default function CoachChatPage() {
             warned = true;
             setCoachError(
               isPermissionDenied(err)
-                ? "We couldn’t load your coach chats. Please try again, and contact support if this continues."
+                ? "Coach is temporarily unavailable. Please try again later or contact support."
                 : "Unable to load coach thread."
             );
           }
@@ -505,7 +552,15 @@ export default function CoachChatPage() {
     let unsubscribe = subscribeMessages();
 
     return () => unsubscribe();
-  }, [authReady, uid, demo, activeThreadId, threadStorageKey, refreshAuthTokenSoft]);
+  }, [
+    authReady,
+    uid,
+    demo,
+    activeThreadId,
+    threadStorageKey,
+    refreshAuthTokenSoft,
+    coachEntitled,
+  ]);
 
   const hasMessages = messages.length > 0;
   const readOnlyDemo = demo && !user;

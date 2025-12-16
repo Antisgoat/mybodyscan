@@ -8,7 +8,12 @@ FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
 if [[ -z "$FIREBASE_API_KEY" ]]; then
   for env_file in ".env.production" ".env.production.local" ".env.local" ".env"; do
     if [[ -f "$ROOT_DIR/$env_file" ]]; then
-      candidate=$(grep -E '^VITE_FIREBASE_API_KEY=' "$ROOT_DIR/$env_file" | tail -n1 | cut -d= -f2- | tr -d '\r')
+      candidate=$(
+        (grep -E '^VITE_FIREBASE_API_KEY=' "$ROOT_DIR/$env_file" || true) \
+          | tail -n1 \
+          | cut -d= -f2- \
+          | tr -d '\r'
+      )
       if [[ -n "$candidate" ]]; then
         FIREBASE_API_KEY="$candidate"
         break
@@ -32,7 +37,12 @@ PRICE_ID="${VITE_PRICE_STARTER:-}"
 if [[ -z "$PRICE_ID" ]]; then
   for env_file in ".env.production" ".env.production.local" ".env.local" ".env"; do
     if [[ -f "$ROOT_DIR/$env_file" ]]; then
-      candidate=$(grep -E '^VITE_PRICE_STARTER=' "$ROOT_DIR/$env_file" | tail -n1 | cut -d= -f2- | tr -d '\r')
+      candidate=$(
+        (grep -E '^VITE_PRICE_STARTER=' "$ROOT_DIR/$env_file" || true) \
+          | tail -n1 \
+          | cut -d= -f2- \
+          | tr -d '\r'
+      )
       if [[ -n "$candidate" ]]; then
         PRICE_ID="$candidate"
         break
@@ -89,14 +99,32 @@ call_endpoint() {
   echo "$content" | head -c 200
   echo -e "\n"
 
+  # Helper: extract a top-level JSON field if present (best-effort).
+  json_field() {
+    local key="$1"
+    local value=""
+    value=$(printf '%s' "$content" | node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(0,'utf8'));const v=d&&typeof d==='object'?d['$key']:undefined;process.stdout.write(typeof v==='string'?v:'');}catch(e){}" 2>/dev/null || true)
+    echo "$value"
+  }
+
   case "$name" in
     coachChat)
+      # Accept healthy responses or transient upstream failures.
       if [[ "$status" =~ ^(200|501|502)$ ]]; then
         return
       fi
       if [[ "$status" == "401" ]] && echo "$content" | grep -q 'app_check'; then
         echo "[smoke] coachChat responded with app_check requirement"
         return
+      fi
+      # Treat missing OpenAI key / not-configured as a soft skip (still reported in logs).
+      if [[ "$status" == "400" ]]; then
+        local code
+        code="$(json_field code)"
+        if [[ "$code" == "failed-precondition" ]] || echo "$content" | grep -qiE 'not configured|openai'; then
+          echo "[smoke] coachChat skipped (backend not configured)"
+          return
+        fi
       fi
       FAILURES+=("coachChat:${status}")
       ;;
@@ -112,6 +140,15 @@ call_endpoint() {
     nutritionSearch)
       if [[ "$status" == "200" ]]; then
         return
+      fi
+      # Treat missing USDA key / not-configured as a soft skip.
+      if [[ "$status" == "501" ]]; then
+        local code
+        code="$(json_field code)"
+        if [[ "$code" == "nutrition_not_configured" ]] || echo "$content" | grep -qi 'USDA_FDC_API_KEY'; then
+          echo "[smoke] nutritionSearch skipped (backend not configured)"
+          return
+        fi
       fi
       if [[ "$status" == "401" ]] && echo "$content" | grep -q 'auth_required'; then
         echo "[smoke] nutritionSearch responded with auth_required"
@@ -131,7 +168,7 @@ call_endpoint() {
 
 call_endpoint "systemHealth" "GET" "$SYSTEM_URL"
 call_endpoint "nutritionSearch" "GET" "$NUTRITION_URL"
-call_endpoint "coachChat" "POST" "$COACH_URL" '{"question":"Diagnostics smoke test"}'
+call_endpoint "coachChat" "POST" "$COACH_URL" '{"message":"Diagnostics smoke test"}'
 
 if [[ -n "$PRICE_ID" ]]; then
   call_endpoint "createCheckout" "POST" "$CHECKOUT_URL" "{\"priceId\":\"${PRICE_ID}\"}"

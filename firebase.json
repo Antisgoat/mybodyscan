@@ -207,7 +207,7 @@
     }
   ],
   "firestore": {
-    "rules": "database.rules.json"
+    "rules": "firestore.rules"
   },
   "storage": {
     "rules": "storage.rules"

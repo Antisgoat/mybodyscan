@@ -6,6 +6,7 @@ export type FnCallError = Error & {
   status?: number;
   endpoint?: string;
   payload?: unknown;
+  code?: string;
 };
 
 async function parseJsonOrText(response: Response): Promise<unknown> {
@@ -27,11 +28,22 @@ function messageFromPayload(payload: unknown, status: number): string {
     const anyPayload = payload as any;
     const msg =
       (typeof anyPayload.error === "string" && anyPayload.error) ||
+      (typeof anyPayload.error?.message === "string" && anyPayload.error.message) ||
       (typeof anyPayload.message === "string" && anyPayload.message) ||
       "";
     return msg.trim().length ? msg.trim() : `fn_error_${status}`;
   }
   return `fn_error_${status}`;
+}
+
+function codeFromPayload(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const anyPayload = payload as any;
+  const code =
+    (typeof anyPayload.code === "string" && anyPayload.code) ||
+    (typeof anyPayload.error?.code === "string" && anyPayload.error.code) ||
+    undefined;
+  return code || undefined;
 }
 
 export async function fnJson<T = unknown>(
@@ -100,6 +112,7 @@ export async function fnJson<T = unknown>(
     err.status = response.status;
     err.endpoint = endpoint;
     err.payload = payload;
+    err.code = codeFromPayload(payload);
     if (import.meta.env.DEV) {
       console.warn("fn_http_error", {
         endpoint,

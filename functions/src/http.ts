@@ -87,7 +87,10 @@ export async function requireAuthWithClaims(
   }
   try {
     const decoded = await getAuth().verifyIdToken(match[1]);
-    return { uid: decoded.uid, claims: decoded.claims };
+    // `verifyIdToken()` returns a DecodedIdToken where custom claims live as top-level
+    // properties (there is no nested `claims` field). Return the decoded token so
+    // callers can read `unlimitedCredits`, `admin`, etc.
+    return { uid: decoded.uid, claims: decoded as any };
   } catch (err) {
     console.warn("auth_invalid_token", {
       path: req.path || req.url,

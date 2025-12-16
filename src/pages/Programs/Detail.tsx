@@ -43,6 +43,9 @@ import { demoToast } from "@/lib/demoToast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { activateCatalogPlan } from "@/lib/workouts";
 import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
+import { useClaims } from "@/lib/claims";
+import { useSubscription } from "@/hooks/useSubscription";
+import { canStartPrograms } from "@/lib/entitlements";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -104,6 +107,13 @@ export default function ProgramDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [activationNote, setActivationNote] = useState<string | null>(null);
   const demo = useDemoMode();
+  const { claims } = useClaims();
+  const { subscription } = useSubscription();
+  const startAllowed = canStartPrograms({
+    demo,
+    claims: (claims || undefined) as any,
+    subscription: subscription || undefined,
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -135,6 +145,15 @@ export default function ProgramDetail() {
     if (!program || !meta) return;
     if (demo) {
       demoToast();
+      return;
+    }
+    if (!startAllowed) {
+      toast({
+        title: "Programs locked",
+        description:
+          "Your account can't start programs yet. Visit Plans to activate your account.",
+        variant: "destructive",
+      });
       return;
     }
     const user = auth.currentUser;
@@ -244,14 +263,24 @@ export default function ProgramDetail() {
       });
       navigate(`/workouts?plan=${workoutPlanId}&started=1`, { replace: true });
     } catch (error) {
+      const anyErr = error as any;
+      const status = typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
       const code =
-        typeof (error as { code?: string } | null)?.code === "string"
-          ? (error as { code: string }).code
-          : null;
+        typeof anyErr?.code === "string"
+          ? (anyErr.code as string)
+          : status === 401
+            ? "unauthenticated"
+            : status === 403
+              ? "permission-denied"
+              : status === 503
+                ? "unavailable"
+                : null;
       let description: string;
-      if (code === "permission-denied") {
+      if (code === "unauthenticated") {
+        description = "Please sign in again, then retry starting the program.";
+      } else if (code === "permission-denied") {
         description =
-          "Your account can't start programs yet. Refresh or contact support.";
+          "Your account can't start programs yet. Visit Plans to activate your account.";
       } else if (code === "unavailable") {
         description =
           "Programs are temporarily offline. Please try again shortly.";
@@ -637,8 +666,14 @@ export default function ProgramDetail() {
               <DemoWriteButton
                 size="sm"
                 onClick={handleStartProgram}
-                disabled={isSaving || demo}
-                title={demo ? "Demo mode: sign in to save" : undefined}
+                disabled={isSaving || demo || !startAllowed}
+                title={
+                  demo
+                    ? "Demo mode: sign in to save"
+                    : !startAllowed
+                      ? "Visit Plans to activate programs"
+                      : undefined
+                }
               >
                 {isSaving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

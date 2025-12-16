@@ -24,7 +24,8 @@ const TESTS: Check[] = [
     name: "Coach Chat",
     path: `${API_BASE}/coach/chat`,
     method: "POST",
-    body: { question: "hello" },
+    // Server expects `message` for coach chat; keep legacy keys out of probes.
+    body: { message: "hello" },
   },
   {
     name: "Nutrition",

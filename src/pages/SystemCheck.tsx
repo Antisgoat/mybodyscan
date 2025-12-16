@@ -72,7 +72,7 @@ export default function SystemCheckPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl p-4 space-y-4">
+    <div className="mx-auto max-w-2xl p-4 space-y-4" data-testid="system-check-root">
       <header className="sticky top-0 z-40 -mx-4 mb-1 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
         <a href="/settings" className="rounded border px-2 py-1 text-xs">
           Back
@@ -148,7 +148,7 @@ export default function SystemCheckPage() {
         <p className="text-[11px] text-muted-foreground">
           This request includes your Firebase ID token and App Check token (if
           available). We expect JSON and no “app_check_required” errors during
-          UAT (soft mode). :contentReference[oaicite:4]{(index = 4)}
+          UAT (soft mode).
         </p>
       </section>
 
@@ -157,7 +157,6 @@ export default function SystemCheckPage() {
         <p className="text-xs text-muted-foreground">
           For barcode scanning and camera previews, we require a secure context
           on web. In the native wrapper, file inputs will open Camera/Library.
-          :contentReference[oaicite:5]{(index = 5)}
         </p>
       </section>
     </div>

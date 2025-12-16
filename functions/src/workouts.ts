@@ -10,7 +10,7 @@ import type { Request, Response } from "express";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { errorCode, statusFromCode } from "./lib/errors.js";
 import { withCors } from "./middleware/cors.js";
-import { requireAuth } from "./http.js";
+import { requireAuth, requireAuthWithClaims } from "./http.js";
 import type { WorkoutDay, WorkoutPlan } from "./types.js";
 import type {
   Request as ExpressRequest,
@@ -457,11 +457,39 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
   if (req.method !== "POST") {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
-  const uid = await requireAuth(req);
+  const { uid, claims } = await requireAuthWithClaims(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "applyCatalogPlan",
     uid,
   });
+
+  // Eligibility: active subscription OR unlimited credits claim.
+  // Keep this logic server-side so UI gating can't be bypassed.
+  try {
+    const unlimited =
+      claims?.unlimitedCredits === true ||
+      claims?.unlimited === true ||
+      claims?.admin === true ||
+      claims?.staff === true;
+    if (!unlimited) {
+      const userSnap = await db.doc(`users/${uid}`).get();
+      const status = String((userSnap.data() as any)?.subscription?.status || "").toLowerCase();
+      const active = status === "active" || status === "trialing";
+      if (!active) {
+        throw new HttpsError(
+          "permission-denied",
+          "Your account can't start programs yet. Visit Plans to activate your account."
+        );
+      }
+    }
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    // If eligibility reads fail (rare), fail closed but with a neutral message.
+    throw new HttpsError(
+      "unavailable",
+      "Programs are temporarily unavailable. Please try again or contact support."
+    );
+  }
   const plan = sanitizeCatalogPlan(req.body);
   const now = Timestamp.now();
 
@@ -638,7 +666,7 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
               : code === "not-found"
                 ? 404
                 : statusFromCode(code);
-        res.status(status).json({ error: err.message || "error" });
+        res.status(status).json({ error: err.message || "error", code });
       }
     })
   );

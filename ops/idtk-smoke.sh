@@ -11,14 +11,7 @@ JSON=$(curl -sS -X POST \
   "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}" \
   -d '{"returnSecureToken":true}')
 
-ID_TOKEN=$(python3 - <<'PY' <<< "$JSON"
-import sys, json
-try:
-  print(json.load(sys.stdin).get("idToken",""))
-except Exception:
-  print("")
-PY
-)
+ID_TOKEN=$(python3 -c 'import sys, json; print((json.load(sys.stdin) or {}).get("idToken",""))' <<< "$JSON" 2>/dev/null || true)
 
 LEN=${#ID_TOKEN}
 echo "ID_TOKEN_LEN=${LEN}"
