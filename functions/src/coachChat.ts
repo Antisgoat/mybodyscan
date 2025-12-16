@@ -798,6 +798,34 @@ export const coachChat = onCall<CoachChatRequest>(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
+    // Entitlement gate: Unlimited credits OR active subscription.
+    // Keep this server-side so a misconfigured client can't bypass it.
+    try {
+      const token = request.auth?.token as any;
+      const unlimited =
+        token?.unlimitedCredits === true ||
+        token?.unlimited === true ||
+        token?.admin === true ||
+        token?.staff === true;
+      if (!unlimited) {
+        const userSnap = await db.doc(`users/${uid}`).get();
+        const status = String((userSnap.data() as any)?.subscription?.status || "").toLowerCase();
+        const active = status === "active" || status === "trialing";
+        if (!active) {
+          throw new HttpsError(
+            "permission-denied",
+            "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError(
+        "unavailable",
+        "Coach is temporarily unavailable. Please try again later."
+      );
+    }
+
     const payload = normalizePayload(request.data);
     if (!payload.message) {
       throw new HttpsError(

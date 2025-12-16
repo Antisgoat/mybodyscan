@@ -83,6 +83,11 @@ function normalizeError(error: unknown): Error {
       "Coach is unavailable right now; please try again shortly.";
     if (code.includes("invalid-argument")) {
       message = "Please enter a question for the coach.";
+    } else if (code.includes("unauthenticated")) {
+      message = "Please sign in again to use coach chat.";
+    } else if (code.includes("permission-denied")) {
+      message =
+        "Coach is available on an active plan or Unlimited. Visit Plans to activate your account.";
     } else if (code.includes("resource-exhausted")) {
       message =
         "You’ve hit the coach limit. Wait a moment before asking again.";

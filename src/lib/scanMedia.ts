@@ -1,19 +1,29 @@
 import { getDownloadURL, getStorage, ref } from "firebase/storage";
 import { auth } from "@/lib/firebase";
+import { reportError } from "@/lib/telemetry";
 
 export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const uid = auth.currentUser?.uid;
   if (!uid) return null;
   const storage = getStorage();
-  const modernPath = `user_uploads/${uid}/${scanId}/front.jpg`;
-  const legacyPath = `scans/${uid}/${scanId}/original/front.jpg`;
-  try {
-    return await getDownloadURL(ref(storage, modernPath));
-  } catch {
+  const candidates = [
+    // Canonical (current)
+    `user_uploads/${uid}/${scanId}/front.jpg`,
+    // Legacy paths observed in older builds / storage migrations.
+    `scans/${uid}/${scanId}/front.jpg`,
+    `scans/${uid}/${scanId}/original/front.jpg`,
+  ];
+  for (const path of candidates) {
     try {
-      return await getDownloadURL(ref(storage, legacyPath));
+      return await getDownloadURL(ref(storage, path));
     } catch {
-      return null;
+      // continue
     }
   }
+  void reportError({
+    kind: "scan_thumb_missing",
+    message: "Unable to resolve scan thumbnail",
+    extra: { scanId, candidates },
+  });
+  return null;
 }
