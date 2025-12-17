@@ -23,7 +23,9 @@ interface StartResponse {
 }
 
 function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
-  return `user_uploads/${uid}/${scanId}/${pose}.jpg`;
+  // Canonical path (used everywhere in client + backend)
+  // user_uploads/{uid}/scans/{scanId}/{view}.jpg
+  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
 }
 
 async function handleStart(req: Request, res: any) {
