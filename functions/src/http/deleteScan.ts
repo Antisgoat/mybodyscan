@@ -49,6 +49,10 @@ export const deleteScan = onRequest(
       const bucket = getStorage().bucket();
       await Promise.all([
         bucket
+          .deleteFiles({ prefix: `user_uploads/${uid}/scans/${scanId}/` })
+          .catch(() => {}),
+        // Legacy (older clients)
+        bucket
           .deleteFiles({ prefix: `user_uploads/${uid}/${scanId}/` })
           .catch(() => {}),
         bucket

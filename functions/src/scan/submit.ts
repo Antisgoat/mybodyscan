@@ -198,7 +198,7 @@ async function buildImageInputs(
   const entries: Array<{ pose: Pose; url: string }> = [];
   for (const pose of POSES) {
     const path = paths[pose];
-    if (!path || !path.startsWith(`user_uploads/${uid}/`)) {
+    if (!path || !path.startsWith(`user_uploads/${uid}/scans/`)) {
       throw new Error(`invalid_photo_path_${pose}`);
     }
     const file = bucket.file(path);
