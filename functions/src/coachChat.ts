@@ -15,6 +15,10 @@ import {
   ensureSoftAppCheckFromRequest,
 } from "./lib/appCheckSoft.js";
 import { scrubUndefined } from "./lib/scrub.js";
+import {
+  hasActiveSubscriptionFromUserDoc,
+  hasUnlimitedAccessFromClaims,
+} from "./lib/entitlements.js";
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -802,15 +806,10 @@ export const coachChat = onCall<CoachChatRequest>(
     // Keep this server-side so a misconfigured client can't bypass it.
     try {
       const token = request.auth?.token as any;
-      const unlimited =
-        token?.unlimitedCredits === true ||
-        token?.unlimited === true ||
-        token?.admin === true ||
-        token?.staff === true;
+      const unlimited = hasUnlimitedAccessFromClaims(token);
       if (!unlimited) {
         const userSnap = await db.doc(`users/${uid}`).get();
-        const status = String((userSnap.data() as any)?.subscription?.status || "").toLowerCase();
-        const active = status === "active" || status === "trialing";
+        const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
         if (!active) {
           throw new HttpsError(
             "permission-denied",

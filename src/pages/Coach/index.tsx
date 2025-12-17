@@ -445,7 +445,7 @@ export default function CoachOverview() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Select
-                value={program?.id}
+                value={selectedProgramId ?? ""}
                 onValueChange={handleProgramChange}
                 disabled={
                   demoDisabled ||

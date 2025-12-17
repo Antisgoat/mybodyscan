@@ -46,6 +46,8 @@ import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
 import { useClaims } from "@/lib/claims";
 import { useSubscription } from "@/hooks/useSubscription";
 import { canStartPrograms } from "@/lib/entitlements";
+import { call } from "@/lib/callable";
+import { recordPermissionDenied } from "@/lib/devDiagnostics";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -147,20 +149,35 @@ export default function ProgramDetail() {
       demoToast();
       return;
     }
-    if (!startAllowed) {
-      toast({
-        title: "Programs locked",
-        description:
-          "Your account can't start programs yet. Visit Plans to activate your account.",
-        variant: "destructive",
-      });
-      return;
-    }
     const user = auth.currentUser;
     if (!user) {
       toast({
         title: "Sign in required",
         description: "Log in to save your training program.",
+      });
+      return;
+    }
+    // Claims can be stale right after an entitlement change; refresh once before gating/server calls.
+    let allowedNow = startAllowed;
+    try {
+      await call("refreshClaims");
+      await user.getIdToken(true);
+      const token = await user.getIdTokenResult().catch(() => null);
+      const refreshedClaims = (token?.claims ?? null) as any;
+      allowedNow = canStartPrograms({
+        demo,
+        claims: refreshedClaims || undefined,
+        subscription: subscription || undefined,
+      });
+    } catch {
+      // ignore (fail closed below if not allowed)
+    }
+    if (!allowedNow) {
+      toast({
+        title: "Programs locked",
+        description:
+          "Your account can't start programs yet. Visit Plans to activate your account.",
+        variant: "destructive",
       });
       return;
     }
@@ -263,6 +280,7 @@ export default function ProgramDetail() {
       });
       navigate(`/workouts?plan=${workoutPlanId}&started=1`, { replace: true });
     } catch (error) {
+      recordPermissionDenied(error, { op: "programs.startProgram" });
       const anyErr = error as any;
       const status = typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
       const code =

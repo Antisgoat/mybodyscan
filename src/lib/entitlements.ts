@@ -5,9 +5,11 @@ export type SubscriptionGate = {
 export type ClaimsGate = {
   unlimited?: boolean;
   unlimitedCredits?: boolean;
+  creditsUnlimited?: boolean;
   admin?: boolean;
   staff?: boolean;
   dev?: boolean;
+  role?: string;
   [k: string]: unknown;
 };
 
@@ -16,8 +18,10 @@ export function hasUnlimitedEntitlement(claims: ClaimsGate | null | undefined): 
   return (
     claims.unlimited === true ||
     claims.unlimitedCredits === true ||
+    claims.creditsUnlimited === true ||
     claims.admin === true ||
-    claims.staff === true
+    claims.staff === true ||
+    (typeof claims.role === "string" && claims.role.toLowerCase() === "admin")
   );
 }
 
