@@ -2,6 +2,7 @@ import React from "react";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
 import { useUserClaims } from "@/lib/useUserClaims";
+import { hasUnlimitedEntitlement } from "@/lib/entitlements";
 
 type Props = {
   className?: string;
@@ -21,24 +22,11 @@ export default function CreditsBadge(props: Props) {
   const text = (() => {
     if (loading) return "—";
     if (!user) return "—";
-    if (
-      directClaims?.admin === true ||
-      directClaims?.unlimited === true ||
-      (typeof directClaims?.role === "string" &&
-        directClaims.role.toLowerCase() === "admin")
-    ) {
-      return "Unlimited";
-    }
-    const dev = claims?.dev === true;
-    const unlimitedClaim =
-      claims?.unlimited === true || claims?.unlimitedCredits === true;
     const unlimited =
-      dev ||
-      unlimitedClaim ||
+      hasUnlimitedEntitlement((claims ?? undefined) as any) ||
+      hasUnlimitedEntitlement((directClaims ?? undefined) as any) ||
       creditsUnlimited ||
-      credits === Infinity ||
-      directClaims?.unlimited === true ||
-      directClaims?.unlimitedCredits === true;
+      credits === Infinity;
     if (unlimited) return "Unlimited";
     const n = Number.isFinite(credits)
       ? Math.max(0, Math.floor(Number(credits)))
@@ -49,21 +37,10 @@ export default function CreditsBadge(props: Props) {
   const title = (() => {
     if (!user) return "Not signed in";
     if (
-      directClaims?.admin === true ||
-      directClaims?.unlimited === true ||
-      (typeof directClaims?.role === "string" &&
-        directClaims.role.toLowerCase() === "admin")
-    ) {
-      return "Unlimited credits";
-    }
-    if (
-      claims?.dev === true ||
-      claims?.unlimited === true ||
-      claims?.unlimitedCredits === true ||
+      hasUnlimitedEntitlement((claims ?? undefined) as any) ||
+      hasUnlimitedEntitlement((directClaims ?? undefined) as any) ||
       creditsUnlimited ||
-      credits === Infinity ||
-      directClaims?.unlimited === true ||
-      directClaims?.unlimitedCredits === true
+      credits === Infinity
     ) {
       return "Unlimited credits";
     }

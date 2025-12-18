@@ -50,6 +50,63 @@ export interface CatalogPlanSubmission {
   days: CatalogPlanDay[];
 }
 
+export type CustomPlanGoal = "lose_fat" | "build_muscle" | "recomp" | "performance";
+export type CustomPlanExperience = "beginner" | "intermediate" | "advanced";
+export type CustomPlanStyle =
+  | "strength"
+  | "hypertrophy"
+  | "athletic"
+  | "minimal_equipment"
+  | "balanced";
+export type CustomPlanFocus =
+  | "full_body"
+  | "upper_lower"
+  | "push_pull_legs"
+  | "custom_emphasis";
+
+export interface CustomPlanPrefs {
+  goal?: CustomPlanGoal;
+  daysPerWeek?: number;
+  preferredDays?: Array<"Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun">;
+  timePerWorkout?: "30" | "45" | "60" | "75+";
+  equipment?: string[];
+  trainingStyle?: CustomPlanStyle;
+  experience?: CustomPlanExperience;
+  focus?: CustomPlanFocus;
+  emphasis?: string[];
+  injuries?: string | null;
+  avoidExercises?: string | null;
+  cardioPreference?: string | null;
+}
+
+export type UpdateWorkoutPlanOp =
+  | {
+      type: "update_exercise";
+      dayIndex: number;
+      exerciseIndex: number;
+      name?: string;
+      sets?: number;
+      reps?: number | string;
+    }
+  | {
+      type: "reorder_exercise";
+      dayIndex: number;
+      fromIndex: number;
+      toIndex: number;
+    }
+  | {
+      type: "move_exercise";
+      fromDayIndex: number;
+      fromIndex: number;
+      toDayIndex: number;
+      toIndex: number;
+    }
+  | {
+      type: "set_day_name";
+      dayIndex: number;
+      day: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+    };
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -172,6 +229,63 @@ export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
     throw new Error("demo-blocked");
   }
   return callFn("/applyCatalogPlan", plan);
+}
+
+export async function previewCustomPlan(params: {
+  prefs: CustomPlanPrefs;
+  title?: string;
+}): Promise<{ title: string; prefs: CustomPlanPrefs; days: CatalogPlanDay[] }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_preview_custom_plan" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/previewCustomPlan", params);
+  return {
+    title: typeof res?.title === "string" ? res.title : "Custom plan",
+    prefs: (res?.prefs as CustomPlanPrefs) ?? params.prefs,
+    days: Array.isArray(res?.days) ? (res.days as CatalogPlanDay[]) : [],
+  };
+}
+
+export async function activateCustomPlan(params: {
+  prefs: CustomPlanPrefs;
+  title?: string;
+  goal?: string;
+  level?: string;
+  days: CatalogPlanDay[];
+}): Promise<{ planId: string }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_activate_custom_plan" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/applyCustomPlan", params);
+  const planId = typeof res?.planId === "string" ? res.planId : "";
+  if (!planId) throw new Error("workouts_apply_invalid_response");
+  return { planId };
+}
+
+export async function updateWorkoutPlanRemote(params: {
+  planId: string;
+  op: UpdateWorkoutPlanOp;
+}): Promise<{ ok: true }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_update_plan" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/updateWorkoutPlan", params);
+  return { ok: Boolean(res?.ok) as true };
+}
+
+export async function setWorkoutPlanStatusRemote(params: {
+  planId: string;
+  status: "paused" | "ended";
+}): Promise<{ ok: true }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_plan_status" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/setWorkoutPlanStatus", params);
+  return { ok: Boolean(res?.ok) as true };
 }
 
 export async function activateCatalogPlan(

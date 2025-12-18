@@ -20,13 +20,12 @@ import type {
   ProgramGoal,
   ProgramLevel,
 } from "@/lib/coach/types";
-import { auth, db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
-import { doc } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { activateCatalogPlan } from "@/lib/workouts";
-import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { useClaims } from "@/lib/claims";
+import { useSubscription } from "@/hooks/useSubscription";
+import { startCatalogProgram } from "@/lib/programs/startProgram";
 
 const goalOptions: Array<{
   value: ProgramGoal;
@@ -103,6 +102,9 @@ export default function ProgramsQuiz() {
   const [sessionTime, setSessionTime] = useState<number>(45);
   const [results, setResults] = useState<QuizResult[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const demo = useDemoMode();
+  const { claims } = useClaims();
+  const { subscription } = useSubscription();
 
   useEffect(() => {
     let mounted = true;
@@ -186,43 +188,15 @@ export default function ProgramsQuiz() {
 
   const handleStartRecommended = async () => {
     if (!topRecommendation) return;
-    const user = auth.currentUser;
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Log in to save your program.",
-      });
-      return;
-    }
     try {
       setIsSaving(true);
-      const submission = buildCatalogPlanSubmission(
-        topRecommendation.entry.program,
-        topRecommendation.entry.meta
-      );
-      const applied = await activateCatalogPlan(submission, {
-        attempts: 4,
-        confirmPolls: 5,
-        backoffMs: 500,
+      await startCatalogProgram({
+        entry: topRecommendation.entry,
+        demo,
+        claims: (claims as any) ?? null,
+        subscription: (subscription as any) ?? null,
+        navigate,
       });
-      await setDoc(
-        doc(db, "users", user.uid, "coach", "profile"),
-        {
-          currentProgramId: topRecommendation.entry.program.id,
-          activeProgramId: topRecommendation.entry.program.id,
-          startedAt: new Date().toISOString(),
-          currentWeekIdx: 0,
-          currentDayIdx: 0,
-          lastCompletedWeekIdx: -1,
-          lastCompletedDayIdx: -1,
-        },
-        { merge: true }
-      );
-      toast({
-        title: "Program selected",
-        description: `${topRecommendation.entry.program.title} is now active in Workouts.`,
-      });
-      navigate(`/workouts?plan=${applied.planId}&started=1`, { replace: true });
     } catch (error) {
       toast({
         title: "Unable to start program",

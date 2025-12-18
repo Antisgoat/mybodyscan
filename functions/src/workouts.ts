@@ -57,6 +57,428 @@ interface PlanPrefs {
   injuries?: string[];
 }
 
+type CustomPlanGoal = "lose_fat" | "build_muscle" | "recomp" | "performance";
+type CustomPlanExperience = "beginner" | "intermediate" | "advanced";
+type CustomPlanStyle =
+  | "strength"
+  | "hypertrophy"
+  | "athletic"
+  | "minimal_equipment"
+  | "balanced";
+type CustomFocus =
+  | "full_body"
+  | "upper_lower"
+  | "push_pull_legs"
+  | "custom_emphasis";
+
+interface CustomPlanPrefs {
+  goal?: CustomPlanGoal;
+  daysPerWeek?: number;
+  preferredDays?: string[];
+  timePerWorkout?: "30" | "45" | "60" | "75+";
+  equipment?: string[];
+  trainingStyle?: CustomPlanStyle;
+  experience?: CustomPlanExperience;
+  focus?: CustomFocus;
+  emphasis?: string[];
+  injuries?: string | null;
+  avoidExercises?: string | null;
+  cardioPreference?: string | null;
+}
+
+function clampInt(value: unknown, min: number, max: number, fallback: number) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const rounded = Math.round(n);
+  return Math.max(min, Math.min(max, rounded));
+}
+
+function uniqStrings(values: unknown, maxItems: number, maxLen = 24): string[] {
+  if (!Array.isArray(values)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    if (typeof v !== "string") continue;
+    const trimmed = v.trim();
+    if (!trimmed) continue;
+    const sliced = trimmed.slice(0, maxLen);
+    const key = sliced.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(sliced);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
+  const prefs: CustomPlanPrefs = {};
+  const goal = typeof raw?.goal === "string" ? raw.goal.trim() : "";
+  if (
+    goal === "lose_fat" ||
+    goal === "build_muscle" ||
+    goal === "recomp" ||
+    goal === "performance"
+  ) {
+    prefs.goal = goal;
+  }
+  prefs.daysPerWeek = clampInt(raw?.daysPerWeek, 2, 6, 4);
+  prefs.preferredDays = uniqStrings(raw?.preferredDays, 7, 3).filter((d) =>
+    VALID_CATALOG_DAY_SET.has(d)
+  );
+  const time = typeof raw?.timePerWorkout === "string" ? raw.timePerWorkout : "";
+  if (time === "30" || time === "45" || time === "60" || time === "75+") {
+    prefs.timePerWorkout = time;
+  }
+  prefs.equipment = uniqStrings(raw?.equipment, 8, 32);
+  const style = typeof raw?.trainingStyle === "string" ? raw.trainingStyle : "";
+  if (
+    style === "strength" ||
+    style === "hypertrophy" ||
+    style === "athletic" ||
+    style === "minimal_equipment" ||
+    style === "balanced"
+  ) {
+    prefs.trainingStyle = style;
+  }
+  const exp = typeof raw?.experience === "string" ? raw.experience : "";
+  if (exp === "beginner" || exp === "intermediate" || exp === "advanced") {
+    prefs.experience = exp;
+  }
+  const focus = typeof raw?.focus === "string" ? raw.focus : "";
+  if (
+    focus === "full_body" ||
+    focus === "upper_lower" ||
+    focus === "push_pull_legs" ||
+    focus === "custom_emphasis"
+  ) {
+    prefs.focus = focus;
+  }
+  prefs.emphasis = uniqStrings(raw?.emphasis, 5, 18);
+  prefs.injuries =
+    typeof raw?.injuries === "string" && raw.injuries.trim().length
+      ? raw.injuries.trim().slice(0, 240)
+      : null;
+  prefs.avoidExercises =
+    typeof raw?.avoidExercises === "string" && raw.avoidExercises.trim().length
+      ? raw.avoidExercises.trim().slice(0, 240)
+      : null;
+  prefs.cardioPreference =
+    typeof raw?.cardioPreference === "string" && raw.cardioPreference.trim().length
+      ? raw.cardioPreference.trim().slice(0, 120)
+      : null;
+  return prefs;
+}
+
+type PlanDayTemplate = {
+  name: string;
+  exercises: Array<{ name: string; sets: number; reps: string }>;
+};
+
+const CUSTOM_TEMPLATES: Record<
+  CustomFocus,
+  {
+    label: string;
+    days: Record<number, PlanDayTemplate[]>;
+  }
+> = {
+  full_body: {
+    label: "Full Body",
+    days: {
+      2: [
+        {
+          name: "Full Body A",
+          exercises: [
+            { name: "Squat pattern", sets: 3, reps: "8-12" },
+            { name: "Push", sets: 3, reps: "8-12" },
+            { name: "Pull", sets: 3, reps: "8-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Full Body B",
+          exercises: [
+            { name: "Hinge pattern", sets: 3, reps: "8-12" },
+            { name: "Push", sets: 3, reps: "8-12" },
+            { name: "Pull", sets: 3, reps: "8-12" },
+            { name: "Carry", sets: 3, reps: "30-60s" },
+          ],
+        },
+      ],
+      3: [
+        {
+          name: "Full Body A",
+          exercises: [
+            { name: "Squat pattern", sets: 3, reps: "6-10" },
+            { name: "Horizontal push", sets: 3, reps: "8-12" },
+            { name: "Horizontal pull", sets: 3, reps: "8-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Full Body B",
+          exercises: [
+            { name: "Hinge pattern", sets: 3, reps: "6-10" },
+            { name: "Vertical push", sets: 3, reps: "8-12" },
+            { name: "Vertical pull", sets: 3, reps: "8-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Full Body C",
+          exercises: [
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+            { name: "Push", sets: 3, reps: "10-15" },
+            { name: "Pull", sets: 3, reps: "10-15" },
+            { name: "Conditioning", sets: 1, reps: "8-12 min" },
+          ],
+        },
+      ],
+      4: [
+        {
+          name: "Full Body A",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Push", sets: 3, reps: "8-12" },
+            { name: "Pull", sets: 3, reps: "8-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Full Body B",
+          exercises: [
+            { name: "Hinge pattern", sets: 4, reps: "6-10" },
+            { name: "Push", sets: 3, reps: "8-12" },
+            { name: "Pull", sets: 3, reps: "8-12" },
+            { name: "Carry", sets: 3, reps: "30-60s" },
+          ],
+        },
+        {
+          name: "Full Body C",
+          exercises: [
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+            { name: "Push", sets: 3, reps: "10-15" },
+            { name: "Pull", sets: 3, reps: "10-15" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Full Body D",
+          exercises: [
+            { name: "Upper accessory", sets: 3, reps: "12-15" },
+            { name: "Lower accessory", sets: 3, reps: "12-15" },
+            { name: "Conditioning", sets: 1, reps: "10-15 min" },
+          ],
+        },
+      ],
+      5: [],
+      6: [],
+    },
+  },
+  upper_lower: {
+    label: "Upper / Lower",
+    days: {
+      2: [
+        {
+          name: "Upper",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Vertical push", sets: 3, reps: "8-12" },
+            { name: "Vertical pull", sets: 3, reps: "8-12" },
+          ],
+        },
+        {
+          name: "Lower",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Hinge pattern", sets: 4, reps: "6-10" },
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+      ],
+      3: [],
+      4: [
+        {
+          name: "Upper A",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Arms", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Lower A",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+            { name: "Calves", sets: 3, reps: "12-20" },
+          ],
+        },
+        {
+          name: "Upper B",
+          exercises: [
+            { name: "Vertical push", sets: 4, reps: "6-10" },
+            { name: "Vertical pull", sets: 4, reps: "8-12" },
+            { name: "Upper back", sets: 3, reps: "12-15" },
+          ],
+        },
+        {
+          name: "Lower B",
+          exercises: [
+            { name: "Hinge pattern", sets: 4, reps: "6-10" },
+            { name: "Hamstrings", sets: 3, reps: "10-15" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+      ],
+      5: [],
+      6: [],
+    },
+  },
+  push_pull_legs: {
+    label: "Push / Pull / Legs",
+    days: {
+      3: [
+        {
+          name: "Push",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Vertical push", sets: 3, reps: "8-12" },
+            { name: "Triceps", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Pull",
+          exercises: [
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Vertical pull", sets: 3, reps: "8-12" },
+            { name: "Biceps", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Legs",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Hinge pattern", sets: 3, reps: "6-10" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+      ],
+      4: [],
+      5: [],
+      6: [],
+    },
+  },
+  custom_emphasis: {
+    label: "Custom",
+    days: { 2: [], 3: [], 4: [], 5: [], 6: [] },
+  },
+};
+
+function defaultPreferredDays(count: number): string[] {
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  return weekdays.slice(0, Math.max(2, Math.min(count, 6)));
+}
+
+function buildCustomPlanTitle(prefs: CustomPlanPrefs): string {
+  const goal =
+    prefs.goal === "lose_fat"
+      ? "Lean Out"
+      : prefs.goal === "build_muscle"
+        ? "Build Muscle"
+        : prefs.goal === "performance"
+          ? "Performance"
+          : prefs.goal === "recomp"
+            ? "Recomp"
+            : "Custom";
+  const focus =
+    prefs.focus === "upper_lower"
+      ? "Upper / Lower"
+      : prefs.focus === "push_pull_legs"
+        ? "Push Pull Legs"
+        : prefs.focus === "full_body"
+          ? "Full Body"
+          : "Plan";
+  return `${goal} • ${focus}`;
+}
+
+function toWorkoutDaysFromTemplates(
+  prefs: CustomPlanPrefs,
+  templates: PlanDayTemplate[]
+): WorkoutDay[] {
+  const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
+  const preferredDays =
+    prefs.preferredDays && prefs.preferredDays.length
+      ? prefs.preferredDays
+      : defaultPreferredDays(daysPerWeek);
+  const days = preferredDays.slice(0, daysPerWeek);
+  const pickedTemplates = templates.length
+    ? templates
+    : CUSTOM_TEMPLATES.full_body.days[3] ?? [];
+  return days.map((dayName, index) => {
+    const template = pickedTemplates[index % pickedTemplates.length];
+    const exercises = (template?.exercises?.length
+      ? template.exercises
+      : [
+          { name: "Session", sets: 3, reps: "10" },
+          { name: "Accessory", sets: 3, reps: "10-12" },
+          { name: "Core", sets: 3, reps: "30-45s" },
+        ]
+    ).slice(0, 12);
+    return {
+      day: dayName,
+      exercises: exercises.map((ex) => ({
+        id: randomUUID(),
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+      })),
+    };
+  });
+}
+
+function generateCustomPlanDays(prefs: CustomPlanPrefs): WorkoutDay[] {
+  const focus = prefs.focus ?? "full_body";
+  const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
+  const templatesForFocus = CUSTOM_TEMPLATES[focus]?.days?.[daysPerWeek] ?? [];
+  if (templatesForFocus.length) {
+    return toWorkoutDaysFromTemplates(prefs, templatesForFocus);
+  }
+  // Fallback: use full-body template at the requested frequency.
+  const fallbackTemplates =
+    CUSTOM_TEMPLATES.full_body.days[daysPerWeek] ??
+    CUSTOM_TEMPLATES.full_body.days[3] ??
+    [];
+  return toWorkoutDaysFromTemplates(prefs, fallbackTemplates);
+}
+
+async function requireProgramsEntitlement(uid: string, claims: any) {
+  // Eligibility: active subscription OR unlimited credits claim.
+  // Keep this logic server-side so UI gating can't be bypassed.
+  try {
+    const unlimited = hasUnlimitedAccessFromClaims(claims);
+    if (!unlimited) {
+      const userSnap = await db.doc(`users/${uid}`).get();
+      const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
+      if (!active) {
+        throw new HttpsError(
+          "permission-denied",
+          "Your account can't start programs yet. Visit Plans to activate your account."
+        );
+      }
+    }
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    // If eligibility reads fail (rare), fail closed but with a neutral message.
+    throw new HttpsError(
+      "unavailable",
+      "Programs are temporarily unavailable. Please try again or contact support."
+    );
+  }
+}
+
 function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
   const focus = prefs.focus || "full";
   const baseExercises =
@@ -467,28 +889,7 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     uid,
   });
 
-  // Eligibility: active subscription OR unlimited credits claim.
-  // Keep this logic server-side so UI gating can't be bypassed.
-  try {
-    const unlimited = hasUnlimitedAccessFromClaims(claims);
-    if (!unlimited) {
-      const userSnap = await db.doc(`users/${uid}`).get();
-      const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
-      if (!active) {
-        throw new HttpsError(
-          "permission-denied",
-          "Your account can't start programs yet. Visit Plans to activate your account."
-        );
-      }
-    }
-  } catch (err) {
-    if (err instanceof HttpsError) throw err;
-    // If eligibility reads fail (rare), fail closed but with a neutral message.
-    throw new HttpsError(
-      "unavailable",
-      "Programs are temporarily unavailable. Please try again or contact support."
-    );
-  }
+  await requireProgramsEntitlement(uid, claims);
   const plan = sanitizeCatalogPlan(req.body);
   const now = Timestamp.now();
 
@@ -558,6 +959,261 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     { merge: true }
   );
   res.json({ planId });
+}
+
+async function handlePreviewCustomPlan(req: Request, res: Response) {
+  const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "previewCustomPlan",
+    uid,
+  });
+  const prefs = sanitizeCustomPrefs(req.body?.prefs ?? {});
+  const title =
+    typeof req.body?.title === "string" && req.body.title.trim().length
+      ? req.body.title.trim().slice(0, 80)
+      : buildCustomPlanTitle(prefs);
+  const days = generateCustomPlanDays(prefs);
+  res.json({ title, prefs, days });
+}
+
+async function handleApplyCustomPlan(req: Request, res: Response) {
+  if (req.method !== "POST") {
+    throw new HttpsError("invalid-argument", "Method not allowed.");
+  }
+  const { uid, claims } = await requireAuthWithClaims(req);
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "applyCustomPlan",
+    uid,
+  });
+
+  await requireProgramsEntitlement(uid, claims);
+
+  const prefs = sanitizeCustomPrefs(req.body?.prefs ?? {});
+  const title =
+    typeof req.body?.title === "string" && req.body.title.trim().length
+      ? req.body.title.trim().slice(0, 80)
+      : buildCustomPlanTitle(prefs);
+  const goal =
+    typeof req.body?.goal === "string" && req.body.goal.trim().length
+      ? req.body.goal.trim().slice(0, 40)
+      : prefs.goal
+        ? prefs.goal.replace(/_/g, " ")
+        : undefined;
+  const level =
+    typeof req.body?.level === "string" && req.body.level.trim().length
+      ? req.body.level.trim().slice(0, 40)
+      : prefs.experience ?? undefined;
+
+  // Reuse catalog sanitizer for days payload shape + strict weekday validation.
+  const sanitized = sanitizeCatalogPlan({
+    programId: `custom_${randomUUID().slice(0, 12)}`,
+    title,
+    goal,
+    level,
+    days: req.body?.days ?? [],
+  });
+  const now = Timestamp.now();
+  const planId = randomUUID();
+  await db.doc(`users/${uid}/workoutPlans/${planId}`).set(
+    scrubUndefined({
+      id: planId,
+      active: true,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+      source: "custom",
+      title: sanitized.title ?? title,
+      goal: sanitized.goal ?? goal,
+      level: sanitized.level ?? level,
+      customPrefs: prefs as unknown as Record<string, unknown>,
+      days: sanitized.days,
+    } satisfies WorkoutPlan)
+  );
+  await db.doc(`users/${uid}/workoutPlans_meta/current`).set(
+    scrubUndefined({
+      activePlanId: planId,
+      updatedAt: now,
+    }),
+    { merge: true }
+  );
+  res.json({ planId });
+}
+
+type UpdateWorkoutPlanOp =
+  | {
+      type: "update_exercise";
+      dayIndex: number;
+      exerciseIndex: number;
+      name?: string;
+      sets?: number;
+      reps?: string | number;
+    }
+  | {
+      type: "reorder_exercise";
+      dayIndex: number;
+      fromIndex: number;
+      toIndex: number;
+    }
+  | {
+      type: "move_exercise";
+      fromDayIndex: number;
+      fromIndex: number;
+      toDayIndex: number;
+      toIndex: number;
+    }
+  | {
+      type: "set_day_name";
+      dayIndex: number;
+      day: string;
+    };
+
+function assertIndex(name: string, value: any, maxExclusive: number) {
+  if (!Number.isFinite(value) || value < 0 || value >= maxExclusive) {
+    throw new HttpsError("invalid-argument", `Invalid ${name}.`);
+  }
+}
+
+function spliceMove<T>(arr: T[], from: number, to: number): T[] {
+  const next = [...arr];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+async function handleUpdateWorkoutPlan(req: Request, res: Response) {
+  if (req.method !== "POST") {
+    throw new HttpsError("invalid-argument", "Method not allowed.");
+  }
+  const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "updateWorkoutPlan",
+    uid,
+  });
+
+  const planId =
+    typeof req.body?.planId === "string" ? req.body.planId.trim() : "";
+  if (!planId) throw new HttpsError("invalid-argument", "Missing planId.");
+  const op = (req.body?.op ?? null) as UpdateWorkoutPlanOp | null;
+  if (!op || typeof op !== "object") {
+    throw new HttpsError("invalid-argument", "Missing op.");
+  }
+
+  const planRef = db.doc(`users/${uid}/workoutPlans/${planId}`);
+  const snap = await planRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Plan not found.");
+  const plan = snap.data() as WorkoutPlan;
+  const days = Array.isArray(plan.days) ? [...plan.days] : [];
+  if (!days.length) throw new HttpsError("failed-precondition", "Plan is empty.");
+
+  if (op.type === "update_exercise") {
+    assertIndex("dayIndex", op.dayIndex, days.length);
+    const day = days[op.dayIndex]!;
+    const exercises = Array.isArray(day.exercises) ? [...day.exercises] : [];
+    assertIndex("exerciseIndex", op.exerciseIndex, exercises.length);
+    const ex = { ...(exercises[op.exerciseIndex] as any) };
+    if (typeof op.name === "string" && op.name.trim().length) {
+      ex.name = op.name.trim().slice(0, 80);
+    }
+    if (op.sets !== undefined) {
+      const sets = clampInt(op.sets, 1, 10, ex.sets ?? 3);
+      ex.sets = sets;
+    }
+    if (op.reps !== undefined) {
+      const reps =
+        typeof op.reps === "number" && Number.isFinite(op.reps)
+          ? String(op.reps)
+          : typeof op.reps === "string" && op.reps.trim().length
+            ? op.reps.trim().slice(0, 40)
+            : ex.reps ?? "10";
+      ex.reps = reps;
+    }
+    exercises[op.exerciseIndex] = ex;
+    days[op.dayIndex] = { ...day, exercises };
+  } else if (op.type === "reorder_exercise") {
+    assertIndex("dayIndex", op.dayIndex, days.length);
+    const day = days[op.dayIndex]!;
+    const exercises = Array.isArray(day.exercises) ? [...day.exercises] : [];
+    assertIndex("fromIndex", op.fromIndex, exercises.length);
+    assertIndex("toIndex", op.toIndex, exercises.length);
+    days[op.dayIndex] = { ...day, exercises: spliceMove(exercises, op.fromIndex, op.toIndex) };
+  } else if (op.type === "move_exercise") {
+    assertIndex("fromDayIndex", op.fromDayIndex, days.length);
+    assertIndex("toDayIndex", op.toDayIndex, days.length);
+    const fromDay = days[op.fromDayIndex]!;
+    const toDay = days[op.toDayIndex]!;
+    const fromExercises = Array.isArray(fromDay.exercises) ? [...fromDay.exercises] : [];
+    const toExercises = Array.isArray(toDay.exercises) ? [...toDay.exercises] : [];
+    assertIndex("fromIndex", op.fromIndex, fromExercises.length);
+    const insertAt = clampInt(op.toIndex, 0, Math.max(0, toExercises.length), toExercises.length);
+    const [moved] = fromExercises.splice(op.fromIndex, 1);
+    toExercises.splice(insertAt, 0, moved);
+    days[op.fromDayIndex] = { ...fromDay, exercises: fromExercises };
+    days[op.toDayIndex] = { ...toDay, exercises: toExercises };
+  } else if (op.type === "set_day_name") {
+    assertIndex("dayIndex", op.dayIndex, days.length);
+    const dayName = typeof op.day === "string" ? op.day.trim() : "";
+    if (!VALID_CATALOG_DAY_SET.has(dayName)) {
+      throw new HttpsError("invalid-argument", "Invalid day.");
+    }
+    days[op.dayIndex] = { ...days[op.dayIndex]!, day: dayName };
+  } else {
+    throw new HttpsError("invalid-argument", "Unknown op type.");
+  }
+
+  const now = Timestamp.now();
+  await planRef.set(
+    scrubUndefined({
+      days,
+      updatedAt: now,
+    }),
+    { merge: true }
+  );
+  res.json({ ok: true });
+}
+
+async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
+  if (req.method !== "POST") {
+    throw new HttpsError("invalid-argument", "Method not allowed.");
+  }
+  const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "setWorkoutPlanStatus",
+    uid,
+  });
+  const planId =
+    typeof req.body?.planId === "string" ? req.body.planId.trim() : "";
+  if (!planId) throw new HttpsError("invalid-argument", "Missing planId.");
+  const statusRaw = typeof req.body?.status === "string" ? req.body.status.trim() : "";
+  const status =
+    statusRaw === "paused" || statusRaw === "ended" ? statusRaw : null;
+  if (!status) throw new HttpsError("invalid-argument", "Invalid status.");
+
+  const now = Timestamp.now();
+  const planRef = db.doc(`users/${uid}/workoutPlans/${planId}`);
+  const metaRef = db.doc(`users/${uid}/workoutPlans_meta/current`);
+  const [planSnap, metaSnap] = await Promise.all([planRef.get(), metaRef.get()]);
+  if (!planSnap.exists) throw new HttpsError("not-found", "Plan not found.");
+  const activePlanId = (metaSnap.data()?.activePlanId as string) || null;
+  const isActive = activePlanId === planId;
+
+  await Promise.all([
+    planRef.set(
+      scrubUndefined({
+        active: false,
+        status,
+        pausedAt: status === "paused" ? now : null,
+        endedAt: status === "ended" ? now : null,
+        updatedAt: now,
+      }),
+      { merge: true }
+    ),
+    isActive
+      ? metaRef.set(scrubUndefined({ activePlanId: null, updatedAt: now }), {
+          merge: true,
+        })
+      : Promise.resolve(),
+  ]);
+  res.json({ ok: true });
 }
 
 async function handleGetPlan(req: Request, res: Response) {
@@ -681,6 +1337,10 @@ function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
 export const generateWorkoutPlan = withHandler(handleGenerate);
 export const generatePlan = generateWorkoutPlan;
 export const applyCatalogPlan = withHandler(handleApplyCatalogPlan);
+export const previewCustomPlan = withHandler(handlePreviewCustomPlan);
+export const applyCustomPlan = withHandler(handleApplyCustomPlan);
+export const updateWorkoutPlan = withHandler(handleUpdateWorkoutPlan);
+export const setWorkoutPlanStatus = withHandler(handleSetWorkoutPlanStatus);
 export const getPlan = withHandler(handleGetPlan);
 export const getCurrentPlan = getPlan;
 export const markExerciseDone = withHandler(handleMarkDone);

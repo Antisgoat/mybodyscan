@@ -150,6 +150,23 @@ export interface WorkoutPlan {
   id?: string;
   active?: boolean;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  /** "deterministic" | "openai" | "catalog" | "custom" (client may omit) */
+  source?: string;
+  /** Human-friendly plan name shown in UI. */
+  title?: string;
+  /** Goal label (free-form for now; keep short). */
+  goal?: string;
+  /** Experience/level label (free-form for now; keep short). */
+  level?: string;
+  /** Catalog program id when source==="catalog". */
+  catalogProgramId?: string;
+  /** Plan lifecycle status (null/undefined treated as active). */
+  status?: "active" | "paused" | "ended";
+  pausedAt?: Timestamp | null;
+  endedAt?: Timestamp | null;
   prefs?: Record<string, unknown>;
+  /** Customization preferences captured when source==="custom". */
+  customPrefs?: Record<string, unknown>;
   days: WorkoutDay[];
 }
