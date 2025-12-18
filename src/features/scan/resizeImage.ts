@@ -66,6 +66,227 @@ export async function resizeImageFile(
   }
 }
 
+export type UploadPreprocessMeta = {
+  name: string;
+  size: number;
+  type: string;
+};
+
+export type UploadPreprocessResult = {
+  original: UploadPreprocessMeta;
+  compressed: UploadPreprocessMeta;
+  file: File; // always a JPEG file (never the original)
+  debug: {
+    orientation: number;
+    srcWidth: number;
+    srcHeight: number;
+    maxEdgeInitial: number;
+    maxEdgeFinal: number;
+    qualityInitial: number;
+    qualityFinal: number;
+    outputBytesLimit: number;
+    steps: Array<{
+      maxEdge: number;
+      quality: number;
+      blobBytes: number | null;
+      toBlobNull: boolean;
+    }>;
+  };
+};
+
+function toMeta(file: File): UploadPreprocessMeta {
+  return {
+    name: file.name || "image",
+    size: typeof file.size === "number" ? file.size : 0,
+    type: (file.type || "").trim() || "application/octet-stream",
+  };
+}
+
+export function isProbablyMobileSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "");
+  const isIOS = /iP(hone|ad|od)/i.test(ua);
+  if (!isIOS) return false;
+  // iOS Chrome/Firefox use WebKit but include markers.
+  const isCriOS = /CriOS/i.test(ua);
+  const isFxiOS = /FxiOS/i.test(ua);
+  const isEdgiOS = /EdgiOS/i.test(ua);
+  if (isCriOS || isFxiOS || isEdgiOS) return false;
+  // iOS Safari typically has Safari but not Chrome.
+  return /Safari/i.test(ua);
+}
+
+type DrawParams = {
+  source: ImageSource;
+  orientation: number;
+  maxEdge: number;
+};
+
+function drawToCanvas(params: DrawParams): {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  outW: number;
+  outH: number;
+  swapDims: boolean;
+} {
+  const srcW = params.source.width;
+  const srcH = params.source.height;
+  const scale = Math.min(1, params.maxEdge / Math.max(srcW, srcH));
+  const outW = Math.max(1, Math.round(srcW * scale));
+  const outH = Math.max(1, Math.round(srcH * scale));
+  const swapDims = params.orientation >= 5 && params.orientation <= 8;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = swapDims ? outH : outW;
+  canvas.height = swapDims ? outW : outH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas rendering unavailable.");
+  }
+  // Reduce interpolation artifacts when downscaling.
+  (ctx as any).imageSmoothingEnabled = true;
+  (ctx as any).imageSmoothingQuality = "high";
+  applyExifOrientationTransform(ctx, params.orientation, canvas.width, canvas.height);
+  ctx.drawImage(params.source.el, 0, 0, outW, outH);
+  return { canvas, ctx, outW, outH, swapDims };
+}
+
+async function canvasToJpegMaybe(
+  canvas: HTMLCanvasElement,
+  quality: number
+): Promise<Blob | null> {
+  return await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(
+      (b) => resolve(b ?? null),
+      "image/jpeg",
+      clamp01(quality)
+    );
+  });
+}
+
+/**
+ * Mandatory upload pipeline:
+ * - Always returns a JPEG `File` (never the original input file).
+ * - Uses createImageBitmap when available; falls back to <img>.
+ * - iOS Safari: default max edge 1280px; desktop: 1800px.
+ * - Starts at quality 0.8; if still > 2.5MB, tries lower quality and/or smaller size.
+ * - If canvas.toBlob returns null (iOS bug), retries automatically with smaller size.
+ */
+export async function preprocessImageForUpload(
+  file: File,
+  options?: {
+    fileName?: string;
+    maxEdgeDesktop?: number;
+    maxEdgeMobileSafari?: number;
+    jpegQualityStart?: number;
+    outputBytesLimit?: number;
+  }
+): Promise<UploadPreprocessResult> {
+  const original = toMeta(file);
+  const maxEdgeDesktop = options?.maxEdgeDesktop ?? 1800;
+  const maxEdgeMobileSafari = options?.maxEdgeMobileSafari ?? 1280;
+  const maxEdgeInitial = isProbablyMobileSafari()
+    ? maxEdgeMobileSafari
+    : maxEdgeDesktop;
+  const qualityInitial = clamp01(options?.jpegQualityStart ?? 0.8);
+  const outputBytesLimit = options?.outputBytesLimit ?? Math.round(2.5 * 1024 * 1024);
+
+  const orientation = await readJpegExifOrientation(file).catch(() => 1);
+  const source = await decodeToImageSource(file);
+
+  const debug: UploadPreprocessResult["debug"] = {
+    orientation,
+    srcWidth: source.width,
+    srcHeight: source.height,
+    maxEdgeInitial,
+    maxEdgeFinal: maxEdgeInitial,
+    qualityInitial,
+    qualityFinal: qualityInitial,
+    outputBytesLimit,
+    steps: [],
+  };
+
+  // Candidate max-edges. We always try the initial choice first, then fall back.
+  // Keep this conservative; iOS Safari can OOM on large canvases.
+  const edgeCandidates = [
+    maxEdgeInitial,
+    Math.min(maxEdgeInitial, 1280),
+    1024,
+    900,
+    768,
+  ]
+    .filter((n, i, arr) => Number.isFinite(n) && n > 0 && arr.indexOf(n) === i)
+    .sort((a, b) => b - a); // try larger first
+
+  const qualityCandidates = [
+    qualityInitial,
+    Math.min(qualityInitial, 0.75),
+    Math.min(qualityInitial, 0.7),
+    Math.min(qualityInitial, 0.65),
+  ].filter((q, i, arr) => q > 0 && q <= 1 && arr.indexOf(q) === i);
+
+  let bestBlob: Blob | null = null;
+  let bestEdge = maxEdgeInitial;
+  let bestQuality = qualityInitial;
+
+  try {
+    for (const edge of edgeCandidates) {
+      const { canvas } = drawToCanvas({ source, orientation, maxEdge: edge });
+      for (const q of qualityCandidates) {
+        const blob = await canvasToJpegMaybe(canvas, q);
+        const blobBytes = blob ? blob.size : null;
+        debug.steps.push({
+          maxEdge: edge,
+          quality: q,
+          blobBytes,
+          toBlobNull: blob == null,
+        });
+
+        // iOS can return null; treat as retry signal with smaller size.
+        if (!blob) continue;
+        // Some buggy implementations return a 0-byte blob; treat as failure.
+        if (!Number.isFinite(blob.size) || blob.size <= 0) continue;
+
+        // Accept immediately if under limit.
+        if (blob.size <= outputBytesLimit) {
+          bestBlob = blob;
+          bestEdge = edge;
+          bestQuality = q;
+          break;
+        }
+
+        // Track best-so-far even if it exceeds limit (so we can still proceed).
+        if (!bestBlob || blob.size < bestBlob.size) {
+          bestBlob = blob;
+          bestEdge = edge;
+          bestQuality = q;
+        }
+      }
+      if (bestBlob && bestBlob.size <= outputBytesLimit) break;
+      // If toBlob returned null for all qualities at this size, move to smaller edge.
+    }
+
+    if (!bestBlob || bestBlob.size <= 0) {
+      throw new Error("Image encoding failed (JPEG blob unavailable).");
+    }
+
+    const outName = (options?.fileName || "upload.jpg").replace(/\.(png|webp|heic|heif|jpeg|jpg)$/i, ".jpg");
+    const outFile = new File([bestBlob], outName, { type: "image/jpeg" });
+
+    debug.maxEdgeFinal = bestEdge;
+    debug.qualityFinal = bestQuality;
+
+    return {
+      original,
+      compressed: toMeta(outFile),
+      file: outFile,
+      debug,
+    };
+  } finally {
+    source.cleanup?.();
+  }
+}
+
 type ImageSource = {
   el: CanvasImageSource;
   width: number;

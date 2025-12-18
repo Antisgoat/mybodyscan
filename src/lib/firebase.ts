@@ -15,7 +15,10 @@ import {
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import {
+  getStorage,
+  type FirebaseStorage,
+} from "firebase/storage";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -188,6 +191,16 @@ export const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
 export const functions: Functions = getFunctions(app, functionsRegion);
 export const storage: FirebaseStorage = getStorage(app);
+
+// iPhone Safari resilience: prevent endless internal retries that look like a 1% stall forever.
+try {
+  // This SDK exposes retry timers as mutable properties.
+  // Keep them short so Safari backgrounding doesn't look like an endless retry loop.
+  (storage as any).maxUploadRetryTime = 120_000;
+  (storage as any).maxOperationRetryTime = 120_000;
+} catch {
+  // ignore (older SDKs / non-browser environments)
+}
 
 let analyticsInstance: Analytics | null = null;
 

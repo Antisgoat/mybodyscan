@@ -50,6 +50,7 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { toast } from "@/hooks/use-toast";
 import { POSES, type Pose } from "@/features/scan/poses";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
+import { useAuthUser } from "@/lib/useAuthUser";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -81,6 +82,15 @@ function formatDecimal(value: number | null | undefined): string | null {
   }
   const numeric = value as number;
   return numeric.toFixed(1);
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  const b = typeof bytes === "number" ? bytes : 0;
+  if (!Number.isFinite(b) || b <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+  const val = b / Math.pow(1024, i);
+  return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 async function createThumbnailDataUrl(
@@ -143,6 +153,7 @@ function parseManualCircumference(
 }
 
 export default function ScanFlowResult() {
+  const { user } = useAuthUser();
   const { mode, files, weights, session } = useScanCaptureStore();
   const currentWeightKg = weights.currentWeightKg;
   const goalWeightKg = weights.goalWeightKg;
@@ -165,6 +176,7 @@ export default function ScanFlowResult() {
   const navigate = useNavigate();
   const uploadAbortRef = useRef<AbortController | null>(null);
   const lastAutoRetryAtRef = useRef<number>(0);
+  const autoRetryCountRef = useRef<number>(0);
   const appCheck = useAppCheckStatus();
   const { units } = useUnits();
   const { health: systemHealth } = useSystemHealth();
@@ -215,6 +227,27 @@ export default function ScanFlowResult() {
     return entries.filter(([, s]) => s.status === "failed").map(([pose]) => pose);
   }, [photoState]);
   const canRetryFailed = Boolean(session?.scanId) && failedPoses.length > 0;
+
+  const [uploadMeta, setUploadMeta] = useState<
+    Record<
+      Pose,
+      {
+        compressed?: PhotoMetadata;
+        preprocessDebug?: unknown;
+        lastError?: { code?: string; message?: string };
+      }
+    >
+  >({
+    front: {},
+    back: {},
+    left: {},
+    right: {},
+  });
+  const [lastUploadError, setLastUploadError] = useState<{
+    code?: string;
+    message?: string;
+    pose?: Pose;
+  } | null>(null);
 
   const tasks = useMemo(
     () =>
@@ -318,6 +351,8 @@ export default function ScanFlowResult() {
     setUploadProgress(0);
     setUploadPose(null);
     setUploadHasBytes(false);
+    setLastUploadError(null);
+    autoRetryCountRef.current = 0;
     setPhotoState({
       front: { status: "preparing", percent: 0, attempt: 0 },
       back: { status: "preparing", percent: 0, attempt: 0 },
@@ -386,9 +421,24 @@ export default function ScanFlowResult() {
               };
               return next;
             });
+            setUploadMeta((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose] ?? {};
+              next[info.pose as Pose] = {
+                ...existing,
+                compressed: (info as any)?.compressed ?? existing.compressed,
+                preprocessDebug:
+                  (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastError:
+                  info.status === "failed"
+                    ? { code: undefined, message: info.message }
+                    : existing.lastError,
+              };
+              return next;
+            });
           },
           signal: abortController.signal,
-          stallTimeoutMs: 20_000,
+          stallTimeoutMs: 15_000,
         }
       );
       uploadAbortRef.current = null;
@@ -396,6 +446,11 @@ export default function ScanFlowResult() {
         const debugSuffix = submit.error.debugId
           ? ` (ref ${submit.error.debugId.slice(0, 8)})`
           : "";
+        setLastUploadError({
+          code: submit.error.code,
+          message: submit.error.message + debugSuffix,
+          pose: (submit.error.pose as Pose | undefined) ?? undefined,
+        });
         throw new Error(submit.error.message + debugSuffix);
       }
       setFlowStatus("processing");
@@ -419,6 +474,11 @@ export default function ScanFlowResult() {
           ? error.message
           : "Unable to submit your scan. Please try again.";
       setFlowError(message);
+      setLastUploadError({
+        code: error?.code,
+        message,
+        pose: (error?.pose as Pose | undefined) ?? undefined,
+      });
       setSubmittedScanId(null);
       toast({
         title: "Unable to submit scan",
@@ -441,6 +501,8 @@ export default function ScanFlowResult() {
     setUploadPose(null);
     setUploadHasBytes(false);
     setSubmittedScanId(null);
+    setLastUploadError(null);
+    autoRetryCountRef.current = 0;
   }, [session?.scanId]);
 
   const retryFailed = useCallback(async () => {
@@ -448,6 +510,7 @@ export default function ScanFlowResult() {
     if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
     setFlowStatus("uploading");
     setFlowError(null);
+    setLastUploadError(null);
     uploadAbortRef.current?.abort();
     const abortController = new AbortController();
     uploadAbortRef.current = abortController;
@@ -487,15 +550,35 @@ export default function ScanFlowResult() {
             };
             return next;
           });
+          setUploadMeta((prev) => {
+            const next = { ...prev };
+            const existing = next[info.pose as Pose] ?? {};
+            next[info.pose as Pose] = {
+              ...existing,
+              compressed: (info as any)?.compressed ?? existing.compressed,
+              preprocessDebug:
+                (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+              lastError:
+                info.status === "failed"
+                  ? { code: undefined, message: info.message }
+                  : existing.lastError,
+            };
+            return next;
+          });
         },
         signal: abortController.signal,
-        stallTimeoutMs: 20_000,
+        stallTimeoutMs: 15_000,
       }
     );
     uploadAbortRef.current = null;
     if (!submit.ok) {
       setFlowStatus("error");
       setFlowError(submit.error.message);
+      setLastUploadError({
+        code: submit.error.code,
+        message: submit.error.message,
+        pose: (submit.error.pose as Pose | undefined) ?? undefined,
+      });
       return;
     }
     setFlowStatus("processing");
@@ -515,6 +598,100 @@ export default function ScanFlowResult() {
     session?.storagePaths,
   ]);
 
+  const retryPose = useCallback(
+    async (pose: Pose) => {
+      if (!session?.scanId) return;
+      if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+      setFlowStatus("uploading");
+      setFlowError(null);
+      setLastUploadError(null);
+      uploadAbortRef.current?.abort();
+      const abortController = new AbortController();
+      uploadAbortRef.current = abortController;
+      const photos = {
+        front: poseFiles.front!,
+        back: poseFiles.back!,
+        left: poseFiles.left!,
+        right: poseFiles.right!,
+      };
+      const submit = await submitScanClient(
+        {
+          scanId: session.scanId,
+          storagePaths: session.storagePaths,
+          photos,
+          currentWeightKg,
+          goalWeightKg,
+        },
+        {
+          posesToUpload: [pose],
+          onUploadProgress: (info: ScanUploadProgress) => {
+            setUploadProgress(info.overallPercent);
+            setUploadPose(info.pose);
+            if (info.hasBytesTransferred) setUploadHasBytes(true);
+          },
+          onPhotoState: (info) => {
+            setPhotoState((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose];
+              next[info.pose as Pose] = {
+                status: info.status,
+                attempt: info.attempt ?? existing?.attempt ?? 0,
+                percent:
+                  typeof info.percent === "number"
+                    ? info.percent
+                    : existing?.percent ?? 0,
+                message: info.message ?? existing?.message,
+              };
+              return next;
+            });
+            setUploadMeta((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose] ?? {};
+              next[info.pose as Pose] = {
+                ...existing,
+                compressed: (info as any)?.compressed ?? existing.compressed,
+                preprocessDebug:
+                  (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastError:
+                  info.status === "failed"
+                    ? { code: undefined, message: info.message }
+                    : existing.lastError,
+              };
+              return next;
+            });
+          },
+          signal: abortController.signal,
+          stallTimeoutMs: 15_000,
+        }
+      );
+      uploadAbortRef.current = null;
+      if (!submit.ok) {
+        setFlowStatus("error");
+        setFlowError(submit.error.message);
+        setLastUploadError({
+          code: submit.error.code,
+          message: submit.error.message,
+          pose: (submit.error.pose as Pose | undefined) ?? undefined,
+        });
+        return;
+      }
+      setFlowStatus("processing");
+      navigate(`/scan/${session.scanId}`);
+    },
+    [
+      currentWeightKg,
+      goalWeightKg,
+      navigate,
+      poseFiles.back,
+      poseFiles.front,
+      poseFiles.left,
+      poseFiles.right,
+      poseUploadsReady,
+      session?.scanId,
+      session?.storagePaths,
+    ]
+  );
+
   useEffect(() => {
     const maybeAutoRetry = () => {
       if (!canRetryFailed) return;
@@ -523,7 +700,9 @@ export default function ScanFlowResult() {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const now = Date.now();
       if (now - lastAutoRetryAtRef.current < 15_000) return;
+      if (autoRetryCountRef.current >= 2) return;
       lastAutoRetryAtRef.current = now;
+      autoRetryCountRef.current += 1;
       void retryFailed();
     };
     const onVis = () => {
@@ -824,6 +1003,8 @@ export default function ScanFlowResult() {
             <ul className="space-y-2">
               {shots.map((view) => {
                 const file = files[view];
+                const pose = VIEW_TO_POSE[view];
+                const compressed = pose ? uploadMeta[pose]?.compressed : undefined;
                 return (
                   <li
                     key={view}
@@ -832,7 +1013,17 @@ export default function ScanFlowResult() {
                     <span className="font-medium">{view}</span>
                     {file ? (
                       <span className="text-sm text-muted-foreground">
-                        {file.name} · {(file.size / 1024).toFixed(0)} KB
+                        <span className="block text-right">
+                          Original: {file.name} · {formatBytes(file.size)} ·{" "}
+                          {(file.type || "image/*").toUpperCase()}
+                        </span>
+                        {compressed ? (
+                          <span className="block text-right">
+                            Compressed: {compressed.name} ·{" "}
+                            {formatBytes(compressed.size)} ·{" "}
+                            {compressed.type.toUpperCase()}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <span className="text-sm text-destructive">Missing</span>
@@ -900,6 +1091,21 @@ export default function ScanFlowResult() {
                   Retry failed photo(s)
                 </Button>
               ) : null}
+              {failedPoses.length ? (
+                <>
+                  {failedPoses.map((pose) => (
+                    <Button
+                      key={pose}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void retryPose(pose)}
+                    >
+                      Retry {pose} upload
+                    </Button>
+                  ))}
+                </>
+              ) : null}
             </div>
           ) : null}
           {flowStatus === "uploading" || flowStatus === "error" ? (
@@ -965,6 +1171,73 @@ export default function ScanFlowResult() {
           </div>
         </CardContent>
       </Card>
+      {import.meta.env.DEV ? (
+        <details className="rounded border p-3 text-xs">
+          <summary className="cursor-pointer select-none font-medium">
+            Upload debug
+          </summary>
+          <div className="mt-2 space-y-2">
+            <div>
+              <span className="font-medium">uid:</span>{" "}
+              <span className="text-muted-foreground">{user?.uid ?? "—"}</span>
+            </div>
+            <div>
+              <span className="font-medium">scanId:</span>{" "}
+              <span className="text-muted-foreground">{session?.scanId ?? "—"}</span>
+            </div>
+            <div>
+              <span className="font-medium">storage path(s):</span>
+              <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                {session?.storagePaths
+                  ? JSON.stringify(session.storagePaths, null, 2)
+                  : "—"}
+              </pre>
+            </div>
+            <div>
+              <span className="font-medium">last firebase error:</span>{" "}
+              <span className="text-muted-foreground">
+                {lastUploadError
+                  ? `${lastUploadError.code ?? "unknown"} · ${lastUploadError.message ?? ""}${
+                      lastUploadError.pose ? ` · pose=${lastUploadError.pose}` : ""
+                    }`
+                  : "—"}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {POSES.map((pose) => {
+                const state = photoState[pose];
+                const original = photoMetadata[pose];
+                const compressed = uploadMeta[pose]?.compressed;
+                return (
+                  <div key={pose} className="rounded border p-2">
+                    <div className="font-medium">{pose}</div>
+                    <div className="text-muted-foreground">
+                      state: {state.status} · attempt {state.attempt || 0}
+                    </div>
+                    <div className="text-muted-foreground">
+                      original:{" "}
+                      {original
+                        ? `${formatBytes(original.size)} · ${original.type} · ${original.name}`
+                        : "—"}
+                    </div>
+                    <div className="text-muted-foreground">
+                      compressed:{" "}
+                      {compressed
+                        ? `${formatBytes(compressed.size)} · ${compressed.type} · ${compressed.name}`
+                        : "—"}
+                    </div>
+                    {state.message ? (
+                      <div className="text-muted-foreground">
+                        lastPoseMessage: {state.message}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </details>
+      ) : null}
       {submittedScanId ? (
         <Card className="border border-dashed">
           <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">

@@ -8,7 +8,11 @@ import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { resizeImageFile } from "@/features/scan/resizeImage";
+import {
+  preprocessImageForUpload,
+  type UploadPreprocessMeta,
+  type UploadPreprocessResult,
+} from "@/features/scan/resizeImage";
 import {
   ref,
   uploadBytesResumable,
@@ -266,7 +270,7 @@ async function uploadPhoto(
   options?: {
     signal?: AbortSignal;
     stallTimeoutMs?: number;
-    onStall?: (details: { reason: "no_progress" | "stalled" }) => void;
+    onStall?: (details: { reason: "no_progress" | "stalled"; bytesTransferred: number }) => void;
     onTask?: (task: UploadTask) => void;
   }
 ): Promise<void> {
@@ -278,16 +282,16 @@ async function uploadPhoto(
     options?.onTask?.(task);
     let settled = false;
     let lastBytes = 0;
-    let lastEventAt = Date.now();
+    let lastBytesAt = Date.now();
 
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 60_000;
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 15_000;
     const stallTimer =
       stallTimeoutMs > 0
         ? setInterval(() => {
             if (settled) return;
             const reason = getUploadStallReason({
               lastBytes,
-              lastEventAt,
+              lastBytesAt,
               now: Date.now(),
               stallTimeoutMs,
             });
@@ -295,6 +299,7 @@ async function uploadPhoto(
             try {
               options?.onStall?.({
                 reason,
+                bytesTransferred: lastBytes,
               });
             } catch {
               // ignore
@@ -309,7 +314,7 @@ async function uploadPhoto(
             settled = true;
             clearInterval(stallTimer);
             reject(err);
-          }, 5_000)
+          }, 1000)
         : null;
 
     const abortHandler = () => {
@@ -333,11 +338,35 @@ async function uploadPhoto(
       }
       options.signal.addEventListener("abort", abortHandler, { once: true });
     }
+
+    const resumeIfPaused = () => {
+      try {
+        task.resume();
+      } catch {
+        // ignore
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        resumeIfPaused();
+      }
+    };
+    const onOnline = () => resumeIfPaused();
+    try {
+      document.addEventListener("visibilitychange", onVis);
+      window.addEventListener("online", onOnline);
+    } catch {
+      // ignore
+    }
+
     task.on(
       "state_changed",
       (snapshot) => {
-        lastEventAt = Date.now();
-        lastBytes = Math.max(lastBytes, snapshot.bytesTransferred || 0);
+        const bytes = Math.max(0, snapshot.bytesTransferred || 0);
+        if (bytes !== lastBytes) {
+          lastBytes = bytes;
+          lastBytesAt = Date.now();
+        }
         // If the task gets paused (common on mobile during network/visibility hiccups),
         // proactively resume so the user doesn't have to manually intervene.
         if (snapshot.state === "paused") {
@@ -359,6 +388,12 @@ async function uploadPhoto(
             // ignore
           }
         }
+        try {
+          document.removeEventListener("visibilitychange", onVis);
+          window.removeEventListener("online", onOnline);
+        } catch {
+          // ignore
+        }
         reject(error);
       },
       () => {
@@ -370,6 +405,12 @@ async function uploadPhoto(
           } catch {
             // ignore
           }
+        }
+        try {
+          document.removeEventListener("visibilitychange", onVis);
+          window.removeEventListener("online", onOnline);
+        } catch {
+          // ignore
         }
         resolve();
       }
@@ -401,13 +442,13 @@ type UploadTarget = {
 
 export function getUploadStallReason(params: {
   lastBytes: number;
-  lastEventAt: number;
+  lastBytesAt: number;
   now: number;
   stallTimeoutMs: number;
 }): "no_progress" | "stalled" | null {
   const stallTimeoutMs = Number(params.stallTimeoutMs);
   if (!Number.isFinite(stallTimeoutMs) || stallTimeoutMs <= 0) return null;
-  const elapsed = params.now - params.lastEventAt;
+  const elapsed = params.now - params.lastBytesAt;
   if (!Number.isFinite(elapsed) || elapsed < stallTimeoutMs) return null;
   return params.lastBytes > 0 ? "stalled" : "no_progress";
 }
@@ -529,6 +570,9 @@ export async function submitScanClient(
       attempt?: number;
       percent?: number;
       message?: string;
+      original?: UploadPreprocessMeta;
+      compressed?: UploadPreprocessMeta;
+      preprocessDebug?: UploadPreprocessResult["debug"];
     }) => void;
     signal?: AbortSignal;
     stallTimeoutMs?: number;
@@ -553,36 +597,62 @@ export async function submitScanClient(
       ? orderedPoses.filter((p) => options.posesToUpload!.includes(p))
       : orderedPoses;
 
-    // Preprocess photos (mandatory): JPEG + resize + EXIF orientation.
-    // If anything fails, fall back to the original file for that pose.
-    const processedEntries = await Promise.all(
-      posesToUpload.map(async (pose) => {
-        const original = params.photos[pose];
-        options?.onPhotoState?.({ pose, status: "preparing" });
-        const t0 = Date.now();
-        const blob = await resizeImageFile(original, 1800, 0.8);
+    // Preprocess photos (mandatory): ALWAYS produce a JPEG File (never fall back to original).
+    // This prevents iPhone Safari from uploading huge PNGs when canvas/toBlob fails.
+    const photos = { ...params.photos } as typeof params.photos;
+    for (const pose of posesToUpload) {
+      const original = params.photos[pose];
+      options?.onPhotoState?.({ pose, status: "preparing" });
+      const t0 = Date.now();
+      try {
+        const processed = await preprocessImageForUpload(original, {
+          fileName: `${pose}.jpg`,
+          maxEdgeDesktop: 1800,
+          maxEdgeMobileSafari: 1280,
+          jpegQualityStart: 0.8,
+          outputBytesLimit: Math.round(2.5 * 1024 * 1024),
+        });
         const t1 = Date.now();
         console.info("scan.preprocess", {
           pose,
-          inBytes: original.size,
-          outBytes: (blob as any)?.size,
+          inBytes: processed.original.size,
+          outBytes: processed.compressed.size,
           ms: t1 - t0,
-          inType: original.type,
-          outType: blob.type,
+          inType: processed.original.type,
+          outType: processed.compressed.type,
+          maxEdge: processed.debug.maxEdgeFinal,
+          quality: processed.debug.qualityFinal,
         });
-        try {
-          const type = blob.type || "image/jpeg";
-          const name = `${pose}.jpg`;
-          return [pose, new File([blob], name, { type })] as const;
-        } catch {
-          return [pose, original] as const;
-        }
-      })
-    );
-
-    const photos = { ...params.photos } as typeof params.photos;
-    for (const [pose, file] of processedEntries) {
-      photos[pose] = file;
+        photos[pose] = processed.file;
+        options?.onPhotoState?.({
+          pose,
+          status: "preparing",
+          original: processed.original,
+          compressed: processed.compressed,
+          preprocessDebug: processed.debug,
+        });
+      } catch (err) {
+        const t1 = Date.now();
+        console.warn("scan.preprocess_failed", {
+          pose,
+          ms: t1 - t0,
+          message: (err as Error)?.message,
+        });
+        options?.onPhotoState?.({
+          pose,
+          status: "failed",
+          message:
+            (err as Error)?.message ||
+            "Could not compress this photo for upload. Please retry.",
+        });
+        const e: any = new Error(
+          (err as Error)?.message ||
+            "Could not compress this photo for upload. Please retry."
+        );
+        e.code = "preprocess_failed";
+        e.pose = pose;
+        throw e;
+      }
     }
 
     const validated = validateScanUploadInputs({
@@ -605,7 +675,7 @@ export async function submitScanClient(
     const fallbackDenominator = fileCount || 1;
     let uploadedBytes = 0;
 
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 20_000;
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 15_000;
     const retryDelaysMs = [1000, 2000, 4000];
 
     for (const [index, target] of uploadTargets.entries()) {
@@ -673,11 +743,21 @@ export async function submitScanClient(
             {
               signal: options?.signal,
               stallTimeoutMs,
-              onStall: ({ reason }) => {
+              onStall: ({ reason, bytesTransferred }) => {
                 console.warn("scan.upload_stall", {
                   pose: target.pose,
                   attempt,
                   reason,
+                  bytesTransferred,
+                });
+                options?.onPhotoState?.({
+                  pose: target.pose,
+                  status: "retrying",
+                  attempt,
+                  message:
+                    reason === "no_progress"
+                      ? "Upload stalled (no progress for 15s). Restarting…"
+                      : "Upload stalled (no new bytes for 15s). Restarting…",
                 });
               },
             }
