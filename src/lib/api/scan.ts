@@ -7,12 +7,14 @@
 import { apiFetch, ApiError } from "@/lib/http";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { resizeImageFile } from "@/features/scan/resizeImage";
 import {
   ref,
   uploadBytesResumable,
+  getDownloadURL,
   type UploadTaskSnapshot,
+  type UploadTask,
 } from "firebase/storage";
 
 export type ScanEstimate = {
@@ -113,6 +115,7 @@ export type ScanError = {
   debugId?: string;
   status?: number;
   reason?: string;
+  pose?: keyof StartScanResponse["storagePaths"];
 };
 
 export type ScanApiResult<T> =
@@ -264,6 +267,7 @@ async function uploadPhoto(
     signal?: AbortSignal;
     stallTimeoutMs?: number;
     onStall?: (details: { reason: "no_progress" | "stalled" }) => void;
+    onTask?: (task: UploadTask) => void;
   }
 ): Promise<void> {
   const storageRef = ref(storage, path);
@@ -271,6 +275,7 @@ async function uploadPhoto(
     const task = uploadBytesResumable(storageRef, file, {
       contentType: file.type || "image/jpeg",
     });
+    options?.onTask?.(task);
     let settled = false;
     let lastBytes = 0;
     let lastEventAt = Date.now();
@@ -333,6 +338,15 @@ async function uploadPhoto(
       (snapshot) => {
         lastEventAt = Date.now();
         lastBytes = Math.max(lastBytes, snapshot.bytesTransferred || 0);
+        // If the task gets paused (common on mobile during network/visibility hiccups),
+        // proactively resume so the user doesn't have to manually intervene.
+        if (snapshot.state === "paused") {
+          try {
+            task.resume();
+          } catch {
+            // ignore
+          }
+        }
         onProgress?.(snapshot);
       },
       (error) => {
@@ -372,6 +386,8 @@ export type ScanUploadProgress = {
   percent: number;
   overallPercent: number;
   hasBytesTransferred: boolean;
+  status?: "preparing" | "uploading" | "retrying" | "done" | "failed";
+  attempt?: number;
 };
 
 const MIN_VISIBLE_PROGRESS = 0.01;
@@ -454,12 +470,20 @@ function ensureVisibleProgress(value: number, hasBytes: boolean): number {
 function normalizeUploadError(err: unknown): ScanError | null {
   const anyErr = err as any;
   const code = typeof anyErr?.code === "string" ? anyErr.code : undefined;
+  const pose =
+    anyErr?.pose === "front" ||
+    anyErr?.pose === "back" ||
+    anyErr?.pose === "left" ||
+    anyErr?.pose === "right"
+      ? (anyErr.pose as keyof StartScanResponse["storagePaths"])
+      : undefined;
   if (!code) return null;
   if (code === "upload_stalled") {
     return {
       code,
-      message: "Upload stalled. Please retry.",
+      message: pose ? `${pose} upload stalled. Please retry.` : "Upload stalled. Please retry.",
       reason: "upload_failed",
+      pose,
     };
   }
   if (code === "upload_cancelled") {
@@ -467,6 +491,7 @@ function normalizeUploadError(err: unknown): ScanError | null {
       code,
       message: "Upload cancelled.",
       reason: "upload_failed",
+      pose,
     };
   }
   if (code.startsWith("storage/")) {
@@ -480,8 +505,9 @@ function normalizeUploadError(err: unknown): ScanError | null {
             : "Upload failed. Please check your connection and retry.";
     return {
       code,
-      message,
+      message: pose ? `${pose} upload failed. ${message}` : message,
       reason: "upload_failed",
+      pose,
     };
   }
   return null;
@@ -497,8 +523,16 @@ export async function submitScanClient(
   },
   options?: {
     onUploadProgress?: (progress: ScanUploadProgress) => void;
+    onPhotoState?: (info: {
+      pose: keyof StartScanResponse["storagePaths"];
+      status: "preparing" | "uploading" | "retrying" | "done" | "failed";
+      attempt?: number;
+      percent?: number;
+      message?: string;
+    }) => void;
     signal?: AbortSignal;
     stallTimeoutMs?: number;
+    posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
   }
 ): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
@@ -509,41 +543,61 @@ export async function submitScanClient(
     };
   let uploadsCompleted = false;
   try {
-    // Preprocess photos (mobile Safari uploads are slower + progress is janky with huge images).
-    // If anything fails, we fall back to the original file for that pose.
-    const processedPhotos = await Promise.all(
-      (Object.keys(params.photos) as Array<keyof typeof params.photos>).map(
-        async (pose) => {
-          const original = params.photos[pose];
-          const blob = await resizeImageFile(original, 1600, 0.9);
-          try {
-            const type = blob.type || original.type || "image/jpeg";
-            const name = original.name || `${pose}.jpg`;
-            return [
-              pose,
-              new File([blob], name, { type }),
-            ] as const;
-          } catch {
-            // Older browsers can fail `new File(...)`; keep original.
-            return [pose, original] as const;
-          }
+    const orderedPoses: Array<keyof StartScanResponse["storagePaths"]> = [
+      "front",
+      "back",
+      "left",
+      "right",
+    ];
+    const posesToUpload = options?.posesToUpload?.length
+      ? orderedPoses.filter((p) => options.posesToUpload!.includes(p))
+      : orderedPoses;
+
+    // Preprocess photos (mandatory): JPEG + resize + EXIF orientation.
+    // If anything fails, fall back to the original file for that pose.
+    const processedEntries = await Promise.all(
+      posesToUpload.map(async (pose) => {
+        const original = params.photos[pose];
+        options?.onPhotoState?.({ pose, status: "preparing" });
+        const t0 = Date.now();
+        const blob = await resizeImageFile(original, 1800, 0.8);
+        const t1 = Date.now();
+        console.info("scan.preprocess", {
+          pose,
+          inBytes: original.size,
+          outBytes: (blob as any)?.size,
+          ms: t1 - t0,
+          inType: original.type,
+          outType: blob.type,
+        });
+        try {
+          const type = blob.type || "image/jpeg";
+          const name = `${pose}.jpg`;
+          return [pose, new File([blob], name, { type })] as const;
+        } catch {
+          return [pose, original] as const;
         }
-      )
+      })
     );
-    const photos = processedPhotos.reduce(
-      (acc, [pose, file]) => {
-        (acc as any)[pose] = file;
-        return acc;
-      },
-      { ...params.photos } as typeof params.photos
-    );
+
+    const photos = { ...params.photos } as typeof params.photos;
+    for (const [pose, file] of processedEntries) {
+      photos[pose] = file;
+    }
 
     const validated = validateScanUploadInputs({
       storagePaths: params.storagePaths,
       photos,
     });
     if (!validated.ok) return validated;
-    const uploadTargets = validated.data.uploadTargets;
+    const uploadTargetsAll = validated.data.uploadTargets;
+    const uploadTargets = uploadTargetsAll.filter((t) =>
+      posesToUpload.includes(t.pose)
+    );
+    if (!uploadTargets.length) {
+      // Nothing to upload (e.g. retry invoked with empty pose list)
+      uploadsCompleted = true;
+    }
 
     const fileCount = uploadTargets.length;
     const totalBytes = validated.data.totalBytes;
@@ -551,44 +605,148 @@ export async function submitScanClient(
     const fallbackDenominator = fileCount || 1;
     let uploadedBytes = 0;
 
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 20_000;
+    const retryDelaysMs = [1000, 2000, 4000];
+
     for (const [index, target] of uploadTargets.entries()) {
-      await uploadPhoto(
-        target.path,
-        target.file,
-        (snapshot) => {
-          const snapshotTotal = snapshot.totalBytes || target.size || 1;
-          const snapshotBytes = snapshot.bytesTransferred || 0;
-          // Some browsers (notably mobile Safari) can emit early progress events with 0 bytes transferred.
-          // Treat "running"/"paused" as started so the UI doesn't look stuck at 0%.
-          const hasTransferred =
-            snapshotBytes > 0 ||
-            snapshot.state === "running" ||
-            snapshot.state === "paused";
-          const filePercent = ensureVisibleProgress(
-            snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
-            hasTransferred
+      let attempt = 0;
+      let succeeded = false;
+      while (!succeeded && attempt < 3) {
+        attempt += 1;
+        const isRetry = attempt > 1;
+        options?.onPhotoState?.({
+          pose: target.pose,
+          status: isRetry ? "retrying" : "uploading",
+          attempt,
+        });
+        console.info("scan.upload_attempt", {
+          pose: target.pose,
+          attempt,
+          path: target.path,
+          bytes: target.file.size,
+        });
+
+        let lastSnapshot: UploadTaskSnapshot | null = null;
+        try {
+          await uploadPhoto(
+            target.path,
+            target.file,
+            (snapshot) => {
+              lastSnapshot = snapshot;
+              const snapshotTotal = snapshot.totalBytes || target.size || 1;
+              const snapshotBytes = snapshot.bytesTransferred || 0;
+              const hasTransferred =
+                snapshotBytes > 0 ||
+                snapshot.state === "running" ||
+                snapshot.state === "paused";
+              const filePercent = ensureVisibleProgress(
+                snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
+                hasTransferred
+              );
+              const bytesBasis =
+                safeTotalBytes > 0
+                  ? (uploadedBytes + snapshotBytes) / safeTotalBytes
+                  : (index + filePercent) / fallbackDenominator;
+              const overallPercent = ensureVisibleProgress(
+                bytesBasis,
+                hasTransferred
+              );
+              options?.onUploadProgress?.({
+                pose: target.pose,
+                fileIndex: index,
+                fileCount,
+                bytesTransferred: snapshotBytes,
+                totalBytes: snapshotTotal,
+                percent: filePercent,
+                overallPercent,
+                hasBytesTransferred: hasTransferred,
+                status: isRetry ? "retrying" : "uploading",
+                attempt,
+              });
+              options?.onPhotoState?.({
+                pose: target.pose,
+                status: isRetry ? "retrying" : "uploading",
+                attempt,
+                percent: filePercent,
+              });
+            },
+            {
+              signal: options?.signal,
+              stallTimeoutMs,
+              onStall: ({ reason }) => {
+                console.warn("scan.upload_stall", {
+                  pose: target.pose,
+                  attempt,
+                  reason,
+                });
+              },
+            }
           );
-          const bytesBasis =
-            safeTotalBytes > 0
-              ? (uploadedBytes + snapshotBytes) / safeTotalBytes
-              : (index + filePercent) / fallbackDenominator;
-          const overallPercent = ensureVisibleProgress(bytesBasis, hasTransferred);
-          options?.onUploadProgress?.({
+          succeeded = true;
+        } catch (err) {
+          const normalized = normalizeUploadError(err);
+          console.warn("scan.upload_failed", {
             pose: target.pose,
-            fileIndex: index,
-            fileCount,
-            bytesTransferred: snapshotBytes,
-            totalBytes: snapshotTotal,
-            percent: filePercent,
-            overallPercent,
-            hasBytesTransferred: hasTransferred,
+            attempt,
+            code: (err as any)?.code,
+            message: (err as Error)?.message,
+            normalizedCode: normalized?.code,
+            state: lastSnapshot?.state,
           });
-        },
-        {
-          signal: options?.signal,
-          stallTimeoutMs: options?.stallTimeoutMs,
+          if (attempt < 3) {
+            const backoff = retryDelaysMs[attempt - 1] ?? 2000;
+            options?.onPhotoState?.({
+              pose: target.pose,
+              status: "retrying",
+              attempt,
+              message: "Retrying upload…",
+            });
+            await new Promise((r) => setTimeout(r, backoff));
+            continue;
+          }
+          options?.onPhotoState?.({
+            pose: target.pose,
+            status: "failed",
+            attempt,
+            message: normalized?.message ?? "Upload failed.",
+          });
+          const finalErr: any = normalized
+            ? Object.assign(new Error(normalized.message), {
+                code: normalized.code,
+              })
+            : err;
+          // Attach pose so the UI can say exactly which photo failed/stalled.
+          finalErr.pose = target.pose;
+          throw finalErr;
         }
-      );
+      }
+
+      // Persist per-photo metadata immediately after upload so the UI/history can recover.
+      try {
+        const fileRef = ref(storage, target.path);
+        const url = await getDownloadURL(fileRef);
+        await setDoc(
+          doc(db, "users", user.uid, "scans", params.scanId),
+          {
+            photoPaths: { [target.pose]: target.path },
+            photoUrls: { [target.pose]: url },
+            uploadMeta: {
+              [target.pose]: {
+                bytes: target.file.size,
+                contentType: target.file.type || "image/jpeg",
+                uploadedAt: new Date().toISOString(),
+              },
+            },
+            updatedAt: new Date(),
+          } as any,
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn("scan.upload_meta_write_failed", {
+          pose: target.pose,
+          message: (err as Error)?.message,
+        });
+      }
 
       uploadedBytes += target.size;
       const normalizedOverall =
@@ -604,7 +762,10 @@ export async function submitScanClient(
         percent: 1,
         overallPercent: clampProgressFraction(normalizedOverall),
         hasBytesTransferred: true,
+        status: "done",
+        attempt: 1,
       });
+      options?.onPhotoState?.({ pose: target.pose, status: "done", percent: 1 });
     }
 
     uploadsCompleted = true;

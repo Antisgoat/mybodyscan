@@ -161,10 +161,10 @@ export default function ScanFlowResult() {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadPose, setUploadPose] = useState<string | null>(null);
   const [uploadHasBytes, setUploadHasBytes] = useState(false);
-  const [retryAvailable, setRetryAvailable] = useState(false);
   const [submittedScanId, setSubmittedScanId] = useState<string | null>(null);
   const navigate = useNavigate();
   const uploadAbortRef = useRef<AbortController | null>(null);
+  const lastAutoRetryAtRef = useRef<number>(0);
   const appCheck = useAppCheckStatus();
   const { units } = useUnits();
   const { health: systemHealth } = useSystemHealth();
@@ -200,6 +200,21 @@ export default function ScanFlowResult() {
     return map;
   }, [files]);
   const poseUploadsReady = POSES.every((pose) => Boolean(poseFiles[pose]));
+
+  type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
+  const [photoState, setPhotoState] = useState<
+    Record<Pose, { status: PerPhotoStatus; percent: number; attempt: number; message?: string }>
+  >({
+    front: { status: "preparing", percent: 0, attempt: 0 },
+    back: { status: "preparing", percent: 0, attempt: 0 },
+    left: { status: "preparing", percent: 0, attempt: 0 },
+    right: { status: "preparing", percent: 0, attempt: 0 },
+  });
+  const failedPoses = useMemo(() => {
+    const entries = Object.entries(photoState) as Array<[Pose, (typeof photoState)[Pose]]>;
+    return entries.filter(([, s]) => s.status === "failed").map(([pose]) => pose);
+  }, [photoState]);
+  const canRetryFailed = Boolean(session?.scanId) && failedPoses.length > 0;
 
   const tasks = useMemo(
     () =>
@@ -303,7 +318,12 @@ export default function ScanFlowResult() {
     setUploadProgress(0);
     setUploadPose(null);
     setUploadHasBytes(false);
-    setRetryAvailable(false);
+    setPhotoState({
+      front: { status: "preparing", percent: 0, attempt: 0 },
+      back: { status: "preparing", percent: 0, attempt: 0 },
+      left: { status: "preparing", percent: 0, attempt: 0 },
+      right: { status: "preparing", percent: 0, attempt: 0 },
+    });
     let activeSession = session;
     let cleanupScanId: string | null = activeSession?.scanId ?? null;
     try {
@@ -351,8 +371,24 @@ export default function ScanFlowResult() {
               setUploadHasBytes(true);
             }
           },
+          onPhotoState: (info) => {
+            setPhotoState((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose];
+              next[info.pose as Pose] = {
+                status: info.status,
+                attempt: info.attempt ?? existing?.attempt ?? 0,
+                percent:
+                  typeof info.percent === "number"
+                    ? info.percent
+                    : existing?.percent ?? 0,
+                message: info.message ?? existing?.message,
+              };
+              return next;
+            });
+          },
           signal: abortController.signal,
-          stallTimeoutMs: 60_000,
+          stallTimeoutMs: 20_000,
         }
       );
       uploadAbortRef.current = null;
@@ -360,16 +396,11 @@ export default function ScanFlowResult() {
         const debugSuffix = submit.error.debugId
           ? ` (ref ${submit.error.debugId.slice(0, 8)})`
           : "";
-        if (cleanupScanId && submit.error.reason === "upload_failed") {
-          await deleteScanApi(cleanupScanId).catch(() => undefined);
-        }
-        setCaptureSession(null);
         throw new Error(submit.error.message + debugSuffix);
       }
       setFlowStatus("processing");
       setUploadPose(null);
       setUploadHasBytes(false);
-      setRetryAvailable(false);
       setSubmittedScanId(activeSession.scanId);
       toast({
         title: "Scan uploaded",
@@ -388,7 +419,6 @@ export default function ScanFlowResult() {
           ? error.message
           : "Unable to submit your scan. Please try again.";
       setFlowError(message);
-      setCaptureSession(null);
       setSubmittedScanId(null);
       toast({
         title: "Unable to submit scan",
@@ -398,14 +428,115 @@ export default function ScanFlowResult() {
     }
   };
 
-  useEffect(() => {
-    if (flowStatus !== "uploading") {
-      setRetryAvailable(false);
+  const cancelScan = useCallback(async () => {
+    uploadAbortRef.current?.abort();
+    const scanId = session?.scanId ?? null;
+    if (scanId) {
+      await deleteScanApi(scanId).catch(() => undefined);
+    }
+    setCaptureSession(null);
+    setFlowStatus("idle");
+    setFlowError(null);
+    setUploadProgress(0);
+    setUploadPose(null);
+    setUploadHasBytes(false);
+    setSubmittedScanId(null);
+  }, [session?.scanId]);
+
+  const retryFailed = useCallback(async () => {
+    if (!session?.scanId || !canRetryFailed) return;
+    if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+    setFlowStatus("uploading");
+    setFlowError(null);
+    uploadAbortRef.current?.abort();
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
+    const photos = {
+      front: poseFiles.front!,
+      back: poseFiles.back!,
+      left: poseFiles.left!,
+      right: poseFiles.right!,
+    };
+    const submit = await submitScanClient(
+      {
+        scanId: session.scanId,
+        storagePaths: session.storagePaths,
+        photos,
+        currentWeightKg,
+        goalWeightKg,
+      },
+      {
+        posesToUpload: failedPoses,
+        onUploadProgress: (info: ScanUploadProgress) => {
+          setUploadProgress(info.overallPercent);
+          setUploadPose(info.pose);
+          if (info.hasBytesTransferred) setUploadHasBytes(true);
+        },
+        onPhotoState: (info) => {
+          setPhotoState((prev) => {
+            const next = { ...prev };
+            const existing = next[info.pose as Pose];
+            next[info.pose as Pose] = {
+              status: info.status,
+              attempt: info.attempt ?? existing?.attempt ?? 0,
+              percent:
+                typeof info.percent === "number"
+                  ? info.percent
+                  : existing?.percent ?? 0,
+              message: info.message ?? existing?.message,
+            };
+            return next;
+          });
+        },
+        signal: abortController.signal,
+        stallTimeoutMs: 20_000,
+      }
+    );
+    uploadAbortRef.current = null;
+    if (!submit.ok) {
+      setFlowStatus("error");
+      setFlowError(submit.error.message);
       return;
     }
-    const timer = window.setTimeout(() => setRetryAvailable(true), 60_000);
-    return () => window.clearTimeout(timer);
-  }, [flowStatus]);
+    setFlowStatus("processing");
+    navigate(`/scan/${session.scanId}`);
+  }, [
+    canRetryFailed,
+    currentWeightKg,
+    failedPoses,
+    goalWeightKg,
+    navigate,
+    poseFiles.back,
+    poseFiles.front,
+    poseFiles.left,
+    poseFiles.right,
+    poseUploadsReady,
+    session?.scanId,
+    session?.storagePaths,
+  ]);
+
+  useEffect(() => {
+    const maybeAutoRetry = () => {
+      if (!canRetryFailed) return;
+      if (flowStatus !== "error") return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastAutoRetryAtRef.current < 15_000) return;
+      lastAutoRetryAtRef.current = now;
+      void retryFailed();
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") maybeAutoRetry();
+    };
+    const onOnline = () => maybeAutoRetry();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [canRetryFailed, flowStatus, retryFailed]);
 
   const sex =
     profile?.sex === "male" || profile?.sex === "female"
@@ -749,34 +880,65 @@ export default function ScanFlowResult() {
               ) : null}
             </div>
           ) : null}
-          {flowStatus === "uploading" ? (
+          {flowStatus === "uploading" || flowStatus === "error" ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  uploadAbortRef.current?.abort();
-                  setFlowStatus("error");
-                  setFlowError("Upload cancelled.");
-                }}
+                onClick={cancelScan}
               >
-                Cancel upload
+                Cancel scan
               </Button>
-              {retryAvailable ? (
+              {canRetryFailed ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    uploadAbortRef.current?.abort();
-                    setFlowStatus("error");
-                    setFlowError("Upload cancelled. Please retry.");
-                  }}
+                  onClick={retryFailed}
                 >
-                  Retry upload
+                  Retry failed photo(s)
                 </Button>
               ) : null}
+            </div>
+          ) : null}
+          {flowStatus === "uploading" || flowStatus === "error" ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Photo upload status</p>
+              <div className="space-y-2">
+                {POSES.map((pose) => {
+                  const s = photoState[pose];
+                  const pct = Math.max(0, Math.min(100, Math.round((s?.percent ?? 0) * 100)));
+                  const label = pose.charAt(0).toUpperCase() + pose.slice(1);
+                  return (
+                    <div key={pose} className="rounded-md border p-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium">{label}</span>
+                        <span className="text-muted-foreground">
+                          {s.status}
+                          {s.attempt ? ` (attempt ${s.attempt})` : ""}
+                          {s.status === "uploading" || s.status === "retrying" ? ` · ${pct}%` : ""}
+                        </span>
+                      </div>
+                      <div className="mt-1 h-2 w-full rounded-full bg-secondary">
+                        <div
+                          className={
+                            s.status === "failed"
+                              ? "h-2 rounded-full bg-destructive"
+                              : s.status === "done"
+                                ? "h-2 rounded-full bg-primary"
+                                : "h-2 rounded-full bg-primary/70"
+                          }
+                          style={{ width: `${s.status === "done" ? 100 : pct}%` }}
+                        />
+                      </div>
+                      {s.message ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">{s.message}</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">

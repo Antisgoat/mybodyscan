@@ -112,7 +112,7 @@ async function buildImageExport(
 
   await Promise.all(
     poses.map(async (pose) => {
-      const path = `user_uploads/${uid}/${scanId}/${pose}.jpg`;
+      const path = `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
       try {
         const file = bucket.file(path);
         const [exists] = await file.exists();
