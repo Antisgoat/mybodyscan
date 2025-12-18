@@ -25,6 +25,13 @@ import { getDownloadURL, ref } from "firebase/storage";
 import silhouetteFront from "@/assets/silhouette-front.png";
 
 const REFRESH_INTERVAL_MS = 7000;
+const PROCESSING_STEPS = [
+  "Analyzing posture…",
+  "Checking symmetry…",
+  "Estimating body fat…",
+  "Calculating metrics…",
+  "Generating your plan…",
+] as const;
 
 export default function ScanResultPage() {
   const { scanId = "" } = useParams();
@@ -39,6 +46,7 @@ export default function ScanResultPage() {
   const { units } = useUnits();
   const { user } = useAuthUser();
   const { profile, plan } = useUserProfile();
+  const [processingStepIdx, setProcessingStepIdx] = useState(0);
 
   const needsRefresh = useMemo(() => {
     if (!scan) return false;
@@ -82,6 +90,14 @@ export default function ScanResultPage() {
       cancelled = true;
     };
   }, [scanId, needsRefresh]);
+
+  useEffect(() => {
+    if (!needsRefresh) return;
+    const id = setInterval(() => {
+      setProcessingStepIdx((prev) => (prev + 1) % PROCESSING_STEPS.length);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [needsRefresh]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,9 +221,50 @@ export default function ScanResultPage() {
   if (!statusMeta.showMetrics) {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm">{statusMeta.label}</p>
-        <p className="text-xs text-muted-foreground">{statusMeta.helperText}</p>
-        <div className="h-2 w-1/2 animate-pulse bg-black/10" />
+        <Card className="border bg-card/60">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-lg">{statusMeta.label}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {statusMeta.helperText ||
+                "This usually takes a minute or two. Keep this tab open if you can."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="h-2 w-full rounded-full bg-muted">
+                <div className="h-2 w-1/2 animate-pulse rounded-full bg-primary/60" />
+              </div>
+              <p className="text-sm text-foreground" aria-live="polite">
+                {PROCESSING_STEPS[processingStepIdx]}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                We’ll refresh automatically. If your connection changed, you can refresh manually.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  void getScan(scanId).then((result) => {
+                    setLoading(false);
+                    if (result.ok) {
+                      setScan(result.data);
+                      setError(null);
+                    } else {
+                      setError(result.error.message);
+                    }
+                  });
+                }}
+              >
+                Refresh now
+              </Button>
+              <Button variant="outline" onClick={() => nav("/scan")}>
+                Back to Scan
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

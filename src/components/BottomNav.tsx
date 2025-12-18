@@ -25,10 +25,10 @@ const navItems: Array<{
   { path: "/scan", icon: Camera, label: "Scan", feature: "scan" },
   { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
   { path: "/workouts", icon: Dumbbell, label: "Workouts", feature: "workouts" },
-  { path: "/programs", icon: Layers, label: "Programs", feature: "coach" },
+  { path: "/programs", icon: Layers, label: "Plans", feature: "coach" },
   { path: "/coach", icon: Bot, label: "Coach", feature: "coach" },
   { path: "/history", icon: History, label: "History", feature: "scan" },
-  { path: "/plans", icon: CreditCard, label: "Plans", feature: "account" },
+  { path: "/plans", icon: CreditCard, label: "Billing", feature: "account" },
   { path: "/settings", icon: Settings, label: "Settings", feature: "account" },
 ];
 

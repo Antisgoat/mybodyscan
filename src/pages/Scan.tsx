@@ -43,9 +43,18 @@ export default function ScanPage() {
     right: null,
   });
   const [status, setStatus] = useState<
-    "idle" | "starting" | "uploading" | "analyzing" | "error"
+    | "idle"
+    | "starting"
+    | "preparing"
+    | "uploading"
+    | "submitting"
+    | "processing"
+    | "error"
   >("idle");
   const [error, setError] = useState<string | null>(null);
+  const [failureReason, setFailureReason] = useState<
+    "upload_failed" | "submit_failed" | null
+  >(null);
   const [statusDetail, setStatusDetail] = useState<string | null>(null);
   const [delayNotice, setDelayNotice] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -105,10 +114,10 @@ export default function ScanPage() {
           "Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls."
         );
       }, 60000);
-    } else if (status === "analyzing") {
+    } else if (status === "submitting" || status === "processing") {
       timer = setTimeout(() => {
         setDelayNotice(
-          "Analysis is still running. We'll notify you as soon as your scan finishes."
+          "Analysis is still running. Keep this tab open, or check back in a minute."
         );
       }, 90000);
     } else {
@@ -120,9 +129,10 @@ export default function ScanPage() {
   }, [status]);
 
   // FIX: Centralize scan failures so we can reset UI and surface a toast consistently.
-  const failFlow = (message: string) => {
+  const failFlow = (message: string, reason?: "upload_failed" | "submit_failed") => {
     setError(message);
     setStatus("error");
+    setFailureReason(reason ?? null);
     setStatusDetail(null);
     toast({
       title: "Scan paused",
@@ -177,6 +187,7 @@ export default function ScanPage() {
     }
     try {
       setStatus("starting");
+      setFailureReason(null);
       setStatusDetail("Verifying credits and reserving secure compute…");
       const start = await startScanSessionClient({
         currentWeightKg,
@@ -200,8 +211,8 @@ export default function ScanPage() {
         currentWeightKg,
         goalWeightKg,
       });
-      setStatus("uploading");
-      setStatusDetail("Uploading encrypted photos… keep this tab open.");
+      setStatus("preparing");
+      setStatusDetail("Preparing photos…");
       setUploadProgress(0);
       setUploadPose(null);
       setUploadHasBytes(false);
@@ -236,13 +247,16 @@ export default function ScanPage() {
             if (info.hasBytesTransferred) {
               setUploadHasBytes(true);
             }
+            setStatus((prev) =>
+              prev === "uploading" || prev === "submitting" || prev === "processing"
+                ? prev
+                : "uploading"
+            );
             // If the last file has finished uploading, immediately move the UI into the
             // "analyzing" phase so users don't feel stuck at 100% waiting on the server.
             if (info.percent >= 0.999 && info.overallPercent >= 0.999) {
-              setStatus("analyzing");
-              setStatusDetail(
-                "Uploads complete. Starting AI analysis—this can take a couple of minutes."
-              );
+              setStatus("submitting");
+              setStatusDetail("Uploads complete. Starting analysis…");
               return;
             }
             setStatusDetail(
@@ -264,6 +278,10 @@ export default function ScanPage() {
               };
               return next;
             });
+            if (info.status === "preparing") {
+              setStatus("preparing");
+              setStatusDetail("Preparing photos…");
+            }
           },
           signal: abortController.signal,
           stallTimeoutMs: 20_000,
@@ -276,16 +294,19 @@ export default function ScanPage() {
         const debugSuffix = submit.error.debugId
           ? ` (ref ${submit.error.debugId.slice(0, 8)})`
           : "";
-        failFlow(submit.error.message + debugSuffix);
+        failFlow(
+          submit.error.message + debugSuffix,
+          submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
+        );
         return;
       }
 
       setUploadProgress(null);
       setUploadPose(null);
       setUploadHasBytes(false);
-      setStatus("analyzing");
+      setStatus("processing");
       setStatusDetail(
-        "Photos uploaded. Waiting for AI analysis—this can take a couple of minutes."
+        "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
       );
       sessionScanId = null;
       setActiveScanId(null);
@@ -298,7 +319,7 @@ export default function ScanPage() {
         typeof (err as any)?.message === "string" && (err as any).message.length
           ? (pose ? `${pose} photo failed: ${(err as any).message}` : (err as any).message)
           : "We hit an unexpected error while starting your scan. Please try again.";
-      failFlow(message);
+      failFlow(message, "upload_failed");
       if (sessionScanId) {
         // Keep the scan doc so the user can retry failed photo(s). They can still cancel explicitly.
         setActiveScanId(sessionScanId);
@@ -332,6 +353,10 @@ export default function ScanPage() {
   }, [photoState]);
 
   const canRetryFailed = Boolean(scanSession?.scanId) && failedPoses.length > 0;
+  const canRetrySubmit =
+    Boolean(scanSession?.scanId) &&
+    failureReason === "submit_failed" &&
+    failedPoses.length === 0;
 
   const cancelScan = useCallback(async () => {
     uploadAbortRef.current?.abort();
@@ -407,12 +432,15 @@ export default function ScanPage() {
     );
     uploadAbortRef.current = null;
     if (!submit.ok) {
-      failFlow(submit.error.message);
+      failFlow(
+        submit.error.message,
+        submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
+      );
       return;
     }
-    setStatus("analyzing");
+    setStatus("processing");
     setStatusDetail(
-      "Uploads complete. Starting AI analysis—this can take a couple of minutes."
+      "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
     );
     nav(`/scans/${scanSession.scanId}`);
   }, [
@@ -427,16 +455,66 @@ export default function ScanPage() {
     units,
   ]);
 
+  const retrySubmitOnly = useCallback(async () => {
+    if (!scanSession) return;
+    if (!canRetrySubmit) return;
+    setError(null);
+    setFailureReason(null);
+    setStatus("submitting");
+    setStatusDetail("Retrying analysis…");
+    uploadAbortRef.current?.abort();
+    const abortController = new AbortController();
+    uploadAbortRef.current = abortController;
+    const submit = await submitScanClient(
+      {
+        scanId: scanSession.scanId,
+        storagePaths: scanSession.storagePaths,
+        photos: {
+          front: photos.front!,
+          back: photos.back!,
+          left: photos.left!,
+          right: photos.right!,
+        },
+        currentWeightKg: scanSession.currentWeightKg,
+        goalWeightKg: scanSession.goalWeightKg,
+      },
+      {
+        posesToUpload: [],
+        signal: abortController.signal,
+        stallTimeoutMs: 20_000,
+      }
+    );
+    uploadAbortRef.current = null;
+    if (!submit.ok) {
+      failFlow(
+        submit.error.message,
+        submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
+      );
+      return;
+    }
+    setStatus("processing");
+    setStatusDetail(
+      "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+    );
+    nav(`/scans/${scanSession.scanId}`);
+  }, [canRetrySubmit, failFlow, nav, photos, scanSession]);
+
   useEffect(() => {
     const maybeAutoRetry = () => {
-      if (!canRetryFailed) return;
+      if (!canRetryFailed && !canRetrySubmit) return;
       if (status !== "error") return;
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const now = Date.now();
       if (now - lastAutoRetryAtRef.current < 15_000) return;
       lastAutoRetryAtRef.current = now;
-      void retryFailed();
+      if (canRetryFailed) {
+        void retryFailed();
+        return;
+      }
+      if (canRetrySubmit) {
+        void retrySubmitOnly();
+      }
     };
     const onVis = () => {
       if (document.visibilityState === "visible") maybeAutoRetry();
@@ -448,7 +526,7 @@ export default function ScanPage() {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
     };
-  }, [canRetryFailed, retryFailed, status]);
+  }, [canRetryFailed, canRetrySubmit, retryFailed, retrySubmitOnly, status]);
 
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
@@ -538,11 +616,14 @@ export default function ScanPage() {
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
         >
           {status === "starting" && "Starting scan…"}
+          {status === "preparing" && "Preparing photos…"}
           {status === "uploading" && "Uploading photos…"}
-          {status === "analyzing" && "Analyzing your scan…"}
+          {status === "submitting" && "Starting analysis…"}
+          {status === "processing" && "Processing…"}
           {(status === "idle" || status === "error") && "Analyze scan"}
         </button>
-        {status === "uploading" && uploadProgress !== null && (
+        {(status === "preparing" || status === "uploading" || status === "submitting") &&
+          uploadProgress !== null && (
           <div className="space-y-1">
             <div className="w-full bg-secondary h-2 rounded-full">
               <div
@@ -575,7 +656,11 @@ export default function ScanPage() {
             {statusDetail}
           </p>
         )}
-        {(status === "uploading" || status === "error") && (
+        {(status === "preparing" ||
+          status === "uploading" ||
+          status === "submitting" ||
+          status === "processing" ||
+          status === "error") && (
           <div className="space-y-2">
             {delayNotice && <p className="text-xs text-amber-600">{delayNotice}</p>}
             <div className="flex flex-wrap gap-2">
@@ -595,10 +680,23 @@ export default function ScanPage() {
                   Retry failed photo(s)
                 </button>
               )}
+              {canRetrySubmit && (
+                <button
+                  type="button"
+                  className="rounded border px-3 py-2 text-xs"
+                  onClick={retrySubmitOnly}
+                >
+                  Retry submit (no reupload)
+                </button>
+              )}
             </div>
           </div>
         )}
-        {(status === "uploading" || status === "error") && (
+        {(status === "preparing" ||
+          status === "uploading" ||
+          status === "submitting" ||
+          status === "processing" ||
+          status === "error") && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
               Photo upload status

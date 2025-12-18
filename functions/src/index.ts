@@ -21,10 +21,14 @@ export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export {
   adjustWorkout,
   applyCatalogPlan,
+  applyCustomPlan,
   generateWorkoutPlan,
   getPlan,
   getWorkouts,
   markExerciseDone,
+  previewCustomPlan,
+  setWorkoutPlanStatus,
+  updateWorkoutPlan,
 } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";

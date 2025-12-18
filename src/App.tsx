@@ -66,6 +66,8 @@ import CoachDay from "./pages/Coach/Day";
 import ProgramsCatalog from "./pages/Programs";
 import ProgramDetail from "./pages/Programs/Detail";
 import ProgramsQuiz from "./pages/Programs/Quiz";
+import CustomizeProgram from "./pages/Programs/Customize";
+import EditActivePlan from "./pages/Programs/EditActivePlan";
 import PolicyGate from "./components/PolicyGate";
 import { DemoModeProvider } from "./components/DemoModeProvider";
 import { useDemoWireup } from "./hooks/useDemo";
@@ -448,6 +450,44 @@ const App = () => (
                   <AuthedLayout>
                     <RouteBoundary>
                       <ProgramsQuiz />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/programs/customize"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <CustomizeProgram />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/programs/active/edit"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <EditActivePlan />
                     </RouteBoundary>
                   </AuthedLayout>
                 </PersonalizationGate>
