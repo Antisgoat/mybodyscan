@@ -7,7 +7,7 @@ describe("scan flow helpers", () => {
     expect(
       getUploadStallReason({
         lastBytes: 0,
-        lastEventAt: now - 5_000,
+        lastBytesAt: now - 5_000,
         now,
         stallTimeoutMs: 20_000,
       })
@@ -15,7 +15,7 @@ describe("scan flow helpers", () => {
     expect(
       getUploadStallReason({
         lastBytes: 0,
-        lastEventAt: now - 25_000,
+        lastBytesAt: now - 25_000,
         now,
         stallTimeoutMs: 20_000,
       })
@@ -23,7 +23,7 @@ describe("scan flow helpers", () => {
     expect(
       getUploadStallReason({
         lastBytes: 123,
-        lastEventAt: now - 25_000,
+        lastBytesAt: now - 25_000,
         now,
         stallTimeoutMs: 20_000,
       })

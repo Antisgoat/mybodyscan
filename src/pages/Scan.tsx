@@ -69,6 +69,7 @@ export default function ScanPage() {
   } | null>(null);
   type Pose = "front" | "back" | "left" | "right";
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
+  type FileMeta = { name: string; size: number; type: string };
   const [photoState, setPhotoState] = useState<
     Record<
       Pose,
@@ -84,6 +85,28 @@ export default function ScanPage() {
   const sessionFinalizedRef = useRef<boolean>(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const lastAutoRetryAtRef = useRef<number>(0);
+  const autoRetryCountRef = useRef<number>(0);
+  const [photoMeta, setPhotoMeta] = useState<
+    Record<
+      Pose,
+      {
+        original?: FileMeta;
+        compressed?: FileMeta;
+        preprocessDebug?: unknown;
+        lastError?: { code?: string; message?: string };
+      }
+    >
+  >({
+    front: {},
+    back: {},
+    left: {},
+    right: {},
+  });
+  const [lastUploadError, setLastUploadError] = useState<{
+    code?: string;
+    message?: string;
+    pose?: Pose;
+  } | null>(null);
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing =
@@ -216,6 +239,8 @@ export default function ScanPage() {
       setUploadProgress(0);
       setUploadPose(null);
       setUploadHasBytes(false);
+      setLastUploadError(null);
+      autoRetryCountRef.current = 0;
       setPhotoState({
         front: { status: "preparing", percent: 0, attempt: 0 },
         back: { status: "preparing", percent: 0, attempt: 0 },
@@ -278,19 +303,40 @@ export default function ScanPage() {
               };
               return next;
             });
+            setPhotoMeta((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose] ?? {};
+              next[info.pose as Pose] = {
+                ...existing,
+                original: (info as any)?.original ?? existing.original,
+                compressed: (info as any)?.compressed ?? existing.compressed,
+                preprocessDebug:
+                  (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastError:
+                  info.status === "failed"
+                    ? { code: undefined, message: info.message }
+                    : existing.lastError,
+              };
+              return next;
+            });
             if (info.status === "preparing") {
               setStatus("preparing");
               setStatusDetail("Preparing photos…");
             }
           },
           signal: abortController.signal,
-          stallTimeoutMs: 20_000,
+          stallTimeoutMs: 15_000,
         }
       );
       sessionFinalizedRef.current = true;
       uploadAbortRef.current = null;
 
       if (!submit.ok) {
+        setLastUploadError({
+          code: submit.error.code,
+          message: submit.error.message,
+          pose: (submit.error.pose as Pose | undefined) ?? undefined,
+        });
         const debugSuffix = submit.error.debugId
           ? ` (ref ${submit.error.debugId.slice(0, 8)})`
           : "";
@@ -315,6 +361,11 @@ export default function ScanPage() {
     } catch (err) {
       console.error("scan.submit.unexpected", err);
       const pose = (err as any)?.pose as string | undefined;
+      setLastUploadError({
+        code: (err as any)?.code,
+        message: (err as any)?.message,
+        pose: (pose as Pose | undefined) ?? undefined,
+      });
       const message =
         typeof (err as any)?.message === "string" && (err as any).message.length
           ? (pose ? `${pose} photo failed: ${(err as any).message}` : (err as any).message)
@@ -374,6 +425,9 @@ export default function ScanPage() {
       left: { status: "preparing", percent: 0, attempt: 0 },
       right: { status: "preparing", percent: 0, attempt: 0 },
     });
+    setPhotoMeta({ front: {}, back: {}, left: {}, right: {} });
+    setLastUploadError(null);
+    autoRetryCountRef.current = 0;
     setScanSession(null);
     setActiveScanId(null);
     if (scanId) {
@@ -385,6 +439,7 @@ export default function ScanPage() {
     if (!scanSession) return;
     if (!canRetryFailed) return;
     setError(null);
+    setLastUploadError(null);
     setStatus("uploading");
     setStatusDetail("Retrying failed photo uploads…");
     uploadAbortRef.current?.abort();
@@ -420,6 +475,22 @@ export default function ScanPage() {
             };
             return next;
           });
+          setPhotoMeta((prev) => {
+            const next = { ...prev };
+            const existing = next[info.pose as Pose] ?? {};
+            next[info.pose as Pose] = {
+              ...existing,
+              original: (info as any)?.original ?? existing.original,
+              compressed: (info as any)?.compressed ?? existing.compressed,
+              preprocessDebug:
+                (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+              lastError:
+                info.status === "failed"
+                  ? { code: undefined, message: info.message }
+                  : existing.lastError,
+            };
+            return next;
+          });
         },
         onUploadProgress: (info) => {
           setUploadProgress(info.overallPercent);
@@ -427,11 +498,16 @@ export default function ScanPage() {
           if (info.hasBytesTransferred) setUploadHasBytes(true);
         },
         signal: abortController.signal,
-        stallTimeoutMs: 20_000,
+        stallTimeoutMs: 15_000,
       }
     );
     uploadAbortRef.current = null;
     if (!submit.ok) {
+      setLastUploadError({
+        code: submit.error.code,
+        message: submit.error.message,
+        pose: (submit.error.pose as Pose | undefined) ?? undefined,
+      });
       failFlow(
         submit.error.message,
         submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
@@ -460,6 +536,7 @@ export default function ScanPage() {
     if (!canRetrySubmit) return;
     setError(null);
     setFailureReason(null);
+    setLastUploadError(null);
     setStatus("submitting");
     setStatusDetail("Retrying analysis…");
     uploadAbortRef.current?.abort();
@@ -481,11 +558,16 @@ export default function ScanPage() {
       {
         posesToUpload: [],
         signal: abortController.signal,
-        stallTimeoutMs: 20_000,
+        stallTimeoutMs: 15_000,
       }
     );
     uploadAbortRef.current = null;
     if (!submit.ok) {
+      setLastUploadError({
+        code: submit.error.code,
+        message: submit.error.message,
+        pose: (submit.error.pose as Pose | undefined) ?? undefined,
+      });
       failFlow(
         submit.error.message,
         submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
@@ -507,7 +589,9 @@ export default function ScanPage() {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const now = Date.now();
       if (now - lastAutoRetryAtRef.current < 15_000) return;
+      if (autoRetryCountRef.current >= 2) return;
       lastAutoRetryAtRef.current = now;
+      autoRetryCountRef.current += 1;
       if (canRetryFailed) {
         void retryFailed();
         return;
@@ -528,9 +612,124 @@ export default function ScanPage() {
     };
   }, [canRetryFailed, canRetrySubmit, retryFailed, retrySubmitOnly, status]);
 
+  const retryPose = useCallback(
+    async (pose: Pose) => {
+      if (!scanSession?.scanId) return;
+      setError(null);
+      setLastUploadError(null);
+      setStatus("uploading");
+      setStatusDetail(`Retrying ${pose} upload…`);
+      uploadAbortRef.current?.abort();
+      const abortController = new AbortController();
+      uploadAbortRef.current = abortController;
+      const submit = await submitScanClient(
+        {
+          scanId: scanSession.scanId,
+          storagePaths: scanSession.storagePaths,
+          photos: {
+            front: photos.front!,
+            back: photos.back!,
+            left: photos.left!,
+            right: photos.right!,
+          },
+          currentWeightKg: scanSession.currentWeightKg,
+          goalWeightKg: scanSession.goalWeightKg,
+        },
+        {
+          posesToUpload: [pose],
+          onPhotoState: (info) => {
+            setPhotoState((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose];
+              next[info.pose as Pose] = {
+                status: info.status,
+                attempt: info.attempt ?? existing?.attempt ?? 0,
+                percent:
+                  typeof info.percent === "number"
+                    ? info.percent
+                    : existing?.percent ?? 0,
+                message: info.message ?? existing?.message,
+              };
+              return next;
+            });
+            setPhotoMeta((prev) => {
+              const next = { ...prev };
+              const existing = next[info.pose as Pose] ?? {};
+              next[info.pose as Pose] = {
+                ...existing,
+                original: (info as any)?.original ?? existing.original,
+                compressed: (info as any)?.compressed ?? existing.compressed,
+                preprocessDebug:
+                  (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastError:
+                  info.status === "failed"
+                    ? { code: undefined, message: info.message }
+                    : existing.lastError,
+              };
+              return next;
+            });
+          },
+          onUploadProgress: (info) => {
+            setUploadProgress(info.overallPercent);
+            setUploadPose(info.pose);
+            if (info.hasBytesTransferred) setUploadHasBytes(true);
+          },
+          signal: abortController.signal,
+          stallTimeoutMs: 15_000,
+        }
+      );
+      uploadAbortRef.current = null;
+      if (!submit.ok) {
+        setLastUploadError({
+          code: submit.error.code,
+          message: submit.error.message,
+          pose: (submit.error.pose as Pose | undefined) ?? undefined,
+        });
+        failFlow(
+          submit.error.message,
+          submit.error.reason === "submit_failed" ? "submit_failed" : "upload_failed"
+        );
+        return;
+      }
+      setStatus("processing");
+      setStatusDetail(
+        "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+      );
+      nav(`/scans/${scanSession.scanId}`);
+    },
+    [failFlow, nav, photos, scanSession]
+  );
+
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
     const file = fileList?.[0] ?? null;
     setPhotos((prev) => ({ ...prev, [pose]: file }));
+    setPhotoMeta((prev) => {
+      const next = { ...prev };
+      next[pose] = {
+        ...next[pose],
+        original: file
+          ? {
+              name: file.name,
+              size: file.size,
+              type: file.type || "image/*",
+            }
+          : undefined,
+        // Reset compressed info when user chooses a new file.
+        compressed: undefined,
+        preprocessDebug: undefined,
+        lastError: undefined,
+      };
+      return next;
+    });
+  }
+
+  function formatBytes(bytes: number | undefined | null): string {
+    const b = typeof bytes === "number" ? bytes : 0;
+    if (!Number.isFinite(b) || b <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+    const val = b / Math.pow(1024, i);
+    return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
   }
 
   return (
@@ -596,7 +795,18 @@ export default function ScanPage() {
                 />
                 {photos[pose] ? (
                   <span className="text-xs text-muted-foreground">
-                    {photos[pose]?.name}
+                    <span className="block">
+                      Original: {photos[pose]?.name} ·{" "}
+                      {formatBytes(photos[pose]?.size)} ·{" "}
+                      {(photos[pose]?.type || "image/*").toUpperCase()}
+                    </span>
+                    {photoMeta[pose as Pose]?.compressed ? (
+                      <span className="block">
+                        Compressed: {photoMeta[pose as Pose].compressed!.name} ·{" "}
+                        {formatBytes(photoMeta[pose as Pose].compressed!.size)} ·{" "}
+                        {photoMeta[pose as Pose].compressed!.type.toUpperCase()}
+                      </span>
+                    ) : null}
                   </span>
                 ) : (
                   <span className="text-xs text-muted-foreground">
@@ -680,6 +890,20 @@ export default function ScanPage() {
                   Retry failed photo(s)
                 </button>
               )}
+              {failedPoses.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {failedPoses.map((pose) => (
+                    <button
+                      key={pose}
+                      type="button"
+                      className="rounded border px-3 py-2 text-xs"
+                      onClick={() => void retryPose(pose)}
+                    >
+                      Retry {pose} upload
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {canRetrySubmit && (
                 <button
                   type="button"
@@ -737,6 +961,75 @@ export default function ScanPage() {
             </div>
           </div>
         )}
+
+        {import.meta.env.DEV ? (
+          <details className="rounded border p-3 text-xs">
+            <summary className="cursor-pointer select-none font-medium">
+              Upload debug
+            </summary>
+            <div className="mt-2 space-y-2">
+              <div>
+                <span className="font-medium">uid:</span>{" "}
+                <span className="text-muted-foreground">{user?.uid ?? "—"}</span>
+              </div>
+              <div>
+                <span className="font-medium">scanId:</span>{" "}
+                <span className="text-muted-foreground">
+                  {scanSession?.scanId ?? activeScanId ?? "—"}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium">storage paths:</span>
+                <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {scanSession?.storagePaths
+                    ? JSON.stringify(scanSession.storagePaths, null, 2)
+                    : "—"}
+                </pre>
+              </div>
+              <div>
+                <span className="font-medium">last error:</span>{" "}
+                <span className="text-muted-foreground">
+                  {lastUploadError
+                    ? `${lastUploadError.code ?? "unknown"} · ${
+                        lastUploadError.message ?? ""
+                      }${lastUploadError.pose ? ` · pose=${lastUploadError.pose}` : ""}`
+                    : "—"}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {(["front", "back", "left", "right"] as Pose[]).map((pose) => {
+                  const meta = photoMeta[pose];
+                  const state = photoState[pose];
+                  return (
+                    <div key={pose} className="rounded border p-2">
+                      <div className="font-medium">{pose}</div>
+                      <div className="text-muted-foreground">
+                        state: {state.status} · attempt {state.attempt || 0}
+                      </div>
+                      <div className="text-muted-foreground">
+                        original:{" "}
+                        {meta.original
+                          ? `${meta.original.size} bytes · ${meta.original.type} · ${meta.original.name}`
+                          : "—"}
+                      </div>
+                      <div className="text-muted-foreground">
+                        compressed:{" "}
+                        {meta.compressed
+                          ? `${meta.compressed.size} bytes · ${meta.compressed.type} · ${meta.compressed.name}`
+                          : "—"}
+                      </div>
+                      {meta.lastError?.message ? (
+                        <div className="text-muted-foreground">
+                          lastPoseError: {meta.lastError.message}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </details>
+        ) : null}
       </form>
     </div>
   );

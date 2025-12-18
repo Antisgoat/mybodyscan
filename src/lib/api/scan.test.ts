@@ -6,7 +6,7 @@ describe("scan upload stall detection", () => {
     expect(
       getUploadStallReason({
         lastBytes: 0,
-        lastEventAt: 1000,
+        lastBytesAt: 1000,
         now: 1500,
         stallTimeoutMs: 1000,
       })
@@ -17,7 +17,7 @@ describe("scan upload stall detection", () => {
     expect(
       getUploadStallReason({
         lastBytes: 0,
-        lastEventAt: 0,
+        lastBytesAt: 0,
         now: 60_000,
         stallTimeoutMs: 30_000,
       })
@@ -26,7 +26,7 @@ describe("scan upload stall detection", () => {
     expect(
       getUploadStallReason({
         lastBytes: 123,
-        lastEventAt: 0,
+        lastBytesAt: 0,
         now: 60_000,
         stallTimeoutMs: 30_000,
       })
