@@ -21,6 +21,14 @@ service firebase.storage {
       allow delete: if isOwner(uid);
     }
 
+    // Dev / diagnostics: small owner-only write used by in-app "Test Storage Write".
+    // NOTE: This is intentionally scoped to the owning user and a dedicated subpath.
+    match /user_uploads/{uid}/debug/{filename} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && request.resource.size < 256 * 1024;
+      allow delete: if isOwner(uid);
+    }
+
     match /user_uploads/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validImageUpload();

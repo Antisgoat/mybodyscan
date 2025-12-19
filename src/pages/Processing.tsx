@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useAuthUser } from "@/lib/auth";
 import { useBackNavigationGuard } from "@/lib/back";
+import { retryScanProcessingClient } from "@/lib/api/scan";
 
 const Processing = () => {
   const { scanId } = useParams();
@@ -14,6 +15,15 @@ const Processing = () => {
   const [status, setStatus] = useState<string>("queued");
   const { user } = useAuthUser();
   const [showTip, setShowTip] = useState(false);
+  const [lastStep, setLastStep] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorReason, setErrorReason] = useState<string | null>(null);
+  const [lastUpdatedAtMs, setLastUpdatedAtMs] = useState<number | null>(null);
+  const [watchdog, setWatchdog] = useState<{
+    triggered: boolean;
+    sinceMs?: number;
+  }>({ triggered: false });
+  const lastUpdatedAtRef = useRef<number | null>(null);
   const canonical =
     typeof window !== "undefined" ? window.location.href : undefined;
   useBackNavigationGuard(
@@ -43,6 +53,31 @@ const Processing = () => {
             ? "complete"
             : rawStatus;
         setStatus(normalized);
+        setLastStep(typeof data?.lastStep === "string" ? data.lastStep : null);
+        setErrorMessage(
+          typeof data?.errorMessage === "string" ? data.errorMessage : null
+        );
+        setErrorReason(
+          typeof data?.errorReason === "string" ? data.errorReason : null
+        );
+        const updatedAtRaw = data?.updatedAt ?? data?.lastStepAt ?? null;
+        let updatedAtMs: number | null = null;
+        try {
+          if (updatedAtRaw && typeof updatedAtRaw?.toDate === "function") {
+            updatedAtMs = updatedAtRaw.toDate().getTime();
+          } else if (typeof updatedAtRaw === "string") {
+            const parsed = Date.parse(updatedAtRaw);
+            updatedAtMs = Number.isFinite(parsed) ? parsed : null;
+          } else if (updatedAtRaw instanceof Date) {
+            updatedAtMs = updatedAtRaw.getTime();
+          }
+        } catch {
+          updatedAtMs = null;
+        }
+        if (typeof updatedAtMs === "number" && Number.isFinite(updatedAtMs)) {
+          setLastUpdatedAtMs(updatedAtMs);
+          lastUpdatedAtRef.current = updatedAtMs;
+        }
         if (normalized === "complete") {
           navigate(`/results/${scanId}`, { replace: true });
         }
@@ -57,6 +92,26 @@ const Processing = () => {
     );
     return () => unsub();
   }, [scanId, navigate, user]);
+
+  const isActiveProcessing = useMemo(() => {
+    return status === "processing" || status === "queued" || status === "pending";
+  }, [status]);
+
+  useEffect(() => {
+    if (!isActiveProcessing) {
+      setWatchdog({ triggered: false });
+      return;
+    }
+    const interval = window.setInterval(() => {
+      const updatedAt = lastUpdatedAtRef.current;
+      if (!updatedAt) return;
+      const age = Date.now() - updatedAt;
+      if (age >= 90_000) {
+        setWatchdog({ triggered: true, sinceMs: age });
+      }
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [isActiveProcessing]);
 
   useEffect(() => {
     if (
@@ -116,8 +171,15 @@ const Processing = () => {
       {status === "error" && (
         <div className="mt-8 text-center space-y-4">
           <p className="text-sm text-muted-foreground">
-            Something went wrong during processing. Please try again.
+            {errorMessage
+              ? errorMessage
+              : "Something went wrong during processing. Please try again."}
           </p>
+          {errorReason ? (
+            <p className="text-xs text-muted-foreground">
+              reason: {errorReason}
+            </p>
+          ) : null}
           <Button
             variant="secondary"
             onClick={() => navigate("/scan/new")}
@@ -125,6 +187,57 @@ const Processing = () => {
           >
             Try Again
           </Button>
+        </div>
+      )}
+
+      {watchdog.triggered && isActiveProcessing && (
+        <div className="mt-8 w-full max-w-sm space-y-3 rounded border p-4 text-center">
+          <p className="text-sm font-medium">Still working…</p>
+          <p className="text-xs text-muted-foreground">
+            No status update for{" "}
+            {watchdog.sinceMs ? `${Math.round(watchdog.sinceMs / 1000)}s` : "a while"}.
+            You can retry processing without re-uploading.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!scanId) return;
+                const result = await retryScanProcessingClient(scanId);
+                if (result.ok) {
+                  toast({
+                    title: "Retry started",
+                    description: "Processing restarted. Keep this tab open.",
+                  });
+                  setWatchdog({ triggered: false });
+                  return;
+                }
+                toast({
+                  title: "Retry failed",
+                  description: result.error.message,
+                  variant: "destructive",
+                });
+              }}
+            >
+              Retry processing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/scan")}
+            >
+              Back to Scan
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            lastStep: {lastStep ?? "—"} · updatedAt:{" "}
+            {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+          </p>
         </div>
       )}
     </main>
