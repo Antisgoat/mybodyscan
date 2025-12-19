@@ -24,7 +24,9 @@ export async function resizeImageFile(
     canvas.height = swapDims ? outW : outH;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return file;
+    if (!ctx) {
+      throw new Error("Couldn’t prepare photo on this device");
+    }
 
     // Reduce interpolation artifacts when downscaling.
     (ctx as any).imageSmoothingEnabled = true;
@@ -61,8 +63,13 @@ export async function resizeImageFile(
 
     source.cleanup?.();
     return blob;
-  } catch {
-    return file; // worst-case: keep original
+  } catch (err) {
+    // No silent fallback — never return the original file/blob (often huge PNGs on iOS).
+    throw new Error(
+      (err as Error)?.message?.includes("Couldn’t prepare")
+        ? (err as Error).message
+        : "Couldn’t prepare photo on this device"
+    );
   }
 }
 
@@ -77,6 +84,13 @@ export type UploadPreprocessResult = {
   compressed: UploadPreprocessMeta;
   file: File; // always a JPEG file (never the original)
   debug: {
+    device: {
+      isMobileUploadDevice: boolean;
+      isProbablyMobileSafari: boolean;
+      userAgent: string;
+      maxTouchPoints: number;
+      viewport: { width: number; height: number };
+    };
     orientation: number;
     srcWidth: number;
     srcHeight: number;
@@ -114,6 +128,23 @@ export function isProbablyMobileSafari(): boolean {
   if (isCriOS || isFxiOS || isEdgiOS) return false;
   // iOS Safari typically has Safari but not Chrome.
   return /Safari/i.test(ua);
+}
+
+export function isMobileUploadDevice(): boolean {
+  // Aggressive preprocessing is required on iPhone / mobile Safari, and we also
+  // apply it to "mobile-like" devices (touch + small viewport) to keep uploads fast.
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "");
+  const touchPoints =
+    typeof (navigator as any).maxTouchPoints === "number"
+      ? Number((navigator as any).maxTouchPoints)
+      : 0;
+  const smallViewport =
+    typeof window.innerWidth === "number" ? window.innerWidth <= 900 : false;
+  const iosSafari = isProbablyMobileSafari();
+  const isIOS = /iP(hone|ad|od)/i.test(ua);
+  // If it walks like a phone (touch + small viewport), treat it as mobile for uploads.
+  return iosSafari || (touchPoints > 0 && smallViewport) || (isIOS && touchPoints > 0);
 }
 
 type DrawParams = {
@@ -185,16 +216,34 @@ export async function preprocessImageForUpload(
   const original = toMeta(file);
   const maxEdgeDesktop = options?.maxEdgeDesktop ?? 1800;
   const maxEdgeMobileSafari = options?.maxEdgeMobileSafari ?? 1280;
-  const maxEdgeInitial = isProbablyMobileSafari()
-    ? maxEdgeMobileSafari
-    : maxEdgeDesktop;
-  const qualityInitial = clamp01(options?.jpegQualityStart ?? 0.8);
-  const outputBytesLimit = options?.outputBytesLimit ?? Math.round(2.5 * 1024 * 1024);
+  const mobile = isMobileUploadDevice();
+  const maxEdgeInitial = mobile ? maxEdgeMobileSafari : maxEdgeDesktop;
+  const qualityInitial = clamp01(
+    options?.jpegQualityStart ?? (mobile ? 0.72 : 0.8)
+  );
+  // Hard cap for scan uploads: <= 2.0MB.
+  const outputBytesLimit =
+    options?.outputBytesLimit ?? Math.round(2.0 * 1024 * 1024);
 
   const orientation = await readJpegExifOrientation(file).catch(() => 1);
   const source = await decodeToImageSource(file);
 
   const debug: UploadPreprocessResult["debug"] = {
+    device: {
+      isMobileUploadDevice: mobile,
+      isProbablyMobileSafari: isProbablyMobileSafari(),
+      userAgent:
+        typeof navigator !== "undefined" ? String(navigator.userAgent || "") : "",
+      maxTouchPoints:
+        typeof navigator !== "undefined" &&
+        typeof (navigator as any).maxTouchPoints === "number"
+          ? Number((navigator as any).maxTouchPoints)
+          : 0,
+      viewport: {
+        width: typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
+        height: typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
+      },
+    },
     orientation,
     srcWidth: source.width,
     srcHeight: source.height,
@@ -220,9 +269,10 @@ export async function preprocessImageForUpload(
 
   const qualityCandidates = [
     qualityInitial,
-    Math.min(qualityInitial, 0.75),
     Math.min(qualityInitial, 0.7),
     Math.min(qualityInitial, 0.65),
+    Math.min(qualityInitial, 0.6),
+    Math.min(qualityInitial, 0.55),
   ].filter((q, i, arr) => q > 0 && q <= 1 && arr.indexOf(q) === i);
 
   let bestBlob: Blob | null = null;
@@ -270,6 +320,42 @@ export async function preprocessImageForUpload(
       throw new Error("Image encoding failed (JPEG blob unavailable).");
     }
 
+    // Hard-cap enforcement: if we're still above the limit, keep reducing quality and/or size
+    // until we fall under <= outputBytesLimit (or hit conservative minimums).
+    if (bestBlob.size > outputBytesLimit) {
+      let edge = bestEdge;
+      let q = bestQuality;
+      let safety = 0;
+      const minEdge = 640;
+      const minQuality = 0.5;
+      while (bestBlob.size > outputBytesLimit && safety < 18) {
+        safety += 1;
+        // Prefer lowering quality first (cheap), then downscale (more expensive).
+        if (q > minQuality) {
+          q = Math.max(minQuality, Number((q - 0.05).toFixed(2)));
+        } else {
+          edge = Math.max(minEdge, Math.round(edge * 0.85));
+          // reset quality slightly upward after downscale so we don't over-crush.
+          q = Math.max(minQuality, Math.min(q + 0.05, qualityInitial));
+        }
+        const { canvas } = drawToCanvas({ source, orientation, maxEdge: edge });
+        const blob = await canvasToJpegMaybe(canvas, q);
+        debug.steps.push({
+          maxEdge: edge,
+          quality: q,
+          blobBytes: blob ? blob.size : null,
+          toBlobNull: blob == null,
+        });
+        if (!blob || !Number.isFinite(blob.size) || blob.size <= 0) continue;
+        bestBlob = blob;
+        bestEdge = edge;
+        bestQuality = q;
+      }
+      if (bestBlob.size > outputBytesLimit) {
+        throw new Error("Couldn’t prepare photo on this device");
+      }
+    }
+
     const outName = (options?.fileName || "upload.jpg").replace(/\.(png|webp|heic|heif|jpeg|jpg)$/i, ".jpg");
     const outFile = new File([bestBlob], outName, { type: "image/jpeg" });
 
@@ -284,6 +370,39 @@ export async function preprocessImageForUpload(
     };
   } finally {
     source.cleanup?.();
+  }
+}
+
+export type ScanPhotoView = "front" | "back" | "left" | "right";
+
+export async function prepareScanPhoto(
+  file: File,
+  view: ScanPhotoView
+): Promise<{ preparedFile: File; meta: { original: UploadPreprocessMeta; prepared: UploadPreprocessMeta; debug: UploadPreprocessResult["debug"] } }> {
+  try {
+    const processed = await preprocessImageForUpload(file, {
+      fileName: `${view}.jpg`,
+      maxEdgeDesktop: 1800,
+      maxEdgeMobileSafari: 1280,
+      // Mobile uses aggressive quality; desktop defaults handled inside preprocessImageForUpload.
+      jpegQualityStart: isMobileUploadDevice() ? 0.72 : 0.8,
+      outputBytesLimit: Math.round(2.0 * 1024 * 1024),
+    });
+    return {
+      preparedFile: processed.file,
+      meta: {
+        original: processed.original,
+        prepared: processed.compressed,
+        debug: processed.debug,
+      },
+    };
+  } catch (err) {
+    // Do not fall back to original files (often huge PNGs / HEIC).
+    throw new Error(
+      (err as Error)?.message?.includes("Couldn’t prepare")
+        ? (err as Error).message
+        : "Couldn’t prepare photo on this device"
+    );
   }
 }
 

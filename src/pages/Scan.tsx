@@ -7,7 +7,7 @@
  * - On errors, surfaces actionable toasts and uses `deleteScanApi` to clean up orphaned scan docs/storage objects.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteScanApi,
   startScanSessionClient,
@@ -34,6 +34,15 @@ export default function ScanPage() {
   const { user, loading: authLoading } = useAuthUser();
   const { units } = useUnits();
   const nav = useNavigate();
+  const location = useLocation();
+  const showDebug = useMemo(() => {
+    if (import.meta.env.DEV) return true;
+    try {
+      return new URLSearchParams(location.search).get("debug") === "1";
+    } catch {
+      return false;
+    }
+  }, [location.search]);
   const [currentWeight, setCurrentWeight] = useState("");
   const [goalWeight, setGoalWeight] = useState("");
   const [photos, setPhotos] = useState<PhotoInputs>({
@@ -94,6 +103,9 @@ export default function ScanPage() {
         compressed?: FileMeta;
         preprocessDebug?: unknown;
         lastError?: { code?: string; message?: string };
+        lastBytesTransferred?: number;
+        lastTotalBytes?: number;
+        lastFirebaseError?: { code?: string; message?: string };
       }
     >
   >({
@@ -312,6 +324,16 @@ export default function ScanPage() {
                 compressed: (info as any)?.compressed ?? existing.compressed,
                 preprocessDebug:
                   (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastBytesTransferred:
+                  typeof (info as any)?.bytesTransferred === "number"
+                    ? (info as any).bytesTransferred
+                    : existing.lastBytesTransferred,
+                lastTotalBytes:
+                  typeof (info as any)?.totalBytes === "number"
+                    ? (info as any).totalBytes
+                    : existing.lastTotalBytes,
+                lastFirebaseError:
+                  (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -325,7 +347,7 @@ export default function ScanPage() {
             }
           },
           signal: abortController.signal,
-          stallTimeoutMs: 15_000,
+          stallTimeoutMs: 12_000,
         }
       );
       sessionFinalizedRef.current = true;
@@ -498,7 +520,7 @@ export default function ScanPage() {
           if (info.hasBytesTransferred) setUploadHasBytes(true);
         },
         signal: abortController.signal,
-        stallTimeoutMs: 15_000,
+        stallTimeoutMs: 12_000,
       }
     );
     uploadAbortRef.current = null;
@@ -558,7 +580,7 @@ export default function ScanPage() {
       {
         posesToUpload: [],
         signal: abortController.signal,
-        stallTimeoutMs: 15_000,
+        stallTimeoutMs: 12_000,
       }
     );
     uploadAbortRef.current = null;
@@ -675,7 +697,7 @@ export default function ScanPage() {
             if (info.hasBytesTransferred) setUploadHasBytes(true);
           },
           signal: abortController.signal,
-          stallTimeoutMs: 15_000,
+        stallTimeoutMs: 12_000,
         }
       );
       uploadAbortRef.current = null;
@@ -802,7 +824,7 @@ export default function ScanPage() {
                     </span>
                     {photoMeta[pose as Pose]?.compressed ? (
                       <span className="block">
-                        Compressed: {photoMeta[pose as Pose].compressed!.name} ·{" "}
+                        Prepared: {photoMeta[pose as Pose].compressed!.name} ·{" "}
                         {formatBytes(photoMeta[pose as Pose].compressed!.size)} ·{" "}
                         {photoMeta[pose as Pose].compressed!.type.toUpperCase()}
                       </span>
@@ -962,12 +984,29 @@ export default function ScanPage() {
           </div>
         )}
 
-        {import.meta.env.DEV ? (
+        {showDebug ? (
           <details className="rounded border p-3 text-xs">
             <summary className="cursor-pointer select-none font-medium">
-              Upload debug
+              Debug details
             </summary>
             <div className="mt-2 space-y-2">
+              <div>
+                <span className="font-medium">device:</span>{" "}
+                <span className="text-muted-foreground">
+                  {(() => {
+                    const anyDebug =
+                      (photoMeta.front.preprocessDebug as any)?.device ??
+                      (photoMeta.back.preprocessDebug as any)?.device ??
+                      (photoMeta.left.preprocessDebug as any)?.device ??
+                      (photoMeta.right.preprocessDebug as any)?.device ??
+                      null;
+                    if (!anyDebug) return "—";
+                    const mode = anyDebug.isMobileUploadDevice ? "mobile" : "desktop";
+                    const safari = anyDebug.isProbablyMobileSafari ? " (iOS Safari)" : "";
+                    return `${mode}${safari}`;
+                  })()}
+                </span>
+              </div>
               <div>
                 <span className="font-medium">uid:</span>{" "}
                 <span className="text-muted-foreground">{user?.uid ?? "—"}</span>
@@ -1013,11 +1052,23 @@ export default function ScanPage() {
                           : "—"}
                       </div>
                       <div className="text-muted-foreground">
-                        compressed:{" "}
+                        prepared:{" "}
                         {meta.compressed
                           ? `${meta.compressed.size} bytes · ${meta.compressed.type} · ${meta.compressed.name}`
                           : "—"}
                       </div>
+                      <div className="text-muted-foreground">
+                        lastBytesTransferred:{" "}
+                        {typeof meta.lastBytesTransferred === "number"
+                          ? `${meta.lastBytesTransferred} / ${meta.lastTotalBytes ?? "?"}`
+                          : "—"}
+                      </div>
+                      {meta.lastFirebaseError?.message ? (
+                        <div className="text-muted-foreground">
+                          lastFirebaseError: {meta.lastFirebaseError.code ?? "unknown"} ·{" "}
+                          {meta.lastFirebaseError.message}
+                        </div>
+                      ) : null}
                       {meta.lastError?.message ? (
                         <div className="text-muted-foreground">
                           lastPoseError: {meta.lastError.message}

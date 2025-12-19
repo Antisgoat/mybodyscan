@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -174,6 +174,15 @@ export default function ScanFlowResult() {
   const [uploadHasBytes, setUploadHasBytes] = useState(false);
   const [submittedScanId, setSubmittedScanId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const showDebug = useMemo(() => {
+    if (import.meta.env.DEV) return true;
+    try {
+      return new URLSearchParams(location.search).get("debug") === "1";
+    } catch {
+      return false;
+    }
+  }, [location.search]);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const lastAutoRetryAtRef = useRef<number>(0);
   const autoRetryCountRef = useRef<number>(0);
@@ -235,6 +244,9 @@ export default function ScanFlowResult() {
         compressed?: PhotoMetadata;
         preprocessDebug?: unknown;
         lastError?: { code?: string; message?: string };
+        lastBytesTransferred?: number;
+        lastTotalBytes?: number;
+        lastFirebaseError?: { code?: string; message?: string };
       }
     >
   >({
@@ -429,6 +441,16 @@ export default function ScanFlowResult() {
                 compressed: (info as any)?.compressed ?? existing.compressed,
                 preprocessDebug:
                   (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastBytesTransferred:
+                  typeof (info as any)?.bytesTransferred === "number"
+                    ? (info as any).bytesTransferred
+                    : existing.lastBytesTransferred,
+                lastTotalBytes:
+                  typeof (info as any)?.totalBytes === "number"
+                    ? (info as any).totalBytes
+                    : existing.lastTotalBytes,
+                lastFirebaseError:
+                  (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -438,7 +460,7 @@ export default function ScanFlowResult() {
             });
           },
           signal: abortController.signal,
-          stallTimeoutMs: 15_000,
+          stallTimeoutMs: 12_000,
         }
       );
       uploadAbortRef.current = null;
@@ -567,7 +589,7 @@ export default function ScanFlowResult() {
           });
         },
         signal: abortController.signal,
-        stallTimeoutMs: 15_000,
+        stallTimeoutMs: 12_000,
       }
     );
     uploadAbortRef.current = null;
@@ -661,7 +683,7 @@ export default function ScanFlowResult() {
             });
           },
           signal: abortController.signal,
-          stallTimeoutMs: 15_000,
+        stallTimeoutMs: 12_000,
         }
       );
       uploadAbortRef.current = null;
@@ -1019,7 +1041,7 @@ export default function ScanFlowResult() {
                         </span>
                         {compressed ? (
                           <span className="block text-right">
-                            Compressed: {compressed.name} ·{" "}
+                            Prepared: {compressed.name} ·{" "}
                             {formatBytes(compressed.size)} ·{" "}
                             {compressed.type.toUpperCase()}
                           </span>
@@ -1171,12 +1193,29 @@ export default function ScanFlowResult() {
           </div>
         </CardContent>
       </Card>
-      {import.meta.env.DEV ? (
+      {showDebug ? (
         <details className="rounded border p-3 text-xs">
           <summary className="cursor-pointer select-none font-medium">
-            Upload debug
+            Debug details
           </summary>
           <div className="mt-2 space-y-2">
+            <div>
+              <span className="font-medium">device:</span>{" "}
+              <span className="text-muted-foreground">
+                {(() => {
+                  const anyDebug =
+                    (uploadMeta.front.preprocessDebug as any)?.device ??
+                    (uploadMeta.back.preprocessDebug as any)?.device ??
+                    (uploadMeta.left.preprocessDebug as any)?.device ??
+                    (uploadMeta.right.preprocessDebug as any)?.device ??
+                    null;
+                  if (!anyDebug) return "—";
+                  const mode = anyDebug.isMobileUploadDevice ? "mobile" : "desktop";
+                  const safari = anyDebug.isProbablyMobileSafari ? " (iOS Safari)" : "";
+                  return `${mode}${safari}`;
+                })()}
+              </span>
+            </div>
             <div>
               <span className="font-medium">uid:</span>{" "}
               <span className="text-muted-foreground">{user?.uid ?? "—"}</span>
@@ -1221,11 +1260,23 @@ export default function ScanFlowResult() {
                         : "—"}
                     </div>
                     <div className="text-muted-foreground">
-                      compressed:{" "}
+                      prepared:{" "}
                       {compressed
                         ? `${formatBytes(compressed.size)} · ${compressed.type} · ${compressed.name}`
                         : "—"}
                     </div>
+                    <div className="text-muted-foreground">
+                      lastBytesTransferred:{" "}
+                      {typeof uploadMeta[pose]?.lastBytesTransferred === "number"
+                        ? `${uploadMeta[pose]!.lastBytesTransferred} / ${uploadMeta[pose]!.lastTotalBytes ?? "?"}`
+                        : "—"}
+                    </div>
+                    {uploadMeta[pose]?.lastFirebaseError?.message ? (
+                      <div className="text-muted-foreground">
+                        lastFirebaseError: {uploadMeta[pose]!.lastFirebaseError!.code ?? "unknown"} ·{" "}
+                        {uploadMeta[pose]!.lastFirebaseError!.message}
+                      </div>
+                    ) : null}
                     {state.message ? (
                       <div className="text-muted-foreground">
                         lastPoseMessage: {state.message}

@@ -13,6 +13,14 @@ service firebase.storage {
       return request.resource.size < 15 * 1024 * 1024 && request.resource.contentType.matches('image/.+');
     }
 
+    // Canonical scan photo uploads:
+    // user_uploads/{uid}/scans/{scanId}/{view}.jpg
+    match /user_uploads/{uid}/scans/{scanId}/{filename} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validImageUpload();
+      allow delete: if isOwner(uid);
+    }
+
     match /user_uploads/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validImageUpload();
