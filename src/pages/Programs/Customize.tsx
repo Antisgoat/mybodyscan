@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import {
   activateCustomPlan,
@@ -25,6 +32,35 @@ import { validateWorkoutPlanDays } from "@/lib/workoutsCustomValidation";
 
 type DayName = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 const DAYS: DayName[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Small built-in swap catalog. (Kept intentionally small for bundle size; users can still type any name.)
+const EXERCISE_CATALOG: string[] = [
+  "Back squat",
+  "Front squat",
+  "Romanian deadlift",
+  "Deadlift",
+  "Hip thrust",
+  "Lunge",
+  "Leg press",
+  "Leg curl",
+  "Calf raise",
+  "Bench press",
+  "Incline bench press",
+  "Dumbbell bench press",
+  "Push-up",
+  "Overhead press",
+  "Lateral raise",
+  "Pull-up",
+  "Lat pulldown",
+  "Barbell row",
+  "Dumbbell row",
+  "Seated cable row",
+  "Face pull",
+  "Biceps curl",
+  "Triceps pressdown",
+  "Plank",
+  "Hanging knee raise",
+].sort((a, b) => a.localeCompare(b));
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -63,12 +99,14 @@ export default function CustomizeProgram() {
   const [emphasis, setEmphasis] = useState<string[]>([]);
   const [injuries, setInjuries] = useState<string>("");
   const [avoidExercises, setAvoidExercises] = useState<string>("");
-  const [cardioPreference, setCardioPreference] = useState<string>("");
+  const [cardioPreference, setCardioPreference] = useState<string>("none");
 
   const [title, setTitle] = useState<string>("My custom plan");
   const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(null);
   const [generating, setGenerating] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [swapTarget, setSwapTarget] = useState<{ dayIndex: number; exerciseIndex: number } | null>(null);
+  const [swapQuery, setSwapQuery] = useState<string>("");
 
   const prefs: CustomPlanPrefs = useMemo(
     () => ({
@@ -339,6 +377,7 @@ export default function CustomizeProgram() {
                     ["full_body", "Full body"],
                     ["upper_lower", "Upper / Lower"],
                     ["push_pull_legs", "Push / Pull / Legs"],
+                    ["bro_split", "Bro split"],
                     ["custom_emphasis", "Custom emphasis"],
                   ].map(([value, label]) => (
                     <Label key={value} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary">
@@ -435,7 +474,7 @@ export default function CustomizeProgram() {
             <section className="space-y-2">
               <Label>Focus areas (optional)</Label>
               <div className="flex flex-wrap gap-2">
-                {["glutes", "shoulders", "core", "back", "legs"].map((v) => (
+                {["chest", "back", "legs", "glutes", "shoulders", "arms", "core"].map((v) => (
                   <Button
                     key={v}
                     type="button"
@@ -473,13 +512,27 @@ export default function CustomizeProgram() {
             </section>
 
             <section className="space-y-2">
-              <Label htmlFor="cardio">Cardio preference (optional)</Label>
-              <Input
-                id="cardio"
+              <Label>Cardio frequency</Label>
+              <RadioGroup
                 value={cardioPreference}
-                onChange={(e) => setCardioPreference(e.target.value)}
-                placeholder="None, 2x/week light, HIIT once…"
-              />
+                onValueChange={(v) => setCardioPreference(v)}
+                className="grid gap-2 sm:grid-cols-2"
+              >
+                {[
+                  ["none", "None"],
+                  ["1x", "1x / week"],
+                  ["2x", "2x / week"],
+                  ["3x", "3x / week"],
+                ].map(([value, label]) => (
+                  <Label
+                    key={value}
+                    className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-3 py-2 text-sm hover:border-primary"
+                  >
+                    <span>{label}</span>
+                    <RadioGroupItem value={value} />
+                  </Label>
+                ))}
+              </RadioGroup>
             </section>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -541,6 +594,76 @@ export default function CustomizeProgram() {
                               value={ex.name}
                               onChange={(e) => updateExercise(dayIndex, exIdx, { name: e.target.value })}
                             />
+                            <div className="pt-2">
+                              <Dialog
+                                open={swapTarget?.dayIndex === dayIndex && swapTarget?.exerciseIndex === exIdx}
+                                onOpenChange={(open) => {
+                                  if (!open) {
+                                    setSwapTarget(null);
+                                    setSwapQuery("");
+                                  } else {
+                                    setSwapTarget({ dayIndex, exerciseIndex: exIdx });
+                                  }
+                                }}
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSwapTarget({ dayIndex, exerciseIndex: exIdx });
+                                      setSwapQuery("");
+                                    }}
+                                  >
+                                    Swap (search)
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-lg">
+                                  <DialogHeader>
+                                    <DialogTitle>Swap exercise</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-3">
+                                    <Input
+                                      value={swapQuery}
+                                      onChange={(e) => setSwapQuery(e.target.value)}
+                                      placeholder="Search (e.g. bench, row, squat)…"
+                                      autoFocus
+                                    />
+                                    <div className="max-h-72 overflow-auto rounded-md border">
+                                      {EXERCISE_CATALOG.filter((name) => {
+                                        const q = swapQuery.trim().toLowerCase();
+                                        if (!q) return true;
+                                        return name.toLowerCase().includes(q);
+                                      })
+                                        .slice(0, 30)
+                                        .map((name) => (
+                                          <button
+                                            key={name}
+                                            type="button"
+                                            className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
+                                            onClick={() => {
+                                              updateExercise(dayIndex, exIdx, { name });
+                                              setSwapTarget(null);
+                                              setSwapQuery("");
+                                              toast({ title: "Exercise updated" });
+                                            }}
+                                          >
+                                            <span className="font-medium">{name}</span>
+                                            <span className="text-xs text-muted-foreground">Select</span>
+                                          </button>
+                                        ))}
+                                      {!EXERCISE_CATALOG.length ? (
+                                        <div className="p-3 text-sm text-muted-foreground">No exercises available.</div>
+                                      ) : null}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Tip: you can always type a custom name directly in the exercise field.
+                                    </p>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Sets</Label>

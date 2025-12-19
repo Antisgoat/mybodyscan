@@ -1,6 +1,8 @@
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
 export type CanonicalScanStatus =
+  | "uploading"
+  | "uploaded"
   | "pending"
   | "processing"
   | "complete"
@@ -50,6 +52,8 @@ export function canonicalizeScanStatus(
   rawStatus?: string | null
 ): CanonicalScanStatus {
   const normalized = (rawStatus || "").toLowerCase();
+  if (normalized === "uploading") return "uploading";
+  if (normalized === "uploaded") return "uploaded";
   if (
     normalized === "processing" ||
     normalized === "in_progress" ||
@@ -81,7 +85,12 @@ export function isScanStale(
   updatedAt?: TimestampLike,
   now = Date.now()
 ): boolean {
-  if (status !== "pending" && status !== "processing") {
+  if (
+    status !== "pending" &&
+    status !== "processing" &&
+    status !== "uploading" &&
+    status !== "uploaded"
+  ) {
     return false;
   }
   const updatedAtMs = toMillis(updatedAt);
@@ -118,6 +127,28 @@ export function buildScanStatusMeta(
       stale,
       showMetrics: false,
       recommendRescan: true,
+    };
+  }
+  if (canonical === "uploading") {
+    return {
+      canonical,
+      label: "Uploading photos…",
+      helperText: "Keep this tab open – uploads usually complete in seconds.",
+      badgeVariant: "secondary",
+      stale: false,
+      showMetrics: false,
+      recommendRescan: false,
+    };
+  }
+  if (canonical === "uploaded") {
+    return {
+      canonical,
+      label: "Upload complete",
+      helperText: "Starting analysis…",
+      badgeVariant: "secondary",
+      stale: false,
+      showMetrics: false,
+      recommendRescan: false,
     };
   }
   // Pending / processing but still running

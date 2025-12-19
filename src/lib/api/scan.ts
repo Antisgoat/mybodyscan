@@ -9,7 +9,7 @@ import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import {
-  preprocessImageForUpload,
+  prepareScanPhoto,
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
@@ -66,6 +66,8 @@ export type ScanDocument = {
   updatedAt: Date;
   completedAt: Date | null;
   status:
+    | "uploading"
+    | "uploaded"
     | "pending"
     | "processing"
     | "complete"
@@ -73,6 +75,9 @@ export type ScanDocument = {
     | "failed"
     | "error";
   errorMessage?: string | null;
+  errorReason?: string | null;
+  lastStep?: string | null;
+  lastStepAt?: Date | null;
   recommendations?: string[] | null;
   photoPaths: {
     front: string;
@@ -157,6 +162,7 @@ function toScanDocument(
     | undefined;
   const input = data.input as ScanDocument["input"] | undefined;
   const completedAtRaw = data.completedAt as unknown;
+  const lastStepAtRaw = (data as any).lastStepAt as unknown;
   return {
     id,
     uid,
@@ -166,6 +172,11 @@ function toScanDocument(
     status: (data.status as ScanDocument["status"]) ?? "pending",
     errorMessage:
       typeof data.errorMessage === "string" ? data.errorMessage : null,
+    errorReason:
+      typeof (data as any).errorReason === "string" ? (data as any).errorReason : null,
+    lastStep:
+      typeof (data as any).lastStep === "string" ? (data as any).lastStep : null,
+    lastStepAt: lastStepAtRaw ? parseTimestamp(lastStepAtRaw) : null,
     recommendations: Array.isArray((data as any).recommendations)
       ? ((data as any).recommendations
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))
@@ -277,14 +288,15 @@ async function uploadPhoto(
   const storageRef = ref(storage, path);
   await new Promise<void>((resolve, reject) => {
     const task = uploadBytesResumable(storageRef, file, {
-      contentType: file.type || "image/jpeg",
+      contentType: "image/jpeg",
+      cacheControl: "public,max-age=31536000",
     });
     options?.onTask?.(task);
     let settled = false;
     let lastBytes = 0;
     let lastBytesAt = Date.now();
 
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 15_000;
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 12_000;
     const stallTimer =
       stallTimeoutMs > 0
         ? setInterval(() => {
@@ -522,7 +534,9 @@ function normalizeUploadError(err: unknown): ScanError | null {
   if (code === "upload_stalled") {
     return {
       code,
-      message: pose ? `${pose} upload stalled. Please retry.` : "Upload stalled. Please retry.",
+      message: pose
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload stalled. Please retry.`
+        : "Upload stalled. Please retry.",
       reason: "upload_failed",
       pose,
     };
@@ -546,7 +560,9 @@ function normalizeUploadError(err: unknown): ScanError | null {
             : "Upload failed. Please check your connection and retry.";
     return {
       code,
-      message: pose ? `${pose} upload failed. ${message}` : message,
+      message: pose
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload failed. ${message}`
+        : message,
       reason: "upload_failed",
       pose,
     };
@@ -573,6 +589,9 @@ export async function submitScanClient(
       original?: UploadPreprocessMeta;
       compressed?: UploadPreprocessMeta;
       preprocessDebug?: UploadPreprocessResult["debug"];
+      bytesTransferred?: number;
+      totalBytes?: number;
+      lastFirebaseError?: { code?: string; message?: string };
     }) => void;
     signal?: AbortSignal;
     stallTimeoutMs?: number;
@@ -587,6 +606,16 @@ export async function submitScanClient(
     };
   let uploadsCompleted = false;
   try {
+    // iPhone Safari resilience: keep retry windows bounded so we don't appear stuck forever.
+    try {
+      // Firebase v11 doesn't export the older helper functions in all builds.
+      // The SDK exposes these as mutable properties.
+      (storage as any).maxUploadRetryTime = 120_000;
+      (storage as any).maxOperationRetryTime = 120_000;
+    } catch {
+      // ignore
+    }
+
     const orderedPoses: Array<keyof StartScanResponse["storagePaths"]> = [
       "front",
       "back",
@@ -597,39 +626,33 @@ export async function submitScanClient(
       ? orderedPoses.filter((p) => options.posesToUpload!.includes(p))
       : orderedPoses;
 
-    // Preprocess photos (mandatory): ALWAYS produce a JPEG File (never fall back to original).
-    // This prevents iPhone Safari from uploading huge PNGs when canvas/toBlob fails.
+    // Preprocess photos (mandatory): ALWAYS produce a prepared JPEG File (<= 2.0MB).
+    // Do NOT fall back to original files (often huge PNGs / HEIC on iOS).
     const photos = { ...params.photos } as typeof params.photos;
     for (const pose of posesToUpload) {
       const original = params.photos[pose];
       options?.onPhotoState?.({ pose, status: "preparing" });
       const t0 = Date.now();
       try {
-        const processed = await preprocessImageForUpload(original, {
-          fileName: `${pose}.jpg`,
-          maxEdgeDesktop: 1800,
-          maxEdgeMobileSafari: 1280,
-          jpegQualityStart: 0.8,
-          outputBytesLimit: Math.round(2.5 * 1024 * 1024),
-        });
+        const processed = await prepareScanPhoto(original, pose);
         const t1 = Date.now();
         console.info("scan.preprocess", {
           pose,
-          inBytes: processed.original.size,
-          outBytes: processed.compressed.size,
+          inBytes: processed.meta.original.size,
+          outBytes: processed.meta.prepared.size,
           ms: t1 - t0,
-          inType: processed.original.type,
-          outType: processed.compressed.type,
-          maxEdge: processed.debug.maxEdgeFinal,
-          quality: processed.debug.qualityFinal,
+          inType: processed.meta.original.type,
+          outType: processed.meta.prepared.type,
+          maxEdge: processed.meta.debug.maxEdgeFinal,
+          quality: processed.meta.debug.qualityFinal,
         });
-        photos[pose] = processed.file;
+        photos[pose] = processed.preparedFile;
         options?.onPhotoState?.({
           pose,
           status: "preparing",
-          original: processed.original,
-          compressed: processed.compressed,
-          preprocessDebug: processed.debug,
+          original: processed.meta.original,
+          compressed: processed.meta.prepared,
+          preprocessDebug: processed.meta.debug,
         });
       } catch (err) {
         const t1 = Date.now();
@@ -641,13 +664,10 @@ export async function submitScanClient(
         options?.onPhotoState?.({
           pose,
           status: "failed",
-          message:
-            (err as Error)?.message ||
-            "Could not compress this photo for upload. Please retry.",
+          message: "Couldn’t prepare photo on this device",
         });
         const e: any = new Error(
-          (err as Error)?.message ||
-            "Could not compress this photo for upload. Please retry."
+          "Couldn’t prepare photo on this device"
         );
         e.code = "preprocess_failed";
         e.pose = pose;
@@ -655,27 +675,30 @@ export async function submitScanClient(
       }
     }
 
-    const validated = validateScanUploadInputs({
-      storagePaths: params.storagePaths,
-      photos,
-    });
-    if (!validated.ok) return validated;
-    const uploadTargetsAll = validated.data.uploadTargets;
-    const uploadTargets = uploadTargetsAll.filter((t) =>
-      posesToUpload.includes(t.pose)
-    );
+    // Build upload targets in strict, reliable order (front → back → left → right),
+    // filtered to the poses we are uploading (supports per-photo retries).
+    const uploadTargets: UploadTarget[] = [];
+    for (const pose of posesToUpload) {
+      const path = params.storagePaths[pose];
+      const file = photos[pose];
+      if (!file) {
+        return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
+      }
+      const size = Number.isFinite(file.size) ? Number(file.size) : 0;
+      uploadTargets.push({ pose, path, file, size });
+    }
     if (!uploadTargets.length) {
       // Nothing to upload (e.g. retry invoked with empty pose list)
       uploadsCompleted = true;
     }
 
     const fileCount = uploadTargets.length;
-    const totalBytes = validated.data.totalBytes;
+    const totalBytes = uploadTargets.reduce((sum, target) => sum + (target.size || 0), 0);
     const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
     const fallbackDenominator = fileCount || 1;
     let uploadedBytes = 0;
 
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 15_000;
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 12_000;
     const retryDelaysMs = [1000, 2000, 4000];
 
     for (const [index, target] of uploadTargets.entries()) {
@@ -697,6 +720,8 @@ export async function submitScanClient(
         });
 
         let lastSnapshot: UploadTaskSnapshot | null = null;
+        let lastEmittedBytes = -1;
+        let lastEmittedAt = 0;
         try {
           await uploadPhoto(
             target.path,
@@ -721,6 +746,20 @@ export async function submitScanClient(
                 bytesBasis,
                 hasTransferred
               );
+
+              // Reduce UI churn: emit at most ~6-7 times/second, or on meaningful byte movement.
+              const now = Date.now();
+              const bytesDelta = Math.abs(snapshotBytes - lastEmittedBytes);
+              const timeDelta = now - lastEmittedAt;
+              const shouldEmit =
+                lastEmittedBytes < 0 ||
+                bytesDelta >= 64 * 1024 ||
+                timeDelta >= 150 ||
+                snapshot.state !== "running";
+              if (!shouldEmit) return;
+              lastEmittedBytes = snapshotBytes;
+              lastEmittedAt = now;
+
               options?.onUploadProgress?.({
                 pose: target.pose,
                 fileIndex: index,
@@ -738,6 +777,8 @@ export async function submitScanClient(
                 status: isRetry ? "retrying" : "uploading",
                 attempt,
                 percent: filePercent,
+                bytesTransferred: snapshotBytes,
+                totalBytes: snapshotTotal,
               });
             },
             {
@@ -756,8 +797,10 @@ export async function submitScanClient(
                   attempt,
                   message:
                     reason === "no_progress"
-                      ? "Upload stalled (no progress for 15s). Restarting…"
-                      : "Upload stalled (no new bytes for 15s). Restarting…",
+                      ? "Upload stalled (no progress for 12s). Restarting…"
+                      : "Upload stalled (no new bytes for 12s). Restarting…",
+                  bytesTransferred,
+                  totalBytes: target.size,
                 });
               },
             }
@@ -780,6 +823,9 @@ export async function submitScanClient(
               status: "retrying",
               attempt,
               message: "Retrying upload…",
+              lastFirebaseError: normalized
+                ? { code: normalized.code, message: normalized.message }
+                : { code: (err as any)?.code, message: (err as any)?.message },
             });
             await new Promise((r) => setTimeout(r, backoff));
             continue;
@@ -789,6 +835,9 @@ export async function submitScanClient(
             status: "failed",
             attempt,
             message: normalized?.message ?? "Upload failed.",
+            lastFirebaseError: normalized
+              ? { code: normalized.code, message: normalized.message }
+              : { code: (err as any)?.code, message: (err as any)?.message },
           });
           const finalErr: any = normalized
             ? Object.assign(new Error(normalized.message), {

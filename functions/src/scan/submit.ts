@@ -375,11 +375,24 @@ export const submitScan = onRequest(
 
       await scanRef.set(
         {
-          status: "processing",
+          status: "uploaded",
           updatedAt: serverTimestamp(),
+          lastStep: "uploaded",
+          lastStepAt: serverTimestamp(),
           completedAt: null,
           errorMessage: null,
           errorReason: null,
+        },
+        { merge: true }
+      );
+
+      // Move into processing as soon as we've accepted the submission request.
+      await scanRef.set(
+        {
+          status: "processing",
+          updatedAt: serverTimestamp(),
+          lastStep: "processing",
+          lastStepAt: serverTimestamp(),
         },
         { merge: true }
       );
@@ -465,6 +478,8 @@ export const submitScan = onRequest(
         status: "complete",
         updatedAt: serverTimestamp(),
         completedAt: serverTimestamp(),
+        lastStep: "complete",
+        lastStepAt: serverTimestamp(),
         photoPaths: payload.photoPaths,
         input: {
           currentWeightKg: payload.currentWeightKg,
@@ -521,6 +536,8 @@ export const submitScan = onRequest(
               status: "error",
               errorMessage,
               errorReason,
+              lastStep: "error",
+              lastStepAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
               completedAt: serverTimestamp(),
             },

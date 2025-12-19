@@ -28,7 +28,14 @@ export function hasUnlimitedEntitlement(claims: ClaimsGate | null | undefined): 
 export function hasActiveSubscription(sub: SubscriptionGate | null | undefined): boolean {
   const status = (sub?.status || "").toLowerCase();
   // Stripe-ish statuses we treat as entitled.
-  return status === "active" || status === "trialing";
+  return (
+    status === "active" ||
+    status === "trialing" ||
+    // Some backfills / legacy writes store these for paid users.
+    status === "paid" ||
+    status === "unlimited" ||
+    status === "lifetime"
+  );
 }
 
 export function canUseCoach(params: {

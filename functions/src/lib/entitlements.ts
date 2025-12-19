@@ -13,6 +13,13 @@ export function hasUnlimitedAccessFromClaims(claims: any): boolean {
 
 export function hasActiveSubscriptionFromUserDoc(userDoc: any): boolean {
   const status = String(userDoc?.subscription?.status || "").toLowerCase();
-  return status === "active" || status === "trialing";
+  return (
+    status === "active" ||
+    status === "trialing" ||
+    // Some backfills / legacy writes store these for paid users.
+    status === "paid" ||
+    status === "unlimited" ||
+    status === "lifetime"
+  );
 }
 

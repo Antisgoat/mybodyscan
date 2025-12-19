@@ -4,7 +4,7 @@
  * - Uses `scanStatusLabel` to translate Firestore `status`, `completedAt`, and `errorMessage` into UI copy.
  * - Once the cloud function writes `estimate` and `nutritionPlan`, renders a polished Evolt-style report.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { deserializeScanDocument, getScan, type ScanDocument } from "@/lib/api/scan";
 import { scanStatusLabel } from "@/lib/scanStatus";
@@ -19,12 +19,12 @@ import { formatHeightFromCm, formatWeightFromKg, kgToLb } from "@/lib/units";
 import { useAuthUser } from "@/lib/auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { getDownloadURL, ref } from "firebase/storage";
 import silhouetteFront from "@/assets/silhouette-front.png";
 
-const REFRESH_INTERVAL_MS = 7000;
+const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const PROCESSING_STEPS = [
   "Analyzing posture…",
   "Checking symmetry…",
@@ -47,15 +47,25 @@ export default function ScanResultPage() {
   const { user } = useAuthUser();
   const { profile, plan } = useUserProfile();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
+  const [showLongProcessing, setShowLongProcessing] = useState(false);
+  const lastMeaningfulUpdateRef = useRef<number>(Date.now());
 
   const needsRefresh = useMemo(() => {
     if (!scan) return false;
-    return scan.status === "pending" || scan.status === "processing";
+    return (
+      scan.status === "uploading" ||
+      scan.status === "uploaded" ||
+      scan.status === "pending" ||
+      scan.status === "processing"
+    );
   }, [scan]);
 
   useEffect(() => {
     let cancelled = false;
-    async function fetchScan() {
+    const uid = user?.uid;
+
+    // Always perform one HTTP fetch so we can surface API-layer debugIds cleanly.
+    (async () => {
       try {
         const result = await getScan(scanId);
         if (cancelled) return;
@@ -70,26 +80,51 @@ export default function ScanResultPage() {
         setScan(result.data);
         setError(null);
         setLoading(false);
+        lastMeaningfulUpdateRef.current = Date.now();
       } catch (err) {
         if (cancelled) return;
         console.error("scanResult: unexpected fetch error", err);
         setError("Unable to load scan.");
         setLoading(false);
       }
-    }
+    })();
 
-    fetchScan();
-    if (needsRefresh) {
-      const id = setInterval(fetchScan, REFRESH_INTERVAL_MS);
+    // Real-time Firestore listener (prevents “stuck processing” from stale polling).
+    if (!uid || !scanId) {
       return () => {
         cancelled = true;
-        clearInterval(id);
       };
     }
+    const unsub = onSnapshot(
+      doc(db, "users", uid, "scans", scanId),
+      (snap) => {
+        if (cancelled) return;
+        if (!snap.exists()) return;
+        const next = deserializeScanDocument(snap.id, uid, snap.data() as any);
+        setScan(next);
+        setError(null);
+        setLoading(false);
+        // Track “freshness” for long-processing UI; use updatedAt when available.
+        const updatedAtMs =
+          next.updatedAt instanceof Date ? next.updatedAt.getTime() : Date.now();
+        if (Number.isFinite(updatedAtMs)) {
+          lastMeaningfulUpdateRef.current = Math.max(
+            lastMeaningfulUpdateRef.current,
+            updatedAtMs
+          );
+        } else {
+          lastMeaningfulUpdateRef.current = Date.now();
+        }
+      },
+      (errSnap) => {
+        console.warn("scanResult.snapshot_failed", errSnap);
+      }
+    );
     return () => {
       cancelled = true;
+      unsub();
     };
-  }, [scanId, needsRefresh]);
+  }, [scanId, user?.uid]);
 
   useEffect(() => {
     if (!needsRefresh) return;
@@ -97,6 +132,21 @@ export default function ScanResultPage() {
       setProcessingStepIdx((prev) => (prev + 1) % PROCESSING_STEPS.length);
     }, 2500);
     return () => clearInterval(id);
+  }, [needsRefresh]);
+
+  useEffect(() => {
+    if (!needsRefresh) {
+      setShowLongProcessing(false);
+      return;
+    }
+    const startAt = Date.now();
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      const last = lastMeaningfulUpdateRef.current || startAt;
+      const elapsed = now - Math.max(startAt, last);
+      setShowLongProcessing(elapsed >= LONG_PROCESSING_WARNING_MS);
+    }, 1000);
+    return () => window.clearInterval(id);
   }, [needsRefresh]);
 
   useEffect(() => {
@@ -235,12 +285,51 @@ export default function ScanResultPage() {
                 <div className="h-2 w-1/2 animate-pulse rounded-full bg-primary/60" />
               </div>
               <p className="text-sm text-foreground" aria-live="polite">
-                {PROCESSING_STEPS[processingStepIdx]}
+                {typeof scan.lastStep === "string" && scan.lastStep.trim()
+                  ? scan.lastStep
+                  : PROCESSING_STEPS[processingStepIdx]}
               </p>
               <p className="text-xs text-muted-foreground">
                 We’ll refresh automatically. If your connection changed, you can refresh manually.
               </p>
             </div>
+            {showLongProcessing ? (
+              <div className="rounded-lg border bg-background/60 p-3">
+                <p className="text-sm font-medium">Taking longer than usual</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  If this doesn’t finish soon, try refreshing. If it keeps happening, contact support and include your scan id.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                  >
+                    Refresh page
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => nav("/scan")}
+                  >
+                    Back to Scan
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Scan%20Stuck&body=${encodeURIComponent(
+                          `scanId=${scan.id}\nstatus=${scan.status}\nlastStep=${scan.lastStep ?? ""}\nuid=${user?.uid ?? ""}\nua=${navigator.userAgent}\n`
+                        )}`,
+                        "_blank"
+                      )
+                    }
+                  >
+                    Contact support
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
