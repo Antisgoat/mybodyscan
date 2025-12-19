@@ -19,6 +19,9 @@ describe("entitlements helpers", () => {
   it("treats active/trialing subscription as entitled", () => {
     expect(hasActiveSubscription({ status: "active" })).toBe(true);
     expect(hasActiveSubscription({ status: "trialing" })).toBe(true);
+    expect(hasActiveSubscription({ status: "paid" })).toBe(true);
+    expect(hasActiveSubscription({ status: "unlimited" })).toBe(true);
+    expect(hasActiveSubscription({ status: "lifetime" })).toBe(true);
     expect(hasActiveSubscription({ status: "canceled" })).toBe(false);
     expect(hasActiveSubscription({ status: "none" })).toBe(false);
   });

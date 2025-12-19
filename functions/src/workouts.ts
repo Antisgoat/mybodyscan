@@ -69,6 +69,7 @@ type CustomFocus =
   | "full_body"
   | "upper_lower"
   | "push_pull_legs"
+  | "bro_split"
   | "custom_emphasis";
 
 interface CustomPlanPrefs {
@@ -150,6 +151,7 @@ function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
     focus === "full_body" ||
     focus === "upper_lower" ||
     focus === "push_pull_legs" ||
+    focus === "bro_split" ||
     focus === "custom_emphasis"
   ) {
     prefs.focus = focus;
@@ -368,6 +370,121 @@ const CUSTOM_TEMPLATES: Record<
       ],
       4: [],
       5: [],
+      6: [],
+    },
+  },
+  bro_split: {
+    label: "Bro split",
+    days: {
+      3: [
+        {
+          name: "Upper",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Shoulders", sets: 3, reps: "10-15" },
+            { name: "Arms", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Lower",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Hinge pattern", sets: 4, reps: "6-10" },
+            { name: "Calves", sets: 3, reps: "12-20" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+        {
+          name: "Arms + Core",
+          exercises: [
+            { name: "Biceps", sets: 3, reps: "10-15" },
+            { name: "Triceps", sets: 3, reps: "10-15" },
+            { name: "Shoulders", sets: 3, reps: "10-15" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+      ],
+      4: [
+        {
+          name: "Chest",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Incline push", sets: 3, reps: "8-12" },
+            { name: "Chest accessory", sets: 3, reps: "10-15" },
+            { name: "Triceps", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Back",
+          exercises: [
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Vertical pull", sets: 3, reps: "8-12" },
+            { name: "Upper back", sets: 3, reps: "12-15" },
+            { name: "Biceps", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Legs",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Hinge pattern", sets: 3, reps: "6-10" },
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+            { name: "Calves", sets: 3, reps: "12-20" },
+          ],
+        },
+        {
+          name: "Shoulders + Arms",
+          exercises: [
+            { name: "Vertical push", sets: 4, reps: "6-10" },
+            { name: "Lateral raise", sets: 3, reps: "12-20" },
+            { name: "Biceps", sets: 3, reps: "10-15" },
+            { name: "Triceps", sets: 3, reps: "10-15" },
+          ],
+        },
+      ],
+      5: [
+        {
+          name: "Chest",
+          exercises: [
+            { name: "Horizontal push", sets: 4, reps: "6-10" },
+            { name: "Incline push", sets: 3, reps: "8-12" },
+            { name: "Chest accessory", sets: 3, reps: "10-15" },
+          ],
+        },
+        {
+          name: "Back",
+          exercises: [
+            { name: "Horizontal pull", sets: 4, reps: "8-12" },
+            { name: "Vertical pull", sets: 3, reps: "8-12" },
+            { name: "Upper back", sets: 3, reps: "12-15" },
+          ],
+        },
+        {
+          name: "Legs",
+          exercises: [
+            { name: "Squat pattern", sets: 4, reps: "6-10" },
+            { name: "Hinge pattern", sets: 3, reps: "6-10" },
+            { name: "Single-leg", sets: 3, reps: "8-12" },
+          ],
+        },
+        {
+          name: "Shoulders",
+          exercises: [
+            { name: "Vertical push", sets: 4, reps: "6-10" },
+            { name: "Lateral raise", sets: 3, reps: "12-20" },
+            { name: "Rear delts", sets: 3, reps: "12-20" },
+          ],
+        },
+        {
+          name: "Arms + Core",
+          exercises: [
+            { name: "Biceps", sets: 3, reps: "10-15" },
+            { name: "Triceps", sets: 3, reps: "10-15" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ],
+        },
+      ],
       6: [],
     },
   },
@@ -1014,6 +1131,15 @@ async function handleApplyCustomPlan(req: Request, res: Response) {
   });
   const now = Timestamp.now();
   const planId = randomUUID();
+  // Persist latest preferences for future customization defaults.
+  await db.doc(`users/${uid}/workoutPreferences/current`).set(
+    scrubUndefined({
+      prefs,
+      updatedAt: now,
+      source: "custom",
+    }),
+    { merge: true }
+  );
   await db.doc(`users/${uid}/workoutPlans/${planId}`).set(
     scrubUndefined({
       id: planId,

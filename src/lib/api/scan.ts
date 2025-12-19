@@ -66,6 +66,8 @@ export type ScanDocument = {
   updatedAt: Date;
   completedAt: Date | null;
   status:
+    | "uploading"
+    | "uploaded"
     | "pending"
     | "processing"
     | "complete"
@@ -73,6 +75,9 @@ export type ScanDocument = {
     | "failed"
     | "error";
   errorMessage?: string | null;
+  errorReason?: string | null;
+  lastStep?: string | null;
+  lastStepAt?: Date | null;
   recommendations?: string[] | null;
   photoPaths: {
     front: string;
@@ -157,6 +162,7 @@ function toScanDocument(
     | undefined;
   const input = data.input as ScanDocument["input"] | undefined;
   const completedAtRaw = data.completedAt as unknown;
+  const lastStepAtRaw = (data as any).lastStepAt as unknown;
   return {
     id,
     uid,
@@ -166,6 +172,11 @@ function toScanDocument(
     status: (data.status as ScanDocument["status"]) ?? "pending",
     errorMessage:
       typeof data.errorMessage === "string" ? data.errorMessage : null,
+    errorReason:
+      typeof (data as any).errorReason === "string" ? (data as any).errorReason : null,
+    lastStep:
+      typeof (data as any).lastStep === "string" ? (data as any).lastStep : null,
+    lastStepAt: lastStepAtRaw ? parseTimestamp(lastStepAtRaw) : null,
     recommendations: Array.isArray((data as any).recommendations)
       ? ((data as any).recommendations
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))

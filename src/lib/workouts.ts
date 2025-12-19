@@ -62,6 +62,7 @@ export type CustomPlanFocus =
   | "full_body"
   | "upper_lower"
   | "push_pull_legs"
+  | "bro_split"
   | "custom_emphasis";
 
 export interface CustomPlanPrefs {

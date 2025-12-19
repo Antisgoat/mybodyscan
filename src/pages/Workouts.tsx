@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,6 +29,9 @@ const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function Workouts() {
   const { t } = useI18n();
   const location = useLocation();
+  const nav = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const cameFromPlanStart = params.get("started") === "1";
   const [plan, setPlan] = useState<any>(null);
   const [completed, setCompleted] = useState<string[]>([]);
   const [ratio, setRatio] = useState(0);
@@ -426,12 +429,27 @@ export default function Workouts() {
               )}
               <div className="flex flex-col gap-2">
                 <Button
-                  onClick={handleGenerate}
+                  onClick={() => nav("/programs/customize")}
                   className="w-full"
                   disabled={!workoutsConfigured}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create my plan
+                  Customize my plan
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => nav("/programs")}
+                  className="w-full"
+                >
+                  Browse programs
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleGenerate}
+                  className="w-full"
+                  disabled={!workoutsConfigured}
+                >
+                  Quick start (auto)
                 </Button>
                 {loadError && workoutsConfigured && (
                   <Button
@@ -476,6 +494,28 @@ export default function Workouts() {
             <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
           </Alert>
         ) : null}
+        <Card className="border bg-card/60">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-lg">Your plan</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {plan?.title ? plan.title : "Active plan"} · {plan?.days?.length ?? 0} days/week
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={() => nav("/programs")} variant="outline" className="w-full">
+              Change plan / Programs
+            </Button>
+            <Button onClick={() => nav("/programs/customize?fromActive=1")} variant="outline" className="w-full">
+              Customize plan
+            </Button>
+            {cameFromPlanStart ? (
+              <p className="text-xs text-muted-foreground">
+                Your new program is active. If today looks wrong, pull down to refresh.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
         <div className="text-center space-y-2">
           <Dumbbell className="w-8 h-8 text-primary mx-auto" />
           <h1 className="text-2xl font-semibold text-foreground">

@@ -88,7 +88,9 @@ async function handleStart(req: Request, res: any) {
       createdAt: now,
       updatedAt: now,
       completedAt: null,
-      status: "pending",
+      status: "uploading",
+      lastStep: "uploading",
+      lastStepAt: now,
       photoPaths: storagePaths,
       input: {
         currentWeightKg,
