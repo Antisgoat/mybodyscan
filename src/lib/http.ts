@@ -24,6 +24,7 @@ export type ApiOptions = {
   retries?: number; // default 2 (total 3 attempts)
   retryBaseMs?: number; // default 400 (backoff)
   expectJson?: boolean; // default true
+  signal?: AbortSignal; // optional external abort (e.g. wall-clock deadline)
 };
 
 export class ApiError extends Error {
@@ -88,6 +89,7 @@ export async function apiFetch<T = any>(
     retries = 2,
     retryBaseMs = 400,
     expectJson = true,
+    signal,
   } = opts;
 
   const authHeaders = await getAuthHeaders();
@@ -100,7 +102,15 @@ export async function apiFetch<T = any>(
   while (attempt <= retries) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const abortFromExternal = () => ctrl.abort();
     try {
+      if (signal) {
+        if (signal.aborted) {
+          clearTimeout(t);
+          throw Object.assign(new Error("Request aborted."), { name: "AbortError" });
+        }
+        signal.addEventListener("abort", abortFromExternal, { once: true });
+      }
       const res = await fetch(url, {
         method,
         headers: merged,
@@ -108,6 +118,13 @@ export async function apiFetch<T = any>(
         signal: ctrl.signal,
       });
       clearTimeout(t);
+      if (signal) {
+        try {
+          signal.removeEventListener("abort", abortFromExternal);
+        } catch {
+          // ignore
+        }
+      }
 
       const contentType = res.headers.get("content-type") || "";
       let preview: string | null = null;
@@ -171,6 +188,13 @@ export async function apiFetch<T = any>(
       return (data ?? (undefined as any)) as T;
     } catch (e: any) {
       clearTimeout(t);
+      if (signal) {
+        try {
+          signal.removeEventListener("abort", abortFromExternal);
+        } catch {
+          // ignore
+        }
+      }
       const isAbort = e?.name === "AbortError";
       const netLike =
         isAbort ||

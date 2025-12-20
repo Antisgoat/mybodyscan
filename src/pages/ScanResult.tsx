@@ -6,7 +6,12 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { deserializeScanDocument, getScan, type ScanDocument } from "@/lib/api/scan";
+import {
+  deserializeScanDocument,
+  getScan,
+  retryScanProcessingClient,
+  type ScanDocument,
+} from "@/lib/api/scan";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { formatDateTime } from "@/lib/time";
 import { Seo } from "@/components/Seo";
@@ -25,6 +30,7 @@ import { getDownloadURL, ref } from "firebase/storage";
 import silhouetteFront from "@/assets/silhouette-front.png";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
+const HARD_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
 const PROCESSING_STEPS = [
   "Analyzing posture…",
   "Checking symmetry…",
@@ -48,6 +54,12 @@ export default function ScanResultPage() {
   const { profile, plan } = useUserProfile();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
   const [showLongProcessing, setShowLongProcessing] = useState(false);
+  const [hardProcessingTimeout, setHardProcessingTimeout] = useState(false);
+  const [autoRetry, setAutoRetry] = useState<{
+    attempted: boolean;
+    status: "idle" | "running" | "ok" | "fail";
+    message?: string;
+  }>({ attempted: false, status: "idle" });
   const lastMeaningfulUpdateRef = useRef<number>(Date.now());
 
   const needsRefresh = useMemo(() => {
@@ -137,6 +149,8 @@ export default function ScanResultPage() {
   useEffect(() => {
     if (!needsRefresh) {
       setShowLongProcessing(false);
+      setHardProcessingTimeout(false);
+      setAutoRetry({ attempted: false, status: "idle" });
       return;
     }
     const startAt = Date.now();
@@ -145,9 +159,42 @@ export default function ScanResultPage() {
       const last = lastMeaningfulUpdateRef.current || startAt;
       const elapsed = now - Math.max(startAt, last);
       setShowLongProcessing(elapsed >= LONG_PROCESSING_WARNING_MS);
+      setHardProcessingTimeout(elapsed >= HARD_PROCESSING_TIMEOUT_MS);
     }, 1000);
     return () => window.clearInterval(id);
   }, [needsRefresh]);
+
+  useEffect(() => {
+    if (!needsRefresh) return;
+    if (!showLongProcessing) return;
+    if (autoRetry.attempted) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    setAutoRetry({ attempted: true, status: "running" });
+    retryScanProcessingClient(scanId)
+      .then((result) => {
+        if (result.ok) {
+          setAutoRetry({
+            attempted: true,
+            status: "ok",
+            message: "Processing restarted. We’ll keep updating automatically.",
+          });
+          return;
+        }
+        setAutoRetry({
+          attempted: true,
+          status: "fail",
+          message: result.error.message,
+        });
+      })
+      .catch((err) => {
+        setAutoRetry({
+          attempted: true,
+          status: "fail",
+          message: typeof (err as any)?.message === "string" ? (err as any).message : "Retry failed.",
+        });
+      });
+  }, [autoRetry.attempted, needsRefresh, scanId, showLongProcessing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -290,16 +337,59 @@ export default function ScanResultPage() {
                   : PROCESSING_STEPS[processingStepIdx]}
               </p>
               <p className="text-xs text-muted-foreground">
-                We’ll refresh automatically. If your connection changed, you can refresh manually.
+                We’ll keep updating automatically. If your connection changed, we’ll recover when you’re back online.
               </p>
             </div>
-            {showLongProcessing ? (
+            {autoRetry.status !== "idle" ? (
               <div className="rounded-lg border bg-background/60 p-3">
-                <p className="text-sm font-medium">Taking longer than usual</p>
+                <p className="text-sm font-medium">
+                  {autoRetry.status === "running"
+                    ? "Restarting processing…"
+                    : autoRetry.status === "ok"
+                      ? "Processing restarted"
+                      : "Auto-retry failed"}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  If this doesn’t finish soon, try refreshing. If it keeps happening, contact support and include your scan id.
+                  {autoRetry.message ??
+                    (autoRetry.status === "running"
+                      ? "Hang tight — we’ll keep updating."
+                      : "")}
+                </p>
+              </div>
+            ) : null}
+
+            {hardProcessingTimeout ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+                <p className="text-sm font-medium">This scan is taking too long</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  We won’t keep you stuck here. You can retry processing without re-uploading.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setLoading(true);
+                      retryScanProcessingClient(scanId)
+                        .then((result) => {
+                          setLoading(false);
+                          if (result.ok) return;
+                          setError(result.error.message);
+                        })
+                        .catch((err) => {
+                          setLoading(false);
+                          setError(
+                            typeof (err as any)?.message === "string"
+                              ? (err as any).message
+                              : "Retry failed."
+                          );
+                        });
+                    }}
+                  >
+                    Retry processing
+                  </Button>
+                  <Button variant="outline" onClick={() => nav("/scan")}>
+                    Start new scan
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -307,15 +397,43 @@ export default function ScanResultPage() {
                   >
                     Refresh page
                   </Button>
+                </div>
+              </div>
+            ) : showLongProcessing ? (
+              <div className="rounded-lg border bg-background/60 p-3">
+                <p className="text-sm font-medium">Taking longer than usual</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  If needed, we can restart processing without re-uploading.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => nav("/scan")}
+                    onClick={() => {
+                      setLoading(true);
+                      retryScanProcessingClient(scanId)
+                        .then((result) => {
+                          setLoading(false);
+                          if (result.ok) return;
+                          setError(result.error.message);
+                        })
+                        .catch((err) => {
+                          setLoading(false);
+                          setError(
+                            typeof (err as any)?.message === "string"
+                              ? (err as any).message
+                              : "Retry failed."
+                          );
+                        });
+                    }}
                   >
+                    Retry processing
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => nav("/scan")}>
                     Back to Scan
                   </Button>
                   <Button
                     type="button"
+                    variant="outline"
                     onClick={() =>
                       window.open(
                         `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Scan%20Stuck&body=${encodeURIComponent(
@@ -333,6 +451,7 @@ export default function ScanResultPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
+                variant="outline"
                 onClick={() => {
                   setLoading(true);
                   void getScan(scanId).then((result) => {
@@ -346,7 +465,7 @@ export default function ScanResultPage() {
                   });
                 }}
               >
-                Refresh now
+                Refresh status
               </Button>
               <Button variant="outline" onClick={() => nav("/scan")}>
                 Back to Scan

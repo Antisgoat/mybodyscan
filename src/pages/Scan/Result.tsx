@@ -185,6 +185,36 @@ export default function ScanFlowResult() {
       return false;
     }
   }, [location.search]);
+
+  const [isOffline, setIsOffline] = useState(() => {
+    try {
+      return typeof navigator !== "undefined" && navigator.onLine === false;
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const onOffline = () => setIsOffline(true);
+    const onOnline = () => setIsOffline(false);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
+  const hasRetryCountdown = useMemo(() => {
+    return Object.values(photoState).some(
+      (s) => s.status === "retrying" && typeof s.nextRetryAt === "number"
+    );
+  }, [photoState]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasRetryCountdown) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [hasRetryCountdown]);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const uploadTasksRef = useRef<Partial<Record<Pose, UploadTask>>>({});
   const lastAutoRetryAtRef = useRef<number>(0);
@@ -227,7 +257,18 @@ export default function ScanFlowResult() {
 
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
   const [photoState, setPhotoState] = useState<
-    Record<Pose, { status: PerPhotoStatus; percent: number; attempt: number; message?: string }>
+    Record<
+      Pose,
+      {
+        status: PerPhotoStatus;
+        percent: number;
+        attempt: number;
+        message?: string;
+        nextRetryAt?: number;
+        nextRetryDelayMs?: number;
+        offline?: boolean;
+      }
+    >
   >({
     front: { status: "preparing", percent: 0, attempt: 0 },
     back: { status: "preparing", percent: 0, attempt: 0 },
@@ -455,6 +496,18 @@ export default function ScanFlowResult() {
                     ? info.percent
                     : existing?.percent ?? 0,
                 message: info.message ?? existing?.message,
+                nextRetryAt:
+                  typeof (info as any)?.nextRetryAt === "number"
+                    ? (info as any).nextRetryAt
+                    : existing?.nextRetryAt,
+                nextRetryDelayMs:
+                  typeof (info as any)?.nextRetryDelayMs === "number"
+                    ? (info as any).nextRetryDelayMs
+                    : existing?.nextRetryDelayMs,
+                offline:
+                  typeof (info as any)?.offline === "boolean"
+                    ? (info as any).offline
+                    : existing?.offline,
               };
               return next;
             });
@@ -607,6 +660,18 @@ export default function ScanFlowResult() {
                   ? info.percent
                   : existing?.percent ?? 0,
               message: info.message ?? existing?.message,
+                nextRetryAt:
+                  typeof (info as any)?.nextRetryAt === "number"
+                    ? (info as any).nextRetryAt
+                    : existing?.nextRetryAt,
+                nextRetryDelayMs:
+                  typeof (info as any)?.nextRetryDelayMs === "number"
+                    ? (info as any).nextRetryDelayMs
+                    : existing?.nextRetryDelayMs,
+                offline:
+                  typeof (info as any)?.offline === "boolean"
+                    ? (info as any).offline
+                    : existing?.offline,
             };
             return next;
           });
@@ -723,6 +788,18 @@ export default function ScanFlowResult() {
                     ? info.percent
                     : existing?.percent ?? 0,
                 message: info.message ?? existing?.message,
+                nextRetryAt:
+                  typeof (info as any)?.nextRetryAt === "number"
+                    ? (info as any).nextRetryAt
+                    : existing?.nextRetryAt,
+                nextRetryDelayMs:
+                  typeof (info as any)?.nextRetryDelayMs === "number"
+                    ? (info as any).nextRetryDelayMs
+                    : existing?.nextRetryDelayMs,
+                offline:
+                  typeof (info as any)?.offline === "boolean"
+                    ? (info as any).offline
+                    : existing?.offline,
               };
               return next;
             });
@@ -1147,6 +1224,11 @@ export default function ScanFlowResult() {
           {flowError ? (
             <p className="text-sm text-destructive">{flowError}</p>
           ) : null}
+          {isOffline && flowStatus === "uploading" ? (
+            <p className="text-xs text-amber-700" aria-live="polite">
+              Connection lost — we’ll retry automatically when you’re back online.
+            </p>
+          ) : null}
           {flowStatus === "uploading" ? (
             <div className="space-y-1">
               <div className="h-2 w-full rounded-full bg-secondary">
@@ -1217,6 +1299,10 @@ export default function ScanFlowResult() {
                   const s = photoState[pose];
                   const pct = Math.max(0, Math.min(100, Math.round((s?.percent ?? 0) * 100)));
                   const label = pose.charAt(0).toUpperCase() + pose.slice(1);
+                  const retryInMs =
+                    s.status === "retrying" && typeof s.nextRetryAt === "number"
+                      ? Math.max(0, s.nextRetryAt - nowMs)
+                      : null;
                   return (
                     <div key={pose} className="rounded-md border p-2">
                       <div className="flex items-center justify-between text-xs">
@@ -1225,6 +1311,9 @@ export default function ScanFlowResult() {
                           {s.status}
                           {s.attempt ? ` (attempt ${s.attempt})` : ""}
                           {s.status === "uploading" || s.status === "retrying" ? ` · ${pct}%` : ""}
+                          {retryInMs != null && retryInMs > 0 && !isOffline
+                            ? ` · retry in ${Math.ceil(retryInMs / 1000)}s`
+                            : ""}
                         </span>
                       </div>
                       <div className="mt-1 h-2 w-full rounded-full bg-secondary">
