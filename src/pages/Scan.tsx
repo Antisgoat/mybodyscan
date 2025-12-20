@@ -24,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { auth, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes, type UploadTask } from "firebase/storage";
 
 interface PhotoInputs {
   front: File | null;
@@ -97,6 +97,7 @@ export default function ScanPage() {
   const activeScanRef = useRef<string | null>(null);
   const sessionFinalizedRef = useRef<boolean>(false);
   const uploadAbortRef = useRef<AbortController | null>(null);
+  const uploadTasksRef = useRef<Partial<Record<Pose, UploadTask>>>({});
   const lastAutoRetryAtRef = useRef<number>(0);
   const autoRetryCountRef = useRef<number>(0);
   const [photoMeta, setPhotoMeta] = useState<
@@ -363,6 +364,9 @@ export default function ScanPage() {
           goalWeightKg,
         },
         {
+          onUploadTask: ({ pose, task }) => {
+            uploadTasksRef.current[pose as Pose] = task;
+          },
           onUploadProgress: (info: ScanUploadProgress) => {
             const filePercent = toVisiblePercent(info.percent);
             const overallPercent = toVisiblePercent(info.overallPercent);
@@ -579,6 +583,9 @@ export default function ScanPage() {
       },
       {
         posesToUpload: failedPoses,
+        onUploadTask: ({ pose, task }) => {
+          uploadTasksRef.current[pose as Pose] = task;
+        },
         onPhotoState: (info) => {
           setPhotoState((prev) => {
             const next = { ...prev };
@@ -774,6 +781,9 @@ export default function ScanPage() {
         },
         {
           posesToUpload: [pose],
+        onUploadTask: ({ pose, task }) => {
+          uploadTasksRef.current[pose as Pose] = task;
+        },
           onPhotoState: (info) => {
             setPhotoState((prev) => {
               const next = { ...prev };
@@ -1241,7 +1251,7 @@ export default function ScanPage() {
                         const bytes = new Uint8Array(1024);
                         bytes.fill(0x61); // 'a'
                         const blob = new Blob([bytes], { type: "text/plain" });
-                        const path = `user_uploads/${uid}/debug/test-${Date.now()}.txt`;
+                        const path = `user_uploads/${uid}/debug/test.txt`;
                         const r = ref(storage, path);
                         const result = await uploadBytes(r, blob, {
                           contentType: "text/plain",

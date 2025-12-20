@@ -282,7 +282,11 @@ async function uploadPhoto(
   options?: {
     signal?: AbortSignal;
     stallTimeoutMs?: number;
-    onStall?: (details: { reason: "no_progress" | "stalled"; bytesTransferred: number }) => void;
+    onStall?: (details: {
+      reason: "no_progress" | "stalled" | "paused";
+      bytesTransferred: number;
+      taskState: UploadTaskSnapshot["state"];
+    }) => void;
     onTask?: (task: UploadTask) => void;
   }
 ): Promise<void> {
@@ -315,6 +319,7 @@ async function uploadPhoto(
               options?.onStall?.({
                 reason,
                 bytesTransferred: lastBytes,
+                taskState: lastState,
               });
             } catch {
               // ignore
@@ -327,9 +332,16 @@ async function uploadPhoto(
             const err: any = new Error(
               reason === "no_progress"
                 ? "Upload started but no bytes were sent. Please retry."
-                : "Upload stalled. Please retry."
+                : reason === "paused"
+                  ? "Upload paused for too long. Please retry."
+                  : "Upload stalled. Please retry."
             );
-            err.code = reason === "no_progress" ? "upload_no_progress" : "upload_stalled";
+            err.code =
+              reason === "no_progress"
+                ? "upload_no_progress"
+                : reason === "paused"
+                  ? "upload_paused"
+                  : "upload_stalled";
             settled = true;
             clearInterval(stallTimer);
             reject(err);
@@ -463,17 +475,20 @@ type UploadTarget = {
 export function getUploadStallReason(params: {
   lastBytes: number;
   lastBytesAt: number;
-  lastState: "running" | "paused" | "success" | "canceled" | "error";
+  lastState?: "running" | "paused" | "success" | "canceled" | "error";
   now: number;
   stallTimeoutMs: number;
-}): "no_progress" | "stalled" | null {
+}): "no_progress" | "stalled" | "paused" | null {
   const stallTimeoutMs = Number(params.stallTimeoutMs);
   if (!Number.isFinite(stallTimeoutMs) || stallTimeoutMs <= 0) return null;
-  // Critical: iOS Safari frequently flips uploads to PAUSED during backgrounding /
-  // transient radio changes. Treat that as *not* a stall; we try to resume instead.
-  if (params.lastState !== "running") return null;
+  const lastState = params.lastState ?? "running";
   const elapsed = params.now - params.lastBytesAt;
   if (!Number.isFinite(elapsed) || elapsed < stallTimeoutMs) return null;
+  // iOS Safari frequently flips uploads to PAUSED during backgrounding / transient
+  // radio changes, and can leave them paused forever. If we see "paused" with no
+  // byte movement for long enough, treat it as a stuck upload and force a retry.
+  if (lastState === "paused") return "paused";
+  if (lastState !== "running") return null;
   return params.lastBytes > 0 ? "stalled" : "no_progress";
 }
 
@@ -543,7 +558,7 @@ function normalizeUploadError(err: unknown): ScanError | null {
       ? (anyErr.pose as keyof StartScanResponse["storagePaths"])
       : undefined;
   if (!code) return null;
-  if (code === "upload_stalled" || code === "upload_no_progress") {
+  if (code === "upload_stalled" || code === "upload_no_progress" || code === "upload_paused") {
     return {
       code,
       message: pose
@@ -562,6 +577,10 @@ function normalizeUploadError(err: unknown): ScanError | null {
     };
   }
   if (code.startsWith("storage/")) {
+    const rawMessage =
+      typeof anyErr?.message === "string" && anyErr.message.length
+        ? (anyErr.message as string)
+        : "";
     const message =
       code === "storage/unauthorized"
         ? "Upload blocked (unauthorized). Please sign in again and retry."
@@ -570,16 +589,46 @@ function normalizeUploadError(err: unknown): ScanError | null {
           : code === "storage/retry-limit-exceeded"
             ? "Upload failed after retries. Check your connection and try again."
             : "Upload failed. Please check your connection and retry.";
+    const combined = rawMessage ? `${code} · ${rawMessage}` : code;
     return {
       code,
       message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload failed. ${message}`
-        : message,
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload failed. ${message} (${combined})`
+        : `${message} (${combined})`,
       reason: "upload_failed",
       pose,
     };
   }
   return null;
+}
+
+function isProbablyMobileUploadDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "");
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  // iPadOS can present as "Macintosh" with touch points.
+  const maxTouchPoints =
+    typeof (navigator as any).maxTouchPoints === "number"
+      ? Number((navigator as any).maxTouchPoints)
+      : 0;
+  const isIPadLike = /Macintosh/i.test(ua) && maxTouchPoints > 1;
+  return isIOS || isAndroid || isIPadLike;
+}
+
+function isRetryableUploadFailure(code?: string): boolean {
+  const c = String(code || "");
+  if (!c) return true;
+  if (c === "upload_stalled" || c === "upload_no_progress" || c === "upload_paused") return true;
+  if (c === "storage/retry-limit-exceeded") return true;
+  if (c === "storage/unknown") return true;
+  if (c === "storage/timeout") return true;
+  if (c === "storage/server-file-wrong-size") return true;
+  if (c === "storage/cannot-slice-blob") return true;
+  if (c === "storage/unauthorized") return false;
+  if (c === "storage/canceled") return false;
+  if (c === "storage/invalid-argument") return false;
+  return true;
 }
 
 export async function submitScanClient(
@@ -610,6 +659,7 @@ export async function submitScanClient(
       fullPath?: string;
       pathMismatch?: { expected: string; actual: string };
     }) => void;
+    onUploadTask?: (info: { pose: keyof StartScanResponse["storagePaths"]; task: UploadTask }) => void;
     signal?: AbortSignal;
     stallTimeoutMs?: number;
     posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
@@ -767,12 +817,13 @@ export async function submitScanClient(
       typeof stallTimeoutMs === "number" && Number.isFinite(stallTimeoutMs)
         ? stallTimeoutMs
         : 20_000;
-    const retryDelaysMs = [1000, 2000, 4000];
+    const maxAttempts = isProbablyMobileUploadDevice() ? 5 : 3;
+    const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
 
     for (const [index, target] of uploadTargets.entries()) {
       let attempt = 0;
       let succeeded = false;
-      while (!succeeded && attempt < 3) {
+      while (!succeeded && attempt < maxAttempts) {
         attempt += 1;
         const isRetry = attempt > 1;
         options?.onPhotoState?.({
@@ -856,12 +907,20 @@ export async function submitScanClient(
             {
               signal: options?.signal,
               stallTimeoutMs: effectiveStallTimeoutMs,
-              onStall: ({ reason, bytesTransferred }) => {
+              onTask: (task) => {
+                try {
+                  options?.onUploadTask?.({ pose: target.pose, task });
+                } catch {
+                  // ignore
+                }
+              },
+              onStall: ({ reason, bytesTransferred, taskState }) => {
                 console.warn("scan.upload_stall", {
                   pose: target.pose,
                   attempt,
                   reason,
                   bytesTransferred,
+                  taskState,
                 });
                 options?.onPhotoState?.({
                   pose: target.pose,
@@ -872,6 +931,10 @@ export async function submitScanClient(
                       ? `Upload stalled (no progress for ${Math.round(
                           effectiveStallTimeoutMs / 1000
                         )}s while running). Restarting…`
+                      : reason === "paused"
+                        ? `Upload paused for ${Math.round(
+                            effectiveStallTimeoutMs / 1000
+                          )}s with no progress. Restarting…`
                       : `Upload stalled (no new bytes for ${Math.round(
                           effectiveStallTimeoutMs / 1000
                         )}s while running). Restarting…`,
@@ -886,6 +949,12 @@ export async function submitScanClient(
           succeeded = true;
         } catch (err) {
           const normalized = normalizeUploadError(err);
+          const rawCode =
+            typeof (err as any)?.code === "string" ? ((err as any).code as string) : undefined;
+          const rawMessage =
+            typeof (err as any)?.message === "string"
+              ? ((err as any).message as string)
+              : undefined;
           const serverResponse =
             typeof (err as any)?.serverResponse === "string"
               ? (err as any).serverResponse
@@ -893,29 +962,26 @@ export async function submitScanClient(
           console.warn("scan.upload_failed", {
             pose: target.pose,
             attempt,
-            code: (err as any)?.code,
-            message: (err as Error)?.message,
+            code: rawCode,
+            message: rawMessage,
             normalizedCode: normalized?.code,
             state: lastSnapshot?.state,
           });
-          if (attempt < 3) {
+          const effectiveCode = rawCode ?? normalized?.code;
+          const retryable = isRetryableUploadFailure(effectiveCode);
+          if (attempt < maxAttempts && retryable) {
             const backoff = retryDelaysMs[attempt - 1] ?? 2000;
             options?.onPhotoState?.({
               pose: target.pose,
               status: "retrying",
               attempt,
               message: "Retrying upload…",
-              lastFirebaseError: normalized
-                ? {
-                    code: normalized.code,
-                    message: normalized.message,
-                    serverResponse,
-                  }
-                : {
-                    code: (err as any)?.code,
-                    message: (err as any)?.message,
-                    serverResponse,
-                  },
+              // Important: preserve the raw Firebase error code/message for diagnostics.
+              lastFirebaseError: {
+                code: rawCode ?? normalized?.code,
+                message: rawMessage ?? normalized?.message,
+                serverResponse,
+              },
               taskState: lastSnapshot?.state,
               fullPath: target.path,
               bucket: String((storage as any)?.app?.options?.storageBucket || ""),
@@ -927,14 +993,16 @@ export async function submitScanClient(
             pose: target.pose,
             status: "failed",
             attempt,
-            message: normalized?.message ?? "Upload failed.",
-            lastFirebaseError: normalized
-              ? { code: normalized.code, message: normalized.message, serverResponse }
-              : {
-                  code: (err as any)?.code,
-                  message: (err as any)?.message,
-                  serverResponse,
-                },
+            message:
+              rawCode?.startsWith("storage/")
+                ? `${rawCode} · ${rawMessage ?? normalized?.message ?? "Upload failed."}`
+                : normalized?.message ?? rawMessage ?? "Upload failed.",
+            // Important: preserve the raw Firebase error code/message for diagnostics.
+            lastFirebaseError: {
+              code: rawCode ?? normalized?.code,
+              message: rawMessage ?? normalized?.message,
+              serverResponse,
+            },
             taskState: lastSnapshot?.state,
             fullPath: target.path,
             bucket: String((storage as any)?.app?.options?.storageBucket || ""),
