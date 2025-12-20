@@ -119,10 +119,31 @@ export function buildScanStatusMeta(
     };
   }
   if (canonical === "error" || stale) {
+    const staleLabel = (() => {
+      if (!stale) return "Failed";
+      if (canonical === "uploading") return "Upload stalled";
+      if (canonical === "uploaded") return "Upload complete, awaiting analysis";
+      if (canonical === "pending") return "Scan pending too long";
+      if (canonical === "processing") return "Processing timed out";
+      return "Failed";
+    })();
+    const staleHelper = (() => {
+      if (!stale) return "Start a new scan to try again.";
+      if (canonical === "uploading") {
+        return "Check your connection and retry the failed photo upload.";
+      }
+      if (canonical === "uploaded" || canonical === "pending") {
+        return "Open the scan to retry processing or start a new scan.";
+      }
+      if (canonical === "processing") {
+        return "Open the scan to retry processing or contact support.";
+      }
+      return "Start a new scan to try again.";
+    })();
     return {
       canonical: canonical === "error" ? "error" : "processing",
-      label: stale ? "Failed to complete" : "Failed",
-      helperText: "Start a new scan to try again.",
+      label: staleLabel,
+      helperText: staleHelper,
       badgeVariant: "destructive",
       stale,
       showMetrics: false,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, ChevronRight, Loader2, PauseCircle, Play, RefreshCcw, Settings2 } from "lucide-react";
@@ -6,6 +6,13 @@ import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { BottomNav } from "@/components/BottomNav";
 import { loadAllPrograms, matchScore, type CatalogEntry } from "@/lib/coach/catalog";
@@ -17,6 +24,78 @@ import { useClaims } from "@/lib/claims";
 import { useSubscription } from "@/hooks/useSubscription";
 import { startCatalogProgram } from "@/lib/programs/startProgram";
 import { toast } from "@/hooks/use-toast";
+import { canStartPrograms } from "@/lib/entitlements";
+
+type PlanPreferenceGoal = "strength" | "hypertrophy" | "fat_loss" | "athletic";
+type PlanPreferenceEquipment = "full_gym" | "dumbbells" | "bodyweight";
+type PlanPreferenceExperience = "beginner" | "intermediate" | "advanced";
+
+type PlanPreferences = {
+  daysPerWeek: 3 | 4 | 5 | 6;
+  goal: PlanPreferenceGoal;
+  equipment: PlanPreferenceEquipment;
+  experience: PlanPreferenceExperience;
+  timePerWorkout: 30 | 45 | 60 | 75;
+};
+
+const PREFERENCES_KEY = "mbs.programPrefs";
+
+function loadPlanPreferences(): PlanPreferences {
+  try {
+    const raw = window.localStorage.getItem(PREFERENCES_KEY);
+    if (!raw) throw new Error("missing");
+    const parsed = JSON.parse(raw) as Partial<PlanPreferences>;
+    if (!parsed || typeof parsed !== "object") throw new Error("invalid");
+    const days = [3, 4, 5, 6].includes(Number(parsed.daysPerWeek))
+      ? (Number(parsed.daysPerWeek) as PlanPreferences["daysPerWeek"])
+      : 4;
+    const goal =
+      parsed.goal === "strength" ||
+      parsed.goal === "hypertrophy" ||
+      parsed.goal === "fat_loss" ||
+      parsed.goal === "athletic"
+        ? parsed.goal
+        : "hypertrophy";
+    const equipment =
+      parsed.equipment === "full_gym" ||
+      parsed.equipment === "dumbbells" ||
+      parsed.equipment === "bodyweight"
+        ? parsed.equipment
+        : "full_gym";
+    const experience =
+      parsed.experience === "beginner" ||
+      parsed.experience === "intermediate" ||
+      parsed.experience === "advanced"
+        ? parsed.experience
+        : "beginner";
+    const time = [30, 45, 60, 75].includes(Number(parsed.timePerWorkout))
+      ? (Number(parsed.timePerWorkout) as PlanPreferences["timePerWorkout"])
+      : 45;
+    return {
+      daysPerWeek: days,
+      goal,
+      equipment,
+      experience,
+      timePerWorkout: time,
+    };
+  } catch {
+    return {
+      daysPerWeek: 4,
+      goal: "hypertrophy",
+      equipment: "full_gym",
+      experience: "beginner",
+      timePerWorkout: 45,
+    };
+  }
+}
+
+function savePlanPreferences(prefs: PlanPreferences) {
+  try {
+    window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+}
 
 const goalLabels: Record<ProgramGoal, string> = {
   hypertrophy: "Build muscle",
@@ -80,12 +159,22 @@ export default function ProgramsCatalog() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const demo = useDemoMode();
-  const { claims } = useClaims();
-  const { subscription } = useSubscription();
+  const { claims, loading: claimsLoading, refresh: refreshClaims } = useClaims();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
   const { profile } = useUserProfile();
 
   const [startingProgramId, setStartingProgramId] = useState<string | null>(null);
   const [endingPlan, setEndingPlan] = useState<"paused" | "ended" | null>(null);
+  const [planPrefs, setPlanPrefs] = useState<PlanPreferences>(() => loadPlanPreferences());
+
+  useEffect(() => {
+    savePlanPreferences(planPrefs);
+  }, [planPrefs]);
+
+  useEffect(() => {
+    if (demo) return;
+    void refreshClaims(false);
+  }, [demo, refreshClaims]);
 
   const planQuery = useQuery({
     queryKey: ["workouts", "plan"],
@@ -160,6 +249,43 @@ export default function ProgramsCatalog() {
     ]);
     return entries.filter((e) => !exclude.has(e.meta.id));
   }, [catalogQuery.data, popularPrograms, recommendedPrograms]);
+
+  const entitlementsReady = !(claimsLoading || subscriptionLoading);
+  const canStart = canStartPrograms({
+    demo,
+    claims: (claims as any) ?? null,
+    subscription: (subscription as any) ?? null,
+  });
+
+  const bestMatch = useMemo(() => {
+    const entries = catalogQuery.data ?? [];
+    if (!entries.length) return null;
+    const goalMap: Record<PlanPreferenceGoal, ProgramGoal> = {
+      strength: "strength",
+      hypertrophy: "hypertrophy",
+      fat_loss: "cut",
+      athletic: "general",
+    };
+    const equipmentMap: Record<PlanPreferenceEquipment, ProgramEquipment[]> = {
+      full_gym: ["machines", "barbell", "dumbbells"],
+      dumbbells: ["dumbbells"],
+      bodyweight: ["none"],
+    };
+    const prefs = {
+      goal: goalMap[planPrefs.goal],
+      level: planPrefs.experience,
+      days: planPrefs.daysPerWeek,
+      equipment: equipmentMap[planPrefs.equipment],
+      time: planPrefs.timePerWorkout,
+    };
+    const ranked = entries
+      .map((entry) => ({
+        entry,
+        score: matchScore(entry.meta, prefs),
+      }))
+      .sort((a, b) => b.score - a.score);
+    return ranked[0] ?? null;
+  }, [catalogQuery.data, planPrefs]);
 
   const retryAll = () => {
     void Promise.all([
@@ -239,6 +365,13 @@ export default function ProgramsCatalog() {
             <Button
               type="button"
               onClick={async () => {
+                if (!entitlementsReady) {
+                  toast({
+                    title: "Checking access…",
+                    description: "We’ll enable start once your account is synced.",
+                  });
+                  return;
+                }
                 setStartingProgramId(meta.id);
                 try {
                   await startCatalogProgram({
@@ -252,7 +385,7 @@ export default function ProgramsCatalog() {
                   setStartingProgramId(null);
                 }
               }}
-              disabled={startingProgramId === meta.id}
+              disabled={startingProgramId === meta.id || !entitlementsReady}
             >
               {startingProgramId === meta.id ? (
                 <span className="inline-flex items-center gap-2">
@@ -405,36 +538,204 @@ export default function ProgramsCatalog() {
             <div className="space-y-1">
               <h1 className="text-3xl font-semibold text-foreground">Choose your plan</h1>
               <p className="text-sm text-muted-foreground">
-                Pick a template or build a plan in minutes.
+                Set a few preferences and we’ll match you to the right program.
               </p>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button onClick={() => nav("/programs/customize")} className="gap-2">
-                Build my plan <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" onClick={() => nav("/programs/quiz")}>
-                Take the quick quiz
-              </Button>
             </div>
 
             <Card className="border bg-card/60">
               <CardHeader className="space-y-1">
-                <CardTitle className="text-xl">Recommended</CardTitle>
+                <CardTitle className="text-xl">Plan preferences</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Top picks based on what we know so far.
+                  Choose what matters most — you can edit this anytime.
                 </p>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-3">
-                {recommendedPrograms.length
-                  ? recommendedPrograms.map((e) => renderProgramCard(e, "recommended"))
-                  : (
-                      <div className="col-span-full text-sm text-muted-foreground">
-                        No recommendations yet — browse templates below.
-                      </div>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Days per week
+                    </p>
+                    <Select
+                      value={String(planPrefs.daysPerWeek)}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          daysPerWeek: Number(value) as PlanPreferences["daysPerWeek"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[3, 4, 5, 6].map((v) => (
+                          <SelectItem key={v} value={String(v)}>
+                            {v} days
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Goal
+                    </p>
+                    <Select
+                      value={planPrefs.goal}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          goal: value as PlanPreferenceGoal,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="strength">Strength</SelectItem>
+                        <SelectItem value="hypertrophy">Hypertrophy</SelectItem>
+                        <SelectItem value="fat_loss">Fat loss</SelectItem>
+                        <SelectItem value="athletic">Athletic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Equipment
+                    </p>
+                    <Select
+                      value={planPrefs.equipment}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          equipment: value as PlanPreferenceEquipment,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full_gym">Full gym</SelectItem>
+                        <SelectItem value="dumbbells">Dumbbells</SelectItem>
+                        <SelectItem value="bodyweight">Bodyweight</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Experience
+                    </p>
+                    <Select
+                      value={planPrefs.experience}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          experience: value as PlanPreferenceExperience,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="beginner">Beginner</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Time per workout
+                    </p>
+                    <Select
+                      value={String(planPrefs.timePerWorkout)}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          timePerWorkout: Number(value) as PlanPreferences["timePerWorkout"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[30, 45, 60, 75].map((v) => (
+                          <SelectItem key={v} value={String(v)}>
+                            {v} min
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    onClick={async () => {
+                      if (!bestMatch?.entry) return;
+                      if (!entitlementsReady) {
+                        toast({
+                          title: "Checking access…",
+                          description: "We’ll enable start once your account is synced.",
+                        });
+                        return;
+                      }
+                      setStartingProgramId(bestMatch.entry.meta.id);
+                      try {
+                        await startCatalogProgram({
+                          entry: bestMatch.entry,
+                          demo,
+                          claims: (claims as any) ?? null,
+                          subscription: (subscription as any) ?? null,
+                          navigate: nav,
+                        });
+                      } finally {
+                        setStartingProgramId(null);
+                      }
+                    }}
+                    disabled={
+                      !bestMatch?.entry ||
+                      startingProgramId === bestMatch?.entry.meta.id ||
+                      !entitlementsReady ||
+                      !canStart
+                    }
+                    className="gap-2"
+                  >
+                    {startingProgramId === bestMatch?.entry.meta.id ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Starting…
+                      </span>
+                    ) : (
+                      "Start program"
                     )}
+                  </Button>
+                  <Button variant="outline" onClick={() => nav("/programs/customize")} className="gap-2">
+                    Build my plan <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" onClick={() => nav("/programs/quiz")}>
+                    Take the quick quiz
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+
+            {bestMatch?.entry ? (
+              <Card className="border bg-card/60">
+                <CardHeader className="space-y-1">
+                  <CardTitle className="text-xl">Best match</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Match score: {bestMatch.score}%
+                  </p>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                  {renderProgramCard(bestMatch.entry, "recommended")}
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card className="border bg-card/60">
               <CardHeader className="space-y-1">

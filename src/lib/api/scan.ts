@@ -105,6 +105,11 @@ export type StartScanResponse = {
   debugId?: string;
 };
 
+export type SubmitScanResponse = {
+  scanId?: string;
+  debugId?: string;
+};
+
 function startUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_START_URL", "startScanSession");
 }
@@ -239,10 +244,13 @@ export function deserializeScanDocument(
   return toScanDocument(id, uid, data);
 }
 
-export async function startScanSessionClient(params: {
-  currentWeightKg: number;
-  goalWeightKg: number;
-}): Promise<ScanApiResult<StartScanResponse>> {
+export async function startScanSessionClient(
+  params: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+  },
+  options?: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<ScanApiResult<StartScanResponse>> {
   const user = auth.currentUser;
   if (!user)
     return {
@@ -252,6 +260,8 @@ export async function startScanSessionClient(params: {
   try {
     const data = await apiFetch<StartScanResponse>(startUrl(), {
       method: "POST",
+      timeoutMs: options?.timeoutMs ?? 20_000,
+      signal: options?.signal,
       body: {
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
@@ -488,7 +498,7 @@ export async function submitScanClient(
     perPhotoTimeoutMs?: number;
     overallTimeoutMs?: number;
   }
-): Promise<ScanApiResult<void>> {
+): Promise<ScanApiResult<SubmitScanResponse>> {
   const user = auth.currentUser;
   if (!user)
     return {
@@ -1013,7 +1023,7 @@ export async function submitScanClient(
     // longer than the default 15s API timeout on mobile networks (especially iOS Safari).
     // Use a longer timeout and avoid client retries that could duplicate work.
     const remainingForSubmit = Math.max(5_000, overallDeadlineAt - Date.now());
-    await apiFetch(submitUrl(), {
+    const submitResponse = await apiFetch<SubmitScanResponse>(submitUrl(), {
       method: "POST",
       timeoutMs: Math.min(180_000, remainingForSubmit),
       retries: 0,
@@ -1030,9 +1040,9 @@ export async function submitScanClient(
     } catch {
       // ignore
     }
-    return { ok: true, data: undefined };
+    return { ok: true, data: submitResponse ?? {} };
   } catch (err) {
-    console.error("scan:submit error", err);
+    console.error("scan:submit error", { scanId: params.scanId, error: err });
     try {
       // always cleanup deadline listeners
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -25,6 +25,14 @@ import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { auth, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getDownloadURL, ref, uploadBytes, type UploadTask } from "firebase/storage";
+import {
+  clearScanPipelineState,
+  describeScanPipelineStage,
+  readActiveScanPipelineState,
+  updateScanPipelineState,
+  type ScanPipelineStage,
+  type ScanPipelineState,
+} from "@/lib/scanPipeline";
 
 interface PhotoInputs {
   front: File | null;
@@ -108,6 +116,11 @@ export default function ScanPage() {
   const uploadTasksRef = useRef<Partial<Record<Pose, UploadTask>>>({});
   const lastAutoRetryAtRef = useRef<number>(0);
   const autoRetryCountRef = useRef<number>(0);
+  const pipelineStageRef = useRef<ScanPipelineStage | null>(null);
+  const requestIdRef = useRef<string | null>(null);
+  const [persistedScan, setPersistedScan] = useState<ScanPipelineState | null>(
+    () => readActiveScanPipelineState()
+  );
   const [photoMeta, setPhotoMeta] = useState<
     Record<
       Pose,
@@ -159,6 +172,24 @@ export default function ScanPage() {
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
+
+  const updatePipeline = useCallback(
+    (scanId: string, patch: Partial<ScanPipelineState>) => {
+      const next = updateScanPipelineState(scanId, patch);
+      if (next) {
+        pipelineStageRef.current = next.stage;
+        setPersistedScan(next);
+      }
+      return next;
+    },
+    []
+  );
+
+  const clearPipeline = useCallback((scanId: string) => {
+    clearScanPipelineState(scanId);
+    pipelineStageRef.current = null;
+    setPersistedScan(readActiveScanPipelineState());
+  }, []);
 
   const [isOffline, setIsOffline] = useState(() => {
     try {
@@ -260,6 +291,30 @@ export default function ScanPage() {
     setStatus("error");
     setFailureReason(reason ?? null);
     setStatusDetail(null);
+    if (scanSession?.scanId || activeScanRef.current) {
+      const scanId = scanSession?.scanId ?? activeScanRef.current;
+      if (scanId) {
+        updatePipeline(scanId, {
+          stage: "failed",
+          lastError: {
+            message,
+            code: lastUploadError?.code,
+            reason,
+            pose: lastUploadError?.pose,
+            stage: pipelineStageRef.current ?? undefined,
+            requestId: requestIdRef.current ?? undefined,
+            occurredAt: Date.now(),
+          },
+        });
+      }
+    }
+    console.warn("scan.flow_failed", {
+      scanId: scanSession?.scanId ?? activeScanRef.current ?? undefined,
+      requestId: requestIdRef.current ?? undefined,
+      reason,
+      message,
+      stage: pipelineStageRef.current ?? undefined,
+    });
     toast({
       title: "Scan paused",
       description: message,
@@ -315,10 +370,19 @@ export default function ScanPage() {
       setStatus("starting");
       setFailureReason(null);
       setStatusDetail("Verifying credits and reserving secure compute…");
-      const start = await startScanSessionClient({
-        currentWeightKg,
-        goalWeightKg,
-      });
+      const startAbort = new AbortController();
+      const startTimeoutId = window.setTimeout(() => startAbort.abort(), 20_000);
+      const start = await startScanSessionClient(
+        {
+          currentWeightKg,
+          goalWeightKg,
+        },
+        {
+          signal: startAbort.signal,
+          timeoutMs: 20_000,
+        }
+      );
+      window.clearTimeout(startTimeoutId);
       if (!start.ok) {
         const debugSuffix = start.error.debugId
           ? ` (ref ${start.error.debugId.slice(0, 8)})`
@@ -328,6 +392,7 @@ export default function ScanPage() {
       }
 
       const startedScanId = start.data.scanId;
+      requestIdRef.current = start.data.debugId ?? null;
       sessionFinalizedRef.current = false;
       sessionScanId = startedScanId;
       setActiveScanId(startedScanId);
@@ -336,6 +401,12 @@ export default function ScanPage() {
         storagePaths: start.data.storagePaths,
         currentWeightKg,
         goalWeightKg,
+      });
+      updatePipeline(startedScanId, {
+        stage: "init",
+        requestId: start.data.debugId ?? undefined,
+        storagePaths: start.data.storagePaths,
+        lastError: null,
       });
       setStatus("preparing");
       setStatusDetail("Preparing photos…");
@@ -410,6 +481,11 @@ export default function ScanPage() {
             const overallPercent = toVisiblePercent(info.overallPercent);
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
+            if (startedScanId && pipelineStageRef.current !== `upload_${info.pose}`) {
+              updatePipeline(startedScanId, {
+                stage: `upload_${info.pose}` as ScanPipelineStage,
+              });
+            }
             if (info.hasBytesTransferred) {
               setUploadHasBytes(true);
             }
@@ -423,6 +499,9 @@ export default function ScanPage() {
             if (info.percent >= 0.999 && info.overallPercent >= 0.999) {
               setStatus("submitting");
               setStatusDetail("Uploads complete. Starting analysis…");
+              if (startedScanId) {
+                updatePipeline(startedScanId, { stage: "submit_scan" });
+              }
               return;
             }
             setStatusDetail(
@@ -495,10 +574,27 @@ export default function ScanPage() {
             if (info.status === "preparing") {
               setStatus("preparing");
               setStatusDetail("Preparing photos…");
+              if (startedScanId) {
+                updatePipeline(startedScanId, { stage: "preprocess" });
+              }
+            }
+            if (info.status === "failed" && startedScanId) {
+              updatePipeline(startedScanId, {
+                stage: "failed",
+                lastError: {
+                  message: info.message ?? "Upload failed.",
+                  pose: info.pose,
+                  stage: `upload_${info.pose}` as ScanPipelineStage,
+                  requestId: requestIdRef.current ?? undefined,
+                  occurredAt: Date.now(),
+                },
+              });
             }
           },
           signal: abortController.signal,
           stallTimeoutMs: 20_000,
+          perPhotoTimeoutMs: 90_000,
+          overallTimeoutMs: 5 * 60_000,
         }
       );
       sessionFinalizedRef.current = true;
@@ -520,6 +616,11 @@ export default function ScanPage() {
         return;
       }
 
+      updatePipeline(startedScanId, {
+        stage: "processing_wait",
+        lastError: null,
+        requestId: submit.data?.debugId ?? requestIdRef.current ?? undefined,
+      });
       setUploadProgress(null);
       setUploadPose(null);
       setUploadHasBytes(false);
@@ -547,6 +648,17 @@ export default function ScanPage() {
       if (sessionScanId) {
         // Keep the scan doc so the user can retry failed photo(s). They can still cancel explicitly.
         setActiveScanId(sessionScanId);
+        updatePipeline(sessionScanId, {
+          stage: "failed",
+          lastError: {
+            message,
+            code: (err as any)?.code,
+            pose: (err as any)?.pose,
+            stage: pipelineStageRef.current ?? undefined,
+            requestId: requestIdRef.current ?? undefined,
+            occurredAt: Date.now(),
+          },
+        });
       }
     }
   }
@@ -605,8 +717,9 @@ export default function ScanPage() {
     setActiveScanId(null);
     if (scanId) {
       await cleanupPendingScan(scanId);
+      clearPipeline(scanId);
     }
-  }, [cleanupPendingScan, scanSession?.scanId]);
+  }, [cleanupPendingScan, clearPipeline, scanSession?.scanId]);
 
   const retryFailed = useCallback(async () => {
     if (!scanSession) return;
@@ -615,6 +728,7 @@ export default function ScanPage() {
     setLastUploadError(null);
     setStatus("uploading");
     setStatusDetail("Retrying failed photo uploads…");
+    updatePipeline(scanSession.scanId, { stage: "preprocess", lastError: null });
     uploadAbortRef.current?.abort();
     const abortController = new AbortController();
     uploadAbortRef.current = abortController;
@@ -702,9 +816,14 @@ export default function ScanPage() {
           setUploadProgress(info.overallPercent);
           setUploadPose(info.pose);
           if (info.hasBytesTransferred) setUploadHasBytes(true);
+          updatePipeline(scanSession.scanId, {
+            stage: `upload_${info.pose}` as ScanPipelineStage,
+          });
         },
         signal: abortController.signal,
         stallTimeoutMs: 20_000,
+        perPhotoTimeoutMs: 90_000,
+        overallTimeoutMs: 5 * 60_000,
       }
     );
     uploadAbortRef.current = null;
@@ -724,6 +843,7 @@ export default function ScanPage() {
     setStatusDetail(
       "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
     );
+    updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
     nav(`/scans/${scanSession.scanId}`);
   }, [
     canRetryFailed,
@@ -735,6 +855,7 @@ export default function ScanPage() {
     photos,
     scanSession,
     units,
+    updatePipeline,
   ]);
 
   const retrySubmitOnly = useCallback(async () => {
@@ -745,6 +866,7 @@ export default function ScanPage() {
     setLastUploadError(null);
     setStatus("submitting");
     setStatusDetail("Retrying analysis…");
+    updatePipeline(scanSession.scanId, { stage: "submit_scan", lastError: null });
     uploadAbortRef.current?.abort();
     const abortController = new AbortController();
     uploadAbortRef.current = abortController;
@@ -765,6 +887,7 @@ export default function ScanPage() {
         posesToUpload: [],
         signal: abortController.signal,
         stallTimeoutMs: 20_000,
+        overallTimeoutMs: 3 * 60_000,
       }
     );
     uploadAbortRef.current = null;
@@ -784,8 +907,9 @@ export default function ScanPage() {
     setStatusDetail(
       "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
     );
+    updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
     nav(`/scans/${scanSession.scanId}`);
-  }, [canRetrySubmit, failFlow, nav, photos, scanSession]);
+  }, [canRetrySubmit, failFlow, nav, photos, scanSession, updatePipeline]);
 
   useEffect(() => {
     const maybeAutoRetry = () => {
@@ -825,6 +949,7 @@ export default function ScanPage() {
       setLastUploadError(null);
       setStatus("uploading");
       setStatusDetail(`Retrying ${pose} upload…`);
+      updatePipeline(scanSession.scanId, { stage: "preprocess", lastError: null });
       uploadAbortRef.current?.abort();
       const abortController = new AbortController();
       uploadAbortRef.current = abortController;
@@ -843,9 +968,9 @@ export default function ScanPage() {
         },
         {
           posesToUpload: [pose],
-        onUploadTask: ({ pose, task }) => {
-          uploadTasksRef.current[pose as Pose] = task;
-        },
+          onUploadTask: ({ pose, task }) => {
+            uploadTasksRef.current[pose as Pose] = task;
+          },
           onPhotoState: (info) => {
             setPhotoState((prev) => {
               const next = { ...prev };
@@ -914,9 +1039,14 @@ export default function ScanPage() {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
             if (info.hasBytesTransferred) setUploadHasBytes(true);
+            updatePipeline(scanSession.scanId, {
+              stage: `upload_${info.pose}` as ScanPipelineStage,
+            });
           },
           signal: abortController.signal,
           stallTimeoutMs: 20_000,
+          perPhotoTimeoutMs: 90_000,
+          overallTimeoutMs: 5 * 60_000,
         }
       );
       uploadAbortRef.current = null;
@@ -936,9 +1066,10 @@ export default function ScanPage() {
       setStatusDetail(
         "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
       );
+      updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
       nav(`/scans/${scanSession.scanId}`);
     },
-    [failFlow, nav, photos, scanSession]
+    [failFlow, nav, photos, scanSession, updatePipeline]
   );
 
   function onFileChange(pose: keyof PhotoInputs, fileList: FileList | null) {
@@ -988,6 +1119,41 @@ export default function ScanPage() {
         Upload four photos and your current/goal weight. We&apos;ll analyze your
         body composition and build a personalized workout and nutrition plan.
       </p>
+
+      {persistedScan &&
+      persistedScan.scanId &&
+      (!scanSession || scanSession.scanId !== persistedScan.scanId) ? (
+        <Alert>
+          <AlertTitle>Resume your scan</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <div>
+              Scan {persistedScan.scanId.slice(0, 8)}… ·{" "}
+              {describeScanPipelineStage(persistedScan.stage)}
+            </div>
+            {persistedScan.lastError?.message ? (
+              <div className="text-xs text-muted-foreground">
+                Last error: {persistedScan.lastError.message}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                className="rounded border px-3 py-2 text-xs"
+                onClick={() => nav(`/scans/${persistedScan.scanId}`)}
+              >
+                Resume scan
+              </button>
+              <button
+                type="button"
+                className="rounded border px-3 py-2 text-xs"
+                onClick={() => clearPipeline(persistedScan.scanId)}
+              >
+                Clear in-flight scan
+              </button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {!scanConfigured && (
         <Alert variant="destructive">
@@ -1230,6 +1396,16 @@ export default function ScanPage() {
             </summary>
             <div className="mt-2 space-y-2">
               <div>
+                <span className="font-medium">pipeline:</span>{" "}
+                <span className="text-muted-foreground">
+                  {persistedScan?.stage
+                    ? `${persistedScan.stage} · updated ${new Date(
+                        persistedScan.updatedAt
+                      ).toLocaleTimeString()}`
+                    : "—"}
+                </span>
+              </div>
+              <div>
                 <span className="font-medium">firebase:</span>
                 <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                   {(() => {
@@ -1338,6 +1514,12 @@ export default function ScanPage() {
                 </span>
               </div>
               <div>
+                <span className="font-medium">requestId:</span>{" "}
+                <span className="text-muted-foreground">
+                  {requestIdRef.current ?? persistedScan?.requestId ?? "—"}
+                </span>
+              </div>
+              <div>
                 <span className="font-medium">storage paths:</span>
                 <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                   {scanSession?.storagePaths
@@ -1355,6 +1537,11 @@ export default function ScanPage() {
                     : "—"}
                 </span>
               </div>
+              {persistedScan?.lastError ? (
+                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {JSON.stringify(persistedScan.lastError, null, 2)}
+                </pre>
+              ) : null}
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <button

@@ -4,8 +4,8 @@
  * - Uses `scanStatusLabel` to translate Firestore `status`, `completedAt`, and `errorMessage` into UI copy.
  * - Once the cloud function writes `estimate` and `nutritionPlan`, renders a polished Evolt-style report.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   deserializeScanDocument,
   getScan,
@@ -28,6 +28,13 @@ import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "fir
 import { db, storage } from "@/lib/firebase";
 import { getDownloadURL, ref } from "firebase/storage";
 import silhouetteFront from "@/assets/silhouette-front.png";
+import {
+  describeScanPipelineStage,
+  readScanPipelineState,
+  updateScanPipelineState,
+  type ScanPipelineState,
+} from "@/lib/scanPipeline";
+import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
@@ -42,6 +49,8 @@ const PROCESSING_STEPS = [
 export default function ScanResultPage() {
   const { scanId = "" } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
+  const appCheckStatus = useAppCheckStatus();
   const [scan, setScan] = useState<ScanDocument | null>(null);
   const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
   const [photoUrls, setPhotoUrls] = useState<
@@ -49,6 +58,14 @@ export default function ScanResultPage() {
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [docStatus, setDocStatus] = useState<{
+    exists: boolean | null;
+    fields: string[];
+  }>({ exists: null, fields: [] });
+  const [pipelineState, setPipelineState] = useState<ScanPipelineState | null>(
+    () => readScanPipelineState(scanId)
+  );
   const { units } = useUnits();
   const { user } = useAuthUser();
   const { profile, plan } = useUserProfile();
@@ -61,6 +78,33 @@ export default function ScanResultPage() {
     message?: string;
   }>({ attempted: false, status: "idle" });
   const lastMeaningfulUpdateRef = useRef<number>(Date.now());
+  const scanRef = useRef<ScanDocument | null>(null);
+  const showDebug = useMemo(() => {
+    if (import.meta.env.DEV) return true;
+    try {
+      return new URLSearchParams(location.search).get("debug") === "1";
+    } catch {
+      return false;
+    }
+  }, [location.search]);
+
+  const updatePipeline = useCallback(
+    (patch: Partial<ScanPipelineState>) => {
+      if (!scanId) return null;
+      const next = updateScanPipelineState(scanId, patch);
+      if (next) setPipelineState(next);
+      return next;
+    },
+    [scanId]
+  );
+
+  useEffect(() => {
+    scanRef.current = scan;
+  }, [scan]);
+
+  useEffect(() => {
+    setPipelineState(readScanPipelineState(scanId));
+  }, [scanId]);
 
   const needsRefresh = useMemo(() => {
     if (!scan) return false;
@@ -92,6 +136,7 @@ export default function ScanResultPage() {
         setScan(result.data);
         setError(null);
         setLoading(false);
+        setSnapshotError(null);
         lastMeaningfulUpdateRef.current = Date.now();
       } catch (err) {
         if (cancelled) return;
@@ -111,11 +156,16 @@ export default function ScanResultPage() {
       doc(db, "users", uid, "scans", scanId),
       (snap) => {
         if (cancelled) return;
+        setDocStatus({
+          exists: snap.exists(),
+          fields: snap.exists() ? Object.keys(snap.data() as Record<string, unknown>) : [],
+        });
         if (!snap.exists()) return;
         const next = deserializeScanDocument(snap.id, uid, snap.data() as any);
         setScan(next);
         setError(null);
         setLoading(false);
+        setSnapshotError(null);
         // Track “freshness” for long-processing UI; use updatedAt when available.
         const updatedAtMs =
           next.updatedAt instanceof Date ? next.updatedAt.getTime() : Date.now();
@@ -130,6 +180,12 @@ export default function ScanResultPage() {
       },
       (errSnap) => {
         console.warn("scanResult.snapshot_failed", errSnap);
+        setSnapshotError(
+          errSnap?.message || "Live scan updates failed. Pull to refresh."
+        );
+        if (!scanRef.current) {
+          setError("Unable to monitor scan status. Refresh to try again.");
+        }
       }
     );
     return () => {
@@ -163,6 +219,54 @@ export default function ScanResultPage() {
     }, 1000);
     return () => window.clearInterval(id);
   }, [needsRefresh]);
+
+  useEffect(() => {
+    if (!scan) return;
+    const updatedAtMs =
+      scan.updatedAt instanceof Date ? scan.updatedAt.getTime() : Date.now();
+    const basePatch: Partial<ScanPipelineState> = {
+      lastServerStatus: scan.status,
+      lastServerUpdatedAt: updatedAtMs,
+    };
+    if (scan.status === "complete" || scan.status === "completed") {
+      updatePipeline({
+        ...basePatch,
+        stage: "result_ready",
+        lastError: null,
+      });
+    } else if (scan.status === "error" || scan.status === "failed") {
+      updatePipeline({
+        ...basePatch,
+        stage: "failed",
+        lastError: scan.errorMessage
+          ? {
+              message: scan.errorMessage,
+              reason: scan.errorReason ?? undefined,
+              stage: "processing_wait",
+              occurredAt: Date.now(),
+            }
+          : undefined,
+      });
+    } else {
+      updatePipeline({
+        ...basePatch,
+        stage: "processing_wait",
+      });
+    }
+  }, [scan, updatePipeline]);
+
+  useEffect(() => {
+    if (!hardProcessingTimeout || !scan) return;
+    updatePipeline({
+      stage: "failed",
+      lastError: {
+        message: "Processing timed out. Retry processing to continue.",
+        reason: "processing_timeout",
+        stage: "processing_wait",
+        occurredAt: Date.now(),
+      },
+    });
+  }, [hardProcessingTimeout, scan, updatePipeline]);
 
   useEffect(() => {
     if (!needsRefresh) return;
@@ -296,6 +400,12 @@ export default function ScanResultPage() {
   );
 
   if (statusMeta.canonical === "error" || statusMeta.recommendRescan) {
+    const canResume =
+      scan.status === "uploaded" ||
+      scan.status === "pending" ||
+      scan.status === "processing" ||
+      scan.status === "error" ||
+      scan.status === "failed";
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
         <p className="text-sm text-red-700">{statusMeta.label}</p>
@@ -304,9 +414,38 @@ export default function ScanResultPage() {
             statusMeta.helperText ||
             "We couldn't complete this scan."}
         </p>
+        {pipelineState?.lastError?.message ? (
+          <p className="text-xs text-muted-foreground">
+            Last error: {pipelineState.lastError.message}
+          </p>
+        ) : null}
         <ScanPhotos photoUrls={photoUrls} />
         <div className="flex gap-2">
           <Button onClick={() => nav("/scan")}>Try again</Button>
+          {canResume ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLoading(true);
+                retryScanProcessingClient(scanId)
+                  .then((result) => {
+                    setLoading(false);
+                    if (result.ok) return;
+                    setError(result.error.message);
+                  })
+                  .catch((err) => {
+                    setLoading(false);
+                    setError(
+                      typeof (err as any)?.message === "string"
+                        ? (err as any).message
+                        : "Retry failed."
+                    );
+                  });
+              }}
+            >
+              Resume processing
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={() => nav("/scan/history")}>
             History
           </Button>
@@ -473,6 +612,82 @@ export default function ScanResultPage() {
             </div>
           </CardContent>
         </Card>
+        {showDebug ? (
+          <details className="rounded border p-3 text-xs">
+            <summary className="cursor-pointer select-none font-medium">
+              Debug details
+            </summary>
+            <div className="mt-2 space-y-2 text-muted-foreground">
+              <div>
+                <span className="font-medium text-foreground">scanId:</span>{" "}
+                {scanId}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">pipeline:</span>{" "}
+                {pipelineState?.stage
+                  ? `${pipelineState.stage} · ${describeScanPipelineStage(
+                      pipelineState.stage
+                    )}`
+                  : "—"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">pipeline timestamps:</span>{" "}
+                {pipelineState
+                  ? `created=${new Date(
+                      pipelineState.createdAt
+                    ).toLocaleTimeString()} · updated=${new Date(
+                      pipelineState.updatedAt
+                    ).toLocaleTimeString()}`
+                  : "—"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">auth:</span>{" "}
+                {user?.uid ?? "—"} {user?.email ? `(${user.email})` : ""}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">app check:</span>{" "}
+                {appCheckStatus.status} · tokenPresent=
+                {appCheckStatus.tokenPresent ? "true" : "false"}
+                {appCheckStatus.message ? ` · ${appCheckStatus.message}` : ""}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">firestore doc:</span>{" "}
+                {docStatus.exists == null
+                  ? "unknown"
+                  : docStatus.exists
+                    ? `exists (${docStatus.fields.length} fields)`
+                    : "missing"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">storage bucket:</span>{" "}
+                {String(storage.app?.options?.storageBucket || "—")}
+              </div>
+              {docStatus.fields.length ? (
+                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {JSON.stringify(docStatus.fields, null, 2)}
+                </pre>
+              ) : null}
+              {snapshotError ? (
+                <div>
+                  <span className="font-medium text-foreground">
+                    snapshot error:
+                  </span>{" "}
+                  {snapshotError}
+                </div>
+              ) : null}
+              {pipelineState?.lastError ? (
+                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {JSON.stringify(pipelineState.lastError, null, 2)}
+                </pre>
+              ) : null}
+              {scan?.photoPaths ? (
+                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {JSON.stringify(scan.photoPaths, null, 2)}
+                </pre>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </div>
     );
   }
