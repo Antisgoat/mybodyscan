@@ -65,6 +65,10 @@ export function classifyUploadRetryability(params: {
     return { retryable: true, reason: "stall" };
   }
 
+  if (code === "upload_timeout") {
+    return { retryable: true, reason: "transient_network" };
+  }
+
   if (code === "storage/retry-limit-exceeded") {
     return { retryable: true, reason: "firebase_retry_limit" };
   }
@@ -84,6 +88,9 @@ export function classifyUploadRetryability(params: {
   }
 
   if (code === "storage/unauthorized") return { retryable: false, reason: "unauthorized" };
+  if (code === "function/unauthenticated" || code === "function/permission-denied") {
+    return { retryable: false, reason: "unauthorized" };
+  }
   if (code === "storage/canceled" || code === "upload_cancelled") {
     return { retryable: false, reason: "canceled" };
   }
@@ -91,9 +98,12 @@ export function classifyUploadRetryability(params: {
     return { retryable: false, reason: "invalid" };
   }
 
+  if (code.startsWith("function/")) {
+    return { retryable: true, reason: "transient_network" };
+  }
+
   // Default: only retry if nothing was uploaded (keeps retries safe).
   return bytes <= 0
     ? { retryable: true, reason: "unknown_no_bytes" }
     : { retryable: false, reason: "non_retryable" };
 }
-

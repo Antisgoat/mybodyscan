@@ -35,6 +35,11 @@ Date: <fill when running>
 
 - Full scan pathway consumes exactly one credit on success
 - Failure displays friendly retry and does not double-consume
+- iPhone Safari upload reliability (Wi‑Fi + cellular)
+  - Upload succeeds across 10 consecutive scans
+  - Lock/unlock mid-upload recovers automatically
+  - Toggle airplane mode mid-upload shows actionable retry
+  - Storage stalls fallback to function upload (verify in ?debug=1)
 
 ## Regression
 

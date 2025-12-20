@@ -314,7 +314,12 @@ const Home = () => {
             {showLatestErrorBanner && (
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
                 <p className="text-sm font-semibold text-destructive">
-                  Last scan failed to complete
+                  Last scan failed
+                  {latestAttempt?.raw?.errorReason
+                    ? ` (${latestAttempt.raw.errorReason})`
+                    : latestAttempt?.raw?.lastStep
+                      ? ` (${latestAttempt.raw.lastStep})`
+                      : ""}
                 </p>
                 <p className="text-xs text-destructive/80">
                   {latestAttempt?.raw?.errorMessage ||
