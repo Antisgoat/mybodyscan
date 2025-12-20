@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,13 +32,28 @@ export default function Workouts() {
   const nav = useNavigate();
   const params = new URLSearchParams(location.search);
   const cameFromPlanStart = params.get("started") === "1";
-  const [plan, setPlan] = useState<any>(null);
+  type WorkoutExercise = {
+    id: string;
+    name?: string;
+    sets?: number | string;
+    reps?: string;
+  };
+  type WorkoutDay = {
+    day: string;
+    exercises: WorkoutExercise[];
+  };
+  type WorkoutPlan = {
+    id: string;
+    title?: string;
+    days: WorkoutDay[];
+  };
+  type BodyFeel = "great" | "ok" | "tired" | "sore" | "";
+
+  const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [completed, setCompleted] = useState<string[]>([]);
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
-  const [bodyFeel, setBodyFeel] = useState<
-    "great" | "ok" | "tired" | "sore" | ""
-  >("");
+  const [bodyFeel, setBodyFeel] = useState<BodyFeel>("");
   const [notes, setNotes] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -56,6 +71,40 @@ export default function Workouts() {
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
+
+  const loadProgress = useCallback(
+    async (p: WorkoutPlan, isCancelled?: () => boolean) => {
+      if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
+      const idx = p.days.findIndex((d) => d.day === todayName);
+      if (idx < 0) return;
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      try {
+        const snap = await getDoc(
+          doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`)
+        );
+        if (isCancelled?.()) return;
+        const done = snap.exists()
+          ? ((snap.data()?.completed as string[]) ?? [])
+          : [];
+        if (!isCancelled?.()) {
+          setCompleted(done);
+          setRatio(
+            p.days[idx].exercises.length
+              ? done.length / p.days[idx].exercises.length
+              : 0
+          );
+        }
+      } catch (error) {
+        console.warn("workouts.progress", error);
+        if (!isCancelled?.()) {
+          setCompleted([]);
+          setRatio(0);
+        }
+      }
+    },
+    [todayISO, todayName, workoutsConfigured]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +181,7 @@ export default function Workouts() {
           setPlan(currentPlan);
           setLoadError(null);
         }
-        await loadProgress(currentPlan, () => cancelled);
+        await loadProgress(currentPlan as WorkoutPlan, () => cancelled);
         try {
           const wk = await getWeeklyCompletion(currentPlan.id);
           if (!cancelled) {
@@ -164,42 +213,11 @@ export default function Workouts() {
     void hydrate();
 
     return cleanup;
-  }, [workoutsConfigured, location.search]);
-
-  async function loadProgress(p: any, isCancelled?: () => boolean) {
-    if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
-    const idx = p.days.findIndex((d: any) => d.day === todayName);
-    if (idx < 0) return;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    try {
-      const snap = await getDoc(
-        doc(db, `users/${uid}/workoutPlans/${p.id}/progress/${todayISO}`)
-      );
-      if (isCancelled?.()) return;
-      const done = snap.exists()
-        ? ((snap.data()?.completed as string[]) ?? [])
-        : [];
-      if (!isCancelled?.()) {
-        setCompleted(done);
-        setRatio(
-          p.days[idx].exercises.length
-            ? done.length / p.days[idx].exercises.length
-            : 0
-        );
-      }
-    } catch (error) {
-      console.warn("workouts.progress", error);
-      if (!isCancelled?.()) {
-        setCompleted([]);
-        setRatio(0);
-      }
-    }
-  }
+  }, [loadProgress, workoutsConfigured, location.search]);
 
   const handleToggle = async (exerciseId: string) => {
     if (!plan || !Array.isArray(plan.days)) return;
-    const idx = plan.days.findIndex((d: any) => d.day === todayName);
+    const idx = plan.days.findIndex((d) => d.day === todayName);
     if (idx < 0) {
       toast({
         title: "Workout day unavailable",
@@ -220,8 +238,9 @@ export default function Workouts() {
       setRatio(res.ratio);
       if (done) track("workout_mark_done", { exerciseId });
       if (isDemoActive()) toast({ title: "Sign up to save your progress." });
-    } catch (error: any) {
-      if (error?.message === "demo-blocked") {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "demo-blocked") {
         toast({
           title: "Create an account",
           description: "Demo mode cannot save workouts.",
@@ -255,8 +274,9 @@ export default function Workouts() {
       setRatio(0);
       setWeekRatio(0);
       setLoadError(null);
-    } catch (error: any) {
-      if (error?.message === "demo-blocked") {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "demo-blocked") {
         toast({
           title: "Create an account",
           description: "Demo mode cannot generate plans.",
@@ -265,8 +285,8 @@ export default function Workouts() {
         return;
       }
       if (
-        typeof error?.message === "string" &&
-        error.message.includes("workouts_disabled")
+        typeof message === "string" &&
+        message.includes("workouts_disabled")
       ) {
         const description =
           workoutsOfflineMessage ??
@@ -343,31 +363,41 @@ export default function Workouts() {
         body: JSON.stringify({ dayId: todayName, bodyFeel, notes }),
       });
       const payloadText = await res.text();
-      let data: any = {};
+      let data: Record<string, unknown> = {};
       if (payloadText) {
         try {
-          data = JSON.parse(payloadText);
+          const parsed = JSON.parse(payloadText);
+          if (parsed && typeof parsed === "object") {
+            data = parsed as Record<string, unknown>;
+          }
         } catch {
           data = {};
         }
       }
       if (!res.ok) {
         const message =
-          data?.error || data?.message || `adjust_failed_${res.status}`;
+          (data as { error?: string; message?: string })?.error ||
+          (data as { error?: string; message?: string })?.message ||
+          `adjust_failed_${res.status}`;
         throw new Error(message);
       }
-      const intensityDelta = Number(data?.mods?.intensity ?? 0);
-      const volumeDelta = Number(data?.mods?.volume ?? 0);
+      const mods =
+        typeof (data as { mods?: unknown }).mods === "object" &&
+        (data as { mods?: unknown }).mods !== null
+          ? ((data as { mods?: Record<string, unknown> }).mods ?? {})
+          : {};
+      const intensityDelta = Number((mods as { intensity?: unknown }).intensity ?? 0);
+      const volumeDelta = Number((mods as { volume?: unknown }).volume ?? 0);
       if (today) {
         const deltaSets = Number.isFinite(volumeDelta) ? volumeDelta : 0;
         const next = { ...plan };
-        const idx = next.days.findIndex((d: any) => d.day === todayName);
+        const idx = next.days.findIndex((d) => d.day === todayName);
         if (idx >= 0) {
-          next.days = next.days.map((d: any, i: number) =>
+          next.days = next.days.map((d, i) =>
             i === idx
               ? {
                   ...d,
-                  exercises: d.exercises.map((ex: any) => ({
+                  exercises: d.exercises.map((ex) => ({
                     ...ex,
                     sets: Math.max(1, (Number(ex.sets) || 0) + deltaSets),
                   })),
@@ -377,9 +407,10 @@ export default function Workouts() {
           setPlan(next);
         }
       }
+      const summaryValue = (data as { summary?: unknown }).summary;
       const summary =
-        typeof data?.summary === "string" && data.summary.trim().length
-          ? data.summary.trim()
+        typeof summaryValue === "string" && summaryValue.trim().length
+          ? summaryValue.trim()
           : null;
       toast({
         title: "Plan adjusted",
@@ -389,10 +420,10 @@ export default function Workouts() {
       });
       setBodyFeel("");
       setNotes("");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Unable to adjust",
-        description: error?.message || "Try again",
+        description: error instanceof Error ? error.message : "Try again",
         variant: "destructive",
       });
     } finally {
@@ -469,7 +500,10 @@ export default function Workouts() {
     );
   }
 
-  const today = plan.days.find((d: any) => d.day === todayName);
+  const today = useMemo(
+    () => plan?.days.find((d) => d.day === todayName),
+    [plan, todayName]
+  );
   const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
   const completedCount = completed.length;
   const totalCount = todayExercises.length;
@@ -536,7 +570,7 @@ export default function Workouts() {
         </div>
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
-            {todayExercises.map((ex: any) => (
+            {todayExercises.map((ex) => (
               <Card key={ex.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -578,7 +612,7 @@ export default function Workouts() {
                       type="button"
                       variant={bodyFeel === v ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setBodyFeel(v as any)}
+                      onClick={() => setBodyFeel(v as BodyFeel)}
                       disabled={adjustDisabled}
                     >
                       {v === "great"
