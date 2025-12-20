@@ -25,5 +25,10 @@ describe("buildScanPhotoPath", () => {
       buildScanPhotoPath({ uid: "u", scanId: "s", view: "side" as any })
     ).toThrow(/Invalid scan pose/i);
   });
-});
 
+  it("throws on missing scanId", () => {
+    expect(() =>
+      buildScanPhotoPath({ uid: "u", scanId: "  ", view: "front" })
+    ).toThrow(/Missing scanId/i);
+  });
+});

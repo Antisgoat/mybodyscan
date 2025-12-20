@@ -6,15 +6,19 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import type { ScanDocument } from "@/lib/api/scan";
+import { retryScanProcessingClient, type ScanDocument } from "@/lib/api/scan";
 import { auth, db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { deserializeScanDocument } from "@/lib/api/scan";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function ScanHistoryPage() {
   const [scans, setScans] = useState<ScanDocument[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthUser();
+  const nav = useNavigate();
 
   useEffect(() => {
     const currentUser = user ?? auth.currentUser;
@@ -64,12 +68,41 @@ export default function ScanHistoryPage() {
                 </p>
                 <p className="text-muted-foreground">Status: {scan.status}</p>
               </div>
-              <a
-                href={`/scan/${scan.id}`}
-                className="text-sm font-medium underline"
-              >
-                View
-              </a>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  className="text-sm"
+                  onClick={() => nav(`/scans/${scan.id}`)}
+                >
+                  View
+                </Button>
+                {["uploaded", "pending", "processing", "error", "failed"].includes(
+                  scan.status
+                ) ? (
+                  <Button
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      const result = await retryScanProcessingClient(scan.id);
+                      if (!result.ok) {
+                        toast({
+                          title: "Could not resume scan",
+                          description: result.error.message,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      toast({
+                        title: "Processing restarted",
+                        description: "We’ll keep updating this scan.",
+                      });
+                      nav(`/scans/${scan.id}`);
+                    }}
+                  >
+                    Resume
+                  </Button>
+                ) : null}
+              </div>
             </div>
             {scan.estimate && (
               <p className="mt-2 text-sm text-muted-foreground">

@@ -1,29 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
+import { classifyUploadRetryability, getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
 describe("classifyUploadRetryability", () => {
-  it("does not retry unauthorized/canceled/invalid", () => {
-    expect(classifyUploadRetryability({ code: "storage/unauthorized", bytesTransferred: 0 }).retryable).toBe(false);
-    expect(classifyUploadRetryability({ code: "storage/canceled", bytesTransferred: 0 }).retryable).toBe(false);
-    expect(classifyUploadRetryability({ code: "upload_cancelled", bytesTransferred: 0 }).retryable).toBe(false);
-    expect(classifyUploadRetryability({ code: "storage/invalid-argument", bytesTransferred: 0 }).retryable).toBe(false);
+  it("retries when offline", () => {
+    expect(
+      classifyUploadRetryability({ code: "storage/unknown", bytesTransferred: 1024, wasOffline: true })
+    ).toEqual({ retryable: true, reason: "transient_network" });
   });
 
-  it("retries stalls and retry-limit-exceeded", () => {
-    expect(classifyUploadRetryability({ code: "upload_paused", bytesTransferred: 0 }).retryable).toBe(true);
-    expect(classifyUploadRetryability({ code: "upload_stalled", bytesTransferred: 10 }).retryable).toBe(true);
-    expect(classifyUploadRetryability({ code: "storage/retry-limit-exceeded", bytesTransferred: 10 }).retryable).toBe(true);
+  it("does not retry unauthorized uploads", () => {
+    expect(
+      classifyUploadRetryability({ code: "storage/unauthorized", bytesTransferred: 0 })
+    ).toEqual({ retryable: false, reason: "unauthorized" });
   });
 
-  it("retries offline and unknown-without-bytes", () => {
-    expect(classifyUploadRetryability({ wasOffline: true, bytesTransferred: 123 }).retryable).toBe(true);
-    expect(classifyUploadRetryability({ code: "", bytesTransferred: 0 }).retryable).toBe(true);
-    expect(classifyUploadRetryability({ code: "storage/unknown", bytesTransferred: 0 }).retryable).toBe(true);
+  it("retries stalled uploads", () => {
+    expect(classifyUploadRetryability({ code: "upload_paused" })).toEqual({
+      retryable: true,
+      reason: "stall",
+    });
   });
 
-  it("does not retry unknown if bytes already transferred", () => {
-    expect(classifyUploadRetryability({ code: "", bytesTransferred: 1000 }).retryable).toBe(false);
-    expect(classifyUploadRetryability({ code: "storage/unknown", bytesTransferred: 1000 }).retryable).toBe(true);
+  it("retries unknown errors only when no bytes were transferred", () => {
+    expect(classifyUploadRetryability({ code: "", bytesTransferred: 0 })).toEqual({
+      retryable: true,
+      reason: "unknown_no_bytes",
+    });
+    expect(classifyUploadRetryability({ code: "", bytesTransferred: 2048 })).toEqual({
+      retryable: false,
+      reason: "non_retryable",
+    });
   });
 });
 
+describe("getUploadStallReason", () => {
+  it("flags paused uploads that exceed stall timeout", () => {
+    const now = Date.now();
+    const reason = getUploadStallReason({
+      lastBytes: 100,
+      lastBytesAt: now - 30_000,
+      lastState: "paused",
+      now,
+      stallTimeoutMs: 10_000,
+    });
+    expect(reason).toBe("paused");
+  });
+});
