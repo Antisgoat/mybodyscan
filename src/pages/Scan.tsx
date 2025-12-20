@@ -22,6 +22,9 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
+import { auth, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 interface PhotoInputs {
   front: File | null;
@@ -35,6 +38,7 @@ export default function ScanPage() {
   const { units } = useUnits();
   const nav = useNavigate();
   const location = useLocation();
+  const appCheckStatus = useAppCheckStatus();
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
     try {
@@ -105,7 +109,12 @@ export default function ScanPage() {
         lastError?: { code?: string; message?: string };
         lastBytesTransferred?: number;
         lastTotalBytes?: number;
-        lastFirebaseError?: { code?: string; message?: string };
+        lastFirebaseError?: { code?: string; message?: string; serverResponse?: string };
+        lastTaskState?: "running" | "paused" | "success" | "canceled" | "error";
+        lastProgressAt?: number;
+        fullPath?: string;
+        bucket?: string;
+        pathMismatch?: { expected: string; actual: string };
       }
     >
   >({
@@ -119,6 +128,19 @@ export default function ScanPage() {
     message?: string;
     pose?: Pose;
   } | null>(null);
+  const [tokenInfo, setTokenInfo] = useState<{
+    issuedAtTime?: string;
+    expirationTime?: string;
+    ageSeconds?: number;
+    refreshedAt?: number;
+    refreshError?: string;
+  } | null>(null);
+  const [storageTest, setStorageTest] = useState<{
+    status: "idle" | "running" | "pass" | "fail";
+    path?: string;
+    url?: string;
+    error?: { code?: string; message?: string; serverResponse?: string };
+  }>({ status: "idle" });
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing =
@@ -128,6 +150,36 @@ export default function ScanPage() {
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!showDebug) return;
+      if (!user) return;
+      try {
+        const result = await user.getIdTokenResult();
+        if (!active) return;
+        const issuedAt = Date.parse(result.issuedAtTime);
+        const now = Date.now();
+        const ageSeconds = Number.isFinite(issuedAt) ? Math.max(0, Math.round((now - issuedAt) / 1000)) : undefined;
+        setTokenInfo((prev) => ({
+          ...(prev ?? {}),
+          issuedAtTime: result.issuedAtTime,
+          expirationTime: result.expirationTime,
+          ageSeconds,
+        }));
+      } catch (err: any) {
+        if (!active) return;
+        setTokenInfo((prev) => ({
+          ...(prev ?? {}),
+          refreshError: typeof err?.message === "string" ? err.message : String(err),
+        }));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [showDebug, user]);
 
   const missingFields = useMemo(() => {
     return (
@@ -262,6 +314,41 @@ export default function ScanPage() {
       uploadAbortRef.current?.abort();
       const abortController = new AbortController();
       uploadAbortRef.current = abortController;
+      // Force-refresh auth before uploads (Safari can hold a stale token across restores).
+      try {
+        await auth.currentUser?.getIdToken(true);
+        if (showDebug) {
+          const result = await auth.currentUser?.getIdTokenResult().catch(() => null);
+          if (result) {
+            const issuedAt = Date.parse(result.issuedAtTime);
+            const now = Date.now();
+            const ageSeconds = Number.isFinite(issuedAt)
+              ? Math.max(0, Math.round((now - issuedAt) / 1000))
+              : undefined;
+            setTokenInfo((prev) => ({
+              ...(prev ?? {}),
+              issuedAtTime: result.issuedAtTime,
+              expirationTime: result.expirationTime,
+              ageSeconds,
+              refreshedAt: Date.now(),
+              refreshError: undefined,
+            }));
+          } else {
+            setTokenInfo((prev) => ({
+              ...(prev ?? {}),
+              refreshedAt: Date.now(),
+            }));
+          }
+        }
+      } catch (err: any) {
+        if (showDebug) {
+          setTokenInfo((prev) => ({
+            ...(prev ?? {}),
+            refreshedAt: Date.now(),
+            refreshError: typeof err?.message === "string" ? err.message : String(err),
+          }));
+        }
+      }
       const submit = await submitScanClient(
         {
           scanId: startedScanId,
@@ -334,6 +421,16 @@ export default function ScanPage() {
                     : existing.lastTotalBytes,
                 lastFirebaseError:
                   (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
+                lastTaskState:
+                  (info as any)?.taskState ?? existing.lastTaskState,
+                lastProgressAt:
+                  typeof (info as any)?.lastProgressAt === "number"
+                    ? (info as any).lastProgressAt
+                    : existing.lastProgressAt,
+                fullPath: (info as any)?.fullPath ?? existing.fullPath,
+                bucket: (info as any)?.bucket ?? existing.bucket,
+                pathMismatch:
+                  (info as any)?.pathMismatch ?? existing.pathMismatch,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -347,7 +444,7 @@ export default function ScanPage() {
             }
           },
           signal: abortController.signal,
-          stallTimeoutMs: 12_000,
+          stallTimeoutMs: 20_000,
         }
       );
       sessionFinalizedRef.current = true;
@@ -506,6 +603,24 @@ export default function ScanPage() {
               compressed: (info as any)?.compressed ?? existing.compressed,
               preprocessDebug:
                 (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+              lastBytesTransferred:
+                typeof (info as any)?.bytesTransferred === "number"
+                  ? (info as any).bytesTransferred
+                  : existing.lastBytesTransferred,
+              lastTotalBytes:
+                typeof (info as any)?.totalBytes === "number"
+                  ? (info as any).totalBytes
+                  : existing.lastTotalBytes,
+              lastFirebaseError:
+                (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
+              lastTaskState: (info as any)?.taskState ?? existing.lastTaskState,
+              lastProgressAt:
+                typeof (info as any)?.lastProgressAt === "number"
+                  ? (info as any).lastProgressAt
+                  : existing.lastProgressAt,
+              fullPath: (info as any)?.fullPath ?? existing.fullPath,
+              bucket: (info as any)?.bucket ?? existing.bucket,
+              pathMismatch: (info as any)?.pathMismatch ?? existing.pathMismatch,
               lastError:
                 info.status === "failed"
                   ? { code: undefined, message: info.message }
@@ -520,7 +635,7 @@ export default function ScanPage() {
           if (info.hasBytesTransferred) setUploadHasBytes(true);
         },
         signal: abortController.signal,
-        stallTimeoutMs: 12_000,
+        stallTimeoutMs: 20_000,
       }
     );
     uploadAbortRef.current = null;
@@ -580,7 +695,7 @@ export default function ScanPage() {
       {
         posesToUpload: [],
         signal: abortController.signal,
-        stallTimeoutMs: 12_000,
+        stallTimeoutMs: 20_000,
       }
     );
     uploadAbortRef.current = null;
@@ -683,6 +798,26 @@ export default function ScanPage() {
                 compressed: (info as any)?.compressed ?? existing.compressed,
                 preprocessDebug:
                   (info as any)?.preprocessDebug ?? existing.preprocessDebug,
+                lastBytesTransferred:
+                  typeof (info as any)?.bytesTransferred === "number"
+                    ? (info as any).bytesTransferred
+                    : existing.lastBytesTransferred,
+                lastTotalBytes:
+                  typeof (info as any)?.totalBytes === "number"
+                    ? (info as any).totalBytes
+                    : existing.lastTotalBytes,
+                lastFirebaseError:
+                  (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
+                lastTaskState:
+                  (info as any)?.taskState ?? existing.lastTaskState,
+                lastProgressAt:
+                  typeof (info as any)?.lastProgressAt === "number"
+                    ? (info as any).lastProgressAt
+                    : existing.lastProgressAt,
+                fullPath: (info as any)?.fullPath ?? existing.fullPath,
+                bucket: (info as any)?.bucket ?? existing.bucket,
+                pathMismatch:
+                  (info as any)?.pathMismatch ?? existing.pathMismatch,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -697,7 +832,7 @@ export default function ScanPage() {
             if (info.hasBytesTransferred) setUploadHasBytes(true);
           },
           signal: abortController.signal,
-        stallTimeoutMs: 12_000,
+          stallTimeoutMs: 20_000,
         }
       );
       uploadAbortRef.current = null;
@@ -740,6 +875,14 @@ export default function ScanPage() {
         compressed: undefined,
         preprocessDebug: undefined,
         lastError: undefined,
+        lastFirebaseError: undefined,
+        lastBytesTransferred: undefined,
+        lastTotalBytes: undefined,
+        lastTaskState: undefined,
+        lastProgressAt: undefined,
+        fullPath: undefined,
+        bucket: undefined,
+        pathMismatch: undefined,
       };
       return next;
     });
@@ -991,6 +1134,27 @@ export default function ScanPage() {
             </summary>
             <div className="mt-2 space-y-2">
               <div>
+                <span className="font-medium">firebase:</span>
+                <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {(() => {
+                    const cfg = getFirebaseConfig();
+                    const bucketFromStorage = String(
+                      getFirebaseStorage().app?.options?.storageBucket || ""
+                    );
+                    return JSON.stringify(
+                      {
+                        projectId: cfg?.projectId,
+                        authDomain: cfg?.authDomain,
+                        storageBucket: cfg?.storageBucket,
+                        storageBucketResolved: bucketFromStorage || null,
+                      },
+                      null,
+                      2
+                    );
+                  })()}
+                </pre>
+              </div>
+              <div>
                 <span className="font-medium">device:</span>{" "}
                 <span className="text-muted-foreground">
                   {(() => {
@@ -1010,6 +1174,26 @@ export default function ScanPage() {
               <div>
                 <span className="font-medium">uid:</span>{" "}
                 <span className="text-muted-foreground">{user?.uid ?? "—"}</span>
+              </div>
+              <div>
+                <span className="font-medium">auth token:</span>{" "}
+                <span className="text-muted-foreground">
+                  {tokenInfo?.issuedAtTime
+                    ? `iat=${tokenInfo.issuedAtTime} · exp=${tokenInfo.expirationTime} · age=${tokenInfo.ageSeconds ?? "?"}s`
+                    : "—"}
+                  {tokenInfo?.refreshedAt
+                    ? ` · refreshedAt=${new Date(tokenInfo.refreshedAt).toLocaleTimeString()}`
+                    : ""}
+                  {tokenInfo?.refreshError ? ` · refreshError=${tokenInfo.refreshError}` : ""}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium">app check:</span>{" "}
+                <span className="text-muted-foreground">
+                  {appCheckStatus.status} · tokenPresent=
+                  {appCheckStatus.tokenPresent ? "true" : "false"}
+                  {appCheckStatus.message ? ` · ${appCheckStatus.message}` : ""}
+                </span>
               </div>
               <div>
                 <span className="font-medium">scanId:</span>{" "}
@@ -1034,6 +1218,70 @@ export default function ScanPage() {
                       }${lastUploadError.pose ? ` · pose=${lastUploadError.pose}` : ""}`
                     : "—"}
                 </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded border px-3 py-2 text-xs"
+                    disabled={storageTest.status === "running"}
+                    onClick={async () => {
+                      const uid = auth.currentUser?.uid;
+                      if (!uid) {
+                        setStorageTest({
+                          status: "fail",
+                          error: { message: "Not signed in." },
+                        });
+                        return;
+                      }
+                      setStorageTest({ status: "running" });
+                      try {
+                        // Dev sanity check: prove Storage write works with current auth/AppCheck/config.
+                        const storage = getFirebaseStorage();
+                        const bytes = new Uint8Array(1024);
+                        bytes.fill(0x61); // 'a'
+                        const blob = new Blob([bytes], { type: "text/plain" });
+                        const path = `user_uploads/${uid}/debug/test-${Date.now()}.txt`;
+                        const r = ref(storage, path);
+                        const result = await uploadBytes(r, blob, {
+                          contentType: "text/plain",
+                          cacheControl: "no-cache",
+                        });
+                        const url = await getDownloadURL(result.ref).catch(() => "");
+                        setStorageTest({ status: "pass", path, url: url || undefined });
+                      } catch (err: any) {
+                        setStorageTest({
+                          status: "fail",
+                          error: {
+                            code: typeof err?.code === "string" ? err.code : undefined,
+                            message:
+                              typeof err?.message === "string" ? err.message : String(err),
+                            serverResponse:
+                              typeof err?.serverResponse === "string"
+                                ? err.serverResponse
+                                : undefined,
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    Test Storage Write
+                  </button>
+                  {storageTest.status !== "idle" ? (
+                    <span className="text-muted-foreground">
+                      {storageTest.status === "running"
+                        ? "running…"
+                        : storageTest.status === "pass"
+                          ? `PASS · ${storageTest.path}${storageTest.url ? " · url ok" : ""}`
+                          : `FAIL · ${storageTest.error?.code ?? "unknown"} · ${storageTest.error?.message ?? ""}`}
+                    </span>
+                  ) : null}
+                </div>
+                {storageTest.status === "fail" && storageTest.error?.serverResponse ? (
+                  <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                    {storageTest.error.serverResponse}
+                  </pre>
+                ) : null}
               </div>
               <div className="space-y-2">
                 {(["front", "back", "left", "right"] as Pose[]).map((pose) => {
@@ -1063,11 +1311,39 @@ export default function ScanPage() {
                           ? `${meta.lastBytesTransferred} / ${meta.lastTotalBytes ?? "?"}`
                           : "—"}
                       </div>
+                      {meta.lastTaskState ? (
+                        <div className="text-muted-foreground">
+                          lastTaskState: {meta.lastTaskState} · lastProgressAt:{" "}
+                          {meta.lastProgressAt
+                            ? new Date(meta.lastProgressAt).toLocaleTimeString()
+                            : "—"}
+                        </div>
+                      ) : null}
+                      {meta.fullPath ? (
+                        <div className="text-muted-foreground">
+                          refPath: {meta.fullPath}
+                        </div>
+                      ) : null}
+                      {meta.bucket ? (
+                        <div className="text-muted-foreground">
+                          bucket: {meta.bucket}
+                        </div>
+                      ) : null}
+                      {meta.pathMismatch ? (
+                        <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                          {JSON.stringify(meta.pathMismatch, null, 2)}
+                        </pre>
+                      ) : null}
                       {meta.lastFirebaseError?.message ? (
                         <div className="text-muted-foreground">
                           lastFirebaseError: {meta.lastFirebaseError.code ?? "unknown"} ·{" "}
                           {meta.lastFirebaseError.message}
                         </div>
+                      ) : null}
+                      {meta.lastFirebaseError?.serverResponse ? (
+                        <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                          {meta.lastFirebaseError.serverResponse}
+                        </pre>
                       ) : null}
                       {meta.lastError?.message ? (
                         <div className="text-muted-foreground">
