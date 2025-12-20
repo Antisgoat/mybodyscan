@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request, Response } from "firebase-functions/v2/https";
 import { getStorage } from "../firebase.js";
@@ -66,10 +67,11 @@ async function parseMultipart(req: Request): Promise<{
   const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
   if (!boundaryMatch) throw new Error("missing_boundary");
   const boundary = boundaryMatch[1].replace(/^\"|\"$/g, "");
-  const rawBody = req.rawBody && Buffer.isBuffer(req.rawBody) ? req.rawBody : null;
-  if (!rawBody) throw new Error("missing_body");
+  const rawBody = (req as any).rawBody;
+  const rawBuffer = rawBody ? Buffer.from(rawBody) : null;
+  if (!rawBuffer) throw new Error("missing_body");
   const delimiter = Buffer.from(`--${boundary}`);
-  const parts = splitBuffer(rawBody, delimiter);
+  const parts = splitBuffer(rawBuffer, delimiter);
   const fields: Record<string, string> = {};
   let fileBuffer: Buffer | null = null;
   let fileSize = 0;
@@ -109,8 +111,11 @@ async function parseOctetStream(req: Request): Promise<{
   file: Buffer | null;
   fileSize: number;
 }> {
-  const file = req.rawBody && Buffer.isBuffer(req.rawBody) ? req.rawBody : null;
-  const fileSize = file ? file.length : 0;
+  const rawBody = (req as any).rawBody;
+  const file = rawBody ? Buffer.from(rawBody) : null;
+  const fileSize = file
+    ? Number((file as any).length ?? (file as any).byteLength ?? 0)
+    : 0;
   const fields: Record<string, string> = {
     scanId: toTrimmedString(req.query.scanId),
     view: toTrimmedString(req.query.view),
