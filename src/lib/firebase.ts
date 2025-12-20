@@ -51,6 +51,34 @@ const pickConfigValue = (
   return undefined;
 };
 
+const normalizeStorageBucket = (value?: string): string | undefined => {
+  if (value == null) return value;
+  let bucket = String(value).trim();
+  if (!bucket) return undefined;
+  if (bucket.startsWith("gs://")) bucket = bucket.slice(5);
+  if (bucket.includes("://")) {
+    try {
+      const url = new URL(bucket);
+      const path = url.pathname || "";
+      const match =
+        path.match(/\/v0\/b\/([^/]+)/) ||
+        path.match(/\/upload\/storage\/v1\/b\/([^/]+)/) ||
+        path.match(/\/b\/([^/]+)/);
+      if (match?.[1]) {
+        bucket = decodeURIComponent(match[1]);
+      } else if (url.hostname) {
+        bucket = url.hostname;
+      }
+    } catch {
+      // ignore malformed URL
+    }
+  }
+  if (bucket.endsWith(".firebasestorage.app")) {
+    bucket = bucket.replace(/\.firebasestorage\.app$/, ".appspot.com");
+  }
+  return bucket;
+};
+
 const envConfig: Partial<FirebaseRuntimeConfig> = {
   apiKey: pickConfigValue(
     env.VITE_FIREBASE_API_KEY,
@@ -95,6 +123,11 @@ const firebaseConfig: FirebaseRuntimeConfig = {
   ...envConfig,
   ...(injectedConfig ?? {}),
 };
+
+const normalizedStorageBucket = normalizeStorageBucket(firebaseConfig.storageBucket);
+if (normalizedStorageBucket) {
+  firebaseConfig.storageBucket = normalizedStorageBucket;
+}
 
 function isMissing(value: unknown): boolean {
   if (value === undefined || value === null) return true;

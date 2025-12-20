@@ -22,9 +22,14 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
-import { auth, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
-import { getDownloadURL, ref, uploadBytes, type UploadTask } from "firebase/storage";
+import {
+  getDownloadURL,
+  ref,
+  uploadBytesResumable,
+  type UploadTask,
+} from "firebase/storage";
 import { uploadViaFunction } from "@/lib/uploads/uploadViaFunction";
 import {
   clearScanPipelineState,
@@ -1434,6 +1439,7 @@ export default function ScanPage() {
                 <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                   {(() => {
                     const cfg = getFirebaseConfig();
+                    const appBucket = String(getFirebaseApp().options?.storageBucket || "");
                     const bucketFromStorage = String(
                       getFirebaseStorage().app?.options?.storageBucket || ""
                     );
@@ -1442,6 +1448,7 @@ export default function ScanPage() {
                         projectId: cfg?.projectId,
                         authDomain: cfg?.authDomain,
                         storageBucket: cfg?.storageBucket,
+                        storageBucketApp: appBucket || null,
                         storageBucketResolved: bucketFromStorage || null,
                       },
                       null,
@@ -1590,10 +1597,11 @@ export default function ScanPage() {
                         const blob = new Blob([bytes], { type: "text/plain" });
                         const path = `user_uploads/${uid}/debug/test.txt`;
                         const r = ref(storage, path);
-                        const result = await uploadBytes(r, blob, {
+                        const task = uploadBytesResumable(r, blob, {
                           contentType: "text/plain",
                           cacheControl: "no-cache",
                         });
+                        const result = await task;
                         const url = await getDownloadURL(result.ref).catch(() => "");
                         setStorageTest({ status: "pass", path, url: url || undefined });
                       } catch (err: any) {
