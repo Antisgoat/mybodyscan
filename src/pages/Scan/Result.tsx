@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { getDownloadURL, ref, uploadBytes, type UploadTask } from "firebase/storage";
+import {
+  getDownloadURL,
+  ref,
+  uploadBytesResumable,
+  type UploadTask,
+} from "firebase/storage";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +39,7 @@ import {
   submitScanClient,
   type ScanUploadProgress,
 } from "@/lib/api/scan";
-import { auth, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import {
   CAPTURE_VIEW_SETS,
   type CaptureView,
@@ -1372,6 +1377,7 @@ export default function ScanFlowResult() {
               <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                 {(() => {
                   const cfg = getFirebaseConfig();
+                  const appBucket = String(getFirebaseApp().options?.storageBucket || "");
                   const bucketFromStorage = String(
                     getFirebaseStorage().app?.options?.storageBucket || ""
                   );
@@ -1380,6 +1386,7 @@ export default function ScanFlowResult() {
                       projectId: cfg?.projectId,
                       authDomain: cfg?.authDomain,
                       storageBucket: cfg?.storageBucket,
+                      storageBucketApp: appBucket || null,
                       storageBucketResolved: bucketFromStorage || null,
                     },
                     null,
@@ -1465,10 +1472,11 @@ export default function ScanFlowResult() {
                       const blob = new Blob([bytes], { type: "text/plain" });
                       const path = `user_uploads/${uid}/debug/test.txt`;
                       const r = ref(storage, path);
-                      const result = await uploadBytes(r, blob, {
+                      const task = uploadBytesResumable(r, blob, {
                         contentType: "text/plain",
                         cacheControl: "no-cache",
                       });
+                      const result = await task;
                       const url = await getDownloadURL(result.ref).catch(() => "");
                       setStorageTest({ status: "pass", path, url: url || undefined });
                     } catch (err: any) {
