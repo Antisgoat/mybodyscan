@@ -39,6 +39,11 @@ export default function Today() {
     demo ? DEMO_WORKOUT_PROGRESS : { done: 0, total: 0 }
   );
 
+  type WorkoutDay = {
+    day: string;
+    exercises: Array<{ length: number }>;
+  };
+
   useEffect(() => {
     if (demo) {
       setMealTotals(DEMO_NUTRITION_LOG.totals);
@@ -63,7 +68,10 @@ export default function Today() {
 
       try {
         const plan = await getPlan();
-        if (!plan) {
+        const planDays = Array.isArray(plan?.days)
+          ? (plan.days as WorkoutDay[])
+          : [];
+        if (!plan || planDays.length === 0) {
           if (!cancelled) {
             setWorkout({ done: 0, total: 0 });
           }
@@ -72,7 +80,7 @@ export default function Today() {
         const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
           new Date().getDay()
         ];
-        const idx = plan.days.findIndex((d: any) => d.day === dayName);
+        const idx = planDays.findIndex((d) => d.day === dayName);
         if (idx < 0) {
           if (!cancelled) {
             setWorkout({ done: 0, total: 0 });
@@ -82,7 +90,7 @@ export default function Today() {
         const uid = auth.currentUser?.uid;
         if (!uid) {
           if (!cancelled) {
-            setWorkout({ done: 0, total: plan.days[idx].exercises.length });
+            setWorkout({ done: 0, total: planDays[idx].exercises.length });
           }
           return;
         }
@@ -94,12 +102,12 @@ export default function Today() {
             ? ((snap.data()?.completed as string[])?.length ?? 0)
             : 0;
           if (!cancelled) {
-            setWorkout({ done, total: plan.days[idx].exercises.length });
+            setWorkout({ done, total: planDays[idx].exercises.length });
           }
         } catch (error) {
           console.warn("today.loadWorkout", error);
           if (!cancelled) {
-            setWorkout({ done: 0, total: plan.days[idx].exercises.length });
+            setWorkout({ done: 0, total: planDays[idx].exercises.length });
           }
         }
       } catch (error) {

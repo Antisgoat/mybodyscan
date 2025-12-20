@@ -414,6 +414,11 @@ export default function ScanResultPage() {
             statusMeta.helperText ||
             "We couldn't complete this scan."}
         </p>
+        {scan.errorReason ? (
+          <p className="text-xs text-muted-foreground">
+            Error code: {scan.errorReason}
+          </p>
+        ) : null}
         {pipelineState?.lastError?.message ? (
           <p className="text-xs text-muted-foreground">
             Last error: {pipelineState.lastError.message}

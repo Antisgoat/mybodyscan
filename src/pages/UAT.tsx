@@ -49,6 +49,18 @@ import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
 
 type JsonValue = unknown;
+type ErrorWithCode = { code?: unknown; message?: unknown };
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+function getErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const candidate = (error as ErrorWithCode).code;
+  return typeof candidate === "string" ? candidate : null;
+}
 
 const STATUS_COLORS: Record<UatProbeState["status"], string> = {
   idle: "bg-muted text-muted-foreground",
@@ -118,10 +130,10 @@ function CopyJsonButton({
         title: "Copied",
         description: `${label} JSON copied to clipboard.`,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       toast({
         title: "Copy failed",
-        description: (error as Error)?.message ?? "Unable to copy.",
+        description: getErrorMessage(error, "Unable to copy."),
         variant: "destructive",
       });
     }
@@ -372,10 +384,10 @@ const UATPage = () => {
             status: ok ? "pass" : "fail",
             code: ok
               ? null
-              : ((json?.code as string | null) ?? "checkout_failed"),
+              : (typeof json?.code === "string" ? json.code : "checkout_failed"),
             message: ok
               ? "Dry-run URL issued"
-              : json?.error || "Checkout failed",
+              : (typeof json?.error === "string" ? json.error : "Checkout failed"),
             data: {
               ...(typeof json === "object" && json ? json : {}),
               endpoint: endpoint.kind,
@@ -391,8 +403,7 @@ const UATPage = () => {
         }
       }
 
-      const message =
-        (lastError as Error | undefined)?.message || "Checkout request failed";
+      const message = getErrorMessage(lastError, "Checkout request failed");
       return {
         ok: false,
         status: "fail",
@@ -440,12 +451,17 @@ const UATPage = () => {
           return {
             ok,
             status: ok ? "pass" : "fail",
-            code: json?.code ?? (expectedNoCustomer ? "no_customer" : null),
+            code:
+              typeof json?.code === "string"
+                ? json.code
+                : expectedNoCustomer
+                  ? "no_customer"
+                  : null,
             message: ok
               ? expectedNoCustomer
                 ? "No customer (expected)"
                 : "Portal URL issued"
-              : json?.error || "Portal failed",
+              : (typeof json?.error === "string" ? json.error : "Portal failed"),
             data: {
               ...(typeof json === "object" && json ? json : {}),
               endpoint: endpoint.kind,
@@ -461,8 +477,7 @@ const UATPage = () => {
         }
       }
 
-      const message =
-        (lastError as Error | undefined)?.message || "Portal request failed";
+      const message = getErrorMessage(lastError, "Portal request failed");
       return {
         ok: false,
         status: "fail",
@@ -494,16 +509,14 @@ const UATPage = () => {
           message: `Granted unlimited credits to ${email}`,
           data,
         } satisfies ProbeExecutionResult<Record<string, unknown>>;
-      } catch (error: any) {
-        const code = typeof error?.code === "string" ? error.code : null;
+      } catch (error: unknown) {
+        const code = getErrorCode(error);
         return {
           ok: false,
           status: "fail",
           code: code ?? null,
           message:
-            typeof error?.message === "string"
-              ? error.message
-              : "Failed to grant unlimited credits",
+            getErrorMessage(error, "Failed to grant unlimited credits"),
           data: null,
         } satisfies ProbeExecutionResult<Record<string, unknown>>;
       }
@@ -528,11 +541,11 @@ const UATPage = () => {
             : "Checkout session created",
           data: result,
         } satisfies ProbeExecutionResult<Record<string, unknown>>;
-      } catch (error: any) {
-        const code = typeof error?.code === "string" ? error.code : undefined;
+      } catch (error: unknown) {
+        const code = getErrorCode(error) ?? undefined;
         const message = code
           ? describeCheckoutError(code)
-          : error?.message || "Checkout failed";
+          : getErrorMessage(error, "Checkout failed");
         return {
           ok: false,
           status: "fail",
@@ -557,11 +570,11 @@ const UATPage = () => {
           message: result?.url ? "Portal URL opened" : "Portal session created",
           data: result,
         } satisfies ProbeExecutionResult<Record<string, unknown>>;
-      } catch (error: any) {
-        const code = typeof error?.code === "string" ? error.code : undefined;
+      } catch (error: unknown) {
+        const code = getErrorCode(error) ?? undefined;
         const message = code
           ? describePortalError(code)
-          : error?.message || "Portal failed";
+          : getErrorMessage(error, "Portal failed");
         return {
           ok: false,
           status: "fail",
@@ -619,8 +632,8 @@ const UATPage = () => {
     try {
       const data = await apiFetchJson(path, init);
       return { ok: true, status: 200, data };
-    } catch (error: any) {
-      const message = error?.message || "error";
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "error");
       const match = /HTTP\s+(\d+)/i.exec(message);
       const status = match ? Number(match[1]) : 500;
       return { ok: false, status, data: { error: message } };
@@ -755,9 +768,13 @@ const UATPage = () => {
       const ok =
         result.ok && typeof json?.scanId === "string" && json.scanId.length > 0;
       if (ok) {
+        const uploadUrls =
+          typeof json.uploadUrls === "object" && json.uploadUrls
+            ? (json.uploadUrls as Record<string, string>)
+            : {};
         setScanSession({
           scanId: json.scanId as string,
-          uploadUrls: (json.uploadUrls as Record<string, string>) ?? {},
+          uploadUrls,
         });
       }
       return {
@@ -766,7 +783,9 @@ const UATPage = () => {
         code: (json?.code as string | null) ?? null,
         message: ok
           ? "Scan session created"
-          : (json?.error as string) || "Scan start failed",
+          : (typeof json?.error === "string"
+              ? json.error
+              : "Scan start failed"),
         data: json,
         httpStatus: result.status,
       };
@@ -836,7 +855,9 @@ const UATPage = () => {
           ? json?.code === "missing_photos"
             ? "Submit guarded (missing photos)"
             : "Scan submitted"
-          : (json?.error as string) || "Scan submit failed",
+          : (typeof json?.error === "string"
+              ? json.error
+              : "Scan submit failed"),
         data: json,
         httpStatus: result.status,
       };
@@ -867,7 +888,9 @@ const UATPage = () => {
         code: (json?.code as string | null) ?? null,
         message: ok
           ? "Duplicate submit blocked"
-          : (json?.error as string) || "Duplicate protection failed",
+          : (typeof json?.error === "string"
+              ? json.error
+              : "Duplicate protection failed"),
         data: json,
         httpStatus: result.status,
       };
@@ -906,7 +929,7 @@ const UATPage = () => {
         code: json?.code ?? null,
         message: ok
           ? `Reply: ${reply.slice(0, 60)}${reply.length > 60 ? "…" : ""}`
-          : json?.error || "Coach failed",
+          : (typeof json?.error === "string" ? json.error : "Coach failed"),
         data: json,
         httpStatus: response.status,
       };
@@ -932,7 +955,7 @@ const UATPage = () => {
         code: json?.code ?? null,
         message: ok
           ? `Top results: ${items.length}`
-          : json?.error || "Nutrition failed",
+          : (typeof json?.error === "string" ? json.error : "Nutrition failed"),
         data: { ...json, items },
         httpStatus: response.status,
       };
@@ -956,8 +979,12 @@ const UATPage = () => {
         status: ok ? "pass" : "fail",
         code: json?.code ?? null,
         message: ok
-          ? `Item: ${(json?.item?.name as string) ?? "unknown"}`
-          : json?.error || "Barcode failed",
+          ? `Item: ${
+              typeof (json?.item as { name?: unknown })?.name === "string"
+                ? (json?.item as { name?: string }).name
+                : "unknown"
+            }`
+          : (typeof json?.error === "string" ? json.error : "Barcode failed"),
         data: json,
         httpStatus: response.status,
       };
@@ -1031,7 +1058,11 @@ const UATPage = () => {
     pretendCredits ??
     (typeof claims?.credits === "number" ? claims.credits : null);
   const unlimited =
-    claims?.unlimitedCredits === true || (claims as any)?.unlimited === true;
+    claims?.unlimitedCredits === true ||
+    (typeof claims === "object" &&
+      claims !== null &&
+      "unlimited" in claims &&
+      (claims as { unlimited?: boolean }).unlimited === true);
 
   if (claimsLoading && !claims && !import.meta.env.DEV) {
     return (
