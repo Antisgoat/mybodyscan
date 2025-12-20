@@ -86,7 +86,15 @@ export default function ScanPage() {
   const [photoState, setPhotoState] = useState<
     Record<
       Pose,
-      { status: PerPhotoStatus; percent: number; attempt: number; message?: string }
+      {
+        status: PerPhotoStatus;
+        percent: number;
+        attempt: number;
+        message?: string;
+        nextRetryAt?: number;
+        nextRetryDelayMs?: number;
+        offline?: boolean;
+      }
     >
   >({
     front: { status: "preparing", percent: 0, attempt: 0 },
@@ -151,6 +159,36 @@ export default function ScanPage() {
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
+
+  const [isOffline, setIsOffline] = useState(() => {
+    try {
+      return typeof navigator !== "undefined" && navigator.onLine === false;
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const onOffline = () => setIsOffline(true);
+    const onOnline = () => setIsOffline(false);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
+  const hasRetryCountdown = useMemo(() => {
+    return Object.values(photoState).some(
+      (s) => s.status === "retrying" && typeof s.nextRetryAt === "number"
+    );
+  }, [photoState]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasRetryCountdown) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [hasRetryCountdown]);
 
   useEffect(() => {
     let active = true;
@@ -403,6 +441,18 @@ export default function ScanPage() {
                     ? info.percent
                     : existing?.percent ?? 0,
                 message: info.message ?? existing?.message,
+                nextRetryAt:
+                  typeof (info as any)?.nextRetryAt === "number"
+                    ? (info as any).nextRetryAt
+                    : existing?.nextRetryAt,
+                nextRetryDelayMs:
+                  typeof (info as any)?.nextRetryDelayMs === "number"
+                    ? (info as any).nextRetryDelayMs
+                    : existing?.nextRetryDelayMs,
+                offline:
+                  typeof (info as any)?.offline === "boolean"
+                    ? (info as any).offline
+                    : existing?.offline,
               };
               return next;
             });
@@ -598,6 +648,18 @@ export default function ScanPage() {
                   ? info.percent
                   : existing?.percent ?? 0,
               message: info.message ?? existing?.message,
+              nextRetryAt:
+                typeof (info as any)?.nextRetryAt === "number"
+                  ? (info as any).nextRetryAt
+                  : existing?.nextRetryAt,
+              nextRetryDelayMs:
+                typeof (info as any)?.nextRetryDelayMs === "number"
+                  ? (info as any).nextRetryDelayMs
+                  : existing?.nextRetryDelayMs,
+              offline:
+                typeof (info as any)?.offline === "boolean"
+                  ? (info as any).offline
+                  : existing?.offline,
             };
             return next;
           });
@@ -796,6 +858,18 @@ export default function ScanPage() {
                     ? info.percent
                     : existing?.percent ?? 0,
                 message: info.message ?? existing?.message,
+                nextRetryAt:
+                  typeof (info as any)?.nextRetryAt === "number"
+                    ? (info as any).nextRetryAt
+                    : existing?.nextRetryAt,
+                nextRetryDelayMs:
+                  typeof (info as any)?.nextRetryDelayMs === "number"
+                    ? (info as any).nextRetryDelayMs
+                    : existing?.nextRetryDelayMs,
+                offline:
+                  typeof (info as any)?.offline === "boolean"
+                    ? (info as any).offline
+                    : existing?.offline,
               };
               return next;
             });
@@ -1048,6 +1122,11 @@ export default function ScanPage() {
           status === "error") && (
           <div className="space-y-2">
             {delayNotice && <p className="text-xs text-amber-600">{delayNotice}</p>}
+            {isOffline && (status === "uploading" || status === "preparing") ? (
+              <p className="text-xs text-amber-700" aria-live="polite">
+                Connection lost — we’ll retry automatically when you’re back online.
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1105,6 +1184,10 @@ export default function ScanPage() {
                 const s = photoState[pose];
                 const pct = Math.max(0, Math.min(100, Math.round((s?.percent ?? 0) * 100)));
                 const label = pose.charAt(0).toUpperCase() + pose.slice(1);
+                const retryInMs =
+                  s.status === "retrying" && typeof s.nextRetryAt === "number"
+                    ? Math.max(0, s.nextRetryAt - nowMs)
+                    : null;
                 return (
                   <div key={pose} className="rounded border p-2">
                     <div className="flex items-center justify-between text-xs">
@@ -1113,6 +1196,9 @@ export default function ScanPage() {
                         {s.status}
                         {s.attempt ? ` (attempt ${s.attempt})` : ""}
                         {s.status === "uploading" || s.status === "retrying" ? ` · ${pct}%` : ""}
+                        {retryInMs != null && retryInMs > 0 && !isOffline
+                          ? ` · retry in ${Math.ceil(retryInMs / 1000)}s`
+                          : ""}
                       </span>
                     </div>
                     <div className="mt-1 h-2 w-full rounded-full bg-secondary">
@@ -1178,6 +1264,46 @@ export default function ScanPage() {
                     const mode = anyDebug.isMobileUploadDevice ? "mobile" : "desktop";
                     const safari = anyDebug.isProbablyMobileSafari ? " (iOS Safari)" : "";
                     return `${mode}${safari}`;
+                  })()}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded border px-3 py-2 text-xs"
+                  onClick={() => {
+                    try {
+                      const key = "mbs.debug.freezeUpload";
+                      const prev = window.localStorage.getItem(key);
+                      const next = prev === "1" ? "0" : "1";
+                      window.localStorage.setItem(key, next);
+                      toast({
+                        title: "Debug toggle updated",
+                        description:
+                          next === "1"
+                            ? "Simulated frozen upload enabled (next upload should time out and recover)."
+                            : "Simulated frozen upload disabled.",
+                      });
+                    } catch {
+                      toast({
+                        title: "Debug toggle failed",
+                        description: "Could not access localStorage on this device.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Toggle simulated frozen upload
+                </button>
+                <span className="text-muted-foreground">
+                  {(() => {
+                    try {
+                      return window.localStorage.getItem("mbs.debug.freezeUpload") === "1"
+                        ? "ON"
+                        : "OFF";
+                    } catch {
+                      return "—";
+                    }
                   })()}
                 </span>
               </div>

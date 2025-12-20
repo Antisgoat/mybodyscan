@@ -14,13 +14,11 @@ import {
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
-import {
-  ref,
-  uploadBytesResumable,
-  getDownloadURL,
-  type UploadTaskSnapshot,
-  type UploadTask,
-} from "firebase/storage";
+import { ref, getDownloadURL, type UploadTaskSnapshot, type UploadTask } from "firebase/storage";
+import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
+import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
+
+export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
 export type ScanEstimate = {
   bodyFatPercent: number;
@@ -275,180 +273,6 @@ export async function startScanSessionClient(params: {
   }
 }
 
-async function uploadPhoto(
-  path: string,
-  file: File,
-  onProgress?: (snapshot: UploadTaskSnapshot) => void,
-  options?: {
-    signal?: AbortSignal;
-    stallTimeoutMs?: number;
-    onStall?: (details: {
-      reason: "no_progress" | "stalled" | "paused";
-      bytesTransferred: number;
-      taskState: UploadTaskSnapshot["state"];
-    }) => void;
-    onTask?: (task: UploadTask) => void;
-  }
-): Promise<void> {
-  const storageRef = ref(storage, path);
-  await new Promise<void>((resolve, reject) => {
-    const task = uploadBytesResumable(storageRef, file, {
-      contentType: "image/jpeg",
-      cacheControl: "public,max-age=31536000",
-    });
-    options?.onTask?.(task);
-    let settled = false;
-    let lastBytes = 0;
-    let lastBytesAt = Date.now();
-    let lastState: UploadTaskSnapshot["state"] = "running";
-
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 20_000;
-    const stallTimer =
-      stallTimeoutMs > 0
-        ? setInterval(() => {
-            if (settled) return;
-            const reason = getUploadStallReason({
-              lastBytes,
-              lastBytesAt,
-              lastState,
-              now: Date.now(),
-              stallTimeoutMs,
-            });
-            if (!reason) return;
-            try {
-              options?.onStall?.({
-                reason,
-                bytesTransferred: lastBytes,
-                taskState: lastState,
-              });
-            } catch {
-              // ignore
-            }
-            try {
-              task.cancel();
-            } catch {
-              // ignore
-            }
-            const err: any = new Error(
-              reason === "no_progress"
-                ? "Upload started but no bytes were sent. Please retry."
-                : reason === "paused"
-                  ? "Upload paused for too long. Please retry."
-                  : "Upload stalled. Please retry."
-            );
-            err.code =
-              reason === "no_progress"
-                ? "upload_no_progress"
-                : reason === "paused"
-                  ? "upload_paused"
-                  : "upload_stalled";
-            settled = true;
-            clearInterval(stallTimer);
-            reject(err);
-          }, 1000)
-        : null;
-
-    const abortHandler = () => {
-      if (settled) return;
-      try {
-        task.cancel();
-      } catch {
-        // ignore
-      }
-      const err: any = new Error("Upload cancelled.");
-      err.code = "upload_cancelled";
-      settled = true;
-      if (stallTimer) clearInterval(stallTimer);
-      reject(err);
-    };
-
-    if (options?.signal) {
-      if (options.signal.aborted) {
-        abortHandler();
-        return;
-      }
-      options.signal.addEventListener("abort", abortHandler, { once: true });
-    }
-
-    const resumeIfPaused = () => {
-      try {
-        task.resume();
-      } catch {
-        // ignore
-      }
-    };
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        resumeIfPaused();
-      }
-    };
-    const onOnline = () => resumeIfPaused();
-    try {
-      document.addEventListener("visibilitychange", onVis);
-      window.addEventListener("online", onOnline);
-    } catch {
-      // ignore
-    }
-
-    task.on(
-      "state_changed",
-      (snapshot) => {
-        lastState = snapshot.state;
-        const bytes = Math.max(0, snapshot.bytesTransferred || 0);
-        if (bytes !== lastBytes) {
-          lastBytes = bytes;
-          lastBytesAt = Date.now();
-        }
-        // If the task gets paused (common on mobile during network/visibility hiccups),
-        // proactively resume so the user doesn't have to manually intervene.
-        if (snapshot.state === "paused") {
-          try {
-            task.resume();
-          } catch {
-            // ignore
-          }
-        }
-        onProgress?.(snapshot);
-      },
-      (error) => {
-        settled = true;
-        if (stallTimer) clearInterval(stallTimer);
-        if (options?.signal) {
-          try {
-            options.signal.removeEventListener("abort", abortHandler);
-          } catch {
-            // ignore
-          }
-        }
-        try {
-          document.removeEventListener("visibilitychange", onVis);
-          window.removeEventListener("online", onOnline);
-        } catch {
-          // ignore
-        }
-        reject(error);
-      },
-      () => {
-        settled = true;
-        if (stallTimer) clearInterval(stallTimer);
-        if (options?.signal) {
-          try {
-            options.signal.removeEventListener("abort", abortHandler);
-          } catch {
-            // ignore
-          }
-        }
-        try {
-          document.removeEventListener("visibilitychange", onVis);
-          window.removeEventListener("online", onOnline);
-        } catch {
-          // ignore
-        }
-        resolve();
-      }
-    );
-  });
-}
 
 export type ScanUploadProgress = {
   pose: keyof StartScanResponse["storagePaths"];
@@ -471,26 +295,6 @@ type UploadTarget = {
   file: File;
   size: number;
 };
-
-export function getUploadStallReason(params: {
-  lastBytes: number;
-  lastBytesAt: number;
-  lastState?: "running" | "paused" | "success" | "canceled" | "error";
-  now: number;
-  stallTimeoutMs: number;
-}): "no_progress" | "stalled" | "paused" | null {
-  const stallTimeoutMs = Number(params.stallTimeoutMs);
-  if (!Number.isFinite(stallTimeoutMs) || stallTimeoutMs <= 0) return null;
-  const lastState = params.lastState ?? "running";
-  const elapsed = params.now - params.lastBytesAt;
-  if (!Number.isFinite(elapsed) || elapsed < stallTimeoutMs) return null;
-  // iOS Safari frequently flips uploads to PAUSED during backgrounding / transient
-  // radio changes, and can leave them paused forever. If we see "paused" with no
-  // byte movement for long enough, treat it as a stuck upload and force a retry.
-  if (lastState === "paused") return "paused";
-  if (lastState !== "running") return null;
-  return params.lastBytes > 0 ? "stalled" : "no_progress";
-}
 
 export function validateScanUploadInputs(params: {
   storagePaths: { front: string; back: string; left: string; right: string };
@@ -558,7 +362,37 @@ function normalizeUploadError(err: unknown): ScanError | null {
       ? (anyErr.pose as keyof StartScanResponse["storagePaths"])
       : undefined;
   if (!code) return null;
-  if (code === "upload_stalled" || code === "upload_no_progress" || code === "upload_paused") {
+  if (code === "upload_offline") {
+    return {
+      code,
+      message: pose
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload paused (connection lost). Please retry.`
+        : "Connection lost during upload. Please retry.",
+      reason: "upload_failed",
+      pose,
+    };
+  }
+  if (code === "upload_timeout") {
+    return {
+      code,
+      message: pose
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload timed out. Please retry.`
+        : "Upload timed out. Please retry.",
+      reason: "upload_failed",
+      pose,
+    };
+  }
+  if (code === "upload_paused") {
+    return {
+      code,
+      message: pose
+        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload paused for too long. Retrying usually fixes this.`
+        : "Upload paused for too long. Retrying usually fixes this.",
+      reason: "upload_failed",
+      pose,
+    };
+  }
+  if (code === "upload_stalled" || code === "upload_no_progress") {
     return {
       code,
       message: pose
@@ -616,21 +450,6 @@ function isProbablyMobileUploadDevice(): boolean {
   return isIOS || isAndroid || isIPadLike;
 }
 
-function isRetryableUploadFailure(code?: string): boolean {
-  const c = String(code || "");
-  if (!c) return true;
-  if (c === "upload_stalled" || c === "upload_no_progress" || c === "upload_paused") return true;
-  if (c === "storage/retry-limit-exceeded") return true;
-  if (c === "storage/unknown") return true;
-  if (c === "storage/timeout") return true;
-  if (c === "storage/server-file-wrong-size") return true;
-  if (c === "storage/cannot-slice-blob") return true;
-  if (c === "storage/unauthorized") return false;
-  if (c === "storage/canceled") return false;
-  if (c === "storage/invalid-argument") return false;
-  return true;
-}
-
 export async function submitScanClient(
   params: {
     scanId: string;
@@ -647,6 +466,9 @@ export async function submitScanClient(
       attempt?: number;
       percent?: number;
       message?: string;
+      nextRetryAt?: number;
+      nextRetryDelayMs?: number;
+      offline?: boolean;
       original?: UploadPreprocessMeta;
       compressed?: UploadPreprocessMeta;
       preprocessDebug?: UploadPreprocessResult["debug"];
@@ -663,6 +485,8 @@ export async function submitScanClient(
     signal?: AbortSignal;
     stallTimeoutMs?: number;
     posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
+    perPhotoTimeoutMs?: number;
+    overallTimeoutMs?: number;
   }
 ): Promise<ScanApiResult<void>> {
   const user = auth.currentUser;
@@ -672,6 +496,8 @@ export async function submitScanClient(
       error: { message: "Please sign in before submitting a scan." },
     };
   let uploadsCompleted = false;
+  let combinedSignal: AbortController | null = null;
+  let overallDeadlineAt = 0;
   try {
     // Auth freshness: iOS Safari can hold stale tokens across tab restores.
     // Force refresh right before first upload attempt.
@@ -817,6 +643,73 @@ export async function submitScanClient(
       typeof stallTimeoutMs === "number" && Number.isFinite(stallTimeoutMs)
         ? stallTimeoutMs
         : 20_000;
+
+    const perPhotoTimeoutMs =
+      typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
+        ? Math.max(5_000, options.perPhotoTimeoutMs)
+        : 60_000;
+    const overallTimeoutMs =
+      typeof options?.overallTimeoutMs === "number" && Number.isFinite(options.overallTimeoutMs)
+        ? Math.max(60_000, options.overallTimeoutMs)
+        : 4 * 60_000;
+    const overallStartedAt = Date.now();
+    overallDeadlineAt = overallStartedAt + overallTimeoutMs;
+
+    combinedSignal = (() => {
+      const ctrl = new AbortController();
+      const abort = () => {
+        try {
+          ctrl.abort();
+        } catch {
+          // ignore
+        }
+      };
+      const checkDeadline = () => {
+        if (Date.now() >= overallDeadlineAt) abort();
+      };
+      const onVis = () => {
+        if (document.visibilityState === "visible") checkDeadline();
+      };
+      const onOnline = () => checkDeadline();
+      let interval: number | null = null;
+      try {
+        document.addEventListener("visibilitychange", onVis);
+        window.addEventListener("online", onOnline);
+      } catch {
+        // ignore
+      }
+      if (typeof window !== "undefined") {
+        interval = window.setInterval(checkDeadline, 1000);
+      }
+      if (options?.signal) {
+        if (options.signal.aborted) abort();
+        else {
+          try {
+            options.signal.addEventListener("abort", abort, { once: true });
+          } catch {
+            // ignore
+          }
+        }
+      }
+      checkDeadline();
+      (ctrl as any).__cleanup = () => {
+        if (interval != null) window.clearInterval(interval);
+        try {
+          document.removeEventListener("visibilitychange", onVis);
+          window.removeEventListener("online", onOnline);
+        } catch {
+          // ignore
+        }
+        if (options?.signal) {
+          try {
+            options.signal.removeEventListener("abort", abort);
+          } catch {
+            // ignore
+          }
+        }
+      };
+      return ctrl;
+    })();
     const maxAttempts = isProbablyMobileUploadDevice() ? 5 : 3;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
 
@@ -841,18 +734,64 @@ export async function submitScanClient(
         let lastSnapshot: UploadTaskSnapshot | null = null;
         let lastEmittedBytes = -1;
         let lastEmittedAt = 0;
+        let lastAttemptBytesTransferred = 0;
+        let lastAttemptTotalBytes = target.size || 1;
         try {
-          await uploadPhoto(
-            target.path,
-            target.file,
-            (snapshot) => {
-              lastSnapshot = snapshot;
-              const snapshotTotal = snapshot.totalBytes || target.size || 1;
-              const snapshotBytes = snapshot.bytesTransferred || 0;
+          // Refresh auth once per "attempt group": first attempt, and first retry.
+          if (attempt === 1 || attempt === 2) {
+            await user.getIdToken(true);
+          }
+
+          const remainingOverall = Math.max(0, overallDeadlineAt - Date.now());
+          const attemptTimeoutMs = Math.max(5_000, Math.min(perPhotoTimeoutMs, remainingOverall));
+          if (attemptTimeoutMs <= 5_000 && remainingOverall <= 5_000) {
+            const timeoutErr: any = new Error("Scan timed out. Please retry.");
+            timeoutErr.code = "scan/overall-timeout";
+            throw timeoutErr;
+          }
+
+          const debugFreeze =
+            typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("debug") === "1" &&
+            (new URLSearchParams(window.location.search).get("freezeUpload") === "1" ||
+              window.localStorage?.getItem("mbs.debug.freezeUpload") === "1");
+
+          await uploadPreparedPhoto({
+            storage,
+            path: target.path,
+            file: target.file,
+            metadata: {
+              contentType: "image/jpeg",
+              cacheControl: "public,max-age=31536000",
+            },
+            signal: combinedSignal!.signal,
+            stallTimeoutMs: effectiveStallTimeoutMs,
+            overallTimeoutMs: attemptTimeoutMs,
+            debugSimulateFreeze: Boolean(debugFreeze),
+            onTask: (task) => {
+              try {
+                options?.onUploadTask?.({ pose: target.pose, task });
+              } catch {
+                // ignore
+              }
+            },
+            onProgress: (progress) => {
+              // Fabricate a minimal snapshot-like object for diagnostics.
+              lastSnapshot = {
+                bytesTransferred: progress.bytesTransferred,
+                totalBytes: progress.totalBytes,
+                state: progress.taskState,
+              } as any;
+
+              const snapshotTotal = progress.totalBytes || target.size || 1;
+              const snapshotBytes = progress.bytesTransferred || 0;
+              lastAttemptBytesTransferred = snapshotBytes;
+              lastAttemptTotalBytes = snapshotTotal;
+
               const hasTransferred =
                 snapshotBytes > 0 ||
-                snapshot.state === "running" ||
-                snapshot.state === "paused";
+                progress.taskState === "running" ||
+                progress.taskState === "paused";
               const filePercent = ensureVisibleProgress(
                 snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
                 hasTransferred
@@ -861,10 +800,7 @@ export async function submitScanClient(
                 safeTotalBytes > 0
                   ? (uploadedBytes + snapshotBytes) / safeTotalBytes
                   : (index + filePercent) / fallbackDenominator;
-              const overallPercent = ensureVisibleProgress(
-                bytesBasis,
-                hasTransferred
-              );
+              const overallPercent = ensureVisibleProgress(bytesBasis, hasTransferred);
 
               // Reduce UI churn: emit at most ~6-7 times/second, or on meaningful byte movement.
               const now = Date.now();
@@ -874,7 +810,7 @@ export async function submitScanClient(
                 lastEmittedBytes < 0 ||
                 bytesDelta >= 64 * 1024 ||
                 timeDelta >= 150 ||
-                snapshot.state !== "running";
+                progress.taskState !== "running";
               if (!shouldEmit) return;
               lastEmittedBytes = snapshotBytes;
               lastEmittedAt = now;
@@ -898,54 +834,14 @@ export async function submitScanClient(
                 percent: filePercent,
                 bytesTransferred: snapshotBytes,
                 totalBytes: snapshotTotal,
-                taskState: snapshot.state,
-                lastProgressAt: Date.now(),
+                taskState: progress.taskState as any,
+                lastProgressAt: progress.lastProgressAt,
                 fullPath: target.path,
                 bucket: String((storage as any)?.app?.options?.storageBucket || ""),
+                offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
               });
             },
-            {
-              signal: options?.signal,
-              stallTimeoutMs: effectiveStallTimeoutMs,
-              onTask: (task) => {
-                try {
-                  options?.onUploadTask?.({ pose: target.pose, task });
-                } catch {
-                  // ignore
-                }
-              },
-              onStall: ({ reason, bytesTransferred, taskState }) => {
-                console.warn("scan.upload_stall", {
-                  pose: target.pose,
-                  attempt,
-                  reason,
-                  bytesTransferred,
-                  taskState,
-                });
-                options?.onPhotoState?.({
-                  pose: target.pose,
-                  status: "retrying",
-                  attempt,
-                  message:
-                    reason === "no_progress"
-                      ? `Upload stalled (no progress for ${Math.round(
-                          effectiveStallTimeoutMs / 1000
-                        )}s while running). Restarting…`
-                      : reason === "paused"
-                        ? `Upload paused for ${Math.round(
-                            effectiveStallTimeoutMs / 1000
-                          )}s with no progress. Restarting…`
-                      : `Upload stalled (no new bytes for ${Math.round(
-                          effectiveStallTimeoutMs / 1000
-                        )}s while running). Restarting…`,
-                  bytesTransferred,
-                  totalBytes: target.size,
-                  fullPath: target.path,
-                  bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-                });
-              },
-            }
-          );
+          });
           succeeded = true;
         } catch (err) {
           const normalized = normalizeUploadError(err);
@@ -967,15 +863,52 @@ export async function submitScanClient(
             normalizedCode: normalized?.code,
             state: lastSnapshot?.state,
           });
-          const effectiveCode = rawCode ?? normalized?.code;
-          const retryable = isRetryableUploadFailure(effectiveCode);
-          if (attempt < maxAttempts && retryable) {
+          const overallTimedOut =
+            Boolean(combinedSignal?.signal?.aborted) && Date.now() >= overallDeadlineAt;
+          const effectiveCode = overallTimedOut ? "scan/overall-timeout" : rawCode ?? normalized?.code;
+          if (overallTimedOut) {
+            options?.onPhotoState?.({
+              pose: target.pose,
+              status: "failed",
+              attempt,
+              message: "Scan timed out. Please retry.",
+              lastFirebaseError: {
+                code: rawCode ?? normalized?.code,
+                message: rawMessage ?? normalized?.message,
+                serverResponse,
+              },
+              taskState: lastSnapshot?.state,
+              fullPath: target.path,
+              bucket: String((storage as any)?.app?.options?.storageBucket || ""),
+              offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
+            });
+            const e: any = new Error("Scan timed out. Please retry.");
+            e.code = "scan/overall-timeout";
+            e.pose = target.pose;
+            throw e;
+          }
+          const retryability = classifyUploadRetryability({
+            code: effectiveCode,
+            bytesTransferred: lastAttemptBytesTransferred,
+            wasOffline: Boolean((err as any)?.wasOffline) || (typeof navigator !== "undefined" && navigator.onLine === false),
+          });
+          if (attempt < maxAttempts && retryability.retryable) {
             const backoff = retryDelaysMs[attempt - 1] ?? 2000;
+            const nextRetryAt = Date.now() + backoff;
             options?.onPhotoState?.({
               pose: target.pose,
               status: "retrying",
               attempt,
-              message: "Retrying upload…",
+              message:
+                retryability.reason === "transient_network" &&
+                typeof navigator !== "undefined" &&
+                navigator.onLine === false
+                  ? "Connection lost — retrying when you’re back online…"
+                  : retryability.reason === "stall"
+                    ? `Connection paused — retrying in ${Math.max(1, Math.round(backoff / 1000))}s…`
+                    : `Retrying in ${Math.max(1, Math.round(backoff / 1000))}s…`,
+              nextRetryAt,
+              nextRetryDelayMs: backoff,
               // Important: preserve the raw Firebase error code/message for diagnostics.
               lastFirebaseError: {
                 code: rawCode ?? normalized?.code,
@@ -985,8 +918,17 @@ export async function submitScanClient(
               taskState: lastSnapshot?.state,
               fullPath: target.path,
               bucket: String((storage as any)?.app?.options?.storageBucket || ""),
+              offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
             });
-            await new Promise((r) => setTimeout(r, backoff));
+            // If offline, wait for connectivity (up to overall deadline), then retry immediately.
+            if (typeof navigator !== "undefined" && navigator.onLine === false) {
+              await waitForOnlineOrAbort({
+                signal: combinedSignal!.signal,
+                deadlineAt: overallDeadlineAt,
+              });
+            } else {
+              await new Promise((r) => setTimeout(r, backoff));
+            }
             continue;
           }
           options?.onPhotoState?.({
@@ -1006,6 +948,7 @@ export async function submitScanClient(
             taskState: lastSnapshot?.state,
             fullPath: target.path,
             bucket: String((storage as any)?.app?.options?.storageBucket || ""),
+            offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
           });
           const finalErr: any = normalized
             ? Object.assign(new Error(normalized.message), {
@@ -1069,10 +1012,12 @@ export async function submitScanClient(
     // `submitScan` performs the full OpenAI analysis server-side and can take
     // longer than the default 15s API timeout on mobile networks (especially iOS Safari).
     // Use a longer timeout and avoid client retries that could duplicate work.
+    const remainingForSubmit = Math.max(5_000, overallDeadlineAt - Date.now());
     await apiFetch(submitUrl(), {
       method: "POST",
-      timeoutMs: 180_000,
+      timeoutMs: Math.min(180_000, remainingForSubmit),
       retries: 0,
+      signal: combinedSignal!.signal,
       body: {
         scanId: params.scanId,
         photoPaths: params.storagePaths,
@@ -1080,10 +1025,36 @@ export async function submitScanClient(
         goalWeightKg: params.goalWeightKg,
       },
     });
+    try {
+      (combinedSignal as any)?.__cleanup?.();
+    } catch {
+      // ignore
+    }
     return { ok: true, data: undefined };
   } catch (err) {
     console.error("scan:submit error", err);
+    try {
+      // always cleanup deadline listeners
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (combinedSignal as any)?.__cleanup?.();
+    } catch {
+      // ignore
+    }
     const reason = uploadsCompleted ? "submit_failed" : "upload_failed";
+    const timedOut =
+      Boolean(combinedSignal?.signal?.aborted) &&
+      overallDeadlineAt > 0 &&
+      Date.now() >= overallDeadlineAt;
+    if (timedOut) {
+      return {
+        ok: false,
+        error: {
+          code: "scan/overall-timeout",
+          message: "This scan is taking too long. Please retry.",
+          reason,
+        },
+      };
+    }
     const fallback = uploadsCompleted
       ? "We couldn't process your scan. Please try again."
       : "Could not upload your photos. Please try again.";
@@ -1093,6 +1064,61 @@ export async function submitScanClient(
       error: normalizedUpload ?? buildScanError(err, fallback, reason),
     };
   }
+}
+
+async function waitForOnlineOrAbort(params: { signal: AbortSignal; deadlineAt: number }) {
+  if (params.signal.aborted) {
+    const err: any = new Error("Upload cancelled.");
+    err.code = "upload_cancelled";
+    throw err;
+  }
+  if (typeof navigator === "undefined") return;
+  if (navigator.onLine) return;
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      try {
+        window.removeEventListener("online", onOnline);
+      } catch {
+        // ignore
+      }
+      try {
+        params.signal.removeEventListener("abort", onAbort);
+      } catch {
+        // ignore
+      }
+      if (timer) clearTimeout(timer);
+    };
+    const onOnline = () => {
+      cleanup();
+      resolve();
+    };
+    const onAbort = () => {
+      cleanup();
+      const err: any = new Error("Upload cancelled.");
+      err.code = "upload_cancelled";
+      reject(err);
+    };
+    const now = Date.now();
+    const remaining = Math.max(0, params.deadlineAt - now);
+    const timer =
+      remaining > 0
+        ? setTimeout(() => {
+            cleanup();
+            const err: any = new Error("Connection lost for too long. Please retry.");
+            err.code = "upload_offline";
+            reject(err);
+          }, remaining)
+        : null;
+    try {
+      window.addEventListener("online", onOnline, { once: true } as any);
+    } catch {
+      // ignore
+    }
+    params.signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export async function retryScanProcessingClient(

@@ -23,6 +23,10 @@ const Processing = () => {
     triggered: boolean;
     sinceMs?: number;
   }>({ triggered: false });
+  const [hardTimeout, setHardTimeout] = useState<{
+    triggered: boolean;
+    sinceMs?: number;
+  }>({ triggered: false });
   const lastUpdatedAtRef = useRef<number | null>(null);
   const canonical =
     typeof window !== "undefined" ? window.location.href : undefined;
@@ -100,17 +104,33 @@ const Processing = () => {
   useEffect(() => {
     if (!isActiveProcessing) {
       setWatchdog({ triggered: false });
+      setHardTimeout({ triggered: false });
       return;
     }
-    const interval = window.setInterval(() => {
+    const MAX_ACTIVE_MS = 5 * 60 * 1000;
+    const check = () => {
       const updatedAt = lastUpdatedAtRef.current;
       if (!updatedAt) return;
       const age = Date.now() - updatedAt;
       if (age >= 90_000) {
         setWatchdog({ triggered: true, sinceMs: age });
       }
-    }, 1500);
-    return () => window.clearInterval(interval);
+      if (age >= MAX_ACTIVE_MS) {
+        setHardTimeout({ triggered: true, sinceMs: age });
+      }
+    };
+    const interval = window.setInterval(check, 1500);
+    const onVis = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    const onOnline = () => check();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+    };
   }, [isActiveProcessing]);
 
   useEffect(() => {
@@ -190,7 +210,7 @@ const Processing = () => {
         </div>
       )}
 
-      {watchdog.triggered && isActiveProcessing && (
+      {watchdog.triggered && isActiveProcessing && !hardTimeout.triggered && (
         <div className="mt-8 w-full max-w-sm space-y-3 rounded border p-4 text-center">
           <p className="text-sm font-medium">Still working…</p>
           <p className="text-xs text-muted-foreground">
@@ -232,6 +252,49 @@ const Processing = () => {
               onClick={() => navigate("/scan")}
             >
               Back to Scan
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            lastStep: {lastStep ?? "—"} · updatedAt:{" "}
+            {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+          </p>
+        </div>
+      )}
+
+      {hardTimeout.triggered && isActiveProcessing && (
+        <div className="mt-8 w-full max-w-sm space-y-3 rounded border border-destructive/40 bg-destructive/5 p-4 text-center">
+          <p className="text-sm font-medium">This is taking too long</p>
+          <p className="text-xs text-muted-foreground">
+            No update for{" "}
+            {hardTimeout.sinceMs ? `${Math.round(hardTimeout.sinceMs / 1000)}s` : "a while"}.
+            We won’t keep you stuck on this screen.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!scanId) return;
+                const result = await retryScanProcessingClient(scanId);
+                if (result.ok) {
+                  toast({
+                    title: "Retry started",
+                    description: "Processing restarted. Keep this tab open.",
+                  });
+                  setHardTimeout({ triggered: false });
+                  setWatchdog({ triggered: false });
+                  return;
+                }
+                toast({
+                  title: "Retry failed",
+                  description: result.error.message,
+                  variant: "destructive",
+                });
+              }}
+            >
+              Retry processing
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/scan/new")}>
+              Start new scan
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
