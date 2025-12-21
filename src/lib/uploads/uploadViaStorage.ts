@@ -12,6 +12,7 @@ export async function uploadViaStorage(params: {
   storage: FirebaseStorage;
   path: string;
   file: Blob;
+  customMetadata?: Record<string, string>;
   stallTimeoutMs: number;
   overallTimeoutMs: number;
   signal?: AbortSignal;
@@ -33,6 +34,7 @@ export async function uploadViaStorage(params: {
       metadata: {
         contentType: "image/jpeg",
         cacheControl: "public,max-age=31536000",
+        customMetadata: params.customMetadata,
       },
       signal: params.signal,
       stallTimeoutMs: params.stallTimeoutMs,

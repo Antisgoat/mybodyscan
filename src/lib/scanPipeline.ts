@@ -6,6 +6,7 @@ export type ScanPipelineStage =
   | "upload_left"
   | "upload_right"
   | "submit_scan"
+  | "queued"
   | "processing_wait"
   | "result_ready"
   | "failed";
@@ -28,6 +29,7 @@ export type ScanPipelineState = {
   updatedAt: number;
   stageStartedAt: number;
   requestId?: string;
+  correlationId?: string;
   storagePaths?: Record<string, string>;
   lastError?: ScanPipelineError | null;
   lastServerStatus?: string | null;
@@ -152,6 +154,7 @@ const STAGE_LABELS: Record<ScanPipelineStage, string> = {
   upload_left: "Uploading left photo",
   upload_right: "Uploading right photo",
   submit_scan: "Submitting scan",
+  queued: "Queued for processing",
   processing_wait: "Processing scan",
   result_ready: "Scan complete",
   failed: "Scan paused",

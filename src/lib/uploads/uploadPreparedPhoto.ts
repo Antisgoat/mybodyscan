@@ -50,7 +50,11 @@ export async function uploadPreparedPhoto(params: {
   storage: FirebaseStorage;
   path: string;
   file: Blob;
-  metadata: { contentType: string; cacheControl?: string };
+  metadata: {
+    contentType: string;
+    cacheControl?: string;
+    customMetadata?: Record<string, string>;
+  };
   signal?: AbortSignal;
   stallTimeoutMs: number;
   overallTimeoutMs: number;
@@ -98,6 +102,7 @@ export async function uploadPreparedPhoto(params: {
     const task = uploadBytesResumable(storageRef, params.file, {
       contentType: params.metadata.contentType,
       cacheControl: params.metadata.cacheControl,
+      customMetadata: params.metadata.customMetadata,
     });
     params.onTask?.(task);
 
@@ -338,4 +343,3 @@ async function waitUntilDeadlineOrAbort(params: {
     await new Promise((r) => setTimeout(r, 250));
   }
 }
-

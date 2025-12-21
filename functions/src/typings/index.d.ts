@@ -388,8 +388,32 @@ interface ScanDocument {
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt: FirebaseFirestore.Timestamp;
   completedAt?: FirebaseFirestore.Timestamp | null;
-  status: "pending" | "processing" | "complete" | "error";
+  status:
+    | "uploading"
+    | "uploaded"
+    | "pending"
+    | "queued"
+    | "processing"
+    | "complete"
+    | "error";
   errorMessage?: string;
+  errorReason?: string | null;
+  errorInfo?: {
+    code?: string;
+    message?: string;
+    stage?: string;
+    debugId?: string;
+    stack?: string;
+  } | null;
+  lastStep?: string | null;
+  lastStepAt?: FirebaseFirestore.Timestamp | null;
+  progress?: number | null;
+  correlationId?: string | null;
+  processingRequestedAt?: FirebaseFirestore.Timestamp | null;
+  processingStartedAt?: FirebaseFirestore.Timestamp | null;
+  processingHeartbeatAt?: FirebaseFirestore.Timestamp | null;
+  processingAttemptId?: string | null;
+  submitRequestId?: string | null;
   photoPaths: {
     front: string;
     back: string;

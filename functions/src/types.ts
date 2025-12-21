@@ -44,11 +44,32 @@ export interface ScanDocument {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   completedAt?: Timestamp | null;
-  status: "uploading" | "uploaded" | "pending" | "processing" | "complete" | "error";
+  status:
+    | "uploading"
+    | "uploaded"
+    | "pending"
+    | "queued"
+    | "processing"
+    | "complete"
+    | "error";
   errorMessage?: string;
   errorReason?: string | null;
+  errorInfo?: {
+    code?: string;
+    message?: string;
+    stage?: string;
+    debugId?: string;
+    stack?: string;
+  } | null;
   lastStep?: string | null;
   lastStepAt?: Timestamp | null;
+  progress?: number | null;
+  correlationId?: string | null;
+  processingRequestedAt?: Timestamp | null;
+  processingStartedAt?: Timestamp | null;
+  processingHeartbeatAt?: Timestamp | null;
+  processingAttemptId?: string | null;
+  submitRequestId?: string | null;
   /** Stored once at scan time so the result page doesn't call OpenAI again. */
   recommendations?: string[] | null;
   photoPaths: {
