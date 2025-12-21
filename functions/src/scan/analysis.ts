@@ -186,7 +186,11 @@ export async function callOpenAI(
   requestId: string
 ): Promise<OpenAIResult> {
   if (!hasOpenAI()) {
-    throw new OpenAIClientError("openai_missing_key", "Scan engine not configured.");
+    throw new OpenAIClientError(
+      "openai_missing_key",
+      401,
+      "Scan engine not configured."
+    );
   }
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
