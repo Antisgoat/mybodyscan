@@ -5,6 +5,7 @@ import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
+import type { ProgramPreferences } from "@/lib/programs/preferences";
 
 export interface CoachProfile {
   sex?: "male" | "female";
@@ -24,6 +25,7 @@ export interface CoachProfile {
   currentWeekIdx?: number;
   currentDayIdx?: number;
   startedAt?: string;
+  programPreferences?: ProgramPreferences;
 }
 
 export interface CoachPlanBlock {

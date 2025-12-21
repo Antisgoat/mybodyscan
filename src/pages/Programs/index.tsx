@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, ChevronRight, Loader2, PauseCircle, Play, RefreshCcw, Settings2 } from "lucide-react";
@@ -25,71 +25,34 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { startCatalogProgram } from "@/lib/programs/startProgram";
 import { toast } from "@/hooks/use-toast";
 import { canStartPrograms } from "@/lib/entitlements";
-
-type PlanPreferenceGoal = "strength" | "hypertrophy" | "fat_loss" | "athletic";
-type PlanPreferenceEquipment = "full_gym" | "dumbbells" | "bodyweight";
-type PlanPreferenceExperience = "beginner" | "intermediate" | "advanced";
-
-type PlanPreferences = {
-  daysPerWeek: 3 | 4 | 5 | 6;
-  goal: PlanPreferenceGoal;
-  equipment: PlanPreferenceEquipment;
-  experience: PlanPreferenceExperience;
-  timePerWorkout: 30 | 45 | 60 | 75;
-};
+import {
+  DEFAULT_PROGRAM_PREFERENCES,
+  normalizeProgramPreferences,
+  type ProgramPreferenceEquipment,
+  type ProgramPreferenceExperience,
+  type ProgramPreferenceFocus,
+  type ProgramPreferenceGoal,
+  type ProgramPreferences,
+} from "@/lib/programs/preferences";
+import { useAuthUser } from "@/lib/auth";
+import { db } from "@/lib/firebase";
+import { doc, serverTimestamp } from "firebase/firestore";
+import { setDoc } from "@/lib/dbWrite";
 
 const PREFERENCES_KEY = "mbs.programPrefs";
 
-function loadPlanPreferences(): PlanPreferences {
+function loadPlanPreferences(): ProgramPreferences {
   try {
     const raw = window.localStorage.getItem(PREFERENCES_KEY);
     if (!raw) throw new Error("missing");
-    const parsed = JSON.parse(raw) as Partial<PlanPreferences>;
-    if (!parsed || typeof parsed !== "object") throw new Error("invalid");
-    const days = [3, 4, 5, 6].includes(Number(parsed.daysPerWeek))
-      ? (Number(parsed.daysPerWeek) as PlanPreferences["daysPerWeek"])
-      : 4;
-    const goal =
-      parsed.goal === "strength" ||
-      parsed.goal === "hypertrophy" ||
-      parsed.goal === "fat_loss" ||
-      parsed.goal === "athletic"
-        ? parsed.goal
-        : "hypertrophy";
-    const equipment =
-      parsed.equipment === "full_gym" ||
-      parsed.equipment === "dumbbells" ||
-      parsed.equipment === "bodyweight"
-        ? parsed.equipment
-        : "full_gym";
-    const experience =
-      parsed.experience === "beginner" ||
-      parsed.experience === "intermediate" ||
-      parsed.experience === "advanced"
-        ? parsed.experience
-        : "beginner";
-    const time = [30, 45, 60, 75].includes(Number(parsed.timePerWorkout))
-      ? (Number(parsed.timePerWorkout) as PlanPreferences["timePerWorkout"])
-      : 45;
-    return {
-      daysPerWeek: days,
-      goal,
-      equipment,
-      experience,
-      timePerWorkout: time,
-    };
+    const parsed = JSON.parse(raw) as Partial<ProgramPreferences>;
+    return normalizeProgramPreferences(parsed);
   } catch {
-    return {
-      daysPerWeek: 4,
-      goal: "hypertrophy",
-      equipment: "full_gym",
-      experience: "beginner",
-      timePerWorkout: 45,
-    };
+    return DEFAULT_PROGRAM_PREFERENCES;
   }
 }
 
-function savePlanPreferences(prefs: PlanPreferences) {
+function savePlanPreferences(prefs: ProgramPreferences) {
   try {
     window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
   } catch {
@@ -162,14 +125,57 @@ export default function ProgramsCatalog() {
   const { claims, loading: claimsLoading, refresh: refreshClaims } = useClaims();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const { profile } = useUserProfile();
+  const { user, authReady } = useAuthUser();
 
   const [startingProgramId, setStartingProgramId] = useState<string | null>(null);
   const [endingPlan, setEndingPlan] = useState<"paused" | "ended" | null>(null);
-  const [planPrefs, setPlanPrefs] = useState<PlanPreferences>(() => loadPlanPreferences());
+  const [planPrefs, setPlanPrefs] = useState<ProgramPreferences>(() => loadPlanPreferences());
+  const hydratedFromProfileRef = useRef(false);
+  const saveTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     savePlanPreferences(planPrefs);
   }, [planPrefs]);
+
+  useEffect(() => {
+    if (hydratedFromProfileRef.current) return;
+    if (profile?.programPreferences) {
+      setPlanPrefs(normalizeProgramPreferences(profile.programPreferences));
+      hydratedFromProfileRef.current = true;
+      return;
+    }
+    if (authReady) {
+      hydratedFromProfileRef.current = true;
+    }
+  }, [authReady, profile?.programPreferences]);
+
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    if (!authReady || demo || !user) return;
+    const normalizedProfile = profile?.programPreferences
+      ? normalizeProgramPreferences(profile.programPreferences)
+      : null;
+    const profileSignature = normalizedProfile ? JSON.stringify(normalizedProfile) : null;
+    const localSignature = JSON.stringify(planPrefs);
+    if (profileSignature === localSignature) return;
+    saveTimeoutRef.current = window.setTimeout(() => {
+      void setDoc(
+        doc(db, "users", user.uid, "coach", "profile"),
+        {
+          programPreferences: planPrefs,
+          programPreferencesUpdatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ).catch((error) => {
+        console.warn("programPreferences.save_failed", error);
+      });
+    }, 400);
+    return () => {
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    };
+  }, [authReady, demo, planPrefs, profile?.programPreferences, user]);
 
   useEffect(() => {
     if (demo) return;
@@ -260,13 +266,13 @@ export default function ProgramsCatalog() {
   const bestMatch = useMemo(() => {
     const entries = catalogQuery.data ?? [];
     if (!entries.length) return null;
-    const goalMap: Record<PlanPreferenceGoal, ProgramGoal> = {
+    const goalMap: Record<ProgramPreferenceGoal, ProgramGoal> = {
       strength: "strength",
       hypertrophy: "hypertrophy",
       fat_loss: "cut",
       athletic: "general",
     };
-    const equipmentMap: Record<PlanPreferenceEquipment, ProgramEquipment[]> = {
+    const equipmentMap: Record<ProgramPreferenceEquipment, ProgramEquipment[]> = {
       full_gym: ["machines", "barbell", "dumbbells"],
       dumbbells: ["dumbbells"],
       bodyweight: ["none"],
@@ -277,6 +283,7 @@ export default function ProgramsCatalog() {
       days: planPrefs.daysPerWeek,
       equipment: equipmentMap[planPrefs.equipment],
       time: planPrefs.timePerWorkout,
+      focus: planPrefs.focus,
     };
     const ranked = entries
       .map((entry) => ({
@@ -560,7 +567,7 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          daysPerWeek: Number(value) as PlanPreferences["daysPerWeek"],
+                          daysPerWeek: Number(value) as ProgramPreferences["daysPerWeek"],
                         }))
                       }
                     >
@@ -585,7 +592,7 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          goal: value as PlanPreferenceGoal,
+                          goal: value as ProgramPreferenceGoal,
                         }))
                       }
                     >
@@ -609,7 +616,7 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          equipment: value as PlanPreferenceEquipment,
+                          equipment: value as ProgramPreferenceEquipment,
                         }))
                       }
                     >
@@ -625,6 +632,31 @@ export default function ProgramsCatalog() {
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Focus
+                    </p>
+                    <Select
+                      value={planPrefs.focus}
+                      onValueChange={(value) =>
+                        setPlanPrefs((prev) => ({
+                          ...prev,
+                          focus: value as ProgramPreferenceFocus,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full_body">Full body</SelectItem>
+                        <SelectItem value="upper_lower">Upper / Lower</SelectItem>
+                        <SelectItem value="push_pull_legs">Push / Pull / Legs</SelectItem>
+                        <SelectItem value="conditioning">Conditioning</SelectItem>
+                        <SelectItem value="mobility">Mobility & Core</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Experience
                     </p>
                     <Select
@@ -632,7 +664,7 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          experience: value as PlanPreferenceExperience,
+                          experience: value as ProgramPreferenceExperience,
                         }))
                       }
                     >
@@ -655,7 +687,7 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          timePerWorkout: Number(value) as PlanPreferences["timePerWorkout"],
+                          timePerWorkout: Number(value) as ProgramPreferences["timePerWorkout"],
                         }))
                       }
                     >
@@ -720,6 +752,23 @@ export default function ProgramsCatalog() {
                     Take the quick quiz
                   </Button>
                 </div>
+                {entitlementsReady && !canStart ? (
+                  <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Programs locked</div>
+                    <p className="mt-1">
+                      Activate your plan to start programs. We’ll bring you back here once you’re
+                      unlocked.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => nav("/plans")}
+                    >
+                      Go to Plans
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 

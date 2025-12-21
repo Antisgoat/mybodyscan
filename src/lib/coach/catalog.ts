@@ -107,7 +107,16 @@ const SCORE_WEIGHTS = {
   days: 15,
   equipment: 20,
   time: 10,
+  focus: 10,
 } as const;
+
+const FOCUS_KEYWORDS: Record<string, string[]> = {
+  full_body: ["full body"],
+  upper_lower: ["upper", "lower"],
+  push_pull_legs: ["push", "pull", "legs", "ppl"],
+  conditioning: ["conditioning", "zone 2", "cardio", "hiit", "endurance"],
+  mobility: ["mobility", "core", "recovery", "flexibility"],
+};
 
 export function matchScore(
   meta: ProgramMeta,
@@ -117,6 +126,7 @@ export function matchScore(
     days?: number;
     equipment?: ProgramEquipment[];
     time?: number;
+    focus?: string;
   }
 ): number {
   let score = 0;
@@ -179,6 +189,19 @@ export function matchScore(
       score += SCORE_WEIGHTS.time;
     } else if (meta.durationPerSessionMin <= prefs.time + 10) {
       score += SCORE_WEIGHTS.time * 0.5;
+    }
+  }
+
+  if (prefs.focus) {
+    maxScore += SCORE_WEIGHTS.focus;
+    const tags = (meta.tags ?? []).map((tag) => tag.toLowerCase());
+    const focusKey = String(prefs.focus);
+    const keywords = FOCUS_KEYWORDS[focusKey] ?? [focusKey];
+    const matches = keywords.some((keyword) =>
+      tags.some((tag) => tag.includes(keyword))
+    );
+    if (matches) {
+      score += SCORE_WEIGHTS.focus;
     }
   }
 

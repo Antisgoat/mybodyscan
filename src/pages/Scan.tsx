@@ -30,7 +30,6 @@ import {
   uploadBytesResumable,
   type UploadTask,
 } from "firebase/storage";
-import { uploadViaFunction } from "@/lib/uploads/uploadViaFunction";
 import {
   clearScanPipelineState,
   describeScanPipelineStage,
@@ -144,8 +143,7 @@ export default function ScanPage() {
         fullPath?: string;
         bucket?: string;
         pathMismatch?: { expected: string; actual: string };
-        uploadMethod?: "storage" | "function";
-        fallbackFrom?: "storage" | "function";
+        uploadMethod?: "storage";
         correlationId?: string;
         elapsedMs?: number;
       }
@@ -173,12 +171,6 @@ export default function ScanPage() {
     path?: string;
     url?: string;
     error?: { code?: string; message?: string; serverResponse?: string };
-  }>({ status: "idle" });
-  const [functionTest, setFunctionTest] = useState<{
-    status: "idle" | "running" | "pass" | "fail";
-    path?: string;
-    bucket?: string;
-    error?: { code?: string; message?: string; details?: unknown };
   }>({ status: "idle" });
   const { health: systemHealth } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
@@ -585,8 +577,6 @@ export default function ScanPage() {
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
                 uploadMethod:
                   (info as any)?.uploadMethod ?? existing.uploadMethod,
-                fallbackFrom:
-                  (info as any)?.fallbackFrom ?? existing.fallbackFrom,
                 correlationId:
                   (info as any)?.correlationId ?? existing.correlationId,
                 elapsedMs:
@@ -1639,78 +1629,6 @@ export default function ScanPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-3 py-2 text-xs"
-                    disabled={functionTest.status === "running"}
-                    onClick={async () => {
-                      const uid = auth.currentUser?.uid;
-                      if (!uid) {
-                        setFunctionTest({
-                          status: "fail",
-                          error: { message: "Not signed in." },
-                        });
-                        return;
-                      }
-                      setFunctionTest({ status: "running" });
-                      try {
-                        const token = await auth.currentUser?.getIdToken(true);
-                        if (!token) {
-                          throw new Error("Missing auth token.");
-                        }
-                        const bytes = new Uint8Array(1024);
-                        bytes.fill(0x62); // 'b'
-                        const blob = new Blob([bytes], { type: "image/jpeg" });
-                        const scanId = `debug-${Date.now()}`;
-                        const correlationId = `debug-${scanId}`;
-                        const result = await uploadViaFunction({
-                          token,
-                          scanId,
-                          view: "front",
-                          file: blob,
-                          correlationId,
-                          timeoutMs: 30_000,
-                        });
-                        setFunctionTest({
-                          status: "pass",
-                          path: result.path,
-                          bucket: result.bucket,
-                        });
-                      } catch (err: any) {
-                        setFunctionTest({
-                          status: "fail",
-                          error: {
-                            code: typeof err?.code === "string" ? err.code : undefined,
-                            message:
-                              typeof err?.message === "string" ? err.message : String(err),
-                            details: err?.details,
-                          },
-                        });
-                      }
-                    }}
-                  >
-                    Test Function Upload
-                  </button>
-                  {functionTest.status !== "idle" ? (
-                    <span className="text-muted-foreground">
-                      {functionTest.status === "running"
-                        ? "running…"
-                        : functionTest.status === "pass"
-                          ? `PASS · ${functionTest.path ?? "uploaded"}`
-                          : `FAIL · ${functionTest.error?.code ?? "unknown"} · ${
-                              functionTest.error?.message ?? ""
-                            }`}
-                    </span>
-                  ) : null}
-                </div>
-                {functionTest.status === "fail" && functionTest.error?.details ? (
-                  <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                    {JSON.stringify(functionTest.error.details, null, 2)}
-                  </pre>
-                ) : null}
-              </div>
-              <div className="space-y-2">
                 {(["front", "back", "left", "right"] as Pose[]).map((pose) => {
                   const meta = photoMeta[pose];
                   const state = photoState[pose];
@@ -1735,7 +1653,6 @@ export default function ScanPage() {
                       {meta.uploadMethod ? (
                         <div className="text-muted-foreground">
                           uploadMethod: {meta.uploadMethod}
-                          {meta.fallbackFrom ? ` (fallback from ${meta.fallbackFrom})` : ""}
                         </div>
                       ) : null}
                       {meta.correlationId ? (

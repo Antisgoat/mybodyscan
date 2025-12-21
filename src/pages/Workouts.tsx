@@ -71,6 +71,13 @@ export default function Workouts() {
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
+  const today = useMemo(
+    () => plan?.days.find((d) => d.day === todayName),
+    [plan, todayName]
+  );
+  const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
+  const completedCount = completed.length;
+  const totalCount = todayExercises.length;
 
   const loadProgress = useCallback(
     async (p: WorkoutPlan, isCancelled?: () => boolean) => {
@@ -499,14 +506,6 @@ export default function Workouts() {
       </div>
     );
   }
-
-  const today = useMemo(
-    () => plan?.days.find((d) => d.day === todayName),
-    [plan, todayName]
-  );
-  const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
-  const completedCount = completed.length;
-  const totalCount = todayExercises.length;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

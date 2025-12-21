@@ -54,7 +54,7 @@ function parseHeaders(headerText: string): Record<string, string> {
 }
 
 function parseMultipartField(headerValue: string, key: string): string | null {
-  const match = headerValue.match(new RegExp(`${key}=\"([^\"]+)\"`));
+  const match = headerValue.match(new RegExp(`${key}="([^"]+)"`));
   return match ? match[1] : null;
 }
 
@@ -66,7 +66,7 @@ async function parseMultipart(req: Request): Promise<{
   const contentType = String(req.headers["content-type"] || "");
   const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
   if (!boundaryMatch) throw new Error("missing_boundary");
-  const boundary = boundaryMatch[1].replace(/^\"|\"$/g, "");
+  const boundary = boundaryMatch[1].replace(/(^"|"$)/g, "");
   const rawBody = (req as any).rawBody;
   const rawBuffer = rawBody ? Buffer.from(rawBody) : null;
   if (!rawBuffer) throw new Error("missing_body");
