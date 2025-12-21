@@ -86,10 +86,11 @@ describe("uploadPreparedPhoto", () => {
       metadata: { contentType: "image/jpeg" },
       stallTimeoutMs: 1000,
       overallTimeoutMs: 5000,
-    });
+    }).catch((error) => error);
 
     await vi.advanceTimersByTimeAsync(1200);
-    await expect(promise).rejects.toMatchObject({ code: "upload_no_progress" });
+    const result = await promise;
+    expect(result).toMatchObject({ code: "upload_no_progress" });
     expect(task.cancel).toHaveBeenCalled();
     expect(dom.removeEventListener).toHaveBeenCalled();
   });
