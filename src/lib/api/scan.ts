@@ -15,7 +15,7 @@ import {
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
 import { ref, getDownloadURL, type UploadTaskSnapshot, type UploadTask } from "firebase/storage";
-import { uploadPhoto, shouldPreferFunctionUpload, type UploadMethod } from "@/lib/uploads/uploadPhoto";
+import { uploadPhoto, type UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
@@ -534,7 +534,6 @@ export async function submitScanClient(
       fullPath?: string;
       pathMismatch?: { expected: string; actual: string };
       uploadMethod?: UploadMethod;
-      fallbackFrom?: UploadMethod;
       correlationId?: string;
       elapsedMs?: number;
     }) => void;
@@ -769,9 +768,7 @@ export async function submitScanClient(
     })();
     const maxAttempts = isProbablyMobileUploadDevice() ? 5 : 3;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
-    const preferredUploadMethod: UploadMethod = shouldPreferFunctionUpload()
-      ? "function"
-      : "storage";
+    const preferredUploadMethod: UploadMethod = "storage";
     const scanCorrelationId = createCorrelationId(params.scanId);
 
     for (const [index, target] of uploadTargets.entries()) {
@@ -783,7 +780,6 @@ export async function submitScanClient(
         const attemptStartedAt = Date.now();
         const correlationId = `${scanCorrelationId}-${target.pose}-${attempt}`;
         let activeMethod: UploadMethod = preferredUploadMethod;
-        let fallbackFrom: UploadMethod | undefined;
         options?.onPhotoState?.({
           pose: target.pose,
           status: isRetry ? "retrying" : "uploading",
@@ -810,11 +806,8 @@ export async function submitScanClient(
           if (attempt === 1 || attempt === 2) {
             await user.getIdToken(true);
           }
-          const token = await user.getIdToken();
-
           const remainingOverall = Math.max(0, overallDeadlineAt - Date.now());
           const attemptTimeoutMs = Math.max(5_000, Math.min(perPhotoTimeoutMs, remainingOverall));
-          const functionTimeoutMs = Math.min(60_000, attemptTimeoutMs);
           if (attemptTimeoutMs <= 5_000 && remainingOverall <= 5_000) {
             const timeoutErr: any = new Error("Scan timed out. Please retry.");
             timeoutErr.code = "scan/overall-timeout";
@@ -828,28 +821,21 @@ export async function submitScanClient(
               window.localStorage?.getItem("mbs.debug.freezeUpload") === "1");
 
           const uploadResult = await uploadPhoto({
-            preferredMethod: preferredUploadMethod,
             storage,
             path: target.path,
             file: target.file,
-            token,
-            scanId: params.scanId,
-            view: target.pose,
             correlationId,
             signal: combinedSignal!.signal,
             storageTimeoutMs: attemptTimeoutMs,
-            functionTimeoutMs,
             stallTimeoutMs: effectiveStallTimeoutMs,
             debugSimulateFreeze: Boolean(debugFreeze),
             onMethodChange: (info) => {
               activeMethod = info.method;
-              fallbackFrom = info.fallbackFrom;
               options?.onPhotoState?.({
                 pose: target.pose,
                 status: isRetry ? "retrying" : "uploading",
                 attempt,
                 uploadMethod: info.method,
-                fallbackFrom: info.fallbackFrom,
                 correlationId,
               });
             },
@@ -925,7 +911,6 @@ export async function submitScanClient(
                 bucket: String((storage as any)?.app?.options?.storageBucket || ""),
                 offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
                 uploadMethod: activeMethod,
-                fallbackFrom,
                 correlationId,
               });
             },
@@ -936,12 +921,9 @@ export async function submitScanClient(
             status: isRetry ? "retrying" : "uploading",
             attempt,
             uploadMethod: uploadResult.method,
-            fallbackFrom: uploadResult.fallbackFrom,
             correlationId,
             elapsedMs,
-            bucket:
-              uploadResult.bucket ??
-              String((storage as any)?.app?.options?.storageBucket || ""),
+            bucket: String((storage as any)?.app?.options?.storageBucket || ""),
             fullPath: target.path,
           });
           succeeded = true;
@@ -1030,7 +1012,6 @@ export async function submitScanClient(
               bucket: String((storage as any)?.app?.options?.storageBucket || ""),
               offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
               uploadMethod: activeMethod,
-              fallbackFrom,
               correlationId,
             });
             // If offline, wait for connectivity (up to overall deadline), then retry immediately.
@@ -1067,7 +1048,6 @@ export async function submitScanClient(
             bucket: String((storage as any)?.app?.options?.storageBucket || ""),
             offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
             uploadMethod: activeMethod,
-            fallbackFrom,
             correlationId,
           });
           const finalErr: any = normalized
