@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  createScanCorrelationId,
   deleteScanApi,
   startScanSessionClient,
   submitScanClient,
@@ -74,6 +75,7 @@ export default function ScanPage() {
     | "preparing"
     | "uploading"
     | "submitting"
+    | "queued"
     | "processing"
     | "error"
   >("idle");
@@ -92,6 +94,7 @@ export default function ScanPage() {
     storagePaths: { front: string; back: string; left: string; right: string };
     currentWeightKg: number;
     goalWeightKg: number;
+    correlationId?: string;
   } | null>(null);
   type Pose = "front" | "back" | "left" | "right";
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
@@ -280,7 +283,7 @@ export default function ScanPage() {
           "Uploads are taking longer than usual. Keep this tab open or try again if your connection stalls."
         );
       }, 60000);
-    } else if (status === "submitting" || status === "processing") {
+    } else if (status === "submitting" || status === "queued" || status === "processing") {
       timer = setTimeout(() => {
         setDelayNotice(
           "Analysis is still running. Keep this tab open, or check back in a minute."
@@ -376,6 +379,7 @@ export default function ScanPage() {
       return;
     }
     try {
+      const scanCorrelationId = createScanCorrelationId();
       setStatus("starting");
       setFailureReason(null);
       setStatusDetail("Verifying credits and reserving secure compute…");
@@ -385,6 +389,7 @@ export default function ScanPage() {
         {
           currentWeightKg,
           goalWeightKg,
+          correlationId: scanCorrelationId,
         },
         {
           signal: startAbort.signal,
@@ -410,11 +415,13 @@ export default function ScanPage() {
         storagePaths: start.data.storagePaths,
         currentWeightKg,
         goalWeightKg,
+        correlationId: scanCorrelationId,
       });
       updatePipeline(startedScanId, {
         stage: "init",
         requestId: start.data.debugId ?? undefined,
         storagePaths: start.data.storagePaths,
+        correlationId: scanCorrelationId,
         lastError: null,
       });
       setStatus("preparing");
@@ -480,6 +487,7 @@ export default function ScanPage() {
           },
           currentWeightKg,
           goalWeightKg,
+          scanCorrelationId,
         },
         {
           onUploadTask: ({ pose, task }) => {
@@ -636,16 +644,16 @@ export default function ScanPage() {
       }
 
       updatePipeline(startedScanId, {
-        stage: "processing_wait",
+        stage: "queued",
         lastError: null,
         requestId: submit.data?.debugId ?? requestIdRef.current ?? undefined,
       });
       setUploadProgress(null);
       setUploadPose(null);
       setUploadHasBytes(false);
-      setStatus("processing");
+      setStatus("queued");
       setStatusDetail(
-        "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+        "Queued for processing. We’re about to analyze posture, estimate body fat, and generate your plan…"
       );
       sessionScanId = null;
       setActiveScanId(null);
@@ -763,6 +771,7 @@ export default function ScanPage() {
         },
         currentWeightKg: scanSession.currentWeightKg,
         goalWeightKg: scanSession.goalWeightKg,
+        scanCorrelationId: scanSession.correlationId,
       },
       {
         posesToUpload: failedPoses,
@@ -858,11 +867,11 @@ export default function ScanPage() {
       );
       return;
     }
-    setStatus("processing");
+    setStatus("queued");
     setStatusDetail(
-      "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+      "Queued for processing. We’re about to analyze posture, estimate body fat, and generate your plan…"
     );
-    updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
+    updatePipeline(scanSession.scanId, { stage: "queued", lastError: null });
     nav(`/scans/${scanSession.scanId}`);
   }, [
     canRetryFailed,
@@ -901,6 +910,7 @@ export default function ScanPage() {
         },
         currentWeightKg: scanSession.currentWeightKg,
         goalWeightKg: scanSession.goalWeightKg,
+        scanCorrelationId: scanSession.correlationId,
       },
       {
         posesToUpload: [],
@@ -922,11 +932,11 @@ export default function ScanPage() {
       );
       return;
     }
-    setStatus("processing");
+    setStatus("queued");
     setStatusDetail(
-      "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+      "Queued for processing. We’re about to analyze posture, estimate body fat, and generate your plan…"
     );
-    updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
+    updatePipeline(scanSession.scanId, { stage: "queued", lastError: null });
     nav(`/scans/${scanSession.scanId}`);
   }, [canRetrySubmit, failFlow, nav, photos, scanSession, updatePipeline]);
 
@@ -984,6 +994,7 @@ export default function ScanPage() {
           },
           currentWeightKg: scanSession.currentWeightKg,
           goalWeightKg: scanSession.goalWeightKg,
+          scanCorrelationId: scanSession.correlationId,
         },
         {
           posesToUpload: [pose],
@@ -1081,11 +1092,11 @@ export default function ScanPage() {
         );
         return;
       }
-      setStatus("processing");
+      setStatus("queued");
       setStatusDetail(
-        "Processing started. We’re analyzing posture, estimating body fat, and generating your plan…"
+        "Queued for processing. We’re about to analyze posture, estimate body fat, and generate your plan…"
       );
-      updatePipeline(scanSession.scanId, { stage: "processing_wait", lastError: null });
+      updatePipeline(scanSession.scanId, { stage: "queued", lastError: null });
       nav(`/scans/${scanSession.scanId}`);
     },
     [failFlow, nav, photos, scanSession, updatePipeline]
@@ -1263,6 +1274,7 @@ export default function ScanPage() {
           {status === "preparing" && "Preparing photos…"}
           {status === "uploading" && "Uploading photos…"}
           {status === "submitting" && "Starting analysis…"}
+          {status === "queued" && "Queued…"}
           {status === "processing" && "Processing…"}
           {(status === "idle" || status === "error") && "Analyze scan"}
         </button>
@@ -1303,6 +1315,7 @@ export default function ScanPage() {
         {(status === "preparing" ||
           status === "uploading" ||
           status === "submitting" ||
+          status === "queued" ||
           status === "processing" ||
           status === "error") && (
           <div className="space-y-2">
@@ -1532,6 +1545,12 @@ export default function ScanPage() {
                 <span className="font-medium">scanId:</span>{" "}
                 <span className="text-muted-foreground">
                   {scanSession?.scanId ?? activeScanId ?? "—"}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium">correlationId:</span>{" "}
+                <span className="text-muted-foreground">
+                  {scanSession?.correlationId ?? persistedScan?.correlationId ?? "—"}
                 </span>
               </div>
               <div>

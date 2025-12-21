@@ -62,6 +62,10 @@ async function handleStart(req: Request, res: any) {
 
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);
+    const correlationId =
+      typeof req.body?.correlationId === "string" && req.body.correlationId.trim()
+        ? req.body.correlationId.trim().slice(0, 64)
+        : undefined;
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
       throw new HttpsError(
         "invalid-argument",
@@ -99,16 +103,23 @@ async function handleStart(req: Request, res: any) {
       estimate: null,
       workoutPlan: null,
       nutritionPlan: null,
+      correlationId: correlationId ?? null,
     };
 
     await db.doc(`users/${uid}/scans/${scanId}`).set(doc);
-    console.info("scan_start_created", { uid, scanId, requestId });
+    console.info("scan_start_created", {
+      uid,
+      scanId,
+      requestId,
+      correlationId,
+    });
 
-    const payload: StartResponse & { debugId: string } = {
+    const payload: StartResponse & { debugId: string; correlationId?: string } = {
       scanId,
       storagePaths,
       debugId: requestId,
     };
+    if (correlationId) payload.correlationId = correlationId;
     res.json(payload);
   } catch (error) {
     respondWithStartError(res, error, requestId);

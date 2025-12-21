@@ -34,6 +34,7 @@ import {
   type LabeledRange,
 } from "@/content/referenceRanges";
 import {
+  createScanCorrelationId,
   deleteScanApi,
   startScanSessionClient,
   submitScanClient,
@@ -74,7 +75,13 @@ const VIEW_TO_POSE: Partial<Record<CaptureView, Pose>> = {
   Right: "right",
 };
 
-type FlowStatus = "idle" | "starting" | "uploading" | "processing" | "error";
+type FlowStatus =
+  | "idle"
+  | "starting"
+  | "uploading"
+  | "queued"
+  | "processing"
+  | "error";
 
 type PhotoMetadata = {
   name: string;
@@ -404,6 +411,7 @@ export default function ScanFlowResult() {
     !readyForSubmission ||
     flowStatus === "starting" ||
     flowStatus === "uploading" ||
+    flowStatus === "queued" ||
     flowStatus === "processing";
 
   const handleFinalize = async () => {
@@ -440,12 +448,15 @@ export default function ScanFlowResult() {
       right: { status: "preparing", percent: 0, attempt: 0 },
     });
     let activeSession = session;
+    const scanCorrelationId =
+      activeSession?.correlationId ?? createScanCorrelationId();
     let cleanupScanId: string | null = activeSession?.scanId ?? null;
     try {
       if (!activeSession) {
         const start = await startScanSessionClient({
           currentWeightKg,
           goalWeightKg,
+          correlationId: scanCorrelationId,
         });
         if (!start.ok) {
           const debugSuffix = start.error.debugId
@@ -453,8 +464,15 @@ export default function ScanFlowResult() {
             : "";
           throw new Error(start.error.message + debugSuffix);
         }
-        setCaptureSession(start.data);
-        activeSession = start.data;
+        setCaptureSession({
+          ...start.data,
+          correlationId: scanCorrelationId,
+        });
+        activeSession = { ...start.data, correlationId: scanCorrelationId };
+      }
+      if (activeSession && !activeSession.correlationId) {
+        activeSession = { ...activeSession, correlationId: scanCorrelationId };
+        setCaptureSession(activeSession);
       }
       if (!activeSession) {
         throw new Error("Unable to start scan session.");
@@ -477,6 +495,7 @@ export default function ScanFlowResult() {
           photos,
           currentWeightKg,
           goalWeightKg,
+          scanCorrelationId: activeSession.correlationId,
         },
         {
           onUploadTask: ({ pose, task }) => {
@@ -568,14 +587,14 @@ export default function ScanFlowResult() {
         });
         throw new Error(submit.error.message + debugSuffix);
       }
-      setFlowStatus("processing");
+      setFlowStatus("queued");
       setUploadPose(null);
       setUploadHasBytes(false);
       setSubmittedScanId(activeSession.scanId);
       toast({
         title: "Scan uploaded",
         description:
-          "We’re processing your analysis. This can take a couple of minutes.",
+          "We’re queued for processing. This can take a couple of minutes.",
       });
       resetCaptureFlow();
       navigate(`/scan/${activeSession.scanId}`);
@@ -642,6 +661,7 @@ export default function ScanFlowResult() {
         photos,
         currentWeightKg,
         goalWeightKg,
+        scanCorrelationId: session.correlationId,
       },
       {
         posesToUpload: failedPoses,
@@ -730,7 +750,7 @@ export default function ScanFlowResult() {
       });
       return;
     }
-    setFlowStatus("processing");
+    setFlowStatus("queued");
     navigate(`/scan/${session.scanId}`);
   }, [
     canRetryFailed,
@@ -770,6 +790,7 @@ export default function ScanFlowResult() {
           photos,
           currentWeightKg,
           goalWeightKg,
+          scanCorrelationId: session.correlationId,
         },
         {
           posesToUpload: [pose],
@@ -858,7 +879,7 @@ export default function ScanFlowResult() {
         });
         return;
       }
-      setFlowStatus("processing");
+      setFlowStatus("queued");
       navigate(`/scan/${session.scanId}`);
     },
     [
@@ -1073,6 +1094,8 @@ export default function ScanFlowResult() {
         ? `Uploading ${uploadPose} photo (${progressPct}% complete)…`
         : "Uploading encrypted photos…";
     }
+    if (flowStatus === "queued")
+      return "Photos uploaded. Queued for processing…";
     if (flowStatus === "processing")
       return "Photos uploaded. Processing your scan…";
     if (flowError) return flowError;
@@ -1259,7 +1282,7 @@ export default function ScanFlowResult() {
               ) : null}
             </div>
           ) : null}
-          {flowStatus === "uploading" || flowStatus === "error" ? (
+          {flowStatus === "uploading" || flowStatus === "queued" || flowStatus === "error" ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -1350,8 +1373,10 @@ export default function ScanFlowResult() {
             >
               {flowStatus === "uploading"
                 ? "Uploading…"
-                : flowStatus === "processing"
-                  ? "Processing…"
+                : flowStatus === "queued"
+                  ? "Queued…"
+                  : flowStatus === "processing"
+                    ? "Processing…"
                   : flowStatus === "starting"
                     ? "Preparing…"
                     : "Finalize with AI"}
@@ -1601,7 +1626,7 @@ export default function ScanFlowResult() {
             <div>
               <p className="text-sm font-medium">Scan submitted</p>
               <p className="text-sm text-muted-foreground">
-                We’re processing the analysis now. You can review it in your
+                We’re queued for processing now. You can review it in your
                 history at any time.
               </p>
             </div>

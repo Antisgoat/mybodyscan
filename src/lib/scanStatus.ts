@@ -3,6 +3,7 @@ const STALE_PROCESSING_MS = 15 * 60 * 1000;
 export type CanonicalScanStatus =
   | "uploading"
   | "uploaded"
+  | "queued"
   | "pending"
   | "processing"
   | "complete"
@@ -54,6 +55,7 @@ export function canonicalizeScanStatus(
   const normalized = (rawStatus || "").toLowerCase();
   if (normalized === "uploading") return "uploading";
   if (normalized === "uploaded") return "uploaded";
+  if (normalized === "queued") return "queued";
   if (
     normalized === "processing" ||
     normalized === "in_progress" ||
@@ -87,6 +89,7 @@ export function isScanStale(
 ): boolean {
   if (
     status !== "pending" &&
+    status !== "queued" &&
     status !== "processing" &&
     status !== "uploading" &&
     status !== "uploaded"
@@ -123,6 +126,7 @@ export function buildScanStatusMeta(
       if (!stale) return "Failed";
       if (canonical === "uploading") return "Upload stalled";
       if (canonical === "uploaded") return "Upload complete, awaiting analysis";
+      if (canonical === "queued") return "Scan queued too long";
       if (canonical === "pending") return "Scan pending too long";
       if (canonical === "processing") return "Processing timed out";
       return "Failed";
@@ -134,6 +138,9 @@ export function buildScanStatusMeta(
       }
       if (canonical === "uploaded" || canonical === "pending") {
         return "Open the scan to retry processing or start a new scan.";
+      }
+      if (canonical === "queued") {
+        return "Open the scan to retry processing or contact support.";
       }
       if (canonical === "processing") {
         return "Open the scan to retry processing or contact support.";
@@ -166,6 +173,17 @@ export function buildScanStatusMeta(
       canonical,
       label: "Upload complete",
       helperText: "Starting analysis…",
+      badgeVariant: "secondary",
+      stale: false,
+      showMetrics: false,
+      recommendRescan: false,
+    };
+  }
+  if (canonical === "queued") {
+    return {
+      canonical,
+      label: "Queued for processing…",
+      helperText: "We’re warming up the scan engine. This should start shortly.",
       badgeVariant: "secondary",
       stale: false,
       showMetrics: false,

@@ -18,6 +18,7 @@ interface CaptureState {
   session: {
     scanId: string;
     storagePaths: Record<PoseKey, string>;
+    correlationId?: string;
   } | null;
 }
 
@@ -117,6 +118,7 @@ export function setCaptureSession(
   session: {
     scanId: string;
     storagePaths: Record<PoseKey, string>;
+    correlationId?: string;
   } | null
 ) {
   setState({

@@ -26,6 +26,14 @@ export type ScanEstimate = {
   notes: string;
 };
 
+export type ScanErrorInfo = {
+  code?: string;
+  message?: string;
+  stage?: string;
+  debugId?: string;
+  stack?: string;
+};
+
 export type WorkoutPlan = {
   summary: string;
   weeks: {
@@ -68,6 +76,7 @@ export type ScanDocument = {
     | "uploading"
     | "uploaded"
     | "pending"
+    | "queued"
     | "processing"
     | "complete"
     | "completed"
@@ -75,8 +84,16 @@ export type ScanDocument = {
     | "error";
   errorMessage?: string | null;
   errorReason?: string | null;
+  errorInfo?: ScanErrorInfo | null;
   lastStep?: string | null;
   lastStepAt?: Date | null;
+  progress?: number | null;
+  correlationId?: string | null;
+  processingRequestedAt?: Date | null;
+  processingStartedAt?: Date | null;
+  processingHeartbeatAt?: Date | null;
+  processingAttemptId?: string | null;
+  submitRequestId?: string | null;
   recommendations?: string[] | null;
   photoPaths: {
     front: string;
@@ -103,11 +120,13 @@ export type StartScanResponse = {
     right: string;
   };
   debugId?: string;
+  correlationId?: string;
 };
 
 export type SubmitScanResponse = {
   scanId?: string;
   debugId?: string;
+  correlationId?: string;
 };
 
 function startUrl(): string {
@@ -167,6 +186,10 @@ function toScanDocument(
   const input = data.input as ScanDocument["input"] | undefined;
   const completedAtRaw = data.completedAt as unknown;
   const lastStepAtRaw = (data as any).lastStepAt as unknown;
+  const processingRequestedAtRaw = (data as any).processingRequestedAt as unknown;
+  const processingStartedAtRaw = (data as any).processingStartedAt as unknown;
+  const processingHeartbeatAtRaw = (data as any).processingHeartbeatAt as unknown;
+  const errorInfoRaw = (data as any).errorInfo as ScanErrorInfo | undefined;
   return {
     id,
     uid,
@@ -178,9 +201,52 @@ function toScanDocument(
       typeof data.errorMessage === "string" ? data.errorMessage : null,
     errorReason:
       typeof (data as any).errorReason === "string" ? (data as any).errorReason : null,
+    errorInfo:
+      errorInfoRaw && typeof errorInfoRaw === "object"
+        ? {
+            code: typeof errorInfoRaw.code === "string" ? errorInfoRaw.code : undefined,
+            message:
+              typeof errorInfoRaw.message === "string"
+                ? errorInfoRaw.message
+                : undefined,
+            stage:
+              typeof errorInfoRaw.stage === "string" ? errorInfoRaw.stage : undefined,
+            debugId:
+              typeof errorInfoRaw.debugId === "string"
+                ? errorInfoRaw.debugId
+                : undefined,
+            stack:
+              typeof errorInfoRaw.stack === "string" ? errorInfoRaw.stack : undefined,
+          }
+        : null,
     lastStep:
       typeof (data as any).lastStep === "string" ? (data as any).lastStep : null,
     lastStepAt: lastStepAtRaw ? parseTimestamp(lastStepAtRaw) : null,
+    progress:
+      typeof (data as any).progress === "number" && Number.isFinite((data as any).progress)
+        ? (data as any).progress
+        : null,
+    correlationId:
+      typeof (data as any).correlationId === "string"
+        ? (data as any).correlationId
+        : null,
+    processingRequestedAt: processingRequestedAtRaw
+      ? parseTimestamp(processingRequestedAtRaw)
+      : null,
+    processingStartedAt: processingStartedAtRaw
+      ? parseTimestamp(processingStartedAtRaw)
+      : null,
+    processingHeartbeatAt: processingHeartbeatAtRaw
+      ? parseTimestamp(processingHeartbeatAtRaw)
+      : null,
+    processingAttemptId:
+      typeof (data as any).processingAttemptId === "string"
+        ? (data as any).processingAttemptId
+        : null,
+    submitRequestId:
+      typeof (data as any).submitRequestId === "string"
+        ? (data as any).submitRequestId
+        : null,
     recommendations: Array.isArray((data as any).recommendations)
       ? ((data as any).recommendations
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))
@@ -248,6 +314,7 @@ export async function startScanSessionClient(
   params: {
     currentWeightKg: number;
     goalWeightKg: number;
+    correlationId?: string;
   },
   options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<ScanApiResult<StartScanResponse>> {
@@ -265,6 +332,7 @@ export async function startScanSessionClient(
       body: {
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
+        correlationId: params.correlationId,
       },
     });
     if (!data?.scanId) {
@@ -493,13 +561,21 @@ function isProbablyMobileUploadDevice(): boolean {
   return isIOS || isAndroid || isIPadLike;
 }
 
-function createCorrelationId(scanId: string): string {
-  const prefix = String(scanId || "scan").slice(0, 12);
+export function createScanCorrelationId(seed?: string): string {
+  const prefix = String(seed || "scan").slice(0, 12);
   const random =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
   return `${prefix}-${random.slice(0, 8)}`;
+}
+
+function buildUploadCorrelationId(
+  scanCorrelationId: string,
+  pose: string,
+  attempt: number
+): string {
+  return `${scanCorrelationId}-${pose}-${attempt}`;
 }
 
 export async function submitScanClient(
@@ -509,6 +585,7 @@ export async function submitScanClient(
     photos: { front: File; back: File; left: File; right: File };
     currentWeightKg: number;
     goalWeightKg: number;
+    scanCorrelationId?: string;
   },
   options?: {
     onUploadProgress?: (progress: ScanUploadProgress) => void;
@@ -769,7 +846,8 @@ export async function submitScanClient(
     const maxAttempts = isProbablyMobileUploadDevice() ? 5 : 3;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
     const preferredUploadMethod: UploadMethod = "storage";
-    const scanCorrelationId = createCorrelationId(params.scanId);
+    const scanCorrelationId =
+      params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
 
     for (const [index, target] of uploadTargets.entries()) {
       let attempt = 0;
@@ -778,7 +856,11 @@ export async function submitScanClient(
         attempt += 1;
         const isRetry = attempt > 1;
         const attemptStartedAt = Date.now();
-        const correlationId = `${scanCorrelationId}-${target.pose}-${attempt}`;
+        const correlationId = buildUploadCorrelationId(
+          scanCorrelationId,
+          target.pose,
+          attempt
+        );
         let activeMethod: UploadMethod = preferredUploadMethod;
         options?.onPhotoState?.({
           pose: target.pose,
@@ -825,6 +907,13 @@ export async function submitScanClient(
             path: target.path,
             file: target.file,
             correlationId,
+            customMetadata: {
+              scanCorrelationId,
+              scanId: params.scanId,
+              pose: target.pose,
+              attempt: String(attempt),
+              uploadCorrelationId: correlationId,
+            },
             signal: combinedSignal!.signal,
             storageTimeoutMs: attemptTimeoutMs,
             stallTimeoutMs: effectiveStallTimeoutMs,
@@ -1110,13 +1199,12 @@ export async function submitScanClient(
     }
 
     uploadsCompleted = true;
-    // `submitScan` performs the full OpenAI analysis server-side and can take
-    // longer than the default 15s API timeout on mobile networks (especially iOS Safari).
-    // Use a longer timeout and avoid client retries that could duplicate work.
+    // `submitScan` now just enqueues background processing, so it should respond fast.
+    // Keep the timeout modest to avoid leaving users stuck if the submit call fails.
     const remainingForSubmit = Math.max(5_000, overallDeadlineAt - Date.now());
     const submitResponse = await apiFetch<SubmitScanResponse>(submitUrl(), {
       method: "POST",
-      timeoutMs: Math.min(180_000, remainingForSubmit),
+      timeoutMs: Math.min(30_000, remainingForSubmit),
       retries: 0,
       signal: combinedSignal!.signal,
       body: {
@@ -1124,6 +1212,7 @@ export async function submitScanClient(
         photoPaths: params.storagePaths,
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
+        correlationId: scanCorrelationId,
       },
     });
     try {
@@ -1260,6 +1349,8 @@ export async function retryScanProcessingClient(
     const input = data?.input;
     const currentWeightKg = Number(input?.currentWeightKg);
     const goalWeightKg = Number(input?.goalWeightKg);
+    const correlationId =
+      typeof data?.correlationId === "string" ? (data.correlationId as string) : undefined;
     if (!photoPaths || typeof photoPaths !== "object") {
       return {
         ok: false,
@@ -1274,7 +1365,7 @@ export async function retryScanProcessingClient(
     }
     await apiFetch(submitUrl(), {
       method: "POST",
-      timeoutMs: 180_000,
+      timeoutMs: 30_000,
       retries: 0,
       body: {
         scanId: trimmed,
@@ -1286,6 +1377,7 @@ export async function retryScanProcessingClient(
         },
         currentWeightKg,
         goalWeightKg,
+        correlationId,
       },
     });
     return { ok: true, data: undefined };

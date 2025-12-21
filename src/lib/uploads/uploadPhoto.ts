@@ -15,6 +15,7 @@ export async function uploadPhoto(params: {
   path: string;
   file: Blob;
   correlationId: string;
+  customMetadata?: Record<string, string>;
   signal?: AbortSignal;
   storageTimeoutMs: number;
   stallTimeoutMs: number;
@@ -33,6 +34,7 @@ export async function uploadPhoto(params: {
     storage: params.storage,
     path: params.path,
     file: params.file,
+    customMetadata: params.customMetadata,
     stallTimeoutMs: params.stallTimeoutMs,
     overallTimeoutMs: params.storageTimeoutMs,
     signal: params.signal,

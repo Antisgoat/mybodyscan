@@ -35,6 +35,7 @@ import {
   type ScanPipelineState,
 } from "@/lib/scanPipeline";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { computeProcessingTimeouts, latestHeartbeatMillis } from "@/lib/scanHeartbeat";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
@@ -112,6 +113,7 @@ export default function ScanResultPage() {
       scan.status === "uploading" ||
       scan.status === "uploaded" ||
       scan.status === "pending" ||
+      scan.status === "queued" ||
       scan.status === "processing"
     );
   }, [scan]);
@@ -137,7 +139,12 @@ export default function ScanResultPage() {
         setError(null);
         setLoading(false);
         setSnapshotError(null);
-        lastMeaningfulUpdateRef.current = Date.now();
+        lastMeaningfulUpdateRef.current =
+          latestHeartbeatMillis({
+            updatedAt: result.data.updatedAt,
+            heartbeatAt: result.data.processingHeartbeatAt ?? null,
+            lastStepAt: result.data.lastStepAt ?? null,
+          }) ?? Date.now();
       } catch (err) {
         if (cancelled) return;
         console.error("scanResult: unexpected fetch error", err);
@@ -167,12 +174,15 @@ export default function ScanResultPage() {
         setLoading(false);
         setSnapshotError(null);
         // Track “freshness” for long-processing UI; use updatedAt when available.
-        const updatedAtMs =
-          next.updatedAt instanceof Date ? next.updatedAt.getTime() : Date.now();
-        if (Number.isFinite(updatedAtMs)) {
+        const heartbeatMs = latestHeartbeatMillis({
+          updatedAt: next.updatedAt,
+          heartbeatAt: next.processingHeartbeatAt ?? null,
+          lastStepAt: next.lastStepAt ?? null,
+        });
+        if (heartbeatMs != null) {
           lastMeaningfulUpdateRef.current = Math.max(
             lastMeaningfulUpdateRef.current,
-            updatedAtMs
+            heartbeatMs
           );
         } else {
           lastMeaningfulUpdateRef.current = Date.now();
@@ -211,11 +221,14 @@ export default function ScanResultPage() {
     }
     const startAt = Date.now();
     const id = window.setInterval(() => {
-      const now = Date.now();
-      const last = lastMeaningfulUpdateRef.current || startAt;
-      const elapsed = now - Math.max(startAt, last);
-      setShowLongProcessing(elapsed >= LONG_PROCESSING_WARNING_MS);
-      setHardProcessingTimeout(elapsed >= HARD_PROCESSING_TIMEOUT_MS);
+      const { showLongProcessing, hardTimeout } = computeProcessingTimeouts({
+        startedAt: startAt,
+        lastHeartbeatAt: lastMeaningfulUpdateRef.current || null,
+        warningMs: LONG_PROCESSING_WARNING_MS,
+        timeoutMs: HARD_PROCESSING_TIMEOUT_MS,
+      });
+      setShowLongProcessing(showLongProcessing);
+      setHardProcessingTimeout(hardTimeout);
     }, 1000);
     return () => window.clearInterval(id);
   }, [needsRefresh]);
@@ -227,12 +240,18 @@ export default function ScanResultPage() {
     const basePatch: Partial<ScanPipelineState> = {
       lastServerStatus: scan.status,
       lastServerUpdatedAt: updatedAtMs,
+      correlationId: scan.correlationId ?? undefined,
     };
     if (scan.status === "complete" || scan.status === "completed") {
       updatePipeline({
         ...basePatch,
         stage: "result_ready",
         lastError: null,
+      });
+    } else if (scan.status === "queued") {
+      updatePipeline({
+        ...basePatch,
+        stage: "queued",
       });
     } else if (scan.status === "error" || scan.status === "failed") {
       updatePipeline({
@@ -398,6 +417,9 @@ export default function ScanResultPage() {
     scan.status,
     scan.completedAt ?? scan.updatedAt ?? scan.createdAt
   );
+  const lastUpdateAt =
+    scan.lastStepAt ?? scan.processingHeartbeatAt ?? scan.updatedAt ?? scan.createdAt;
+  const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
 
   if (statusMeta.canonical === "error" || statusMeta.recommendRescan) {
     const canResume =
@@ -417,6 +439,11 @@ export default function ScanResultPage() {
         {scan.errorReason ? (
           <p className="text-xs text-muted-foreground">
             Error code: {scan.errorReason}
+          </p>
+        ) : null}
+        {scan.errorInfo?.message ? (
+          <p className="text-xs text-muted-foreground">
+            Backend error: {scan.errorInfo.message}
           </p>
         ) : null}
         {pipelineState?.lastError?.message ? (
@@ -508,6 +535,13 @@ export default function ScanResultPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   We won’t keep you stuck here. You can retry processing without re-uploading.
                 </p>
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {scan.lastStep ? <div>Last stage: {scan.lastStep}</div> : null}
+                  {lastUpdateLabel ? <div>Last update: {lastUpdateLabel}</div> : null}
+                  {scan.errorInfo?.message ? (
+                    <div>Last error: {scan.errorInfo.message}</div>
+                  ) : null}
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -549,6 +583,10 @@ export default function ScanResultPage() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   If needed, we can restart processing without re-uploading.
                 </p>
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {scan.lastStep ? <div>Current stage: {scan.lastStep}</div> : null}
+                  {lastUpdateLabel ? <div>Last update: {lastUpdateLabel}</div> : null}
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -628,6 +666,10 @@ export default function ScanResultPage() {
                 {scanId}
               </div>
               <div>
+                <span className="font-medium text-foreground">correlationId:</span>{" "}
+                {scan.correlationId ?? pipelineState?.correlationId ?? "—"}
+              </div>
+              <div>
                 <span className="font-medium text-foreground">pipeline:</span>{" "}
                 {pipelineState?.stage
                   ? `${pipelineState.stage} · ${describeScanPipelineStage(
@@ -635,6 +677,31 @@ export default function ScanResultPage() {
                     )}`
                   : "—"}
               </div>
+              <div>
+                <span className="font-medium text-foreground">scan status:</span>{" "}
+                {scan.status}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">last step:</span>{" "}
+                {scan.lastStep ?? "—"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">last step at:</span>{" "}
+                {scan.lastStepAt ? formatDateTime(scan.lastStepAt) : "—"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">scan progress:</span>{" "}
+                {typeof scan.progress === "number" ? `${scan.progress}%` : "—"}
+              </div>
+              <div>
+                <span className="font-medium text-foreground">last update:</span>{" "}
+                {lastUpdateLabel ?? "—"}
+              </div>
+              {scan.errorInfo ? (
+                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                  {JSON.stringify(scan.errorInfo, null, 2)}
+                </pre>
+              ) : null}
               <div>
                 <span className="font-medium text-foreground">pipeline timestamps:</span>{" "}
                 {pipelineState
