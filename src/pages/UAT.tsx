@@ -22,7 +22,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
+import { auth, firebaseReady, getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,
@@ -47,6 +47,7 @@ import {
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
+import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
 
 type JsonValue = unknown;
 type ErrorWithCode = { code?: unknown; message?: unknown };
@@ -204,7 +205,7 @@ const Section = ({
 
 type ScanSession = {
   scanId: string;
-  uploadUrls: Record<string, string>;
+  storagePaths: Record<string, string>;
 };
 
 const UATPage = () => {
@@ -768,13 +769,13 @@ const UATPage = () => {
       const ok =
         result.ok && typeof json?.scanId === "string" && json.scanId.length > 0;
       if (ok) {
-        const uploadUrls =
-          typeof json.uploadUrls === "object" && json.uploadUrls
-            ? (json.uploadUrls as Record<string, string>)
+        const storagePaths =
+          typeof json.storagePaths === "object" && json.storagePaths
+            ? (json.storagePaths as Record<string, string>)
             : {};
         setScanSession({
           scanId: json.scanId as string,
-          uploadUrls,
+          storagePaths,
         });
       }
       return {
@@ -799,32 +800,35 @@ const UATPage = () => {
           code: "missing_session",
         });
       }
-      const frontUrl = scanSession.uploadUrls?.front;
-      if (!frontUrl) {
-        throw Object.assign(new Error("missing_upload_url"), {
-          code: "missing_upload_url",
+      const storagePath = scanSession.storagePaths?.front;
+      if (!storagePath) {
+        throw Object.assign(new Error("missing_storage_path"), {
+          code: "missing_storage_path",
         });
       }
-      const response = await fetch(frontUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "image/jpeg",
-        },
-        body: DEFAULT_SCAN_UPLOAD_BYTES,
+      const blob = new Blob([DEFAULT_SCAN_UPLOAD_BYTES], {
+        type: "image/jpeg",
       });
-      const ok = response.ok;
+      const storage = getFirebaseStorage();
+      await uploadPreparedPhoto({
+        storage,
+        path: storagePath,
+        file: blob,
+        metadata: {
+          contentType: "image/jpeg",
+          cacheControl: "public,max-age=31536000",
+        },
+        stallTimeoutMs: 10_000,
+        overallTimeoutMs: 30_000,
+      });
+      const ok = true;
       return {
         ok,
         status: ok ? "pass" : "fail",
-        code: ok ? null : `http_${response.status}`,
-        message: ok
-          ? "Uploaded sample front pose"
-          : `Upload failed (${response.status})`,
-        data: {
-          status: response.status,
-          headers: Object.fromEntries(response.headers.entries()),
-        },
-        httpStatus: response.status,
+        code: ok ? null : "upload_failed",
+        message: ok ? "Uploaded sample front pose" : "Upload failed",
+        data: { storagePath },
+        httpStatus: ok ? 200 : 500,
       };
     });
   }, [scanSession, scanUploadProbe]);

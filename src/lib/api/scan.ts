@@ -843,7 +843,9 @@ export async function submitScanClient(
       };
       return ctrl;
     })();
-    const maxAttempts = isProbablyMobileUploadDevice() ? 5 : 3;
+    const isMobileUploadDevice = isProbablyMobileUploadDevice();
+    const maxAttempts = isMobileUploadDevice ? 5 : 3;
+    const httpFallbackAttempt = isMobileUploadDevice ? 3 : Number.POSITIVE_INFINITY;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
     const preferredUploadMethod: UploadMethod = "storage";
     const scanCorrelationId =
@@ -861,7 +863,9 @@ export async function submitScanClient(
           target.pose,
           attempt
         );
-        let activeMethod: UploadMethod = preferredUploadMethod;
+        const preferredMethod: UploadMethod =
+          attempt >= httpFallbackAttempt ? "http" : preferredUploadMethod;
+        let activeMethod: UploadMethod = preferredMethod;
         options?.onPhotoState?.({
           pose: target.pose,
           status: isRetry ? "retrying" : "uploading",
@@ -874,7 +878,7 @@ export async function submitScanClient(
           attempt,
           path: target.path,
           bytes: target.file.size,
-          method: preferredUploadMethod,
+          method: preferredMethod,
           correlationId,
         });
 
@@ -906,6 +910,8 @@ export async function submitScanClient(
             storage,
             path: target.path,
             file: target.file,
+            scanId: params.scanId,
+            pose: target.pose,
             correlationId,
             customMetadata: {
               scanCorrelationId,
@@ -916,8 +922,10 @@ export async function submitScanClient(
             },
             signal: combinedSignal!.signal,
             storageTimeoutMs: attemptTimeoutMs,
+            httpTimeoutMs: attemptTimeoutMs,
             stallTimeoutMs: effectiveStallTimeoutMs,
             debugSimulateFreeze: Boolean(debugFreeze),
+            preferredMethod,
             onMethodChange: (info) => {
               activeMethod = info.method;
               options?.onPhotoState?.({
@@ -1196,6 +1204,24 @@ export async function submitScanClient(
         attempt: 1,
       });
       options?.onPhotoState?.({ pose: target.pose, status: "done", percent: 1 });
+    }
+
+    try {
+      await setDoc(
+        doc(db, "users", user.uid, "scans", params.scanId),
+        {
+          status: "uploaded",
+          lastStep: "uploaded",
+          lastStepAt: new Date(),
+          updatedAt: new Date(),
+        } as any,
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn("scan.upload_status_write_failed", {
+        scanId: params.scanId,
+        message: (err as Error)?.message,
+      });
     }
 
     uploadsCompleted = true;
