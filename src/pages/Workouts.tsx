@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,10 +71,7 @@ export default function Workouts() {
 
   const todayName = dayNames[new Date().getDay()];
   const todayISO = new Date().toISOString().slice(0, 10);
-  const today = useMemo(
-    () => plan?.days.find((d) => d.day === todayName),
-    [plan, todayName]
-  );
+  const today = plan?.days.find((d) => d.day === todayName);
   const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
   const completedCount = completed.length;
   const totalCount = todayExercises.length;

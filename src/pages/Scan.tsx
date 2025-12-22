@@ -15,6 +15,7 @@ import {
   submitScanClient,
   type ScanUploadProgress,
 } from "@/lib/api/scan";
+import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
@@ -146,7 +147,7 @@ export default function ScanPage() {
         fullPath?: string;
         bucket?: string;
         pathMismatch?: { expected: string; actual: string };
-        uploadMethod?: "storage";
+        uploadMethod?: UploadMethod;
         correlationId?: string;
         elapsedMs?: number;
       }
