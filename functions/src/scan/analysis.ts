@@ -61,11 +61,26 @@ function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate 
 
 function sanitizeWorkout(raw: Partial<ScanWorkoutPlan> | undefined): ScanWorkoutPlan {
   const weeks = Array.isArray(raw?.weeks) ? raw.weeks : [];
+  const progressionRules = Array.isArray((raw as any)?.progressionRules)
+    ? (raw as any).progressionRules
+    : [];
+  const cleanedRules = progressionRules
+    .map((rule: any) => (typeof rule === "string" ? rule.trim() : ""))
+    .filter((rule: string) => rule.length > 0)
+    .slice(0, 6);
   return {
     summary:
       typeof raw?.summary === "string" && raw.summary.trim()
         ? raw.summary.trim()
         : "Personalized training plan",
+    progressionRules:
+      cleanedRules.length > 0
+        ? cleanedRules
+        : [
+            "Add reps weekly until you hit the top of the range.",
+            "Increase load 2–5% once all sets hit the top range.",
+            "Deload every 4–6 weeks if performance stalls.",
+          ],
     weeks: weeks.map((week, index) => ({
       weekNumber:
         typeof (week as any)?.weekNumber === "number"
@@ -104,6 +119,11 @@ function sanitizeNutrition(
   );
   const carbs = Math.max(0, Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0));
   const fats = Math.max(0, Number(raw?.fatsGrams ?? source?.fats_grams ?? 0));
+  const adjustmentRules = Array.isArray(source?.adjustmentRules)
+    ? source.adjustmentRules
+    : Array.isArray(source?.adjustments)
+      ? source.adjustments
+      : [];
   const sampleDayRaw = Array.isArray(raw?.sampleDay) ? raw?.sampleDay : [];
   const sampleDay = sampleDayRaw.map((meal: any) => ({
     mealName: typeof meal?.mealName === "string" ? meal.mealName : "Meal",
@@ -116,11 +136,24 @@ function sanitizeNutrition(
     fatsGrams: Number.isFinite(meal?.fatsGrams) ? Number(meal.fatsGrams) : 0,
   }));
 
+  const cleanedAdjustments = adjustmentRules
+    .map((rule: any) => (typeof rule === "string" ? rule.trim() : ""))
+    .filter((rule: string) => rule.length > 0)
+    .slice(0, 6);
+
   return {
     caloriesPerDay: Math.round(calories),
     proteinGrams: Math.round(protein),
     carbsGrams: Math.round(carbs),
     fatsGrams: Math.round(fats),
+    adjustmentRules:
+      cleanedAdjustments.length > 0
+        ? cleanedAdjustments
+        : [
+            "If weekly change is <0.25 kg, reduce calories by 150–200.",
+            "If losing >1% body weight/week, add 150–200 calories.",
+            "Keep protein steady; adjust carbs/fats first.",
+          ],
     sampleDay,
   };
 }
@@ -196,6 +229,8 @@ export async function callOpenAI(
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
     'Respond with JSON matching {"estimate": ScanEstimate, "workoutPlan": ScanWorkoutPlan, "nutritionPlan": ScanNutritionPlan, "recommendations": string[]}.',
     "Use concise language and realistic programming for an intermediate trainee.",
+    "Workout plans should default to a 6-day push/pull/legs split with a rest day.",
+    "Nutrition plans should include macro targets plus clear adjustment rules.",
   ].join("\n");
 
   const userText = [
@@ -203,8 +238,8 @@ export async function callOpenAI(
     `Goal weight: ${input.goalWeightKg} kg`,
     "Use the four photos (front, back, left, right) to inform the estimate and plans.",
     "BMI can be null if unreliable. Notes must remind this is only an estimate.",
-    "Workout plan should span multiple weeks with daily splits.",
-    "Nutrition plan must include daily calories/macros and a sample day of meals.",
+    "Workout plan should span multiple weeks with daily splits and include progressionRules (3-6 bullets).",
+    "Nutrition plan must include daily calories/macros, adjustmentRules (3-6 bullets), and a sample day of meals.",
     "Recommendations must be 3-5 short bullets (no numbering), focused on next steps for training and nutrition.",
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");

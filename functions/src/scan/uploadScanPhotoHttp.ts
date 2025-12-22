@@ -66,7 +66,7 @@ async function parseMultipart(req: Request): Promise<{
   const contentType = String(req.headers["content-type"] || "");
   const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
   if (!boundaryMatch) throw new Error("missing_boundary");
-  const boundary = boundaryMatch[1].replace(/(^"|"$)/g, "");
+  const boundary = boundaryMatch[1].replace(/^"|"$/g, "");
   const rawBody = (req as any).rawBody;
   const rawBuffer = rawBody ? Buffer.from(rawBody) : null;
   if (!rawBuffer) throw new Error("missing_body");
@@ -211,11 +211,26 @@ export const uploadScanPhotoHttp = onRequest(
         elapsedMs,
       });
 
+      const includeDownloadUrl =
+        toTrimmedString(req.query?.includeDownloadUrl) === "1" ||
+        toTrimmedString(req.query?.includeDownloadUrl) === "true";
+      const downloadURL = includeDownloadUrl
+        ? (await object
+            .getSignedUrl({
+              action: "read",
+              version: "v4",
+              expires: Date.now() + 10 * 60 * 1000,
+            })
+            .then(([url]) => url)
+            .catch(() => null))
+        : null;
       res.json({
         ok: true,
         bucket: bucket.name,
         path,
         size,
+        contentType: "image/jpeg",
+        downloadURL: downloadURL ?? undefined,
         generation: meta?.generation,
         md5: meta?.md5Hash,
       });

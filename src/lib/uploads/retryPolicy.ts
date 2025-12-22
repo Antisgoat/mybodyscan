@@ -69,6 +69,10 @@ export function classifyUploadRetryability(params: {
     return { retryable: true, reason: "transient_network" };
   }
 
+  if (code === "cors_blocked") {
+    return { retryable: true, reason: "transient_network" };
+  }
+
   if (code === "storage/retry-limit-exceeded") {
     return { retryable: true, reason: "firebase_retry_limit" };
   }

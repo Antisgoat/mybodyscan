@@ -329,7 +329,7 @@ export default function Workouts() {
       const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
       window.history.replaceState({}, "", nextUrl);
     }
-  }, [location.pathname, location.search, plan, toast]);
+  }, [location.pathname, location.search, plan]);
 
   const formatDelta = (value: number) =>
     value >= 0 ? `+${value}` : `${value}`;

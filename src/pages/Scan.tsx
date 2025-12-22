@@ -32,6 +32,7 @@ import {
   uploadBytesResumable,
   type UploadTask,
 } from "firebase/storage";
+import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 import {
   clearScanPipelineState,
   describeScanPipelineStage,
@@ -111,6 +112,7 @@ export default function ScanPage() {
         nextRetryAt?: number;
         nextRetryDelayMs?: number;
         offline?: boolean;
+        uploadMethod?: UploadMethod;
       }
     >
   >({
@@ -174,6 +176,11 @@ export default function ScanPage() {
     status: "idle" | "running" | "pass" | "fail";
     path?: string;
     url?: string;
+    error?: { code?: string; message?: string; serverResponse?: string };
+  }>({ status: "idle" });
+  const [functionUploadTest, setFunctionUploadTest] = useState<{
+    status: "idle" | "running" | "pass" | "fail";
+    path?: string;
     error?: { code?: string; message?: string; serverResponse?: string };
   }>({ status: "idle" });
   const { health: systemHealth } = useSystemHealth();
@@ -550,6 +557,8 @@ export default function ScanPage() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -1394,6 +1403,7 @@ export default function ScanPage() {
                       <span className="text-muted-foreground">
                         {s.status}
                         {s.attempt ? ` (attempt ${s.attempt})` : ""}
+                        {s.uploadMethod ? ` · ${s.uploadMethod.toUpperCase()}` : ""}
                         {s.status === "uploading" || s.status === "retrying" ? ` · ${pct}%` : ""}
                         {retryInMs != null && retryInMs > 0 && !isOffline
                           ? ` · retry in ${Math.ceil(retryInMs / 1000)}s`
@@ -1630,7 +1640,7 @@ export default function ScanPage() {
                       }
                     }}
                   >
-                    Test Storage Write
+                    Storage Write Test
                   </button>
                   {storageTest.status !== "idle" ? (
                     <span className="text-muted-foreground">
@@ -1645,6 +1655,94 @@ export default function ScanPage() {
                 {storageTest.status === "fail" && storageTest.error?.serverResponse ? (
                   <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
                     {storageTest.error.serverResponse}
+                  </pre>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded border px-3 py-2 text-xs"
+                    disabled={functionUploadTest.status === "running"}
+                    onClick={async () => {
+                      const uid = auth.currentUser?.uid;
+                      if (!uid) {
+                        setFunctionUploadTest({
+                          status: "fail",
+                          error: { message: "Not signed in." },
+                        });
+                        return;
+                      }
+                      setFunctionUploadTest({ status: "running" });
+                      try {
+                        const scanId =
+                          scanSession?.scanId ??
+                          activeScanId ??
+                          (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                            ? crypto.randomUUID()
+                            : `debug-${Date.now()}`);
+                        const blob = await new Promise<Blob>((resolve, reject) => {
+                          const canvas = document.createElement("canvas");
+                          canvas.width = 1;
+                          canvas.height = 1;
+                          const ctx = canvas.getContext("2d");
+                          if (!ctx) {
+                            reject(new Error("Canvas unavailable."));
+                            return;
+                          }
+                          ctx.fillStyle = "#f8f8f8";
+                          ctx.fillRect(0, 0, 1, 1);
+                          canvas.toBlob(
+                            (result) =>
+                              result ? resolve(result) : reject(new Error("Blob unavailable.")),
+                            "image/jpeg",
+                            0.7
+                          );
+                        });
+                        const correlationId = `debug-${scanId}`;
+                        const result = await uploadViaHttp({
+                          scanId,
+                          pose: "front",
+                          file: blob,
+                          correlationId,
+                          timeoutMs: 20_000,
+                        });
+                        setFunctionUploadTest({
+                          status: "pass",
+                          path: result.storagePath,
+                        });
+                      } catch (err: any) {
+                        setFunctionUploadTest({
+                          status: "fail",
+                          error: {
+                            code: typeof err?.code === "string" ? err.code : undefined,
+                            message:
+                              typeof err?.message === "string" ? err.message : String(err),
+                            serverResponse:
+                              typeof err?.serverResponse === "string"
+                                ? err.serverResponse
+                                : undefined,
+                          },
+                        });
+                      }
+                    }}
+                  >
+                    Function Upload Test
+                  </button>
+                  {functionUploadTest.status !== "idle" ? (
+                    <span className="text-muted-foreground">
+                      {functionUploadTest.status === "running"
+                        ? "running…"
+                        : functionUploadTest.status === "pass"
+                          ? `PASS · ${functionUploadTest.path}`
+                          : `FAIL · ${functionUploadTest.error?.code ?? "unknown"} · ${functionUploadTest.error?.message ?? ""}`}
+                    </span>
+                  ) : null}
+                </div>
+                {functionUploadTest.status === "fail" &&
+                functionUploadTest.error?.serverResponse ? (
+                  <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                    {functionUploadTest.error.serverResponse}
                   </pre>
                 ) : null}
               </div>

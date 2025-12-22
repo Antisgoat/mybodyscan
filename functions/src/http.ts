@@ -35,7 +35,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = (
   res.set("Access-Control-Allow-Credentials", "true");
   res.set(
     "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Firebase-AppCheck"
+    "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Scan-Id,X-Scan-View"
   );
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (!req.get("X-Firebase-AppCheck")) {

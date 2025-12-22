@@ -352,6 +352,7 @@ interface ScanEstimate {
 
 interface WorkoutPlan {
   summary: string;
+  progressionRules: string[];
   weeks: {
     weekNumber: number;
     days: {
@@ -372,6 +373,7 @@ interface NutritionPlan {
   proteinGrams: number;
   carbsGrams: number;
   fatsGrams: number;
+  adjustmentRules: string[];
   sampleDay: {
     mealName: string;
     description: string;
