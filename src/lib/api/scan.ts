@@ -858,8 +858,10 @@ export async function submitScanClient(
       return ctrl;
     })();
     const isMobileUploadDevice = isProbablyMobileUploadDevice();
-    const maxAttempts = isMobileUploadDevice ? 5 : 3;
-    const httpFallbackAttempt = 3;
+    const storageAttemptLimit = 3; // initial + 2 retries
+    const httpAttemptLimit = isMobileUploadDevice ? 2 : 2;
+    const maxAttempts = storageAttemptLimit + httpAttemptLimit;
+    const httpFallbackAttempt = storageAttemptLimit + 1;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
     const preferredUploadMethod: UploadMethod = "storage";
     const scanCorrelationId =
