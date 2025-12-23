@@ -40,6 +40,8 @@ import {
   submitScanClient,
   type ScanUploadProgress,
 } from "@/lib/api/scan";
+import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
+import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import {
   CAPTURE_VIEW_SETS,
@@ -105,6 +107,12 @@ function formatBytes(bytes: number | null | undefined): string {
   const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
   const val = b / Math.pow(1024, i);
   return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatUploadMethod(method?: UploadMethod): string {
+  if (method === "storage") return "sdk";
+  if (method === "http") return "function";
+  return "—";
 }
 
 async function createThumbnailDataUrl(
@@ -279,6 +287,7 @@ export default function ScanFlowResult() {
         nextRetryAt?: number;
         nextRetryDelayMs?: number;
         offline?: boolean;
+        uploadMethod?: UploadMethod;
       }
     >
   >({
@@ -308,6 +317,10 @@ export default function ScanFlowResult() {
         fullPath?: string;
         bucket?: string;
         pathMismatch?: { expected: string; actual: string };
+        uploadMethod?: UploadMethod;
+        correlationId?: string;
+        elapsedMs?: number;
+        lastUploadError?: { code?: string; message?: string; details?: unknown };
       }
     >
   >({
@@ -325,6 +338,15 @@ export default function ScanFlowResult() {
     | { status: "idle" }
     | { status: "running" }
     | { status: "pass"; path: string; url?: string }
+    | {
+        status: "fail";
+        error?: { code?: string; message?: string; serverResponse?: string };
+      }
+  >({ status: "idle" });
+  const [functionUploadTest, setFunctionUploadTest] = useState<
+    | { status: "idle" }
+    | { status: "running" }
+    | { status: "pass"; path: string }
     | {
         status: "fail";
         error?: { code?: string; message?: string; serverResponse?: string };
@@ -532,6 +554,7 @@ export default function ScanFlowResult() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
+                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -563,6 +586,16 @@ export default function ScanFlowResult() {
                 bucket: (info as any)?.bucket ?? existing.bucket,
                 pathMismatch:
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing.uploadMethod,
+                correlationId:
+                  (info as any)?.correlationId ?? existing.correlationId,
+                elapsedMs:
+                  typeof (info as any)?.elapsedMs === "number"
+                    ? (info as any).elapsedMs
+                    : existing.elapsedMs,
+                lastUploadError:
+                  (info as any)?.lastUploadError ?? existing.lastUploadError,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -697,9 +730,10 @@ export default function ScanFlowResult() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
-            };
-            return next;
-          });
+                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
+              };
+              return next;
+            });
           setUploadMeta((prev) => {
             const next = { ...prev };
             const existing = next[info.pose as Pose] ?? {};
@@ -719,18 +753,28 @@ export default function ScanFlowResult() {
               lastFirebaseError:
                 (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
               lastTaskState: (info as any)?.taskState ?? existing.lastTaskState,
-              lastProgressAt:
-                typeof (info as any)?.lastProgressAt === "number"
-                  ? (info as any).lastProgressAt
-                  : existing.lastProgressAt,
-              fullPath: (info as any)?.fullPath ?? existing.fullPath,
-              bucket: (info as any)?.bucket ?? existing.bucket,
-              pathMismatch:
-                (info as any)?.pathMismatch ?? existing.pathMismatch,
-              lastError:
-                info.status === "failed"
-                  ? { code: undefined, message: info.message }
-                  : existing.lastError,
+                lastProgressAt:
+                  typeof (info as any)?.lastProgressAt === "number"
+                    ? (info as any).lastProgressAt
+                    : existing.lastProgressAt,
+                fullPath: (info as any)?.fullPath ?? existing.fullPath,
+                bucket: (info as any)?.bucket ?? existing.bucket,
+                pathMismatch:
+                  (info as any)?.pathMismatch ?? existing.pathMismatch,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing.uploadMethod,
+                correlationId:
+                  (info as any)?.correlationId ?? existing.correlationId,
+                elapsedMs:
+                  typeof (info as any)?.elapsedMs === "number"
+                    ? (info as any).elapsedMs
+                    : existing.elapsedMs,
+                lastUploadError:
+                  (info as any)?.lastUploadError ?? existing.lastUploadError,
+                lastError:
+                  info.status === "failed"
+                    ? { code: undefined, message: info.message }
+                    : existing.lastError,
             };
             return next;
           });
@@ -826,6 +870,7 @@ export default function ScanFlowResult() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
+                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -856,6 +901,16 @@ export default function ScanFlowResult() {
                 bucket: (info as any)?.bucket ?? existing.bucket,
                 pathMismatch:
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing.uploadMethod,
+                correlationId:
+                  (info as any)?.correlationId ?? existing.correlationId,
+                elapsedMs:
+                  typeof (info as any)?.elapsedMs === "number"
+                    ? (info as any).elapsedMs
+                    : existing.elapsedMs,
+                lastUploadError:
+                  (info as any)?.lastUploadError ?? existing.lastUploadError,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -1520,7 +1575,7 @@ export default function ScanFlowResult() {
                     }
                   }}
                 >
-                  Storage Write Test
+                  Storage SDK Write Test
                 </Button>
                 {storageTest.status !== "idle" ? (
                   <span className="text-muted-foreground">
@@ -1532,9 +1587,98 @@ export default function ScanFlowResult() {
                   </span>
                 ) : null}
               </div>
-              {storageTest.status === "fail" && storageTest.error?.serverResponse ? (
+                {storageTest.status === "fail" && storageTest.error?.serverResponse ? (
+                  <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+                    {storageTest.error.serverResponse}
+                  </pre>
+                ) : null}
+              </div>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={functionUploadTest.status === "running"}
+                  onClick={async () => {
+                    const uid = auth.currentUser?.uid;
+                    if (!uid) {
+                      setFunctionUploadTest({
+                        status: "fail",
+                        error: { message: "Not signed in." },
+                      });
+                      return;
+                    }
+                    setFunctionUploadTest({ status: "running" });
+                    try {
+                      const scanId =
+                        session?.scanId ??
+                        (typeof crypto !== "undefined" &&
+                        typeof crypto.randomUUID === "function"
+                          ? crypto.randomUUID()
+                          : `debug-${Date.now()}`);
+                      const blob = await new Promise<Blob>((resolve, reject) => {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = 1;
+                        canvas.height = 1;
+                        const ctx = canvas.getContext("2d");
+                        if (!ctx) {
+                          reject(new Error("Canvas unavailable."));
+                          return;
+                        }
+                        ctx.fillStyle = "#f8f8f8";
+                        ctx.fillRect(0, 0, 1, 1);
+                        canvas.toBlob(
+                          (result) =>
+                            result ? resolve(result) : reject(new Error("Blob unavailable.")),
+                          "image/jpeg",
+                          0.7
+                        );
+                      });
+                      const correlationId = `debug-${scanId}`;
+                      const result = await uploadViaHttp({
+                        scanId,
+                        pose: "front",
+                        file: blob,
+                        correlationId,
+                        timeoutMs: 20_000,
+                      });
+                      setFunctionUploadTest({
+                        status: "pass",
+                        path: result.storagePath,
+                      });
+                    } catch (err: any) {
+                      setFunctionUploadTest({
+                        status: "fail",
+                        error: {
+                          code: typeof err?.code === "string" ? err.code : undefined,
+                          message:
+                            typeof err?.message === "string" ? err.message : String(err),
+                          serverResponse:
+                            typeof err?.serverResponse === "string"
+                              ? err.serverResponse
+                              : undefined,
+                        },
+                      });
+                    }
+                  }}
+                >
+                  Function Upload Test
+                </Button>
+                {functionUploadTest.status !== "idle" ? (
+                  <span className="text-muted-foreground">
+                    {functionUploadTest.status === "running"
+                      ? "running…"
+                      : functionUploadTest.status === "pass"
+                        ? `PASS · ${functionUploadTest.path}`
+                        : `FAIL · ${functionUploadTest.error?.code ?? "unknown"} · ${functionUploadTest.error?.message ?? ""}`}
+                  </span>
+                ) : null}
+              </div>
+              {functionUploadTest.status === "fail" &&
+              functionUploadTest.error?.serverResponse ? (
                 <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {storageTest.error.serverResponse}
+                  {functionUploadTest.error.serverResponse}
                 </pre>
               ) : null}
             </div>
@@ -1547,7 +1691,8 @@ export default function ScanFlowResult() {
                   <div key={pose} className="rounded border p-2">
                     <div className="font-medium">{pose}</div>
                     <div className="text-muted-foreground">
-                      state: {state.status} · attempt {state.attempt || 0}
+                      state: {state.status} · attempt {state.attempt || 0} · method{" "}
+                      {formatUploadMethod(state.uploadMethod)}
                     </div>
                     <div className="text-muted-foreground">
                       original:{" "}
@@ -1565,6 +1710,11 @@ export default function ScanFlowResult() {
                       object path:{" "}
                       {uploadMeta[pose]?.fullPath ?? session?.storagePaths?.[pose] ?? "—"}
                     </div>
+                    {uploadMeta[pose]?.uploadMethod ? (
+                      <div className="text-muted-foreground">
+                        methodUsed: {formatUploadMethod(uploadMeta[pose]!.uploadMethod)}
+                      </div>
+                    ) : null}
                     {uploadMeta[pose]?.bucket ? (
                       <div className="text-muted-foreground">
                         bucket: {uploadMeta[pose]!.bucket}
@@ -1601,6 +1751,12 @@ export default function ScanFlowResult() {
                       <div className="text-muted-foreground">
                         lastFirebaseError: {uploadMeta[pose]!.lastFirebaseError!.code ?? "unknown"} ·{" "}
                         {uploadMeta[pose]!.lastFirebaseError!.message}
+                      </div>
+                    ) : null}
+                    {uploadMeta[pose]?.lastUploadError?.message ? (
+                      <div className="text-muted-foreground">
+                        lastUploadError: {uploadMeta[pose]!.lastUploadError!.code ?? "unknown"} ·{" "}
+                        {uploadMeta[pose]!.lastUploadError!.message}
                       </div>
                     ) : null}
                     {uploadMeta[pose]?.lastFirebaseError?.serverResponse ? (

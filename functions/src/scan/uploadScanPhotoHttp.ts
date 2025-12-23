@@ -54,8 +54,13 @@ function parseHeaders(headerText: string): Record<string, string> {
 }
 
 function parseMultipartField(headerValue: string, key: string): string | null {
-  const match = headerValue.match(new RegExp(`${key}="([^"]+)"`));
-  return match ? match[1] : null;
+  const needle = `${key}="`;
+  const start = headerValue.indexOf(needle);
+  if (start < 0) return null;
+  const valueStart = start + needle.length;
+  const end = headerValue.indexOf("\"", valueStart);
+  if (end < 0) return null;
+  return headerValue.slice(valueStart, end);
 }
 
 async function parseMultipart(req: Request): Promise<{
@@ -119,6 +124,7 @@ async function parseOctetStream(req: Request): Promise<{
   const fields: Record<string, string> = {
     scanId: toTrimmedString(req.query.scanId),
     view: toTrimmedString(req.query.view),
+    pose: toTrimmedString(req.query.pose),
     correlationId: toTrimmedString(req.query.correlationId),
   };
   const headerScanId = toTrimmedString(req.get("x-scan-id"));
@@ -152,7 +158,9 @@ export const uploadScanPhotoHttp = onRequest(
         : await parseOctetStream(req);
 
       const scanId = toTrimmedString(parsed.fields.scanId || req.body?.scanId);
-      const view = toTrimmedString(parsed.fields.view || req.body?.view);
+      const view = toTrimmedString(
+        parsed.fields.view || parsed.fields.pose || req.body?.view || req.body?.pose
+      );
       const correlationIdFinal =
         toTrimmedString(parsed.fields.correlationId) || correlationId;
 

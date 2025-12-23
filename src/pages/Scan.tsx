@@ -812,6 +812,7 @@ export default function ScanPage() {
                 typeof (info as any)?.offline === "boolean"
                   ? (info as any).offline
                   : existing?.offline,
+              uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
             };
             return next;
           });
@@ -842,6 +843,7 @@ export default function ScanPage() {
               fullPath: (info as any)?.fullPath ?? existing.fullPath,
               bucket: (info as any)?.bucket ?? existing.bucket,
               pathMismatch: (info as any)?.pathMismatch ?? existing.pathMismatch,
+              uploadMethod: (info as any)?.uploadMethod ?? existing.uploadMethod,
               lastError:
                 info.status === "failed"
                   ? { code: undefined, message: info.message }
@@ -1035,6 +1037,7 @@ export default function ScanPage() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
+                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -1067,6 +1070,7 @@ export default function ScanPage() {
                 bucket: (info as any)?.bucket ?? existing.bucket,
                 pathMismatch:
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
+                uploadMethod: (info as any)?.uploadMethod ?? existing.uploadMethod,
                 lastError:
                   info.status === "failed"
                     ? { code: undefined, message: info.message }
@@ -1150,6 +1154,12 @@ export default function ScanPage() {
     const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
     const val = b / Math.pow(1024, i);
     return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function formatUploadMethod(method?: UploadMethod): string {
+    if (method === "storage") return "sdk";
+    if (method === "http") return "function";
+    return "—";
   }
 
   return (
@@ -1640,7 +1650,7 @@ export default function ScanPage() {
                       }
                     }}
                   >
-                    Storage Write Test
+                    Storage SDK Write Test
                   </button>
                   {storageTest.status !== "idle" ? (
                     <span className="text-muted-foreground">
@@ -1754,7 +1764,8 @@ export default function ScanPage() {
                     <div key={pose} className="rounded border p-2">
                       <div className="font-medium">{pose}</div>
                       <div className="text-muted-foreground">
-                        state: {state.status} · attempt {state.attempt || 0}
+                        state: {state.status} · attempt {state.attempt || 0} · method{" "}
+                        {formatUploadMethod(state.uploadMethod)}
                       </div>
                       <div className="text-muted-foreground">
                         original:{" "}
@@ -1770,7 +1781,7 @@ export default function ScanPage() {
                       </div>
                       {meta.uploadMethod ? (
                         <div className="text-muted-foreground">
-                          uploadMethod: {meta.uploadMethod}
+                          methodUsed: {formatUploadMethod(meta.uploadMethod)}
                         </div>
                       ) : null}
                       {meta.correlationId ? (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,8 +30,12 @@ export default function Workouts() {
   const { t } = useI18n();
   const location = useLocation();
   const nav = useNavigate();
-  const params = new URLSearchParams(location.search);
-  const cameFromPlanStart = params.get("started") === "1";
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
+  const requestedPlanId = searchParams.get("plan");
+  const startedParam = searchParams.get("started") === "1";
   type WorkoutExercise = {
     id: string;
     name?: string;
@@ -113,9 +117,6 @@ export default function Workouts() {
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const params = new URLSearchParams(location.search);
-    const requestedPlanId = params.get("plan");
-
     const cleanup = () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
@@ -217,7 +218,7 @@ export default function Workouts() {
     void hydrate();
 
     return cleanup;
-  }, [loadProgress, workoutsConfigured, location.search]);
+  }, [loadProgress, requestedPlanId, workoutsConfigured]);
 
   const handleToggle = async (exerciseId: string) => {
     if (!plan || !Array.isArray(plan.days)) return;
@@ -312,10 +313,8 @@ export default function Workouts() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const requestedPlanId = params.get("plan");
     if (
-      params.get("started") === "1" &&
+      startedParam &&
       plan &&
       (!requestedPlanId || plan.id === requestedPlanId)
     ) {
@@ -323,13 +322,14 @@ export default function Workouts() {
         title: "Plan ready",
         description: "Your new workout program is active.",
       });
-      params.delete("started");
-      params.delete("plan");
-      const nextSearch = params.toString();
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("started");
+      nextParams.delete("plan");
+      const nextSearch = nextParams.toString();
       const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
       window.history.replaceState({}, "", nextUrl);
     }
-  }, [location.pathname, location.search, plan]);
+  }, [location.pathname, plan, requestedPlanId, searchParams, startedParam]);
 
   const formatDelta = (value: number) =>
     value >= 0 ? `+${value}` : `${value}`;

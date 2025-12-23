@@ -1,5 +1,5 @@
 import { apiFetch, ApiError } from "@/lib/http";
-import { resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { DEFAULT_FN_BASE, resolveFunctionUrl } from "@/lib/api/functionsBase";
 
 type UploadScanPhotoHttpResponse = {
   ok: true;
@@ -18,8 +18,24 @@ export type UploadViaHttpResult = {
   elapsedMs: number;
 };
 
+function isStorageRestUrl(candidate: string): boolean {
+  const value = candidate.toLowerCase();
+  if (value.includes("firebasestorage.googleapis.com")) return true;
+  if (value.includes("storage.googleapis.com")) return true;
+  return value.includes("/v0/b/") || value.includes("/upload/storage/v1/b/");
+}
+
+function resolveUploadBaseUrl(): string {
+  const resolved = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
+  if (isStorageRestUrl(resolved)) {
+    console.warn("scan_upload_http_invalid_override", { resolved });
+    return `${DEFAULT_FN_BASE}/uploadScanPhotoHttp`;
+  }
+  return resolved;
+}
+
 function uploadUrl(scanId: string, view: string, correlationId: string): string {
-  const base = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
+  const base = resolveUploadBaseUrl();
   const params = new URLSearchParams({
     scanId,
     view,
@@ -60,6 +76,7 @@ export async function uploadViaHttp(params: {
   const form = new FormData();
   form.append("scanId", params.scanId);
   form.append("view", params.pose);
+  form.append("pose", params.pose);
   form.append("correlationId", params.correlationId);
   form.append("file", params.file, `${params.pose}.jpg`);
 

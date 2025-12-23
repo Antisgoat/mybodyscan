@@ -37,6 +37,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = (
     "Access-Control-Allow-Headers",
     "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Scan-Id,X-Scan-View"
   );
+  res.set("Access-Control-Max-Age", "3600");
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (!req.get("X-Firebase-AppCheck")) {
     console.warn("appcheck_missing_soft", { path: req.path || req.url });
