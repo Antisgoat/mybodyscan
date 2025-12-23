@@ -785,6 +785,10 @@ export default function ScanResultPage() {
       : typeof profile?.weight_kg === "number" && Number.isFinite(profile.weight_kg)
         ? profile.weight_kg
         : null;
+  const heightCm =
+    typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+      ? profile.height_cm
+      : null;
 
   const bfPct =
     typeof scan.estimate?.bodyFatPercent === "number" &&
@@ -836,6 +840,50 @@ export default function ScanResultPage() {
           : undefined,
     },
   });
+
+  const bmiValue =
+    heightCm != null && weightKg != null
+      ? Number((weightKg / Math.pow(heightCm / 100, 2)).toFixed(1))
+      : null;
+
+  const workoutPlan = scan.workoutPlan?.weeks?.length
+    ? scan.workoutPlan
+    : buildFallbackWorkoutPlan();
+  const weeksToShow = workoutPlan.weeks.slice(0, 1);
+  const hasMoreWeeks = workoutPlan.weeks.length > 1;
+  const progressionRules =
+    Array.isArray(workoutPlan.progressionRules) &&
+    workoutPlan.progressionRules.length
+      ? workoutPlan.progressionRules
+      : [
+          "Add 1–2 reps per set each week until you hit the top of the rep range.",
+          "When all sets hit the top range, increase load 2–5% next week.",
+          "Keep 1–2 reps in reserve on compounds; push accessories closer to failure.",
+          "Deload every 4–6 weeks by cutting volume in half.",
+        ];
+
+  const nutritionPlan = scan.nutritionPlan
+    ? {
+        ...scan.nutritionPlan,
+        adjustmentRules: Array.isArray(scan.nutritionPlan.adjustmentRules)
+          ? scan.nutritionPlan.adjustmentRules
+          : [],
+        sampleDay: Array.isArray(scan.nutritionPlan.sampleDay)
+          ? scan.nutritionPlan.sampleDay
+          : [],
+      }
+    : {
+        caloriesPerDay: Math.round(computedGoals.calories),
+        proteinGrams: Math.round(computedGoals.proteinGrams),
+        carbsGrams: Math.round(computedGoals.carbsGrams),
+        fatsGrams: Math.round(computedGoals.fatGrams),
+        adjustmentRules: [
+          "If weight change is <0.25 kg/week, drop 150–200 kcal.",
+          "If losing >1% body weight/week, add 150–200 kcal.",
+          "Keep protein constant; adjust carbs/fats first.",
+        ],
+        sampleDay: [],
+      };
 
   const bodyAge = (() => {
     if (age == null || bfPct == null) return null;
@@ -922,10 +970,10 @@ export default function ScanResultPage() {
             <InfoRow
               label="Height"
               value={
-                typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+                heightCm != null
                   ? units === "metric"
-                    ? `${Math.round(profile.height_cm)} cm`
-                    : formatHeightFromCm(profile.height_cm)
+                    ? `${Math.round(heightCm)} cm`
+                    : formatHeightFromCm(heightCm)
                   : "—"
               }
             />
@@ -942,9 +990,7 @@ export default function ScanResultPage() {
             <InfoRow
               label="BMI"
               value={
-                typeof scan.estimate?.bmi === "number" && Number.isFinite(scan.estimate.bmi)
-                  ? scan.estimate.bmi.toFixed(1)
-                  : "—"
+                bmiValue != null ? bmiValue.toFixed(1) : "—"
               }
             />
             <InfoRow
@@ -956,6 +1002,160 @@ export default function ScanResultPage() {
               value={computedGoals.tdee != null ? `${Math.round(computedGoals.tdee)} kcal` : "—"}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-lg">Coach report</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Structured like a coaching chat — use this as your 8-week playbook.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6 text-sm">
+          <section className="space-y-2">
+            <h3 className="text-base font-semibold">1) Body metrics snapshot</h3>
+            <ul className="space-y-1 text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">Body fat:</span>{" "}
+                {bfPct != null ? `${bfPct.toFixed(1)}%` : "—"}
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Fat mass:</span>{" "}
+                {formatKgLb(fatMassKg, units)}
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Lean mass:</span>{" "}
+                {formatKgLb(leanMassKg, units)}
+              </li>
+              <li>
+                <span className="font-medium text-foreground">BMI:</span>{" "}
+                {bmiValue != null ? bmiValue.toFixed(1) : "Add your height to calculate BMI."}
+              </li>
+            </ul>
+            {typeof scan.estimate?.notes === "string" && scan.estimate.notes.trim() ? (
+              <p className="text-xs text-muted-foreground">{scan.estimate.notes}</p>
+            ) : null}
+          </section>
+
+          <Separator />
+
+          <section className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold">
+                2) Training plan (6-day PPL split)
+              </h3>
+              <p className="text-muted-foreground">{workoutPlan.summary}</p>
+            </div>
+            {weeksToShow.map((week) => (
+              <div key={week.weekNumber} className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Week {week.weekNumber} split
+                </p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {week.days.map((day, idx) => (
+                    <div key={`${day.day}-${idx}`} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{day.day}</span>
+                        <span className="text-xs text-muted-foreground">{day.focus}</span>
+                      </div>
+                      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        {day.exercises.map((exercise, exIdx) => (
+                          <li key={`${exercise.name}-${exIdx}`}>
+                            {exercise.name} · {exercise.sets}x{exercise.reps}
+                            {exercise.notes ? ` · ${exercise.notes}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {hasMoreWeeks ? (
+              <p className="text-xs text-muted-foreground">
+                Weeks {weeksToShow.length + 1}+ follow the same split with progressive
+                overload.
+              </p>
+            ) : null}
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Progression rules
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {progressionRules.map((rule, idx) => (
+                  <li key={idx}>• {rule}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold">3) Nutrition plan</h3>
+              <p className="text-muted-foreground">
+                Calories and macros tailored for your goal.
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Daily calories</p>
+                <p className="text-lg font-semibold">
+                  {Math.round(nutritionPlan.caloriesPerDay)} kcal
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Macros</p>
+                <p className="text-sm font-medium">
+                  P {Math.round(nutritionPlan.proteinGrams)}g · C{" "}
+                  {Math.round(nutritionPlan.carbsGrams)}g · F{" "}
+                  {Math.round(nutritionPlan.fatsGrams)}g
+                </p>
+              </div>
+            </div>
+            {nutritionPlan.sampleDay?.length ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Sample day
+                </p>
+                <ul className="space-y-2 text-xs text-muted-foreground">
+                  {nutritionPlan.sampleDay.map((meal, idx) => (
+                    <li key={`${meal.mealName}-${idx}`}>
+                      <span className="font-medium text-foreground">{meal.mealName}:</span>{" "}
+                      {meal.description} · {meal.calories} kcal (P {meal.proteinGrams}g · C{" "}
+                      {meal.carbsGrams}g · F {meal.fatsGrams}g)
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Adjustment rules
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {nutritionPlan.adjustmentRules.map((rule, idx) => (
+                  <li key={idx}>• {rule}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-2">
+            <h3 className="text-base font-semibold">4) Next steps</h3>
+            <ul className="space-y-2 text-muted-foreground">
+              {recommendations.map((item, idx) => (
+                <li key={idx} className="flex gap-2">
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </CardContent>
       </Card>
 
@@ -1308,4 +1508,83 @@ function defaultRecommendations(goals: ReturnType<typeof deriveNutritionGoals>):
     "Train 3–5x/week with progressive overload and prioritize sleep (7–9h).",
     "Hit a daily step baseline (e.g. 7–10k) to support energy balance.",
   ].slice(0, 5);
+}
+
+function buildFallbackWorkoutPlan() {
+  return {
+    summary:
+      "6-day push/pull/legs split focused on progressive overload and balanced volume.",
+    progressionRules: [
+      "Add reps weekly until you reach the top of the rep range, then increase load.",
+      "Keep 1–2 reps in reserve on compounds to stay consistent.",
+      "Deload every 4–6 weeks if performance stalls.",
+    ],
+    weeks: [
+      {
+        weekNumber: 1,
+        days: [
+          {
+            day: "Day 1",
+            focus: "Push (chest/shoulders/triceps)",
+            exercises: [
+              { name: "Bench press", sets: 4, reps: "6-10" },
+              { name: "Incline dumbbell press", sets: 3, reps: "8-12" },
+              { name: "Overhead press", sets: 3, reps: "6-10" },
+              { name: "Triceps pressdown", sets: 3, reps: "10-15" },
+            ],
+          },
+          {
+            day: "Day 2",
+            focus: "Pull (back/biceps)",
+            exercises: [
+              { name: "Pull-ups or pulldown", sets: 4, reps: "6-10" },
+              { name: "Barbell row", sets: 3, reps: "6-10" },
+              { name: "Face pulls", sets: 3, reps: "12-15" },
+              { name: "Biceps curl", sets: 3, reps: "10-12" },
+            ],
+          },
+          {
+            day: "Day 3",
+            focus: "Legs (quads/hamstrings/glutes)",
+            exercises: [
+              { name: "Squat", sets: 4, reps: "5-8" },
+              { name: "Romanian deadlift", sets: 3, reps: "8-10" },
+              { name: "Leg press", sets: 3, reps: "10-12" },
+              { name: "Calf raise", sets: 3, reps: "12-15" },
+            ],
+          },
+          {
+            day: "Day 4",
+            focus: "Push (volume)",
+            exercises: [
+              { name: "Dumbbell bench press", sets: 3, reps: "8-12" },
+              { name: "Lateral raise", sets: 3, reps: "12-15" },
+              { name: "Dip or push-up", sets: 3, reps: "8-12" },
+              { name: "Triceps extension", sets: 3, reps: "12-15" },
+            ],
+          },
+          {
+            day: "Day 5",
+            focus: "Pull (volume)",
+            exercises: [
+              { name: "Chest-supported row", sets: 3, reps: "8-12" },
+              { name: "Lat pulldown", sets: 3, reps: "10-12" },
+              { name: "Rear delt fly", sets: 3, reps: "12-15" },
+              { name: "Hammer curl", sets: 3, reps: "10-12" },
+            ],
+          },
+          {
+            day: "Day 6",
+            focus: "Legs (volume)",
+            exercises: [
+              { name: "Front squat or goblet squat", sets: 3, reps: "8-10" },
+              { name: "Hip hinge (RDL/hip thrust)", sets: 3, reps: "8-12" },
+              { name: "Leg curl", sets: 3, reps: "10-12" },
+              { name: "Walking lunge", sets: 2, reps: "12-16 steps" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
 }

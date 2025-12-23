@@ -6,6 +6,8 @@ type UploadScanPhotoHttpResponse = {
   bucket: string;
   path: string;
   size: number;
+  contentType?: string;
+  downloadURL?: string;
   generation?: string;
   md5?: string;
 };
@@ -70,9 +72,14 @@ export async function uploadViaHttp(params: {
         timeoutMs: params.timeoutMs,
         retries: 0,
         signal: params.signal,
+        headers: {
+          "X-Correlation-Id": params.correlationId,
+          "X-Scan-Id": params.scanId,
+          "X-Scan-View": params.pose,
+        },
       }
     );
-    const path = response?.path || "";
+    const path = response?.ok ? response.path : "";
     if (!path) {
       const err = new Error("Upload failed.") as Error & { code?: string };
       err.code = "function/upload_failed";

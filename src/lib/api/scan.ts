@@ -36,6 +36,7 @@ export type ScanErrorInfo = {
 
 export type WorkoutPlan = {
   summary: string;
+  progressionRules: string[];
   weeks: {
     weekNumber: number;
     days: {
@@ -56,6 +57,7 @@ export type NutritionPlan = {
   proteinGrams: number;
   carbsGrams: number;
   fatsGrams: number;
+  adjustmentRules: string[];
   sampleDay: {
     mealName: string;
     description: string;
@@ -547,6 +549,18 @@ function normalizeUploadError(err: unknown): ScanError | null {
   return null;
 }
 
+function isCorsLikeError(err: unknown): boolean {
+  const anyErr = err as any;
+  const message = `${anyErr?.message ?? ""} ${anyErr?.serverResponse ?? ""}`.toLowerCase();
+  if (!message.trim()) return false;
+  return (
+    message.includes("cors") ||
+    message.includes("access control") ||
+    message.includes("preflight") ||
+    message.includes("xmlhttprequest")
+  );
+}
+
 function isProbablyMobileUploadDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = String(navigator.userAgent || "");
@@ -845,7 +859,7 @@ export async function submitScanClient(
     })();
     const isMobileUploadDevice = isProbablyMobileUploadDevice();
     const maxAttempts = isMobileUploadDevice ? 5 : 3;
-    const httpFallbackAttempt = isMobileUploadDevice ? 3 : Number.POSITIVE_INFINITY;
+    const httpFallbackAttempt = 3;
     const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
     const preferredUploadMethod: UploadMethod = "storage";
     const scanCorrelationId =
@@ -854,6 +868,7 @@ export async function submitScanClient(
     for (const [index, target] of uploadTargets.entries()) {
       let attempt = 0;
       let succeeded = false;
+      let forceHttp = false;
       while (!succeeded && attempt < maxAttempts) {
         attempt += 1;
         const isRetry = attempt > 1;
@@ -864,7 +879,7 @@ export async function submitScanClient(
           attempt
         );
         const preferredMethod: UploadMethod =
-          attempt >= httpFallbackAttempt ? "http" : preferredUploadMethod;
+          forceHttp || attempt >= httpFallbackAttempt ? "http" : preferredUploadMethod;
         let activeMethod: UploadMethod = preferredMethod;
         options?.onPhotoState?.({
           pose: target.pose,
@@ -1025,7 +1040,17 @@ export async function submitScanClient(
           });
           succeeded = true;
         } catch (err) {
-          const normalized = normalizeUploadError(err);
+          const normalizedBase = normalizeUploadError(err);
+          const corsFailure = isCorsLikeError(err);
+          const normalized = normalizedBase ?? (corsFailure
+            ? {
+                code: "cors_blocked",
+                message:
+                  "Upload blocked by a network/CORS issue. Please retry.",
+                reason: "upload_failed",
+                pose: target.pose,
+              }
+            : null);
           const rawCode =
             typeof (err as any)?.code === "string" ? ((err as any).code as string) : undefined;
           const rawMessage =
@@ -1046,9 +1071,16 @@ export async function submitScanClient(
             method: activeMethod,
             correlationId,
           });
+          if (corsFailure) {
+            forceHttp = true;
+          }
           const overallTimedOut =
             Boolean(combinedSignal?.signal?.aborted) && Date.now() >= overallDeadlineAt;
-          const effectiveCode = overallTimedOut ? "scan/overall-timeout" : rawCode ?? normalized?.code;
+          const effectiveCode = overallTimedOut
+            ? "scan/overall-timeout"
+            : corsFailure
+              ? "cors_blocked"
+              : rawCode ?? normalized?.code;
           if (overallTimedOut) {
             options?.onPhotoState?.({
               pose: target.pose,
@@ -1096,12 +1128,12 @@ export async function submitScanClient(
               nextRetryDelayMs: backoff,
               // Important: preserve the raw Firebase error code/message for diagnostics.
               lastFirebaseError: {
-                code: rawCode ?? normalized?.code,
+                code: effectiveCode ?? rawCode ?? normalized?.code,
                 message: rawMessage ?? normalized?.message,
                 serverResponse,
               },
               lastUploadError: {
-                code: rawCode ?? normalized?.code,
+                code: effectiveCode ?? rawCode ?? normalized?.code,
                 message: rawMessage ?? normalized?.message,
               },
               taskState: lastSnapshot?.state,
@@ -1132,12 +1164,12 @@ export async function submitScanClient(
                 : normalized?.message ?? rawMessage ?? "Upload failed.",
             // Important: preserve the raw Firebase error code/message for diagnostics.
             lastFirebaseError: {
-              code: rawCode ?? normalized?.code,
+              code: effectiveCode ?? rawCode ?? normalized?.code,
               message: rawMessage ?? normalized?.message,
               serverResponse,
             },
             lastUploadError: {
-              code: rawCode ?? normalized?.code,
+              code: effectiveCode ?? rawCode ?? normalized?.code,
               message: rawMessage ?? normalized?.message,
             },
             taskState: lastSnapshot?.state,

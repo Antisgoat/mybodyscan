@@ -126,9 +126,9 @@ export function buildScanStatusMeta(
       if (!stale) return "Failed";
       if (canonical === "uploading") return "Upload stalled";
       if (canonical === "uploaded") return "Upload complete, awaiting analysis";
-      if (canonical === "queued") return "Scan queued too long";
-      if (canonical === "pending") return "Scan pending too long";
-      if (canonical === "processing") return "Processing timed out";
+      if (canonical === "queued") return "Queued longer than usual";
+      if (canonical === "pending") return "Preparing longer than usual";
+      if (canonical === "processing") return "Still processing";
       return "Failed";
     })();
     const staleHelper = (() => {
@@ -137,13 +137,13 @@ export function buildScanStatusMeta(
         return "Check your connection and retry the failed photo upload.";
       }
       if (canonical === "uploaded" || canonical === "pending") {
-        return "Open the scan to retry processing or start a new scan.";
+        return "Processing will start shortly. You can also retry processing.";
       }
       if (canonical === "queued") {
-        return "Open the scan to retry processing or contact support.";
+        return "We’re still working on this scan. You can retry processing if needed.";
       }
       if (canonical === "processing") {
-        return "Open the scan to retry processing or contact support.";
+        return "We’re still working on this scan. You can retry processing if needed.";
       }
       return "Start a new scan to try again.";
     })();
@@ -151,10 +151,10 @@ export function buildScanStatusMeta(
       canonical: canonical === "error" ? "error" : "processing",
       label: staleLabel,
       helperText: staleHelper,
-      badgeVariant: "destructive",
+      badgeVariant: canonical === "error" ? "destructive" : "secondary",
       stale,
       showMetrics: false,
-      recommendRescan: true,
+      recommendRescan: canonical === "error",
     };
   }
   if (canonical === "uploading") {

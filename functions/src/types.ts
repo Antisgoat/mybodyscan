@@ -8,6 +8,7 @@ export interface ScanEstimate {
 
 export interface ScanWorkoutPlan {
   summary: string;
+  progressionRules: string[];
   weeks: {
     weekNumber: number;
     days: {
@@ -28,6 +29,7 @@ export interface ScanNutritionPlan {
   proteinGrams: number;
   carbsGrams: number;
   fatsGrams: number;
+  adjustmentRules: string[];
   sampleDay: {
     mealName: string;
     description: string;
