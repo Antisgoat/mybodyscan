@@ -42,5 +42,32 @@ describe("scan flow helpers", () => {
       expect(result.data.totalBytes).toBeGreaterThan(0);
     }
   });
-});
 
+  it("builds an upload plan with paths and byte sizes", () => {
+    const front = new File([new Blob(["front-bytes"])], "front.jpg", { type: "image/jpeg" });
+    const back = new File([new Blob(["back-bytes"])], "back.jpg", { type: "image/jpeg" });
+    const left = new File([new Blob(["left-bytes"])], "left.jpg", { type: "image/jpeg" });
+    const right = new File([new Blob(["right-bytes"])], "right.jpg", { type: "image/jpeg" });
+    const paths = {
+      front: "user_uploads/u1/scans/s1/front.jpg",
+      back: "user_uploads/u1/scans/s1/back.jpg",
+      left: "user_uploads/u1/scans/s1/left.jpg",
+      right: "user_uploads/u1/scans/s1/right.jpg",
+    };
+    const result = validateScanUploadInputs({
+      storagePaths: paths,
+      photos: { front, back, left, right },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.uploadTargets.map((t) => t.path)).toEqual([
+        paths.front,
+        paths.back,
+        paths.left,
+        paths.right,
+      ]);
+      const expectedBytes = front.size + back.size + left.size + right.size;
+      expect(result.data.totalBytes).toBe(expectedBytes);
+    }
+  });
+});

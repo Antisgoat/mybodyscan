@@ -4,6 +4,10 @@ import { handleSubmitScanMultipart } from "../lib/scan/submitMultipart.js";
 
 console.log("submitMultipart tests starting");
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-openai-key";
+process.env.OPENAI_PROVIDER = process.env.OPENAI_PROVIDER || "openai";
+process.env.OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+process.env.OPENAI_BASE_URL =
+  process.env.OPENAI_BASE_URL || "https://api.openai.com";
 process.env.STORAGE_BUCKET = process.env.STORAGE_BUCKET || "test-bucket";
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || "test-project";
 process.on("uncaughtException", (err) => {

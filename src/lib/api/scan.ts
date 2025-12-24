@@ -24,6 +24,9 @@ export type ScanEstimate = {
   notes: string;
   leanMassKg?: number | null;
   fatMassKg?: number | null;
+  bmiCategory?: string | null;
+  keyObservations?: string[];
+  goalRecommendations?: string[];
 };
 
 export type ScanErrorInfo = {
@@ -309,7 +312,7 @@ function buildScanError(
         : fallbackMessage;
     const effectiveReason = reason ?? data.reason;
     const normalizedMessage =
-      effectiveReason === "engine_not_configured"
+      effectiveReason === "engine_not_configured" || effectiveReason === "scan_engine_not_configured"
         ? "Service unavailable: scan engine not configured."
         : message;
     return {
@@ -522,7 +525,16 @@ export async function submitScanClient(
     };
   }
 
-  const preparedPhotos: Partial<Record<keyof StartScanResponse["storagePaths"], File>> = {};
+  const validated = validateScanUploadInputs({
+    storagePaths: params.storagePaths,
+    photos: params.photos,
+  });
+  if (!validated.ok) {
+    return { ok: false, error: validated.error };
+  }
+  let uploadTargets = validated.data.uploadTargets;
+  let totalBytes = validated.data.totalBytes;
+
   const totalSteps = posesToUpload.length + 1; // preprocessing per pose + upload request
   let completedSteps = 0;
 
@@ -558,7 +570,12 @@ export async function submitScanClient(
     const startedAt = Date.now();
     try {
       const processed = await prepareScanPhoto(original, pose);
-      preparedPhotos[pose] = processed.preparedFile;
+      uploadTargets = uploadTargets.map((target) =>
+        target.pose === pose
+          ? { ...target, file: processed.preparedFile, size: processed.meta.prepared.size }
+          : target
+      );
+      totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
       options?.onPhotoState?.({
         pose,
         status: "preparing",

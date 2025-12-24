@@ -24,7 +24,10 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
-import { auth, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
+import { apiFetch } from "@/lib/http";
+import { auth, db, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import {
   clearScanPipelineState,
@@ -164,6 +167,9 @@ export default function ScanPage() {
     refreshedAt?: number;
     refreshError?: string;
   } | null>(null);
+  type DebugCheckRow = { name: string; ok: boolean; detail?: string };
+  const [debugChecks, setDebugChecks] = useState<DebugCheckRow[]>([]);
+  const [debugChecksBusy, setDebugChecksBusy] = useState(false);
   const [uploadSmokeTest, setUploadSmokeTest] = useState<{
     status: "idle" | "running" | "pass" | "fail";
     message?: string;
@@ -196,6 +202,81 @@ export default function ScanPage() {
     pipelineStageRef.current = null;
     setPersistedScan(readActiveScanPipelineState());
   }, []);
+
+  const runDebugChecks = useCallback(async () => {
+    setDebugChecksBusy(true);
+    const rows: DebugCheckRow[] = [];
+    try {
+      if (!user?.uid) {
+        rows.push({ name: "Auth", ok: false, detail: "Signed out" });
+        setDebugChecks(rows);
+        return;
+      }
+      rows.push({ name: "Auth", ok: true, detail: `uid=${user.uid}` });
+
+      try {
+        const storage = getFirebaseStorage();
+        const bytes = new Uint8Array(1024);
+        bytes.fill(0x5a);
+        const blob = new Blob([bytes], { type: "text/plain" });
+        const path = `user_uploads/${user.uid}/debug/system-check-${Date.now()}.txt`;
+        await uploadBytes(ref(storage, path), blob, { contentType: "text/plain" });
+        rows.push({ name: "Storage write", ok: true, detail: path });
+      } catch (err: any) {
+        rows.push({
+          name: "Storage write",
+          ok: false,
+          detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
+        });
+      }
+
+      try {
+        const refDoc = doc(db, "users", user.uid, "diagnostics", "systemCheck");
+        await setDoc(
+          refDoc,
+          { ranAt: serverTimestamp(), appCheck: appCheckStatus.status },
+          { merge: true }
+        );
+        const snap = await getDoc(refDoc);
+        rows.push({
+          name: "Firestore write/read",
+          ok: snap.exists(),
+          detail: snap.exists() ? "ok" : "missing after write",
+        });
+      } catch (err: any) {
+        rows.push({
+          name: "Firestore write/read",
+          ok: false,
+          detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
+        });
+      }
+
+      try {
+        const health = await apiFetch<Record<string, any>>("/system/health", { method: "GET" });
+        const missing =
+          Array.isArray((health as any)?.scanEngineMissing) &&
+          (health as any).scanEngineMissing.length
+            ? (health as any).scanEngineMissing.join(", ")
+            : null;
+        rows.push({
+          name: "Scan engine config",
+          ok: !missing,
+          detail: missing
+            ? `missing: ${missing}`
+            : `provider=${health?.engineProvider ?? health?.provider ?? "unknown"} · model=${health?.engineModel ?? "unknown"}`,
+        });
+      } catch (err: any) {
+        rows.push({
+          name: "Scan engine config",
+          ok: false,
+          detail: `${err?.status ?? ""} ${err?.message ?? String(err)}`.trim(),
+        });
+      }
+    } finally {
+      setDebugChecks(rows);
+      setDebugChecksBusy(false);
+    }
+  }, [user, appCheckStatus.status]);
 
   const [isOffline, setIsOffline] = useState(() => {
     try {
@@ -1425,6 +1506,37 @@ export default function ScanPage() {
               Debug details
             </summary>
             <div className="mt-2 space-y-2">
+              <div className="rounded border p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">Run debug checks</span>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-[11px]"
+                    onClick={() => void runDebugChecks()}
+                    disabled={debugChecksBusy}
+                  >
+                    {debugChecksBusy ? "Running…" : "Run"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Quick auth, Storage, Firestore, and scan engine probe (dev / ?debug=1).
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {debugChecks.length === 0 ? (
+                    <li className="text-[11px] text-muted-foreground">No checks run yet.</li>
+                  ) : (
+                    debugChecks.map((row) => (
+                      <li key={row.name} className="text-[11px]">
+                        <span className={row.ok ? "text-green-700" : "text-red-700"}>
+                          {row.ok ? "OK" : "FAIL"}
+                        </span>{" "}
+                        <span className="font-medium">{row.name}</span>
+                        {row.detail ? ` · ${row.detail}` : ""}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
               <div>
                 <span className="font-medium">pipeline:</span>{" "}
                 <span className="text-muted-foreground">
