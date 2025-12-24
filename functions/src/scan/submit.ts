@@ -9,9 +9,10 @@ import type { Request } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
+import { openAiSecretParam } from "../openai/keys.js";
 import type { ScanDocument } from "../types.js";
 import { deriveErrorReason } from "./analysis.js";
-import { assertScanEngineConfigured } from "./engineConfig.js";
+import { getEngineConfigOrThrow } from "./engineConfig.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -97,7 +98,13 @@ async function verifyPhotoPaths(uid: string, scanId: string, paths: Record<Pose,
 }
 
 export const submitScan = onRequest(
-  { invoker: "public", concurrency: 20, region: "us-central1", timeoutSeconds: 60 },
+  {
+    invoker: "public",
+    concurrency: 20,
+    region: "us-central1",
+    timeoutSeconds: 60,
+    secrets: [openAiSecretParam],
+  },
   async (req, res) => {
     let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null = null;
     const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
@@ -128,7 +135,7 @@ export const submitScan = onRequest(
         requestId,
       });
       // Verify the engine + storage bucket exist before doing any work.
-      assertScanEngineConfigured(requestId);
+      getEngineConfigOrThrow(requestId);
 
       const payload = parsePayload(req.body);
       if (!payload) {
@@ -282,6 +289,8 @@ function statusFromHttpsError(error: HttpsError): number {
       return 400;
     case "failed-precondition":
       return 412;
+    case "unavailable":
+      return 503;
     case "unauthenticated":
       return 401;
     case "permission-denied":

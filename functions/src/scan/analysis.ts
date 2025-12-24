@@ -2,17 +2,16 @@
  * Shared scan analysis helpers (OpenAI + sanitization).
  */
 import { getStorage } from "../firebase.js";
-import { hasOpenAI } from "../lib/env.js";
 import {
   OpenAIClientError,
   structuredJsonChat,
   type ChatContentPart,
 } from "../openai/client.js";
+import type { EngineConfig } from "./engineConfig.js";
 import type { ScanEstimate, ScanNutritionPlan, ScanWorkoutPlan } from "../types.js";
 
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
-const OPENAI_MODEL = "gpt-4o-mini";
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
 const OPENAI_TIMEOUT_MS = 90000;
@@ -216,15 +215,9 @@ export async function buildImageInputs(
 export async function callOpenAI(
   images: Array<{ pose: Pose; url: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
-  requestId: string
+  requestId: string,
+  engine: EngineConfig
 ): Promise<OpenAIResult> {
-  if (!hasOpenAI()) {
-    throw new OpenAIClientError(
-      "openai_missing_key",
-      401,
-      "Scan engine not configured."
-    );
-  }
   const systemPrompt = [
     "You are a fitness coach who analyzes body photos to estimate body fat percentage and BMI.",
     'Respond with JSON matching {"estimate": ScanEstimate, "workoutPlan": ScanWorkoutPlan, "nutritionPlan": ScanNutritionPlan, "recommendations": string[]}.',
@@ -261,7 +254,9 @@ export async function callOpenAI(
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,
-    model: OPENAI_MODEL,
+    model: engine.model,
+    apiKey: engine.apiKey,
+    baseUrl: engine.baseUrl ?? undefined,
     validate: validateVisionPayload,
   });
 
@@ -295,37 +290,39 @@ export function buildPlanMarkdown(params: {
   const fat = Number.isFinite(params.estimate.fatMassKg ?? NaN)
     ? `${params.estimate.fatMassKg?.toFixed(1)} kg fat mass (est.)`
     : null;
-  lines.push("# DEXA-style photo estimate (rough)");
+  const bodyFat = params.estimate.bodyFatPercent;
+  const lowRange = Math.max(3, bodyFat - 1.5).toFixed(1);
+  const highRange = Math.min(60, bodyFat + 1.5).toFixed(1);
+
+  lines.push("# Scan Results");
+  lines.push("");
+  lines.push("## Body Metrics");
+  lines.push(`- Current weight: ${params.input.currentWeightKg} kg`);
+  lines.push(`- Goal weight: ${params.input.goalWeightKg} kg`);
+  if (lean) lines.push(`- ${lean}`);
+  if (fat) lines.push(`- ${fat}`);
+  lines.push("");
+  lines.push("## Estimated Body Fat Range");
   lines.push(
-    `- Body fat: ${params.estimate.bodyFatPercent.toFixed(1)}% (visual estimate${
+    `- Visual estimate: ${bodyFat.toFixed(1)}% (${lowRange}–${highRange}% range${
       params.usedFallback ? ", fallback" : ""
     })`
   );
-  if (lean) lines.push(`- ${lean}`);
-  if (fat) lines.push(`- ${fat}`);
-  if (params.estimate.bmi != null) {
-    lines.push(`- BMI: ${params.estimate.bmi.toFixed(1)}`);
-  }
-  lines.push(`- Note: ${params.estimate.notes}`);
+  lines.push(`- Notes: ${params.estimate.notes}`);
   lines.push("");
-  lines.push("## 8-week plan overview");
+  lines.push("## BMI");
   lines.push(
-    `- Current → goal: ${params.input.currentWeightKg} kg → ${params.input.goalWeightKg} kg`
+    params.estimate.bmi != null
+      ? `- BMI: ${params.estimate.bmi.toFixed(1)}`
+      : "- BMI: Not enough data to provide BMI reliably."
   );
+  lines.push("");
+  lines.push("## 8-Week Workout Program");
   const weekCount = params.workoutPlan.weeks?.length ?? 0;
-  lines.push(
-    `- Training weeks: ${weekCount || "set by coach"} · Typical days/week: ${
-      params.workoutPlan.weeks?.[0]?.days?.length ?? 4
-    }`
-  );
-  lines.push(
-    "- Expect slow recomposition: keep sleep 7-9h, protein high, and track lifts weekly."
-  );
-  lines.push("");
-  lines.push("## Training program");
-  const renderWeeks = params.workoutPlan.weeks?.slice(0, 4) ?? [];
+  lines.push(`- Programming weeks available: ${weekCount || "coach generated as needed"}`);
+  const renderWeeks = params.workoutPlan.weeks?.slice(0, 8) ?? [];
   if (!renderWeeks.length) {
-    lines.push("- Week 1-4: 4-6 days push/pull/legs + accessories. Progress load weekly.");
+    lines.push("- Weeks 1-8: Push/Pull/Legs rotation with 4-6 days per week. Progress load weekly.");
   } else {
     for (const week of renderWeeks) {
       lines.push(`- Week ${week.weekNumber}:`);
@@ -348,11 +345,11 @@ export function buildPlanMarkdown(params: {
     }
   }
   lines.push("");
-  lines.push("## Nutrition (exact macros)");
+  lines.push("## Nutrition Targets (Macros)");
   lines.push(
     `- Daily targets: ${params.nutritionPlan.caloriesPerDay} kcal · ${params.nutritionPlan.proteinGrams}g protein · ${params.nutritionPlan.carbsGrams}g carbs · ${params.nutritionPlan.fatsGrams}g fats`
   );
-  lines.push("- Adjustments:");
+  lines.push("- Adjustment rules:");
   const adjustments = params.nutritionPlan.adjustmentRules?.slice(0, 6) ?? [];
   adjustments.forEach((rule) => lines.push(`  - ${rule}`));
   if (params.nutritionPlan.sampleDay?.length) {
@@ -365,7 +362,7 @@ export function buildPlanMarkdown(params: {
   }
   if (params.recommendations.length) {
     lines.push("");
-    lines.push("## Quick habits");
+    lines.push("### Quick habits");
     params.recommendations.forEach((tip) => lines.push(`- ${tip}`));
   }
   return lines.join("\n");

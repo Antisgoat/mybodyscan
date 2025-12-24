@@ -24,6 +24,7 @@ import {
   hasUnlimitedAccessFromClaims,
 } from "./lib/entitlements.js";
 import { structuredJsonChat } from "./openai/client.js";
+import { openAiSecretParam } from "./openai/keys.js";
 
 const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
@@ -1433,7 +1434,7 @@ async function handleGetWorkouts(req: Request, res: Response) {
 
 function withHandler(handler: (req: Request, res: Response) => Promise<void>) {
   return onRequest(
-    { invoker: "public" },
+    { invoker: "public", secrets: [openAiSecretParam] },
     withCors(async (req, res) => {
       try {
         await handler(req as unknown as Request, res as unknown as Response);
@@ -1475,7 +1476,7 @@ export const getWorkouts = withHandler(handleGetWorkouts);
 
 // Body-feel adjustment endpoint
 export const adjustWorkout = onRequest(
-  { invoker: "public", region: "us-central1" },
+  { invoker: "public", region: "us-central1", secrets: [openAiSecretParam] },
   withCors(async (req: ExpressRequest, res: ExpressResponse) => {
     const requestId = req.get("x-request-id")?.trim() || randomUUID();
     try {

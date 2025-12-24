@@ -16,7 +16,8 @@ import {
   deriveErrorReason,
   buildPlanMarkdown,
 } from "./analysis.js";
-import { getScanEngineStatus } from "./engineConfig.js";
+import { getEngineConfigOrThrow } from "./engineConfig.js";
+import { openAiSecretParam } from "../openai/keys.js";
 
 const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
@@ -165,6 +166,7 @@ export const processQueuedScan = onDocumentWritten(
     region: "us-central1",
     timeoutSeconds: 300,
     concurrency: 10,
+    secrets: [openAiSecretParam],
   },
   async (event) => {
     const after = event.data?.after;
@@ -206,6 +208,7 @@ export const processQueuedScan = onDocumentWritten(
     if (!claimed) return;
 
     const correlationId = scan.correlationId || processingAttemptId;
+    const engine = getEngineConfigOrThrow(correlationId);
 
     const updateStep = async (patch: Partial<ScanDocument>) => {
       await scanRef.set(
@@ -274,15 +277,12 @@ export const processQueuedScan = onDocumentWritten(
         progress: 40,
         processingHeartbeatAt: serverTimestamp(),
       });
-      const engine = getScanEngineStatus();
-      if (!engine.configured) {
-        throw new OpenAIClientError("engine_not_configured", 412, "Scan engine not configured.");
-      }
+      const engine = getEngineConfigOrThrow(correlationId);
 
       startHeartbeat("Analyzing body composition", 45);
       let usedFallback = false;
       const result = await withTimeout(
-        callOpenAI(images, { currentWeightKg, goalWeightKg, uid }, correlationId),
+        callOpenAI(images, { currentWeightKg, goalWeightKg, uid }, correlationId, engine),
         ANALYSIS_TIMEOUT_MS,
         "analysis"
       ).catch((err) => {

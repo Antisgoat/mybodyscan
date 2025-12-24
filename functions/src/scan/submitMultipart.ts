@@ -10,8 +10,9 @@ import {
 } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
+import { openAiSecretParam } from "../openai/keys.js";
 import type { ScanDocument } from "../types.js";
-import { assertScanEngineConfigured } from "./engineConfig.js";
+import { getEngineConfigOrThrow } from "./engineConfig.js";
 
 type Pose = "front" | "back" | "left" | "right";
 type ParsedFile = {
@@ -323,7 +324,7 @@ export async function handleSubmitScanMultipart(
       requestId,
     });
     // Validate engine + storage bucket before ingesting payloads.
-    assertScanEngineConfigured(requestId);
+    getEngineConfigOrThrow(requestId);
 
     let parsed: { fields: Record<string, string>; files: ParsedFile[] };
     try {
@@ -423,7 +424,13 @@ export async function handleSubmitScanMultipart(
 }
 
 export const submitScanMultipart = onRequest(
-  { invoker: "public", concurrency: 30, region: "us-central1", timeoutSeconds: 120 },
+  {
+    invoker: "public",
+    concurrency: 30,
+    region: "us-central1",
+    timeoutSeconds: 120,
+    secrets: [openAiSecretParam],
+  },
   async (req, res) => handleSubmitScanMultipart(req as Request, res as Response)
 );
 
@@ -437,6 +444,8 @@ function statusFromErrorCode(code?: string): number {
       return 400;
     case "failed-precondition":
       return 412;
+    case "unavailable":
+      return 503;
     default:
       return 500;
   }

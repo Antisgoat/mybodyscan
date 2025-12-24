@@ -118,6 +118,12 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 | `coachChat`                              | `OPENAI_API_KEY`                            | Grants access to OpenAI chat models.                              |
 | `nutritionSearch`, `nutritionBarcode`    | `USDA_FDC_API_KEY`                          | USDA FoodData Central lookups (Open Food Facts handles fallback). |
 
+### Scan engine configuration (Firebase Functions)
+
+- Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). Optional: `OPENAI_MODEL`, `OPENAI_BASE_URL`, and `OPENAI_PROVIDER` via `firebase-functions/params` or environment variables.
+- Deploy after setting the secret: `npm --prefix functions run build && firebase deploy --only functions --project <projectId>`.
+- Verify: call `/systemHealth` and confirm `engineConfigured=true`, `engineMissingConfig=[]`, and `storageBucket/projectId` are populated. Missing entries surface as a safe list so production UIs show “scan engine not configured” until the secret is present.
+
 ### Operational notes
 
 - CSP `connect-src` in `firebase.json` already includes Identity Toolkit, Secure Token, Firestore, Storage, Stripe, Apple ID, Cloud Functions, and Cloud Run endpoints; extend here first before hitting new SaaS APIs.
