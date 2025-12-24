@@ -11,7 +11,8 @@ import { Timestamp, getFirestore } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
-import { assertScanEngineConfigured } from "./engineConfig.js";
+import { getEngineConfigOrThrow } from "./engineConfig.js";
+import { openAiSecretParam } from "../openai/keys.js";
 
 const db = getFirestore();
 const POSES = ["front", "back", "left", "right"] as const;
@@ -61,7 +62,7 @@ async function handleStart(req: Request, res: any) {
       requestId,
     });
     // Fail fast if the scan engine or storage bucket is misconfigured.
-    assertScanEngineConfigured(requestId);
+    getEngineConfigOrThrow(requestId);
 
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);
@@ -130,7 +131,12 @@ async function handleStart(req: Request, res: any) {
 }
 
 export const startScanSession = onRequest(
-  { invoker: "public", concurrency: 20, region: "us-central1" },
+  {
+    invoker: "public",
+    concurrency: 20,
+    region: "us-central1",
+    secrets: [openAiSecretParam],
+  },
   async (req, res) => {
     try {
       await handleStart(req as Request, res);
@@ -188,6 +194,8 @@ function statusFromHttpsError(error: HttpsError): number {
       return 400;
     case "failed-precondition":
       return 412;
+    case "unavailable":
+      return 503;
     case "unauthenticated":
       return 401;
     case "permission-denied":

@@ -56,6 +56,8 @@ export type StructuredJsonRequest<T> = {
   requestId?: string;
   timeoutMs?: number;
   model?: string;
+  apiKey?: string;
+  baseUrl?: string;
   validate: (payload: unknown) => T;
 };
 
@@ -97,6 +99,16 @@ function resolveOpenAIKey(): string {
     }
     throw error;
   }
+}
+
+function resolveEndpoint(customBaseUrl?: string): string {
+  const base =
+    (customBaseUrl || process.env.OPENAI_BASE_URL || "").trim() || OPENAI_ENDPOINT;
+  if (base.includes("/v1/chat/completions")) {
+    return base;
+  }
+  const trimmed = base.replace(/\/+$/, "");
+  return `${trimmed}/v1/chat/completions`;
 }
 
 function clampMaxTokens(value?: number): number | undefined {
@@ -161,7 +173,8 @@ async function executeChat(
   model: string,
   key: string,
   request: ChatRequest,
-  requestId?: string
+  requestId?: string,
+  baseUrl?: string
 ): Promise<ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -191,7 +204,8 @@ async function executeChat(
       body.response_format = { type: "json_object" };
     }
 
-    const response = await fetch(OPENAI_ENDPOINT, {
+    const endpoint = resolveEndpoint(baseUrl);
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -277,6 +291,8 @@ export async function chatOnce(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    apiKey?: string;
+    baseUrl?: string;
   } = {}
 ): Promise<string> {
   const trimmed = prompt?.trim();
@@ -284,7 +300,8 @@ export async function chatOnce(
     throw new OpenAIClientError("openai_failed", 400, "empty_prompt");
   }
 
-  const key = resolveOpenAIKey();
+  const key = opts.apiKey ?? resolveOpenAIKey();
+  const baseUrl = opts.baseUrl;
   const models = buildModelList(opts.model);
   let lastError: OpenAIClientError | Error | null = null;
 
@@ -310,7 +327,8 @@ export async function chatOnce(
           maxTokens: opts.maxTokens ?? 256,
           timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
-        opts.requestId
+        opts.requestId,
+        baseUrl
       );
       return result.content;
     } catch (error) {
@@ -354,9 +372,12 @@ export async function chatWithMessages(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    apiKey?: string;
+    baseUrl?: string;
   } = {}
 ): Promise<{ content: string; usage?: ChatResponse["usage"]; model: string }> {
-  const key = resolveOpenAIKey();
+  const key = opts.apiKey ?? resolveOpenAIKey();
+  const baseUrl = opts.baseUrl;
   const models = buildModelList(opts.model);
   let lastError: OpenAIClientError | Error | null = null;
 
@@ -375,7 +396,8 @@ export async function chatWithMessages(
           maxTokens: opts.maxTokens ?? 512,
           timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
-        opts.requestId
+        opts.requestId,
+        baseUrl
       );
       return { content: result.content, usage: result.usage, model };
     } catch (error) {
@@ -413,7 +435,8 @@ export async function structuredJsonChat<T>(
     throw new OpenAIClientError("openai_failed", 400, "missing_system_prompt");
   }
 
-  const key = resolveOpenAIKey();
+  const key = request.apiKey ?? resolveOpenAIKey();
+  const baseUrl = request.baseUrl;
   const models = buildModelList(request.model);
   let lastError: OpenAIClientError | Error | null = null;
 
@@ -433,7 +456,8 @@ export async function structuredJsonChat<T>(
           responseFormat: "json_object",
           timeoutMs: request.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
-        request.requestId
+        request.requestId,
+        baseUrl
       );
 
       let parsed: unknown;

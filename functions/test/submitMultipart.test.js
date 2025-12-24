@@ -3,6 +3,9 @@ import test from "node:test";
 import { handleSubmitScanMultipart } from "../lib/scan/submitMultipart.js";
 
 console.log("submitMultipart tests starting");
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || "test-openai-key";
+process.env.STORAGE_BUCKET = process.env.STORAGE_BUCKET || "test-bucket";
+process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || "test-project";
 process.on("uncaughtException", (err) => {
   console.error("uncaught exception", err);
 });

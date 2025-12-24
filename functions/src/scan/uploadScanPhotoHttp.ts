@@ -4,7 +4,8 @@ import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request, Response } from "firebase-functions/v2/https";
 import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
-import { assertScanEngineConfigured } from "./engineConfig.js";
+import { getEngineConfigOrThrow } from "./engineConfig.js";
+import { openAiSecretParam } from "../openai/keys.js";
 
 const storage = getStorage();
 const POSES = new Set(["front", "back", "left", "right"]);
@@ -23,6 +24,7 @@ function statusFromCode(code: string): number {
   if (code === "permission-denied") return 403;
   if (code === "invalid-argument") return 400;
   if (code === "failed-precondition") return 412;
+  if (code === "unavailable") return 503;
   return 500;
 }
 
@@ -136,7 +138,7 @@ async function parseOctetStream(req: Request): Promise<{
 }
 
 export const uploadScanPhotoHttp = onRequest(
-  { region: "us-central1", invoker: "public", concurrency: 40 },
+  { region: "us-central1", invoker: "public", concurrency: 40, secrets: [openAiSecretParam] },
   async (req: Request, res: Response) => {
     allowCorsAndOptionalAppCheck(req, res, () => undefined);
     if (req.method === "OPTIONS") {
@@ -153,7 +155,7 @@ export const uploadScanPhotoHttp = onRequest(
       }
 
       const uid = await requireAuth(req);
-      assertScanEngineConfigured(correlationId);
+      getEngineConfigOrThrow(correlationId);
       const contentType = String(req.headers["content-type"] || "");
       const parsed = contentType.includes("multipart/form-data")
         ? await parseMultipart(req)

@@ -9,6 +9,7 @@ import {
   type OpenAIChatMessage,
   OpenAIClientError,
 } from "./openai/client.js";
+import { openAiSecretParam } from "./openai/keys.js";
 import { identifierFromRequest } from "./http/_middleware.js";
 import {
   ensureSoftAppCheckFromCallable,
@@ -787,6 +788,7 @@ export const coachChat = onCall<CoachChatRequest>(
     region: "us-central1",
     cors: true,
     enforceAppCheck: false,
+    secrets: [openAiSecretParam],
   },
   async (request) => {
     const requestId =
