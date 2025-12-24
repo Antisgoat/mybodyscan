@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  getDownloadURL,
-  ref,
-  uploadBytesResumable,
-  type UploadTask,
-} from "firebase/storage";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -236,7 +230,6 @@ export default function ScanFlowResult() {
     return () => window.clearInterval(id);
   }, [hasRetryCountdown]);
   const uploadAbortRef = useRef<AbortController | null>(null);
-  const uploadTasksRef = useRef<Partial<Record<Pose, UploadTask>>>({});
   const lastAutoRetryAtRef = useRef<number>(0);
   const autoRetryCountRef = useRef<number>(0);
   const appCheck = useAppCheckStatus();
@@ -334,24 +327,6 @@ export default function ScanFlowResult() {
     message?: string;
     pose?: Pose;
   } | null>(null);
-  const [storageTest, setStorageTest] = useState<
-    | { status: "idle" }
-    | { status: "running" }
-    | { status: "pass"; path: string; url?: string }
-    | {
-        status: "fail";
-        error?: { code?: string; message?: string; serverResponse?: string };
-      }
-  >({ status: "idle" });
-  const [functionUploadTest, setFunctionUploadTest] = useState<
-    | { status: "idle" }
-    | { status: "running" }
-    | { status: "pass"; path: string }
-    | {
-        status: "fail";
-        error?: { code?: string; message?: string; serverResponse?: string };
-      }
-  >({ status: "idle" });
 
   const tasks = useMemo(
     () =>
@@ -520,9 +495,6 @@ export default function ScanFlowResult() {
           scanCorrelationId: activeSession.correlationId,
         },
         {
-          onUploadTask: ({ pose, task }) => {
-            uploadTasksRef.current[pose as Pose] = task;
-          },
           onUploadProgress: (info: ScanUploadProgress) => {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
@@ -698,9 +670,6 @@ export default function ScanFlowResult() {
       },
       {
         posesToUpload: failedPoses,
-        onUploadTask: ({ pose, task }) => {
-          uploadTasksRef.current[pose as Pose] = task;
-        },
         onUploadProgress: (info: ScanUploadProgress) => {
           setUploadProgress(info.overallPercent);
           setUploadPose(info.pose);
@@ -838,9 +807,6 @@ export default function ScanFlowResult() {
         },
         {
           posesToUpload: [pose],
-          onUploadTask: ({ pose, task }) => {
-            uploadTasksRef.current[pose as Pose] = task;
-          },
           onUploadProgress: (info: ScanUploadProgress) => {
             setUploadProgress(info.overallPercent);
             setUploadPose(info.pose);
@@ -1529,160 +1495,6 @@ export default function ScanFlowResult() {
               </span>
             </div>
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={storageTest.status === "running"}
-                  onClick={async () => {
-                    const uid = auth.currentUser?.uid;
-                    if (!uid) {
-                      setStorageTest({
-                        status: "fail",
-                        error: { message: "Not signed in." },
-                      });
-                      return;
-                    }
-                    setStorageTest({ status: "running" });
-                    try {
-                      const storage = getFirebaseStorage();
-                      const bytes = new Uint8Array(1024);
-                      bytes.fill(0x61); // 'a'
-                      const blob = new Blob([bytes], { type: "text/plain" });
-                      const path = `user_uploads/${uid}/debug/test.txt`;
-                      const r = ref(storage, path);
-                      const task = uploadBytesResumable(r, blob, {
-                        contentType: "text/plain",
-                        cacheControl: "no-cache",
-                      });
-                      const result = await task;
-                      const url = await getDownloadURL(result.ref).catch(() => "");
-                      setStorageTest({ status: "pass", path, url: url || undefined });
-                    } catch (err: any) {
-                      setStorageTest({
-                        status: "fail",
-                        error: {
-                          code: typeof err?.code === "string" ? err.code : undefined,
-                          message:
-                            typeof err?.message === "string" ? err.message : String(err),
-                          serverResponse:
-                            typeof err?.serverResponse === "string"
-                              ? err.serverResponse
-                              : undefined,
-                        },
-                      });
-                    }
-                  }}
-                >
-                  Storage SDK Write Test
-                </Button>
-                {storageTest.status !== "idle" ? (
-                  <span className="text-muted-foreground">
-                    {storageTest.status === "running"
-                      ? "running…"
-                      : storageTest.status === "pass"
-                        ? `PASS · ${storageTest.path}${storageTest.url ? " · url ok" : ""}`
-                        : `FAIL · ${storageTest.error?.code ?? "unknown"} · ${storageTest.error?.message ?? ""}`}
-                  </span>
-                ) : null}
-              </div>
-                {storageTest.status === "fail" && storageTest.error?.serverResponse ? (
-                  <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                    {storageTest.error.serverResponse}
-                  </pre>
-                ) : null}
-              </div>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={functionUploadTest.status === "running"}
-                  onClick={async () => {
-                    const uid = auth.currentUser?.uid;
-                    if (!uid) {
-                      setFunctionUploadTest({
-                        status: "fail",
-                        error: { message: "Not signed in." },
-                      });
-                      return;
-                    }
-                    setFunctionUploadTest({ status: "running" });
-                    try {
-                      const scanId =
-                        session?.scanId ??
-                        (typeof crypto !== "undefined" &&
-                        typeof crypto.randomUUID === "function"
-                          ? crypto.randomUUID()
-                          : `debug-${Date.now()}`);
-                      const blob = await new Promise<Blob>((resolve, reject) => {
-                        const canvas = document.createElement("canvas");
-                        canvas.width = 1;
-                        canvas.height = 1;
-                        const ctx = canvas.getContext("2d");
-                        if (!ctx) {
-                          reject(new Error("Canvas unavailable."));
-                          return;
-                        }
-                        ctx.fillStyle = "#f8f8f8";
-                        ctx.fillRect(0, 0, 1, 1);
-                        canvas.toBlob(
-                          (result) =>
-                            result ? resolve(result) : reject(new Error("Blob unavailable.")),
-                          "image/jpeg",
-                          0.7
-                        );
-                      });
-                      const correlationId = `debug-${scanId}`;
-                      const result = await uploadViaHttp({
-                        scanId,
-                        pose: "front",
-                        file: blob,
-                        correlationId,
-                        timeoutMs: 20_000,
-                      });
-                      setFunctionUploadTest({
-                        status: "pass",
-                        path: result.storagePath,
-                      });
-                    } catch (err: any) {
-                      setFunctionUploadTest({
-                        status: "fail",
-                        error: {
-                          code: typeof err?.code === "string" ? err.code : undefined,
-                          message:
-                            typeof err?.message === "string" ? err.message : String(err),
-                          serverResponse:
-                            typeof err?.serverResponse === "string"
-                              ? err.serverResponse
-                              : undefined,
-                        },
-                      });
-                    }
-                  }}
-                >
-                  Function Upload Test
-                </Button>
-                {functionUploadTest.status !== "idle" ? (
-                  <span className="text-muted-foreground">
-                    {functionUploadTest.status === "running"
-                      ? "running…"
-                      : functionUploadTest.status === "pass"
-                        ? `PASS · ${functionUploadTest.path}`
-                        : `FAIL · ${functionUploadTest.error?.code ?? "unknown"} · ${functionUploadTest.error?.message ?? ""}`}
-                  </span>
-                ) : null}
-              </div>
-              {functionUploadTest.status === "fail" &&
-              functionUploadTest.error?.serverResponse ? (
-                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {functionUploadTest.error.serverResponse}
-                </pre>
-              ) : null}
-            </div>
-            <div className="space-y-2">
               {POSES.map((pose) => {
                 const state = photoState[pose];
                 const original = photoMetadata[pose];
@@ -1739,14 +1551,6 @@ export default function ScanFlowResult() {
                           : "—"}
                       </div>
                     ) : null}
-                    {uploadTasksRef.current[pose] ? (
-                      <div className="text-muted-foreground">
-                        taskRef: yes · snapshotState=
-                        {uploadTasksRef.current[pose]!.snapshot.state}
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">taskRef: no</div>
-                    )}
                     {uploadMeta[pose]?.lastFirebaseError?.message ? (
                       <div className="text-muted-foreground">
                         lastFirebaseError: {uploadMeta[pose]!.lastFirebaseError!.code ?? "unknown"} ·{" "}

@@ -136,6 +136,13 @@
         }
       },
       {
+        "source": "/scan/submitMultipart",
+        "function": {
+          "functionId": "submitScanMultipart",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/stripeWebhook",
         "function": {
           "functionId": "stripeWebhook",

@@ -5,18 +5,14 @@
  * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
  */
 import { apiFetch, ApiError } from "@/lib/http";
-import { resolveFunctionUrl } from "@/lib/api/functionsBase";
-import { auth, db, storage } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { buildScanPhotoPath, type ScanPose } from "@/lib/scanPaths";
+import { resolveFunctionUrl, DEFAULT_FN_BASE } from "@/lib/api/functionsBase";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
-import { ref, getDownloadURL, type UploadTaskSnapshot, type UploadTask } from "firebase/storage";
-import { uploadPhoto, type UploadMethod } from "@/lib/uploads/uploadPhoto";
-import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -141,6 +137,18 @@ function submitUrl(): string {
 
 function deleteUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_DELETE_URL", "deleteScan");
+}
+
+function submitMultipartUrl(): string {
+  const env = (import.meta as any).env || {};
+  const override = env.VITE_SCAN_SUBMIT_MULTIPART_URL;
+  if (override && typeof override === "string" && override.trim()) {
+    return override.trim();
+  }
+  if (typeof window !== "undefined") {
+    return "/scan/submitMultipart";
+  }
+  return `${DEFAULT_FN_BASE}/submitScanMultipart`;
 }
 
 export type ScanError = {
@@ -431,150 +439,6 @@ function ensureVisibleProgress(value: number, hasBytes: boolean): number {
   return clampProgressFraction(baseline);
 }
 
-function normalizeUploadError(err: unknown): ScanError | null {
-  const anyErr = err as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : undefined;
-  const pose =
-    anyErr?.pose === "front" ||
-    anyErr?.pose === "back" ||
-    anyErr?.pose === "left" ||
-    anyErr?.pose === "right"
-      ? (anyErr.pose as keyof StartScanResponse["storagePaths"])
-      : undefined;
-  if (!code) return null;
-  if (code === "upload_offline") {
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload paused (connection lost). Please retry.`
-        : "Connection lost during upload. Please retry.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code === "upload_timeout") {
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload timed out. Please retry.`
-        : "Upload timed out. Please retry.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code === "upload_paused") {
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload paused for too long. Retrying usually fixes this.`
-        : "Upload paused for too long. Retrying usually fixes this.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code === "upload_stalled" || code === "upload_no_progress") {
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload stalled. Please retry.`
-        : "Upload stalled. Please retry.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code === "upload_cancelled") {
-    return {
-      code,
-      message: "Upload cancelled.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code === "cors_blocked") {
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload blocked by a network/CORS issue. Please retry.`
-        : "Upload blocked by a network/CORS issue. Please retry.",
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code.startsWith("function/")) {
-    const rawMessage =
-      typeof anyErr?.message === "string" && anyErr.message.length
-        ? (anyErr.message as string)
-        : "";
-    const message =
-      code === "function/unauthenticated"
-        ? "Upload blocked (unauthorized). Please sign in again and retry."
-        : code === "function/permission-denied"
-          ? "Upload blocked (permission denied). Please sign in again and retry."
-          : code === "function/invalid-argument"
-            ? "Upload rejected. Please retry with a new scan."
-            : "Upload failed. Please check your connection and retry.";
-    const combined = rawMessage ? `${code} · ${rawMessage}` : code;
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload failed. ${message} (${combined})`
-        : `${message} (${combined})`,
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  if (code.startsWith("storage/")) {
-    const rawMessage =
-      typeof anyErr?.message === "string" && anyErr.message.length
-        ? (anyErr.message as string)
-        : "";
-    const message =
-      code === "storage/unauthorized"
-        ? "Upload blocked (unauthorized). Please sign in again and retry."
-        : code === "storage/canceled"
-          ? "Upload cancelled. Please retry."
-          : code === "storage/retry-limit-exceeded"
-            ? "Upload failed after retries. Check your connection and try again."
-            : "Upload failed. Please check your connection and retry.";
-    const combined = rawMessage ? `${code} · ${rawMessage}` : code;
-    return {
-      code,
-      message: pose
-        ? `${pose.charAt(0).toUpperCase()}${pose.slice(1)} upload failed. ${message} (${combined})`
-        : `${message} (${combined})`,
-      reason: "upload_failed",
-      pose,
-    };
-  }
-  return null;
-}
-
-function isCorsLikeError(err: unknown): boolean {
-  const anyErr = err as any;
-  const message = `${anyErr?.message ?? ""} ${anyErr?.serverResponse ?? ""}`.toLowerCase();
-  if (!message.trim()) return false;
-  return (
-    message.includes("cors") ||
-    message.includes("access control") ||
-    message.includes("preflight") ||
-    message.includes("xmlhttprequest")
-  );
-}
-
-function isProbablyMobileUploadDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = String(navigator.userAgent || "");
-  const isIOS = /iPhone|iPad|iPod/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
-  // iPadOS can present as "Macintosh" with touch points.
-  const maxTouchPoints =
-    typeof (navigator as any).maxTouchPoints === "number"
-      ? Number((navigator as any).maxTouchPoints)
-      : 0;
-  const isIPadLike = /Macintosh/i.test(ua) && maxTouchPoints > 1;
-  return isIOS || isAndroid || isIPadLike;
-}
-
 export function createScanCorrelationId(seed?: string): string {
   const prefix = String(seed || "scan").slice(0, 12);
   const random =
@@ -582,14 +446,6 @@ export function createScanCorrelationId(seed?: string): string {
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
   return `${prefix}-${random.slice(0, 8)}`;
-}
-
-function buildUploadCorrelationId(
-  scanCorrelationId: string,
-  pose: string,
-  attempt: number
-): string {
-  return `${scanCorrelationId}-${pose}-${attempt}`;
 }
 
 export async function submitScanClient(
@@ -609,30 +465,16 @@ export async function submitScanClient(
       attempt?: number;
       percent?: number;
       message?: string;
-      nextRetryAt?: number;
-      nextRetryDelayMs?: number;
-      offline?: boolean;
       original?: UploadPreprocessMeta;
       compressed?: UploadPreprocessMeta;
       preprocessDebug?: UploadPreprocessResult["debug"];
       bytesTransferred?: number;
       totalBytes?: number;
-      lastFirebaseError?: { code?: string; message?: string; serverResponse?: string };
-      lastUploadError?: { code?: string; message?: string; details?: unknown };
-      taskState?: "running" | "paused" | "success" | "canceled" | "error";
-      lastProgressAt?: number;
-      bucket?: string;
-      fullPath?: string;
-      pathMismatch?: { expected: string; actual: string };
-      uploadMethod?: UploadMethod;
       correlationId?: string;
       elapsedMs?: number;
     }) => void;
-    onUploadTask?: (info: { pose: keyof StartScanResponse["storagePaths"]; task: UploadTask }) => void;
     signal?: AbortSignal;
-    stallTimeoutMs?: number;
     posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
-    perPhotoTimeoutMs?: number;
     overallTimeoutMs?: number;
   }
 ): Promise<ScanApiResult<SubmitScanResponse>> {
@@ -642,733 +484,190 @@ export async function submitScanClient(
       ok: false,
       error: { message: "Please sign in before submitting a scan." },
     };
-  let uploadsCompleted = false;
-  let combinedSignal: AbortController | null = null;
-  let overallDeadlineAt = 0;
+
+  const poses: Array<keyof StartScanResponse["storagePaths"]> = ["front", "back", "left", "right"];
+  const posesToUpload = options?.posesToUpload?.length
+    ? poses.filter((p) => options.posesToUpload!.includes(p))
+    : poses;
+  const scanCorrelationId =
+    params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
+
   try {
-    // Auth freshness: iOS Safari can hold stale tokens across tab restores.
-    // Force refresh right before first upload attempt.
-    try {
-      await user.getIdToken(true);
-    } catch (error: any) {
-      return {
-        ok: false,
-        error: {
-          code: "auth/token-refresh-failed",
-          message:
-            typeof error?.message === "string" && error.message.length
-              ? `Could not refresh your sign-in session: ${error.message}`
-              : "Could not refresh your sign-in session. Please sign in again.",
-          reason: "upload_failed",
-        },
-      };
-    }
-
-    // iPhone Safari resilience: keep retry windows bounded so we don't appear stuck forever.
-    try {
-      // Firebase v11 doesn't export the older helper functions in all builds.
-      // The SDK exposes these as mutable properties.
-      (storage as any).maxUploadRetryTime = 120_000;
-      (storage as any).maxOperationRetryTime = 120_000;
-    } catch {
-      // ignore
-    }
-
-    const orderedPoses: Array<keyof StartScanResponse["storagePaths"]> = [
-      "front",
-      "back",
-      "left",
-      "right",
-    ];
-    const posesToUpload = options?.posesToUpload?.length
-      ? orderedPoses.filter((p) => options.posesToUpload!.includes(p))
-      : orderedPoses;
-
-    // Normalize + validate storage paths to avoid per-pose mismatches (e.g. "front" only).
-    for (const pose of orderedPoses) {
-      const expected = buildScanPhotoPath({
-        uid: user.uid,
-        scanId: params.scanId,
-        view: pose as ScanPose,
-      });
-      const actual = params.storagePaths[pose];
-      if (actual !== expected) {
-        options?.onPhotoState?.({
-          pose,
-          status: "failed",
-          message: "Upload target mismatch (client/server path disagreement).",
-          pathMismatch: { expected, actual },
-          fullPath: actual,
-          bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-        });
-        return {
-          ok: false,
-          error: {
-            code: "scan/storage-path-mismatch",
-            message: `Upload configuration mismatch for ${pose}.`,
-            reason: "upload_failed",
-            pose,
-          },
-        };
-      }
-    }
-
-    // Preprocess photos (mandatory): ALWAYS produce a prepared JPEG File (<= 2.0MB).
-    // Do NOT fall back to original files (often huge PNGs / HEIC on iOS).
-    const photos = { ...params.photos } as typeof params.photos;
-    for (const pose of posesToUpload) {
-      const original = params.photos[pose];
-      options?.onPhotoState?.({ pose, status: "preparing" });
-      const t0 = Date.now();
-      try {
-        const processed = await prepareScanPhoto(original, pose);
-        const t1 = Date.now();
-        console.info("scan.preprocess", {
-          pose,
-          inBytes: processed.meta.original.size,
-          outBytes: processed.meta.prepared.size,
-          ms: t1 - t0,
-          inType: processed.meta.original.type,
-          outType: processed.meta.prepared.type,
-          maxEdge: processed.meta.debug.maxEdgeFinal,
-          quality: processed.meta.debug.qualityFinal,
-        });
-        photos[pose] = processed.preparedFile;
-        options?.onPhotoState?.({
-          pose,
-          status: "preparing",
-          original: processed.meta.original,
-          compressed: processed.meta.prepared,
-          preprocessDebug: processed.meta.debug,
-        });
-      } catch (err) {
-        const t1 = Date.now();
-        console.warn("scan.preprocess_failed", {
-          pose,
-          ms: t1 - t0,
-          message: (err as Error)?.message,
-        });
-        options?.onPhotoState?.({
-          pose,
-          status: "failed",
-          message: "Couldn’t prepare photo on this device",
-        });
-        const e: any = new Error(
-          "Couldn’t prepare photo on this device"
-        );
-        e.code = "preprocess_failed";
-        e.pose = pose;
-        throw e;
-      }
-    }
-
-    // Build upload targets in strict, reliable order (front → back → left → right),
-    // filtered to the poses we are uploading (supports per-photo retries).
-    const uploadTargets: UploadTarget[] = [];
-    for (const pose of posesToUpload) {
-      const path = params.storagePaths[pose];
-      const file = photos[pose];
-      if (!file) {
-        return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
-      }
-      const size = Number.isFinite(file.size) ? Number(file.size) : 0;
-      uploadTargets.push({ pose, path, file, size });
-    }
-    if (!uploadTargets.length) {
-      // Nothing to upload (e.g. retry invoked with empty pose list)
-      uploadsCompleted = true;
-    }
-
-    const fileCount = uploadTargets.length;
-    const totalBytes = uploadTargets.reduce((sum, target) => sum + (target.size || 0), 0);
-    const safeTotalBytes = totalBytes > 0 ? totalBytes : fileCount;
-    const fallbackDenominator = fileCount || 1;
-    let uploadedBytes = 0;
-
-    const stallTimeoutMs = options?.stallTimeoutMs ?? 12_000;
-    const effectiveStallTimeoutMs =
-      typeof stallTimeoutMs === "number" && Number.isFinite(stallTimeoutMs)
-        ? stallTimeoutMs
-        : 20_000;
-
-    const perPhotoTimeoutMs =
-      typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
-        ? Math.max(5_000, options.perPhotoTimeoutMs)
-        : 60_000;
-    const overallTimeoutMs =
-      typeof options?.overallTimeoutMs === "number" && Number.isFinite(options.overallTimeoutMs)
-        ? Math.max(60_000, options.overallTimeoutMs)
-        : 4 * 60_000;
-    const overallStartedAt = Date.now();
-    overallDeadlineAt = overallStartedAt + overallTimeoutMs;
-
-    combinedSignal = (() => {
-      const ctrl = new AbortController();
-      const abort = () => {
-        try {
-          ctrl.abort();
-        } catch {
-          // ignore
-        }
-      };
-      const checkDeadline = () => {
-        if (Date.now() >= overallDeadlineAt) abort();
-      };
-      const onVis = () => {
-        if (document.visibilityState === "visible") checkDeadline();
-      };
-      const onOnline = () => checkDeadline();
-      let interval: number | null = null;
-      try {
-        document.addEventListener("visibilitychange", onVis);
-        window.addEventListener("online", onOnline);
-      } catch {
-        // ignore
-      }
-      if (typeof window !== "undefined") {
-        interval = window.setInterval(checkDeadline, 1000);
-      }
-      if (options?.signal) {
-        if (options.signal.aborted) abort();
-        else {
-          try {
-            options.signal.addEventListener("abort", abort, { once: true });
-          } catch {
-            // ignore
-          }
-        }
-      }
-      checkDeadline();
-      (ctrl as any).__cleanup = () => {
-        if (interval != null) window.clearInterval(interval);
-        try {
-          document.removeEventListener("visibilitychange", onVis);
-          window.removeEventListener("online", onOnline);
-        } catch {
-          // ignore
-        }
-        if (options?.signal) {
-          try {
-            options.signal.removeEventListener("abort", abort);
-          } catch {
-            // ignore
-          }
-        }
-      };
-      return ctrl;
-    })();
-    const isMobileUploadDevice = isProbablyMobileUploadDevice();
-    const storageAttemptLimit = 3; // initial + 2 retries
-    const httpAttemptLimit = isMobileUploadDevice ? 2 : 2;
-    const maxAttempts = storageAttemptLimit + httpAttemptLimit;
-    const httpFallbackAttempt = storageAttemptLimit + 1;
-    const retryDelaysMs = [1000, 2000, 4000, 8000, 16_000];
-    const preferredUploadMethod: UploadMethod = "storage";
-    const scanCorrelationId =
-      params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
-
-    for (const [index, target] of uploadTargets.entries()) {
-      let attempt = 0;
-      let succeeded = false;
-      let forceHttp = false;
-      while (!succeeded && attempt < maxAttempts) {
-        attempt += 1;
-        const isRetry = attempt > 1;
-        const attemptStartedAt = Date.now();
-        const correlationId = buildUploadCorrelationId(
-          scanCorrelationId,
-          target.pose,
-          attempt
-        );
-        const preferredMethod: UploadMethod =
-          forceHttp || attempt >= httpFallbackAttempt ? "http" : preferredUploadMethod;
-        let activeMethod: UploadMethod = preferredMethod;
-        options?.onPhotoState?.({
-          pose: target.pose,
-          status: isRetry ? "retrying" : "uploading",
-          attempt,
-          uploadMethod: activeMethod,
-          correlationId,
-        });
-        console.info("scan.upload_attempt", {
-          pose: target.pose,
-          attempt,
-          path: target.path,
-          bytes: target.file.size,
-          method: preferredMethod,
-          correlationId,
-        });
-
-        let lastSnapshot: UploadTaskSnapshot | null = null;
-        let lastEmittedBytes = -1;
-        let lastEmittedAt = 0;
-        let lastAttemptBytesTransferred = 0;
-        let lastAttemptTotalBytes = target.size || 1;
-        try {
-          // Refresh auth once per "attempt group": first attempt, and first retry.
-          if (attempt === 1 || attempt === 2) {
-            await user.getIdToken(true);
-          }
-          const remainingOverall = Math.max(0, overallDeadlineAt - Date.now());
-          const attemptTimeoutMs = Math.max(5_000, Math.min(perPhotoTimeoutMs, remainingOverall));
-          if (attemptTimeoutMs <= 5_000 && remainingOverall <= 5_000) {
-            const timeoutErr: any = new Error("Scan timed out. Please retry.");
-            timeoutErr.code = "scan/overall-timeout";
-            throw timeoutErr;
-          }
-
-          const debugFreeze =
-            typeof window !== "undefined" &&
-            new URLSearchParams(window.location.search).get("debug") === "1" &&
-            (new URLSearchParams(window.location.search).get("freezeUpload") === "1" ||
-              window.localStorage?.getItem("mbs.debug.freezeUpload") === "1");
-
-          const uploadResult = await uploadPhoto({
-            storage,
-            path: target.path,
-            file: target.file,
-            scanId: params.scanId,
-            pose: target.pose,
-            correlationId,
-            customMetadata: {
-              scanCorrelationId,
-              scanId: params.scanId,
-              pose: target.pose,
-              attempt: String(attempt),
-              uploadCorrelationId: correlationId,
-            },
-            signal: combinedSignal!.signal,
-            storageTimeoutMs: attemptTimeoutMs,
-            httpTimeoutMs: attemptTimeoutMs,
-            stallTimeoutMs: effectiveStallTimeoutMs,
-            debugSimulateFreeze: Boolean(debugFreeze),
-            preferredMethod,
-            onMethodChange: (info) => {
-              activeMethod = info.method;
-              options?.onPhotoState?.({
-                pose: target.pose,
-                status: isRetry ? "retrying" : "uploading",
-                attempt,
-                uploadMethod: info.method,
-                correlationId,
-              });
-            },
-            onTask: (task) => {
-              try {
-                options?.onUploadTask?.({ pose: target.pose, task });
-              } catch {
-                // ignore
-              }
-            },
-            onProgress: (progress) => {
-              // Fabricate a minimal snapshot-like object for diagnostics.
-              lastSnapshot = {
-                bytesTransferred: progress.bytesTransferred,
-                totalBytes: progress.totalBytes,
-                state: progress.taskState,
-              } as any;
-
-              const snapshotTotal = progress.totalBytes || target.size || 1;
-              const snapshotBytes = progress.bytesTransferred || 0;
-              lastAttemptBytesTransferred = snapshotBytes;
-              lastAttemptTotalBytes = snapshotTotal;
-
-              const hasTransferred =
-                snapshotBytes > 0 ||
-                progress.taskState === "running" ||
-                progress.taskState === "paused";
-              const filePercent = ensureVisibleProgress(
-                snapshotTotal > 0 ? snapshotBytes / snapshotTotal : 0,
-                hasTransferred
-              );
-              const bytesBasis =
-                safeTotalBytes > 0
-                  ? (uploadedBytes + snapshotBytes) / safeTotalBytes
-                  : (index + filePercent) / fallbackDenominator;
-              const overallPercent = ensureVisibleProgress(bytesBasis, hasTransferred);
-
-              // Reduce UI churn: emit at most ~6-7 times/second, or on meaningful byte movement.
-              const now = Date.now();
-              const bytesDelta = Math.abs(snapshotBytes - lastEmittedBytes);
-              const timeDelta = now - lastEmittedAt;
-              const shouldEmit =
-                lastEmittedBytes < 0 ||
-                bytesDelta >= 64 * 1024 ||
-                timeDelta >= 150 ||
-                progress.taskState !== "running";
-              if (!shouldEmit) return;
-              lastEmittedBytes = snapshotBytes;
-              lastEmittedAt = now;
-
-              options?.onUploadProgress?.({
-                pose: target.pose,
-                fileIndex: index,
-                fileCount,
-                bytesTransferred: snapshotBytes,
-                totalBytes: snapshotTotal,
-                percent: filePercent,
-                overallPercent,
-                hasBytesTransferred: hasTransferred,
-                status: isRetry ? "retrying" : "uploading",
-                attempt,
-              });
-              options?.onPhotoState?.({
-                pose: target.pose,
-                status: isRetry ? "retrying" : "uploading",
-                attempt,
-                percent: filePercent,
-                bytesTransferred: snapshotBytes,
-                totalBytes: snapshotTotal,
-                taskState: progress.taskState as any,
-                lastProgressAt: progress.lastProgressAt,
-                fullPath: target.path,
-                bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-                offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
-                uploadMethod: activeMethod,
-                correlationId,
-              });
-            },
-          });
-          const elapsedMs = Date.now() - attemptStartedAt;
-          options?.onPhotoState?.({
-            pose: target.pose,
-            status: isRetry ? "retrying" : "uploading",
-            attempt,
-            uploadMethod: uploadResult.method,
-            correlationId,
-            elapsedMs,
-            bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-            fullPath: target.path,
-          });
-          succeeded = true;
-        } catch (err) {
-          const normalizedBase = normalizeUploadError(err);
-          const corsFailure = isCorsLikeError(err);
-          const normalized = normalizedBase ?? (corsFailure
-            ? {
-                code: "cors_blocked",
-                message:
-                  "Upload blocked by a network/CORS issue. Please retry.",
-                reason: "upload_failed",
-                pose: target.pose,
-              }
-            : null);
-          const rawCode =
-            typeof (err as any)?.code === "string" ? ((err as any).code as string) : undefined;
-          const rawMessage =
-            typeof (err as any)?.message === "string"
-              ? ((err as any).message as string)
-              : undefined;
-          const serverResponse =
-            typeof (err as any)?.serverResponse === "string"
-              ? (err as any).serverResponse
-              : undefined;
-          console.warn("scan.upload_failed", {
-            pose: target.pose,
-            attempt,
-            code: rawCode,
-            message: rawMessage,
-            normalizedCode: normalized?.code,
-            state: lastSnapshot?.state,
-            method: activeMethod,
-            correlationId,
-          });
-          if (corsFailure) {
-            forceHttp = true;
-          }
-          const overallTimedOut =
-            Boolean(combinedSignal?.signal?.aborted) && Date.now() >= overallDeadlineAt;
-          const effectiveCode = overallTimedOut
-            ? "scan/overall-timeout"
-            : corsFailure
-              ? "cors_blocked"
-              : rawCode ?? normalized?.code;
-          if (overallTimedOut) {
-            options?.onPhotoState?.({
-              pose: target.pose,
-              status: "failed",
-              attempt,
-              message: "Scan timed out. Please retry.",
-              lastFirebaseError: {
-                code: rawCode ?? normalized?.code,
-                message: rawMessage ?? normalized?.message,
-                serverResponse,
-              },
-              taskState: lastSnapshot?.state,
-              fullPath: target.path,
-              bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-              offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
-              uploadMethod: activeMethod,
-              correlationId,
-            });
-            const e: any = new Error("Scan timed out. Please retry.");
-            e.code = "scan/overall-timeout";
-            e.pose = target.pose;
-            throw e;
-          }
-          const retryability = classifyUploadRetryability({
-            code: effectiveCode,
-            bytesTransferred: lastAttemptBytesTransferred,
-            wasOffline: Boolean((err as any)?.wasOffline) || (typeof navigator !== "undefined" && navigator.onLine === false),
-          });
-          if (attempt < maxAttempts && retryability.retryable) {
-            const backoff = retryDelaysMs[attempt - 1] ?? 2000;
-            const nextRetryAt = Date.now() + backoff;
-            options?.onPhotoState?.({
-              pose: target.pose,
-              status: "retrying",
-              attempt,
-              message:
-                retryability.reason === "transient_network" &&
-                typeof navigator !== "undefined" &&
-                navigator.onLine === false
-                  ? "Connection lost — retrying when you’re back online…"
-                  : retryability.reason === "stall"
-                    ? `Connection paused — retrying in ${Math.max(1, Math.round(backoff / 1000))}s…`
-                    : `Retrying in ${Math.max(1, Math.round(backoff / 1000))}s…`,
-              nextRetryAt,
-              nextRetryDelayMs: backoff,
-              // Important: preserve the raw Firebase error code/message for diagnostics.
-              lastFirebaseError: {
-                code: effectiveCode ?? rawCode ?? normalized?.code,
-                message: rawMessage ?? normalized?.message,
-                serverResponse,
-              },
-              lastUploadError: {
-                code: effectiveCode ?? rawCode ?? normalized?.code,
-                message: rawMessage ?? normalized?.message,
-              },
-              taskState: lastSnapshot?.state,
-              fullPath: target.path,
-              bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-              offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
-              uploadMethod: activeMethod,
-              correlationId,
-            });
-            // If offline, wait for connectivity (up to overall deadline), then retry immediately.
-            if (typeof navigator !== "undefined" && navigator.onLine === false) {
-              await waitForOnlineOrAbort({
-                signal: combinedSignal!.signal,
-                deadlineAt: overallDeadlineAt,
-              });
-            } else {
-              await new Promise((r) => setTimeout(r, backoff));
-            }
-            continue;
-          }
-          options?.onPhotoState?.({
-            pose: target.pose,
-            status: "failed",
-            attempt,
-            message:
-              rawCode?.startsWith("storage/")
-                ? `${rawCode} · ${rawMessage ?? normalized?.message ?? "Upload failed."}`
-                : normalized?.message ?? rawMessage ?? "Upload failed.",
-            // Important: preserve the raw Firebase error code/message for diagnostics.
-            lastFirebaseError: {
-              code: effectiveCode ?? rawCode ?? normalized?.code,
-              message: rawMessage ?? normalized?.message,
-              serverResponse,
-            },
-            lastUploadError: {
-              code: effectiveCode ?? rawCode ?? normalized?.code,
-              message: rawMessage ?? normalized?.message,
-            },
-            taskState: lastSnapshot?.state,
-            fullPath: target.path,
-            bucket: String((storage as any)?.app?.options?.storageBucket || ""),
-            offline: typeof navigator !== "undefined" ? navigator.onLine === false : false,
-            uploadMethod: activeMethod,
-            correlationId,
-          });
-          const finalErr: any = normalized
-            ? Object.assign(new Error(normalized.message), {
-                code: normalized.code,
-              })
-            : err;
-          // Attach pose so the UI can say exactly which photo failed/stalled.
-          finalErr.pose = target.pose;
-          finalErr.correlationId = correlationId;
-          throw finalErr;
-        }
-      }
-
-      // Persist per-photo metadata immediately after upload so the UI/history can recover.
-      try {
-        const fileRef = ref(storage, target.path);
-        const url = await getDownloadURL(fileRef);
-        await setDoc(
-          doc(db, "users", user.uid, "scans", params.scanId),
-          {
-            photoPaths: { [target.pose]: target.path },
-            photoUrls: { [target.pose]: url },
-            uploadMeta: {
-              [target.pose]: {
-                bytes: target.file.size,
-                contentType: target.file.type || "image/jpeg",
-                uploadedAt: new Date().toISOString(),
-              },
-            },
-            updatedAt: new Date(),
-          } as any,
-          { merge: true }
-        );
-      } catch (err) {
-        console.warn("scan.upload_meta_write_failed", {
-          pose: target.pose,
-          message: (err as Error)?.message,
-        });
-      }
-
-      uploadedBytes += target.size;
-      const normalizedOverall =
-        safeTotalBytes > 0
-          ? uploadedBytes / safeTotalBytes
-          : (index + 1) / fallbackDenominator;
-      options?.onUploadProgress?.({
-        pose: target.pose,
-        fileIndex: index,
-        fileCount,
-        bytesTransferred: target.size,
-        totalBytes: target.size,
-        percent: 1,
-        overallPercent: clampProgressFraction(normalizedOverall),
-        hasBytesTransferred: true,
-        status: "done",
-        attempt: 1,
-      });
-      options?.onPhotoState?.({ pose: target.pose, status: "done", percent: 1 });
-    }
-
-    try {
-      await setDoc(
-        doc(db, "users", user.uid, "scans", params.scanId),
-        {
-          status: "uploaded",
-          lastStep: "uploaded",
-          lastStepAt: new Date(),
-          updatedAt: new Date(),
-        } as any,
-        { merge: true }
-      );
-    } catch (err) {
-      console.warn("scan.upload_status_write_failed", {
-        scanId: params.scanId,
-        message: (err as Error)?.message,
-      });
-    }
-
-    uploadsCompleted = true;
-    // `submitScan` now just enqueues background processing, so it should respond fast.
-    // Keep the timeout modest to avoid leaving users stuck if the submit call fails.
-    const remainingForSubmit = Math.max(5_000, overallDeadlineAt - Date.now());
-    const submitResponse = await apiFetch<SubmitScanResponse>(submitUrl(), {
-      method: "POST",
-      timeoutMs: Math.min(30_000, remainingForSubmit),
-      retries: 0,
-      signal: combinedSignal!.signal,
-      body: {
-        scanId: params.scanId,
-        photoPaths: params.storagePaths,
-        currentWeightKg: params.currentWeightKg,
-        goalWeightKg: params.goalWeightKg,
-        correlationId: scanCorrelationId,
-      },
-    });
-    try {
-      (combinedSignal as any)?.__cleanup?.();
-    } catch {
-      // ignore
-    }
-    return { ok: true, data: submitResponse ?? {} };
-  } catch (err) {
-    console.error("scan:submit error", { scanId: params.scanId, error: err });
-    try {
-      // always cleanup deadline listeners
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (combinedSignal as any)?.__cleanup?.();
-    } catch {
-      // ignore
-    }
-    const reason = uploadsCompleted ? "submit_failed" : "upload_failed";
-    const timedOut =
-      Boolean(combinedSignal?.signal?.aborted) &&
-      overallDeadlineAt > 0 &&
-      Date.now() >= overallDeadlineAt;
-    if (timedOut) {
-      return {
-        ok: false,
-        error: {
-          code: "scan/overall-timeout",
-          message: "This scan is taking too long. Please retry.",
-          reason,
-        },
-      };
-    }
-    const fallback = uploadsCompleted
-      ? "We couldn't process your scan. Please try again."
-      : "Could not upload your photos. Please try again.";
-    const normalizedUpload = !uploadsCompleted ? normalizeUploadError(err) : null;
+    await user.getIdToken(true);
+  } catch (error: any) {
     return {
       ok: false,
-      error: normalizedUpload ?? buildScanError(err, fallback, reason),
+      error: {
+        code: "auth/token-refresh-failed",
+        message:
+          typeof error?.message === "string" && error.message.length
+            ? `Could not refresh your sign-in session: ${error.message}`
+            : "Could not refresh your sign-in session. Please sign in again.",
+        reason: "upload_failed",
+      },
     };
   }
-}
 
-async function waitForOnlineOrAbort(params: { signal: AbortSignal; deadlineAt: number }) {
-  if (params.signal.aborted) {
-    const err: any = new Error("Upload cancelled.");
-    err.code = "upload_cancelled";
-    throw err;
-  }
-  if (typeof navigator === "undefined") return;
-  if (navigator.onLine) return;
-  await new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const cleanup = () => {
-      if (settled) return;
-      settled = true;
-      try {
-        window.removeEventListener("online", onOnline);
-      } catch {
-        // ignore
-      }
-      try {
-        params.signal.removeEventListener("abort", onAbort);
-      } catch {
-        // ignore
-      }
-      if (timer) clearTimeout(timer);
-    };
-    const onOnline = () => {
-      cleanup();
-      resolve();
-    };
-    const onAbort = () => {
-      cleanup();
-      const err: any = new Error("Upload cancelled.");
-      err.code = "upload_cancelled";
-      reject(err);
-    };
-    const now = Date.now();
-    const remaining = Math.max(0, params.deadlineAt - now);
-    const timer =
-      remaining > 0
-        ? setTimeout(() => {
-            cleanup();
-            const err: any = new Error("Connection lost for too long. Please retry.");
-            err.code = "upload_offline";
-            reject(err);
-          }, remaining)
-        : null;
-    try {
-      window.addEventListener("online", onOnline, { once: true } as any);
-    } catch {
-      // ignore
+  const preparedPhotos: Partial<Record<keyof StartScanResponse["storagePaths"], File>> = {};
+  const totalSteps = posesToUpload.length + 1; // preprocessing per pose + upload request
+  let completedSteps = 0;
+
+  const emitProgress = (
+    pose: keyof StartScanResponse["storagePaths"],
+    status: ScanUploadProgress["status"],
+    fileIndex: number,
+    fileCount: number,
+    percent: number,
+    hasBytes: boolean
+  ) => {
+    const overallPercent = clampProgressFraction((completedSteps + percent) / totalSteps);
+    options?.onUploadProgress?.({
+      pose,
+      fileIndex,
+      fileCount,
+      bytesTransferred: percent,
+      totalBytes: 1,
+      percent,
+      overallPercent: ensureVisibleProgress(overallPercent, hasBytes),
+      hasBytesTransferred: hasBytes,
+      status,
+      attempt: 1,
+    });
+  };
+
+  for (const [index, pose] of posesToUpload.entries()) {
+    const original = params.photos[pose];
+    if (!original) {
+      return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
     }
-    params.signal.addEventListener("abort", onAbort, { once: true });
-  });
+    options?.onPhotoState?.({ pose, status: "preparing" });
+    const startedAt = Date.now();
+    try {
+      const processed = await prepareScanPhoto(original, pose);
+      preparedPhotos[pose] = processed.preparedFile;
+      options?.onPhotoState?.({
+        pose,
+        status: "preparing",
+        original: processed.meta.original,
+        compressed: processed.meta.prepared,
+        preprocessDebug: processed.meta.debug,
+      });
+      completedSteps += 1;
+      emitProgress(pose, "preparing", index, posesToUpload.length, 1, true);
+      console.info("scan.preprocess", {
+        pose,
+        inBytes: processed.meta.original.size,
+        outBytes: processed.meta.prepared.size,
+        ms: Date.now() - startedAt,
+      });
+    } catch (err) {
+      options?.onPhotoState?.({
+        pose,
+        status: "failed",
+        message: "Couldn’t prepare photo on this device",
+      });
+      const e: any = new Error("Couldn’t prepare photo on this device");
+      e.code = "preprocess_failed";
+      e.pose = pose;
+      return { ok: false, error: buildScanError(e, e.message, "upload_failed") };
+    }
+  }
+
+  const form = new FormData();
+  form.append("scanId", params.scanId);
+  form.append("currentWeightKg", String(params.currentWeightKg));
+  form.append("goalWeightKg", String(params.goalWeightKg));
+  form.append("correlationId", scanCorrelationId);
+  for (const pose of posesToUpload) {
+    const file = preparedPhotos[pose];
+    if (!file) {
+      return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
+    }
+    form.append(pose, file, `${pose}.jpg`);
+  }
+
+  const controller = new AbortController();
+  const timeoutMs =
+    typeof options?.overallTimeoutMs === "number" && Number.isFinite(options.overallTimeoutMs)
+      ? Math.max(30_000, options.overallTimeoutMs)
+      : 90_000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  if (options?.signal) {
+    if (options.signal.aborted) controller.abort();
+    else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  const maxAttempts = 3;
+  let attempt = 0;
+  let lastErr: unknown = null;
+  const url = submitMultipartUrl();
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    for (const pose of posesToUpload) {
+      options?.onPhotoState?.({
+        pose,
+        status: attempt > 1 ? "retrying" : "uploading",
+        attempt,
+        correlationId: scanCorrelationId,
+      });
+    }
+    emitProgress("front", attempt > 1 ? "retrying" : "uploading", 0, posesToUpload.length, 0.05, false);
+    try {
+      const response = await apiFetch<SubmitScanResponse>(url, {
+        method: "POST",
+        body: form,
+        retries: 0,
+        timeoutMs,
+        signal: controller.signal,
+        headers: {
+          "X-Correlation-Id": scanCorrelationId,
+        },
+      });
+      clearTimeout(timeoutId);
+      completedSteps = totalSteps - 1;
+      for (const [index, pose] of posesToUpload.entries()) {
+        emitProgress(pose, "done", index, posesToUpload.length, 1, true);
+        options?.onPhotoState?.({
+          pose,
+          status: "done",
+          percent: 1,
+          correlationId: scanCorrelationId,
+        });
+      }
+      completedSteps = totalSteps;
+      emitProgress("front", "done", posesToUpload.length - 1, posesToUpload.length, 1, true);
+      return { ok: true, data: response ?? { scanId: params.scanId, correlationId: scanCorrelationId } };
+    } catch (err: any) {
+      lastErr = err;
+      if (controller.signal.aborted) break;
+      const status = err instanceof ApiError ? err.status : 0;
+      const retryable = status === 0 || status >= 500;
+      if (attempt < maxAttempts && retryable) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+      break;
+    }
+  }
+
+  clearTimeout(timeoutId);
+  const timedOut = controller.signal.aborted;
+  if (timedOut) {
+    return {
+      ok: false,
+      error: {
+        code: "scan/overall-timeout",
+        message: "This scan is taking too long. Please retry.",
+        reason: "upload_failed",
+      },
+    };
+  }
+  const fallback = "Could not upload your photos. Please try again.";
+  return {
+    ok: false,
+    error: buildScanError(lastErr, fallback, "upload_failed"),
+  };
 }
 
 export async function retryScanProcessingClient(
