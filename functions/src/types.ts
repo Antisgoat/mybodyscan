@@ -6,6 +6,9 @@ export interface ScanEstimate {
   notes: string;
   leanMassKg?: number | null;
   fatMassKg?: number | null;
+  bmiCategory?: string | null;
+  keyObservations?: string[];
+  goalRecommendations?: string[];
 }
 
 export interface ScanWorkoutPlan {

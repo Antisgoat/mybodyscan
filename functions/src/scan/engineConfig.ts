@@ -10,7 +10,7 @@ type EngineStatus = {
   bucket: string | null;
   bucketSource: "env" | "app" | "storage" | "unknown";
   projectId: string | null;
-  provider: string;
+  provider: string | null;
   model: string | null;
   baseUrl: string | null;
 };
@@ -19,7 +19,7 @@ export type EngineConfig = {
   provider: string;
   apiKey: string;
   model: string;
-  baseUrl: string | null;
+  baseUrl: string;
   storageBucket: string;
   projectId: string;
 };
@@ -90,11 +90,12 @@ function resolveBaseUrl(): string | null {
   return paramBase ? paramBase.replace(/\/+$/, "") : null;
 }
 
-function resolveProvider(): string {
+function resolveProvider(): string | null {
   const envProvider = (process.env.OPENAI_PROVIDER || "").trim();
   if (envProvider) return envProvider.toLowerCase();
   const paramProvider = readParamValue(openAiProviderParam);
-  return (paramProvider || "openai").toLowerCase();
+  if (paramProvider) return paramProvider.toLowerCase();
+  return null;
 }
 
 function resolveProjectId(): string | null {
@@ -123,6 +124,9 @@ function buildStatus():
 
   const missing: string[] = [];
   if (!apiKey) missing.push("OPENAI_API_KEY");
+  if (!provider) missing.push("OPENAI_PROVIDER");
+  if (!model) missing.push("OPENAI_MODEL");
+  if (!baseUrl) missing.push("OPENAI_BASE_URL");
   if (!bucketInfo.bucket) missing.push("STORAGE_BUCKET");
   if (!projectId) missing.push("PROJECT_ID");
 
@@ -137,7 +141,15 @@ function buildStatus():
     baseUrl,
   };
 
-  if (missing.length > 0 || !apiKey || !bucketInfo.bucket || !projectId) {
+  if (
+    missing.length > 0 ||
+    !apiKey ||
+    !bucketInfo.bucket ||
+    !projectId ||
+    !provider ||
+    !model ||
+    !baseUrl
+  ) {
     return { status, config: null };
   }
 
@@ -146,8 +158,8 @@ function buildStatus():
     config: {
       provider,
       apiKey,
-      model: model || "gpt-4o-mini",
-      baseUrl: baseUrl || null,
+      model,
+      baseUrl,
       storageBucket: bucketInfo.bucket,
       projectId,
     },
@@ -169,14 +181,22 @@ export function describeMissing(): string[] {
 export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   const { status, config } = buildStatus();
   if (config) return config;
-  throw new HttpsError("unavailable", "Scan engine not configured.", {
-    reason: "engine_not_configured",
-    missing: status.missing,
-    bucket: status.bucket,
-    bucketSource: status.bucketSource,
-    projectId: status.projectId,
-    correlationId,
-  });
+  const missingList = status.missing.length ? status.missing.join(", ") : "unknown";
+  throw new HttpsError(
+    "failed-precondition",
+    `Scan engine not configured. Missing: ${missingList}.`,
+    {
+      reason: "scan_engine_not_configured",
+      missing: status.missing,
+      bucket: status.bucket,
+      bucketSource: status.bucketSource,
+      projectId: status.projectId,
+      correlationId,
+      provider: status.provider,
+      model: status.model,
+      baseUrl: status.baseUrl,
+    }
+  );
 }
 
 export function assertScanEngineConfigured(correlationId?: string): EngineConfig {
