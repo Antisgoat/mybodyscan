@@ -257,13 +257,20 @@ export const uploadScanPhotoHttp = onRequest(
         return;
       }
       if (err instanceof HttpsError) {
+        const details = (err as any)?.details ?? {};
+        const reason = details?.reason;
+        const normalizedCode =
+          reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : err.code;
+        const missing = Array.isArray(details?.missing) ? details.missing : undefined;
         console.warn("scan_upload_http_error", {
           correlationId,
           code: err.code,
           message: err.message,
           elapsedMs,
         });
-        res.status(statusFromCode(err.code)).json(buildError(err.code, err.message));
+        res
+          .status(reason === "scan_engine_not_configured" ? 503 : statusFromCode(err.code))
+          .json(buildError(normalizedCode, err.message, { reason, missing }));
         return;
       }
       console.error("scan_upload_http_failed", {

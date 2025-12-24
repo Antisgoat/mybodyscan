@@ -255,14 +255,20 @@ function respondWithSubmitError(
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    res.status(statusFromHttpsError(error)).json({
-      code: error.code,
+    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const normalizedCode =
+      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : error.code;
+    const normalizedStatus =
+      reason === "scan_engine_not_configured" ? 503 : statusFromHttpsError(error);
+    res.status(normalizedStatus).json({
+      code: normalizedCode,
       message:
         error.code === "internal"
           ? "Unexpected error while processing scan."
           : error.message || "Unable to process scan.",
       debugId,
       reason,
+      missing,
     });
     return;
   }

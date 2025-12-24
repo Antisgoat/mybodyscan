@@ -1,5 +1,6 @@
-import { apiFetch, ApiError } from "@/lib/http";
+import { ApiError } from "@/lib/http";
 import { DEFAULT_FN_BASE, resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { xhrUploadFormDataJson } from "@/lib/uploads/xhrUploadJson";
 
 type UploadScanPhotoHttpResponse = {
   ok: true;
@@ -71,6 +72,8 @@ export async function uploadViaHttp(params: {
   correlationId: string;
   signal?: AbortSignal;
   timeoutMs: number;
+  stallTimeoutMs?: number;
+  onProgress?: (progress: { bytesTransferred: number; totalBytes: number; lastProgressAt: number }) => void;
 }): Promise<UploadViaHttpResult> {
   const startedAt = Date.now();
   const form = new FormData();
@@ -81,21 +84,25 @@ export async function uploadViaHttp(params: {
   form.append("file", params.file, `${params.pose}.jpg`);
 
   try {
-    const response = await apiFetch<UploadScanPhotoHttpResponse>(
-      uploadUrl(params.scanId, params.pose, params.correlationId),
-      {
-        method: "POST",
-        body: form,
-        timeoutMs: params.timeoutMs,
-        retries: 0,
-        signal: params.signal,
-        headers: {
-          "X-Correlation-Id": params.correlationId,
-          "X-Scan-Id": params.scanId,
-          "X-Scan-View": params.pose,
-        },
-      }
-    );
+    const response = await xhrUploadFormDataJson<UploadScanPhotoHttpResponse>({
+      url: uploadUrl(params.scanId, params.pose, params.correlationId),
+      formData: form,
+      timeoutMs: params.timeoutMs,
+      stallTimeoutMs: params.stallTimeoutMs ?? 12_000,
+      signal: params.signal,
+      headers: {
+        "X-Correlation-Id": params.correlationId,
+        "X-Scan-Id": params.scanId,
+        "X-Scan-View": params.pose,
+      },
+      onProgress: (p) => {
+        params.onProgress?.({
+          bytesTransferred: p.loaded,
+          totalBytes: p.total,
+          lastProgressAt: p.lastProgressAt,
+        });
+      },
+    }).then((r) => r.data);
     const path = response?.ok ? response.path : "";
     if (!path) {
       const err = new Error("Upload failed.") as Error & { code?: string };

@@ -382,6 +382,8 @@ export const processQueuedScan = onDocumentWritten(
     } catch (error: any) {
       stopHeartbeat();
       const errorReason = deriveErrorReason(error);
+      const errorDetails =
+        error instanceof HttpsError ? ((error as any)?.details ?? {}) : {};
       const rawMessage =
         typeof error?.message === "string" && error.message.length
           ? error.message
@@ -391,6 +393,7 @@ export const processQueuedScan = onDocumentWritten(
         if (rawMessage?.startsWith("invalid_photo_path_")) return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
+        if (errorDetails?.reason === "scan_engine_not_configured") return "scan_engine_not_configured";
         if (error instanceof OpenAIClientError && error.code) return error.code;
         return errorReason;
       })();
@@ -415,6 +418,9 @@ export const processQueuedScan = onDocumentWritten(
             return "Scan engine is busy. Please try again shortly.";
           }
           return "Scan engine is temporarily unavailable. Please try again.";
+        }
+        if (effectiveReason === "scan_engine_not_configured") {
+          return "Scan engine not configured.";
         }
         return rawMessage ?? "Unexpected error while processing scan.";
       })();

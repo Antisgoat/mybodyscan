@@ -16,6 +16,7 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Badge } from "@/components/ui/badge";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
+import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 
 type Health = Record<string, any> | null;
 type CheckRow = { name: string; ok: boolean; detail?: string };
@@ -121,25 +122,18 @@ export default function SystemCheckPage() {
       // Fallback upload via function to verify CORS-safe path
       try {
         const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" });
-        const form = new FormData();
         const scanId = `health-${Date.now()}`;
-        form.append("scanId", scanId);
-        form.append("view", "front");
-        form.append("pose", "front");
-        form.append("correlationId", scanId);
-        form.append("file", blob, "front.jpg");
-        const uploadUrl = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
-        const data = await apiFetch<Record<string, any>>(uploadUrl, {
-          method: "POST",
-          body: form,
+        const data = await uploadViaHttp({
+          scanId,
+          pose: "front",
+          file: blob,
+          correlationId: scanId,
           timeoutMs: 12_000,
-          retries: 0,
-          headers: { "X-Correlation-Id": scanId },
         });
         next.push({
           name: "Upload fallback (function)",
-          ok: Boolean((data as any)?.ok !== false),
-          detail: data?.path ? `ok · ${data.path}` : "ok",
+          ok: Boolean(data.storagePath),
+          detail: data.storagePath ? `ok · ${data.storagePath}` : "ok",
         });
       } catch (err: any) {
         next.push({

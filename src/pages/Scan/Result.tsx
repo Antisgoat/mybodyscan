@@ -34,7 +34,6 @@ import {
   submitScanClient,
   type ScanUploadProgress,
 } from "@/lib/api/scan";
-import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import {
