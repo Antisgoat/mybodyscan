@@ -16,6 +16,7 @@ import {
   stripeWebhookSecretParam,
   legacyStripeWebhookParam,
 } from "./stripe/keys.js";
+import { getScanEngineStatus } from "./scan/engineConfig.js";
 
 const usdaFdcApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 const scanDisabledFlag = "SCAN_DISABLED";
@@ -53,6 +54,7 @@ export const systemHealth = onRequest(
   async (req, res) => {
     await appCheckSoft(req);
     const openaiConfigured = hasOpenAI();
+    const scanEngine = getScanEngineStatus();
 
     const stripeSecretPresent =
       !!process.env.STRIPE_SECRET ||
@@ -76,7 +78,7 @@ export const systemHealth = onRequest(
     const scanDisabled = getEnvBool(scanDisabledFlag, false);
     const coachDisabled = getEnvBool(coachDisabledFlag, false);
     const workoutsDisabled = getEnvBool(workoutsDisabledFlag, false);
-    const scanConfigured = openaiConfigured && !scanDisabled;
+    const scanConfigured = scanEngine.configured && !scanDisabled;
     const scanServicesHealthy = scanConfigured;
     const coachConfigured = openaiConfigured && !coachDisabled;
     const workoutsConfigured = !workoutsDisabled;
@@ -106,6 +108,10 @@ export const systemHealth = onRequest(
       openaiConfigured,
       scanConfigured,
       scanServicesHealthy,
+      scanEngineConfigured: scanEngine.configured,
+      scanEngineMissing: scanEngine.missing,
+      storageBucket: scanEngine.bucket,
+      storageBucketSource: scanEngine.bucketSource,
       coachConfigured,
       workoutsConfigured,
       workoutAdjustConfigured,

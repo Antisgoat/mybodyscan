@@ -42,6 +42,10 @@ const readEnv = (key: string): string => {
 
 export type RemoteHealth = {
   scanConfigured?: boolean;
+  scanEngineConfigured?: boolean;
+  scanEngineMissing?: string[];
+  storageBucket?: string | null;
+  storageBucketSource?: string | null;
   coachConfigured?: boolean;
   nutritionConfigured?: boolean;
   openaiConfigured?: boolean;
@@ -64,6 +68,7 @@ export function computeFeatureStatuses(
   const projectId =
     readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
+  const scanEngineConfigured = remoteHealth?.scanEngineConfigured;
   const stripeKey =
     readEnv("VITE_STRIPE_PUBLISHABLE_KEY") || readEnv("VITE_STRIPE_PK");
   const healthConnector = readEnv("VITE_HEALTH_CONNECT");
@@ -79,9 +84,14 @@ export function computeFeatureStatuses(
         ? remoteHealth.openaiKeyPresent
         : undefined;
   const scanConfigured =
-    typeof remoteHealth?.scanConfigured === "boolean"
-      ? remoteHealth.scanConfigured
-      : Boolean(openaiConfigured || functionsConfigured || scanStartUrl);
+    typeof scanEngineConfigured === "boolean"
+      ? scanEngineConfigured &&
+        (typeof remoteHealth?.scanConfigured === "boolean"
+          ? remoteHealth.scanConfigured
+          : true)
+      : typeof remoteHealth?.scanConfigured === "boolean"
+        ? remoteHealth.scanConfigured
+        : Boolean(openaiConfigured || functionsConfigured || scanStartUrl);
   const stripeMode = describeStripeEnvironment();
   const stripeConfigured =
     stripeMode !== "missing" ||
@@ -134,9 +144,11 @@ export function computeFeatureStatuses(
       : undefined
     : openaiConfigured === false
       ? "Add OPENAI_API_KEY via firebase functions:secrets:set before running scans."
-      : functionsConfigured
-        ? "Deploy scan handlers and confirm /api/system/health responds."
-        : "Set VITE_FUNCTIONS_URL or dedicated scan endpoints.";
+      : scanEngineConfigured === false && Array.isArray(remoteHealth?.scanEngineMissing)
+        ? `Scan engine missing: ${remoteHealth.scanEngineMissing.join(", ")}`
+        : functionsConfigured
+          ? "Deploy scan handlers and confirm /api/system/health responds."
+          : "Set VITE_FUNCTIONS_URL or dedicated scan endpoints.";
 
   const workoutsDetail = workoutsConfigured
     ? workoutAdjustConfigured

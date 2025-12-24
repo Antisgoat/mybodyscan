@@ -20,6 +20,10 @@ export interface SystemHealthSnapshot {
   coachConfigured?: boolean;
   workoutsConfigured?: boolean;
   workoutAdjustConfigured?: boolean;
+  scanEngineConfigured?: boolean;
+  scanEngineMissing?: string[];
+  storageBucket?: string | null;
+  storageBucketSource?: string | null;
   [key: string]: unknown;
 }
 

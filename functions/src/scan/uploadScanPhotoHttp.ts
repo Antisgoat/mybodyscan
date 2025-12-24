@@ -4,6 +4,7 @@ import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request, Response } from "firebase-functions/v2/https";
 import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
+import { assertScanEngineConfigured } from "./engineConfig.js";
 
 const storage = getStorage();
 const POSES = new Set(["front", "back", "left", "right"]);
@@ -58,7 +59,7 @@ function parseMultipartField(headerValue: string, key: string): string | null {
   const start = headerValue.indexOf(needle);
   if (start < 0) return null;
   const valueStart = start + needle.length;
-  const end = headerValue.indexOf("\"", valueStart);
+  const end = headerValue.indexOf('"', valueStart);
   if (end < 0) return null;
   return headerValue.slice(valueStart, end);
 }
@@ -152,6 +153,7 @@ export const uploadScanPhotoHttp = onRequest(
       }
 
       const uid = await requireAuth(req);
+      assertScanEngineConfigured(correlationId);
       const contentType = String(req.headers["content-type"] || "");
       const parsed = contentType.includes("multipart/form-data")
         ? await parseMultipart(req)
