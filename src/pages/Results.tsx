@@ -19,6 +19,7 @@ import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
+import { kgToLb } from "@/lib/units";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -247,6 +248,30 @@ const Results = () => {
       : "—";
   const weightDisplay = summary.weightText;
   const bmiDisplay = summary.bmiText;
+  const leanMassKg =
+    typeof (activeScan as any)?.estimate?.leanMassKg === "number"
+      ? Number((activeScan as any).estimate.leanMassKg)
+      : typeof (activeScan as any)?.metrics?.leanMassKg === "number"
+        ? Number((activeScan as any).metrics.leanMassKg)
+        : null;
+  const fatMassKg =
+    typeof (activeScan as any)?.estimate?.fatMassKg === "number"
+      ? Number((activeScan as any).estimate.fatMassKg)
+      : typeof (activeScan as any)?.metrics?.fatMassKg === "number"
+        ? Number((activeScan as any).metrics.fatMassKg)
+        : null;
+  const leanMassDisplay =
+    leanMassKg != null
+      ? units === "us"
+        ? `${kgToLb(leanMassKg).toFixed(1)} lb`
+        : `${leanMassKg.toFixed(1)} kg`
+      : null;
+  const fatMassDisplay =
+    fatMassKg != null
+      ? units === "us"
+        ? `${kgToLb(fatMassKg).toFixed(1)} lb`
+        : `${fatMassKg.toFixed(1)} kg`
+      : null;
   const statusMeta = scanStatusLabel(
     activeScan.status,
     activeScan.completedAt ?? activeScan.updatedAt ?? activeScan.createdAt
@@ -298,39 +323,61 @@ const Results = () => {
               </div>
             )
           ) : (
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <Card>
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-3xl font-semibold text-primary">
-                    {bodyFatText}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Body Fat %
-                  </p>
-                </CardContent>
-              </Card>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-3xl font-semibold text-primary">
+                      {bodyFatText}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Body Fat %
+                    </p>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-3xl font-semibold text-primary">
-                    {weightDisplay}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">Weight</p>
-                </CardContent>
-              </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-3xl font-semibold text-primary">
+                      {weightDisplay}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">Weight</p>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-3xl font-semibold text-primary">
-                    {bmiDisplay}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">BMI</p>
-                </CardContent>
-              </Card>
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-3xl font-semibold text-primary">
+                      {bmiDisplay}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">BMI</p>
+                  </CardContent>
+                </Card>
+              </div>
+              {(leanMassDisplay || fatMassDisplay) && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  {leanMassDisplay ? `Lean mass est: ${leanMassDisplay}` : ""}
+                  {leanMassDisplay && fatMassDisplay ? " · " : ""}
+                  {fatMassDisplay ? `Fat mass est: ${fatMassDisplay}` : ""}
+                </p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {statusMeta.showMetrics && activeScan.planMarkdown ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Program & macros</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap text-sm text-left">
+              {activeScan.planMarkdown}
+            </pre>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Notes section - only show for completed scans */}
       {statusMeta.showMetrics && (

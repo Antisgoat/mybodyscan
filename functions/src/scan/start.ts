@@ -11,6 +11,7 @@ import { Timestamp, getFirestore } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
+import { assertScanEngineConfigured } from "./engineConfig.js";
 
 const db = getFirestore();
 const POSES = ["front", "back", "left", "right"] as const;
@@ -59,6 +60,8 @@ async function handleStart(req: Request, res: any) {
       uid,
       requestId,
     });
+    // Fail fast if the scan engine or storage bucket is misconfigured.
+    assertScanEngineConfigured(requestId);
 
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);

@@ -15,7 +15,7 @@ const POSES = ["front", "back", "left", "right"] as const;
 const OPENAI_MODEL = "gpt-4o-mini";
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
-const OPENAI_TIMEOUT_MS = 60000;
+const OPENAI_TIMEOUT_MS = 90000;
 
 type Pose = (typeof POSES)[number];
 
@@ -278,6 +278,97 @@ export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
   } catch (error) {
     throw new Error(`openai_parse_failed:${(error as Error)?.message ?? "unknown"}`);
   }
+}
+
+export function buildPlanMarkdown(params: {
+  estimate: ScanEstimate;
+  workoutPlan: ScanWorkoutPlan;
+  nutritionPlan: ScanNutritionPlan;
+  recommendations: string[];
+  input: { currentWeightKg: number; goalWeightKg: number };
+  usedFallback?: boolean;
+}): string {
+  const lines: string[] = [];
+  const lean = Number.isFinite(params.estimate.leanMassKg ?? NaN)
+    ? `${params.estimate.leanMassKg?.toFixed(1)} kg lean mass (est.)`
+    : null;
+  const fat = Number.isFinite(params.estimate.fatMassKg ?? NaN)
+    ? `${params.estimate.fatMassKg?.toFixed(1)} kg fat mass (est.)`
+    : null;
+  lines.push("# DEXA-style photo estimate (rough)");
+  lines.push(
+    `- Body fat: ${params.estimate.bodyFatPercent.toFixed(1)}% (visual estimate${
+      params.usedFallback ? ", fallback" : ""
+    })`
+  );
+  if (lean) lines.push(`- ${lean}`);
+  if (fat) lines.push(`- ${fat}`);
+  if (params.estimate.bmi != null) {
+    lines.push(`- BMI: ${params.estimate.bmi.toFixed(1)}`);
+  }
+  lines.push(`- Note: ${params.estimate.notes}`);
+  lines.push("");
+  lines.push("## 8-week plan overview");
+  lines.push(
+    `- Current → goal: ${params.input.currentWeightKg} kg → ${params.input.goalWeightKg} kg`
+  );
+  const weekCount = params.workoutPlan.weeks?.length ?? 0;
+  lines.push(
+    `- Training weeks: ${weekCount || "set by coach"} · Typical days/week: ${
+      params.workoutPlan.weeks?.[0]?.days?.length ?? 4
+    }`
+  );
+  lines.push(
+    "- Expect slow recomposition: keep sleep 7-9h, protein high, and track lifts weekly."
+  );
+  lines.push("");
+  lines.push("## Training program");
+  const renderWeeks = params.workoutPlan.weeks?.slice(0, 4) ?? [];
+  if (!renderWeeks.length) {
+    lines.push("- Week 1-4: 4-6 days push/pull/legs + accessories. Progress load weekly.");
+  } else {
+    for (const week of renderWeeks) {
+      lines.push(`- Week ${week.weekNumber}:`);
+      for (const day of week.days.slice(0, 7)) {
+        const exerciseSummary = day.exercises
+          .slice(0, 5)
+          .map((ex) => `${ex.name} ${ex.sets}×${ex.reps}`)
+          .join("; ");
+        lines.push(
+          `  - ${day.day || "Day"} (${day.focus || "Focus"}): ${exerciseSummary || "See app for details"}`
+        );
+      }
+    }
+  }
+  const rules = params.workoutPlan.progressionRules?.slice(0, 6) ?? [];
+  if (rules.length) {
+    lines.push("  - Progression rules:");
+    for (const rule of rules) {
+      lines.push(`    - ${rule}`);
+    }
+  }
+  lines.push("");
+  lines.push("## Nutrition (exact macros)");
+  lines.push(
+    `- Daily targets: ${params.nutritionPlan.caloriesPerDay} kcal · ${params.nutritionPlan.proteinGrams}g protein · ${params.nutritionPlan.carbsGrams}g carbs · ${params.nutritionPlan.fatsGrams}g fats`
+  );
+  lines.push("- Adjustments:");
+  const adjustments = params.nutritionPlan.adjustmentRules?.slice(0, 6) ?? [];
+  adjustments.forEach((rule) => lines.push(`  - ${rule}`));
+  if (params.nutritionPlan.sampleDay?.length) {
+    lines.push("- Sample day:");
+    params.nutritionPlan.sampleDay.slice(0, 5).forEach((meal) => {
+      lines.push(
+        `  - ${meal.mealName}: ${meal.description || ""} (${meal.calories} kcal · ${meal.proteinGrams}P/${meal.carbsGrams}C/${meal.fatsGrams}F)`
+      );
+    });
+  }
+  if (params.recommendations.length) {
+    lines.push("");
+    lines.push("## Quick habits");
+    params.recommendations.forEach((tip) => lines.push(`- ${tip}`));
+  }
+  return lines.join("\n");
 }
 
 export function deriveErrorReason(error: unknown): string {

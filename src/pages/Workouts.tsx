@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,10 +30,7 @@ export default function Workouts() {
   const { t } = useI18n();
   const location = useLocation();
   const nav = useNavigate();
-  const searchParams = useMemo(
-    () => new URLSearchParams(location.search),
-    [location.search]
-  );
+  const searchParams = new URLSearchParams(location.search);
   const requestedPlanId = searchParams.get("plan");
   const startedParam = searchParams.get("started") === "1";
   type WorkoutExercise = {

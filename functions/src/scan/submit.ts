@@ -8,10 +8,10 @@ import { HttpsError, onRequest } from "firebase-functions/v2/https";
 import type { Request } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { requireAuthWithClaims } from "../http.js";
-import { hasOpenAI } from "../lib/env.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
 import { deriveErrorReason } from "./analysis.js";
+import { assertScanEngineConfigured } from "./engineConfig.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -127,6 +127,8 @@ export const submitScan = onRequest(
         uid: authContext.uid,
         requestId,
       });
+      // Verify the engine + storage bucket exist before doing any work.
+      assertScanEngineConfigured(requestId);
 
       const payload = parsePayload(req.body);
       if (!payload) {
@@ -163,17 +165,6 @@ export const submitScan = onRequest(
         );
       }
       scanRef = docRef;
-
-      if (!hasOpenAI()) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Scan engine not configured.",
-          {
-            debugId: requestId,
-            reason: "openai_not_configured",
-          }
-        );
-      }
 
       await verifyPhotoPaths(uid, payload.scanId, payload.photoPaths);
 

@@ -10,8 +10,8 @@ import {
 } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
-import { hasOpenAI } from "../lib/env.js";
 import type { ScanDocument } from "../types.js";
+import { assertScanEngineConfigured } from "./engineConfig.js";
 
 type Pose = "front" | "back" | "left" | "right";
 type ParsedFile = {
@@ -31,7 +31,6 @@ type SubmitMultipartDeps = {
     req: Request,
     ctx: { fn: string; uid: string; requestId: string }
   ) => Promise<void>;
-  hasOpenAI: () => boolean;
 };
 
 const EXPECTED_POSES: Pose[] = ["front", "back", "left", "right"];
@@ -47,7 +46,6 @@ const DEFAULT_DEPS: SubmitMultipartDeps = {
       uid: ctx.uid,
       requestId: ctx.requestId,
     }),
-  hasOpenAI,
 };
 
 function toTrimmed(value: unknown): string {
@@ -324,14 +322,8 @@ export async function handleSubmitScanMultipart(
       uid,
       requestId,
     });
-
-    if (!deps.hasOpenAI()) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Scan engine not configured.",
-        { reason: "openai_not_configured" }
-      );
-    }
+    // Validate engine + storage bucket before ingesting payloads.
+    assertScanEngineConfigured(requestId);
 
     let parsed: { fields: Record<string, string>; files: ParsedFile[] };
     try {

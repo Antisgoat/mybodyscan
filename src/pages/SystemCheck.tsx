@@ -3,7 +3,7 @@ import { apiFetch } from "@/lib/http";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { BUILD } from "@/lib/build";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
-import { db, getFirebaseStorage } from "@/lib/firebase";
+import { db, getFirebaseStorage, getFirebaseConfig } from "@/lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
@@ -15,6 +15,7 @@ import {
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Badge } from "@/components/ui/badge";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 
 type Health = Record<string, any> | null;
 type CheckRow = { name: string; ok: boolean; detail?: string };
@@ -117,6 +118,37 @@ export default function SystemCheckPage() {
         });
       }
 
+      // Fallback upload via function to verify CORS-safe path
+      try {
+        const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" });
+        const form = new FormData();
+        const scanId = `health-${Date.now()}`;
+        form.append("scanId", scanId);
+        form.append("view", "front");
+        form.append("pose", "front");
+        form.append("correlationId", scanId);
+        form.append("file", blob, "front.jpg");
+        const uploadUrl = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
+        const data = await apiFetch<Record<string, any>>(uploadUrl, {
+          method: "POST",
+          body: form,
+          timeoutMs: 12_000,
+          retries: 0,
+          headers: { "X-Correlation-Id": scanId },
+        });
+        next.push({
+          name: "Upload fallback (function)",
+          ok: Boolean((data as any)?.ok !== false),
+          detail: data?.path ? `ok · ${data.path}` : "ok",
+        });
+      } catch (err: any) {
+        next.push({
+          name: "Upload fallback (function)",
+          ok: false,
+          detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
+        });
+      }
+
       // Functions health is already covered via /api/system/health above, but show a fast probe too.
       try {
         const data = await apiFetch<Record<string, any>>("/api/system/health", {
@@ -164,6 +196,30 @@ export default function SystemCheckPage() {
           .toString()
           .toLowerCase() !== "false"
       ),
+    ],
+    [
+      "Storage bucket (client)",
+      String(getFirebaseConfig()?.storageBucket || getFirebaseStorage().app.options?.storageBucket || "(unset)"),
+    ],
+    [
+      "Storage bucket (server)",
+      systemHealth?.storageBucket
+        ? `${systemHealth.storageBucket}${systemHealth.storageBucketSource ? ` (${systemHealth.storageBucketSource})` : ""}`
+        : "unknown",
+    ],
+    [
+      "Scan engine configured",
+      systemHealth?.scanEngineConfigured === false
+        ? "false"
+        : systemHealth?.scanEngineConfigured
+          ? "true"
+          : "unknown",
+    ],
+    [
+      "Missing (engine)",
+      Array.isArray(systemHealth?.scanEngineMissing) && systemHealth?.scanEngineMissing.length
+        ? systemHealth.scanEngineMissing.join(", ")
+        : "—",
     ],
   ];
 

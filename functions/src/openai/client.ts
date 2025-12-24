@@ -13,14 +13,10 @@ const MAX_TOKENS_CAP = 4_096;
 class InvalidModelError extends Error {}
 
 export class OpenAIClientError extends Error {
-  code: "openai_missing_key" | "openai_failed";
+  code: string;
   status: number;
 
-  constructor(
-    code: "openai_missing_key" | "openai_failed",
-    status: number,
-    message?: string
-  ) {
+  constructor(code: string, status: number, message?: string) {
     super(message ?? code);
     this.name = "OpenAIClientError";
     this.code = code;

@@ -4,6 +4,8 @@ export interface ScanEstimate {
   bodyFatPercent: number;
   bmi: number | null;
   notes: string;
+  leanMassKg?: number | null;
+  fatMassKg?: number | null;
 }
 
 export interface ScanWorkoutPlan {
@@ -87,6 +89,8 @@ export interface ScanDocument {
   estimate: ScanEstimate | null;
   workoutPlan: ScanWorkoutPlan | null;
   nutritionPlan: ScanNutritionPlan | null;
+  /** Markdown summary of the result (ChatGPT-style). */
+  planMarkdown?: string | null;
   legacyStatus?: string;
   statusV1?: string;
   files?: string[];
