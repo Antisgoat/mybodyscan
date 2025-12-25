@@ -11,6 +11,25 @@ function toTrimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function toIso(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const anyVal = value as any;
+  if (typeof anyVal?.toDate === "function") {
+    try {
+      const d = anyVal.toDate();
+      if (d instanceof Date) return d.toISOString();
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof value === "string") {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return null;
+}
+
 function statusFromHttpsError(error: HttpsError): number {
   const status = (error as any)?.httpErrorCode?.status;
   if (typeof status === "number") return status;
@@ -68,23 +87,21 @@ export const getScanStatus = onRequest(
       const data = snap.data() as ScanDocument;
 
       res.setHeader("Cache-Control", "no-store");
+      const doc = {
+        ...data,
+        // Ensure timestamps are JSON-friendly and parsable by the web client.
+        createdAt: toIso((data as any).createdAt),
+        updatedAt: toIso((data as any).updatedAt),
+        completedAt: toIso((data as any).completedAt),
+        lastStepAt: toIso((data as any).lastStepAt),
+        processingRequestedAt: toIso((data as any).processingRequestedAt),
+        processingStartedAt: toIso((data as any).processingStartedAt),
+        processingHeartbeatAt: toIso((data as any).processingHeartbeatAt),
+      };
       res.json({
         ok: true,
         scanId,
-        status: data.status ?? null,
-        lastStep: (data as any).lastStep ?? null,
-        progress: (data as any).progress ?? null,
-        errorMessage: (data as any).errorMessage ?? null,
-        errorReason: (data as any).errorReason ?? null,
-        correlationId: (data as any).correlationId ?? null,
-        estimate: (data as any).estimate ?? null,
-        workoutPlan: (data as any).workoutPlan ?? null,
-        workoutProgram: (data as any).workoutProgram ?? null,
-        nutritionPlan: (data as any).nutritionPlan ?? null,
-        note: (data as any).note ?? null,
-        photoPaths: (data as any).photoPaths ?? null,
-        updatedAt: (data as any).updatedAt ?? null,
-        completedAt: (data as any).completedAt ?? null,
+        doc,
       });
     } catch (err: any) {
       if (err instanceof HttpsError) {

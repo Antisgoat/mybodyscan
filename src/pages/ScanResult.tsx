@@ -9,6 +9,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   deserializeScanDocument,
   getScan,
+  getScanStatusClient,
   retryScanProcessingClient,
   type ScanDocument,
 } from "@/lib/api/scan";
@@ -202,6 +203,78 @@ export default function ScanResultPage() {
       unsub();
     };
   }, [scanId, user?.uid]);
+
+  // Fallback: if Firestore listeners stall (iOS backgrounding / radio changes),
+  // poll the same-origin status endpoint so the UI never gets “stuck processing”.
+  useEffect(() => {
+    if (!needsRefresh) return;
+    let cancelled = false;
+    let attempt = 0;
+    let timer: number | null = null;
+
+    const tick = async () => {
+      if (cancelled) return;
+      // Skip polling when hidden/offline to avoid wasted retries.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        scheduleNext(2000);
+        return;
+      }
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        scheduleNext(2000);
+        return;
+      }
+      const last = lastMeaningfulUpdateRef.current || 0;
+      const staleMs = Date.now() - last;
+      const shouldPoll = snapshotError != null || staleMs >= 8000;
+      if (!shouldPoll) {
+        scheduleNext(1500);
+        return;
+      }
+      attempt += 1;
+      try {
+        const result = await getScanStatusClient(scanId);
+        if (cancelled) return;
+        if (result.ok) {
+          setScan(result.data);
+          setSnapshotError(null);
+          setError(null);
+          setLoading(false);
+          const heartbeatMs = latestHeartbeatMillis({
+            updatedAt: result.data.updatedAt,
+            heartbeatAt: result.data.processingHeartbeatAt ?? null,
+            lastStepAt: result.data.lastStepAt ?? null,
+          });
+          lastMeaningfulUpdateRef.current =
+            heartbeatMs != null ? Math.max(lastMeaningfulUpdateRef.current, heartbeatMs) : Date.now();
+          // Reset backoff after a successful poll.
+          attempt = 0;
+          scheduleNext(2000);
+          return;
+        }
+        // Don’t overwrite a real scan error with polling noise.
+        console.warn("scanResult.status_poll_failed", result.error);
+        scheduleNext(backoffMs(attempt));
+      } catch (err) {
+        console.warn("scanResult.status_poll_unhandled", err);
+        scheduleNext(backoffMs(attempt));
+      }
+    };
+
+    const backoffMs = (n: number) => Math.min(5000, 500 + n * 500);
+
+    const scheduleNext = (ms: number) => {
+      if (cancelled) return;
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => void tick(), ms);
+    };
+
+    // Start quickly (but not immediately) so Firestore has a chance first.
+    scheduleNext(1200);
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [needsRefresh, scanId, snapshotError]);
 
   useEffect(() => {
     if (!needsRefresh) return;

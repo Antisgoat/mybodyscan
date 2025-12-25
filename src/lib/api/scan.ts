@@ -1059,6 +1059,53 @@ export async function getScan(
   }
 }
 
+type GetScanStatusResponse =
+  | { ok: true; scanId: string; doc: Record<string, unknown> }
+  | { ok: false; code?: string; message?: string };
+
+/**
+ * Same-origin status fetcher (Functions → Firestore) used as a fallback when
+ * Firestore listeners stall on iOS Safari/backgrounding.
+ */
+export async function getScanStatusClient(scanId: string): Promise<ScanApiResult<ScanDocument>> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    return { ok: false, error: { message: "Please sign in to view this scan." } };
+  }
+  const trimmed = scanId.trim();
+  if (!trimmed) return { ok: false, error: { message: "Missing scan id." } };
+  try {
+    const params = new URLSearchParams({ scanId: trimmed });
+    const response = await apiFetch<GetScanStatusResponse>(`/api/scan/status?${params.toString()}`, {
+      method: "GET",
+      timeoutMs: 15_000,
+      retries: 0,
+    });
+    if (!response) {
+      return { ok: false, error: { message: "Unable to load scan status." } };
+    }
+    if ("ok" in response && response.ok === false) {
+      return {
+        ok: false,
+        error: {
+          code: typeof response.code === "string" ? response.code : undefined,
+          message:
+            typeof response.message === "string" && response.message.trim()
+              ? response.message
+              : "Unable to load scan status.",
+        },
+      };
+    }
+    const doc = (response as any)?.doc;
+    if (!doc || typeof doc !== "object") {
+      return { ok: false, error: { message: "Unable to load scan status." } };
+    }
+    return { ok: true, data: deserializeScanDocument(trimmed, uid, doc as Record<string, unknown>) };
+  } catch (err) {
+    return { ok: false, error: buildScanError(err, "Unable to load scan status.") };
+  }
+}
+
 type DeleteScanResponse =
   | { ok: true; data?: { scanId?: string | null } }
   | {
