@@ -108,6 +108,13 @@
         }
       },
       {
+        "source": "/api/scan/status",
+        "function": {
+          "functionId": "getScanStatus",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/scan/delete",
         "function": {
           "functionId": "deleteScan",

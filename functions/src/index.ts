@@ -20,6 +20,7 @@ export { submitScanMultipart } from "./scan/submitMultipart.js";
 export { processQueuedScan } from "./scan/worker.js";
 export { uploadScanPhotoHttp } from "./scan/uploadScanPhotoHttp.js";
 export { getScanPhotoHttp } from "./scan/getScanPhotoHttp.js";
+export { getScanStatus } from "./scan/status.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
 export {
