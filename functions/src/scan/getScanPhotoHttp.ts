@@ -30,7 +30,7 @@ function statusFromCode(code: string): number {
 
 /**
  * Same-origin scan photo fetcher.
- * Eliminates browser traffic to `firebasestorage.googleapis.com`.
+ * Eliminates browser traffic to Firebase Storage REST hosts.
  *
  * GET /api/scan/photo?scanId=...&pose=front
  * Auth required (Firebase ID token).

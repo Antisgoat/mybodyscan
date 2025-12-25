@@ -1,7 +1,7 @@
 /**
  * Pipeline map — Client scan API bridge:
  * - Starts scan sessions (`startScanSessionClient`) so Firestore creates a pending doc + storage paths.
- * - Streams uploads via Firebase Storage, emitting `ScanUploadProgress` so the UI can avoid 0% stalls.
+ * - Uploads photos via same-origin `/api/scan/upload` with progress + stall detection.
  * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
  */
 import { apiFetch, ApiError } from "@/lib/http";
@@ -153,21 +153,18 @@ export type SubmitScanResponse = {
 };
 
 function startUrl(): string {
-  const env = (import.meta as any).env || {};
-  const override = typeof env?.VITE_SCAN_START_URL === "string" ? env.VITE_SCAN_START_URL.trim() : "";
-  return override || "/api/scan/start";
+  // Non-negotiable: same-origin only.
+  return "/api/scan/start";
 }
 
 function submitUrl(): string {
-  const env = (import.meta as any).env || {};
-  const override = typeof env?.VITE_SCAN_SUBMIT_URL === "string" ? env.VITE_SCAN_SUBMIT_URL.trim() : "";
-  return override || "/api/scan/submit";
+  // Non-negotiable: same-origin only.
+  return "/api/scan/submit";
 }
 
 function deleteUrl(): string {
-  const env = (import.meta as any).env || {};
-  const override = typeof env?.VITE_SCAN_DELETE_URL === "string" ? env.VITE_SCAN_DELETE_URL.trim() : "";
-  return override || "/api/scan/delete";
+  // Non-negotiable: same-origin only.
+  return "/api/scan/delete";
 }
 
 export type ScanError = {

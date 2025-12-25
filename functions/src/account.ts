@@ -154,7 +154,7 @@ async function buildImageExport(
         }).toString()}`;
         results.push({ name: pose, url, expiresAt });
       } catch (err) {
-        console.warn("account_export_signed_url_error", {
+        console.warn("account_export_photo_url_error", {
           uid,
           scanId,
           pose,

@@ -16,7 +16,7 @@ export type UploadPhotoResult = {
 /**
  * Canonical scan uploader (web):
  * - **Same-origin only**: always uploads via `/api/scan/upload` (Hosting rewrite → Cloud Function).
- * - This prevents iOS Safari CORS/preflight and avoids any dependency on GCS signed URLs / signBlob.
+ * - This prevents iOS Safari CORS/preflight and avoids any dependency on IAM signed URLs.
  */
 export async function uploadPhoto(params: {
   uid: string;
