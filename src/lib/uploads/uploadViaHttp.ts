@@ -1,5 +1,4 @@
 import { ApiError } from "@/lib/http";
-import { DEFAULT_FN_BASE, resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { xhrUploadFormDataJson } from "@/lib/uploads/xhrUploadJson";
 
 type UploadScanPhotoHttpResponse = {
@@ -27,10 +26,13 @@ function isStorageRestUrl(candidate: string): boolean {
 }
 
 function resolveUploadBaseUrl(): string {
-  const resolved = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
+  // Default to same-origin hosting rewrite to avoid CORS/preflight on Safari.
+  const env = (import.meta as any).env || {};
+  const override = typeof env?.VITE_SCAN_UPLOAD_HTTP_URL === "string" ? env.VITE_SCAN_UPLOAD_HTTP_URL.trim() : "";
+  const resolved = override || "/api/scan/upload";
   if (isStorageRestUrl(resolved)) {
     console.warn("scan_upload_http_invalid_override", { resolved });
-    return `${DEFAULT_FN_BASE}/uploadScanPhotoHttp`;
+    return "/api/scan/upload";
   }
   return resolved;
 }
@@ -88,7 +90,7 @@ export async function uploadViaHttp(params: {
       url: uploadUrl(params.scanId, params.pose, params.correlationId),
       formData: form,
       timeoutMs: params.timeoutMs,
-      stallTimeoutMs: params.stallTimeoutMs ?? 12_000,
+      stallTimeoutMs: params.stallTimeoutMs ?? 10_000,
       signal: params.signal,
       headers: {
         "X-Correlation-Id": params.correlationId,

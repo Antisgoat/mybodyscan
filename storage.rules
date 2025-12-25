@@ -14,8 +14,8 @@ service firebase.storage {
     }
 
     // Canonical scan photo uploads:
-    // user_uploads/{uid}/scans/{scanId}/{view}.jpg
-    match /user_uploads/{uid}/scans/{scanId}/{filename} {
+    // scans/{uid}/{scanId}/{pose}.jpg
+    match /scans/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validImageUpload();
       allow delete: if isOwner(uid);
@@ -29,9 +29,16 @@ service firebase.storage {
       allow delete: if isOwner(uid);
     }
 
+    // Legacy scan uploads (read/delete only). New clients must not write here.
+    match /user_uploads/{uid}/scans/{scanId}/{filename} {
+      allow read: if isOwner(uid);
+      allow create, update: if false;
+      allow delete: if isOwner(uid);
+    }
+
     match /user_uploads/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && validImageUpload();
+      allow create, update: if false;
       allow delete: if isOwner(uid);
     }
 

@@ -21,13 +21,13 @@ export function buildScanPhotoPath(params: {
   view: ScanPose;
 }): string {
   // Single source of truth for scan uploads.
-  // Canonical: user_uploads/{uid}/scans/{scanId}/{view}.jpg
+  // Canonical: scans/{uid}/{scanId}/{view}.jpg
   const uid = String(params.uid || "").trim();
   const scanId = String(params.scanId || "").trim();
   const view = params.view;
   assertScanPose(view);
   if (!uid) throw new Error("Missing uid for scan photo path.");
   if (!scanId) throw new Error("Missing scanId for scan photo path.");
-  return `user_uploads/${uid}/scans/${scanId}/${view}.jpg`;
+  return `scans/${uid}/${scanId}/${view}.jpg`;
 }
 

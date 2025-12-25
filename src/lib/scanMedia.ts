@@ -8,11 +8,12 @@ export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const storage = getStorage();
   const candidates = [
     // Canonical (current)
-    `user_uploads/${uid}/scans/${scanId}/front.jpg`,
+    `scans/${uid}/${scanId}/front.jpg`,
     // Legacy canonical without /scans segment.
     `user_uploads/${uid}/${scanId}/front.jpg`,
+    // Legacy canonical under user_uploads/{uid}/scans/...
+    `user_uploads/${uid}/scans/${scanId}/front.jpg`,
     // Legacy paths observed in older builds / storage migrations.
-    `scans/${uid}/${scanId}/front.jpg`,
     `scans/${uid}/${scanId}/original/front.jpg`,
   ];
   for (const path of candidates) {

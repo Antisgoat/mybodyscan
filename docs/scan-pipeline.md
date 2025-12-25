@@ -9,7 +9,7 @@ Set these **required** values in Functions/Hosting (`.env.*` or runtime config):
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (e.g., `gpt-4o-mini`)
 - `OPENAI_PROVIDER` (e.g., `openai`)
-- `OPENAI_BASE_URL` (e.g., `https://api.openai.com`)
+- `OPENAI_BASE_URL` (e.g., `https://api.openai.com/v1`)
 - `STORAGE_BUCKET` (canonical bucket, `*.appspot.com`)
 - `PROJECT_ID`
 
@@ -20,7 +20,7 @@ The backend fails fast with `scan_engine_not_configured` if any are missing so t
 Scan photos are written to:
 
 ```
-user_uploads/{uid}/scans/{scanId}/{pose}.jpg
+scans/{uid}/{scanId}/{pose}.jpg
 ```
 
 Storage rules in `storage.rules` allow owner-only access to this path (plus `user_uploads/{uid}/debug/*` for diagnostics).

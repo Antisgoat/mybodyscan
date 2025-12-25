@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getUploadStallReason, validateScanUploadInputs } from "./scan";
+import { getUploadStallReason, validateScanUploadInputs, buildScanUploadPlan } from "./scan";
 
 describe("scan flow helpers", () => {
   it("detects stalls correctly", () => {
@@ -49,10 +49,10 @@ describe("scan flow helpers", () => {
     const left = new File([new Blob(["left-bytes"])], "left.jpg", { type: "image/jpeg" });
     const right = new File([new Blob(["right-bytes"])], "right.jpg", { type: "image/jpeg" });
     const paths = {
-      front: "user_uploads/u1/scans/s1/front.jpg",
-      back: "user_uploads/u1/scans/s1/back.jpg",
-      left: "user_uploads/u1/scans/s1/left.jpg",
-      right: "user_uploads/u1/scans/s1/right.jpg",
+      front: "scans/u1/s1/front.jpg",
+      back: "scans/u1/s1/back.jpg",
+      left: "scans/u1/s1/left.jpg",
+      right: "scans/u1/s1/right.jpg",
     };
     const result = validateScanUploadInputs({
       storagePaths: paths,
@@ -68,6 +68,29 @@ describe("scan flow helpers", () => {
       ]);
       const expectedBytes = front.size + back.size + left.size + right.size;
       expect(result.data.totalBytes).toBe(expectedBytes);
+    }
+  });
+
+  it("builds a filtered upload plan without throwing", () => {
+    const front = new File([new Blob(["front-bytes"])], "front.jpg", { type: "image/jpeg" });
+    const back = new File([new Blob(["back-bytes"])], "back.jpg", { type: "image/jpeg" });
+    const left = new File([new Blob(["left-bytes"])], "left.jpg", { type: "image/jpeg" });
+    const right = new File([new Blob(["right-bytes"])], "right.jpg", { type: "image/jpeg" });
+    const paths = {
+      front: "scans/u1/s1/front.jpg",
+      back: "scans/u1/s1/back.jpg",
+      left: "scans/u1/s1/left.jpg",
+      right: "scans/u1/s1/right.jpg",
+    };
+    const result = buildScanUploadPlan({
+      storagePaths: paths,
+      photos: { front, back, left, right },
+      posesToUpload: ["front", "right"],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.activeTargets.map((t) => t.pose)).toEqual(["front", "right"]);
+      expect(result.data.activeBytes).toBe(front.size + right.size);
     }
   });
 });

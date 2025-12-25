@@ -5,8 +5,7 @@
  * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
  */
 import { apiFetch, ApiError } from "@/lib/http";
-import { resolveFunctionUrl } from "@/lib/api/functionsBase";
-import { auth, db, getFirebaseStorage } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,
@@ -15,6 +14,7 @@ import {
 } from "@/features/scan/resizeImage";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
+import { isIOSSafari } from "@/lib/isIOSWeb";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -153,15 +153,21 @@ export type SubmitScanResponse = {
 };
 
 function startUrl(): string {
-  return resolveFunctionUrl("VITE_SCAN_START_URL", "startScanSession");
+  const env = (import.meta as any).env || {};
+  const override = typeof env?.VITE_SCAN_START_URL === "string" ? env.VITE_SCAN_START_URL.trim() : "";
+  return override || "/api/scan/start";
 }
 
 function submitUrl(): string {
-  return resolveFunctionUrl("VITE_SCAN_SUBMIT_URL", "submitScan");
+  const env = (import.meta as any).env || {};
+  const override = typeof env?.VITE_SCAN_SUBMIT_URL === "string" ? env.VITE_SCAN_SUBMIT_URL.trim() : "";
+  return override || "/api/scan/submit";
 }
 
 function deleteUrl(): string {
-  return resolveFunctionUrl("VITE_SCAN_DELETE_URL", "deleteScan");
+  const env = (import.meta as any).env || {};
+  const override = typeof env?.VITE_SCAN_DELETE_URL === "string" ? env.VITE_SCAN_DELETE_URL.trim() : "";
+  return override || "/api/scan/delete";
 }
 
 export type ScanError = {
@@ -465,6 +471,36 @@ export function validateScanUploadInputs(params: {
   return { ok: true, data: { uploadTargets, totalBytes } };
 }
 
+/**
+ * Pure helper used by `submitScanClient`:
+ * - Builds a stable upload plan (targets + total bytes) for the chosen poses.
+ * - Exists to prevent regressions like "Can't find variable: uploadTargets" from ever shipping again.
+ */
+export function buildScanUploadPlan(params: {
+  storagePaths: { front: string; back: string; left: string; right: string };
+  photos: { front: File; back: File; left: File; right: File };
+  posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
+}): ScanApiResult<{
+  uploadTargets: UploadTarget[];
+  activeTargets: UploadTarget[];
+  totalBytes: number;
+  activeBytes: number;
+}> {
+  const validated = validateScanUploadInputs({
+    storagePaths: params.storagePaths,
+    photos: params.photos,
+  });
+  if (!validated.ok) return validated;
+  const uploadTargets = validated.data.uploadTargets;
+  const totalBytes = validated.data.totalBytes;
+  const posesToUpload = params.posesToUpload?.length ? params.posesToUpload : null;
+  const activeTargets = posesToUpload
+    ? uploadTargets.filter((t) => posesToUpload.includes(t.pose))
+    : uploadTargets;
+  const activeBytes = activeTargets.reduce((sum, t) => sum + (t.size || 0), 0);
+  return { ok: true, data: { uploadTargets, activeTargets, totalBytes, activeBytes } };
+}
+
 function clampProgressFraction(value: number): number {
   if (!Number.isFinite(value)) return 0;
   if (value <= 0) return 0;
@@ -519,6 +555,7 @@ export async function submitScanClient(
     overallTimeoutMs?: number;
     stallTimeoutMs?: number;
     perPhotoTimeoutMs?: number;
+    maxConcurrentUploads?: number;
   }
 ): Promise<ScanApiResult<SubmitScanResponse>> {
   const user = auth.currentUser;
@@ -551,14 +588,15 @@ export async function submitScanClient(
     };
   }
 
-  const validated = validateScanUploadInputs({
+  const plan = buildScanUploadPlan({
     storagePaths: params.storagePaths,
     photos: params.photos,
+    posesToUpload,
   });
-  if (!validated.ok) {
-    return { ok: false, error: validated.error };
+  if (!plan.ok) {
+    return { ok: false, error: plan.error };
   }
-  const validatedTargets = validated.data?.uploadTargets ?? [];
+  const validatedTargets = plan.data?.uploadTargets ?? [];
   if (!validatedTargets.length) {
     return {
       ok: false,
@@ -645,7 +683,7 @@ export async function submitScanClient(
   const stallTimeoutMs =
     typeof options?.stallTimeoutMs === "number" && Number.isFinite(options.stallTimeoutMs)
       ? Math.max(1_000, options.stallTimeoutMs)
-      : 12_000;
+      : 10_000;
   const perPhotoTimeoutMs =
     typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
       ? Math.max(20_000, options.perPhotoTimeoutMs)
@@ -656,7 +694,6 @@ export async function submitScanClient(
     else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
 
-  const storage = getFirebaseStorage();
   const maxAttempts = 4;
   const activeTargets = posesToUpload.length
     ? uploadTargets.filter((target) => posesToUpload.includes(target.pose))
@@ -736,11 +773,10 @@ export async function submitScanClient(
       try {
         const startedAt = Date.now();
         const result = await uploadPhoto({
-          storage,
-          path: target.path,
-          file: target.file,
+          uid: user.uid,
           scanId: params.scanId,
           pose,
+          file: target.file,
           correlationId: scanCorrelationId,
           customMetadata: {
             correlationId: scanCorrelationId,
@@ -837,7 +873,14 @@ export async function submitScanClient(
     }
     if (posesToUpload.length) {
       const queue = [...posesToUpload];
-      const maxConcurrentUploads = Math.min(2, posesToUpload.length);
+      // Safari (iOS) is the most sensitive to concurrent uploads; default to 1.
+      const configuredConcurrency =
+        typeof options?.maxConcurrentUploads === "number" && Number.isFinite(options.maxConcurrentUploads)
+          ? Math.max(1, Math.floor(options.maxConcurrentUploads))
+          : isIOSSafari()
+            ? 1
+            : 2;
+      const maxConcurrentUploads = Math.min(configuredConcurrency, posesToUpload.length);
       const workers = Array.from({ length: maxConcurrentUploads }).map(async () => {
         while (queue.length > 0) {
           const next = queue.shift();

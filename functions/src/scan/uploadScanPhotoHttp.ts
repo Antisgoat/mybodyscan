@@ -4,12 +4,10 @@ import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request, Response } from "firebase-functions/v2/https";
 import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
-import { getEngineConfigOrThrow } from "./engineConfig.js";
-import { openAiSecretParam } from "../openai/keys.js";
 import { buildScanPhotoPath, isScanPose } from "./paths.js";
 
 const storage = getStorage();
-const MAX_BYTES = 6 * 1024 * 1024;
+const MAX_BYTES = 15 * 1024 * 1024;
 
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -70,6 +68,7 @@ async function parseMultipart(req: Request): Promise<{
   fields: Record<string, string>;
   file: Buffer | null;
   fileSize: number;
+  fileContentType?: string;
 }> {
   const contentType = String(req.headers["content-type"] || "");
   const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
@@ -83,6 +82,7 @@ async function parseMultipart(req: Request): Promise<{
   const fields: Record<string, string> = {};
   let fileBuffer: Buffer | null = null;
   let fileSize = 0;
+  let fileContentType: string | undefined = undefined;
 
   for (const part of parts) {
     if (!part.length) continue;
@@ -102,22 +102,27 @@ async function parseMultipart(req: Request): Promise<{
     const disposition = headers["content-disposition"] || "";
     const name = parseMultipartField(disposition, "name");
     if (!name) continue;
-    if (name === "file") {
+    if (name === "file" || name === "image") {
       fileSize = body.length;
       if (fileSize > MAX_BYTES) throw new Error("file_too_large");
       fileBuffer = body;
+      const ct = headers["content-type"];
+      if (typeof ct === "string" && ct.trim()) {
+        fileContentType = ct.trim().toLowerCase();
+      }
     } else {
       fields[name] = body.toString("utf8").trim();
     }
   }
 
-  return { fields, file: fileBuffer, fileSize };
+  return { fields, file: fileBuffer, fileSize, fileContentType };
 }
 
 async function parseOctetStream(req: Request): Promise<{
   fields: Record<string, string>;
   file: Buffer | null;
   fileSize: number;
+  fileContentType?: string;
 }> {
   const rawBody = (req as any).rawBody;
   const file = rawBody ? Buffer.from(rawBody) : null;
@@ -134,11 +139,17 @@ async function parseOctetStream(req: Request): Promise<{
   const headerView = toTrimmedString(req.get("x-scan-view"));
   if (!fields.scanId && headerScanId) fields.scanId = headerScanId;
   if (!fields.view && headerView) fields.view = headerView;
-  return { fields, file, fileSize };
+  const fileContentTypeHeader = toTrimmedString(req.headers["content-type"]);
+  return {
+    fields,
+    file,
+    fileSize,
+    fileContentType: fileContentTypeHeader ? fileContentTypeHeader.toLowerCase() : undefined,
+  };
 }
 
 export const uploadScanPhotoHttp = onRequest(
-  { region: "us-central1", invoker: "public", concurrency: 40, secrets: [openAiSecretParam] },
+  { region: "us-central1", invoker: "public", concurrency: 40 },
   async (req: Request, res: Response) => {
     allowCorsAndOptionalAppCheck(req, res, () => undefined);
     if (req.method === "OPTIONS") {
@@ -155,7 +166,6 @@ export const uploadScanPhotoHttp = onRequest(
       }
 
       const uid = await requireAuth(req);
-      getEngineConfigOrThrow(correlationId);
       const contentType = String(req.headers["content-type"] || "");
       const parsed = contentType.includes("multipart/form-data")
         ? await parseMultipart(req)
@@ -189,6 +199,13 @@ export const uploadScanPhotoHttp = onRequest(
         res
           .status(413)
           .json(buildError("invalid-argument", "File too large"));
+        return;
+      }
+      const fileType = String(parsed.fileContentType || "").toLowerCase();
+      if (fileType && !fileType.includes("jpeg") && !fileType.includes("jpg")) {
+        res
+          .status(415)
+          .json(buildError("invalid-argument", "Photos must be JPEG images."));
         return;
       }
 

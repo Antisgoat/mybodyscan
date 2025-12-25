@@ -14,8 +14,8 @@ Even very small JPEGs can enter a `paused` state forever with no progress events
 
 We now support **dual-path uploads**:
 
-1. **Backend HTTP upload (default for iOS WebKit)**
-   - `uploadScanPhotoHttp` accepts bytes via `fetch()`
+1. **Backend HTTP upload (fallback / “always works”)**
+   - `uploadScanPhotoHttp` accepts bytes via same-origin `POST /api/scan/upload`
    - Auth required via Firebase ID token
    - Function writes to Cloud Storage server-side
 
@@ -24,7 +24,7 @@ We now support **dual-path uploads**:
    - Still used on stable desktop browsers
    - Auto-fallback to the HTTP path if stalled/paused/timeout
 
-On iOS Safari/WebKit we prefer the function upload path, and only fall back to Storage if the function path fails.
+On iOS Safari/WebKit we default concurrency to 1 and auto-fallback to the HTTP path if the SDK stalls.
 
 ## Debugging uploads (?debug=1)
 
@@ -60,6 +60,6 @@ The client sends the ID to `uploadScanPhotoHttp`, and the function logs it in Cl
   - `https://mybodyscanapp.com`
   - `https://mybodyscan-f3daf.web.app`
   - `https://mybodyscan-f3daf.firebaseapp.com`
-- Verify Storage rules allow writes to `user_uploads/{uid}/scans/{scanId}/{view}.jpg`
+- Verify Storage rules allow writes to `scans/{uid}/{scanId}/{pose}.jpg`
 - Confirm updatedAt is written during uploads (client writes per pose)
 

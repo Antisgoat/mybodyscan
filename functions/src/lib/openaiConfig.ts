@@ -39,10 +39,13 @@ function resolveModel(): string {
 
 function resolveBaseUrl(): string {
   const envBase = (process.env.OPENAI_BASE_URL || "").trim();
-  if (envBase) return envBase.replace(/\/+$/, "");
+  if (envBase) {
+    const trimmed = envBase.replace(/\/+$/, "");
+    return trimmed === "https://api.openai.com" ? "https://api.openai.com/v1" : trimmed;
+  }
   const paramBase = readParam(openAiBaseUrlParam);
-  const baseUrl = paramBase ? paramBase.replace(/\/+$/, "") : "https://api.openai.com";
-  return baseUrl;
+  const normalized = paramBase ? paramBase.replace(/\/+$/, "") : "https://api.openai.com/v1";
+  return normalized === "https://api.openai.com" ? "https://api.openai.com/v1" : normalized;
 }
 
 function resolveProvider(): string {

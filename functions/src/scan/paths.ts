@@ -26,17 +26,19 @@ export function buildScanPhotoPath(params: {
   assertScanPose(pose);
   if (!uid) throw new Error("Missing uid for scan photo path.");
   if (!scanId) throw new Error("Missing scanId for scan photo path.");
-  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
+  // Canonical scan photo uploads:
+  // scans/{uid}/{scanId}/{pose}.jpg
+  return `scans/${uid}/${scanId}/${pose}.jpg`;
 }
 
 export function scanPhotosPrefix(uid: string): string {
   const trimmed = String(uid || "").trim();
-  return trimmed ? `user_uploads/${trimmed}/scans/` : "user_uploads//scans/";
+  return trimmed ? `scans/${trimmed}/` : "scans//";
 }
 
 export function scanScanIdPrefix(params: { uid: string; scanId: string }): string {
   const uid = String(params.uid || "").trim();
   const scanId = String(params.scanId || "").trim();
-  return `user_uploads/${uid}/scans/${scanId}/`;
+  return `scans/${uid}/${scanId}/`;
 }
 
