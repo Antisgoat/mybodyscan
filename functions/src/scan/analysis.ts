@@ -15,7 +15,7 @@ const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
-const OPENAI_TIMEOUT_MS = 60000;
+const OPENAI_TIMEOUT_MS = 45_000;
 
 type Pose = (typeof POSES)[number];
 

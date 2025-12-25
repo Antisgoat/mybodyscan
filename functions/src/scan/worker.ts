@@ -24,7 +24,7 @@ const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 const HEARTBEAT_MS = 25_000;
-const ANALYSIS_TIMEOUT_MS = 60_000;
+const ANALYSIS_TIMEOUT_MS = 45_000;
 
 function toMillis(value: any): number | null {
   if (!value) return null;
