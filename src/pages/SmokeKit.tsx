@@ -571,7 +571,7 @@ export default function SmokeKit() {
     }
     setScanStart({ status: "running" });
     try {
-      const json = await apiFetchJson("/scan/start", {
+      const json = await apiFetchJson("/api/scan/start", {
         method: "POST",
         body: JSON.stringify({ smoke: true }),
       });
@@ -609,7 +609,7 @@ export default function SmokeKit() {
     }
     setScanSubmit({ status: "running" });
     try {
-      const json = await apiFetchJson("/scan/submit", {
+      const json = await apiFetchJson("/api/scan/submit", {
         method: "POST",
         body: JSON.stringify({
           scanId: scanStart.scanId,

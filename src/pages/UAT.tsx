@@ -761,7 +761,7 @@ const UATPage = () => {
 
   const handleScanStart = useCallback(async () => {
     await scanStartProbe.run(async () => {
-      const result = await runApi("/scan/start", {
+      const result = await runApi("/api/scan/start", {
         method: "POST",
         body: JSON.stringify({ source: "uat" }),
       });
@@ -841,7 +841,7 @@ const UATPage = () => {
         });
       }
       const idempotencyKey = `uat-${scanSession.scanId}`;
-      const result = await runApi("/scan/submit", {
+      const result = await runApi("/api/scan/submit", {
         method: "POST",
         body: JSON.stringify({
           scanId: scanSession.scanId,
@@ -876,7 +876,7 @@ const UATPage = () => {
         });
       }
       const idempotencyKey = `uat-${scanSession.scanId}`;
-      const result = await runApi("/scan/submit", {
+      const result = await runApi("/api/scan/submit", {
         method: "POST",
         body: JSON.stringify({
           scanId: scanSession.scanId,
