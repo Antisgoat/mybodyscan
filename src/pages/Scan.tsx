@@ -1552,6 +1552,12 @@ export default function ScanPage() {
                 </span>
               </div>
               <div>
+                <span className="font-medium">upload strategy:</span>{" "}
+                <span className="text-muted-foreground">
+                  {persistedScan?.uploadStrategy ?? "—"}
+                </span>
+              </div>
+              <div>
                 <span className="font-medium">firebase:</span>
                 <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                   {(() => {

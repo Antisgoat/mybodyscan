@@ -1005,9 +1005,27 @@ export async function submitScanClient(
       posesToUpload.length === 4 &&
       posesToUpload.every((p) => p === "front" || p === "back" || p === "left" || p === "right");
     if (isFullUpload) {
+      // Note: the UI persists this in local scan pipeline storage for debug screenshots.
+      try {
+        if (typeof window !== "undefined") {
+          // Optional import boundary: do not hard-require this in non-browser contexts.
+          const mod = await import("@/lib/scanPipeline");
+          mod.updateScanPipelineState(params.scanId, { uploadStrategy: "multipart" } as any);
+        }
+      } catch {
+        // ignore
+      }
       const multipart = await uploadAllViaMultipart();
       clearTimeout(timeoutId);
       return multipart;
+    }
+    try {
+      if (typeof window !== "undefined") {
+        const mod = await import("@/lib/scanPipeline");
+        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "per_photo" } as any);
+      }
+    } catch {
+      // ignore
     }
     for (const pose of posesToUpload) await uploadPose(pose);
   } catch (err: any) {

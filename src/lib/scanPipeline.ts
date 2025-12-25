@@ -31,6 +31,12 @@ export type ScanPipelineState = {
   requestId?: string;
   correlationId?: string;
   storagePaths?: Record<string, string>;
+  /**
+   * Upload strategy used for the most recent attempt.
+   * - "multipart": single function request with 4 photos
+   * - "per_photo": sequential per-pose uploads
+   */
+  uploadStrategy?: "multipart" | "per_photo";
   lastError?: ScanPipelineError | null;
   lastServerStatus?: string | null;
   lastServerUpdatedAt?: number | null;
