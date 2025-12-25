@@ -6,8 +6,23 @@ import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
 import { buildScanPhotoPath, isScanPose } from "./paths.js";
 
-const storage = getStorage();
 const MAX_BYTES = 15 * 1024 * 1024;
+
+type UploadScanPhotoDeps = {
+  storage: ReturnType<typeof getStorage>;
+  requireAuth: typeof requireAuth;
+  allowCorsAndOptionalAppCheck: typeof allowCorsAndOptionalAppCheck;
+  randomUUID: () => string;
+  nowIso: () => string;
+};
+
+const DEFAULT_DEPS: UploadScanPhotoDeps = {
+  storage: getStorage(),
+  requireAuth,
+  allowCorsAndOptionalAppCheck,
+  randomUUID,
+  nowIso: () => new Date().toISOString(),
+};
 
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -150,22 +165,29 @@ async function parseOctetStream(req: Request): Promise<{
 
 export const uploadScanPhotoHttp = onRequest(
   { region: "us-central1", invoker: "public", concurrency: 40 },
-  async (req: Request, res: Response) => {
-    allowCorsAndOptionalAppCheck(req, res, () => undefined);
+  async (req: Request, res: Response) => handleUploadScanPhotoHttp(req, res)
+);
+
+export async function handleUploadScanPhotoHttp(
+  req: Request,
+  res: Response,
+  deps: UploadScanPhotoDeps = DEFAULT_DEPS
+): Promise<void> {
+  deps.allowCorsAndOptionalAppCheck(req, res, () => undefined);
     if (req.method === "OPTIONS") {
       res.status(204).end();
       return;
     }
     const startedAt = Date.now();
     const correlationId =
-      toTrimmedString(req.get("x-correlation-id")) || randomUUID();
+      toTrimmedString(req.get("x-correlation-id")) || deps.randomUUID();
     try {
       if (req.method !== "POST") {
         res.status(405).json(buildError("method_not_allowed", "Method not allowed"));
         return;
       }
 
-      const uid = await requireAuth(req);
+      const uid = await deps.requireAuth(req);
       const contentType = String(req.headers["content-type"] || "");
       const parsed = contentType.includes("multipart/form-data")
         ? await parseMultipart(req)
@@ -209,12 +231,12 @@ export const uploadScanPhotoHttp = onRequest(
         return;
       }
 
-      const bucket = storage.bucket();
+      const bucket = deps.storage.bucket();
       const path = buildScanPhotoPath({ uid, scanId, pose: view });
-      const uploadedAt = new Date().toISOString();
+      const uploadedAt = deps.nowIso();
       // Ensure Firebase web clients can resolve `getDownloadURL()` for Admin-written objects.
       // (Firebase stores download tokens in custom metadata under `firebaseStorageDownloadTokens`.)
-      const downloadToken = randomUUID();
+      const downloadToken = deps.randomUUID();
 
       const object = bucket.file(path);
       await object.save(file, {
@@ -291,5 +313,4 @@ export const uploadScanPhotoHttp = onRequest(
       });
       res.status(500).json(buildError("internal", "Upload failed"));
     }
-  }
-);
+}

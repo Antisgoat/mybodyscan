@@ -4,7 +4,17 @@ import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
 import { buildScanPhotoPath, isScanPose } from "./paths.js";
 
-const storage = getStorage();
+type GetScanPhotoDeps = {
+  storage: ReturnType<typeof getStorage>;
+  requireAuth: typeof requireAuth;
+  allowCorsAndOptionalAppCheck: typeof allowCorsAndOptionalAppCheck;
+};
+
+const DEFAULT_DEPS: GetScanPhotoDeps = {
+  storage: getStorage(),
+  requireAuth,
+  allowCorsAndOptionalAppCheck,
+};
 
 function toTrimmed(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -27,8 +37,15 @@ function statusFromCode(code: string): number {
  */
 export const getScanPhotoHttp = onRequest(
   { region: "us-central1", invoker: "public", concurrency: 80 },
-  async (req: Request, res: Response) => {
-    allowCorsAndOptionalAppCheck(req, res, () => undefined);
+  async (req: Request, res: Response) => handleGetScanPhotoHttp(req, res)
+);
+
+export async function handleGetScanPhotoHttp(
+  req: Request,
+  res: Response,
+  deps: GetScanPhotoDeps = DEFAULT_DEPS
+): Promise<void> {
+  deps.allowCorsAndOptionalAppCheck(req, res, () => undefined);
     if (req.method === "OPTIONS") {
       res.status(204).end();
       return;
@@ -52,9 +69,9 @@ export const getScanPhotoHttp = onRequest(
       }
 
       // Auth required by default. For export flows, we also allow a download token + uid.
-      const uid = token && uidParam ? uidParam : await requireAuth(req);
+      const uid = token && uidParam ? uidParam : await deps.requireAuth(req);
 
-      const bucket = storage.bucket();
+      const bucket = deps.storage.bucket();
       const path = buildScanPhotoPath({ uid, scanId, pose });
       const file = bucket.file(path);
       const [exists] = await file.exists();
@@ -95,6 +112,5 @@ export const getScanPhotoHttp = onRequest(
       }
       res.status(500).end();
     }
-  }
-);
+}
 
