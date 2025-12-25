@@ -366,12 +366,14 @@ export async function handleSubmitScanMultipart(
       EXPECTED_POSES.map(async (pose) => {
         const file = mappedFiles[pose];
         const object = bucket.file(photoPaths[pose]);
+        const downloadToken = randomUUID();
         await object.save(file.buffer, {
           resumable: false,
           contentType: "image/jpeg",
           cacheControl: "public,max-age=31536000",
           metadata: {
             metadata: {
+              firebaseStorageDownloadTokens: downloadToken,
               uid,
               scanId,
               pose,

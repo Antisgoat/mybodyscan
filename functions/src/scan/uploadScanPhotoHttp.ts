@@ -212,6 +212,9 @@ export const uploadScanPhotoHttp = onRequest(
       const bucket = storage.bucket();
       const path = buildScanPhotoPath({ uid, scanId, pose: view });
       const uploadedAt = new Date().toISOString();
+      // Ensure Firebase web clients can resolve `getDownloadURL()` for Admin-written objects.
+      // (Firebase stores download tokens in custom metadata under `firebaseStorageDownloadTokens`.)
+      const downloadToken = randomUUID();
 
       const object = bucket.file(path);
       await object.save(file, {
@@ -220,6 +223,7 @@ export const uploadScanPhotoHttp = onRequest(
         cacheControl: "public,max-age=31536000",
         metadata: {
           metadata: {
+            firebaseStorageDownloadTokens: downloadToken,
             uid,
             scanId,
             view,
