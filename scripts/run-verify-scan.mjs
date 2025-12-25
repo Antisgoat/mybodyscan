@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 
 const root = new URL("..", import.meta.url);
 const functionsEnvPath = new URL("../functions/.env.local", import.meta.url);
+const functionsSecretPath = new URL("../functions/.secret.local", import.meta.url);
 
 // Safe, non-secret defaults for emulators.
 // - OPENAI_BASE_URL is set to a dead localhost port so the worker fails fast and uses the fallback plan,
@@ -26,8 +27,13 @@ const envLines = [
   "",
 ];
 
-// Create/overwrite temporary env file.
+// Create/overwrite temporary env + secret files.
 writeFileSync(functionsEnvPath, envLines.join("\n"), "utf8");
+writeFileSync(
+  functionsSecretPath,
+  `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || "test-openai-key"}\n`,
+  "utf8"
+);
 
 try {
   const firebaseBin = new URL("../node_modules/.bin/firebase", import.meta.url);
@@ -58,6 +64,9 @@ try {
   // Cleanup the temp env file so it doesn't pollute real local dev configs.
   if (existsSync(functionsEnvPath)) {
     rmSync(functionsEnvPath);
+  }
+  if (existsSync(functionsSecretPath)) {
+    rmSync(functionsSecretPath);
   }
 }
 
