@@ -317,6 +317,25 @@ export const processQueuedScan = onDocumentWritten(
         : null;
       analysis.estimate.leanMassKg = leanMassKg;
       analysis.estimate.fatMassKg = fatMassKg;
+      const bfPoint = Number.isFinite(analysis.estimate.bodyFatPercent)
+        ? analysis.estimate.bodyFatPercent
+        : null;
+      const bfRange =
+        bfPoint != null
+          ? {
+              min: Math.max(3, Number((bfPoint - 3).toFixed(1))),
+              max: Math.min(60, Number((bfPoint + 3).toFixed(1))),
+              point: Number(bfPoint.toFixed(1)),
+            }
+          : null;
+
+      const improvementAreas =
+        Array.isArray(analysis.estimate.keyObservations) && analysis.estimate.keyObservations.length
+          ? analysis.estimate.keyObservations
+          : Array.isArray(analysis.estimate.goalRecommendations) &&
+              analysis.estimate.goalRecommendations.length
+            ? analysis.estimate.goalRecommendations
+            : analysis.recommendations;
 
       const nutritionPlan = (() => {
         const derived = deriveNutritionPlan({
@@ -353,6 +372,9 @@ export const processQueuedScan = onDocumentWritten(
           recommendations: analysis.recommendations.length
             ? analysis.recommendations
             : null,
+          improvementAreas: improvementAreas?.length ? improvementAreas : null,
+          disclaimer: "Estimates only. Not medical advice.",
+          workoutProgram: analysis.workoutPlan,
           planMarkdown: buildPlanMarkdown({
             estimate: analysis.estimate,
             workoutPlan: analysis.workoutPlan,
@@ -365,6 +387,7 @@ export const processQueuedScan = onDocumentWritten(
             leanMassKg,
             fatMassKg,
             bmi: analysis.estimate.bmi,
+            bodyFatEstimate: bfRange,
           },
           usedFallback,
           errorMessage: null,

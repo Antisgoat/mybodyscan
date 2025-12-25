@@ -101,6 +101,8 @@ export type ScanDocument = {
   processingAttemptId?: string | null;
   submitRequestId?: string | null;
   recommendations?: string[] | null;
+  improvementAreas?: string[] | null;
+  disclaimer?: string | null;
   planMarkdown?: string | null;
   metrics?: Record<string, unknown> | null;
   usedFallback?: boolean | null;
@@ -116,6 +118,7 @@ export type ScanDocument = {
   };
   estimate: ScanEstimate | null;
   workoutPlan: WorkoutPlan | null;
+  workoutProgram?: WorkoutPlan | null;
   nutritionPlan: NutritionPlan | null;
   note?: string;
 };
@@ -266,6 +269,16 @@ function toScanDocument(
           .filter((v: string) => v.length > 0)
           .slice(0, 8) as string[])
       : null,
+    improvementAreas: Array.isArray((data as any).improvementAreas)
+      ? ((data as any).improvementAreas
+          .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+          .filter((v: string) => v.length > 0)
+          .slice(0, 10) as string[])
+      : null,
+    disclaimer:
+      typeof (data as any).disclaimer === "string" && (data as any).disclaimer.trim()
+        ? ((data as any).disclaimer as string).trim().slice(0, 280)
+        : null,
     planMarkdown:
       typeof (data as any).planMarkdown === "string"
         ? ((data as any).planMarkdown as string)
@@ -294,6 +307,7 @@ function toScanDocument(
       } satisfies ScanDocument["input"]),
     estimate: (data.estimate as ScanEstimate | null) ?? null,
     workoutPlan: (data.workoutPlan as WorkoutPlan | null) ?? null,
+    workoutProgram: ((data as any).workoutProgram as WorkoutPlan | null) ?? null,
     nutritionPlan: (data.nutritionPlan as NutritionPlan | null) ?? null,
     note: typeof data.note === "string" ? data.note : undefined,
   };
