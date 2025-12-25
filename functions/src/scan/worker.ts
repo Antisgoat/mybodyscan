@@ -23,7 +23,8 @@ import { openAiSecretParam } from "../openai/keys.js";
 const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
-const HEARTBEAT_MS = 25_000;
+// Faster heartbeats reduce “stuck” feelings on iOS Safari and keep progress fresh.
+const HEARTBEAT_MS = 10_000;
 const ANALYSIS_TIMEOUT_MS = 90_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {

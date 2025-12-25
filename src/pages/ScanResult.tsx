@@ -227,7 +227,9 @@ export default function ScanResultPage() {
       }
       const last = lastMeaningfulUpdateRef.current || 0;
       const staleMs = Date.now() - last;
-      const shouldPoll = snapshotError != null || staleMs >= 8000;
+      // Consider Firestore “stalled” only after a reasonable window; the backend heartbeat
+      // updates roughly every ~10s during processing.
+      const shouldPoll = snapshotError != null || staleMs >= 20_000;
       if (!shouldPoll) {
         scheduleNext(1500);
         return;
