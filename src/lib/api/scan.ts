@@ -768,7 +768,7 @@ export async function submitScanClient(
         status: attempt > 1 ? "retrying" : "uploading",
         attempt,
         correlationId: scanCorrelationId,
-        uploadMethod: "storage",
+        uploadMethod: "http",
       });
       try {
         const startedAt = Date.now();
@@ -801,7 +801,7 @@ export async function submitScanClient(
               taskState: progress.taskState,
               lastProgressAt: progress.lastProgressAt,
               correlationId: scanCorrelationId,
-              uploadMethod: "storage",
+              uploadMethod: "http",
             });
             emitOverallProgress(pose, progress.bytesTransferred > 0);
           },
@@ -839,7 +839,7 @@ export async function submitScanClient(
               : "Retrying upload…",
             nextRetryDelayMs: delayMs,
             correlationId: scanCorrelationId,
-            uploadMethod: "storage",
+            uploadMethod: "http",
           });
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
@@ -853,7 +853,7 @@ export async function submitScanClient(
               ? err.message
               : "Upload failed.",
           correlationId: scanCorrelationId,
-          uploadMethod: "storage",
+          uploadMethod: "http",
           lastUploadError: { code: err?.code, message: err?.message },
         } as any);
         throw err;
@@ -866,7 +866,7 @@ export async function submitScanClient(
     try {
       if (typeof window !== "undefined") {
         const mod = await import("@/lib/scanPipeline");
-        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "storage" } as any);
+        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "http" } as any);
       }
     } catch {
       // ignore

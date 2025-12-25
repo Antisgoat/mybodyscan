@@ -5,7 +5,6 @@ import { BUILD } from "@/lib/build";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { db, getFirebaseStorage, getFirebaseConfig } from "@/lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import {
   cameraReadyOnThisDevice,
   hasGetUserMedia,
@@ -96,28 +95,7 @@ export default function SystemCheckPage() {
         });
       }
 
-      // Storage write/read: small blob under user_uploads/{uid}/debug/*
-      try {
-        const storage = getFirebaseStorage();
-        const bytes = new Uint8Array(1024);
-        bytes.fill(0x7a); // 'z'
-        const blob = new Blob([bytes], { type: "text/plain" });
-        const path = `user_uploads/${user.uid}/debug/system-check-${Date.now()}.txt`;
-        const r = ref(storage, path);
-        const result = await uploadBytes(r, blob, { contentType: "text/plain" });
-        const url = await getDownloadURL(result.ref);
-        next.push({
-          name: "Storage write/read",
-          ok: Boolean(url),
-          detail: `ok · ${path}`,
-        });
-      } catch (err: any) {
-        next.push({
-          name: "Storage write/read",
-          ok: false,
-          detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
-        });
-      }
+      // Storage SDK checks removed: keep browser traffic same-origin only.
 
       // Fallback upload via function to verify CORS-safe path
       try {

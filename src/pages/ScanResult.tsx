@@ -25,8 +25,7 @@ import { useAuthUser } from "@/lib/auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase";
-import { getDownloadURL, ref } from "firebase/storage";
+import { db } from "@/lib/firebase";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import {
   describeScanPipelineStage,
@@ -334,17 +333,11 @@ export default function ScanResultPage() {
         setPhotoUrls({});
         return;
       }
-      const resolved = await Promise.all(
-        entries.map(async ([pose, path]) => {
-          try {
-            const url = await getDownloadURL(ref(storage, path));
-            return [pose, url] as const;
-          } catch (err) {
-            console.warn("scanResult.photo_url_failed", { pose, path });
-            return [pose, ""] as const;
-          }
-        })
-      );
+      // Same-origin photo URLs (avoid `firebasestorage.googleapis.com` in the browser).
+      const resolved = entries.map(([pose]) => {
+        const url = `/api/scan/photo?${new URLSearchParams({ scanId, pose }).toString()}`;
+        return [pose, url] as const;
+      });
       if (cancelled) return;
       const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> =
         {};

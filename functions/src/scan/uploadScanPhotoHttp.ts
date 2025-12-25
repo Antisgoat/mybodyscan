@@ -246,9 +246,13 @@ export const uploadScanPhotoHttp = onRequest(
 
       res.json({
         ok: true,
+        scanId,
+        pose: view,
         bucket: bucket.name,
         path,
+        storagePath: path,
         size,
+        sizeBytes: size,
         contentType: "image/jpeg",
         generation: meta?.generation,
         md5: meta?.md5Hash,

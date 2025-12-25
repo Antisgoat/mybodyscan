@@ -94,6 +94,13 @@
         }
       },
       {
+        "source": "/api/scan/photo",
+        "function": {
+          "functionId": "getScanPhotoHttp",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/scan/submit",
         "function": {
           "functionId": "submitScan",
