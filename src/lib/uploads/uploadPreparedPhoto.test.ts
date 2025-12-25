@@ -81,7 +81,7 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "user_uploads/u/scans/s/front.jpg",
+      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
       metadata: { contentType: "image/jpeg" },
       stallTimeoutMs: 1000,
@@ -105,7 +105,7 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "user_uploads/u/scans/s/front.jpg",
+      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
       metadata: { contentType: "image/jpeg" },
       stallTimeoutMs: 10_000,
@@ -116,7 +116,7 @@ describe("uploadPreparedPhoto", () => {
     callbacks.complete?.();
 
     await expect(promise).resolves.toEqual({
-      storagePath: "user_uploads/u/scans/s/front.jpg",
+      storagePath: "scans/u/s/front.jpg",
     });
     expect(dom.removeEventListener).toHaveBeenCalled();
   });

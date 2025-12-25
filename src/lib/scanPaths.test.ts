@@ -5,13 +5,13 @@ describe("buildScanPhotoPath", () => {
   it("builds canonical storage path", () => {
     expect(
       buildScanPhotoPath({ uid: "user123", scanId: "scanABC", view: "front" })
-    ).toBe("user_uploads/user123/scans/scanABC/front.jpg");
+    ).toBe("scans/user123/scanABC/front.jpg");
   });
 
   it("trims uid/scanId", () => {
     expect(
       buildScanPhotoPath({ uid: " user123 ", scanId: " scanABC ", view: "left" })
-    ).toBe("user_uploads/user123/scans/scanABC/left.jpg");
+    ).toBe("scans/user123/scanABC/left.jpg");
   });
 
   it("throws on missing uid", () => {

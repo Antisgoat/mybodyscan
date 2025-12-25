@@ -97,6 +97,16 @@ export interface ScanDocument {
     left: string;
     right: string;
   };
+  /**
+   * Optional richer photo refs (derived from canonical `photoPaths`).
+   * Uses Firebase Storage download tokens (NOT signed URLs).
+   */
+  photoObjects?: {
+    front: { bucket: string; path: string; downloadURL?: string | null };
+    back: { bucket: string; path: string; downloadURL?: string | null };
+    left: { bucket: string; path: string; downloadURL?: string | null };
+    right: { bucket: string; path: string; downloadURL?: string | null };
+  } | null;
   input: {
     currentWeightKg: number;
     goalWeightKg: number;

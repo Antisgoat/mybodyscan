@@ -48,32 +48,37 @@ async function deleteStorageUser(
   requestId: string
 ): Promise<void> {
   const bucket = storage.bucket();
-  const prefix = `user_uploads/${uid}/`;
+  // Canonical scan photos live under `scans/{uid}/...`.
+  // Keep `user_uploads/{uid}/debug/...` for diagnostics only (non-scan uploads).
+  const prefixes = [`scans/${uid}/`, `user_uploads/${uid}/debug/`];
   let pageToken: string | undefined;
   console.log("account_delete_storage_begin", { uid, requestId });
   try {
-    do {
-      const [files, , response] = await bucket.getFiles({
-        prefix,
-        autoPaginate: false,
-        pageToken,
-      });
-      const deletions = files.map(async (file: File) => {
-        try {
-          await file.delete();
-        } catch (err) {
-          console.warn("account_storage_delete_error", {
-            uid,
-            path: file.name,
-            requestId,
-            message: (err as Error)?.message,
-          });
-        }
-      });
-      await Promise.allSettled(deletions);
-      pageToken = (response as { nextPageToken?: string } | undefined)
-        ?.nextPageToken;
-    } while (pageToken);
+    for (const prefix of prefixes) {
+      pageToken = undefined;
+      do {
+        const [files, , response] = await bucket.getFiles({
+          prefix,
+          autoPaginate: false,
+          pageToken,
+        });
+        const deletions = files.map(async (file: File) => {
+          try {
+            await file.delete();
+          } catch (err) {
+            console.warn("account_storage_delete_error", {
+              uid,
+              path: file.name,
+              requestId,
+              message: (err as Error)?.message,
+            });
+          }
+        });
+        await Promise.allSettled(deletions);
+        pageToken = (response as { nextPageToken?: string } | undefined)
+          ?.nextPageToken;
+      } while (pageToken);
+    }
   } catch (err) {
     console.warn("account_storage_list_error", {
       uid,

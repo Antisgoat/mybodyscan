@@ -13,9 +13,9 @@ service firebase.storage {
       return request.resource.size < 15 * 1024 * 1024 && request.resource.contentType.matches('image/.+');
     }
 
-    // Canonical scan photo uploads:
-    // user_uploads/{uid}/scans/{scanId}/{view}.jpg
-    match /user_uploads/{uid}/scans/{scanId}/{filename} {
+    // Canonical scan photo uploads (CURRENT):
+    // scans/{uid}/{scanId}/{pose}.jpg
+    match /scans/{uid}/{scanId}/{filename} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validImageUpload();
       allow delete: if isOwner(uid);
@@ -26,12 +26,6 @@ service firebase.storage {
     match /user_uploads/{uid}/debug/{filename} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && request.resource.size < 256 * 1024;
-      allow delete: if isOwner(uid);
-    }
-
-    match /user_uploads/{uid}/{scanId}/{filename} {
-      allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && validImageUpload();
       allow delete: if isOwner(uid);
     }
 

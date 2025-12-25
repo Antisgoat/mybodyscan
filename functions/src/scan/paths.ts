@@ -15,7 +15,14 @@ export function assertScanPose(value: unknown): asserts value is ScanPose {
   );
 }
 
-export function buildScanPhotoPath(params: {
+/**
+ * Canonical scan photo object path.
+ *
+ * IMPORTANT: Scan photos must NOT use `user_uploads/` (legacy). The only supported
+ * location for scan images is:
+ *   scans/{uid}/{scanId}/{pose}.jpg
+ */
+export function scanObjectPath(params: {
   uid: string;
   scanId: string;
   pose: ScanPose;
@@ -26,17 +33,29 @@ export function buildScanPhotoPath(params: {
   assertScanPose(pose);
   if (!uid) throw new Error("Missing uid for scan photo path.");
   if (!scanId) throw new Error("Missing scanId for scan photo path.");
-  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
+  return `scans/${uid}/${scanId}/${pose}.jpg`;
+}
+
+/**
+ * Backwards-compatible alias (older code/tests call this name).
+ * Prefer `scanObjectPath`.
+ */
+export function buildScanPhotoPath(params: {
+  uid: string;
+  scanId: string;
+  pose: ScanPose;
+}): string {
+  return scanObjectPath(params);
 }
 
 export function scanPhotosPrefix(uid: string): string {
   const trimmed = String(uid || "").trim();
-  return trimmed ? `user_uploads/${trimmed}/scans/` : "user_uploads//scans/";
+  return trimmed ? `scans/${trimmed}/` : "scans//";
 }
 
 export function scanScanIdPrefix(params: { uid: string; scanId: string }): string {
   const uid = String(params.uid || "").trim();
   const scanId = String(params.scanId || "").trim();
-  return `user_uploads/${uid}/scans/${scanId}/`;
+  return `scans/${uid}/${scanId}/`;
 }
 
