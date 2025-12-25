@@ -43,8 +43,10 @@ export class UploadOfflineError extends Error {
  * - visibility/online/offline rechecks so iOS timer throttling can't create infinite waits
  * - proper listener cleanup
  *
- * This module is intentionally isolated so later we can swap to Capacitor-friendly transports
- * (e.g., signed URL HTTP uploads) without touching scan flow UI.
+ * NOTE (2025-12): Scan flow no longer uses Storage SDK uploads.
+ * The production scan pipeline uploads via same-origin `/api/scan/upload` only to avoid
+ * iOS Safari CORS/preflight + stalled SDK uploads. This module remains for non-scan
+ * diagnostic tooling (e.g. UAT harness) and potential future opt-in uploads.
  */
 export async function uploadPreparedPhoto(params: {
   storage: FirebaseStorage;
