@@ -2,7 +2,7 @@
  * Pipeline map — Scan upload & status:
  * - Collects 4 photos + weight inputs, converting to kg via `useUnits`.
  * - Calls `startScanSessionClient` to reserve Firestore `users/{uid}/scans/{scanId}` with `status: "pending"`.
- * - Uses the multipart `submitScanClient` endpoint to send all photos in one request, avoiding Storage CORS issues.
+ * - Preprocesses all photos client-side, then uploads via Firebase Storage resumable uploads with stall + wall-clock guards.
  * - Navigates to `/scans/{id}` once uploads finish, while `ScanResult` polls Firestore for `processing`→`complete`.
  * - On errors, surfaces actionable toasts and uses `deleteScanApi` to clean up orphaned scan docs/storage objects.
  */

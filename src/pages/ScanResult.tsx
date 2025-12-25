@@ -1141,6 +1141,32 @@ export default function ScanResultPage() {
                 </p>
               </div>
             </div>
+            {(nutritionPlan.trainingDay || nutritionPlan.restDay) && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {nutritionPlan.trainingDay ? (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Training day</p>
+                    <p className="text-sm font-medium">
+                      {Math.round(nutritionPlan.trainingDay.calories)} kcal ·{" "}
+                      {Math.round(nutritionPlan.trainingDay.proteinGrams)}P /{" "}
+                      {Math.round(nutritionPlan.trainingDay.carbsGrams)}C /{" "}
+                      {Math.round(nutritionPlan.trainingDay.fatsGrams)}F
+                    </p>
+                  </div>
+                ) : null}
+                {nutritionPlan.restDay ? (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Rest day</p>
+                    <p className="text-sm font-medium">
+                      {Math.round(nutritionPlan.restDay.calories)} kcal ·{" "}
+                      {Math.round(nutritionPlan.restDay.proteinGrams)}P /{" "}
+                      {Math.round(nutritionPlan.restDay.carbsGrams)}C /{" "}
+                      {Math.round(nutritionPlan.restDay.fatsGrams)}F
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            )}
             {nutritionPlan.sampleDay?.length ? (
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

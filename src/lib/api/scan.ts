@@ -13,9 +13,8 @@ import {
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
-import { uploadPhoto, type UploadMethod } from "@/lib/uploads/uploadPhoto";
+import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
-import { xhrUploadFormDataJson } from "@/lib/uploads/xhrUploadJson";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -61,6 +60,18 @@ export type NutritionPlan = {
   proteinGrams: number;
   carbsGrams: number;
   fatsGrams: number;
+  trainingDay?: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  };
+  restDay?: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  };
   adjustmentRules: string[];
   sampleDay: {
     mealName: string;
@@ -147,10 +158,6 @@ function startUrl(): string {
 
 function submitUrl(): string {
   return resolveFunctionUrl("VITE_SCAN_SUBMIT_URL", "submitScan");
-}
-
-function submitMultipartUrl(): string {
-  return resolveFunctionUrl("VITE_SCAN_SUBMIT_MULTIPART_URL", "submitScanMultipart");
 }
 
 function deleteUrl(): string {
@@ -332,7 +339,7 @@ function buildScanError(
     const effectiveReason = reason ?? data.reason;
     const normalizedMessage =
       effectiveReason === "engine_not_configured" || effectiveReason === "scan_engine_not_configured"
-        ? "Service unavailable: scan engine not configured."
+        ? "Scan unavailable: add OPENAI_API_KEY and OPENAI_MODEL to Cloud Functions config."
         : message;
     return {
       code: err.code ?? data.code,
@@ -551,8 +558,15 @@ export async function submitScanClient(
   if (!validated.ok) {
     return { ok: false, error: validated.error };
   }
-  let uploadTargets = validated.data.uploadTargets;
-  let totalBytes = validated.data.totalBytes;
+  const validatedTargets = validated.data?.uploadTargets ?? [];
+  if (!validatedTargets.length) {
+    return {
+      ok: false,
+      error: { message: "No upload targets available for this scan.", reason: "upload_failed" },
+    };
+  }
+  let uploadTargets = [...validatedTargets];
+  let totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
 
   const totalSteps = posesToUpload.length + 1; // preprocessing per pose + upload request
   let completedSteps = 0;
@@ -636,7 +650,6 @@ export async function submitScanClient(
     typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
       ? Math.max(20_000, options.perPhotoTimeoutMs)
       : 90_000;
-  const httpTimeoutMs = Math.max(perPhotoTimeoutMs, 60_000);
   const timeoutId = setTimeout(() => controller.abort(), overallTimeoutMs);
   if (options?.signal) {
     if (options.signal.aborted) controller.abort();
@@ -645,6 +658,10 @@ export async function submitScanClient(
 
   const storage = getFirebaseStorage();
   const maxAttempts = 4;
+  const activeTargets = posesToUpload.length
+    ? uploadTargets.filter((target) => posesToUpload.includes(target.pose))
+    : [];
+  totalBytes = activeTargets.reduce((sum, target) => sum + target.size, 0);
   const poseProgress: Record<keyof StartScanResponse["storagePaths"], number> = {
     front: 0,
     back: 0,
@@ -652,20 +669,24 @@ export async function submitScanClient(
     right: 0,
   };
   const poseByteSizes: Record<keyof StartScanResponse["storagePaths"], number> = {
-    front: uploadTargets.find((t) => t.pose === "front")?.size ?? 0,
-    back: uploadTargets.find((t) => t.pose === "back")?.size ?? 0,
-    left: uploadTargets.find((t) => t.pose === "left")?.size ?? 0,
-    right: uploadTargets.find((t) => t.pose === "right")?.size ?? 0,
+    front: 0,
+    back: 0,
+    left: 0,
+    right: 0,
   };
+  for (const target of activeTargets) {
+    poseByteSizes[target.pose] = target.size ?? 0;
+  }
   let hasBytesTransferred = false;
 
   const emitOverallProgress = (pose: keyof StartScanResponse["storagePaths"], hasBytes: boolean) => {
-    const aggregateBytes = uploadTargets.reduce((sum, target) => {
+    const aggregateBytes = activeTargets.reduce((sum, target) => {
       const fraction = poseProgress[target.pose] || 0;
       return sum + target.size * fraction;
     }, 0);
+    const total = totalBytes > 0 ? totalBytes : 1;
     const overallPercent = ensureVisibleProgress(
-      totalBytes > 0 ? aggregateBytes / totalBytes : 0,
+      aggregateBytes / total,
       hasBytesTransferred || hasBytes
     );
     const posePercent = ensureVisibleProgress(poseProgress[pose] ?? 0, hasBytesTransferred || hasBytes);
@@ -685,22 +706,6 @@ export async function submitScanClient(
     });
   };
 
-  const shouldFallbackToHttp = (err: any, bytesTransferred: number): boolean => {
-    const code = typeof err?.code === "string" ? err.code : "";
-    const message = typeof err?.message === "string" ? err.message.toLowerCase() : "";
-    if (code === "storage/unauthorized") return false;
-    if (code === "storage/invalid-argument") return false;
-    if (code === "upload_no_progress" || code === "upload_paused" || code === "upload_stalled") return true;
-    if (code === "upload_timeout") return true;
-    if (code === "storage/retry-limit-exceeded" && bytesTransferred <= 0) return true;
-    if (code === "storage/unknown" && bytesTransferred <= 0) return true;
-    if (message.includes("cors") || message.includes("preflight")) return true;
-    if (message.includes("access control")) return true;
-    if (message.includes("failed to fetch") || message.includes("network request failed")) return true;
-    if ((err as any)?.status === 0 && bytesTransferred <= 0) return true;
-    return false;
-  };
-
   const debugSimulateFreeze = (() => {
     try {
       return typeof window !== "undefined" &&
@@ -710,172 +715,12 @@ export async function submitScanClient(
     }
   })();
 
-  type SubmitMultipartResponse =
-    | {
-        ok: true;
-        scanId: string;
-        debugId?: string;
-        correlationId?: string;
-        status?: string;
-        photoPaths?: Record<string, string>;
-      }
-    | {
-        ok: false;
-        code?: string;
-        message?: string;
-        debugId?: string;
-        reason?: string;
-      };
-
-  const uploadAllViaMultipart = async (): Promise<ScanApiResult<SubmitScanResponse>> => {
-    const attemptLimit = Math.max(1, maxAttempts);
-    const url = submitMultipartUrl();
-    const posesInOrder: Array<keyof StartScanResponse["storagePaths"]> = ["front", "back", "left", "right"];
-    const totalPayloadBytes = uploadTargets.reduce((sum, t) => sum + (t.size || 0), 0) || 1;
-
-    let attempt = 0;
-    while (attempt < attemptLimit) {
-      attempt += 1;
-      try {
-        // Mark state for all photos up-front.
-        for (const pose of posesInOrder) {
-          options?.onPhotoState?.({
-            pose,
-            status: attempt > 1 ? "retrying" : "uploading",
-            attempt,
-            correlationId: scanCorrelationId,
-            uploadMethod: "http",
-          } as any);
-        }
-
-        const form = new FormData();
-        form.append("scanId", params.scanId);
-        form.append("correlationId", scanCorrelationId);
-        form.append("currentWeightKg", String(params.currentWeightKg));
-        form.append("goalWeightKg", String(params.goalWeightKg));
-        for (const pose of posesInOrder) {
-          const target = uploadTargets.find((t) => t.pose === pose);
-          if (!target) {
-            throw Object.assign(new Error(`Missing ${pose} upload target`), { pose });
-          }
-          form.append(pose, target.file, `${pose}.jpg`);
-        }
-
-        let lastOverallBytes = 0;
-        const response = await xhrUploadFormDataJson<SubmitMultipartResponse>({
-          url,
-          formData: form,
-          timeoutMs: Math.max(60_000, overallTimeoutMs),
-          stallTimeoutMs,
-          signal: controller.signal,
-          headers: { "X-Correlation-Id": scanCorrelationId },
-          onProgress: (p) => {
-            const loaded = Math.max(0, p.loaded);
-            const total = Math.max(1, p.total || totalPayloadBytes);
-            lastOverallBytes = loaded;
-
-            // Approximate “current pose” by mapping bytes into cumulative file sizes.
-            let cursor = loaded;
-            let activePose: keyof StartScanResponse["storagePaths"] = posesInOrder[0]!;
-            let poseLoaded = cursor;
-            let poseTotal = uploadTargets.find((t) => t.pose === activePose)?.size ?? 1;
-            for (const pose of posesInOrder) {
-              const size = uploadTargets.find((t) => t.pose === pose)?.size ?? 1;
-              if (cursor <= size) {
-                activePose = pose;
-                poseLoaded = cursor;
-                poseTotal = size;
-                break;
-              }
-              cursor -= size;
-            }
-            const poseFraction = poseTotal > 0 ? poseLoaded / poseTotal : 0;
-            poseProgress[activePose] = ensureVisibleProgress(poseFraction, poseLoaded > 0);
-            hasBytesTransferred = hasBytesTransferred || loaded > 0;
-
-            options?.onPhotoState?.({
-              pose: activePose,
-              status: "uploading",
-              percent: poseProgress[activePose],
-              bytesTransferred: poseLoaded,
-              totalBytes: poseTotal,
-              lastProgressAt: p.lastProgressAt,
-              correlationId: scanCorrelationId,
-              uploadMethod: "http",
-            } as any);
-
-            options?.onUploadProgress?.({
-              pose: activePose,
-              fileIndex: posesInOrder.indexOf(activePose),
-              fileCount: posesInOrder.length,
-              bytesTransferred: poseLoaded,
-              totalBytes: poseTotal,
-              percent: poseProgress[activePose],
-              overallPercent: ensureVisibleProgress(loaded / total, loaded > 0),
-              hasBytesTransferred: loaded > 0,
-              status: "uploading",
-              attempt,
-            });
-          },
-        }).then((r) => r.data);
-
-        if (!response || (response as any).ok === false) {
-          const err: any = new Error(
-            typeof (response as any)?.message === "string" && (response as any).message
-              ? (response as any).message
-              : "Upload failed."
-          );
-          err.code = (response as any)?.code;
-          err.debugId = (response as any)?.debugId;
-          err.reason = (response as any)?.reason;
-          throw err;
-        }
-
-        // Success: mark photos done.
-        for (const pose of posesInOrder) {
-          poseProgress[pose] = 1;
-          options?.onPhotoState?.({
-            pose,
-            status: "done",
-            percent: 1,
-            correlationId: scanCorrelationId,
-            uploadMethod: "http",
-          } as any);
-        }
-
-        return {
-          ok: true,
-          data: {
-            scanId: response.scanId ?? params.scanId,
-            debugId: response.debugId,
-            correlationId: response.correlationId ?? scanCorrelationId,
-          },
-        };
-      } catch (err: any) {
-        if (controller.signal.aborted) throw err;
-        const retry = classifyUploadRetryability({
-          code: err?.code,
-          bytesTransferred: lastOverallBytes,
-          wasOffline: err?.wasOffline,
-        });
-        if (retry.retryable && attempt < attemptLimit) {
-          const delayMs = Math.min(1000 * attempt, 3000);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-          continue;
-        }
-        throw err;
-      }
-    }
-    throw new Error("Upload failed.");
-  };
-
   const uploadPose = async (pose: keyof StartScanResponse["storagePaths"]): Promise<void> => {
-    const target = uploadTargets.find((t) => t.pose === pose);
+    const target = activeTargets.find((t) => t.pose === pose);
     if (!target) {
       throw new Error(`Missing ${pose} upload target`);
     }
     let attempt = 0;
-    let preferredMethod: UploadMethod = "storage";
     let lastBytes = 0;
     let lastError: any = null;
 
@@ -886,7 +731,7 @@ export async function submitScanClient(
         status: attempt > 1 ? "retrying" : "uploading",
         attempt,
         correlationId: scanCorrelationId,
-        uploadMethod: preferredMethod,
+        uploadMethod: "storage",
       });
       try {
         const startedAt = Date.now();
@@ -904,7 +749,6 @@ export async function submitScanClient(
           },
           signal: controller.signal,
           storageTimeoutMs: perPhotoTimeoutMs,
-          httpTimeoutMs,
           stallTimeoutMs,
           onProgress: (progress) => {
             lastBytes = progress.bytesTransferred;
@@ -921,22 +765,11 @@ export async function submitScanClient(
               taskState: progress.taskState,
               lastProgressAt: progress.lastProgressAt,
               correlationId: scanCorrelationId,
-              uploadMethod: preferredMethod,
+              uploadMethod: "storage",
             });
             emitOverallProgress(pose, progress.bytesTransferred > 0);
           },
-          onMethodChange: ({ method }) => {
-            preferredMethod = method;
-            options?.onPhotoState?.({
-              pose,
-              status: "uploading",
-              percent: poseProgress[pose],
-              correlationId: scanCorrelationId,
-              uploadMethod: preferredMethod,
-            });
-          },
           debugSimulateFreeze,
-          preferredMethod: "http",
         });
         const elapsedMs = Date.now() - startedAt;
         poseProgress[pose] = 1;
@@ -953,11 +786,6 @@ export async function submitScanClient(
       } catch (err: any) {
         lastError = err;
         if (controller.signal.aborted) throw err;
-        const fallback = shouldFallbackToHttp(err, lastBytes);
-        if (fallback && preferredMethod !== "http") {
-          preferredMethod = "http";
-          continue;
-        }
         const retry = classifyUploadRetryability({
           code: err?.code,
           bytesTransferred: lastBytes,
@@ -975,7 +803,7 @@ export async function submitScanClient(
               : "Retrying upload…",
             nextRetryDelayMs: delayMs,
             correlationId: scanCorrelationId,
-            uploadMethod: preferredMethod,
+            uploadMethod: "storage",
           });
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
@@ -989,7 +817,7 @@ export async function submitScanClient(
               ? err.message
               : "Upload failed.",
           correlationId: scanCorrelationId,
-          uploadMethod: preferredMethod,
+          uploadMethod: "storage",
           lastUploadError: { code: err?.code, message: err?.message },
         } as any);
         throw err;
@@ -999,35 +827,27 @@ export async function submitScanClient(
   };
 
   try {
-    // Primary strategy: multipart function upload for all 4 photos (no Storage CORS).
-    // Partial retries still use per-pose uploads.
-    const isFullUpload =
-      posesToUpload.length === 4 &&
-      posesToUpload.every((p) => p === "front" || p === "back" || p === "left" || p === "right");
-    if (isFullUpload) {
-      // Note: the UI persists this in local scan pipeline storage for debug screenshots.
-      try {
-        if (typeof window !== "undefined") {
-          // Optional import boundary: do not hard-require this in non-browser contexts.
-          const mod = await import("@/lib/scanPipeline");
-          mod.updateScanPipelineState(params.scanId, { uploadStrategy: "multipart" } as any);
-        }
-      } catch {
-        // ignore
-      }
-      const multipart = await uploadAllViaMultipart();
-      clearTimeout(timeoutId);
-      return multipart;
-    }
     try {
       if (typeof window !== "undefined") {
         const mod = await import("@/lib/scanPipeline");
-        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "per_photo" } as any);
+        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "storage" } as any);
       }
     } catch {
       // ignore
     }
-    for (const pose of posesToUpload) await uploadPose(pose);
+    if (posesToUpload.length) {
+      const queue = [...posesToUpload];
+      const maxConcurrentUploads = Math.min(2, posesToUpload.length);
+      const workers = Array.from({ length: maxConcurrentUploads }).map(async () => {
+        while (queue.length > 0) {
+          const next = queue.shift();
+          if (next) {
+            await uploadPose(next);
+          }
+        }
+      });
+      await Promise.all(workers);
+    }
   } catch (err: any) {
     clearTimeout(timeoutId);
     const timedOut = controller.signal.aborted;

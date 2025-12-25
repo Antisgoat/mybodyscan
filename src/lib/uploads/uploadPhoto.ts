@@ -1,8 +1,7 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
-import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 
-export type UploadMethod = "storage" | "http";
+export type UploadMethod = "storage";
 
 export type UploadPhotoResult = {
   method: UploadMethod;
@@ -21,7 +20,6 @@ export async function uploadPhoto(params: {
   customMetadata?: Record<string, string>;
   signal?: AbortSignal;
   storageTimeoutMs: number;
-  httpTimeoutMs?: number;
   stallTimeoutMs: number;
   onTask?: (task: UploadTask) => void;
   onProgress?: (progress: {
@@ -30,40 +28,8 @@ export async function uploadPhoto(params: {
     taskState: "running" | "paused" | "success" | "canceled" | "error";
     lastProgressAt: number;
   }) => void;
-  onMethodChange?: (info: { method: UploadMethod }) => void;
   debugSimulateFreeze?: boolean;
-  preferredMethod?: UploadMethod;
 }): Promise<UploadPhotoResult> {
-  const method = params.preferredMethod ?? "storage";
-  if (method === "http") {
-    params.onMethodChange?.({ method: "http" });
-    const result = await uploadViaHttp({
-      scanId: params.scanId,
-      pose: params.pose,
-      file: params.file,
-      correlationId: params.correlationId,
-      timeoutMs: params.httpTimeoutMs ?? params.storageTimeoutMs,
-      stallTimeoutMs: params.stallTimeoutMs,
-      signal: params.signal,
-      onProgress: params.onProgress
-        ? (p) =>
-            params.onProgress?.({
-              bytesTransferred: p.bytesTransferred,
-              totalBytes: p.totalBytes,
-              taskState: "running",
-              lastProgressAt: p.lastProgressAt,
-            })
-        : undefined,
-    });
-    return {
-      method: "http",
-      storagePath: result.storagePath,
-      elapsedMs: result.elapsedMs,
-      correlationId: params.correlationId,
-    };
-  }
-
-  params.onMethodChange?.({ method: "storage" });
   const result = await uploadViaStorage({
     storage: params.storage,
     path: params.path,

@@ -26,6 +26,7 @@ type OpenAIResult = {
   recommendations?: unknown;
   goalRecommendations?: unknown;
   keyObservations?: unknown;
+  improvementAreas?: unknown;
 };
 
 type ParsedAnalysis = {
@@ -33,6 +34,7 @@ type ParsedAnalysis = {
   workoutPlan: ScanWorkoutPlan;
   nutritionPlan: ScanNutritionPlan;
   recommendations: string[];
+  improvementAreas: string[];
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -165,11 +167,55 @@ function sanitizeNutrition(
     .filter((rule: string) => rule.length > 0)
     .slice(0, 6);
 
+  const sanitizeDay = (
+    dayRaw: any,
+    fallback: { calories: number; proteinGrams: number; carbsGrams: number; fatsGrams: number }
+  ) => {
+    const day = {
+      calories: clamp(
+        Number(dayRaw?.calories ?? dayRaw?.caloriesPerDay ?? dayRaw?.kcal),
+        800,
+        8000
+      ),
+      proteinGrams: Number(dayRaw?.proteinGrams ?? dayRaw?.protein ?? fallback.proteinGrams),
+      carbsGrams: Number(dayRaw?.carbsGrams ?? dayRaw?.carbs ?? fallback.carbsGrams),
+      fatsGrams: Number(dayRaw?.fatsGrams ?? dayRaw?.fat ?? fallback.fatsGrams),
+    };
+    return {
+      calories: Math.round(Number.isFinite(day.calories) ? day.calories : fallback.calories),
+      proteinGrams: Math.round(
+        Number.isFinite(day.proteinGrams) ? day.proteinGrams : fallback.proteinGrams
+      ),
+      carbsGrams: Math.round(
+        Number.isFinite(day.carbsGrams) ? day.carbsGrams : fallback.carbsGrams
+      ),
+      fatsGrams: Math.round(
+        Number.isFinite(day.fatsGrams) ? day.fatsGrams : fallback.fatsGrams
+      ),
+    };
+  };
+
+  const baseDay = {
+    calories: Math.round(calories),
+    proteinGrams: Math.round(protein),
+    carbsGrams: Math.round(carbs),
+    fatsGrams: Math.round(fats),
+  };
+
+  const restFallback = {
+    calories: clamp(baseDay.calories - 150, 800, 8000),
+    proteinGrams: baseDay.proteinGrams,
+    carbsGrams: Math.max(0, Math.round(baseDay.carbsGrams * 0.85)),
+    fatsGrams: Math.max(0, Math.round(baseDay.fatsGrams + 8)),
+  };
+
   return {
     caloriesPerDay: Math.round(calories),
     proteinGrams: Math.round(protein),
     carbsGrams: Math.round(carbs),
     fatsGrams: Math.round(fats),
+    trainingDay: sanitizeDay(source?.trainingDay ?? source?.training_day, baseDay),
+    restDay: sanitizeDay(source?.restDay ?? source?.rest_day, restFallback),
     adjustmentRules:
       cleanedAdjustments.length > 0
         ? cleanedAdjustments
@@ -210,15 +256,16 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
     recommendations: payload.recommendations,
     goalRecommendations: (payload as any).goalRecommendations ?? (payload as any).goal_recommendations,
     keyObservations: (payload as any).keyObservations ?? (payload as any).key_observations,
+    improvementAreas: (payload as any).improvementAreas ?? (payload as any).improvement_areas,
   };
 }
 
 export async function buildImageInputs(
   uid: string,
   paths: Record<Pose, string>
-): Promise<Array<{ pose: Pose; url: string }>> {
+): Promise<Array<{ pose: Pose; dataUrl: string; contentType: string }>> {
   const bucket = storage.bucket();
-  const entries: Array<{ pose: Pose; url: string }> = [];
+  const entries: Array<{ pose: Pose; dataUrl: string; contentType: string }> = [];
   const prefix = scanPhotosPrefix(uid);
   for (const pose of POSES) {
     const path = paths[pose];
@@ -230,18 +277,21 @@ export async function buildImageInputs(
     if (!exists) {
       throw new Error(`missing_photo_${pose}`);
     }
-    const [url] = await file.getSignedUrl({
-      version: "v4",
-      action: "read",
-      expires: Date.now() + 5 * 60 * 1000,
-    });
-    entries.push({ pose, url });
+    const [metadata] = await file.getMetadata();
+    const [buffer] = await file.download();
+    const contentType =
+      typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
+        ? metadata.contentType
+        : "image/jpeg";
+    const base64 = buffer.toString("base64");
+    const dataUrl = `data:${contentType};base64,${base64}`;
+    entries.push({ pose, dataUrl, contentType });
   }
   return entries;
 }
 
 export async function callOpenAI(
-  images: Array<{ pose: Pose; url: string }>,
+  images: Array<{ pose: Pose; dataUrl: string }>,
   input: { currentWeightKg: number; goalWeightKg: number; uid: string },
   requestId: string,
   engine: EngineConfig
@@ -260,12 +310,13 @@ export async function callOpenAI(
       '    "goalRecommendations": string[]',
       "  },",
       '  "workoutPlan": { "summary": string, "progressionRules": string[], "weeks": Week[] },',
-      '  "nutritionPlan": { "caloriesPerDay": number, "proteinGrams": number, "carbsGrams": number, "fatsGrams": number, "adjustmentRules": string[], "sampleDay": Meal[] },',
-      '  "recommendations": string[]',
+      '  "nutritionPlan": { "caloriesPerDay": number, "proteinGrams": number, "carbsGrams": number, "fatsGrams": number, "trainingDay": Day, "restDay": Day, "adjustmentRules": string[], "sampleDay": Meal[] },',
+      '  "recommendations": string[],',
+      '  "improvementAreas": string[]',
       "}",
     ].join("\n"),
     "Workout plans should default to a 6-day push/pull/legs split with a rest day (8-week horizon).",
-    "Nutrition plans must include macro targets plus clear adjustment rules.",
+    "Nutrition plans must include macro targets for both training days and rest days plus clear adjustment rules.",
     "Use concise language for an intermediate trainee.",
   ].join("\n");
 
@@ -275,17 +326,18 @@ export async function callOpenAI(
     "Use the four photos (front, back, left, right) to inform the estimate and plans.",
     "BMI can be null if unreliable. Notes must remind this is only an estimate.",
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
+    "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",
     "Workout plan should span multiple weeks with daily splits and include progressionRules (3-6 bullets).",
-    "Nutrition plan must include daily calories/macros, adjustmentRules (3-6 bullets), and a sample day of meals.",
+    "Nutrition plan must include daily calories/macros, trainingDay + restDay macros, adjustmentRules (3-6 bullets), and a sample day of meals.",
     "Recommendations must be 3-5 short bullets (no numbering), focused on next steps for training and nutrition.",
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
-  const imageParts: ChatContentPart[] = images.map(({ url }) => ({
+  const imageParts: ChatContentPart[] = images.map(({ dataUrl }) => ({
     type: "image_url" as const,
     // Speed-first: "low" significantly reduces latency/cost for 4-image inputs.
-    image_url: { url, detail: "low" as const },
+    image_url: { url: dataUrl, detail: "low" as const },
   }));
   const userContent: ChatContentPart[] = [
     { type: "text", text: userText },
@@ -296,7 +348,7 @@ export async function callOpenAI(
     systemPrompt,
     userContent,
     temperature: 0.4,
-    maxTokens: 900,
+    maxTokens: 1100,
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,
@@ -319,7 +371,10 @@ export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
     );
     const fallbackRecommendations = sanitizeRecommendations(raw.recommendations);
     const recommendations = primaryRecommendations.length ? primaryRecommendations : fallbackRecommendations;
-    return { estimate, workoutPlan, nutritionPlan, recommendations };
+    const improvementAreas = sanitizeRecommendations(
+      (raw as any).improvementAreas ?? raw.keyObservations ?? raw.goalRecommendations ?? raw.recommendations
+    );
+    return { estimate, workoutPlan, nutritionPlan, recommendations, improvementAreas };
   } catch (error) {
     throw new Error(`openai_parse_failed:${(error as Error)?.message ?? "unknown"}`);
   }
@@ -330,6 +385,7 @@ export function buildPlanMarkdown(params: {
   workoutPlan: ScanWorkoutPlan;
   nutritionPlan: ScanNutritionPlan;
   recommendations: string[];
+  improvementAreas?: string[];
   input: { currentWeightKg: number; goalWeightKg: number };
   usedFallback?: boolean;
 }): string {
@@ -343,44 +399,51 @@ export function buildPlanMarkdown(params: {
   const bodyFat = params.estimate.bodyFatPercent;
   const lowRange = Math.max(3, bodyFat - 1.5).toFixed(1);
   const highRange = Math.min(60, bodyFat + 1.5).toFixed(1);
+  const trainingDay = params.nutritionPlan.trainingDay ?? {
+    calories: params.nutritionPlan.caloriesPerDay,
+    proteinGrams: params.nutritionPlan.proteinGrams,
+    carbsGrams: params.nutritionPlan.carbsGrams,
+    fatsGrams: params.nutritionPlan.fatsGrams,
+  };
+  const restDay = params.nutritionPlan.restDay ?? {
+    calories: Math.max(1200, Math.round(params.nutritionPlan.caloriesPerDay - 150)),
+    proteinGrams: params.nutritionPlan.proteinGrams,
+    carbsGrams: Math.max(0, Math.round(params.nutritionPlan.carbsGrams * 0.85)),
+    fatsGrams: Math.max(0, Math.round(params.nutritionPlan.fatsGrams + 8)),
+  };
 
-  lines.push("# Scan Results");
+  lines.push("# 8-Week Body Plan");
   lines.push("");
-  lines.push("## Body Metrics");
+  lines.push("## 1) Body Metrics Snapshot");
   lines.push(`- Current weight: ${params.input.currentWeightKg} kg`);
   lines.push(`- Goal weight: ${params.input.goalWeightKg} kg`);
-  if (lean) lines.push(`- ${lean}`);
-  if (fat) lines.push(`- ${fat}`);
-  lines.push("");
-  lines.push("## Estimated Body Fat Range");
   lines.push(
-    `- Visual estimate: ${bodyFat.toFixed(1)}% (${lowRange}–${highRange}% range${
+    `- Visual body fat: ${bodyFat.toFixed(1)}% (${lowRange}–${highRange}% range${
       params.usedFallback ? ", fallback" : ""
     })`
   );
-  lines.push(`- Notes: ${params.estimate.notes}`);
-  lines.push("");
-  lines.push("## BMI");
+  if (fat) lines.push(`- Fat mass (est.): ${fat}`);
+  if (lean) lines.push(`- Lean mass (est.): ${lean}`);
   lines.push(
     params.estimate.bmi != null
-      ? `- BMI: ${params.estimate.bmi.toFixed(1)}`
+      ? `- BMI: ${params.estimate.bmi.toFixed(1)}${
+          params.estimate.bmiCategory ? ` (${params.estimate.bmiCategory})` : ""
+        }`
       : "- BMI: Not enough data to provide BMI reliably."
   );
-  if (params.estimate.bmiCategory) {
-    lines.push(`- BMI category: ${params.estimate.bmiCategory}`);
-  }
+  lines.push(`- Notes: ${params.estimate.notes}`);
   if (params.estimate.keyObservations?.length) {
-    lines.push("");
-    lines.push("## Key observations");
-    params.estimate.keyObservations.slice(0, 5).forEach((obs) => lines.push(`- ${obs}`));
+    lines.push("- Key observations:");
+    params.estimate.keyObservations.slice(0, 5).forEach((obs) => lines.push(`  - ${obs}`));
   }
-  if (params.estimate.goalRecommendations?.length) {
-    lines.push("");
-    lines.push("## Goal recommendations");
-    params.estimate.goalRecommendations.slice(0, 5).forEach((rec) => lines.push(`- ${rec}`));
+  if (params.improvementAreas?.length) {
+    lines.push("- Improvement areas:");
+    params.improvementAreas.slice(0, 5).forEach((area) => lines.push(`  - ${area}`));
   }
+
   lines.push("");
-  lines.push("## 8-Week Workout Program");
+  lines.push("## 2) Training Plan (6-day PPL split)");
+  lines.push(`- Summary: ${params.workoutPlan.summary}`);
   const weekCount = params.workoutPlan.weeks?.length ?? 0;
   lines.push(`- Programming weeks available: ${weekCount || "coach generated as needed"}`);
   const renderWeeks = params.workoutPlan.weeks?.slice(0, 8) ?? [];
@@ -402,15 +465,22 @@ export function buildPlanMarkdown(params: {
   }
   const rules = params.workoutPlan.progressionRules?.slice(0, 6) ?? [];
   if (rules.length) {
-    lines.push("  - Progression rules:");
+    lines.push("- Progression rules:");
     for (const rule of rules) {
-      lines.push(`    - ${rule}`);
+      lines.push(`  - ${rule}`);
     }
   }
+
   lines.push("");
-  lines.push("## Nutrition Targets (Macros)");
+  lines.push("## 3) Nutrition Plan");
   lines.push(
-    `- Daily targets: ${params.nutritionPlan.caloriesPerDay} kcal · ${params.nutritionPlan.proteinGrams}g protein · ${params.nutritionPlan.carbsGrams}g carbs · ${params.nutritionPlan.fatsGrams}g fats`
+    `- Baseline: ${params.nutritionPlan.caloriesPerDay} kcal · ${params.nutritionPlan.proteinGrams}g protein · ${params.nutritionPlan.carbsGrams}g carbs · ${params.nutritionPlan.fatsGrams}g fats`
+  );
+  lines.push(
+    `- Training day: ${trainingDay.calories} kcal · ${trainingDay.proteinGrams}P/${trainingDay.carbsGrams}C/${trainingDay.fatsGrams}F`
+  );
+  lines.push(
+    `- Rest day: ${restDay.calories} kcal · ${restDay.proteinGrams}P/${restDay.carbsGrams}C/${restDay.fatsGrams}F`
   );
   lines.push("- Adjustment rules:");
   const adjustments = params.nutritionPlan.adjustmentRules?.slice(0, 6) ?? [];
@@ -423,11 +493,14 @@ export function buildPlanMarkdown(params: {
       );
     });
   }
+
+  lines.push("");
+  lines.push("## 4) Notes + Next Steps");
   if (params.recommendations.length) {
-    lines.push("");
-    lines.push("### Quick habits");
     params.recommendations.forEach((tip) => lines.push(`- ${tip}`));
   }
+  lines.push("- Re-scan in 4–6 weeks to track progress.");
+  lines.push("- Estimates only. Not medical advice.");
   return lines.join("\n");
 }
 

@@ -34,6 +34,18 @@ export interface ScanNutritionPlan {
   proteinGrams: number;
   carbsGrams: number;
   fatsGrams: number;
+  trainingDay?: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  };
+  restDay?: {
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatsGrams: number;
+  };
   adjustmentRules: string[];
   sampleDay: {
     mealName: string;

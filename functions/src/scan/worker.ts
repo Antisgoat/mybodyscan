@@ -53,6 +53,7 @@ function buildFallbackAnalysis(input: {
   workoutPlan: NonNullable<ScanDocument["workoutPlan"]>;
   nutritionPlan: NonNullable<ScanDocument["nutritionPlan"]>;
   recommendations: string[];
+  improvementAreas: string[];
   usedFallback: boolean;
 } {
   const estimate = {
@@ -129,6 +130,18 @@ function buildFallbackAnalysis(input: {
         "If losing >1% body weight/week, add 150–200 calories.",
         "Keep protein steady; adjust carbs/fats first.",
       ],
+      trainingDay: {
+        calories: nutritionPlan.caloriesPerDay,
+        proteinGrams: nutritionPlan.proteinGrams,
+        carbsGrams: Math.round(nutritionPlan.carbsGrams * 1.05),
+        fatsGrams: Math.round(nutritionPlan.fatsGrams * 0.95),
+      },
+      restDay: {
+        calories: Math.max(1200, Math.round(nutritionPlan.caloriesPerDay - 150)),
+        proteinGrams: nutritionPlan.proteinGrams,
+        carbsGrams: Math.max(0, Math.round(nutritionPlan.carbsGrams * 0.85)),
+        fatsGrams: Math.round(nutritionPlan.fatsGrams + 8),
+      },
       sampleDay: [
         {
           mealName: "Breakfast",
@@ -157,6 +170,7 @@ function buildFallbackAnalysis(input: {
       ],
     },
     recommendations,
+    improvementAreas: recommendations,
     usedFallback: true,
   };
 }
@@ -307,6 +321,10 @@ export const processQueuedScan = onDocumentWritten(
             workoutPlan: (result as any).workoutPlan,
             nutritionPlan: (result as any).nutritionPlan,
             recommendations: (result as any).recommendations ?? [],
+            improvementAreas:
+              (result as any).improvementAreas ??
+              (result as any).recommendations ??
+              [],
           }
         : buildAnalysisFromResult(result as any);
       const leanMassKg = Number.isFinite(currentWeightKg)
@@ -330,12 +348,14 @@ export const processQueuedScan = onDocumentWritten(
           : null;
 
       const improvementAreas =
-        Array.isArray(analysis.estimate.keyObservations) && analysis.estimate.keyObservations.length
-          ? analysis.estimate.keyObservations
-          : Array.isArray(analysis.estimate.goalRecommendations) &&
-              analysis.estimate.goalRecommendations.length
-            ? analysis.estimate.goalRecommendations
-            : analysis.recommendations;
+        Array.isArray((analysis as any).improvementAreas) && (analysis as any).improvementAreas.length
+          ? (analysis as any).improvementAreas
+          : Array.isArray(analysis.estimate.keyObservations) && analysis.estimate.keyObservations.length
+            ? analysis.estimate.keyObservations
+            : Array.isArray(analysis.estimate.goalRecommendations) &&
+                analysis.estimate.goalRecommendations.length
+              ? analysis.estimate.goalRecommendations
+              : analysis.recommendations;
 
       const nutritionPlan = (() => {
         const derived = deriveNutritionPlan({
@@ -343,12 +363,41 @@ export const processQueuedScan = onDocumentWritten(
           bodyFatPercent: analysis.estimate.bodyFatPercent,
           goalWeightKg,
         });
+        const baseDay = {
+          calories: derived.caloriesPerDay,
+          proteinGrams: derived.proteinGrams,
+          carbsGrams: derived.carbsGrams,
+          fatsGrams: derived.fatsGrams,
+        };
+        const coerceDay = (
+          day: any,
+          fallback: { calories: number; proteinGrams: number; carbsGrams: number; fatsGrams: number }
+        ) => ({
+          calories: Math.round(Number.isFinite(day?.calories) ? day.calories : fallback.calories),
+          proteinGrams: Math.round(
+            Number.isFinite(day?.proteinGrams) ? day.proteinGrams : fallback.proteinGrams
+          ),
+          carbsGrams: Math.round(
+            Number.isFinite(day?.carbsGrams) ? day.carbsGrams : fallback.carbsGrams
+          ),
+          fatsGrams: Math.round(
+            Number.isFinite(day?.fatsGrams) ? day.fatsGrams : fallback.fatsGrams
+          ),
+        });
+        const restFallback = {
+          calories: Math.max(1200, Math.round(baseDay.calories - 150)),
+          proteinGrams: baseDay.proteinGrams,
+          carbsGrams: Math.max(0, Math.round(baseDay.carbsGrams * 0.85)),
+          fatsGrams: Math.max(0, Math.round(baseDay.fatsGrams + 8)),
+        };
         return {
           ...analysis.nutritionPlan,
           caloriesPerDay: derived.caloriesPerDay,
           proteinGrams: derived.proteinGrams,
           carbsGrams: derived.carbsGrams,
           fatsGrams: derived.fatsGrams,
+          trainingDay: coerceDay((analysis as any)?.nutritionPlan?.trainingDay, baseDay),
+          restDay: coerceDay((analysis as any)?.nutritionPlan?.restDay, restFallback),
         };
       })();
 
@@ -380,6 +429,7 @@ export const processQueuedScan = onDocumentWritten(
             workoutPlan: analysis.workoutPlan,
             nutritionPlan,
             recommendations: analysis.recommendations,
+            improvementAreas,
             input: { currentWeightKg, goalWeightKg },
             usedFallback,
           }),
@@ -436,7 +486,7 @@ export const processQueuedScan = onDocumentWritten(
         }
         if (error instanceof OpenAIClientError) {
           if (error.code === "openai_missing_key") {
-            return "Scan engine not configured.";
+            return "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions.";
           }
           if (error.status === 429) {
             return "Scan engine is busy. Please try again shortly.";
@@ -444,7 +494,9 @@ export const processQueuedScan = onDocumentWritten(
           return "Scan engine is temporarily unavailable. Please try again.";
         }
         if (effectiveReason === "scan_engine_not_configured") {
-          return "Scan engine not configured.";
+          return rawMessage?.length
+            ? rawMessage
+            : "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions.";
         }
         return rawMessage ?? "Unexpected error while processing scan.";
       })();
