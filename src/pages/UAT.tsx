@@ -22,7 +22,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
+import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,
@@ -47,7 +47,7 @@ import {
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
-import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
+import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 
 type JsonValue = unknown;
 type ErrorWithCode = { code?: unknown; message?: unknown };
@@ -809,17 +809,14 @@ const UATPage = () => {
       const blob = new Blob([DEFAULT_SCAN_UPLOAD_BYTES], {
         type: "image/jpeg",
       });
-      const storage = getFirebaseStorage();
-      await uploadPreparedPhoto({
-        storage,
-        path: storagePath,
+      // Same-origin only: verify upload endpoint (no Storage SDK).
+      await uploadViaHttp({
+        scanId: scanSession.scanId,
+        pose: "front",
         file: blob,
-        metadata: {
-          contentType: "image/jpeg",
-          cacheControl: "public,max-age=31536000",
-        },
+        correlationId: `uat-${scanSession.scanId}`,
+        timeoutMs: 30_000,
         stallTimeoutMs: 10_000,
-        overallTimeoutMs: 30_000,
       });
       const ok = true;
       return {
