@@ -104,11 +104,31 @@ function normalizeTimestamp(value: unknown): number | null {
 
 type ExportImage = { name: string; url: string; expiresAt: string };
 
+function requestOrigin(request: CallableRequest<unknown>): string {
+  const raw = request.rawRequest as
+    | { headers?: Record<string, string | string[] | undefined> }
+    | undefined;
+  const headers = raw?.headers || {};
+  const getHeader = (key: string): string => {
+    const v = headers[key];
+    if (typeof v === "string") return v.trim();
+    if (Array.isArray(v) && typeof v[0] === "string") return v[0].trim();
+    return "";
+  };
+  const origin = getHeader("origin");
+  if (origin) return origin.replace(/\/+$/, "");
+  const proto =
+    getHeader("x-forwarded-proto") || getHeader("x-forwarded-protocol") || "https";
+  const host = getHeader("x-forwarded-host") || getHeader("host") || "mybodyscanapp.com";
+  return `${proto}://${host}`.replace(/\/+$/, "");
+}
+
 async function buildImageExport(
   uid: string,
   scanId: string,
   poses: string[],
-  expiresAt: string
+  expiresAt: string,
+  baseUrl: string
 ): Promise<ExportImage[]> {
   const bucket = storage.bucket();
   const results: ExportImage[] = [];
@@ -121,17 +141,7 @@ async function buildImageExport(
         const file = bucket.file(path);
         const [exists] = await file.exists();
         if (!exists) return;
-        const [metadata] = await file.getMetadata();
-        const tokenRaw = metadata?.metadata?.firebaseStorageDownloadTokens;
-        const token =
-          typeof tokenRaw === "string" && tokenRaw.length
-            ? tokenRaw.split(",")[0]
-            : null;
-        if (!token) {
-          console.warn("account_export_missing_token", { uid, scanId, pose });
-          return;
-        }
-        const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+        const url = `${baseUrl}/api/scan/photo?${new URLSearchParams({ scanId, pose }).toString()}`;
         results.push({ name: pose, url, expiresAt });
       } catch (err) {
         console.warn("account_export_signed_url_error", {
@@ -194,6 +204,7 @@ export const exportMyData = onCall(
     }
 
     const requestId = getRequestId(request);
+    const baseUrl = requestOrigin(request);
     console.log("account_export_begin", { uid, requestId });
 
     try {
@@ -231,7 +242,8 @@ export const exportMyData = onCall(
               uid,
               docSnap.id,
               uniquePoses,
-              expiresAt
+              expiresAt,
+              baseUrl
             );
             return {
               id: docSnap.id,
