@@ -9,12 +9,12 @@ import {
 
 test("buildScanPhotoPath builds canonical storage paths", () => {
   const path = buildScanPhotoPath({ uid: " user1 ", scanId: "scan123", pose: "front" });
-  assert.equal(path, "user_uploads/user1/scans/scan123/front.jpg");
+  assert.equal(path, "scans/user1/scan123/front.jpg");
 });
 
 test("scanPhotosPrefix trims uid", () => {
   const prefix = scanPhotosPrefix("  person ");
-  assert.equal(prefix, "user_uploads/person/scans/");
+  assert.equal(prefix, "scans/person/");
 });
 
 test("assertScanPose rejects invalid poses", () => {

@@ -49,10 +49,10 @@ describe("scan flow helpers", () => {
     const left = new File([new Blob(["left-bytes"])], "left.jpg", { type: "image/jpeg" });
     const right = new File([new Blob(["right-bytes"])], "right.jpg", { type: "image/jpeg" });
     const paths = {
-      front: "user_uploads/u1/scans/s1/front.jpg",
-      back: "user_uploads/u1/scans/s1/back.jpg",
-      left: "user_uploads/u1/scans/s1/left.jpg",
-      right: "user_uploads/u1/scans/s1/right.jpg",
+      front: "scans/u1/s1/front.jpg",
+      back: "scans/u1/s1/back.jpg",
+      left: "scans/u1/s1/left.jpg",
+      right: "scans/u1/s1/right.jpg",
     };
     const result = validateScanUploadInputs({
       storagePaths: paths,

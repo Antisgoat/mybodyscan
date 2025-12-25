@@ -11,11 +11,9 @@ import {
   prepareScanPhoto,
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
-  isProbablyMobileSafari,
 } from "@/features/scan/resizeImage";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
-import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -124,6 +122,16 @@ export type ScanDocument = {
     left: string;
     right: string;
   };
+  /**
+   * Optional richer photo refs (derived server-side from canonical `photoPaths`).
+   * Uses Firebase Storage download tokens (NOT signed URLs).
+   */
+  photoObjects?: {
+    front: { bucket: string; path: string; downloadURL?: string | null };
+    back: { bucket: string; path: string; downloadURL?: string | null };
+    left: { bucket: string; path: string; downloadURL?: string | null };
+    right: { bucket: string; path: string; downloadURL?: string | null };
+  } | null;
   input: {
     currentWeightKg: number;
     goalWeightKg: number;
@@ -723,14 +731,6 @@ export async function submitScanClient(
     }
   })();
 
-  const allowHttpFallback = (() => {
-    try {
-      return isProbablyMobileSafari();
-    } catch {
-      return false;
-    }
-  })();
-
   const uploadPose = async (pose: keyof StartScanResponse["storagePaths"]): Promise<void> => {
     const target = activeTargets.find((t) => t.pose === pose);
     if (!target) {
@@ -739,7 +739,6 @@ export async function submitScanClient(
     let attempt = 0;
     let lastBytes = 0;
     let lastError: any = null;
-    let didHttpFallback = false;
 
     while (attempt < maxAttempts) {
       attempt += 1;
@@ -748,7 +747,6 @@ export async function submitScanClient(
         status: attempt > 1 ? "retrying" : "uploading",
         attempt,
         correlationId: scanCorrelationId,
-        uploadMethod: "storage",
       });
       try {
         const startedAt = Date.now();
@@ -796,7 +794,6 @@ export async function submitScanClient(
           status: "done",
           percent: 1,
           correlationId: scanCorrelationId,
-          uploadMethod: result.method,
           elapsedMs,
         });
         return;
@@ -808,74 +805,6 @@ export async function submitScanClient(
           bytesTransferred: lastBytes,
           wasOffline: err?.wasOffline,
         });
-        // iOS Safari: if we've exhausted SDK retries and never transferred bytes,
-        // fall back to same-origin HTTP upload (Cloud Function -> Admin Storage).
-        if (
-          allowHttpFallback &&
-          !didHttpFallback &&
-          attempt >= maxAttempts &&
-          (retry.reason === "stall" ||
-            retry.reason === "unknown_no_bytes" ||
-            retry.reason === "transient_network" ||
-            retry.reason === "firebase_retry_limit") &&
-          lastBytes <= 0
-        ) {
-          didHttpFallback = true;
-          options?.onPhotoState?.({
-            pose,
-            status: "retrying",
-            attempt: attempt + 1,
-            percent: poseProgress[pose],
-            message: "Safari upload stalled — switching to fallback uploader…",
-            correlationId: scanCorrelationId,
-            uploadMethod: "http",
-          });
-          try {
-            const startedAt = Date.now();
-            const httpResult = await uploadViaHttp({
-              scanId: params.scanId,
-              pose: String(pose),
-              file: target.file,
-              correlationId: scanCorrelationId,
-              signal: controller.signal,
-              timeoutMs: perPhotoTimeoutMs,
-              stallTimeoutMs,
-              onProgress: (p) => {
-                lastBytes = p.bytesTransferred;
-                const fraction =
-                  p.totalBytes > 0 ? p.bytesTransferred / p.totalBytes : 0;
-                poseProgress[pose] = ensureVisibleProgress(fraction, p.bytesTransferred > 0);
-                hasBytesTransferred = hasBytesTransferred || p.bytesTransferred > 0;
-                options?.onPhotoState?.({
-                  pose,
-                  status: "uploading",
-                  percent: poseProgress[pose],
-                  bytesTransferred: p.bytesTransferred,
-                  totalBytes: p.totalBytes,
-                  lastProgressAt: p.lastProgressAt,
-                  correlationId: scanCorrelationId,
-                  uploadMethod: "http",
-                });
-                emitOverallProgress(pose, p.bytesTransferred > 0);
-              },
-            });
-            const elapsedMs = Date.now() - startedAt;
-            poseProgress[pose] = 1;
-            emitOverallProgress(pose, true);
-            options?.onPhotoState?.({
-              pose,
-              status: "done",
-              percent: 1,
-              correlationId: scanCorrelationId,
-              uploadMethod: httpResult.method,
-              elapsedMs,
-            });
-            return;
-          } catch (fallbackErr: any) {
-            lastError = fallbackErr;
-            // Continue to normal failure path below.
-          }
-        }
 
         if (retry.retryable && attempt < maxAttempts) {
           const delayMs = Math.min(1000 * attempt, 3000);
@@ -889,7 +818,6 @@ export async function submitScanClient(
               : "Retrying upload…",
             nextRetryDelayMs: delayMs,
             correlationId: scanCorrelationId,
-            uploadMethod: "storage",
           });
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
@@ -903,7 +831,6 @@ export async function submitScanClient(
               ? err.message
               : "Upload failed.",
           correlationId: scanCorrelationId,
-          uploadMethod: "storage",
           lastUploadError: { code: err?.code, message: err?.message },
         } as any);
         throw err;

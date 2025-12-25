@@ -64,8 +64,57 @@ function parsePayload(body: any): SubmitPayload | null {
   return { scanId, photoPaths, currentWeightKg, goalWeightKg, correlationId };
 }
 
-async function verifyPhotoPaths(uid: string, scanId: string, paths: Record<Pose, string>) {
+function buildDownloadUrl(params: { bucket: string; path: string; token: string }): string {
+  // Token-based download URL (no signed URLs, no IAM signBlob).
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(
+    params.bucket
+  )}/o/${encodeURIComponent(params.path)}?alt=media&token=${encodeURIComponent(params.token)}`;
+}
+
+function pickFirstDownloadToken(meta: any): string | null {
+  const raw =
+    typeof meta?.metadata?.firebaseStorageDownloadTokens === "string"
+      ? meta.metadata.firebaseStorageDownloadTokens
+      : typeof meta?.firebaseStorageDownloadTokens === "string"
+        ? meta.firebaseStorageDownloadTokens
+        : null;
+  if (!raw) return null;
+  const token = raw.split(",")[0]?.trim();
+  return token ? token : null;
+}
+
+async function ensureDownloadToken(bucket: any, path: string): Promise<string | null> {
+  const file = bucket.file(path);
+  const [meta] = await file.getMetadata().catch(() => [null]);
+  const existing = pickFirstDownloadToken(meta);
+  if (existing) return existing;
+  const created = randomUUID();
+  // Firebase Storage download tokens are stored in the file metadata under `firebaseStorageDownloadTokens`.
+  // This does NOT require signed URL generation.
+  await file
+    .setMetadata({
+      metadata: {
+        ...(meta?.metadata || {}),
+        firebaseStorageDownloadTokens: created,
+      },
+    })
+    .catch(() => undefined);
+  return created;
+}
+
+async function verifyPhotoPathsAndBuildObjects(
+  uid: string,
+  scanId: string,
+  paths: Record<Pose, string>
+): Promise<Record<Pose, { bucket: string; path: string; downloadURL: string | null }>> {
   const bucket = storage.bucket();
+  const bucketName = bucket.name;
+  const photoObjects = {
+    front: { bucket: bucketName, path: paths.front, downloadURL: null },
+    back: { bucket: bucketName, path: paths.back, downloadURL: null },
+    left: { bucket: bucketName, path: paths.left, downloadURL: null },
+    right: { bucket: bucketName, path: paths.right, downloadURL: null },
+  } as Record<Pose, { bucket: string; path: string; downloadURL: string | null }>;
   for (const pose of POSES) {
     const expected = buildScanPhotoPath({ uid, scanId, pose });
     const actual = paths[pose];
@@ -80,7 +129,7 @@ async function verifyPhotoPaths(uid: string, scanId: string, paths: Record<Pose,
       );
     }
     const file = bucket.file(actual);
-    const [exists] = await file.exists();
+    const [exists] = await file.exists().catch(() => [false]);
     if (!exists) {
       throw new HttpsError(
         "failed-precondition",
@@ -91,7 +140,14 @@ async function verifyPhotoPaths(uid: string, scanId: string, paths: Record<Pose,
         }
       );
     }
+    const token = await ensureDownloadToken(bucket, actual);
+    photoObjects[pose] = {
+      bucket: bucketName,
+      path: actual,
+      downloadURL: token ? buildDownloadUrl({ bucket: bucketName, path: actual, token }) : null,
+    };
   }
+  return photoObjects;
 }
 
 export const submitScan = onRequest(
@@ -170,7 +226,11 @@ export const submitScan = onRequest(
       }
       scanRef = docRef;
 
-      await verifyPhotoPaths(uid, payload.scanId, payload.photoPaths);
+      const photoObjects = await verifyPhotoPathsAndBuildObjects(
+        uid,
+        payload.scanId,
+        payload.photoPaths
+      );
 
       const correlationId =
         payload.correlationId || existing.correlationId || requestId;
@@ -190,6 +250,7 @@ export const submitScan = onRequest(
           processingRequestedAt: serverTimestamp(),
           submitRequestId: requestId,
           photoPaths: payload.photoPaths,
+          photoObjects,
           input: {
             currentWeightKg: payload.currentWeightKg,
             goalWeightKg: payload.goalWeightKg,

@@ -52,10 +52,6 @@ export const deleteScan = onRequest(
         bucket
           .deleteFiles({ prefix: scanScanIdPrefix({ uid, scanId }) })
           .catch(() => {}),
-        // Legacy (older clients)
-        bucket
-          .deleteFiles({ prefix: `user_uploads/${uid}/${scanId}/` })
-          .catch(() => {}),
         bucket
           .deleteFiles({ prefix: `scans/${uid}/${scanId}/` })
           .catch(() => {}),

@@ -216,10 +216,10 @@ test("submitScanMultipart uploads four photos and queues scan", async () => {
     assert.equal(storage.saved.length, 4);
     const storedPaths = storage.saved.map((s) => s.path).sort();
     assert.deepEqual(storedPaths, [
-      "user_uploads/user-1/scans/scan-123/back.jpg",
-      "user_uploads/user-1/scans/scan-123/front.jpg",
-      "user_uploads/user-1/scans/scan-123/left.jpg",
-      "user_uploads/user-1/scans/scan-123/right.jpg",
+      "scans/user-1/scan-123/back.jpg",
+      "scans/user-1/scan-123/front.jpg",
+      "scans/user-1/scan-123/left.jpg",
+      "scans/user-1/scan-123/right.jpg",
     ]);
     const doc = firestore.data.get("users/user-1/scans/scan-123");
     assert.equal(doc?.status, "queued");
