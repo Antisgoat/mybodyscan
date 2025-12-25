@@ -3,24 +3,39 @@
  *
  * Runs against Firebase emulators (auth/firestore/storage/functions).
  *
- * Usage (recommended):
+ * Usually invoked via:
  *   npm run verify:scan
- *
- * Or manually:
- *   OPENAI_API_KEY=test OPENAI_MODEL=gpt-4o-mini firebase emulators:exec --only auth,firestore,storage,functions "node scripts/verify-scan-emulators.mjs"
  */
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { initializeApp } from "firebase/app";
-import { connectAuthEmulator, inMemoryPersistence, initializeAuth, signInAnonymously } from "firebase/auth";
-import { connectFirestoreEmulator, doc, getDoc, getFirestore } from "firebase/firestore";
-import { connectStorageEmulator, getMetadata, getStorage, ref, uploadBytesResumable } from "firebase/storage";
+import {
+  connectAuthEmulator,
+  inMemoryPersistence,
+  initializeAuth,
+  signInAnonymously,
+} from "firebase/auth";
+import {
+  connectFirestoreEmulator,
+  doc,
+  getDoc,
+  getFirestore,
+} from "firebase/firestore";
+import {
+  connectStorageEmulator,
+  getMetadata,
+  getStorage,
+  ref,
+  uploadBytesResumable,
+} from "firebase/storage";
 
 function readDefaultProjectId() {
   try {
-    const raw = JSON.parse(readFileSync(new URL("../.firebaserc", import.meta.url), "utf8"));
+    const raw = JSON.parse(
+      readFileSync(new URL("../.firebaserc", import.meta.url), "utf8")
+    );
     return raw?.projects?.default || raw?.defaults?.projectId || null;
   } catch {
     return null;
@@ -38,23 +53,35 @@ function splitHostPort(value, fallbackPort) {
 }
 
 function tinyJpegBytes() {
-  // 1x1 jpeg (same fixture used in tests).
+  // 1x1 jpeg
   const base64 =
     "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDABALDgwODAwQEBAXEBkYFREcHiEfGh0dICQjJC4sKCorNzg3Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O//2wBDAQwMDhAQEB0RGh0eOycnOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O//wAARCAABAAEDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/APH/AP/Z";
   return Buffer.from(base64, "base64");
 }
 
+async function waitForHttpReady(url, timeoutMs) {
+  const deadline = Date.now() + Math.max(500, timeoutMs);
+  // Storage emulator responds 404 on "/" — any HTTP response means it's up.
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { method: "GET" });
+      if (res) return;
+    } catch {
+      // not ready yet
+    }
+    await delay(150);
+  }
+  throw new Error(`Emulator not reachable: ${url}`);
+}
+
 async function uploadOne(storage, path, bytes) {
   const storageRef = ref(storage, path);
   const blob = new Blob([bytes], { type: "image/jpeg" });
-  const task = uploadBytesResumable(storageRef, blob, { contentType: "image/jpeg" });
+  const task = uploadBytesResumable(storageRef, blob, {
+    contentType: "image/jpeg",
+  });
   await new Promise((resolve, reject) => {
-    task.on(
-      "state_changed",
-      () => undefined,
-      (err) => reject(err),
-      () => resolve()
-    );
+    task.on("state_changed", () => undefined, reject, resolve);
   });
   await getMetadata(storageRef);
 }
@@ -76,7 +103,8 @@ async function httpJson(url, { idToken, body }) {
     // ignore
   }
   if (!res.ok) {
-    const message = data?.message || data?.error?.message || text || `HTTP ${res.status}`;
+    const message =
+      data?.message || data?.error?.message || text || `HTTP ${res.status}`;
     const err = new Error(message);
     err.status = res.status;
     err.data = data;
@@ -86,10 +114,11 @@ async function httpJson(url, { idToken, body }) {
 }
 
 async function main() {
-  const projectId = process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT || readDefaultProjectId();
-  if (!projectId) {
-    throw new Error("Missing projectId (set GCLOUD_PROJECT or configure .firebaserc).");
-  }
+  const projectId =
+    process.env.GCLOUD_PROJECT ||
+    process.env.FIREBASE_PROJECT ||
+    readDefaultProjectId();
+  if (!projectId) throw new Error("Missing projectId.");
   const region = "us-central1";
   const bucket = process.env.STORAGE_BUCKET || `${projectId}.appspot.com`;
 
@@ -122,6 +151,7 @@ async function main() {
 
   const storage = getStorage(app);
   connectStorageEmulator(storage, storageHost, storagePort);
+  await waitForHttpReady(`http://${storageHost}:${storagePort}/`, 10_000);
 
   const signedIn = await signInAnonymously(auth);
   const idToken = await signedIn.user.getIdToken();
@@ -138,8 +168,16 @@ async function main() {
 
   const scanId = String(start?.scanId || "");
   const storagePaths = start?.storagePaths;
-  if (!scanId || !storagePaths?.front || !storagePaths?.back || !storagePaths?.left || !storagePaths?.right) {
-    throw new Error(`startScanSession returned invalid payload: ${JSON.stringify(start)}`);
+  if (
+    !scanId ||
+    !storagePaths?.front ||
+    !storagePaths?.back ||
+    !storagePaths?.left ||
+    !storagePaths?.right
+  ) {
+    throw new Error(
+      `startScanSession returned invalid payload: ${JSON.stringify(start)}`
+    );
   }
 
   const bytes = tinyJpegBytes();
@@ -171,9 +209,13 @@ async function main() {
       const workout = data?.workoutProgram || data?.workoutPlan;
       const nutrition = data?.nutritionPlan;
       if (!workout || !nutrition) {
-        throw new Error(`Scan completed but missing plans: ${JSON.stringify({ workout: !!workout, nutrition: !!nutrition })}`);
+        throw new Error(
+          `Scan completed but missing plans: ${JSON.stringify({
+            workout: !!workout,
+            nutrition: !!nutrition,
+          })}`
+        );
       }
-      // Success: print a tiny summary so CI logs are readable.
       console.log("[verify:scan] ok", {
         uid,
         scanId,
@@ -181,10 +223,13 @@ async function main() {
         usedFallback: Boolean(data?.usedFallback),
         lastStep: data?.lastStep || null,
       });
-      return;
+      // Ensure `emulators:exec` sees a clean exit (avoid being SIGTERM'd during shutdown).
+      process.exit(0);
     }
     if (status === "error" || status === "failed") {
-      throw new Error(`[verify:scan] scan failed: ${data?.errorMessage || "unknown_error"}`);
+      throw new Error(
+        `[verify:scan] scan failed: ${data?.errorMessage || "unknown_error"}`
+      );
     }
     await delay(1000);
   }
@@ -197,6 +242,6 @@ await main().catch((err) => {
     status: err?.status,
     data: err?.data,
   });
-  process.exitCode = 1;
+  process.exit(1);
 });
 
