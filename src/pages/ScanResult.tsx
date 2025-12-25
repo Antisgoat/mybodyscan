@@ -38,7 +38,7 @@ import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { computeProcessingTimeouts, latestHeartbeatMillis } from "@/lib/scanHeartbeat";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
-const HARD_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
 const PROCESSING_STEPS = [
   "Analyzing posture…",
   "Checking symmetry…",
