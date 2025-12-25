@@ -31,6 +31,20 @@ describe("classifyUploadRetryability", () => {
       reason: "non_retryable",
     });
   });
+
+  it("treats upload timeouts as transient", () => {
+    expect(classifyUploadRetryability({ code: "upload_timeout" })).toEqual({
+      retryable: true,
+      reason: "transient_network",
+    });
+  });
+
+  it("does not retry unauthorized function responses", () => {
+    expect(classifyUploadRetryability({ code: "function/permission-denied" })).toEqual({
+      retryable: false,
+      reason: "unauthorized",
+    });
+  });
 });
 
 describe("getUploadStallReason", () => {

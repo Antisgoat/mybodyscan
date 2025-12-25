@@ -382,11 +382,11 @@ export async function prepareScanPhoto(
   try {
     const processed = await preprocessImageForUpload(file, {
       fileName: `${view}.jpg`,
-      maxEdgeDesktop: 1800,
-      maxEdgeMobileSafari: 1280,
-      // Mobile uses aggressive quality; desktop defaults handled inside preprocessImageForUpload.
-      jpegQualityStart: isMobileUploadDevice() ? 0.72 : 0.8,
-      outputBytesLimit: Math.round(2.0 * 1024 * 1024),
+      maxEdgeDesktop: 1600,
+      maxEdgeMobileSafari: 1400,
+      // Keep uploads small for fast Safari transfers while preserving detail.
+      jpegQualityStart: isMobileUploadDevice() ? 0.72 : 0.78,
+      outputBytesLimit: 480_000,
     });
     return {
       preparedFile: processed.file,

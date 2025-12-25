@@ -1,8 +1,7 @@
-import { defineString } from "firebase-functions/params";
 import { HttpsError } from "firebase-functions/v2/https";
 import { getApp } from "firebase-admin/app";
 import { getStorage } from "../firebase.js";
-import { openAiSecretParam } from "../openai/keys.js";
+import { readOpenAIEnv } from "../lib/openaiConfig.js";
 
 type EngineStatus = {
   configured: boolean;
@@ -23,10 +22,6 @@ export type EngineConfig = {
   storageBucket: string;
   projectId: string;
 };
-
-const openAiModelParam = defineString("OPENAI_MODEL");
-const openAiBaseUrlParam = defineString("OPENAI_BASE_URL");
-const openAiProviderParam = defineString("OPENAI_PROVIDER");
 
 function normalizeBucketName(raw?: string | null): string | null {
   if (!raw) return null;
@@ -60,44 +55,6 @@ function resolveBucket(): { bucket: string | null; source: EngineStatus["bucketS
   }
 }
 
-function readParamValue(param: { value(): string | undefined }): string {
-  try {
-    const value = param.value();
-    return typeof value === "string" ? value.trim() : "";
-  } catch {
-    return "";
-  }
-}
-
-function resolveOpenAIKey(): string {
-  const envKey = (process.env.OPENAI_API_KEY || "").trim();
-  if (envKey) return envKey;
-  const secretValue = readParamValue(openAiSecretParam);
-  return secretValue;
-}
-
-function resolveModel(): string | null {
-  const envModel = (process.env.OPENAI_MODEL || "").trim();
-  if (envModel) return envModel;
-  const paramModel = readParamValue(openAiModelParam);
-  return paramModel || null;
-}
-
-function resolveBaseUrl(): string | null {
-  const envBase = (process.env.OPENAI_BASE_URL || "").trim();
-  if (envBase) return envBase.replace(/\/+$/, "");
-  const paramBase = readParamValue(openAiBaseUrlParam);
-  return paramBase ? paramBase.replace(/\/+$/, "") : null;
-}
-
-function resolveProvider(): string | null {
-  const envProvider = (process.env.OPENAI_PROVIDER || "").trim();
-  if (envProvider) return envProvider.toLowerCase();
-  const paramProvider = readParamValue(openAiProviderParam);
-  if (paramProvider) return paramProvider.toLowerCase();
-  return null;
-}
-
 function resolveProjectId(): string | null {
   const envProject =
     (process.env.GCLOUD_PROJECT || "").trim() ||
@@ -115,18 +72,12 @@ function resolveProjectId(): string | null {
 function buildStatus():
   | { status: EngineStatus; config: EngineConfig }
   | { status: EngineStatus; config: null } {
-  const apiKey = resolveOpenAIKey();
+  const openai = readOpenAIEnv();
   const bucketInfo = resolveBucket();
   const projectId = resolveProjectId();
-  const model = resolveModel();
-  const baseUrl = resolveBaseUrl();
-  const provider = resolveProvider();
 
   const missing: string[] = [];
-  if (!apiKey) missing.push("OPENAI_API_KEY");
-  if (!provider) missing.push("OPENAI_PROVIDER");
-  if (!model) missing.push("OPENAI_MODEL");
-  if (!baseUrl) missing.push("OPENAI_BASE_URL");
+  if (openai.missing.length) missing.push(...openai.missing);
   if (!bucketInfo.bucket) missing.push("STORAGE_BUCKET");
   if (!projectId) missing.push("PROJECT_ID");
 
@@ -136,19 +87,16 @@ function buildStatus():
     bucket: bucketInfo.bucket,
     bucketSource: bucketInfo.source,
     projectId,
-    provider,
-    model,
-    baseUrl,
+    provider: openai.config?.provider ?? null,
+    model: openai.config?.model ?? null,
+    baseUrl: openai.config?.baseUrl ?? null,
   };
 
   if (
     missing.length > 0 ||
-    !apiKey ||
+    !openai.config ||
     !bucketInfo.bucket ||
-    !projectId ||
-    !provider ||
-    !model ||
-    !baseUrl
+    !projectId
   ) {
     return { status, config: null };
   }
@@ -156,10 +104,10 @@ function buildStatus():
   return {
     status,
     config: {
-      provider,
-      apiKey,
-      model,
-      baseUrl,
+      provider: openai.config.provider,
+      apiKey: openai.config.apiKey,
+      model: openai.config.model,
+      baseUrl: openai.config.baseUrl,
       storageBucket: bucketInfo.bucket,
       projectId,
     },
@@ -182,8 +130,16 @@ export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   const { status, config } = buildStatus();
   if (config) return config;
   const missingList = status.missing.length ? status.missing.join(", ") : "unknown";
+  const needsKey =
+    status.missing.includes("OPENAI_API_KEY") ||
+    status.missing.includes("OPENAI_MODEL");
   // Use "unavailable" so HTTP maps to 503; the JSON response code is normalized by callers.
-  throw new HttpsError("unavailable", `Scan engine not configured. Missing: ${missingList}.`, {
+  throw new HttpsError(
+    "unavailable",
+    needsKey
+      ? "Scan engine not configured. Set OPENAI_API_KEY (and optionally OPENAI_MODEL) in Cloud Functions."
+      : `Scan engine not configured. Missing: ${missingList}.`,
+    {
     reason: "scan_engine_not_configured",
     missing: status.missing,
     bucket: status.bucket,
@@ -193,7 +149,8 @@ export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
     provider: status.provider,
     model: status.model,
     baseUrl: status.baseUrl,
-  });
+    }
+  );
 }
 
 export function assertScanEngineConfigured(correlationId?: string): EngineConfig {
