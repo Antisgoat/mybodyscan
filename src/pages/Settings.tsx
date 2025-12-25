@@ -348,7 +348,7 @@ const Settings = () => {
       window.URL.revokeObjectURL(url);
       toast({
         title: "Export ready",
-        description: `Links expire ${new Date(payload.expiresAt).toLocaleTimeString()}.`,
+        description: `Export generated at ${new Date().toLocaleTimeString()}.`,
       });
     } catch (error) {
       toast(

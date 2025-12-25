@@ -98,7 +98,6 @@ type ExportProbeState = {
   status: ProbeStatus;
   count?: number;
   firstId?: string;
-  expiresAt?: string;
   error?: string;
 };
 
@@ -417,7 +416,6 @@ export default function SmokeKit() {
         status: "success",
         count: payload.scans.length,
         firstId: payload.scans[0]?.id,
-        expiresAt: payload.expiresAt,
       });
     } catch (error: any) {
       setExportProbe({
@@ -1013,12 +1011,9 @@ export default function SmokeKit() {
               {exportProbe.firstId && (
                 <p className="text-xs">First scan id: {exportProbe.firstId}</p>
               )}
-              {exportProbe.expiresAt && (
-                <p className="text-xs text-muted-foreground">
-                  Links expire{" "}
-                  {new Date(exportProbe.expiresAt).toLocaleTimeString()}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Export returns Storage paths (no signed URLs).
+              </p>
             </div>
 
             <div className="border rounded-lg p-3 space-y-2">
