@@ -15,7 +15,7 @@ const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
-const OPENAI_TIMEOUT_MS = 90000;
+const OPENAI_TIMEOUT_MS = 60000;
 
 type Pose = (typeof POSES)[number];
 
@@ -265,29 +265,34 @@ export async function buildImageInputs(
   paths: Record<Pose, string>
 ): Promise<Array<{ pose: Pose; dataUrl: string; contentType: string }>> {
   const bucket = storage.bucket();
-  const entries: Array<{ pose: Pose; dataUrl: string; contentType: string }> = [];
   const prefix = scanPhotosPrefix(uid);
-  for (const pose of POSES) {
-    const path = paths[pose];
-    if (!path || !path.startsWith(prefix)) {
-      throw new Error(`invalid_photo_path_${pose}`);
-    }
-    const file = bucket.file(path);
-    const [exists] = await file.exists();
-    if (!exists) {
-      throw new Error(`missing_photo_${pose}`);
-    }
-    const [metadata] = await file.getMetadata();
-    const [buffer] = await file.download();
-    const contentType =
-      typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
-        ? metadata.contentType
-        : "image/jpeg";
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${contentType};base64,${base64}`;
-    entries.push({ pose, dataUrl, contentType });
-  }
-  return entries;
+  const results = await Promise.all(
+    POSES.map(async (pose) => {
+      const path = paths[pose];
+      if (!path || !path.startsWith(prefix)) {
+        throw new Error(`invalid_photo_path_${pose}`);
+      }
+      const file = bucket.file(path);
+      try {
+        // Download is the fastest "exists + read" check; it will throw if missing.
+        const [[metadata], [buffer]] = await Promise.all([
+          file.getMetadata(),
+          file.download(),
+        ]);
+        const contentType =
+          typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
+            ? metadata.contentType
+            : "image/jpeg";
+        const base64 = buffer.toString("base64");
+        const dataUrl = `data:${contentType};base64,${base64}`;
+        return { pose, dataUrl, contentType };
+      } catch (err: any) {
+        // Normalize to the worker's existing error mapping.
+        throw new Error(`missing_photo_${pose}`);
+      }
+    })
+  );
+  return results;
 }
 
 export async function callOpenAI(

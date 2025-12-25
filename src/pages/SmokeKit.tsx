@@ -986,7 +986,7 @@ export default function SmokeKit() {
                 <div>
                   <p className="text-sm font-medium">Export probe</p>
                   <p className="text-xs text-muted-foreground">
-                    Callable JSON + signed URLs
+                    Callable JSON + storage paths
                   </p>
                 </div>
                 <Button

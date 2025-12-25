@@ -1,7 +1,7 @@
 import { firebaseReady } from "@/lib/firebase";
 import { call } from "@/lib/callable";
 
-export type ExportImage = { name: string; url: string; expiresAt: string };
+export type ExportImage = { name: string; path: string };
 
 export type ExportIndex = {
   ok: boolean;

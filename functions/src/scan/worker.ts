@@ -24,7 +24,22 @@ const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 const HEARTBEAT_MS = 25_000;
-const ANALYSIS_TIMEOUT_MS = 90_000;
+const ANALYSIS_TIMEOUT_MS = 60_000;
+
+function toMillis(value: any): number | null {
+  if (!value) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toMillis === "function") {
+    try {
+      const ms = value.toMillis();
+      return Number.isFinite(ms) ? ms : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -194,6 +209,7 @@ export const processQueuedScan = onDocumentWritten(
       `users/${uid}/scans/${scanId}`
     ) as FirebaseFirestore.DocumentReference<ScanDocument>;
     const processingAttemptId = randomUUID();
+    const processingStartedAtMs = Date.now();
 
     const claimed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(scanRef);
@@ -224,6 +240,9 @@ export const processQueuedScan = onDocumentWritten(
 
     const correlationId = scan.correlationId || processingAttemptId;
     const engine = getEngineConfigOrThrow(correlationId);
+      const queueRequestedAtMs = toMillis((scan as any).processingRequestedAt);
+      const queueDurationMs =
+        queueRequestedAtMs != null ? Math.max(0, Date.now() - queueRequestedAtMs) : null;
 
     const updateStep = async (patch: Partial<ScanDocument>) => {
       await scanRef.set(
@@ -285,7 +304,9 @@ export const processQueuedScan = onDocumentWritten(
         processingHeartbeatAt: serverTimestamp(),
       });
 
+      const downloadsStartedAtMs = Date.now();
       const images = await buildImageInputs(uid, photoPaths);
+      const downloadElapsedMs = Date.now() - downloadsStartedAtMs;
 
       await updateStep({
         lastStep: "Analyzing body composition",
@@ -296,6 +317,7 @@ export const processQueuedScan = onDocumentWritten(
 
       startHeartbeat("Analyzing body composition", 45);
       let usedFallback = false;
+      const openAiStartedAtMs = Date.now();
       const result = await withTimeout(
         callOpenAI(images, { currentWeightKg, goalWeightKg, uid }, correlationId, engine),
         ANALYSIS_TIMEOUT_MS,
@@ -307,6 +329,7 @@ export const processQueuedScan = onDocumentWritten(
         usedFallback = true;
         return buildFallbackAnalysis({ currentWeightKg, goalWeightKg, uid });
       });
+      const openAiElapsedMs = Date.now() - openAiStartedAtMs;
       stopHeartbeat();
 
       await updateStep({
@@ -447,11 +470,17 @@ export const processQueuedScan = onDocumentWritten(
         { merge: true }
       );
 
+      const totalProcessingMs = Date.now() - processingStartedAtMs;
       console.info("scan_processing_complete", {
         uid,
         scanId,
         correlationId,
         processingAttemptId,
+        downloadElapsedMs,
+        openAiElapsedMs,
+        totalProcessingMs,
+        usedFallback,
+        queueDurationMs,
       });
     } catch (error: any) {
       stopHeartbeat();

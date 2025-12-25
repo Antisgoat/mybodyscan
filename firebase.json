@@ -66,6 +66,34 @@
     ],
     "rewrites": [
       {
+        "source": "/api/scan/start",
+        "function": {
+          "functionId": "startScanSession",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/scan/submit",
+        "function": {
+          "functionId": "submitScan",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/scan/upload",
+        "function": {
+          "functionId": "uploadScanPhotoHttp",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/scan/delete",
+        "function": {
+          "functionId": "deleteScan",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/system/health",
         "function": {
           "functionId": "systemHealth",
