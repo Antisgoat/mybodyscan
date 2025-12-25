@@ -488,7 +488,7 @@ export async function startScan(params?: Record<string, unknown>) {
     return { scanId: mock.scanId };
   }
   try {
-    const payload = (await apiFetchJson("/scan/start", {
+    const payload = (await apiFetchJson("/api/scan/start", {
       method: "POST",
       body: JSON.stringify(params ?? {}),
     })) as { scanId?: string };

@@ -24,7 +24,36 @@ const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 const HEARTBEAT_MS = 25_000;
-const ANALYSIS_TIMEOUT_MS = 90_000;
+const ANALYSIS_TIMEOUT_MS = 45_000;
+
+function round1(value: number): number {
+  return Number(value.toFixed(1));
+}
+
+function bmiCategory(bmi: number): string | null {
+  if (!Number.isFinite(bmi) || bmi <= 0) return null;
+  if (bmi < 18.5) return "Underweight";
+  if (bmi < 25) return "Normal";
+  if (bmi < 30) return "Overweight";
+  if (bmi < 35) return "Obesity I";
+  if (bmi < 40) return "Obesity II";
+  return "Obesity III";
+}
+
+function toMillis(value: any): number | null {
+  if (!value) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toMillis === "function") {
+    try {
+      const ms = value.toMillis();
+      return Number.isFinite(ms) ? ms : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -194,6 +223,7 @@ export const processQueuedScan = onDocumentWritten(
       `users/${uid}/scans/${scanId}`
     ) as FirebaseFirestore.DocumentReference<ScanDocument>;
     const processingAttemptId = randomUUID();
+    const processingStartedAtMs = Date.now();
 
     const claimed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(scanRef);
@@ -224,6 +254,9 @@ export const processQueuedScan = onDocumentWritten(
 
     const correlationId = scan.correlationId || processingAttemptId;
     const engine = getEngineConfigOrThrow(correlationId);
+      const queueRequestedAtMs = toMillis((scan as any).processingRequestedAt);
+      const queueDurationMs =
+        queueRequestedAtMs != null ? Math.max(0, Date.now() - queueRequestedAtMs) : null;
 
     const updateStep = async (patch: Partial<ScanDocument>) => {
       await scanRef.set(
@@ -279,13 +312,26 @@ export const processQueuedScan = onDocumentWritten(
         throw new Error("missing_scan_input");
       }
 
+      // Pull height (and other profile details later) to compute BMI deterministically.
+      const profileSnap = await db.doc(`users/${uid}/coach/profile`).get().catch(() => null);
+      const profile = profileSnap?.exists ? (profileSnap.data() as any) : null;
+      const heightCm = Number(profile?.height_cm);
+      const heightOk = Number.isFinite(heightCm) && heightCm > 50 && heightCm < 260 ? heightCm : null;
+      const bmiComputed =
+        heightOk != null
+          ? round1(currentWeightKg / Math.pow(heightOk / 100, 2))
+          : null;
+      const bmiCategoryComputed = bmiComputed != null ? bmiCategory(bmiComputed) : null;
+
       await updateStep({
         lastStep: "Fetching photo URLs",
         progress: 20,
         processingHeartbeatAt: serverTimestamp(),
       });
 
+      const downloadsStartedAtMs = Date.now();
       const images = await buildImageInputs(uid, photoPaths);
+      const downloadElapsedMs = Date.now() - downloadsStartedAtMs;
 
       await updateStep({
         lastStep: "Analyzing body composition",
@@ -296,8 +342,14 @@ export const processQueuedScan = onDocumentWritten(
 
       startHeartbeat("Analyzing body composition", 45);
       let usedFallback = false;
+      const openAiStartedAtMs = Date.now();
       const result = await withTimeout(
-        callOpenAI(images, { currentWeightKg, goalWeightKg, uid }, correlationId, engine),
+        callOpenAI(
+          images,
+          { currentWeightKg, goalWeightKg, uid, heightCm: heightOk },
+          correlationId,
+          engine
+        ),
         ANALYSIS_TIMEOUT_MS,
         "analysis"
       ).catch((err) => {
@@ -307,6 +359,7 @@ export const processQueuedScan = onDocumentWritten(
         usedFallback = true;
         return buildFallbackAnalysis({ currentWeightKg, goalWeightKg, uid });
       });
+      const openAiElapsedMs = Date.now() - openAiStartedAtMs;
       stopHeartbeat();
 
       await updateStep({
@@ -335,6 +388,11 @@ export const processQueuedScan = onDocumentWritten(
         : null;
       analysis.estimate.leanMassKg = leanMassKg;
       analysis.estimate.fatMassKg = fatMassKg;
+      // Ensure BMI is always present when height is known (model may omit/miscategorize).
+      if (bmiComputed != null) {
+        analysis.estimate.bmi = bmiComputed;
+        analysis.estimate.bmiCategory = bmiCategoryComputed;
+      }
       const bfPoint = Number.isFinite(analysis.estimate.bodyFatPercent)
         ? analysis.estimate.bodyFatPercent
         : null;
@@ -437,6 +495,8 @@ export const processQueuedScan = onDocumentWritten(
             leanMassKg,
             fatMassKg,
             bmi: analysis.estimate.bmi,
+            bmiCategory: analysis.estimate.bmiCategory ?? null,
+            heightCm: heightOk,
             bodyFatEstimate: bfRange,
           },
           usedFallback,
@@ -447,11 +507,17 @@ export const processQueuedScan = onDocumentWritten(
         { merge: true }
       );
 
+      const totalProcessingMs = Date.now() - processingStartedAtMs;
       console.info("scan_processing_complete", {
         uid,
         scanId,
         correlationId,
         processingAttemptId,
+        downloadElapsedMs,
+        openAiElapsedMs,
+        totalProcessingMs,
+        usedFallback,
+        queueDurationMs,
       });
     } catch (error: any) {
       stopHeartbeat();

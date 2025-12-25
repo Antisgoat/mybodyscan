@@ -2,14 +2,17 @@ import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { onRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Request, Response } from "firebase-functions/v2/https";
-import { getStorage } from "../firebase.js";
+import { Timestamp, getFirestore, getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
 import { buildScanPhotoPath, isScanPose } from "./paths.js";
 
 const storage = getStorage();
+const db = getFirestore();
 const MAX_BYTES = 6 * 1024 * 1024;
+const serverTimestamp = (): FirebaseFirestore.Timestamp =>
+  Timestamp.now() as FirebaseFirestore.Timestamp;
 
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -211,6 +214,19 @@ export const uploadScanPhotoHttp = onRequest(
           },
         },
       });
+
+      // Mark the scan doc so UIs/ops can tell the fallback path was used (Safari stall recovery).
+      // This is best-effort: don't fail the upload response if Firestore is unavailable.
+      void db
+        .doc(`users/${uid}/scans/${scanId}`)
+        .set(
+          {
+            usedFallback: true,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        )
+        .catch(() => undefined);
 
       const [meta] = await object.getMetadata();
       const elapsedMs = Date.now() - startedAt;

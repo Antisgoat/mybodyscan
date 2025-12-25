@@ -99,13 +99,13 @@ function normalizeTimestamp(value: unknown): number | null {
   return null;
 }
 
-type ExportImage = { name: string; url: string; expiresAt: string };
+type ExportImage = { name: string; path: string };
 
 async function buildImageExport(
   uid: string,
   scanId: string,
   poses: string[],
-  expiresAt: string
+  _expiresAt: string
 ): Promise<ExportImage[]> {
   const bucket = storage.bucket();
   const results: ExportImage[] = [];
@@ -118,20 +118,10 @@ async function buildImageExport(
         const file = bucket.file(path);
         const [exists] = await file.exists();
         if (!exists) return;
-        const [metadata] = await file.getMetadata();
-        const tokenRaw = metadata?.metadata?.firebaseStorageDownloadTokens;
-        const token =
-          typeof tokenRaw === "string" && tokenRaw.length
-            ? tokenRaw.split(",")[0]
-            : null;
-        if (!token) {
-          console.warn("account_export_missing_token", { uid, scanId, pose });
-          return;
-        }
-        const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
-        results.push({ name: pose, url, expiresAt });
+        // Return storage paths only; clients can resolve via Firebase Storage Web SDK.
+        results.push({ name: pose, path });
       } catch (err) {
-        console.warn("account_export_signed_url_error", {
+        console.warn("account_export_image_error", {
           uid,
           scanId,
           pose,

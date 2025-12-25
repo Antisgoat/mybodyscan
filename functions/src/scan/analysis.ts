@@ -15,7 +15,7 @@ const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
-const OPENAI_TIMEOUT_MS = 90000;
+const OPENAI_TIMEOUT_MS = 45_000;
 
 type Pose = (typeof POSES)[number];
 
@@ -265,34 +265,44 @@ export async function buildImageInputs(
   paths: Record<Pose, string>
 ): Promise<Array<{ pose: Pose; dataUrl: string; contentType: string }>> {
   const bucket = storage.bucket();
-  const entries: Array<{ pose: Pose; dataUrl: string; contentType: string }> = [];
   const prefix = scanPhotosPrefix(uid);
-  for (const pose of POSES) {
-    const path = paths[pose];
-    if (!path || !path.startsWith(prefix)) {
-      throw new Error(`invalid_photo_path_${pose}`);
-    }
-    const file = bucket.file(path);
-    const [exists] = await file.exists();
-    if (!exists) {
-      throw new Error(`missing_photo_${pose}`);
-    }
-    const [metadata] = await file.getMetadata();
-    const [buffer] = await file.download();
-    const contentType =
-      typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
-        ? metadata.contentType
-        : "image/jpeg";
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${contentType};base64,${base64}`;
-    entries.push({ pose, dataUrl, contentType });
-  }
-  return entries;
+  const results = await Promise.all(
+    POSES.map(async (pose) => {
+      const path = paths[pose];
+      if (!path || !path.startsWith(prefix)) {
+        throw new Error(`invalid_photo_path_${pose}`);
+      }
+      const file = bucket.file(path);
+      try {
+        // Download is the fastest "exists + read" check; it will throw if missing.
+        const [[metadata], [buffer]] = await Promise.all([
+          file.getMetadata(),
+          file.download(),
+        ]);
+        const contentType =
+          typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
+            ? metadata.contentType
+            : "image/jpeg";
+        const base64 = buffer.toString("base64");
+        const dataUrl = `data:${contentType};base64,${base64}`;
+        return { pose, dataUrl, contentType };
+      } catch (err: any) {
+        // Normalize to the worker's existing error mapping.
+        throw new Error(`missing_photo_${pose}`);
+      }
+    })
+  );
+  return results;
 }
 
 export async function callOpenAI(
   images: Array<{ pose: Pose; dataUrl: string }>,
-  input: { currentWeightKg: number; goalWeightKg: number; uid: string },
+  input: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+    uid: string;
+    heightCm?: number | null;
+  },
   requestId: string,
   engine: EngineConfig
 ): Promise<OpenAIResult> {
@@ -323,8 +333,12 @@ export async function callOpenAI(
   const userText = [
     `Current weight: ${input.currentWeightKg} kg`,
     `Goal weight: ${input.goalWeightKg} kg`,
+    ...(Number.isFinite(input.heightCm ?? NaN) && (input.heightCm as number) > 0
+      ? [`Height: ${(input.heightCm as number).toFixed(0)} cm`]
+      : []),
     "Use the four photos (front, back, left, right) to inform the estimate and plans.",
-    "BMI can be null if unreliable. Notes must remind this is only an estimate.",
+    "If height is provided, compute BMI from weight and height; otherwise BMI can be null.",
+    "Notes must remind this is only an estimate.",
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",

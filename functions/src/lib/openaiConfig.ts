@@ -34,7 +34,7 @@ function resolveModel(): string {
   if (envModel) return envModel;
   const paramModel = readParam(openAiModelParam);
   if (paramModel) return paramModel;
-  return "gpt-4o-mini";
+  return "";
 }
 
 function resolveBaseUrl(): string {
@@ -63,6 +63,7 @@ export function readOpenAIEnv():
 
   const missing: string[] = [];
   if (!apiKey) missing.push("OPENAI_API_KEY");
+  if (!model) missing.push("OPENAI_MODEL");
 
   if (missing.length) {
     return { config: null, missing };
@@ -84,7 +85,7 @@ export function assertOpenAIConfig(correlationId?: string): OpenAIEnvConfig {
   if (config) return config;
   const message =
     missing.includes("OPENAI_API_KEY") || missing.includes("OPENAI_MODEL")
-      ? "Scan engine not configured. Set OPENAI_API_KEY (and optionally OPENAI_MODEL) in Cloud Functions."
+      ? "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions."
       : `Scan engine not configured. Missing: ${missing.join(", ")}`;
   throw new HttpsError("unavailable", message, {
     reason: "scan_engine_not_configured",

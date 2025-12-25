@@ -1,5 +1,4 @@
 import { ApiError } from "@/lib/http";
-import { DEFAULT_FN_BASE, resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { xhrUploadFormDataJson } from "@/lib/uploads/xhrUploadJson";
 
 type UploadScanPhotoHttpResponse = {
@@ -27,10 +26,15 @@ function isStorageRestUrl(candidate: string): boolean {
 }
 
 function resolveUploadBaseUrl(): string {
-  const resolved = resolveFunctionUrl("VITE_SCAN_UPLOAD_HTTP_URL", "uploadScanPhotoHttp");
+  const env = (import.meta as any).env || {};
+  const override = env.VITE_SCAN_UPLOAD_HTTP_URL;
+  const resolved =
+    typeof override === "string" && override.trim()
+      ? override.trim()
+      : "/api/scan/upload";
   if (isStorageRestUrl(resolved)) {
     console.warn("scan_upload_http_invalid_override", { resolved });
-    return `${DEFAULT_FN_BASE}/uploadScanPhotoHttp`;
+    return "/api/scan/upload";
   }
   return resolved;
 }
