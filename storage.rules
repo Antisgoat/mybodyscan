@@ -30,6 +30,7 @@ service firebase.storage {
       allow create, update: if isOwner(uid)
         && isAllowedScanFileName(fileName)
         && validImageUpload();
+      allow delete: if isOwner(uid);
     }
 
     // Dev / diagnostics: small owner-only write used by in-app "Test Storage Write".
