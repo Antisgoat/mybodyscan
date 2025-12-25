@@ -5,6 +5,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { defineString } from "firebase-functions/params";
 import { getAppCheck } from "firebase-admin/app-check";
+import { scanScanIdPrefix } from "../scan/paths.js";
 
 const APP_CHECK_MODE = defineString("APP_CHECK_MODE"); // "SOFT" | "HARD" (default SOFT)
 
@@ -49,7 +50,7 @@ export const deleteScan = onRequest(
       const bucket = getStorage().bucket();
       await Promise.all([
         bucket
-          .deleteFiles({ prefix: `user_uploads/${uid}/scans/${scanId}/` })
+          .deleteFiles({ prefix: scanScanIdPrefix({ uid, scanId }) })
           .catch(() => {}),
         // Legacy (older clients)
         bucket

@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { deriveNutritionPlan } from "../lib/nutritionGoals.js";
 import type { ScanDocument } from "../types.js";

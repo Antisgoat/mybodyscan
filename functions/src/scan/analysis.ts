@@ -9,6 +9,7 @@ import {
 } from "../openai/client.js";
 import type { EngineConfig } from "./engineConfig.js";
 import type { ScanEstimate, ScanNutritionPlan, ScanWorkoutPlan } from "../types.js";
+import { scanPhotosPrefix } from "./paths.js";
 
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
@@ -218,9 +219,10 @@ export async function buildImageInputs(
 ): Promise<Array<{ pose: Pose; url: string }>> {
   const bucket = storage.bucket();
   const entries: Array<{ pose: Pose; url: string }> = [];
+  const prefix = scanPhotosPrefix(uid);
   for (const pose of POSES) {
     const path = paths[pose];
-    if (!path || !path.startsWith(`user_uploads/${uid}/scans/`)) {
+    if (!path || !path.startsWith(prefix)) {
       throw new Error(`invalid_photo_path_${pose}`);
     }
     const file = bucket.file(path);

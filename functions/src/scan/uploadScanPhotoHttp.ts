@@ -6,9 +6,9 @@ import { getStorage } from "../firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuth } from "../http.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
+import { buildScanPhotoPath, isScanPose } from "./paths.js";
 
 const storage = getStorage();
-const POSES = new Set(["front", "back", "left", "right"]);
 const MAX_BYTES = 6 * 1024 * 1024;
 
 function toTrimmedString(value: unknown): string {
@@ -172,7 +172,7 @@ export const uploadScanPhotoHttp = onRequest(
         res.status(400).json(buildError("invalid-argument", "Missing scanId/view"));
         return;
       }
-      if (!POSES.has(view)) {
+      if (!isScanPose(view)) {
         res
           .status(400)
           .json(buildError("invalid-argument", "Invalid view provided"));
@@ -193,7 +193,7 @@ export const uploadScanPhotoHttp = onRequest(
       }
 
       const bucket = storage.bucket();
-      const path = `user_uploads/${uid}/scans/${scanId}/${view}.jpg`;
+      const path = buildScanPhotoPath({ uid, scanId, pose: view });
       const uploadedAt = new Date().toISOString();
 
       const object = bucket.file(path);
