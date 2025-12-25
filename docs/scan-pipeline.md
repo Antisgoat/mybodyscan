@@ -54,6 +54,8 @@ If iOS Safari stalls after SDK retries with **0 bytes transferred**, the client 
 - Firestore trigger `processQueuedScan` runs when status becomes `queued`
 - Downloads the 4 images **server-side** via Admin Storage (`file.download()`)
 - Sends a single multimodal request to OpenAI using **base64 data URLs** (no signed URLs)
+- If the user has a saved height (`users/{uid}/coach/profile.height_cm`), **BMI is computed deterministically server-side**
+  and passed into the model prompt for consistency.
 - Writes results back to Firestore:
   - `status: "complete"`
   - `estimate`, `workoutPlan`, `nutritionPlan`, `recommendations`, `planMarkdown`, etc.

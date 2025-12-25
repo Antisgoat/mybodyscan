@@ -297,7 +297,12 @@ export async function buildImageInputs(
 
 export async function callOpenAI(
   images: Array<{ pose: Pose; dataUrl: string }>,
-  input: { currentWeightKg: number; goalWeightKg: number; uid: string },
+  input: {
+    currentWeightKg: number;
+    goalWeightKg: number;
+    uid: string;
+    heightCm?: number | null;
+  },
   requestId: string,
   engine: EngineConfig
 ): Promise<OpenAIResult> {
@@ -328,8 +333,12 @@ export async function callOpenAI(
   const userText = [
     `Current weight: ${input.currentWeightKg} kg`,
     `Goal weight: ${input.goalWeightKg} kg`,
+    ...(Number.isFinite(input.heightCm ?? NaN) && (input.heightCm as number) > 0
+      ? [`Height: ${(input.heightCm as number).toFixed(0)} cm`]
+      : []),
     "Use the four photos (front, back, left, right) to inform the estimate and plans.",
-    "BMI can be null if unreliable. Notes must remind this is only an estimate.",
+    "If height is provided, compute BMI from weight and height; otherwise BMI can be null.",
+    "Notes must remind this is only an estimate.",
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",
