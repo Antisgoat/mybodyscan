@@ -42,7 +42,7 @@
 - `nutritionSearch` (`functions/src/nutritionSearch.ts`) – GET search proxy requiring App Check, throttled by `NUTRITION_RPM`, fanning out to USDA/OpenFoodFacts with stub fallbacks.【F:functions/src/nutritionSearch.ts†L426-L559】
 - `nutritionBarcode` (`functions/src/nutritionBarcode.ts`) – App Check + auth barcode lookup with per-UID rate limits and 24h in-memory cache.【F:functions/src/nutritionBarcode.ts†L57-L135】
 - `addMeal`/`deleteMeal`/`getDailyLog`/`getNutritionHistory` (`functions/src/nutrition.ts`) – Authenticated JSON handlers for CRUD + summaries on `users/{uid}/nutritionLogs/{day}` with App Check enforcement.【F:functions/src/nutrition.ts†L206-L334】
-- `beginPaidScan`, `recordGateFailure`, `refundIfNoResult`, `startScanSession`, `submitScan` (`functions/src/scan/*.ts`) – Scan lifecycle endpoints for credit checks, gating, Storage uploads (`user_uploads/{uid}/{scanId}`), OpenAI vision processing, idempotency docs, and credit refunds.【F:functions/src/scan/beginPaidScan.ts†L20-L145】【F:functions/src/scan/recordGateFailure.ts†L16-L58】【F:functions/src/scan/refundIfNoResult.ts†L11-L78】【F:functions/src/scan/start.ts†L46-L128】【F:functions/src/scan/submit.ts†L332-L433】
+- `beginPaidScan`, `recordGateFailure`, `refundIfNoResult`, `startScanSession`, `submitScan` (`functions/src/scan/*.ts`) – Scan lifecycle endpoints for credit checks, gating, canonical Storage uploads (`scans/{uid}/{scanId}/{pose}.jpg`), OpenAI vision processing, idempotency docs, and credit refunds.【F:functions/src/scan/beginPaidScan.ts†L20-L145】【F:functions/src/scan/recordGateFailure.ts†L16-L58】【F:functions/src/scan/refundIfNoResult.ts†L11-L78】【F:functions/src/scan/start.ts†L46-L128】【F:functions/src/scan/submit.ts†L332-L433】
 - `workouts` suite (`functions/src/workouts.ts`) – Generates/stores workout plans, tracks completion progress docs, and provides an `adjustWorkout` HTTP helper.【F:functions/src/workouts.ts†L104-L332】
 - `createCheckout` / `stripeWebhook` (`functions/src/payments.ts`) – Stripe helpers returning 501 when secrets missing, using soft App Check on checkout.【F:functions/src/payments.ts†L7-L81】
 - `deleteMyAccount` / `exportMyData` (`functions/src/account.ts`) – Callable utilities to recursively purge a user’s Firestore tree, clean `user_uploads/{uid}` storage, and return short-lived export URLs for scans.【F:functions/src/account.ts†L10-L184】
@@ -74,8 +74,8 @@
 
 - The SPA initializes Firebase App Check with reCAPTCHA v3, tracking readiness in `AppCheckProvider`; server handlers enforce tokens via `verifyAppCheckStrict` (soft mode optional via env).【F:src/appCheck.ts†L18-L74】【F:src/components/AppCheckProvider.tsx†L10-L45】【F:functions/src/http.ts†L1-L38】【F:functions/src/lib/env.ts†L7-L18】
 - Hosting sends HSTS, CSP, and other hardened headers globally, with a stricter CSP variant for preview frames.【F:firebase.json†L24-L64】
-- User-generated media uploads use signed URLs targeting `user_uploads/{uid}/{scanId}/{pose}.jpg` before results persist to Storage under `scans/{uid}/{scanId}/…`, with Storage rules limiting owners to JPEG images ≤15 MB.【F:functions/src/scan/start.ts†L46-L116】【F:src/lib/scan.ts†L40-L79】【F:storage.rules†L13-L29】
-- A `deleteUploads` helper is defined to clean the temporary `uploads` objects after processing, but it is not currently invoked—leaving manual cleanup as a follow-up risk.【F:functions/src/scan/submit.ts†L292-L307】
+- Scan photo uploads are written to `scans/{uid}/{scanId}/{pose}.jpg` (SDK resumable upload with same-origin function fallback); Storage rules restrict writes/reads to the owning user and JPEG-like images ≤15 MB.【F:functions/src/scan/start.ts†L46-L116】【F:functions/src/scan/uploadScanPhotoHttp.ts†L140-L269】【F:storage.rules†L13-L45】
+- A `deleteUploads` helper is defined to clean scan photo objects after processing, but it is not currently invoked—leaving manual cleanup as a follow-up risk.【F:functions/src/scan/submit.ts†L292-L307】
 
 ## 9. Analytics events
 

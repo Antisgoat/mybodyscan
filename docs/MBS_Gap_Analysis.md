@@ -17,7 +17,7 @@ Feature-by-feature status, gaps, and priorities.
 - **Tasks**:
   - **P0**: DONE — capture/result pages block interaction with clear App Check/Functions messaging.
   - **P1**: Deprecate legacy capture/processing routes and reroute to the canonical `/scan/*` flow.
-  - **P1**: Wire `deleteUploads` helper to purge `user_uploads/{uid}/{scanId}` after results are saved.
+  - **P1**: Wire `deleteUploads` helper to purge `scans/{uid}/{scanId}/` after results are saved.
   - **P2**: Add analytics for scan failures by error code.
 
 ## Plans / Stripe billing

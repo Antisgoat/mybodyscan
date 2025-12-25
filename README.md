@@ -273,11 +273,11 @@ match /events/telemetry/{eventId} {
 }
 
 // Storage
-match /user_uploads/{uid}/{scanId}/{filename} {
+match /scans/{uid}/{scanId}/{filename} {
   allow read: if request.auth.uid == uid;
   allow create, update: if request.auth.uid == uid &&
     request.resource.size <= 15 * 1024 * 1024 &&
-    request.resource.contentType.matches('image/jpeg|image/pjpeg');
+    request.resource.contentType.matches('image/.+');
 }
 ```
 

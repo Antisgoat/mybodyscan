@@ -14,7 +14,7 @@
 ## Canonical user journeys
 
 - **Auth & access**: `/auth` for sign-in. Logged-out visitors are redirected away from protected routes; logged-in users see `AuthedLayout` with navigation.
-- **Scan flow (canonical)**: Home → **Scan** (`/scan`) → Start (`/scan/start`) → Capture (`/scan/capture`) → Processing (`/scan/result` or `/processing/:scanId`) → Results (`/scan/:scanId` or `/results/:scanId`) → History (`/scan/history` or `/history`). Uploads land in `user_uploads/{uid}/{scanId}`; final results persist under `users/{uid}/scans/{scanId}`.
+- **Scan flow (canonical)**: Home → **Scan** (`/scan`) → Start (`/scan/start`) → Capture (`/scan/capture`) → Processing (`/scan/result` or `/processing/:scanId`) → Results (`/scan/:scanId` or `/results/:scanId`) → History (`/scan/history` or `/history`). Uploads land in `scans/{uid}/{scanId}/{pose}.jpg`; final results persist under `users/{uid}/scans/{scanId}`.
 - **Plans / billing**: `/plans` lists one-time and subscription plans. Non-subscribers see upgrade CTAs; active subscribers see “manage subscription.” Checkout uses the `createCheckout` callable; customer portal uses `createCustomerPortalSession`.
 - **AI coach**: `/coach` → `/coach/chat` for threaded chat backed by the `coachChat` Function; `/coach/day` surfaces plan-of-day content.
 - **Meals**: `/meals` hub → `/meals/search` for food lookup → log entries to `users/{uid}/nutritionLogs/{day}` and `entries` subcollections → `/meals/history` for history and trends. Barcode search lives at `/barcode`.

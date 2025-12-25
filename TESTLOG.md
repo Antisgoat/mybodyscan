@@ -81,7 +81,7 @@ Manual verification (requires a real Firebase project + browser runtime):
    - [ ] IdentityToolkit `clientConfig` warnings (404/403) are informational only; sign-in still works (authorized domains configured in console).
 2. Scan flow (end-to-end)
    - [ ] Go to `/scan`, complete the capture flow, and finalize upload (see real progress during upload).
-   - [ ] Confirm all 4 images land in Storage under `user_uploads/{uid}/{scanId}/`.
+   - [ ] Confirm all 4 images land in Storage under `scans/{uid}/{scanId}/`.
    - [ ] Confirm `submitScan` transitions `users/{uid}/scans/{scanId}` from `pending → processing → complete` (or `error` with a message).
    - [ ] Confirm redirect to `/scan/:scanId` and the report renders an Evolt-style layout:
      - Header + profile info (height/weight/age/sex/goal).
@@ -142,7 +142,7 @@ Manual verification checklist (staging/prod browser):
    - [ ] Open `/meals`, add items, confirm **Consumed/Goal/Remaining** and macros update.
    - [ ] Reload page and confirm data persists.
 4. Scan
-   - [ ] Upload 4 photos, ensure Storage objects exist under `user_uploads/{uid}/{scanId}/`.
+   - [ ] Upload 4 photos, ensure Storage objects exist under `scans/{uid}/{scanId}/`.
    - [ ] Wait for result; confirm Scan Result renders metrics.
    - [ ] If analysis fails, confirm the error card appears and photos are still viewable.
 
