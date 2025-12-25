@@ -102,7 +102,7 @@ async function parseMultipart(req: Request): Promise<{
     const disposition = headers["content-disposition"] || "";
     const name = parseMultipartField(disposition, "name");
     if (!name) continue;
-    if (name === "file" || name === "image") {
+    if (name === "file" || name === "image" || name === "photo") {
       fileSize = body.length;
       if (fileSize > MAX_BYTES) throw new Error("file_too_large");
       fileBuffer = body;

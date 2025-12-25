@@ -18,23 +18,9 @@ export type UploadViaHttpResult = {
   elapsedMs: number;
 };
 
-function isStorageRestUrl(candidate: string): boolean {
-  const value = candidate.toLowerCase();
-  if (value.includes("firebasestorage.googleapis.com")) return true;
-  if (value.includes("storage.googleapis.com")) return true;
-  return value.includes("/v0/b/") || value.includes("/upload/storage/v1/b/");
-}
-
 function resolveUploadBaseUrl(): string {
-  // Default to same-origin hosting rewrite to avoid CORS/preflight on Safari.
-  const env = (import.meta as any).env || {};
-  const override = typeof env?.VITE_SCAN_UPLOAD_HTTP_URL === "string" ? env.VITE_SCAN_UPLOAD_HTTP_URL.trim() : "";
-  const resolved = override || "/api/scan/upload";
-  if (isStorageRestUrl(resolved)) {
-    console.warn("scan_upload_http_invalid_override", { resolved });
-    return "/api/scan/upload";
-  }
-  return resolved;
+  // Non-negotiable: same-origin only (Hosting rewrite → Cloud Function).
+  return "/api/scan/upload";
 }
 
 function uploadUrl(scanId: string, view: string, correlationId: string): string {
