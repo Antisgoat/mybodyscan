@@ -92,6 +92,12 @@ export interface ScanDocument {
   estimate: ScanEstimate | null;
   workoutPlan: ScanWorkoutPlan | null;
   nutritionPlan: ScanNutritionPlan | null;
+  /** Optional: structured list of focus areas (bullets). */
+  improvementAreas?: string[] | null;
+  /** Optional: explicit disclaimer (UI can render verbatim). */
+  disclaimer?: string | null;
+  /** Optional alias for workoutPlan for newer clients. */
+  workoutProgram?: ScanWorkoutPlan | null;
   /** Markdown summary of the result (ChatGPT-style). */
   planMarkdown?: string | null;
   legacyStatus?: string;

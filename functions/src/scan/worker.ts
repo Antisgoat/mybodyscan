@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { deriveNutritionPlan } from "../lib/nutritionGoals.js";
 import type { ScanDocument } from "../types.js";
@@ -316,6 +317,25 @@ export const processQueuedScan = onDocumentWritten(
         : null;
       analysis.estimate.leanMassKg = leanMassKg;
       analysis.estimate.fatMassKg = fatMassKg;
+      const bfPoint = Number.isFinite(analysis.estimate.bodyFatPercent)
+        ? analysis.estimate.bodyFatPercent
+        : null;
+      const bfRange =
+        bfPoint != null
+          ? {
+              min: Math.max(3, Number((bfPoint - 3).toFixed(1))),
+              max: Math.min(60, Number((bfPoint + 3).toFixed(1))),
+              point: Number(bfPoint.toFixed(1)),
+            }
+          : null;
+
+      const improvementAreas =
+        Array.isArray(analysis.estimate.keyObservations) && analysis.estimate.keyObservations.length
+          ? analysis.estimate.keyObservations
+          : Array.isArray(analysis.estimate.goalRecommendations) &&
+              analysis.estimate.goalRecommendations.length
+            ? analysis.estimate.goalRecommendations
+            : analysis.recommendations;
 
       const nutritionPlan = (() => {
         const derived = deriveNutritionPlan({
@@ -352,6 +372,9 @@ export const processQueuedScan = onDocumentWritten(
           recommendations: analysis.recommendations.length
             ? analysis.recommendations
             : null,
+          improvementAreas: improvementAreas?.length ? improvementAreas : null,
+          disclaimer: "Estimates only. Not medical advice.",
+          workoutProgram: analysis.workoutPlan,
           planMarkdown: buildPlanMarkdown({
             estimate: analysis.estimate,
             workoutPlan: analysis.workoutPlan,
@@ -364,6 +387,7 @@ export const processQueuedScan = onDocumentWritten(
             leanMassKg,
             fatMassKg,
             bmi: analysis.estimate.bmi,
+            bodyFatEstimate: bfRange,
           },
           usedFallback,
           errorMessage: null,
@@ -382,6 +406,8 @@ export const processQueuedScan = onDocumentWritten(
     } catch (error: any) {
       stopHeartbeat();
       const errorReason = deriveErrorReason(error);
+      const errorDetails =
+        error instanceof HttpsError ? ((error as any)?.details ?? {}) : {};
       const rawMessage =
         typeof error?.message === "string" && error.message.length
           ? error.message
@@ -391,6 +417,7 @@ export const processQueuedScan = onDocumentWritten(
         if (rawMessage?.startsWith("invalid_photo_path_")) return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
+        if (errorDetails?.reason === "scan_engine_not_configured") return "scan_engine_not_configured";
         if (error instanceof OpenAIClientError && error.code) return error.code;
         return errorReason;
       })();
@@ -415,6 +442,9 @@ export const processQueuedScan = onDocumentWritten(
             return "Scan engine is busy. Please try again shortly.";
           }
           return "Scan engine is temporarily unavailable. Please try again.";
+        }
+        if (effectiveReason === "scan_engine_not_configured") {
+          return "Scan engine not configured.";
         }
         return rawMessage ?? "Unexpected error while processing scan.";
       })();

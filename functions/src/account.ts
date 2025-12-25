@@ -7,6 +7,7 @@ import type { Timestamp } from "firebase-admin/firestore";
 import type { File } from "@google-cloud/storage";
 
 import { getAuth, getFirestore, getStorage } from "./firebase.js";
+import { buildScanPhotoPath, isScanPose } from "./scan/paths.js";
 
 const auth = getAuth();
 const db = getFirestore();
@@ -112,7 +113,8 @@ async function buildImageExport(
 
   await Promise.all(
     poses.map(async (pose) => {
-      const path = `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
+      if (!isScanPose(pose)) return;
+      const path = buildScanPhotoPath({ uid, scanId, pose });
       try {
         const file = bucket.file(path);
         const [exists] = await file.exists();

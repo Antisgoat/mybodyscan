@@ -13,15 +13,16 @@ import { openAiSecretParam } from "../openai/keys.js";
 import type { ScanDocument } from "../types.js";
 import { deriveErrorReason } from "./analysis.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
+import { buildScanPhotoPath, SCAN_POSES, type ScanPose } from "./paths.js";
 
 const db = getFirestore();
 const storage = getStorage();
-const POSES = ["front", "back", "left", "right"] as const;
+const POSES = SCAN_POSES;
 
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 
-type Pose = (typeof POSES)[number];
+type Pose = ScanPose;
 
 type SubmitPayload = {
   scanId: string;
@@ -30,10 +31,6 @@ type SubmitPayload = {
   goalWeightKg: number;
   correlationId?: string;
 };
-
-function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
-  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
-}
 
 function parsePayload(body: any): SubmitPayload | null {
   if (!body || typeof body !== "object") return null;
@@ -70,7 +67,7 @@ function parsePayload(body: any): SubmitPayload | null {
 async function verifyPhotoPaths(uid: string, scanId: string, paths: Record<Pose, string>) {
   const bucket = storage.bucket();
   for (const pose of POSES) {
-    const expected = buildStoragePath(uid, scanId, pose);
+    const expected = buildScanPhotoPath({ uid, scanId, pose });
     const actual = paths[pose];
     if (actual !== expected) {
       throw new HttpsError(
@@ -255,14 +252,20 @@ function respondWithSubmitError(
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    res.status(statusFromHttpsError(error)).json({
-      code: error.code,
+    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const normalizedCode =
+      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : error.code;
+    const normalizedStatus =
+      reason === "scan_engine_not_configured" ? 503 : statusFromHttpsError(error);
+    res.status(normalizedStatus).json({
+      code: normalizedCode,
       message:
         error.code === "internal"
           ? "Unexpected error while processing scan."
           : error.message || "Unable to process scan.",
       debugId,
       reason,
+      missing,
     });
     return;
   }

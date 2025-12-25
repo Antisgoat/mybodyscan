@@ -13,21 +13,14 @@ import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import type { ScanDocument } from "../types.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
+import { buildScanPhotoPath, type ScanPose } from "./paths.js";
 
 const db = getFirestore();
-const POSES = ["front", "back", "left", "right"] as const;
-
-type Pose = (typeof POSES)[number];
+type Pose = ScanPose;
 
 interface StartResponse {
   scanId: string;
   storagePaths: Record<Pose, string>;
-}
-
-function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
-  // Canonical path (used everywhere in client + backend)
-  // user_uploads/{uid}/scans/{scanId}/{view}.jpg
-  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
 }
 
 async function handleStart(req: Request, res: any) {
@@ -84,10 +77,10 @@ async function handleStart(req: Request, res: any) {
     const scanId = randomUUID();
     const now = Timestamp.now() as FirebaseFirestore.Timestamp;
     const storagePaths: Record<Pose, string> = {
-      front: buildStoragePath(uid, scanId, "front"),
-      back: buildStoragePath(uid, scanId, "back"),
-      left: buildStoragePath(uid, scanId, "left"),
-      right: buildStoragePath(uid, scanId, "right"),
+      front: buildScanPhotoPath({ uid, scanId, pose: "front" }),
+      back: buildScanPhotoPath({ uid, scanId, pose: "back" }),
+      left: buildScanPhotoPath({ uid, scanId, pose: "left" }),
+      right: buildScanPhotoPath({ uid, scanId, pose: "right" }),
     };
 
     const doc: ScanDocument = {
@@ -164,11 +157,17 @@ function respondWithStartError(
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    res.status(statusFromHttpsError(error)).json({
-      code: error.code,
+    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const normalizedCode =
+      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : error.code;
+    const normalizedStatus =
+      reason === "scan_engine_not_configured" ? 503 : statusFromHttpsError(error);
+    res.status(normalizedStatus).json({
+      code: normalizedCode,
       message: error.message || "Unable to start scan.",
       debugId,
       reason,
+      missing,
     });
     return;
   }

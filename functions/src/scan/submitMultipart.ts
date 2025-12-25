@@ -8,13 +8,15 @@ import {
   getStorage,
   Timestamp,
 } from "../firebase.js";
+import type { Firestore as AdminFirestore, Timestamp as AdminTimestamp } from "firebase-admin/firestore";
 import { allowCorsAndOptionalAppCheck } from "../http.js";
 import { ensureSoftAppCheckFromRequest } from "../lib/appCheckSoft.js";
 import { openAiSecretParam } from "../openai/keys.js";
 import type { ScanDocument } from "../types.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
+import { buildScanPhotoPath, SCAN_POSES, type ScanPose } from "./paths.js";
 
-type Pose = "front" | "back" | "left" | "right";
+type Pose = ScanPose;
 type ParsedFile = {
   field: Pose;
   filename: string;
@@ -24,17 +26,17 @@ type ParsedFile = {
 };
 
 type SubmitMultipartDeps = {
-  firestore: FirebaseFirestore.Firestore;
+  firestore: AdminFirestore;
   storage: ReturnType<typeof getStorage>;
   verifyIdToken: (token: string) => Promise<{ uid: string }>;
-  now: () => FirebaseFirestore.Timestamp;
+  now: () => AdminTimestamp;
   ensureAppCheck: (
     req: Request,
     ctx: { fn: string; uid: string; requestId: string }
   ) => Promise<void>;
 };
 
-const EXPECTED_POSES: Pose[] = ["front", "back", "left", "right"];
+const EXPECTED_POSES: Pose[] = [...SCAN_POSES];
 const MAX_BYTES_PER_PHOTO = 2 * 1024 * 1024; // 2MB
 const DEFAULT_DEPS: SubmitMultipartDeps = {
   firestore: getFirestore(),
@@ -203,10 +205,6 @@ function validateFiles(files: ParsedFile[]): Record<Pose, ParsedFile> {
   return mapped as Record<Pose, ParsedFile>;
 }
 
-function buildStoragePath(uid: string, scanId: string, pose: Pose): string {
-  return `user_uploads/${uid}/scans/${scanId}/${pose}.jpg`;
-}
-
 async function writeScanDoc(
   deps: SubmitMultipartDeps,
   uid: string,
@@ -347,10 +345,10 @@ export async function handleSubmitScanMultipart(
       toTrimmed(fields.correlationId) || requestId || randomUUID();
 
     const photoPaths: Record<Pose, string> = {
-      front: buildStoragePath(uid, scanId, "front"),
-      back: buildStoragePath(uid, scanId, "back"),
-      left: buildStoragePath(uid, scanId, "left"),
-      right: buildStoragePath(uid, scanId, "right"),
+      front: buildScanPhotoPath({ uid, scanId, pose: "front" }),
+      back: buildScanPhotoPath({ uid, scanId, pose: "back" }),
+      left: buildScanPhotoPath({ uid, scanId, pose: "left" }),
+      right: buildScanPhotoPath({ uid, scanId, pose: "right" }),
     };
 
     const docRef = await writeScanDoc(
@@ -398,16 +396,20 @@ export async function handleSubmitScanMultipart(
   } catch (err: any) {
     const code =
       err instanceof HttpsError ? err.code : (err?.code as string | undefined);
-    const status =
-      err instanceof HttpsError ? statusFromErrorCode(code) : 500;
-    const message =
-      err instanceof HttpsError
-        ? err.message || "Upload failed."
-        : "Upload failed.";
+    const details = err instanceof HttpsError ? ((err as any)?.details ?? {}) : {};
     const reason =
-      err instanceof HttpsError
-        ? (err as any)?.details?.reason ?? err.code
-        : "internal";
+      err instanceof HttpsError ? (details?.reason ?? err.code) : "internal";
+    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const normalizedCode =
+      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : (code || "internal");
+    const status =
+      reason === "scan_engine_not_configured"
+        ? 503
+        : err instanceof HttpsError
+          ? statusFromErrorCode(code)
+          : 500;
+    const message =
+      err instanceof HttpsError ? err.message || "Upload failed." : "Upload failed.";
     console.error("scan_submit_multipart_failed", {
       requestId,
       code: err?.code,
@@ -415,10 +417,11 @@ export async function handleSubmitScanMultipart(
     });
     res.status(typeof status === "number" ? status : 500).json({
       ok: false,
-      code: code || "internal",
+      code: normalizedCode,
       message,
       debugId: requestId,
       reason,
+      missing,
     });
   }
 }

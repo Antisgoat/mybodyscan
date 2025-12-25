@@ -43,7 +43,17 @@ export async function uploadPhoto(params: {
       file: params.file,
       correlationId: params.correlationId,
       timeoutMs: params.httpTimeoutMs ?? params.storageTimeoutMs,
+      stallTimeoutMs: params.stallTimeoutMs,
       signal: params.signal,
+      onProgress: params.onProgress
+        ? (p) =>
+            params.onProgress?.({
+              bytesTransferred: p.bytesTransferred,
+              totalBytes: p.totalBytes,
+              taskState: "running",
+              lastProgressAt: p.lastProgressAt,
+            })
+        : undefined,
     });
     return {
       method: "http",

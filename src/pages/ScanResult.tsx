@@ -38,7 +38,7 @@ import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { computeProcessingTimeouts, latestHeartbeatMillis } from "@/lib/scanHeartbeat";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
-const HARD_PROCESSING_TIMEOUT_MS = 5 * 60 * 1000;
+const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
 const PROCESSING_STEPS = [
   "Analyzing posture…",
   "Checking symmetry…",
@@ -910,6 +910,20 @@ export default function ScanResultPage() {
       ? scan.recommendations
       : defaultRecommendations(computedGoals);
 
+  const improvementAreas =
+    Array.isArray(scan.improvementAreas) && scan.improvementAreas.length
+      ? scan.improvementAreas
+      : Array.isArray(scan.estimate?.keyObservations) && scan.estimate.keyObservations.length
+        ? scan.estimate.keyObservations
+        : Array.isArray(scan.estimate?.goalRecommendations) && scan.estimate.goalRecommendations.length
+          ? scan.estimate.goalRecommendations
+          : [];
+
+  const disclaimer =
+    typeof scan.disclaimer === "string" && scan.disclaimer.trim()
+      ? scan.disclaimer.trim()
+      : "Estimates only. Not medical advice.";
+
   const delta = (() => {
     if (!previousScan) return null;
     const prevWeight = previousScan.input?.currentWeightKg;
@@ -1036,6 +1050,18 @@ export default function ScanResultPage() {
             {typeof scan.estimate?.notes === "string" && scan.estimate.notes.trim() ? (
               <p className="text-xs text-muted-foreground">{scan.estimate.notes}</p>
             ) : null}
+            {improvementAreas.length ? (
+              <div className="pt-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Improvement areas
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {improvementAreas.slice(0, 6).map((item, idx) => (
+                    <li key={idx}>• {item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           <Separator />
@@ -1155,6 +1181,9 @@ export default function ScanResultPage() {
                 </li>
               ))}
             </ul>
+            {disclaimer ? (
+              <p className="pt-2 text-[11px] text-muted-foreground">{disclaimer}</p>
+            ) : null}
           </section>
         </CardContent>
       </Card>

@@ -182,21 +182,18 @@ export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   const { status, config } = buildStatus();
   if (config) return config;
   const missingList = status.missing.length ? status.missing.join(", ") : "unknown";
-  throw new HttpsError(
-    "failed-precondition",
-    `Scan engine not configured. Missing: ${missingList}.`,
-    {
-      reason: "scan_engine_not_configured",
-      missing: status.missing,
-      bucket: status.bucket,
-      bucketSource: status.bucketSource,
-      projectId: status.projectId,
-      correlationId,
-      provider: status.provider,
-      model: status.model,
-      baseUrl: status.baseUrl,
-    }
-  );
+  // Use "unavailable" so HTTP maps to 503; the JSON response code is normalized by callers.
+  throw new HttpsError("unavailable", `Scan engine not configured. Missing: ${missingList}.`, {
+    reason: "scan_engine_not_configured",
+    missing: status.missing,
+    bucket: status.bucket,
+    bucketSource: status.bucketSource,
+    projectId: status.projectId,
+    correlationId,
+    provider: status.provider,
+    model: status.model,
+    baseUrl: status.baseUrl,
+  });
 }
 
 export function assertScanEngineConfigured(correlationId?: string): EngineConfig {
