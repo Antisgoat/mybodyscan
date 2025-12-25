@@ -57,6 +57,7 @@ export default function ScanResultPage() {
   const [photoUrls, setPhotoUrls] = useState<
     Partial<Record<keyof ScanDocument["photoPaths"], string>>
   >({});
+  const attemptedPhotoUrlRef = useRef<Record<string, true>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -326,6 +327,16 @@ export default function ScanResultPage() {
         setPhotoUrls({});
         return;
       }
+      // Avoid noisy retries while the user is still uploading (or before submission).
+      // `submitScan` verifies the 4 objects exist before enqueueing analysis.
+      const canResolve =
+        next.status === "queued" ||
+        next.status === "processing" ||
+        next.status === "complete" ||
+        next.status === "completed" ||
+        next.status === "error" ||
+        next.status === "failed";
+      if (!canResolve) return;
       const paths = next.photoPaths;
       const entries = (Object.entries(paths) as Array<
         [keyof ScanDocument["photoPaths"], string]
@@ -334,20 +345,29 @@ export default function ScanResultPage() {
         setPhotoUrls({});
         return;
       }
+      const toFetch = entries.filter(([pose]) => !photoUrls[pose]);
+      if (!toFetch.length) return;
+      const scanKey = String(next.id || "");
       const resolved = await Promise.all(
-        entries.map(async ([pose, path]) => {
+        toFetch.map(async ([pose, path]) => {
+          const attemptKey = `${scanKey}:${pose}`;
+          if (attemptedPhotoUrlRef.current[attemptKey]) {
+            return [pose, ""] as const;
+          }
+          attemptedPhotoUrlRef.current[attemptKey] = true;
           try {
             const url = await getDownloadURL(ref(storage, path));
             return [pose, url] as const;
-          } catch (err) {
-            console.warn("scanResult.photo_url_failed", { pose, path });
+          } catch {
+            // Intentionally no console spam: missing photos are handled by the scan pipeline.
             return [pose, ""] as const;
           }
         })
       );
       if (cancelled) return;
-      const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> =
-        {};
+      const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> = {
+        ...photoUrls,
+      };
       for (const [pose, url] of resolved) {
         if (url) nextUrls[pose] = url;
       }
@@ -357,7 +377,13 @@ export default function ScanResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [scan]);
+  }, [scan?.id, scan?.status, scan?.photoPaths?.front, scan?.photoPaths?.back, scan?.photoPaths?.left, scan?.photoPaths?.right, photoUrls]);
+
+  useEffect(() => {
+    // Reset photo URL cache when navigating between scans.
+    attemptedPhotoUrlRef.current = {};
+    setPhotoUrls({});
+  }, [scanId]);
 
   useEffect(() => {
     let cancelled = false;

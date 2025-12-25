@@ -10,14 +10,19 @@ service firebase.storage {
     }
 
     function validImageUpload() {
-      return request.resource.size < 15 * 1024 * 1024 && request.resource.contentType.matches('image/.+');
+      return request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
     }
 
     // Canonical scan photo uploads (CURRENT):
     // scans/{uid}/{scanId}/{pose}.jpg
-    match /scans/{uid}/{scanId}/{filename} {
+    function isScanPose(pose) {
+      return pose == "front" || pose == "back" || pose == "left" || pose == "right";
+    }
+
+    match /scans/{uid}/{scanId}/{pose}.jpg {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && validImageUpload();
+      allow create, update: if isOwner(uid) && isScanPose(pose) && validImageUpload();
       allow delete: if isOwner(uid);
     }
 

@@ -64,49 +64,11 @@ function parsePayload(body: any): SubmitPayload | null {
   return { scanId, photoPaths, currentWeightKg, goalWeightKg, correlationId };
 }
 
-function buildDownloadUrl(params: { bucket: string; path: string; token: string }): string {
-  // Token-based download URL (no signed URLs, no IAM signBlob).
-  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(
-    params.bucket
-  )}/o/${encodeURIComponent(params.path)}?alt=media&token=${encodeURIComponent(params.token)}`;
-}
-
-function pickFirstDownloadToken(meta: any): string | null {
-  const raw =
-    typeof meta?.metadata?.firebaseStorageDownloadTokens === "string"
-      ? meta.metadata.firebaseStorageDownloadTokens
-      : typeof meta?.firebaseStorageDownloadTokens === "string"
-        ? meta.firebaseStorageDownloadTokens
-        : null;
-  if (!raw) return null;
-  const token = raw.split(",")[0]?.trim();
-  return token ? token : null;
-}
-
-async function ensureDownloadToken(bucket: any, path: string): Promise<string | null> {
-  const file = bucket.file(path);
-  const [meta] = await file.getMetadata().catch(() => [null]);
-  const existing = pickFirstDownloadToken(meta);
-  if (existing) return existing;
-  const created = randomUUID();
-  // Firebase Storage download tokens are stored in the file metadata under `firebaseStorageDownloadTokens`.
-  // This does NOT require signed URL generation.
-  await file
-    .setMetadata({
-      metadata: {
-        ...(meta?.metadata || {}),
-        firebaseStorageDownloadTokens: created,
-      },
-    })
-    .catch(() => undefined);
-  return created;
-}
-
 async function verifyPhotoPathsAndBuildObjects(
   uid: string,
   scanId: string,
   paths: Record<Pose, string>
-): Promise<Record<Pose, { bucket: string; path: string; downloadURL: string | null }>> {
+): Promise<Record<Pose, { bucket: string; path: string; downloadURL: null }>> {
   const bucket = storage.bucket();
   const bucketName = bucket.name;
   const photoObjects = {
@@ -114,7 +76,7 @@ async function verifyPhotoPathsAndBuildObjects(
     back: { bucket: bucketName, path: paths.back, downloadURL: null },
     left: { bucket: bucketName, path: paths.left, downloadURL: null },
     right: { bucket: bucketName, path: paths.right, downloadURL: null },
-  } as Record<Pose, { bucket: string; path: string; downloadURL: string | null }>;
+  } as Record<Pose, { bucket: string; path: string; downloadURL: null }>;
   for (const pose of POSES) {
     const expected = buildScanPhotoPath({ uid, scanId, pose });
     const actual = paths[pose];
@@ -140,12 +102,7 @@ async function verifyPhotoPathsAndBuildObjects(
         }
       );
     }
-    const token = await ensureDownloadToken(bucket, actual);
-    photoObjects[pose] = {
-      bucket: bucketName,
-      path: actual,
-      downloadURL: token ? buildDownloadUrl({ bucket: bucketName, path: actual, token }) : null,
-    };
+    photoObjects[pose] = { bucket: bucketName, path: actual, downloadURL: null };
   }
   return photoObjects;
 }
