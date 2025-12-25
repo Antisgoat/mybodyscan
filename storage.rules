@@ -11,18 +11,25 @@ service firebase.storage {
 
     function validImageUpload() {
       return request.resource.size < 15 * 1024 * 1024
-        && request.resource.contentType == 'image/jpeg';
+        && request.resource.contentType == "image/jpeg";
     }
 
     // Canonical scan photo uploads (CURRENT):
     // scans/{uid}/{scanId}/{pose}.jpg
-    function isScanPose(pose) {
-      return pose == "front" || pose == "back" || pose == "left" || pose == "right";
+    function isAllowedScanFileName(fileName) {
+      return fileName == "front.jpg"
+        || fileName == "back.jpg"
+        || fileName == "left.jpg"
+        || fileName == "right.jpg";
     }
 
-    match /scans/{uid}/{scanId}/{pose}.jpg {
+    // IMPORTANT: Storage Rules do not support wildcard segments like `{pose}.jpg`.
+    // We must match the full object name as a segment, then validate allowed names.
+    match /scans/{uid}/{scanId}/{fileName} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && isScanPose(pose) && validImageUpload();
+      allow create, update: if isOwner(uid)
+        && isAllowedScanFileName(fileName)
+        && validImageUpload();
       allow delete: if isOwner(uid);
     }
 
