@@ -7,7 +7,7 @@ import {
   type ScanItem,
 } from "@/features/history/useScansPage";
 import { normalizeScanMetrics } from "@/lib/scans";
-import { getFrontThumbUrl } from "@/lib/scanMedia";
+import { getFrontThumbUrl, revokeBlobUrl } from "@/lib/scanMedia";
 import { deleteScanApi } from "@/lib/api/scan";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/lib/useAuthUser";
@@ -52,11 +52,22 @@ export default function HistoryPage() {
     items.forEach((it) => {
       if (thumbs[it.id] === undefined) {
         getFrontThumbUrl(it.id).then((url) =>
-          setThumbs((t) => ({ ...t, [it.id]: url }))
+          setThumbs((t) => {
+            const prev = t[it.id];
+            if (prev && prev !== url) revokeBlobUrl(prev);
+            return { ...t, [it.id]: url };
+          })
         );
       }
     });
   }, [items]); // eslint-disable-line
+
+  useEffect(() => {
+    return () => {
+      // Cleanup blob URLs on unmount
+      Object.values(thumbs).forEach((u) => revokeBlobUrl(u));
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(id: string) {
     setSelected((sel) => {
@@ -83,6 +94,7 @@ export default function HistoryPage() {
       setSelected((cur) => cur.filter((scanId) => scanId !== id));
       setThumbs((cur) => {
         const next = { ...cur };
+        revokeBlobUrl(next[id]);
         delete next[id];
         return next;
       });

@@ -28,6 +28,7 @@ import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import silhouetteFront from "@/assets/silhouette-front.png";
+import { fetchScanPhotoBlobUrl, revokeBlobUrl } from "@/lib/scanMedia";
 import {
   describeScanPipelineStage,
   readScanPipelineState,
@@ -57,6 +58,7 @@ export default function ScanResultPage() {
   const [photoUrls, setPhotoUrls] = useState<
     Partial<Record<keyof ScanDocument["photoPaths"], string>>
   >({});
+  const photoUrlsRef = useRef<Partial<Record<keyof ScanDocument["photoPaths"], string>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -395,6 +397,9 @@ export default function ScanResultPage() {
     let cancelled = false;
     async function fetchPhotoUrls(next: ScanDocument | null) {
       if (!next) {
+        // cleanup previous blob URLs
+        Object.values(photoUrlsRef.current).forEach((u) => revokeBlobUrl(u));
+        photoUrlsRef.current = {};
         setPhotoUrls({});
         return;
       }
@@ -403,20 +408,30 @@ export default function ScanResultPage() {
         [keyof ScanDocument["photoPaths"], string]
       >).filter(([, path]) => typeof path === "string" && path.trim().length > 0);
       if (!entries.length) {
+        Object.values(photoUrlsRef.current).forEach((u) => revokeBlobUrl(u));
+        photoUrlsRef.current = {};
         setPhotoUrls({});
         return;
       }
-      // Same-origin photo URLs (avoid `firebasestorage.googleapis.com` in the browser).
-      const resolved = entries.map(([pose]) => {
-        const url = `/api/scan/photo?${new URLSearchParams({ scanId, pose }).toString()}`;
-        return [pose, url] as const;
-      });
-      if (cancelled) return;
+      const resolved = await Promise.all(
+        entries.map(async ([pose]) => {
+          const url = await fetchScanPhotoBlobUrl({ scanId, pose: pose as any });
+          return [pose, url ?? ""] as const;
+        })
+      );
+      if (cancelled) {
+        // revoke any new blob URLs we created
+        for (const [, url] of resolved) revokeBlobUrl(url);
+        return;
+      }
       const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> =
         {};
       for (const [pose, url] of resolved) {
         if (url) nextUrls[pose] = url;
       }
+      // cleanup old blob URLs before replacing
+      Object.values(photoUrlsRef.current).forEach((u) => revokeBlobUrl(u));
+      photoUrlsRef.current = nextUrls;
       setPhotoUrls(nextUrls);
     }
     void fetchPhotoUrls(scan);
@@ -424,6 +439,13 @@ export default function ScanResultPage() {
       cancelled = true;
     };
   }, [scan]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(photoUrlsRef.current).forEach((u) => revokeBlobUrl(u));
+      photoUrlsRef.current = {};
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

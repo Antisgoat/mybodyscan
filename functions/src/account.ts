@@ -141,7 +141,17 @@ async function buildImageExport(
         const file = bucket.file(path);
         const [exists] = await file.exists();
         if (!exists) return;
-        const url = `${baseUrl}/api/scan/photo?${new URLSearchParams({ scanId, pose }).toString()}`;
+        const [metadata] = await file.getMetadata();
+        const tokenRaw = metadata?.metadata?.firebaseStorageDownloadTokens;
+        const token =
+          typeof tokenRaw === "string" && tokenRaw.length ? tokenRaw.split(",")[0] : "";
+        if (!token) return;
+        const url = `${baseUrl}/api/scan/photo?${new URLSearchParams({
+          scanId,
+          pose,
+          uid,
+          token,
+        }).toString()}`;
         results.push({ name: pose, url, expiresAt });
       } catch (err) {
         console.warn("account_export_signed_url_error", {

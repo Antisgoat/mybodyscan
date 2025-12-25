@@ -38,9 +38,10 @@ export const getScanPhotoHttp = onRequest(
         res.status(405).end();
         return;
       }
-      const uid = await requireAuth(req);
       const scanId = toTrimmed(req.query.scanId);
       const pose = toTrimmed(req.query.pose);
+      const token = toTrimmed(req.query.token);
+      const uidParam = toTrimmed(req.query.uid);
       if (!scanId || !pose) {
         res.status(400).json({ ok: false, code: "invalid-argument", message: "Missing scanId/pose" });
         return;
@@ -49,6 +50,10 @@ export const getScanPhotoHttp = onRequest(
         res.status(400).json({ ok: false, code: "invalid-argument", message: "Invalid pose" });
         return;
       }
+
+      // Auth required by default. For export flows, we also allow a download token + uid.
+      const uid = token && uidParam ? uidParam : await requireAuth(req);
+
       const bucket = storage.bucket();
       const path = buildScanPhotoPath({ uid, scanId, pose });
       const file = bucket.file(path);
@@ -58,8 +63,20 @@ export const getScanPhotoHttp = onRequest(
         return;
       }
 
+      if (token && uidParam) {
+        // Validate Firebase download token against object metadata.
+        const [meta] = await file.getMetadata().catch(() => [null as any]);
+        const raw = meta?.metadata?.firebaseStorageDownloadTokens;
+        const list =
+          typeof raw === "string" && raw.trim().length ? raw.split(",").map((s: string) => s.trim()) : [];
+        if (!list.includes(token)) {
+          res.status(403).end();
+          return;
+        }
+      }
+
       res.setHeader("Content-Type", "image/jpeg");
-      // Private: this is user-auth gated; allow some caching without leaking cross-user.
+      // Private by default; token-based access is still “bearer-like”, so keep it private.
       res.setHeader("Cache-Control", "private, max-age=3600");
 
       if (req.method === "HEAD") {
