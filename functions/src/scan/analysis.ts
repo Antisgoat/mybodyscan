@@ -284,7 +284,8 @@ export async function callOpenAI(
 
   const imageParts: ChatContentPart[] = images.map(({ url }) => ({
     type: "image_url" as const,
-    image_url: { url, detail: "high" as const },
+    // Speed-first: "low" significantly reduces latency/cost for 4-image inputs.
+    image_url: { url, detail: "low" as const },
   }));
   const userContent: ChatContentPart[] = [
     { type: "text", text: userText },

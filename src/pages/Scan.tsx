@@ -1285,6 +1285,7 @@ export default function ScanPage() {
               min="0"
               value={currentWeight}
               onChange={(e) => setCurrentWeight(e.target.value)}
+              data-testid="scan-current-weight-input"
               className="rounded border px-3 py-2 text-base"
             />
           </label>
@@ -1297,6 +1298,7 @@ export default function ScanPage() {
               min="0"
               value={goalWeight}
               onChange={(e) => setGoalWeight(e.target.value)}
+              data-testid="scan-goal-weight-input"
               className="rounded border px-3 py-2 text-base"
             />
           </label>
@@ -1314,6 +1316,7 @@ export default function ScanPage() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => onFileChange(pose, e.target.files)}
+                  data-testid="scan-photo-input"
                   className="text-xs"
                 />
                 {photos[pose] ? (
@@ -1346,6 +1349,7 @@ export default function ScanPage() {
         <button
           type="submit"
           disabled={missingFields || (status !== "idle" && status !== "error") || !scanConfigured}
+          data-testid="scan-submit-button"
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
         >
           {status === "starting" && "Starting scan…"}
