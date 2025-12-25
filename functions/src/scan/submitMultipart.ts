@@ -396,16 +396,20 @@ export async function handleSubmitScanMultipart(
   } catch (err: any) {
     const code =
       err instanceof HttpsError ? err.code : (err?.code as string | undefined);
-    const status =
-      err instanceof HttpsError ? statusFromErrorCode(code) : 500;
-    const message =
-      err instanceof HttpsError
-        ? err.message || "Upload failed."
-        : "Upload failed.";
+    const details = err instanceof HttpsError ? ((err as any)?.details ?? {}) : {};
     const reason =
-      err instanceof HttpsError
-        ? (err as any)?.details?.reason ?? err.code
-        : "internal";
+      err instanceof HttpsError ? (details?.reason ?? err.code) : "internal";
+    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const normalizedCode =
+      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : (code || "internal");
+    const status =
+      reason === "scan_engine_not_configured"
+        ? 503
+        : err instanceof HttpsError
+          ? statusFromErrorCode(code)
+          : 500;
+    const message =
+      err instanceof HttpsError ? err.message || "Upload failed." : "Upload failed.";
     console.error("scan_submit_multipart_failed", {
       requestId,
       code: err?.code,
@@ -413,10 +417,11 @@ export async function handleSubmitScanMultipart(
     });
     res.status(typeof status === "number" ? status : 500).json({
       ok: false,
-      code: code || "internal",
+      code: normalizedCode,
       message,
       debugId: requestId,
       reason,
+      missing,
     });
   }
 }
