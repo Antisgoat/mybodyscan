@@ -537,6 +537,8 @@ export async function submitScanClient(
       totalBytes?: number;
       correlationId?: string;
       elapsedMs?: number;
+      downloadURL?: string;
+      uploadMethod?: UploadMethod;
     }) => void;
     signal?: AbortSignal;
     posesToUpload?: Array<keyof StartScanResponse["storagePaths"]>;
@@ -829,6 +831,8 @@ export async function submitScanClient(
           percent: 1,
           correlationId: scanCorrelationId,
           elapsedMs,
+          downloadURL: result.downloadURL,
+          uploadMethod: "storage",
         });
         return;
       } catch (err: any) {
