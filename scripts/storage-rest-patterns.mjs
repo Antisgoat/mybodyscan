@@ -12,6 +12,10 @@ export const STORAGE_REST_PATTERNS = [
     regex: /o\?name=/i,
   },
   {
+    label: "Encoded manual object upload query param",
+    regex: /o%3fname%3d/i,
+  },
+  {
     label: "Upload API host (manual REST)",
     regex: /upload\/storage\/v1\/b\//i,
   },

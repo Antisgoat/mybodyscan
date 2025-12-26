@@ -15,6 +15,7 @@ export async function uploadPhoto(params: {
   storage: FirebaseStorage;
   path: string;
   file: Blob;
+  uid: string;
   scanId: string;
   pose: string;
   correlationId: string;
@@ -31,6 +32,13 @@ export async function uploadPhoto(params: {
   }) => void;
   debugSimulateFreeze?: boolean;
 }): Promise<UploadPhotoResult> {
+  console.info("scan_upload_begin", {
+    uid: params.uid,
+    scanId: params.scanId,
+    pose: params.pose,
+    path: params.path,
+    method: "storage-sdk",
+  });
   const result = await uploadViaStorage({
     storage: params.storage,
     path: params.path,
@@ -42,6 +50,14 @@ export async function uploadPhoto(params: {
     onTask: params.onTask,
     onProgress: params.onProgress,
     debugSimulateFreeze: params.debugSimulateFreeze,
+  });
+  console.info("scan_upload_complete", {
+    uid: params.uid,
+    scanId: params.scanId,
+    pose: params.pose,
+    path: params.path,
+    method: "storage-sdk",
+    elapsedMs: result.elapsedMs,
   });
   return {
     method: "storage",

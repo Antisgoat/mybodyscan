@@ -80,13 +80,6 @@
         }
       },
       {
-        "source": "/api/scan/upload",
-        "function": {
-          "functionId": "uploadScanPhotoHttp",
-          "region": "us-central1"
-        }
-      },
-      {
         "source": "/api/scan/delete",
         "function": {
           "functionId": "deleteScan",

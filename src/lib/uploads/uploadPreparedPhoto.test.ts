@@ -138,4 +138,27 @@ describe("uploadPreparedPhoto", () => {
     ).rejects.toMatchObject({ code: "upload_zero_bytes" });
     expect(uploadBytesResumableMock).not.toHaveBeenCalled();
   });
+
+  it("aborts zero-progress uploads after three seconds even with long stall timeout", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
+    const callbacks: UploadTaskCallbacks = {};
+    const task = buildTask(callbacks);
+    uploadBytesResumableMock.mockReturnValue(task);
+    setupDom();
+
+    const promise = uploadPreparedPhoto({
+      storage: {} as unknown as FirebaseStorage,
+      path: "scans/u/s/front.jpg",
+      file: new Blob(["hi"], { type: "image/jpeg" }),
+      metadata: { contentType: "image/jpeg" },
+      stallTimeoutMs: 12_000,
+      overallTimeoutMs: 20_000,
+    }).catch((error) => error);
+
+    await vi.advanceTimersByTimeAsync(3_200);
+    const result = await promise;
+    expect(result).toMatchObject({ code: "upload_no_progress" });
+    expect(task.cancel).toHaveBeenCalled();
+  });
 });
