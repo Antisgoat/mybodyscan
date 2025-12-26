@@ -2,6 +2,86 @@
 // - Converts to JPEG, downscales so the longest edge is <= 1800px, and keeps quality ~0.8.
 // - Preserves correct iPhone orientation by applying EXIF Orientation transforms.
 // - Tries to keep output under ~3MB per photo (for mobile reliability).
+const DEFAULT_MAX_EDGE_DESKTOP = 1600;
+const DEFAULT_MAX_EDGE_MOBILE = 1280;
+const DEFAULT_JPEG_QUALITY = 0.8;
+const WORKER_TIMEOUT_MS = 4500;
+
+let sharedPreprocessWorker: Worker | null = null;
+
+function supportsOffthreadPreprocess(): boolean {
+  return (
+    typeof Worker !== "undefined" &&
+    typeof OffscreenCanvas !== "undefined" &&
+    typeof createImageBitmap !== "undefined"
+  );
+}
+
+function getPreprocessWorker(): Worker | null {
+  if (!supportsOffthreadPreprocess()) return null;
+  if (sharedPreprocessWorker) return sharedPreprocessWorker;
+  try {
+    sharedPreprocessWorker = new Worker(
+      new URL("@/lib/scan/preprocessWorker.ts", import.meta.url),
+      { type: "module" }
+    );
+    return sharedPreprocessWorker;
+  } catch (err) {
+    console.warn("preprocessWorker_init_failed", err);
+    sharedPreprocessWorker = null;
+    return null;
+  }
+}
+
+async function tryOffthreadPreprocess(
+  file: File,
+  maxEdge: number,
+  quality: number
+): Promise<{ blob: Blob; width: number; height: number } | null> {
+  const worker = getPreprocessWorker();
+  if (!worker) return null;
+  const id = `prep-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const buffer = await file.arrayBuffer();
+  return await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve(null);
+    }, WORKER_TIMEOUT_MS);
+    const handler = (event: MessageEvent<any>) => {
+      const data = event.data;
+      if (!data || data.id !== id) return;
+      worker.removeEventListener("message", handler);
+      clearTimeout(timer);
+      if (!data.ok) {
+        resolve(null);
+        return;
+      }
+      const blob = new Blob([data.buffer], { type: "image/jpeg" });
+      resolve({ blob, width: data.width, height: data.height });
+    };
+    worker.addEventListener("message", handler);
+    worker.postMessage(
+      {
+        id,
+        buffer,
+        type: file.type || "application/octet-stream",
+        maxEdge,
+        quality,
+      },
+      { transfer: [buffer] }
+    );
+  });
+}
+
+async function yieldToMainThread(): Promise<void> {
+  if (typeof requestIdleCallback !== "undefined") {
+    await new Promise<void>((resolve) =>
+      requestIdleCallback(() => resolve(), { timeout: 12 })
+    );
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export async function resizeImageFile(
   file: File,
   maxEdge = 1800,
@@ -214,18 +294,62 @@ export async function preprocessImageForUpload(
   }
 ): Promise<UploadPreprocessResult> {
   const original = toMeta(file);
-  const maxEdgeDesktop = options?.maxEdgeDesktop ?? 1800;
-  const maxEdgeMobileSafari = options?.maxEdgeMobileSafari ?? 1280;
+  const maxEdgeDesktop = options?.maxEdgeDesktop ?? DEFAULT_MAX_EDGE_DESKTOP;
+  const maxEdgeMobileSafari = options?.maxEdgeMobileSafari ?? DEFAULT_MAX_EDGE_MOBILE;
   const mobile = isMobileUploadDevice();
   const maxEdgeInitial = mobile ? maxEdgeMobileSafari : maxEdgeDesktop;
-  const qualityInitial = clamp01(
-    options?.jpegQualityStart ?? (mobile ? 0.72 : 0.8)
-  );
-  // Hard cap for scan uploads: <= 2.0MB.
-  const outputBytesLimit =
-    options?.outputBytesLimit ?? Math.round(2.0 * 1024 * 1024);
+  const qualityInitial = clamp01(options?.jpegQualityStart ?? DEFAULT_JPEG_QUALITY);
+  // Hard cap for scan uploads: <= 3MB (well under the 15MB guardrail).
+  const outputBytesLimit = options?.outputBytesLimit ?? Math.round(3 * 1024 * 1024);
 
   const orientation = await readJpegExifOrientation(file).catch(() => 1);
+  const workerResult = await tryOffthreadPreprocess(file, maxEdgeInitial, qualityInitial);
+  if (workerResult) {
+    const outName = (options?.fileName || "upload.jpg").replace(
+      /\.(png|webp|heic|heif|jpeg|jpg)$/i,
+      ".jpg"
+    );
+    const outFile = new File([workerResult.blob], outName, { type: "image/jpeg" });
+    const meta = toMeta(outFile);
+    return {
+      original,
+      compressed: meta,
+      file: outFile,
+      debug: {
+        device: {
+          isMobileUploadDevice: mobile,
+          isProbablyMobileSafari: isProbablyMobileSafari(),
+          userAgent:
+            typeof navigator !== "undefined" ? String(navigator.userAgent || "") : "",
+          maxTouchPoints:
+            typeof navigator !== "undefined" &&
+            typeof (navigator as any).maxTouchPoints === "number"
+              ? Number((navigator as any).maxTouchPoints)
+              : 0,
+          viewport: {
+            width: typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
+            height: typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
+          },
+        },
+        orientation,
+        srcWidth: workerResult.width,
+        srcHeight: workerResult.height,
+        maxEdgeInitial,
+        maxEdgeFinal: Math.max(workerResult.width, workerResult.height),
+        qualityInitial,
+        qualityFinal: qualityInitial,
+        outputBytesLimit,
+        steps: [
+          {
+            maxEdge: maxEdgeInitial,
+            quality: qualityInitial,
+            blobBytes: workerResult.blob.size,
+            toBlobNull: false,
+          },
+        ],
+      },
+    };
+  }
   const source = await decodeToImageSource(file);
 
   const debug: UploadPreprocessResult["debug"] = {
@@ -257,15 +381,12 @@ export async function preprocessImageForUpload(
 
   // Candidate max-edges. We always try the initial choice first, then fall back.
   // Keep this conservative; iOS Safari can OOM on large canvases.
-  const edgeCandidates = [
-    maxEdgeInitial,
-    Math.min(maxEdgeInitial, 1280),
-    1024,
-    900,
-    768,
-  ]
-    .filter((n, i, arr) => Number.isFinite(n) && n > 0 && arr.indexOf(n) === i)
-    .sort((a, b) => b - a); // try larger first
+  const edgeCandidates =
+    "el" in source
+      ? [maxEdgeInitial, Math.min(maxEdgeInitial, 1400), 1200, 1024, 900, 768]
+          .filter((n, i, arr) => Number.isFinite(n) && n > 0 && arr.indexOf(n) === i)
+          .sort((a, b) => b - a)
+      : [maxEdgeInitial];
 
   const qualityCandidates = [
     qualityInitial,
@@ -281,6 +402,7 @@ export async function preprocessImageForUpload(
 
   try {
     for (const edge of edgeCandidates) {
+      await yieldToMainThread();
       const { canvas } = drawToCanvas({ source, orientation, maxEdge: edge });
       for (const q of qualityCandidates) {
         const blob = await canvasToJpegMaybe(canvas, q);
@@ -330,6 +452,7 @@ export async function preprocessImageForUpload(
       const minQuality = 0.5;
       while (bestBlob.size > outputBytesLimit && safety < 18) {
         safety += 1;
+        await yieldToMainThread();
         // Prefer lowering quality first (cheap), then downscale (more expensive).
         if (q > minQuality) {
           q = Math.max(minQuality, Number((q - 0.05).toFixed(2)));
@@ -382,11 +505,10 @@ export async function prepareScanPhoto(
   try {
     const processed = await preprocessImageForUpload(file, {
       fileName: `${view}.jpg`,
-      maxEdgeDesktop: 1600,
-      maxEdgeMobileSafari: 1400,
-      // Keep uploads small for fast Safari transfers while preserving detail.
-      jpegQualityStart: isMobileUploadDevice() ? 0.72 : 0.78,
-      outputBytesLimit: 480_000,
+      maxEdgeDesktop: DEFAULT_MAX_EDGE_DESKTOP,
+      maxEdgeMobileSafari: DEFAULT_MAX_EDGE_MOBILE,
+      jpegQualityStart: DEFAULT_JPEG_QUALITY,
+      outputBytesLimit: 3 * 1024 * 1024,
     });
     return {
       preparedFile: processed.file,

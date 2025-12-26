@@ -37,6 +37,7 @@ import {
   type ScanPipelineStage,
   type ScanPipelineState,
 } from "@/lib/scanPipeline";
+import { transitionState, type ScanFlowState } from "@/lib/scan/stateMachine";
 
 interface PhotoInputs {
   front: File | null;
@@ -77,6 +78,7 @@ export default function ScanPage() {
     | "processing"
     | "error"
   >("idle");
+  const [flowState, setFlowState] = useState<ScanFlowState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [failureReason, setFailureReason] = useState<
     "upload_failed" | "submit_failed" | null
@@ -182,9 +184,34 @@ export default function ScanPage() {
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false;
 
+  const mapStatusToFlowState = useCallback((value: typeof status): ScanFlowState => {
+    switch (value) {
+      case "starting":
+      case "preparing":
+        return "preparing";
+      case "uploading":
+        return "uploading";
+      case "submitting":
+        return "submitting";
+      case "queued":
+        return "queued";
+      case "processing":
+        return "processing";
+      case "error":
+        return "failed";
+      case "idle":
+      default:
+        return "idle";
+    }
+  }, []);
+
   useEffect(() => {
     if (!authLoading && !user) nav("/auth?next=/scan");
   }, [authLoading, user, nav]);
+
+  useEffect(() => {
+    setFlowState((prev) => transitionState(prev, mapStatusToFlowState(status)));
+  }, [status, mapStatusToFlowState]);
 
   const updatePipeline = useCallback(
     (scanId: string, patch: Partial<ScanPipelineState>) => {
@@ -1362,7 +1389,11 @@ export default function ScanPage() {
 
         <button
           type="submit"
-          disabled={missingFields || (status !== "idle" && status !== "error") || !scanConfigured}
+          disabled={
+            missingFields ||
+            (flowState !== "idle" && flowState !== "failed") ||
+            !scanConfigured
+          }
           data-testid="scan-submit-button"
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
         >
