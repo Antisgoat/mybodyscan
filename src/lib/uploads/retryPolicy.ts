@@ -101,6 +101,9 @@ export function classifyUploadRetryability(params: {
   if (code === "storage/invalid-argument" || code === "preprocess_failed") {
     return { retryable: false, reason: "invalid" };
   }
+  if (code === "upload_zero_bytes") {
+    return { retryable: false, reason: "invalid" };
+  }
 
   if (code.startsWith("function/")) {
     return { retryable: true, reason: "transient_network" };

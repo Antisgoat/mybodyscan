@@ -36,6 +36,14 @@ export class UploadOfflineError extends Error {
   }
 }
 
+export class UploadZeroBytesError extends Error {
+  code = "upload_zero_bytes";
+  constructor(message = "Upload failed: zero-byte file.") {
+    super(message);
+    this.name = "UploadZeroBytesError";
+  }
+}
+
 /**
  * Web uploader (Firebase Storage resumable) with:
  * - hard wall-clock timeout (overallTimeoutMs)
@@ -70,6 +78,13 @@ export async function uploadPreparedPhoto(params: {
   const startedAt = Date.now();
   const deadlineAt = startedAt + Math.max(1, Number(params.overallTimeoutMs || 0));
   const stallTimeoutMs = Math.max(250, Number(params.stallTimeoutMs || 0));
+  const fileSize = typeof params.file?.size === "number" ? Number(params.file.size) : 0;
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    const err = new UploadZeroBytesError("Upload failed: zero-byte file.");
+    (err as any).bytesTransferred = 0;
+    throw err;
+  }
 
   const storageRef = ref(params.storage, params.path);
 
