@@ -36,6 +36,7 @@ import {
 } from "@/lib/scanPipeline";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { computeProcessingTimeouts, latestHeartbeatMillis } from "@/lib/scanHeartbeat";
+import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -81,6 +82,7 @@ export default function ScanResultPage() {
   }>({ attempted: false, status: "idle" });
   const lastMeaningfulUpdateRef = useRef<number>(Date.now());
   const scanRef = useRef<ScanDocument | null>(null);
+  const lastStatusMarkRef = useRef<string | null>(null);
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
     try {
@@ -107,6 +109,34 @@ export default function ScanResultPage() {
   useEffect(() => {
     setPipelineState(readScanPipelineState(scanId));
   }, [scanId]);
+
+  useEffect(() => {
+    if (!snapshotError || !scanId) return;
+    let cancelled = false;
+    let delay = 1500;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const result = await getScan(scanId);
+        if (cancelled) return;
+        if (result.ok) {
+          setScan(result.data);
+          setSnapshotError(null);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      delay = Math.min(8000, Math.round(delay * 1.6));
+      timer = setTimeout(poll, delay);
+    };
+    timer = setTimeout(poll, delay);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [snapshotError, scanId]);
 
   const needsRefresh = useMemo(() => {
     if (!scan) return false;
@@ -212,6 +242,25 @@ export default function ScanResultPage() {
     }, 2500);
     return () => clearInterval(id);
   }, [needsRefresh]);
+
+  useEffect(() => {
+    if (!scan) return;
+    const normalized = (scan.status || "").toLowerCase();
+    if (normalized === lastStatusMarkRef.current) return;
+    lastStatusMarkRef.current = normalized;
+    if (normalized === "queued" || normalized === "pending") {
+      mark("queued_seen", { scanId });
+    }
+    if (normalized === "processing" || normalized === "in_progress") {
+      mark("processing_seen", { scanId });
+      measure("queued_to_processing", "queued_seen", "processing_seen", { scanId });
+    }
+    if (normalized === "complete" || normalized === "completed") {
+      mark("complete_seen", { scanId });
+      measure("processing_to_complete", "processing_seen", "complete_seen", { scanId });
+      void flushPerf();
+    }
+  }, [scan, scanId]);
 
   useEffect(() => {
     if (!needsRefresh) {

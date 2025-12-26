@@ -11,10 +11,14 @@ import {
   prepareScanPhoto,
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
+  isMobileUploadDevice,
 } from "@/features/scan/resizeImage";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { SCAN_UPLOAD_CONTENT_TYPE } from "@/lib/uploads/uploadViaStorage";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
+import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
+import { getMetadata, ref } from "firebase/storage";
+import { computeUploadConcurrency } from "@/lib/scan/concurrency";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -504,6 +508,20 @@ function ensureJpegFile(file: File, pose: string): File {
   return new File([file], name, { type: SCAN_UPLOAD_CONTENT_TYPE });
 }
 
+async function confirmUploadExists(
+  storage: ReturnType<typeof getFirebaseStorage>,
+  path: string
+): Promise<void> {
+  try {
+    const metadataRef = ref(storage, path);
+    await getMetadata(metadataRef);
+  } catch (err: any) {
+    const error = new Error("Upload not found after completion.");
+    (error as any).code = err?.code || "upload_missing";
+    throw error;
+  }
+}
+
 export function createScanCorrelationId(seed?: string): string {
   const prefix = String(seed || "scan").slice(0, 12);
   const random =
@@ -553,6 +571,7 @@ export async function submitScanClient(
       ok: false,
       error: { message: "Please sign in before submitting a scan." },
     };
+  mark("scan_click", { scanId: params.scanId });
 
   const poses: Array<keyof StartScanResponse["storagePaths"]> = ["front", "back", "left", "right"];
   const posesToUpload = options?.posesToUpload?.length
@@ -627,6 +646,7 @@ export async function submitScanClient(
     }
     options?.onPhotoState?.({ pose, status: "preparing" });
     const startedAt = Date.now();
+    mark("preprocess_start", { pose, scanId: params.scanId, bytes: original.size });
     try {
       const processed = await prepareScanPhoto(original, pose);
       if (!Number.isFinite(processed.meta.prepared.size) || processed.meta.prepared.size <= 0) {
@@ -647,6 +667,16 @@ export async function submitScanClient(
         original: processed.meta.original,
         compressed: processed.meta.prepared,
         preprocessDebug: processed.meta.debug,
+      });
+      mark("preprocess_end", {
+        pose,
+        scanId: params.scanId,
+        bytes: processed.meta.prepared.size,
+      });
+      measure("preprocess_duration", "preprocess_start", "preprocess_end", {
+        pose,
+        scanId: params.scanId,
+        bytes: processed.meta.prepared.size,
       });
       completedSteps += 1;
       emitProgress(pose, "preparing", index, posesToUpload.length, 1, true);
@@ -689,7 +719,7 @@ export async function submitScanClient(
   }
 
   const storage = getFirebaseStorage();
-  const maxAttempts = 4;
+  const maxAttempts = 3;
   const selectedTargets = posesToUpload.length
     ? uploadTargets.filter((target) => posesToUpload.includes(target.pose))
     : [];
@@ -786,6 +816,7 @@ export async function submitScanClient(
       });
       try {
         const startedAt = Date.now();
+        mark("upload_start", { pose, scanId: params.scanId, bytes: target.size });
         const result = await uploadPhoto({
           storage,
           path: target.path,
@@ -822,9 +853,16 @@ export async function submitScanClient(
           },
           debugSimulateFreeze,
         });
+        await confirmUploadExists(storage, target.path);
         const elapsedMs = Date.now() - startedAt;
         poseProgress[pose] = 1;
         emitOverallProgress(pose, true);
+        mark("upload_end", { pose, scanId: params.scanId, bytes: target.size });
+        measure("upload_duration", "upload_start", "upload_end", {
+          pose,
+          scanId: params.scanId,
+          bytes: target.size,
+        });
         options?.onPhotoState?.({
           pose,
           status: "done",
@@ -845,7 +883,9 @@ export async function submitScanClient(
         });
 
         if (retry.retryable && attempt < maxAttempts) {
-          const delayMs = Math.min(1000 * attempt, 3000);
+          const baseDelay = Math.min(1200 * attempt, 3200);
+          const jitter = 0.65 + Math.random() * 0.45;
+          const delayMs = Math.round(baseDelay * jitter);
           options?.onPhotoState?.({
             pose,
             status: "retrying",
@@ -899,7 +939,8 @@ export async function submitScanClient(
     }
     if (posesToUpload.length) {
       const queue = [...posesToUpload];
-      const maxConcurrentUploads = Math.min(2, posesToUpload.length);
+      const isMobile = isMobileUploadDevice();
+      const maxConcurrentUploads = computeUploadConcurrency(posesToUpload.length, isMobile);
       const workers = Array.from({ length: maxConcurrentUploads }).map(async () => {
         while (queue.length > 0) {
           const next = queue.shift();
@@ -943,6 +984,7 @@ export async function submitScanClient(
   }
 
   try {
+    mark("submit_start", { scanId: params.scanId });
     const response = await apiFetch<SubmitScanResponse>(submitUrl(), {
       method: "POST",
       retries: 0,
@@ -960,12 +1002,17 @@ export async function submitScanClient(
       },
     });
     clearTimeout(timeoutId);
+    mark("submit_end", { scanId: params.scanId });
+    measure("submit_duration", "submit_start", "submit_end", { scanId: params.scanId });
+    void flushPerf();
     return {
       ok: true,
       data: response ?? { scanId: params.scanId, correlationId: scanCorrelationId },
     };
   } catch (err) {
     clearTimeout(timeoutId);
+    mark("submit_end", { scanId: params.scanId });
+    void flushPerf();
     return {
       ok: false,
       error: buildScanError(err, "We couldn't start analysis right now.", "submit_failed"),

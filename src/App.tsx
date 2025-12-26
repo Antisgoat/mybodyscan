@@ -111,6 +111,7 @@ const Diagnostics = lazy(() => import("./pages/Diagnostics"));
 const SmokeKit = lazy(() => import("./pages/SmokeKit"));
 const AdminConsole = lazy(() => import("./pages/Admin"));
 const AdminQuick = lazy(() => import("./pages/AdminQuick"));
+const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
 
 const queryClient = new QueryClient();
 
@@ -1055,6 +1056,22 @@ const App = () => (
                     <RouteBoundary>
                       <ScanFlowHistory />
                     </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/scan/diagnostics"
+          element={
+            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <PageSuspense>
+                      <ScanDiagnostics />
+                    </PageSuspense>
                   </AuthedLayout>
                 </PersonalizationGate>
               </ProtectedRoute>

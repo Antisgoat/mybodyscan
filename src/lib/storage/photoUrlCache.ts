@@ -1,15 +1,23 @@
 import { getDownloadURL, ref, type FirebaseStorage } from "firebase/storage";
 
-const photoUrlCache = new Map<string, Promise<string>>();
+type CacheEntry = { promise: Promise<string>; expiresAt: number };
+
+const TTL_MS = 30 * 60 * 1000;
+const photoUrlCache = new Map<string, CacheEntry>();
 
 export async function getCachedScanPhotoUrl(
   storage: FirebaseStorage,
   path: string,
-  cacheKey?: string
+  cacheKey?: string,
+  ttlMs: number = TTL_MS
 ): Promise<string> {
   const key = cacheKey || path;
+  const now = Date.now();
   const existing = photoUrlCache.get(key);
-  if (existing) return existing;
+  if (existing && existing.expiresAt > now) return existing.promise;
+  if (existing) {
+    photoUrlCache.delete(key);
+  }
 
   const promise = getDownloadURL(ref(storage, path))
     .then((url) => url)
@@ -17,7 +25,7 @@ export async function getCachedScanPhotoUrl(
       photoUrlCache.delete(key);
       throw err;
     });
-  photoUrlCache.set(key, promise);
+  photoUrlCache.set(key, { promise, expiresAt: now + Math.max(1_000, ttlMs) });
   return promise;
 }
 
