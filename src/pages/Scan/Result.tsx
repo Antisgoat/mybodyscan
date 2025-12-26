@@ -102,9 +102,10 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-function formatUploadMethod(method?: UploadMethod): string {
+function formatUploadMethod(method?: UploadMethod | string | null): string {
   if (method === "storage") return "sdk";
   if (method === "http") return "function";
+  if (typeof method === "string" && method.length) return method;
   return "—";
 }
 

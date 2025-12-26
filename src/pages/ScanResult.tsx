@@ -26,7 +26,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
-import { getDownloadURL, ref } from "firebase/storage";
+import { getCachedScanPhotoUrl } from "@/lib/storage/photoUrlCache";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import {
   describeScanPipelineStage,
@@ -350,13 +350,14 @@ export default function ScanResultPage() {
       const scanKey = String(next.id || "");
       const resolved = await Promise.all(
         toFetch.map(async ([pose, path]) => {
-          const attemptKey = `${scanKey}:${pose}`;
+          const attemptKey = `${scanKey}:${pose}:${path}`;
           if (attemptedPhotoUrlRef.current[attemptKey]) {
             return [pose, ""] as const;
           }
           attemptedPhotoUrlRef.current[attemptKey] = true;
           try {
-            const url = await getDownloadURL(ref(storage, path));
+            const cacheKey = `${scanKey}:${pose}`;
+            const url = await getCachedScanPhotoUrl(storage, path, cacheKey);
             return [pose, url] as const;
           } catch {
             // Intentionally no console spam: missing photos are handled by the scan pipeline.

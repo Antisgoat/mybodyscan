@@ -5,7 +5,7 @@ import { BUILD } from "@/lib/build";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { db, getFirebaseStorage, getFirebaseConfig } from "@/lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
 import {
   cameraReadyOnThisDevice,
   hasGetUserMedia,
@@ -16,7 +16,8 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Badge } from "@/components/ui/badge";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
-import { uploadViaHttp } from "@/lib/uploads/uploadViaHttp";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
+import { SCAN_UPLOAD_CONTENT_TYPE } from "@/lib/uploads/uploadViaStorage";
 
 type Health = Record<string, any> | null;
 type CheckRow = { name: string; ok: boolean; detail?: string };
@@ -119,25 +120,28 @@ export default function SystemCheckPage() {
         });
       }
 
-      // Fallback upload via function to verify CORS-safe path
+      // Resumable upload using the Storage Web SDK (canonical scan path).
       try {
-        const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" });
+        const storage = getFirebaseStorage();
+        const blob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+          type: "image/jpeg",
+        });
         const scanId = `health-${Date.now()}`;
-        const data = await uploadViaHttp({
-          scanId,
-          pose: "front",
-          file: blob,
-          correlationId: scanId,
-          timeoutMs: 12_000,
+        const path = getScanPhotoPath(user.uid, scanId, "front");
+        await new Promise<void>((resolve, reject) => {
+          const task = uploadBytesResumable(ref(storage, path), blob, {
+            contentType: SCAN_UPLOAD_CONTENT_TYPE,
+          });
+          task.on("state_changed", undefined, reject, () => resolve());
         });
         next.push({
-          name: "Upload fallback (function)",
-          ok: Boolean(data.storagePath),
-          detail: data.storagePath ? `ok · ${data.storagePath}` : "ok",
+          name: "Storage upload (SDK resumable)",
+          ok: true,
+          detail: `ok · ${path}`,
         });
       } catch (err: any) {
         next.push({
-          name: "Upload fallback (function)",
+          name: "Storage upload (SDK resumable)",
           ok: false,
           detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
         });

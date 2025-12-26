@@ -1,7 +1,8 @@
-import { getDownloadURL, getStorage, ref } from "firebase/storage";
+import { getStorage } from "firebase/storage";
 import { auth } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
 import { getScanPhotoPath } from "@/lib/scanPaths";
+import { getCachedScanPhotoUrl } from "@/lib/storage/photoUrlCache";
 
 export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const uid = auth.currentUser?.uid;
@@ -10,7 +11,7 @@ export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const candidates = [getScanPhotoPath(uid, scanId, "front")];
   for (const path of candidates) {
     try {
-      return await getDownloadURL(ref(storage, path));
+      return await getCachedScanPhotoUrl(storage, path, `${scanId}:front`);
     } catch {
       // continue
     }
