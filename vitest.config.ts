@@ -6,17 +6,20 @@ export default defineConfig({
     include: [
       "src/**/*.{test,spec}.{ts,tsx}",
       "src/**/__tests__/**/*.{test,spec}.{ts,tsx}",
+      "tests/**/*.{test,spec}.{ts,tsx}",
     ],
     exclude: [
       "node_modules/**",
       "functions/**",
-      "tests/**",
+      "tests/e2e/**",
+      "tests/rules/**",
+      "tests-e2e/**",
       "e2e/**",
       "dist/**",
       "build/**",
       ".{git,github,husky,vscode}/**",
     ],
-    environment: "node",
+    environment: "jsdom",
   },
   resolve: {
     alias: {
