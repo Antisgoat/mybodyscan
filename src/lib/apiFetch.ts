@@ -1,5 +1,6 @@
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
 import { auth } from "@/lib/firebase";
+import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;
@@ -42,6 +43,14 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
     headers.set(key, value);
   });
 
+  assertNoForbiddenStorageRestUrl(
+    typeof input === "string"
+      ? input
+      : typeof (input as any)?.url === "string"
+        ? (input as any).url
+        : undefined,
+    "apiFetch"
+  );
   const url = normalizeUrl(input);
   // Default to same-origin credentials. Cross-origin requests (e.g. Functions
   // direct URLs) should not force credentialed mode, which can trigger CORS

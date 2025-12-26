@@ -1,6 +1,7 @@
 import type { FirebaseStorage } from "firebase/storage";
 import type { UploadTask } from "firebase/storage";
 import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
+import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
 
 export const SCAN_UPLOAD_CONTENT_TYPE = "image/jpeg";
 
@@ -49,7 +50,14 @@ export async function uploadViaStorage(params: {
 }): Promise<UploadViaStorageResult> {
   const startedAt = Date.now();
   const debugUploads = shouldLogUploadDebug();
-  const pathParts = debugUploads ? parseScanPath(params.path) : null;
+  assertNoForbiddenStorageRestUrl(params.path, "upload_path");
+  const parsedPath = parseScanPath(params.path);
+  if (!parsedPath) {
+    const err: any = new Error("Invalid scan upload path.");
+    err.code = "invalid_scan_path";
+    throw err;
+  }
+  const pathParts = debugUploads ? parsedPath : null;
   let lastProgressBucket = -1;
 
   const log = (level: "info" | "warn", event: string, payload?: Record<string, unknown>) => {

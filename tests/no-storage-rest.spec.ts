@@ -8,6 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "..");
 const SRC_DIRS = [path.resolve(ROOT, "src"), path.resolve(ROOT, "functions", "src")];
+const ALLOWLIST = new Set(
+  [
+    path.resolve(ROOT, "scripts", "storage-rest-patterns.mjs"),
+    path.resolve(ROOT, "src", "lib", "storage", "restGuards.ts"),
+  ].map((p) => path.normalize(p))
+);
 
 function collectFiles(dir: string): string[] {
   const entries = readdirSync(dir);
@@ -31,6 +37,7 @@ describe("storage REST usage", () => {
     const offenders: Array<{ file: string; pattern: string }> = [];
     for (const dir of SRC_DIRS) {
       for (const file of collectFiles(dir)) {
+        if (ALLOWLIST.has(path.normalize(file))) continue;
         const contents = readFileSync(file, "utf8");
         for (const pattern of STORAGE_REST_PATTERNS) {
           if (pattern.regex.test(contents)) {

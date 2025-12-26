@@ -154,6 +154,21 @@ export async function uploadPreparedPhoto(params: {
     const evaluate = (source: "interval" | "visibility" | "online" | "offline") => {
       if (settled) return;
       const now = Date.now();
+      const noProgressTimeout = 3000;
+      const elapsedSinceBytes = now - lastBytesAt;
+      if (
+        lastBytes <= 0 &&
+        Number.isFinite(elapsedSinceBytes) &&
+        elapsedSinceBytes >= noProgressTimeout
+      ) {
+        cancelTask();
+        const err: any = new Error("Upload started but no bytes were sent.");
+        err.code = "upload_no_progress";
+        err.wasOffline = wasOffline;
+        err.__source = source;
+        safeReject(err);
+        return;
+      }
       if (now >= deadlineAt) {
         cancelTask();
         safeReject(

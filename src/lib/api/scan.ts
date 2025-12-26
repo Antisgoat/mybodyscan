@@ -821,6 +821,7 @@ export async function submitScanClient(
           storage,
           path: target.path,
           file: target.file,
+          uid: user.uid,
           scanId: params.scanId,
           pose,
           correlationId: scanCorrelationId,
