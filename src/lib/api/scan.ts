@@ -13,6 +13,7 @@ import {
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
+import { SCAN_UPLOAD_CONTENT_TYPE } from "@/lib/uploads/uploadViaStorage";
 import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
@@ -496,6 +497,13 @@ function ensureVisibleProgress(value: number, hasBytes: boolean): number {
   return clampProgressFraction(baseline);
 }
 
+function ensureJpegFile(file: File, pose: string): File {
+  const type = (file.type || "").toLowerCase();
+  if (type === SCAN_UPLOAD_CONTENT_TYPE) return file;
+  const name = file.name && file.name.trim().length ? file.name : `${pose}.jpg`;
+  return new File([file], name, { type: SCAN_UPLOAD_CONTENT_TYPE });
+}
+
 export function createScanCorrelationId(seed?: string): string {
   const prefix = String(seed || "scan").slice(0, 12);
   const random =
@@ -674,9 +682,18 @@ export async function submitScanClient(
 
   const storage = getFirebaseStorage();
   const maxAttempts = 4;
-  const activeTargets = posesToUpload.length
+  const selectedTargets = posesToUpload.length
     ? uploadTargets.filter((target) => posesToUpload.includes(target.pose))
     : [];
+  const activeTargets = selectedTargets.map((target) => {
+    const normalizedFile = ensureJpegFile(target.file, target.pose);
+    const normalizedSize = Number.isFinite(normalizedFile.size)
+      ? normalizedFile.size
+      : Number.isFinite(target.size)
+        ? target.size
+        : 0;
+    return { ...target, file: normalizedFile, size: normalizedSize };
+  });
   totalBytes = activeTargets.reduce((sum, target) => sum + target.size, 0);
   const poseProgress: Record<keyof StartScanResponse["storagePaths"], number> = {
     front: 0,
@@ -822,6 +839,17 @@ export async function submitScanClient(
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }
+        console.error("scan_upload_failed", {
+          uid: auth.currentUser?.uid ?? null,
+          scanId: params.scanId,
+          pose,
+          path: target.path,
+          fileType: target.file?.type ?? "",
+          metadataContentType: SCAN_UPLOAD_CONTENT_TYPE,
+          bytesTransferred: lastBytes,
+          errorCode: err?.code,
+          errorMessage: err?.message,
+        });
         options?.onPhotoState?.({
           pose,
           status: "failed",

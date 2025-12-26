@@ -11,7 +11,8 @@ service firebase.storage {
 
     function validImageUpload() {
       return request.resource.size < 15 * 1024 * 1024
-        && request.resource.contentType == "image/jpeg";
+        && (request.resource.contentType == "image/jpeg"
+          || request.resource.contentType == "image/jpg");
     }
 
     // Canonical scan photo uploads (CURRENT):

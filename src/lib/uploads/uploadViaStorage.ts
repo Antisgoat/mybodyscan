@@ -2,6 +2,8 @@ import type { FirebaseStorage } from "firebase/storage";
 import type { UploadTask } from "firebase/storage";
 import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
 
+export const SCAN_UPLOAD_CONTENT_TYPE = "image/jpeg";
+
 export type UploadViaStorageResult = {
   method: "storage";
   storagePath: string;
@@ -32,7 +34,7 @@ export async function uploadViaStorage(params: {
       path: params.path,
       file: params.file,
       metadata: {
-        contentType: "image/jpeg",
+        contentType: SCAN_UPLOAD_CONTENT_TYPE,
         cacheControl: "public,max-age=31536000",
         customMetadata: params.customMetadata,
       },

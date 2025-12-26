@@ -1,7 +1,7 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
-export type UploadMethod = "storage" | "http";
+export type UploadMethod = "storage";
 
 export type UploadPhotoResult = {
   method: UploadMethod;
