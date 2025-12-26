@@ -627,6 +627,12 @@ export async function submitScanClient(
     const startedAt = Date.now();
     try {
       const processed = await prepareScanPhoto(original, pose);
+      if (!Number.isFinite(processed.meta.prepared.size) || processed.meta.prepared.size <= 0) {
+        const err: any = new Error("Couldn’t prepare photo on this device");
+        err.code = "preprocess_failed";
+        err.pose = pose;
+        throw err;
+      }
       uploadTargets = uploadTargets.map((target) =>
         target.pose === pose
           ? { ...target, file: processed.preparedFile, size: processed.meta.prepared.size }
@@ -694,6 +700,17 @@ export async function submitScanClient(
         : 0;
     return { ...target, file: normalizedFile, size: normalizedSize };
   });
+  const zeroSizeTargets = activeTargets.filter((target) => !Number.isFinite(target.size) || target.size <= 0);
+  if (zeroSizeTargets.length) {
+    const poses = zeroSizeTargets.map((t) => t.pose).join(", ");
+    return {
+      ok: false,
+      error: {
+        message: `We couldn't read your ${poses} photo. Please retake and try again.`,
+        reason: "upload_failed",
+      },
+    };
+  }
   totalBytes = activeTargets.reduce((sum, target) => sum + target.size, 0);
   const poseProgress: Record<keyof StartScanResponse["storagePaths"], number> = {
     front: 0,

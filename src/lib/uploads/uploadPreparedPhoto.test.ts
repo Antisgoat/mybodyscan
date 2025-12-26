@@ -120,4 +120,22 @@ describe("uploadPreparedPhoto", () => {
     });
     expect(dom.removeEventListener).toHaveBeenCalled();
   });
+
+  it("rejects zero-byte files immediately", async () => {
+    const task = buildTask({});
+    uploadBytesResumableMock.mockReturnValue(task);
+    const zero = new Blob([], { type: "image/jpeg" });
+
+    await expect(
+      uploadPreparedPhoto({
+        storage: {} as unknown as FirebaseStorage,
+        path: "scans/u/s/front.jpg",
+        file: zero,
+        metadata: { contentType: "image/jpeg" },
+        stallTimeoutMs: 1_000,
+        overallTimeoutMs: 2_000,
+      })
+    ).rejects.toMatchObject({ code: "upload_zero_bytes" });
+    expect(uploadBytesResumableMock).not.toHaveBeenCalled();
+  });
 });
