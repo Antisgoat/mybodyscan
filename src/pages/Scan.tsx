@@ -144,6 +144,7 @@ export default function ScanPage() {
         fullPath?: string;
         bucket?: string;
         pathMismatch?: { expected: string; actual: string };
+        downloadURL?: string;
         uploadMethod?: UploadMethod;
         correlationId?: string;
         elapsedMs?: number;
@@ -657,6 +658,10 @@ export default function ScanPage() {
                 bucket: (info as any)?.bucket ?? existing.bucket,
                 pathMismatch:
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
+                downloadURL:
+                  typeof (info as any)?.downloadURL === "string"
+                    ? (info as any).downloadURL
+                    : existing.downloadURL,
                 uploadMethod:
                   (info as any)?.uploadMethod ?? existing.uploadMethod,
                 correlationId:
@@ -904,6 +909,10 @@ export default function ScanPage() {
               fullPath: (info as any)?.fullPath ?? existing.fullPath,
               bucket: (info as any)?.bucket ?? existing.bucket,
               pathMismatch: (info as any)?.pathMismatch ?? existing.pathMismatch,
+              downloadURL:
+                typeof (info as any)?.downloadURL === "string"
+                  ? (info as any).downloadURL
+                  : existing.downloadURL,
               uploadMethod: (info as any)?.uploadMethod ?? existing.uploadMethod,
               lastError:
                 info.status === "failed"
@@ -1128,6 +1137,10 @@ export default function ScanPage() {
                 bucket: (info as any)?.bucket ?? existing.bucket,
                 pathMismatch:
                   (info as any)?.pathMismatch ?? existing.pathMismatch,
+                downloadURL:
+                  typeof (info as any)?.downloadURL === "string"
+                    ? (info as any).downloadURL
+                    : existing.downloadURL,
                 uploadMethod: (info as any)?.uploadMethod ?? existing.uploadMethod,
                 lastError:
                   info.status === "failed"
@@ -1576,6 +1589,48 @@ export default function ScanPage() {
                     );
                   })()}
                 </pre>
+              </div>
+              <div>
+                <span className="font-medium">upload diagnostics:</span>
+                <div className="mt-1 space-y-2 rounded border p-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    uid={user?.uid ?? "—"} · scanId=
+                    {scanSession?.scanId ?? activeScanId ?? persistedScan?.scanId ?? "—"}
+                  </div>
+                  {(() => {
+                    const debugPaths =
+                      (scanSession?.storagePaths as Partial<Record<Pose, string>> | undefined) ??
+                      (persistedScan?.storagePaths as Partial<Record<Pose, string>> | undefined) ??
+                      null;
+                    if (!debugPaths) {
+                      return (
+                        <p className="text-[11px] text-muted-foreground">No storage paths yet.</p>
+                      );
+                    }
+                    return (
+                      <ul className="space-y-2">
+                        {(["front", "back", "left", "right"] as Pose[]).map((pose) => {
+                          const path = debugPaths?.[pose];
+                          const meta = photoMeta[pose];
+                          const pct = Math.max(
+                            0,
+                            Math.min(100, Math.round((photoState[pose]?.percent ?? 0) * 100))
+                          );
+                          return (
+                            <li key={pose} className="text-[11px]">
+                              <div className="font-medium">{pose}</div>
+                              <div className="text-muted-foreground break-all">
+                                path={path ?? "—"}
+                                {meta.downloadURL ? ` · url=${meta.downloadURL}` : ""}
+                                {pct ? ` · progress=${pct}%` : ""}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    );
+                  })()}
+                </div>
               </div>
               <div>
                 <span className="font-medium">device:</span>{" "}

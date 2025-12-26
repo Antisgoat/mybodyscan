@@ -1,5 +1,9 @@
 export const STORAGE_REST_PATTERNS = [
   {
+    label: "Direct Firebase Storage REST host",
+    regex: /firebasestorage\.googleapis\.com/i,
+  },
+  {
     label: "Legacy v0 bucket REST endpoint",
     regex: /firebasestorage\.googleapis\.com\/v0\/b\//i,
   },

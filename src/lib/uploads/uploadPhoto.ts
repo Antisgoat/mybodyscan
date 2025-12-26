@@ -6,6 +6,7 @@ export type UploadMethod = "storage";
 export type UploadPhotoResult = {
   method: UploadMethod;
   storagePath: string;
+  downloadURL?: string;
   elapsedMs: number;
   correlationId: string;
 };
@@ -45,6 +46,7 @@ export async function uploadPhoto(params: {
   return {
     method: "storage",
     storagePath: result.storagePath,
+    downloadURL: result.downloadURL,
     elapsedMs: result.elapsedMs,
     correlationId: params.correlationId,
   };
