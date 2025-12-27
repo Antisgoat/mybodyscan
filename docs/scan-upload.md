@@ -1,7 +1,7 @@
 # Scan upload reliability checklist
 
 ## Why this matters
-Safari users on **mybodyscanapp.com** were seeing Firebase Storage preflight 404s (`firebasestorage.googleapis.com/v0/b/...`) which caused `"Upload started but no bytes were sent."` and blocked scans. The fix requires Storage bucket CORS so the official Firebase Storage Web SDK (resumable uploads) can work reliably in Safari.
+Safari users on **mybodyscanapp.com** were seeing Firebase Storage preflight 404s to the Storage REST endpoint, which caused `"Upload started but no bytes were sent."` and blocked scans. The fix requires Storage bucket CORS so the official Firebase Storage Web SDK (resumable uploads) can work reliably in Safari.
 
 ## Bucket CORS (one-time, per bucket)
 

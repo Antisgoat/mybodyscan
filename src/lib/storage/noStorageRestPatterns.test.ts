@@ -4,15 +4,56 @@ import path from "node:path";
 
 type Offender = { file: string; pattern: string };
 
+// Keep forbidden patterns encoded so this test file itself does not match.
+const ENCODED = {
+  storageRestHost: "ZmlyZWJhc2VzdG9yYWdlLmdvb2dsZWFwaXMuY29t",
+  v0b: "L3YwL2Iv",
+  objectNameQuery: "bz9uYW1lPQ==",
+} as const;
+
+function decodeBase64(input: string): string {
+  try {
+    return Buffer.from(input, "base64").toString("utf8");
+  } catch {
+    return input;
+  }
+}
+
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 const FORBIDDEN: Array<{ name: string; regex: RegExp }> = [
-  { name: "firebasestorage.googleapis.com", regex: /firebasestorage\.googleapis\.com/i },
-  { name: "/v0/b/", regex: /\/v0\/b\//i },
-  { name: "o?name=", regex: /o\?name=/i },
-  // Defensive: never allow manual object-access endpoints for Firebase Storage.
+  // Decode once to avoid embedding raw substrings in this file.
+  // (This test itself is scanned by other guardrails.)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ...(() => {
+    const host = decodeBase64(ENCODED.storageRestHost);
+    const v0b = decodeBase64(ENCODED.v0b);
+    const oName = decodeBase64(ENCODED.objectNameQuery);
+    return [
   {
-    name: "firebasestorage object endpoint (/v0/b/.../o...)",
-    regex: /firebasestorage\.googleapis\.com\/v0\/b\/[^/]+\/o(?:\/|%2f|\?)/i,
+    name: "Storage REST host",
+    regex: new RegExp(escapeRegExp(host), "i"),
   },
+  {
+    name: "Storage REST v0 bucket prefix",
+    regex: new RegExp(escapeRegExp(v0b), "i"),
+  },
+  {
+    name: "Storage REST object name query",
+    regex: new RegExp(escapeRegExp(oName), "i"),
+  },
+  // Defensive: never allow manual object-access endpoints for Storage.
+  {
+    name: "Storage object endpoint",
+    regex: new RegExp(
+      `${escapeRegExp(host)}${escapeRegExp(v0b)}[^/]+\\/o(?:\\/|%2f|\\?)`,
+      "i"
+    ),
+  },
+    ] as Array<{ name: string; regex: RegExp }>;
+  })(),
 ];
 
 const TEXT_EXT = new Set([
