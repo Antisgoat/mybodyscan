@@ -4,6 +4,24 @@ import { mintIdToken } from "./idtoken.mjs";
 const DEFAULT_REGION = "us-central1";
 const DEFAULT_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 15000);
 
+function isObject(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isCanonicalScanPath(pathValue, uid, scanId, pose) {
+  if (!isNonEmptyString(pathValue)) return false;
+  const expected = `scans/${uid}/${scanId}/${pose}.jpg`;
+  return String(pathValue) === expected;
+}
+
 const ENDPOINTS = [
   {
     name: "systemHealth",
@@ -40,6 +58,23 @@ const ENDPOINTS = [
     path: "/",
     method: "POST",
     body: { currentWeightKg: 80, goalWeightKg: 75, correlationId: `probe-${Date.now()}` },
+    expect: ({ status, parsed }) => {
+      if (status !== 200) return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      const scanId = isNonEmptyString(parsed.scanId) ? parsed.scanId : null;
+      if (!scanId) return { ok: false, message: "missing scanId" };
+      const storagePaths = isObject(parsed.storagePaths) ? parsed.storagePaths : null;
+      if (!storagePaths) return { ok: false, message: "missing storagePaths" };
+      const uid = storagePaths.front?.split("/")[1];
+      if (!isNonEmptyString(uid)) return { ok: false, message: "unable to infer uid from storagePaths" };
+      for (const pose of ["front", "back", "left", "right"]) {
+        if (!hasOwn(storagePaths, pose)) return { ok: false, message: `missing storagePaths.${pose}` };
+        if (!isCanonicalScanPath(storagePaths[pose], uid, scanId, pose)) {
+          return { ok: false, message: `non-canonical path for ${pose}: ${String(storagePaths[pose])}` };
+        }
+      }
+      return { ok: true };
+    },
   },
   {
     name: "scanSubmit",
@@ -48,6 +83,14 @@ const ENDPOINTS = [
     method: "POST",
     // Body is filled dynamically from scanStart response.
     body: null,
+    // We don't upload photos in the probe; submit should fail *cleanly* and as JSON.
+    expect: ({ parsed }) => {
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      // Any structured error is acceptable, but we strongly prefer missing_photos.
+      if (isNonEmptyString(parsed.reason) && parsed.reason === "missing_photos") return { ok: true };
+      if (isNonEmptyString(parsed.code) && isNonEmptyString(parsed.message)) return { ok: true };
+      return { ok: false, message: "unexpected submit response shape" };
+    },
   },
   {
     name: "scanDelete",
@@ -56,6 +99,11 @@ const ENDPOINTS = [
     method: "POST",
     // Body is filled dynamically from scanStart response.
     body: null,
+    expect: ({ parsed }) => {
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      if (parsed.ok === true) return { ok: true };
+      return { ok: false, message: "deleteScan did not return ok:true" };
+    },
   },
 ];
 
@@ -171,13 +219,24 @@ async function probeEndpoint(base, endpoint, token) {
   }
 
   const status = response.status;
-  // This probe is primarily a connectivity/CORS/route check:
-  // treat any JSON response as "ok" (even if it's an error payload).
-  const ok = parsedOk;
+  // Default behavior: connectivity/CORS/route check. Treat any JSON response as "ok"
+  // unless a stricter `expect()` is provided for this endpoint.
+  let ok = parsedOk;
+  let expectMessage;
+  if (typeof endpoint.expect === "function") {
+    const verdict = endpoint.expect({
+      status,
+      parsed: parsedOk ? parsed : null,
+      url: url.href,
+    });
+    ok = Boolean(verdict?.ok);
+    expectMessage = verdict?.message;
+  }
 
   const prefix = ok ? "[ok]" : "[fail]";
   const statusText = response.statusText ? ` ${response.statusText}` : "";
-  const logLine = `${prefix} ${endpoint.method} ${url.href} -> ${status}${statusText} :: ${snippet}`;
+  const extra = expectMessage ? ` (${expectMessage})` : "";
+  const logLine = `${prefix} ${endpoint.method} ${url.href} -> ${status}${statusText}${extra} :: ${snippet}`;
 
   if (ok) {
     console.log(logLine);
