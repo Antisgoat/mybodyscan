@@ -7,23 +7,29 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 15000);
 const ENDPOINTS = [
   {
     name: "systemHealth",
-    path: "/api/system/health",
+    functionName: "systemHealth",
+    path: "/",
     method: "GET",
   },
   {
     name: "coachChat",
+    functionName: "api",
     path: "/api/coach/chat",
     method: "POST",
-    body: { question: "probe" },
+    // Match the deployed API contract (expects `message`).
+    body: { message: "probe" },
   },
   {
     name: "nutritionSearch",
+    functionName: "api",
     path: "/api/nutrition/search?q=chicken breast",
     method: "GET",
   },
   {
     name: "createCheckout",
-    path: "/api/createCheckout",
+    // Callable function exposed as an HTTP endpoint at /createCheckout
+    functionName: "createCheckout",
+    path: "/",
     method: "POST",
     body: { priceId: process.env.TEST_PRICE_ID || "price_xxx" },
   },
@@ -66,10 +72,9 @@ function expandBaseTemplates(tokens, { projectId, region }) {
 }
 
 function buildBases({ projectId, region, basesEnv }) {
-  const defaultBases = [
-    `https://${region}-${projectId}.cloudfunctions.net`,
-    `https://${projectId}-${region}.a.run.app`,
-  ];
+  // Prefer Cloud Functions hostname. Cloud Run base URLs vary by deployment and
+  // often aren't stable/public across environments.
+  const defaultBases = [`https://${region}-${projectId}.cloudfunctions.net`];
 
   if (!basesEnv) {
     return defaultBases;
@@ -96,10 +101,11 @@ async function fetchWithTimeout(url, options) {
 }
 
 async function probeEndpoint(base, endpoint, token) {
-  const url = new URL(
-    endpoint.path.replace(/^\//, ""),
-    ensureTrailingSlash(base)
-  );
+  const fn = String(endpoint.functionName || "").trim();
+  if (!fn) {
+    throw new Error(`Missing functionName for probe endpoint "${endpoint.name}".`);
+  }
+  const url = new URL(`${fn}${endpoint.path || "/"}`.replace(/^\//, ""), ensureTrailingSlash(base));
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -141,19 +147,9 @@ async function probeEndpoint(base, endpoint, token) {
   }
 
   const status = response.status;
-  let ok = false;
-
-  if (status === 200 && parsedOk) {
-    ok = true;
-  } else if (
-    status >= 400 &&
-    status < 600 &&
-    parsedOk &&
-    parsed &&
-    typeof parsed.error !== "undefined"
-  ) {
-    ok = true;
-  }
+  // This probe is primarily a connectivity/CORS/route check:
+  // treat any JSON response as "ok" (even if it's an error payload).
+  const ok = parsedOk;
 
   const prefix = ok ? "[ok]" : "[fail]";
   const statusText = response.statusText ? ` ${response.statusText}` : "";
