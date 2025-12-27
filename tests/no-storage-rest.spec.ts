@@ -39,8 +39,9 @@ describe("storage REST usage", () => {
       for (const file of collectFiles(dir)) {
         if (ALLOWLIST.has(path.normalize(file))) continue;
         const contents = readFileSync(file, "utf8");
+        const compact = contents.replace(/\s+/g, "");
         for (const pattern of STORAGE_REST_PATTERNS) {
-          if (pattern.regex.test(contents)) {
+          if (pattern.regex.test(contents) || pattern.regex.test(compact)) {
             offenders.push({
               file: path.relative(ROOT, file),
               pattern: describeStorageRestPattern(pattern),

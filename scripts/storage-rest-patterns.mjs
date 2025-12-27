@@ -20,6 +20,10 @@ export const STORAGE_REST_PATTERNS = [
     regex: /upload\/storage\/v1\/b\//i,
   },
   {
+    label: "Concatenated Firebase Storage REST host fragments",
+    regex: /firebasestorage[^a-z0-9]{0,12}googleapis\.com/i,
+  },
+  {
     label: "Encoded scans path without download token",
     regex: /\/(?:o|download)\/scans%2F(?![^?]*alt=media)/i,
   },

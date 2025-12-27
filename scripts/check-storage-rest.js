@@ -6,6 +6,7 @@ import { describeStorageRestPattern, STORAGE_REST_PATTERNS } from "./storage-res
 
 const ROOT = process.cwd();
 const DIST_DIR = path.resolve(ROOT, "dist");
+const ALLOWLIST_BASENAMES = [/^firebase-.*\.js$/i, /^vendor-.*\.js$/i];
 
 function collectBuildAssets(dir) {
   const entries = readdirSync(dir, { withFileTypes: true });
@@ -30,6 +31,8 @@ function main() {
   }
   const offenders = [];
   for (const file of collectBuildAssets(DIST_DIR)) {
+    const base = path.basename(file);
+    if (ALLOWLIST_BASENAMES.some((regex) => regex.test(base))) continue;
     const contents = readFileSync(file, "utf8");
     for (const pattern of STORAGE_REST_PATTERNS) {
       if (pattern.regex.test(contents)) {

@@ -47,9 +47,6 @@ export function deriveStateFromEvents(events: ScanFlowEvent[]): ScanFlowState {
       case "prepared":
         state = transitionState(state, "uploading");
         break;
-      case "uploading":
-        state = transitionState(state, "uploading");
-        break;
       case "submitted":
         state = transitionState(state, "submitting");
         break;
@@ -65,8 +62,6 @@ export function deriveStateFromEvents(events: ScanFlowEvent[]): ScanFlowState {
       case "failed":
         state = transitionState(state, "failed");
         break;
-      default:
-        state = state;
     }
   }
   return state;
