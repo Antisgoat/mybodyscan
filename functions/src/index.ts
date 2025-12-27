@@ -16,7 +16,6 @@ export { nutritionSearch, nutritionSearchHttp } from "./nutritionSearch.js";
 export { nutritionBarcode } from "./nutrition/barcode.js";
 export { startScanSession } from "./scan/start.js";
 export { submitScan } from "./scan/submit.js";
-export { submitScanMultipart } from "./scan/submitMultipart.js";
 export { processQueuedScan } from "./scan/worker.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";

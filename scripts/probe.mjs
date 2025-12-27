@@ -4,28 +4,106 @@ import { mintIdToken } from "./idtoken.mjs";
 const DEFAULT_REGION = "us-central1";
 const DEFAULT_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 15000);
 
+function isObject(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isCanonicalScanPath(pathValue, uid, scanId, pose) {
+  if (!isNonEmptyString(pathValue)) return false;
+  const expected = `scans/${uid}/${scanId}/${pose}.jpg`;
+  return String(pathValue) === expected;
+}
+
 const ENDPOINTS = [
   {
     name: "systemHealth",
-    path: "/api/system/health",
+    functionName: "systemHealth",
+    path: "/",
     method: "GET",
   },
   {
     name: "coachChat",
+    functionName: "api",
     path: "/api/coach/chat",
     method: "POST",
-    body: { question: "probe" },
+    // Match the deployed API contract (expects `message`).
+    body: { message: "probe" },
   },
   {
     name: "nutritionSearch",
+    functionName: "api",
     path: "/api/nutrition/search?q=chicken breast",
     method: "GET",
   },
   {
     name: "createCheckout",
-    path: "/api/createCheckout",
+    // Callable function exposed as an HTTP endpoint at /createCheckout
+    functionName: "createCheckout",
+    path: "/",
     method: "POST",
     body: { priceId: process.env.TEST_PRICE_ID || "price_xxx" },
+  },
+  // Scan flow probes (routing + JSON + canonical paths):
+  {
+    name: "scanStart",
+    functionName: "startScanSession",
+    path: "/",
+    method: "POST",
+    body: { currentWeightKg: 80, goalWeightKg: 75, correlationId: `probe-${Date.now()}` },
+    expect: ({ status, parsed }) => {
+      if (status !== 200) return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      const scanId = isNonEmptyString(parsed.scanId) ? parsed.scanId : null;
+      if (!scanId) return { ok: false, message: "missing scanId" };
+      const storagePaths = isObject(parsed.storagePaths) ? parsed.storagePaths : null;
+      if (!storagePaths) return { ok: false, message: "missing storagePaths" };
+      const uid = storagePaths.front?.split("/")[1];
+      if (!isNonEmptyString(uid)) return { ok: false, message: "unable to infer uid from storagePaths" };
+      for (const pose of ["front", "back", "left", "right"]) {
+        if (!hasOwn(storagePaths, pose)) return { ok: false, message: `missing storagePaths.${pose}` };
+        if (!isCanonicalScanPath(storagePaths[pose], uid, scanId, pose)) {
+          return { ok: false, message: `non-canonical path for ${pose}: ${String(storagePaths[pose])}` };
+        }
+      }
+      return { ok: true };
+    },
+  },
+  {
+    name: "scanSubmit",
+    functionName: "submitScan",
+    path: "/",
+    method: "POST",
+    // Body is filled dynamically from scanStart response.
+    body: null,
+    // We don't upload photos in the probe; submit should fail *cleanly* and as JSON.
+    expect: ({ parsed }) => {
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      // Any structured error is acceptable, but we strongly prefer missing_photos.
+      if (isNonEmptyString(parsed.reason) && parsed.reason === "missing_photos") return { ok: true };
+      if (isNonEmptyString(parsed.code) && isNonEmptyString(parsed.message)) return { ok: true };
+      return { ok: false, message: "unexpected submit response shape" };
+    },
+  },
+  {
+    name: "scanDelete",
+    functionName: "deleteScan",
+    path: "/",
+    method: "POST",
+    // Body is filled dynamically from scanStart response.
+    body: null,
+    expect: ({ parsed }) => {
+      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      if (parsed.ok === true) return { ok: true };
+      return { ok: false, message: "deleteScan did not return ok:true" };
+    },
   },
 ];
 
@@ -66,10 +144,9 @@ function expandBaseTemplates(tokens, { projectId, region }) {
 }
 
 function buildBases({ projectId, region, basesEnv }) {
-  const defaultBases = [
-    `https://${region}-${projectId}.cloudfunctions.net`,
-    `https://${projectId}-${region}.a.run.app`,
-  ];
+  // Prefer Cloud Functions hostname. Cloud Run base URLs vary by deployment and
+  // often aren't stable/public across environments.
+  const defaultBases = [`https://${region}-${projectId}.cloudfunctions.net`];
 
   if (!basesEnv) {
     return defaultBases;
@@ -96,10 +173,11 @@ async function fetchWithTimeout(url, options) {
 }
 
 async function probeEndpoint(base, endpoint, token) {
-  const url = new URL(
-    endpoint.path.replace(/^\//, ""),
-    ensureTrailingSlash(base)
-  );
+  const fn = String(endpoint.functionName || "").trim();
+  if (!fn) {
+    throw new Error(`Missing functionName for probe endpoint "${endpoint.name}".`);
+  }
+  const url = new URL(`${fn}${endpoint.path || "/"}`.replace(/^\//, ""), ensureTrailingSlash(base));
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -141,23 +219,24 @@ async function probeEndpoint(base, endpoint, token) {
   }
 
   const status = response.status;
-  let ok = false;
-
-  if (status === 200 && parsedOk) {
-    ok = true;
-  } else if (
-    status >= 400 &&
-    status < 600 &&
-    parsedOk &&
-    parsed &&
-    typeof parsed.error !== "undefined"
-  ) {
-    ok = true;
+  // Default behavior: connectivity/CORS/route check. Treat any JSON response as "ok"
+  // unless a stricter `expect()` is provided for this endpoint.
+  let ok = parsedOk;
+  let expectMessage;
+  if (typeof endpoint.expect === "function") {
+    const verdict = endpoint.expect({
+      status,
+      parsed: parsedOk ? parsed : null,
+      url: url.href,
+    });
+    ok = Boolean(verdict?.ok);
+    expectMessage = verdict?.message;
   }
 
   const prefix = ok ? "[ok]" : "[fail]";
   const statusText = response.statusText ? ` ${response.statusText}` : "";
-  const logLine = `${prefix} ${endpoint.method} ${url.href} -> ${status}${statusText} :: ${snippet}`;
+  const extra = expectMessage ? ` (${expectMessage})` : "";
+  const logLine = `${prefix} ${endpoint.method} ${url.href} -> ${status}${statusText}${extra} :: ${snippet}`;
 
   if (ok) {
     console.log(logLine);
@@ -169,7 +248,7 @@ async function probeEndpoint(base, endpoint, token) {
     }
   }
 
-  return { ok };
+  return { ok, parsed: parsedOk ? parsed : null, status };
 }
 
 async function main() {
@@ -191,9 +270,47 @@ async function main() {
 
   for (const base of bases) {
     console.log(`[probe] Base ${base}`);
+    /** @type {{ scanId?: string, storagePaths?: any, weights?: { currentWeightKg: number, goalWeightKg: number }, correlationId?: string }} */
+    const ctx = {};
     for (const endpoint of ENDPOINTS) {
+      // Inject scan payloads once we have a scanId.
+      if (endpoint.name === "scanSubmit") {
+        if (ctx.scanId && ctx.storagePaths && ctx.weights) {
+          endpoint.body = {
+            scanId: ctx.scanId,
+            photoPaths: ctx.storagePaths,
+            currentWeightKg: ctx.weights.currentWeightKg,
+            goalWeightKg: ctx.weights.goalWeightKg,
+            correlationId: ctx.correlationId,
+          };
+        } else {
+          endpoint.body = { scanId: "missing", photoPaths: {}, currentWeightKg: 0, goalWeightKg: 0 };
+        }
+      }
+      if (endpoint.name === "scanDelete") {
+        endpoint.body = ctx.scanId ? { scanId: ctx.scanId } : { scanId: "missing" };
+      }
+
       const result = await probeEndpoint(base, endpoint, token);
       allOk = allOk && result.ok;
+
+      if (endpoint.name === "scanStart" && result.parsed && typeof result.parsed === "object") {
+        const scanId = typeof result.parsed.scanId === "string" ? result.parsed.scanId : null;
+        const storagePaths =
+          result.parsed.storagePaths && typeof result.parsed.storagePaths === "object"
+            ? result.parsed.storagePaths
+            : null;
+        if (scanId && storagePaths) {
+          ctx.scanId = scanId;
+          ctx.storagePaths = storagePaths;
+          ctx.weights = {
+            currentWeightKg: Number(endpoint.body?.currentWeightKg ?? 0),
+            goalWeightKg: Number(endpoint.body?.goalWeightKg ?? 0),
+          };
+          ctx.correlationId =
+            typeof endpoint.body?.correlationId === "string" ? endpoint.body.correlationId : undefined;
+        }
+      }
     }
   }
 

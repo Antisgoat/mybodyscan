@@ -26,7 +26,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
-import { getCachedScanPhotoUrl } from "@/lib/storage/photoUrlCache";
+import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import {
   describeScanPipelineStage,
@@ -58,7 +58,12 @@ export default function ScanResultPage() {
   const [photoUrls, setPhotoUrls] = useState<
     Partial<Record<keyof ScanDocument["photoPaths"], string>>
   >({});
-  const attemptedPhotoUrlRef = useRef<Record<string, true>>({});
+  const photoUrlsRef = useRef<
+    Partial<Record<keyof ScanDocument["photoPaths"], string>>
+  >({});
+  const [photoUrlRetryTick, setPhotoUrlRetryTick] = useState(0);
+  const photoUrlRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loggedPhotoUrlErrorRef = useRef<Record<string, true>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
@@ -105,6 +110,10 @@ export default function ScanResultPage() {
   useEffect(() => {
     scanRef.current = scan;
   }, [scan]);
+
+  useEffect(() => {
+    photoUrlsRef.current = photoUrls;
+  }, [photoUrls]);
 
   useEffect(() => {
     setPipelineState(readScanPipelineState(scanId));
@@ -394,45 +403,96 @@ export default function ScanResultPage() {
         setPhotoUrls({});
         return;
       }
-      const toFetch = entries.filter(([pose]) => !photoUrls[pose]);
+      const existingUrls = photoUrlsRef.current || {};
+      const toFetch = entries.filter(([pose]) => !existingUrls[pose]);
       if (!toFetch.length) return;
       const scanKey = String(next.id || "");
+      const uid = user?.uid ?? null;
       const resolved = await Promise.all(
         toFetch.map(async ([pose, path]) => {
-          const attemptKey = `${scanKey}:${pose}:${path}`;
-          if (attemptedPhotoUrlRef.current[attemptKey]) {
-            return [pose, ""] as const;
+          const cacheKey = `${scanKey}:${pose}`;
+          const outcome = await getCachedScanPhotoUrlMaybe(storage, path, cacheKey);
+          if (outcome.url) {
+            return { pose, url: outcome.url, nextRetryAt: null as number | null };
           }
-          attemptedPhotoUrlRef.current[attemptKey] = true;
-          try {
-            const cacheKey = `${scanKey}:${pose}`;
-            const url = await getCachedScanPhotoUrl(storage, path, cacheKey);
-            return [pose, url] as const;
-          } catch {
-            // Intentionally no console spam: missing photos are handled by the scan pipeline.
-            return [pose, ""] as const;
+          const storageErrorCode = outcome.errorCode;
+          const httpStatus = outcome.httpStatus;
+          const retryAt = typeof outcome.nextRetryAt === "number" ? outcome.nextRetryAt : null;
+
+          // One-line diagnostics (no spam): log only once per scan+pose when it's not a simple "not found yet".
+          const logKey = `${scanKey}:${pose}`;
+          const codeLower = String(storageErrorCode || "").toLowerCase();
+          if (
+            uid &&
+            !loggedPhotoUrlErrorRef.current[logKey] &&
+            storageErrorCode &&
+            !codeLower.includes("object-not-found") &&
+            !codeLower.includes("url_not_ready")
+          ) {
+            loggedPhotoUrlErrorRef.current[logKey] = true;
+            console.warn("scan_photo_url_unavailable", {
+              uid,
+              scanId: scanKey,
+              pose,
+              path,
+              storageErrorCode,
+              httpStatus,
+            });
           }
+          return { pose, url: "", nextRetryAt: retryAt };
         })
       );
       if (cancelled) return;
-      const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> = {
-        ...photoUrls,
-      };
-      for (const [pose, url] of resolved) {
-        if (url) nextUrls[pose] = url;
+      let earliestRetryAt: number | null = null;
+      setPhotoUrls((prev) => {
+        const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> = {
+          ...prev,
+        };
+        for (const item of resolved) {
+          if (item.url) nextUrls[item.pose] = item.url;
+          if (typeof item.nextRetryAt === "number") {
+            earliestRetryAt =
+              earliestRetryAt == null ? item.nextRetryAt : Math.min(earliestRetryAt, item.nextRetryAt);
+          }
+        }
+        return nextUrls;
+      });
+
+      // If any URLs are still backing off, schedule the next attempt (single timer).
+      if (earliestRetryAt != null) {
+        if (photoUrlRetryTimerRef.current) {
+          clearTimeout(photoUrlRetryTimerRef.current);
+          photoUrlRetryTimerRef.current = null;
+        }
+        const delayMs = Math.max(250, earliestRetryAt - Date.now());
+        photoUrlRetryTimerRef.current = setTimeout(() => {
+          setPhotoUrlRetryTick(Date.now());
+        }, delayMs);
       }
-      setPhotoUrls(nextUrls);
     }
     void fetchPhotoUrls(scan);
     return () => {
       cancelled = true;
     };
-  }, [scan?.id, scan?.status, scan?.photoPaths?.front, scan?.photoPaths?.back, scan?.photoPaths?.left, scan?.photoPaths?.right, photoUrls]);
+  }, [
+    scan?.id,
+    scan?.status,
+    scan?.photoPaths?.front,
+    scan?.photoPaths?.back,
+    scan?.photoPaths?.left,
+    scan?.photoPaths?.right,
+    user?.uid,
+    photoUrlRetryTick,
+  ]);
 
   useEffect(() => {
     // Reset photo URL cache when navigating between scans.
-    attemptedPhotoUrlRef.current = {};
+    loggedPhotoUrlErrorRef.current = {};
     setPhotoUrls({});
+    if (photoUrlRetryTimerRef.current) {
+      clearTimeout(photoUrlRetryTimerRef.current);
+      photoUrlRetryTimerRef.current = null;
+    }
   }, [scanId]);
 
   useEffect(() => {
