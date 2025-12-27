@@ -33,7 +33,8 @@ describe("scan flow helpers", () => {
   it("validates upload inputs", () => {
     const fakeFile = new File([new Blob(["x"])], "front.jpg", { type: "image/jpeg" });
     const result = validateScanUploadInputs({
-      storagePaths: { front: "a", back: "b", left: "c", right: "d" },
+      uid: "u1",
+      scanId: "s1",
       photos: { front: fakeFile, back: fakeFile, left: fakeFile, right: fakeFile },
     });
     expect(result.ok).toBe(true);
@@ -48,23 +49,18 @@ describe("scan flow helpers", () => {
     const back = new File([new Blob(["back-bytes"])], "back.jpg", { type: "image/jpeg" });
     const left = new File([new Blob(["left-bytes"])], "left.jpg", { type: "image/jpeg" });
     const right = new File([new Blob(["right-bytes"])], "right.jpg", { type: "image/jpeg" });
-    const paths = {
-      front: "scans/u1/s1/front.jpg",
-      back: "scans/u1/s1/back.jpg",
-      left: "scans/u1/s1/left.jpg",
-      right: "scans/u1/s1/right.jpg",
-    };
     const result = validateScanUploadInputs({
-      storagePaths: paths,
+      uid: "u1",
+      scanId: "s1",
       photos: { front, back, left, right },
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.uploadTargets.map((t) => t.path)).toEqual([
-        paths.front,
-        paths.back,
-        paths.left,
-        paths.right,
+        "scans/u1/s1/front.jpg",
+        "scans/u1/s1/back.jpg",
+        "scans/u1/s1/left.jpg",
+        "scans/u1/s1/right.jpg",
       ]);
       const expectedBytes = front.size + back.size + left.size + right.size;
       expect(result.data.totalBytes).toBe(expectedBytes);

@@ -1,7 +1,7 @@
 # Scan upload reliability checklist
 
 ## Why this matters
-Safari users on **mybodyscanapp.com** were seeing Firebase Storage preflight 404s (`firebasestorage.googleapis.com/v0/b/...`) which caused `"Upload started but no bytes were sent."` and blocked scans. The fix requires Storage bucket CORS plus an automatic server-side upload fallback.
+Safari users on **mybodyscanapp.com** were seeing Firebase Storage preflight 404s (`firebasestorage.googleapis.com/v0/b/...`) which caused `"Upload started but no bytes were sent."` and blocked scans. The fix requires Storage bucket CORS so the official Firebase Storage Web SDK (resumable uploads) can work reliably in Safari.
 
 ## Bucket CORS (one-time, per bucket)
 
@@ -26,13 +26,11 @@ Set `VITE_APPCHECK_SITE_KEY` to enable ReCAPTCHA v3 App Check in the web bundle.
 ## Upload flow expectations
 
 - All photos upload to `scans/{uid}/{scanId}/{pose}.jpg` (JPEG only).
-- Primary path: Firebase Storage Web SDK `uploadBytesResumable`.
-- If the Storage SDK fails due to CORS/App Check/network, the client automatically falls back to a server-side upload (same-origin via Hosting rewrite) that writes to the same canonical path with Admin SDK.
+- Uploads use ONLY the Firebase Storage Web SDK `uploadBytesResumable` and `getDownloadURL` (no manual REST/XHR to Storage endpoints).
 - Analysis (`submitScan`) only queues after all four objects exist at the canonical paths.
 
 ## Operator validation (Safari)
 
 1. Open https://mybodyscanapp.com and capture front/back/left/right.
 2. Watch Network tab: uploads should stream bytes within 1–2 seconds; no 404 preflight errors.
-3. If Storage fails, the UI will retry in “safe mode” and complete via the server fallback.
-4. After all four uploads, the scan should move from uploading → queued → processing → complete, and result photos render from download URLs without repeated fetch loops.
+3. After all four uploads, the scan should move from uploading → queued → processing → complete, and result photos render from download URLs without repeated fetch loops.

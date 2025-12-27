@@ -11,7 +11,6 @@ const SRC_DIRS = [path.resolve(ROOT, "src"), path.resolve(ROOT, "functions", "sr
 const ALLOWLIST = new Set(
   [
     path.resolve(ROOT, "scripts", "storage-rest-patterns.mjs"),
-    path.resolve(ROOT, "src", "lib", "storage", "restGuards.ts"),
   ].map((p) => path.normalize(p))
 );
 

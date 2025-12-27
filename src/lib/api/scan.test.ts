@@ -38,12 +38,8 @@ describe("scan client guardrails", () => {
   it("rejects zero-byte files with a clear message (prevents 0% upload stalls)", async () => {
     const zero = new File([""], "empty.jpg", { type: "image/jpeg" });
     const result = validateScanUploadInputs({
-      storagePaths: {
-        front: "x/front.jpg",
-        back: "x/back.jpg",
-        left: "x/left.jpg",
-        right: "x/right.jpg",
-      },
+      uid: "user-123",
+      scanId: "scan-1",
       photos: { front: zero, back: zero, left: zero, right: zero },
     });
     expect(result.ok).toBe(false);
