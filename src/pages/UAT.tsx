@@ -48,6 +48,7 @@ import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
 import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 type JsonValue = unknown;
 type ErrorWithCode = { code?: unknown; message?: unknown };
@@ -769,12 +770,19 @@ const UATPage = () => {
       const ok =
         result.ok && typeof json?.scanId === "string" && json.scanId.length > 0;
       if (ok) {
+        const scanId = String(json.scanId || "");
+        const uid = user?.uid ? String(user.uid) : "";
         const storagePaths =
-          typeof json.storagePaths === "object" && json.storagePaths
-            ? (json.storagePaths as Record<string, string>)
+          uid && scanId
+            ? {
+                front: getScanPhotoPath(uid, scanId, "front"),
+                back: getScanPhotoPath(uid, scanId, "back"),
+                left: getScanPhotoPath(uid, scanId, "left"),
+                right: getScanPhotoPath(uid, scanId, "right"),
+              }
             : {};
         setScanSession({
-          scanId: json.scanId as string,
+          scanId,
           storagePaths,
         });
       }

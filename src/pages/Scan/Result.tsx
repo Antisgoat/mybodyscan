@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/scan";
 import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   CAPTURE_VIEW_SETS,
   type CaptureView,
@@ -104,10 +105,8 @@ function formatBytes(bytes: number | null | undefined): string {
 
 function formatUploadMethod(method?: UploadMethod | string | null): string {
   if (method === "storage") return "sdk";
-  if (method === "server") return "function";
-  if (method === "http") return "function";
-  if (typeof method === "string" && method.length) return method;
-  return "—";
+  // SDK-only; keep display stable even if older persisted state had other values.
+  return "sdk";
 }
 
 async function createThumbnailDataUrl(
@@ -462,11 +461,22 @@ export default function ScanFlowResult() {
             : "";
           throw new Error(start.error.message + debugSuffix);
         }
+        const canonicalStoragePaths = {
+          front: getScanPhotoPath(user.uid, start.data.scanId, "front"),
+          back: getScanPhotoPath(user.uid, start.data.scanId, "back"),
+          left: getScanPhotoPath(user.uid, start.data.scanId, "left"),
+          right: getScanPhotoPath(user.uid, start.data.scanId, "right"),
+        };
         setCaptureSession({
           ...start.data,
+          storagePaths: canonicalStoragePaths,
           correlationId: scanCorrelationId,
         });
-        activeSession = { ...start.data, correlationId: scanCorrelationId };
+        activeSession = {
+          ...start.data,
+          storagePaths: canonicalStoragePaths,
+          correlationId: scanCorrelationId,
+        };
       }
       if (activeSession && !activeSession.correlationId) {
         activeSession = { ...activeSession, correlationId: scanCorrelationId };
@@ -486,10 +496,16 @@ export default function ScanFlowResult() {
       uploadAbortRef.current?.abort();
       const abortController = new AbortController();
       uploadAbortRef.current = abortController;
+      const canonicalStoragePaths = {
+        front: getScanPhotoPath(user.uid, activeSession.scanId, "front"),
+        back: getScanPhotoPath(user.uid, activeSession.scanId, "back"),
+        left: getScanPhotoPath(user.uid, activeSession.scanId, "left"),
+        right: getScanPhotoPath(user.uid, activeSession.scanId, "right"),
+      };
       const submit = await submitScanClient(
         {
           scanId: activeSession.scanId,
-          storagePaths: activeSession.storagePaths,
+          storagePaths: canonicalStoragePaths,
           photos,
           currentWeightKg,
           goalWeightKg,
@@ -648,6 +664,7 @@ export default function ScanFlowResult() {
   const retryFailed = useCallback(async () => {
     if (!session?.scanId || !canRetryFailed) return;
     if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+    if (!user) return;
     setFlowStatus("uploading");
     setFlowError(null);
     setLastUploadError(null);
@@ -660,10 +677,16 @@ export default function ScanFlowResult() {
       left: poseFiles.left!,
       right: poseFiles.right!,
     };
+    const canonicalStoragePaths = {
+      front: getScanPhotoPath(user.uid, session.scanId, "front"),
+      back: getScanPhotoPath(user.uid, session.scanId, "back"),
+      left: getScanPhotoPath(user.uid, session.scanId, "left"),
+      right: getScanPhotoPath(user.uid, session.scanId, "right"),
+    };
     const submit = await submitScanClient(
       {
         scanId: session.scanId,
-        storagePaths: session.storagePaths,
+        storagePaths: canonicalStoragePaths,
         photos,
         currentWeightKg,
         goalWeightKg,
@@ -785,6 +808,7 @@ export default function ScanFlowResult() {
     async (pose: Pose) => {
       if (!session?.scanId) return;
       if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+      if (!user) return;
       setFlowStatus("uploading");
       setFlowError(null);
       setLastUploadError(null);
@@ -797,10 +821,16 @@ export default function ScanFlowResult() {
         left: poseFiles.left!,
         right: poseFiles.right!,
       };
+      const canonicalStoragePaths = {
+        front: getScanPhotoPath(user.uid, session.scanId, "front"),
+        back: getScanPhotoPath(user.uid, session.scanId, "back"),
+        left: getScanPhotoPath(user.uid, session.scanId, "left"),
+        right: getScanPhotoPath(user.uid, session.scanId, "right"),
+      };
       const submit = await submitScanClient(
         {
           scanId: session.scanId,
-          storagePaths: session.storagePaths,
+          storagePaths: canonicalStoragePaths,
           photos,
           currentWeightKg,
           goalWeightKg,

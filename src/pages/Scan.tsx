@@ -29,6 +29,7 @@ import { auth, db, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from 
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   clearScanPipelineState,
   describeScanPipelineStage,
@@ -509,13 +510,19 @@ export default function ScanPage() {
       }
 
       const startedScanId = start.data.scanId;
+      const canonicalStoragePaths = {
+        front: getScanPhotoPath(user.uid, startedScanId, "front"),
+        back: getScanPhotoPath(user.uid, startedScanId, "back"),
+        left: getScanPhotoPath(user.uid, startedScanId, "left"),
+        right: getScanPhotoPath(user.uid, startedScanId, "right"),
+      };
       requestIdRef.current = start.data.debugId ?? null;
       sessionFinalizedRef.current = false;
       sessionScanId = startedScanId;
       setActiveScanId(startedScanId);
       setScanSession({
         scanId: startedScanId,
-        storagePaths: start.data.storagePaths,
+        storagePaths: canonicalStoragePaths,
         currentWeightKg,
         goalWeightKg,
         correlationId: scanCorrelationId,
@@ -523,7 +530,7 @@ export default function ScanPage() {
       updatePipeline(startedScanId, {
         stage: "init",
         requestId: start.data.debugId ?? undefined,
-        storagePaths: start.data.storagePaths,
+        storagePaths: canonicalStoragePaths,
         correlationId: scanCorrelationId,
         lastError: null,
       });
@@ -581,7 +588,7 @@ export default function ScanPage() {
       const submit = await submitScanClient(
         {
           scanId: startedScanId,
-          storagePaths: start.data.storagePaths,
+          storagePaths: canonicalStoragePaths,
           photos: {
             front: photos.front!,
             back: photos.back!,
@@ -1256,9 +1263,8 @@ export default function ScanPage() {
 
   function formatUploadMethod(method?: UploadMethod | string | null): string {
     if (method === "storage") return "sdk";
-    if (method === "http") return "function";
-    if (typeof method === "string" && method.length) return method;
-    return "—";
+    // SDK-only; keep display stable even if older persisted state had other values.
+    return "sdk";
   }
 
   return (
@@ -1829,10 +1835,16 @@ export default function ScanPage() {
                         if (!start.ok) {
                           throw new Error(start.error.message);
                         }
+                        const canonicalStoragePaths = {
+                          front: getScanPhotoPath(user.uid, start.data.scanId, "front"),
+                          back: getScanPhotoPath(user.uid, start.data.scanId, "back"),
+                          left: getScanPhotoPath(user.uid, start.data.scanId, "left"),
+                          right: getScanPhotoPath(user.uid, start.data.scanId, "right"),
+                        };
                         const response = await submitScanClient(
                           {
                             scanId: start.data.scanId,
-                            storagePaths: start.data.storagePaths,
+                            storagePaths: canonicalStoragePaths,
                             photos: {
                               front: debugFile,
                               back: debugFile,
@@ -1841,7 +1853,7 @@ export default function ScanPage() {
                             },
                             currentWeightKg: 80,
                             goalWeightKg: 75,
-                            scanCorrelationId: start.data.correlationId,
+                            scanCorrelationId: start.data.correlationId ?? `debug-${Date.now()}`,
                           },
                           { overallTimeoutMs: 20_000 }
                         );
