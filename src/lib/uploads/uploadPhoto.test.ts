@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { auth } from "@/lib/firebase";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import type { UploadViaServerResult } from "@/lib/uploads/uploadViaServer";
 import { uploadViaServer } from "@/lib/uploads/uploadViaServer";
@@ -14,7 +15,18 @@ vi.mock("@/lib/uploads/uploadViaServer", () => ({
 
 describe("uploadPhoto", () => {
   it("falls back to server upload when storage reports no progress", async () => {
-    const storageMock = {} as any;
+    const storageMock = {
+      app: { options: { storageBucket: "mybodyscan-f3daf.appspot.com" } },
+    } as any;
+    const fakeUser = {
+      uid: "user",
+      getIdToken: vi.fn().mockResolvedValue("token"),
+    } as any;
+    const originalUser = auth.currentUser;
+    Object.defineProperty(auth, "currentUser", {
+      value: fakeUser,
+      configurable: true,
+    });
     const file = new File(["data"], "front.jpg", { type: "image/jpeg" });
     vi.mocked(uploadViaStorage).mockRejectedValue(
       Object.assign(new Error("Upload started but no bytes were sent."), {
@@ -47,5 +59,9 @@ describe("uploadPhoto", () => {
     );
     expect(uploadViaStorage).toHaveBeenCalledTimes(1);
     expect(uploadViaServer).toHaveBeenCalledTimes(1);
+    Object.defineProperty(auth, "currentUser", {
+      value: originalUser,
+      configurable: true,
+    });
   });
 });

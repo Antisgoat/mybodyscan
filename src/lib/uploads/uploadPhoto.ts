@@ -1,4 +1,6 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
+import { auth } from "@/lib/firebase";
+import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
 import { uploadViaServer } from "@/lib/uploads/uploadViaServer";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
@@ -11,6 +13,52 @@ export type UploadPhotoResult = {
   elapsedMs: number;
   correlationId: string;
 };
+
+let loggedSanityCheck = false;
+function assertUploadRuntimeReady(params: {
+  storage: FirebaseStorage;
+  uid: string;
+  scanId: string;
+  pose: ScanPose;
+  path: string;
+}): void {
+  const bucket = params.storage?.app?.options?.storageBucket;
+  const origin = typeof window !== "undefined" ? window.location.origin : "unknown";
+  const authUid = auth.currentUser?.uid || null;
+  if (!loggedSanityCheck) {
+    loggedSanityCheck = true;
+    console.info("scan_storage_runtime", {
+      storageBucket: bucket ?? null,
+      origin,
+      hasAuthUid: Boolean(authUid),
+    });
+  }
+  if (!bucket) {
+    const err: any = new Error(
+      "Uploads unavailable: storage bucket missing. Please reload and sign in again."
+    );
+    err.code = "storage/missing-bucket";
+    throw err;
+  }
+  if (!params.uid || !authUid) {
+    const err: any = new Error("Please sign in again before uploading your photos.");
+    err.code = "storage/unauthorized";
+    throw err;
+  }
+  if (params.uid !== authUid) {
+    const err: any = new Error(
+      "Your sign-in changed during the scan. Please restart after signing in again."
+    );
+    err.code = "storage/wrong-user";
+    throw err;
+  }
+  const expectedPath = getScanPhotoPath(params.uid, params.scanId, params.pose);
+  if (params.path !== expectedPath) {
+    const err: any = new Error("Invalid scan upload path detected.");
+    err.code = "storage/invalid-path";
+    throw err;
+  }
+}
 
 export async function uploadPhoto(params: {
   storage: FirebaseStorage;
@@ -34,6 +82,13 @@ export async function uploadPhoto(params: {
   debugSimulateFreeze?: boolean;
   onFallback?: (details: { reason: "storage_failed"; message: string }) => void;
 }): Promise<UploadPhotoResult> {
+  assertUploadRuntimeReady({
+    storage: params.storage,
+    uid: params.uid,
+    scanId: params.scanId,
+    pose: params.pose as ScanPose,
+    path: params.path,
+  });
   const telemetryBase = {
     uid: params.uid,
     scanId: params.scanId,
@@ -59,6 +114,9 @@ export async function uploadPhoto(params: {
     const message = String(error?.message || "").toLowerCase();
     if (code === "storage/unauthorized" || code === "auth/token-refresh-failed") {
       return "unauthorized";
+    }
+    if (code === "storage/missing-bucket" || code === "storage/wrong-user" || code === "storage/invalid-path") {
+      return "fatal";
     }
     if (code === "upload_no_progress" || code === "upload_stalled" || code === "upload_timeout") {
       return "fallback";

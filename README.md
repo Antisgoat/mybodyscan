@@ -337,6 +337,21 @@ scripts/setup-eventarc.sh
 firebase deploy --only functions:processQueuedScan
 ```
 
+## Fixing Storage uploads on custom domain
+
+- Ensure the Storage bucket is **mybodyscan-f3daf.appspot.com** and apply the CORS policy in `scripts/cors.json`:
+  - `npm run storage:cors:set`
+  - Verify with `npm run storage:cors:get`
+- Browser uploads must go through the Firebase Storage SDK (`uploadBytesResumable`) to `scans/{uid}/{scanId}/{pose}.jpg` only. If Safari blocks the SDK upload (CORS/preflight/no-bytes), the client automatically falls back to `/api/scan/uploadPhoto` which streams the same JPEG bytes via Cloud Functions.
+- The upload runtime logs a one-time sanity line with the Storage bucket + current origin; if the bucket or auth uid is missing, the flow fails fast with a clear UI error instead of hanging at 0%.
+
+**How to validate**
+- Safari Private Window on https://mybodyscanapp.com
+- Upload 4 photos (front/back/left/right)
+- No preflight 404s; progress starts within 1s and reaches 100% per pose
+- Scan transitions to queued/processing
+- Results page renders metrics and a plan
+
 ## Deployment
 
 Deploy Functions and Hosting after setting Stripe keys and webhook secret via `firebase functions:secrets:set`:

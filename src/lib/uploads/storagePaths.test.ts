@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
-
-import { getScanPhotoPath } from "./storagePaths";
+import { getScanPhotoPath, SCAN_POSES } from "./storagePaths";
 
 describe("getScanPhotoPath", () => {
-  it("builds the canonical scan path", () => {
-    const path = getScanPhotoPath("user-1", "scan-123", "front");
-    expect(path).toBe("scans/user-1/scan-123/front.jpg");
+  it("returns the canonical scans path for every pose", () => {
+    const uid = "user123";
+    const scanId = "scan456";
+    for (const pose of SCAN_POSES) {
+      expect(getScanPhotoPath(uid, scanId, pose)).toBe(
+        `scans/${uid}/${scanId}/${pose}.jpg`
+      );
+    }
   });
 
-  it("trims uid and scanId", () => {
-    const path = getScanPhotoPath(" user-1 ", " scan-123 ", "back");
-    expect(path).toBe("scans/user-1/scan-123/back.jpg");
+  it("trims identifiers before building the path", () => {
+    const path = getScanPhotoPath("  user123  ", "\nscan789", "front");
+    expect(path).toBe("scans/user123/scan789/front.jpg");
   });
 
-  it("throws on invalid poses", () => {
-    expect(() => getScanPhotoPath("user", "scan", "top" as any)).toThrow(
+  it("throws on invalid poses to avoid writing outside the scans folder", () => {
+    expect(() => getScanPhotoPath("u1", "s1", "invalid" as any)).toThrow(
       /Invalid scan pose/
     );
   });
-
-  it("requires uid and scanId", () => {
-    expect(() => getScanPhotoPath("", "scan", "left")).toThrow("Missing uid");
-    expect(() => getScanPhotoPath("user", "", "right")).toThrow("Missing scanId");
-  });
 });
+

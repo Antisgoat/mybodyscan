@@ -1,4 +1,6 @@
 import { auth } from "@/lib/firebase";
+import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
+import { SCAN_UPLOAD_CONTENT_TYPE } from "@/lib/uploads/uploadViaStorage";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
 
 export type UploadViaServerResult = {
@@ -54,18 +56,25 @@ export async function uploadViaServer(params: UploadViaServerParams): Promise<Up
     err.code = "storage/unauthorized";
     throw err;
   }
+  const authUid = user.uid;
   const token = await user.getIdToken().catch((error) => {
     const err: any = new Error("Could not refresh sign-in session.");
     err.code = "auth/token-refresh-failed";
     err.original = error;
     throw err;
   });
+  const expectedPath = getScanPhotoPath(authUid, params.scanId, params.pose as ScanPose);
+  if (params.path !== expectedPath) {
+    const err: any = new Error("Upload blocked: invalid scan storage path.");
+    err.code = "storage/invalid-path";
+    throw err;
+  }
   const base64 = await toBase64(params.file);
   const payload: UploadViaServerPayload = {
     path: params.path,
     scanId: params.scanId,
     pose: params.pose,
-    contentType: params.file.type || "image/jpeg",
+    contentType: SCAN_UPLOAD_CONTENT_TYPE,
     data: base64,
     correlationId: params.correlationId,
     metadata: params.metadata,

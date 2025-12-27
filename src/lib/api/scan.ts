@@ -808,10 +808,15 @@ export async function submitScanClient(
 
     while (attempt < maxAttempts) {
       attempt += 1;
+      const initialProgress = ensureVisibleProgress(poseProgress[pose], true);
+      poseProgress[pose] = Math.max(poseProgress[pose], initialProgress);
+      hasBytesTransferred = hasBytesTransferred || poseProgress[pose] > 0;
+      emitOverallProgress(pose, true);
       options?.onPhotoState?.({
         pose,
         status: attempt > 1 ? "retrying" : "uploading",
         attempt,
+        percent: poseProgress[pose],
         correlationId: scanCorrelationId,
       });
       try {

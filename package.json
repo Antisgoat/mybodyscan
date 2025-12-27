@@ -50,8 +50,8 @@
     "audit:graph": "node scripts/audit-graph.mjs > reports/import-graph.json",
     "audit:report": "node scripts/generate-audit-report.mjs",
     "audit:all": "npm run audit:report",
-    "storage:cors:set": "bash scripts/storage-cors-set.sh",
-    "storage:cors:get": "bash scripts/storage-cors-get.sh"
+    "storage:cors:set": "bash scripts/set-storage-cors.sh",
+    "storage:cors:get": "bash scripts/get-storage-cors.sh"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.1",

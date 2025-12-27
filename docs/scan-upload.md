@@ -14,7 +14,10 @@ If you see Safari preflight 404s or `"no bytes were sent"`:
    - `npm run storage:cors:get` should list the configured origins.
    - In the browser devtools, uploads should start sending bytes immediately without OPTIONS 404 spam.
 
-The canonical config lives in `infra/storage-cors.json`.
+The canonical config lives in `scripts/cors.json` (mirrored in `infra/storage-cors.json`) and allows:
+- Origins: `https://mybodyscanapp.com`, `https://mybodyscan-f3daf.web.app`, `http://localhost:5173`, `http://localhost:4173`
+- Methods: `GET, HEAD, POST, PUT, OPTIONS`
+- Response headers: `Content-Type, Authorization, x-goog-*, x-firebase-storage-version`
 
 ## App Check (optional, opt-in)
 
@@ -24,7 +27,7 @@ Set `VITE_APPCHECK_SITE_KEY` to enable ReCAPTCHA v3 App Check in the web bundle.
 
 - All photos upload to `scans/{uid}/{scanId}/{pose}.jpg` (JPEG only).
 - Primary path: Firebase Storage Web SDK `uploadBytesResumable`.
-- If the Storage SDK fails due to CORS/App Check/network, the client automatically falls back to a server-side upload (same-origin via Hosting rewrite).
+- If the Storage SDK fails due to CORS/App Check/network, the client automatically falls back to a server-side upload (same-origin via Hosting rewrite) that writes to the same canonical path with Admin SDK.
 - Analysis (`submitScan`) only queues after all four objects exist at the canonical paths.
 
 ## Operator validation (Safari)
