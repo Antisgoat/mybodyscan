@@ -2,7 +2,10 @@ import { getStorage } from "firebase/storage";
 import { auth } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
 import { getScanPhotoPath } from "@/lib/scanPaths";
-import { getCachedScanPhotoUrl } from "@/lib/storage/photoUrlCache";
+import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";
+
+const THUMB_REPORT_TTL_MS = 5 * 60 * 1000;
+const lastThumbReportAt = new Map<string, number>();
 
 export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const uid = auth.currentUser?.uid;
@@ -11,15 +14,22 @@ export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
   const candidates = [getScanPhotoPath(uid, scanId, "front")];
   for (const path of candidates) {
     try {
-      return await getCachedScanPhotoUrl(storage, path, `${scanId}:front`);
+      const outcome = await getCachedScanPhotoUrlMaybe(storage, path, `${scanId}:front`);
+      if (outcome.url) return outcome.url;
     } catch {
       // continue
     }
   }
-  void reportError({
-    kind: "scan_thumb_missing",
-    message: "Unable to resolve scan thumbnail",
-    extra: { scanId, candidates },
-  });
+  // Avoid telemetry spam: thumbnails are fetched often in list UIs.
+  const now = Date.now();
+  const last = lastThumbReportAt.get(scanId) ?? 0;
+  if (now - last > THUMB_REPORT_TTL_MS) {
+    lastThumbReportAt.set(scanId, now);
+    void reportError({
+      kind: "scan_thumb_missing",
+      message: "Unable to resolve scan thumbnail",
+      extra: { scanId, candidates },
+    });
+  }
   return null;
 }

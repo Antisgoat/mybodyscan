@@ -14,6 +14,38 @@ export type UploadPhotoResult = {
 };
 
 let loggedSanityCheck = false;
+
+function parseHttpStatusFromStorageError(err: any): number | undefined {
+  const direct =
+    typeof err?.status === "number"
+      ? err.status
+      : typeof err?.httpStatus === "number"
+        ? err.httpStatus
+        : typeof err?.statusCode === "number"
+          ? err.statusCode
+          : undefined;
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  const serverResponse =
+    typeof err?.customData?.serverResponse === "string"
+      ? err.customData.serverResponse
+      : typeof err?.serverResponse === "string"
+        ? err.serverResponse
+        : null;
+  if (!serverResponse) return undefined;
+  try {
+    const parsed = JSON.parse(serverResponse);
+    const code =
+      typeof parsed?.error?.code === "number"
+        ? parsed.error.code
+        : typeof parsed?.code === "number"
+          ? parsed.code
+          : undefined;
+    return typeof code === "number" && Number.isFinite(code) ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function assertUploadRuntimeReady(params: {
   storage: FirebaseStorage;
   uid: string;
@@ -98,10 +130,14 @@ export async function uploadPhoto(params: {
   };
 
   const logFailure = (event: string, error: any, attempt?: number) => {
+    const httpStatus = parseHttpStatusFromStorageError(error);
+    const storageErrorCode = error?.code;
     console.error(event, {
       ...telemetryBase,
-      errorCode: error?.code,
+      storageErrorCode,
+      errorCode: storageErrorCode, // backward-compatible field name
       errorMessage: error?.message,
+      httpStatus,
       uploadMethod: "storage",
       attempt,
     });
