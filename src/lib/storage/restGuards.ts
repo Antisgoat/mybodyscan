@@ -13,7 +13,6 @@ function decodeBase64(input: string): string {
   }
   try {
     if (typeof Buffer !== "undefined") {
-      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       return Buffer.from(input, "base64").toString("utf-8");
     }
   } catch {
