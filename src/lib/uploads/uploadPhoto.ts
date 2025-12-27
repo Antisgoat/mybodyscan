@@ -1,10 +1,9 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
 import { auth } from "@/lib/firebase";
 import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
-import { uploadViaServer } from "@/lib/uploads/uploadViaServer";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
-export type UploadMethod = "storage" | "server";
+export type UploadMethod = "storage";
 
 export type UploadPhotoResult = {
   method: UploadMethod;
@@ -80,7 +79,6 @@ export async function uploadPhoto(params: {
     lastProgressAt: number;
   }) => void;
   debugSimulateFreeze?: boolean;
-  onFallback?: (details: { reason: "storage_failed"; message: string }) => void;
 }): Promise<UploadPhotoResult> {
   assertUploadRuntimeReady({
     storage: params.storage,
@@ -104,37 +102,27 @@ export async function uploadPhoto(params: {
       ...telemetryBase,
       errorCode: error?.code,
       errorMessage: error?.message,
-      uploadMethod: (error as any)?.uploadMethod ?? "storage",
+      uploadMethod: "storage",
       attempt,
     });
   };
 
-  const classifyFallback = (error: any): "unauthorized" | "fallback" | "retry" | "fatal" => {
+  const classifyFallback = (error: any): "unauthorized" | "retry" | "fatal" => {
     const code = String(error?.code || "").toLowerCase();
-    const message = String(error?.message || "").toLowerCase();
     if (code === "storage/unauthorized" || code === "auth/token-refresh-failed") {
       return "unauthorized";
     }
     if (code === "storage/missing-bucket" || code === "storage/wrong-user" || code === "storage/invalid-path") {
       return "fatal";
     }
-    if (code === "upload_no_progress" || code === "upload_stalled" || code === "upload_timeout") {
-      return "fallback";
-    }
-    if (message.includes("no bytes were sent") || message.includes("preflight")) {
-      return "fallback";
-    }
-    if (code === "cors_blocked" || message.includes("cors")) {
-      return "fallback";
-    }
     if (code === "storage/retry-limit-exceeded" || code === "storage/unknown") {
-      return (error?.bytesTransferred ?? 0) > 0 ? "retry" : "fallback";
+      return "retry";
     }
     if (code.startsWith("storage/") || code.startsWith("upload_")) {
       return "retry";
     }
     if (error?.name === "AbortError") return "fatal";
-    return "fallback";
+    return "retry";
   };
 
   const attemptStorage = async (attempt: number) => {
@@ -184,42 +172,7 @@ export async function uploadPhoto(params: {
         (friendly as any).code = "storage/unauthorized";
         throw friendly;
       }
-      if (classification === "retry" && attempt < 2) {
-        continue;
-      }
-      if (classification === "fallback") {
-        params.onFallback?.({
-          reason: "storage_failed",
-          message: "Upload blocked by browser/network configuration. Retrying with safe mode…",
-        });
-        try {
-          const serverResult = await uploadViaServer({
-            path: params.path,
-            scanId: params.scanId,
-            pose: params.pose,
-            file: params.file,
-            correlationId: params.correlationId,
-            metadata: params.customMetadata,
-            signal: params.signal,
-          });
-          console.info("scan_upload_complete", {
-            ...telemetryBase,
-            method: "server",
-            elapsedMs: serverResult.elapsedMs,
-          });
-          return {
-            method: "server",
-            storagePath: serverResult.storagePath,
-            downloadURL: undefined,
-            elapsedMs: serverResult.elapsedMs,
-            correlationId: params.correlationId,
-          };
-        } catch (fallbackError: any) {
-          (fallbackError as any).uploadMethod = "server";
-          logFailure("scan_upload_fallback_failed", fallbackError);
-          throw fallbackError;
-        }
-      }
+      if (classification === "retry" && attempt < 2) continue;
       logFailure("scan_upload_failed", error, attempt);
       throw error;
     }

@@ -19,6 +19,7 @@ import { classifyUploadRetryability } from "@/lib/uploads/retryPolicy";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 import { getMetadata, ref } from "firebase/storage";
 import { computeUploadConcurrency } from "@/lib/scan/concurrency";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -447,18 +448,22 @@ type UploadTarget = {
 };
 
 export function validateScanUploadInputs(params: {
-  storagePaths: { front: string; back: string; left: string; right: string };
+  uid: string;
+  scanId: string;
   photos: { front: File; back: File; left: File; right: File };
 }): ScanApiResult<{
   uploadTargets: UploadTarget[];
   totalBytes: number;
 }> {
-  const entries = Object.entries(params.storagePaths) as Array<
-    [keyof typeof params.storagePaths, string]
-  >;
-  if (!entries.length) {
-    return { ok: false, error: { message: "Missing upload targets for this scan." } };
+  const uid = String(params.uid || "").trim();
+  const scanId = String(params.scanId || "").trim();
+  if (!uid || !scanId) {
+    return { ok: false, error: { message: "Missing scan session info.", reason: "upload_failed" } };
   }
+  const entries = (["front", "back", "left", "right"] as const).map((pose) => [
+    pose,
+    getScanPhotoPath(uid, scanId, pose),
+  ]) as Array<[keyof StartScanResponse["storagePaths"], string]>;
   const uploadTargets: UploadTarget[] = [];
   for (const [pose, path] of entries) {
     const file = params.photos[pose];
@@ -597,7 +602,8 @@ export async function submitScanClient(
   }
 
   const validated = validateScanUploadInputs({
-    storagePaths: params.storagePaths,
+    uid: user.uid,
+    scanId: params.scanId,
     photos: params.photos,
   });
   if (!validated.ok) {
@@ -719,7 +725,7 @@ export async function submitScanClient(
   }
 
   const storage = getFirebaseStorage();
-  const maxAttempts = 3;
+  const maxAttempts = 2;
   const selectedTargets = posesToUpload.length
     ? uploadTargets.filter((target) => posesToUpload.includes(target.pose))
     : [];
@@ -797,10 +803,22 @@ export async function submitScanClient(
     }
   })();
 
-  const uploadPose = async (pose: keyof StartScanResponse["storagePaths"]): Promise<void> => {
+  type PoseUploadOutcome =
+    | { ok: true; pose: keyof StartScanResponse["storagePaths"] }
+    | { ok: false; pose: keyof StartScanResponse["storagePaths"]; error: any };
+
+  const uploadPose = async (
+    pose: keyof StartScanResponse["storagePaths"]
+  ): Promise<PoseUploadOutcome> => {
     const target = activeTargets.find((t) => t.pose === pose);
     if (!target) {
-      throw new Error(`Missing ${pose} upload target`);
+      return {
+        ok: false,
+        pose,
+        error: Object.assign(new Error(`Missing ${pose} upload target`), {
+          code: "upload_missing_target",
+        }),
+      };
     }
     let attempt = 0;
     let lastBytes = 0;
@@ -858,17 +876,6 @@ export async function submitScanClient(
             emitOverallProgress(pose, progress.bytesTransferred > 0);
           },
           debugSimulateFreeze,
-          onFallback: ({ message }) => {
-            options?.onPhotoState?.({
-              pose,
-              status: "retrying",
-              attempt,
-              percent: poseProgress[pose],
-              message,
-              correlationId: scanCorrelationId,
-              uploadMethod: "server",
-            });
-          },
         });
         await confirmUploadExists(storage, target.path);
         const elapsedMs = Date.now() - startedAt;
@@ -889,10 +896,12 @@ export async function submitScanClient(
           downloadURL: result.downloadURL,
           uploadMethod: result.method,
         });
-        return;
+        return { ok: true, pose };
       } catch (err: any) {
         lastError = err;
-        if (controller.signal.aborted) throw err;
+        if (controller.signal.aborted) {
+          return { ok: false, pose, error: err };
+        }
         const retry = classifyUploadRetryability({
           code: err?.code,
           bytesTransferred: lastBytes,
@@ -900,7 +909,7 @@ export async function submitScanClient(
         });
 
         if (retry.retryable && attempt < maxAttempts) {
-          const baseDelay = Math.min(1200 * attempt, 3200);
+          const baseDelay = Math.min(600 * Math.pow(2, attempt - 1), 2400);
           const jitter = 0.65 + Math.random() * 0.45;
           const delayMs = Math.round(baseDelay * jitter);
           options?.onPhotoState?.({
@@ -939,10 +948,10 @@ export async function submitScanClient(
           correlationId: scanCorrelationId,
           lastUploadError: { code: err?.code, message: err?.message },
         } as any);
-        throw err;
+        return { ok: false, pose, error: err };
       }
     }
-    throw lastError ?? new Error("Upload failed");
+    return { ok: false, pose, error: lastError ?? new Error("Upload failed") };
   };
 
   try {
@@ -958,15 +967,27 @@ export async function submitScanClient(
       const queue = [...posesToUpload];
       const isMobile = isMobileUploadDevice();
       const maxConcurrentUploads = computeUploadConcurrency(posesToUpload.length, isMobile);
+      const failures: Array<{ pose: keyof StartScanResponse["storagePaths"]; error: any }> = [];
       const workers = Array.from({ length: maxConcurrentUploads }).map(async () => {
         while (queue.length > 0) {
           const next = queue.shift();
           if (next) {
-            await uploadPose(next);
+            const outcome = await uploadPose(next);
+            if (!outcome.ok) {
+              failures.push({ pose: outcome.pose, error: outcome.error });
+            }
           }
         }
       });
       await Promise.all(workers);
+      if (failures.length) {
+        const first = failures[0];
+        const err: any = first?.error ?? new Error("Upload failed.");
+        if (err && typeof err === "object") {
+          err.pose = first.pose;
+        }
+        throw err;
+      }
     }
   } catch (err: any) {
     clearTimeout(timeoutId);
@@ -984,7 +1005,13 @@ export async function submitScanClient(
     const fallback = "Could not upload your photos. Please try again.";
     return {
       ok: false,
-      error: buildScanError(err, fallback, "upload_failed"),
+      error: {
+        ...buildScanError(err, fallback, "upload_failed"),
+        pose:
+          typeof (err as any)?.pose === "string"
+            ? ((err as any).pose as any)
+            : undefined,
+      },
     };
   }
 
@@ -1009,7 +1036,12 @@ export async function submitScanClient(
       signal: controller.signal,
       body: {
         scanId: params.scanId,
-        photoPaths: params.storagePaths,
+        photoPaths: {
+          front: getScanPhotoPath(user.uid, params.scanId, "front"),
+          back: getScanPhotoPath(user.uid, params.scanId, "back"),
+          left: getScanPhotoPath(user.uid, params.scanId, "left"),
+          right: getScanPhotoPath(user.uid, params.scanId, "right"),
+        },
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
         correlationId: scanCorrelationId,

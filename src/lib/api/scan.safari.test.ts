@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitScanClient } from "@/lib/api/scan";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { apiFetch } from "@/lib/http";
+import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 vi.mock("firebase/storage", () => ({
   getMetadata: vi.fn(async () => ({})),
@@ -91,7 +92,7 @@ describe("submitScanClient on Safari", () => {
     expect(result.ok).toBe(true);
     expect(uploadPhotoMock).toHaveBeenCalledTimes(1);
     expect(uploadPhotoMock.mock.calls[0][0]).toMatchObject({
-      path: storagePaths.front,
+      path: getScanPhotoPath("user-123", "scan-1", "front"),
       uid: "user-123",
     });
     const calledUploadEndpoint = apiFetchMock.mock.calls.find(

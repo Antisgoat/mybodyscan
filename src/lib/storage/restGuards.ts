@@ -1,9 +1,6 @@
 const ENCODED_PATTERNS = [
-  // firebasestorage.googleapis.com/v0/b/
   "ZmlyZWJhc2VzdG9yYWdlLmdvb2dsZWFwaXMuY29tL3YwL2Iv",
-  // o?name=
   "bz9uYW1lPQ==",
-  // o%3fname%3d
   "byUzZm5hbWUlM2Q=",
 ];
 
@@ -16,7 +13,6 @@ function decodeBase64(input: string): string {
   }
   try {
     if (typeof Buffer !== "undefined") {
-      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       return Buffer.from(input, "base64").toString("utf-8");
     }
   } catch {
