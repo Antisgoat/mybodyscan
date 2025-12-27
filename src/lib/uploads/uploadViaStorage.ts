@@ -75,6 +75,18 @@ export async function uploadViaStorage(params: {
     console[level]("storage.upload", { ...base, ...(payload ?? {}) });
   };
 
+  const annotateError = (err: any) => {
+    const code = String(err?.code || "").toLowerCase();
+    const message = String(err?.message || "").toLowerCase();
+    if (!code && message.includes("no bytes were sent")) {
+      err.code = "upload_no_progress";
+    }
+    if (message.includes("preflight") || message.includes("cors")) {
+      err.code = err.code || "cors_blocked";
+    }
+    return err;
+  };
+
   try {
     log("info", "start");
     const result = await uploadPreparedPhoto({
@@ -125,13 +137,14 @@ export async function uploadViaStorage(params: {
       elapsedMs,
     };
   } catch (err: any) {
+    const annotated = annotateError(err);
     if (err && typeof err === "object") {
-      (err as any).uploadMethod = "storage";
+      (annotated as any).uploadMethod = "storage";
     }
     log("warn", "failed", {
-      message: (err as any)?.message,
-      code: (err as any)?.code,
+      message: (annotated as any)?.message,
+      code: (annotated as any)?.code,
     });
-    throw err;
+    throw annotated;
   }
 }

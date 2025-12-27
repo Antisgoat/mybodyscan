@@ -104,6 +104,7 @@ function formatBytes(bytes: number | null | undefined): string {
 
 function formatUploadMethod(method?: UploadMethod | string | null): string {
   if (method === "storage") return "sdk";
+  if (method === "server") return "function";
   if (method === "http") return "function";
   if (typeof method === "string" && method.length) return method;
   return "—";

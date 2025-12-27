@@ -12,39 +12,33 @@ const siteKeyRaw =
   "";
 const siteKey = siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
 const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
-let warned = false;
+let initAttempted = false;
 let recaptchaWarned = false;
+
 if (debug && typeof self !== "undefined") {
   // @ts-expect-error -- Firebase debug token is a global escape hatch for App Check
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = debug;
 }
 
 let instance: AppCheck | null = null;
-let initialized = false;
+
+function isAppCheckEnabled(): boolean {
+  return Boolean(siteKey);
+}
 
 function init(): AppCheck | null {
   if (typeof window === "undefined") return null;
+  if (!isAppCheckEnabled()) return null;
   if (instance) return instance;
-  if (initialized) return instance;
-  if (!siteKey) {
-    if (!warned) {
-      console.warn("[AppCheck] site key not set, running without AppCheck");
-      warned = true;
-    }
-    initialized = true;
-    return null;
-  }
-  initialized = true;
+  if (initAttempted) return instance;
+  initAttempted = true;
   try {
     instance = initializeAppCheck(firebaseApp, {
       provider: new ReCaptchaV3Provider(siteKey),
       isTokenAutoRefreshEnabled: true,
     });
   } catch (error) {
-    if (!warned) {
-      console.warn("[AppCheck] init_failed_soft", error);
-      warned = true;
-    }
+    console.warn("[AppCheck] init_failed_soft", error);
     instance = null;
   }
   return instance;
@@ -53,7 +47,7 @@ function init(): AppCheck | null {
 export const appCheck = init();
 
 export function hasAppCheck(): boolean {
-  return Boolean(siteKey);
+  return isAppCheckEnabled();
 }
 
 export async function ensureAppCheck(): Promise<void> {
