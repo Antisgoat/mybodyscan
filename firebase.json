@@ -87,6 +87,13 @@
         }
       },
       {
+        "source": "/api/scan/uploadPhoto",
+        "function": {
+          "functionId": "uploadScanPhotoServer",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/system/health",
         "function": {
           "functionId": "systemHealth",

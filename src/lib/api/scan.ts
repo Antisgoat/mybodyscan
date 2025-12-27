@@ -853,6 +853,17 @@ export async function submitScanClient(
             emitOverallProgress(pose, progress.bytesTransferred > 0);
           },
           debugSimulateFreeze,
+          onFallback: ({ message }) => {
+            options?.onPhotoState?.({
+              pose,
+              status: "retrying",
+              attempt,
+              percent: poseProgress[pose],
+              message,
+              correlationId: scanCorrelationId,
+              uploadMethod: "server",
+            });
+          },
         });
         await confirmUploadExists(storage, target.path);
         const elapsedMs = Date.now() - startedAt;
@@ -871,7 +882,7 @@ export async function submitScanClient(
           correlationId: scanCorrelationId,
           elapsedMs,
           downloadURL: result.downloadURL,
-          uploadMethod: "storage",
+          uploadMethod: result.method,
         });
         return;
       } catch (err: any) {
