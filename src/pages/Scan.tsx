@@ -1874,7 +1874,7 @@ export default function ScanPage() {
                       }
                     }}
                   >
-                    Multipart upload test
+                    SDK upload test
                   </button>
                   {uploadSmokeTest.status !== "idle" ? (
                     <span className="text-muted-foreground">

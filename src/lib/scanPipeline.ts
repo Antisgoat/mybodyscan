@@ -33,10 +33,9 @@ export type ScanPipelineState = {
   storagePaths?: Record<string, string>;
   /**
    * Upload strategy used for the most recent attempt.
-   * - "multipart": single function request with 4 photos
-   * - "per_photo": sequential per-pose uploads
+   * Only supported strategy is Firebase Storage Web SDK resumable uploads.
    */
-  uploadStrategy?: "multipart" | "per_photo";
+  uploadStrategy?: "storage";
   lastError?: ScanPipelineError | null;
   lastServerStatus?: string | null;
   lastServerUpdatedAt?: number | null;

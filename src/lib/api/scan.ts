@@ -958,7 +958,7 @@ export async function submitScanClient(
     try {
       if (typeof window !== "undefined") {
         const mod = await import("@/lib/scanPipeline");
-        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "storage" } as any);
+        mod.updateScanPipelineState(params.scanId, { uploadStrategy: "storage" });
       }
     } catch {
       // ignore
