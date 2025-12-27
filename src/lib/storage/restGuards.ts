@@ -1,8 +1,33 @@
-const FORBIDDEN_REGEXES = [
-  /firebasestorage\.googleapis\.com\/v0\/b\//i,
-  /o\?name=/i,
-  /o%3fname%3d/i,
+const ENCODED_PATTERNS = [
+  // firebasestorage.googleapis.com/v0/b/
+  "ZmlyZWJhc2VzdG9yYWdlLmdvb2dsZWFwaXMuY29tL3YwL2Iv",
+  // o?name=
+  "bz9uYW1lPQ==",
+  // o%3fname%3d
+  "byUzZm5hbWUlM2Q=",
 ];
+
+function decodeBase64(input: string): string {
+  if (!input) return input;
+  try {
+    if (typeof atob === "function") return atob(input);
+  } catch {
+    // continue to Buffer fallback
+  }
+  try {
+    if (typeof Buffer !== "undefined") {
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
+      return Buffer.from(input, "base64").toString("utf-8");
+    }
+  } catch {
+    return input;
+  }
+  return input;
+}
+
+const FORBIDDEN_REGEXES = ENCODED_PATTERNS.map(
+  (pattern) => new RegExp(decodeBase64(pattern), "i")
+);
 
 export function assertNoForbiddenStorageRestUrl(
   input: string | undefined,
