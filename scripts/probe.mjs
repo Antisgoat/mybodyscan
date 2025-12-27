@@ -33,6 +33,30 @@ const ENDPOINTS = [
     method: "POST",
     body: { priceId: process.env.TEST_PRICE_ID || "price_xxx" },
   },
+  // Scan flow probes (routing + JSON + canonical paths):
+  {
+    name: "scanStart",
+    functionName: "startScanSession",
+    path: "/",
+    method: "POST",
+    body: { currentWeightKg: 80, goalWeightKg: 75, correlationId: `probe-${Date.now()}` },
+  },
+  {
+    name: "scanSubmit",
+    functionName: "submitScan",
+    path: "/",
+    method: "POST",
+    // Body is filled dynamically from scanStart response.
+    body: null,
+  },
+  {
+    name: "scanDelete",
+    functionName: "deleteScan",
+    path: "/",
+    method: "POST",
+    // Body is filled dynamically from scanStart response.
+    body: null,
+  },
 ];
 
 function ensureTrailingSlash(value) {
@@ -165,7 +189,7 @@ async function probeEndpoint(base, endpoint, token) {
     }
   }
 
-  return { ok };
+  return { ok, parsed: parsedOk ? parsed : null, status };
 }
 
 async function main() {
@@ -187,9 +211,47 @@ async function main() {
 
   for (const base of bases) {
     console.log(`[probe] Base ${base}`);
+    /** @type {{ scanId?: string, storagePaths?: any, weights?: { currentWeightKg: number, goalWeightKg: number }, correlationId?: string }} */
+    const ctx = {};
     for (const endpoint of ENDPOINTS) {
+      // Inject scan payloads once we have a scanId.
+      if (endpoint.name === "scanSubmit") {
+        if (ctx.scanId && ctx.storagePaths && ctx.weights) {
+          endpoint.body = {
+            scanId: ctx.scanId,
+            photoPaths: ctx.storagePaths,
+            currentWeightKg: ctx.weights.currentWeightKg,
+            goalWeightKg: ctx.weights.goalWeightKg,
+            correlationId: ctx.correlationId,
+          };
+        } else {
+          endpoint.body = { scanId: "missing", photoPaths: {}, currentWeightKg: 0, goalWeightKg: 0 };
+        }
+      }
+      if (endpoint.name === "scanDelete") {
+        endpoint.body = ctx.scanId ? { scanId: ctx.scanId } : { scanId: "missing" };
+      }
+
       const result = await probeEndpoint(base, endpoint, token);
       allOk = allOk && result.ok;
+
+      if (endpoint.name === "scanStart" && result.parsed && typeof result.parsed === "object") {
+        const scanId = typeof result.parsed.scanId === "string" ? result.parsed.scanId : null;
+        const storagePaths =
+          result.parsed.storagePaths && typeof result.parsed.storagePaths === "object"
+            ? result.parsed.storagePaths
+            : null;
+        if (scanId && storagePaths) {
+          ctx.scanId = scanId;
+          ctx.storagePaths = storagePaths;
+          ctx.weights = {
+            currentWeightKg: Number(endpoint.body?.currentWeightKg ?? 0),
+            goalWeightKg: Number(endpoint.body?.goalWeightKg ?? 0),
+          };
+          ctx.correlationId =
+            typeof endpoint.body?.correlationId === "string" ? endpoint.body.correlationId : undefined;
+        }
+      }
     }
   }
 
