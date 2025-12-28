@@ -27,7 +27,7 @@ import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
 import { auth, db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
@@ -214,10 +214,6 @@ export default function ScanPage() {
         return "idle";
     }
   }, []);
-
-  useEffect(() => {
-    if (!authLoading && !user) nav("/auth?next=/scan");
-  }, [authLoading, user, nav]);
 
   useEffect(() => {
     setFlowState((prev) => transitionState(prev, mapStatusToFlowState(status)));
@@ -450,6 +446,10 @@ export default function ScanPage() {
     setError(null);
     setStatusDetail(null);
     let sessionScanId: string | null = null;
+    if (!user) {
+      setError("Please sign in to start a scan.");
+      return;
+    }
     if (missingFields) {
       setError("Please add all four photos and enter your weights.");
       return;
@@ -594,6 +594,7 @@ export default function ScanPage() {
           goalWeightKg,
           heightCm: profileHeightCm,
           scanCorrelationId,
+          unit: units === "us" ? "lb" : "kg",
         },
       {
         onUploadProgress: (info: ScanUploadProgress) => {
@@ -767,7 +768,75 @@ export default function ScanPage() {
       sessionScanId = null;
       setActiveScanId(null);
       setScanSession(null);
-      nav(`/scans/${startedScanId}`);
+
+      const scanDocRef = doc(db, "users", user.uid, "scans", startedScanId);
+      let settled = false;
+      const finalizeNavigation = () => {
+        if (settled) return;
+        settled = true;
+        cleanupWatchers();
+        nav(`/scans/${startedScanId}`);
+      };
+      const handleFailureStatus = (message: string) => {
+        if (settled) return;
+        setStatus("error");
+        setError(message);
+        setStatusDetail(null);
+        updatePipeline(startedScanId, {
+          stage: "failed",
+          lastError: {
+            message,
+            pose: undefined,
+            stage: "failed",
+            requestId: requestIdRef.current ?? undefined,
+            occurredAt: Date.now(),
+          },
+        });
+        settled = true;
+        cleanupWatchers();
+      };
+
+      let unsubscribe: (() => void) | null = null;
+      const fallbackTimer = window.setTimeout(async () => {
+        if (settled) return;
+        const snap = await getDoc(scanDocRef);
+        const data = snap.data() as any;
+        const statusValue = typeof data?.status === "string" ? data.status : null;
+        if (statusValue === "complete" || statusValue === "completed") {
+          finalizeNavigation();
+          return;
+        }
+        if (statusValue === "failed" || statusValue === "error") {
+          handleFailureStatus(data?.errorMessage || "Scan failed during processing.");
+          return;
+        }
+        finalizeNavigation();
+      }, 45_000);
+
+      const cleanupWatchers = () => {
+        if (unsubscribe) {
+          try {
+            unsubscribe();
+          } catch {
+            // ignore
+          }
+          unsubscribe = null;
+        }
+        window.clearTimeout(fallbackTimer);
+      };
+
+      unsubscribe = onSnapshot(scanDocRef, (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as any;
+        const statusValue = typeof data?.status === "string" ? data.status : null;
+        if (statusValue === "complete" || statusValue === "completed") {
+          finalizeNavigation();
+          return;
+        }
+        if (statusValue === "failed" || statusValue === "error") {
+          handleFailureStatus(data?.errorMessage || "Scan failed during processing.");
+        }
+      });
     } catch (err) {
       console.error("scan.submit.unexpected", err);
       const pose = (err as any)?.pose as string | undefined;
@@ -882,6 +951,7 @@ export default function ScanPage() {
         goalWeightKg: scanSession.goalWeightKg,
         heightCm: scanSession.heightCm ?? profileHeightCm,
         scanCorrelationId: scanSession.correlationId,
+        unit: units === "us" ? "lb" : "kg",
       },
       {
         posesToUpload: failedPoses,
@@ -1025,6 +1095,7 @@ export default function ScanPage() {
         goalWeightKg: scanSession.goalWeightKg,
         heightCm: scanSession.heightCm ?? profileHeightCm,
         scanCorrelationId: scanSession.correlationId,
+        unit: units === "us" ? "lb" : "kg",
       },
       {
         posesToUpload: [],
@@ -1100,18 +1171,19 @@ export default function ScanPage() {
         {
           scanId: scanSession.scanId,
           storagePaths: scanSession.storagePaths,
-          photos: {
-            front: photos.front!,
-            back: photos.back!,
-            left: photos.left!,
-            right: photos.right!,
+        photos: {
+          front: photos.front!,
+          back: photos.back!,
+          left: photos.left!,
+          right: photos.right!,
         },
         currentWeightKg: scanSession.currentWeightKg,
         goalWeightKg: scanSession.goalWeightKg,
         heightCm: scanSession.heightCm ?? profileHeightCm,
         scanCorrelationId: scanSession.correlationId,
+        unit: units === "us" ? "lb" : "kg",
       },
-        {
+      {
           posesToUpload: [pose],
           onPhotoState: (info) => {
             setPhotoState((prev) => {
@@ -1261,9 +1333,33 @@ export default function ScanPage() {
   }
 
   function formatUploadMethod(method?: UploadMethod | string | null): string {
+    if (method === "function") return "https-fn";
     if (method === "storage") return "sdk";
-    // SDK-only; keep display stable even if older persisted state had other values.
-    return "sdk";
+    return "https-fn";
+  }
+
+  if (!authLoading && !user) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 p-4">
+        <h1 className="text-xl font-semibold">AI Body Scan</h1>
+        <p className="text-sm text-muted-foreground">
+          Browse mode: sign in to upload your own scan. You can view sample results without
+          uploading photos.
+        </p>
+        <div className="rounded border p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Create an account to capture your photos and get a personalized analysis.
+          </p>
+          <button
+            type="button"
+            className="w-full rounded-md bg-black px-4 py-2 text-white"
+            onClick={() => nav("/auth?next=/scan")}
+          >
+            Sign in to start your scan
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1861,6 +1957,7 @@ export default function ScanPage() {
                             goalWeightKg: 75,
                             heightCm: profileHeightCm,
                             scanCorrelationId: start.data.correlationId ?? `debug-${Date.now()}`,
+                            unit: units === "us" ? "lb" : "kg",
                           },
                           { overallTimeoutMs: 20_000 }
                         );
