@@ -29,6 +29,7 @@ type SubmitPayload = {
   photoPaths: Record<Pose, string>;
   currentWeightKg: number;
   goalWeightKg: number;
+  heightCm?: number;
   correlationId?: string;
 };
 
@@ -41,6 +42,11 @@ function parsePayload(body: any): SubmitPayload | null {
       : null;
   const currentWeightKg = Number(body.currentWeightKg);
   const goalWeightKg = Number(body.goalWeightKg);
+  const heightCmRaw = body.heightCm ?? body.height_cm;
+  const heightCm =
+    Number.isFinite(Number(heightCmRaw)) && Number(heightCmRaw) > 0
+      ? Math.round(Number(heightCmRaw))
+      : undefined;
   const correlationId =
     typeof body.correlationId === "string" && body.correlationId.trim()
       ? body.correlationId.trim().slice(0, 64)
@@ -61,7 +67,7 @@ function parsePayload(body: any): SubmitPayload | null {
     return null;
   if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg))
     return null;
-  return { scanId, photoPaths, currentWeightKg, goalWeightKg, correlationId };
+  return { scanId, photoPaths, currentWeightKg, goalWeightKg, heightCm, correlationId };
 }
 
 async function verifyPhotoPathsAndBuildObjects(
@@ -211,6 +217,11 @@ export const submitScan = onRequest(
           input: {
             currentWeightKg: payload.currentWeightKg,
             goalWeightKg: payload.goalWeightKg,
+            heightCm:
+              payload.heightCm ??
+              (existing.input as any)?.heightCm ??
+              (existing.input as any)?.height_cm ??
+              null,
           },
         },
         { merge: true }

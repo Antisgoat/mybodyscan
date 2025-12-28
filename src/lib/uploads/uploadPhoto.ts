@@ -103,6 +103,7 @@ export async function uploadPhoto(params: {
   signal?: AbortSignal;
   storageTimeoutMs: number;
   stallTimeoutMs: number;
+  includeDownloadURL?: boolean;
   onTask?: (task: UploadTask) => void;
   onProgress?: (progress: {
     bytesTransferred: number;
@@ -171,6 +172,7 @@ export async function uploadPhoto(params: {
       storage: params.storage,
       path: params.path,
       file: params.file,
+      includeDownloadURL: params.includeDownloadURL ?? true,
       customMetadata: params.customMetadata,
       stallTimeoutMs: params.stallTimeoutMs,
       overallTimeoutMs: params.storageTimeoutMs,

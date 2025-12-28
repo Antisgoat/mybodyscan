@@ -174,6 +174,12 @@ export default function ScanFlowResult() {
   const currentWeightKg = weights.currentWeightKg;
   const goalWeightKg = weights.goalWeightKg;
   const { profile } = useUserProfile();
+  const profileHeightCm =
+    typeof profile?.heightCm === "number" && Number.isFinite(profile.heightCm)
+      ? profile.heightCm
+      : typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+        ? profile.height_cm
+        : undefined;
   const [refineOpen, setRefineOpen] = useState(false);
   const { manualInputs, photoCircumferences } = useScanRefineStore();
   const [photoFeatures, setPhotoFeatures] = useState<PhotoFeatures | null>(
@@ -453,6 +459,7 @@ export default function ScanFlowResult() {
         const start = await startScanSessionClient({
           currentWeightKg,
           goalWeightKg,
+          heightCm: profileHeightCm,
           correlationId: scanCorrelationId,
         });
         if (!start.ok) {
@@ -509,6 +516,7 @@ export default function ScanFlowResult() {
           photos,
           currentWeightKg,
           goalWeightKg,
+          heightCm: profileHeightCm,
           scanCorrelationId: activeSession.correlationId,
         },
         {
@@ -690,6 +698,7 @@ export default function ScanFlowResult() {
         photos,
         currentWeightKg,
         goalWeightKg,
+        heightCm: profileHeightCm,
         scanCorrelationId: session.correlationId,
       },
       {
@@ -830,12 +839,13 @@ export default function ScanFlowResult() {
       const submit = await submitScanClient(
         {
           scanId: session.scanId,
-          storagePaths: canonicalStoragePaths,
-          photos,
-          currentWeightKg,
-          goalWeightKg,
-          scanCorrelationId: session.correlationId,
-        },
+        storagePaths: canonicalStoragePaths,
+        photos,
+        currentWeightKg,
+        goalWeightKg,
+        heightCm: profileHeightCm,
+        scanCorrelationId: session.correlationId,
+      },
         {
           posesToUpload: [pose],
           onUploadProgress: (info: ScanUploadProgress) => {

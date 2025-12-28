@@ -59,6 +59,12 @@ async function handleStart(req: Request, res: any) {
 
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);
+    const heightCmRaw =
+      typeof req.body?.heightCm === "number" ? req.body.heightCm : req.body?.height_cm;
+    const heightCm =
+      Number.isFinite(heightCmRaw) && Number(heightCmRaw) > 0
+        ? Math.round(Number(heightCmRaw))
+        : undefined;
     const correlationId =
       typeof req.body?.correlationId === "string" && req.body.correlationId.trim()
         ? req.body.correlationId.trim().slice(0, 64)
@@ -96,6 +102,7 @@ async function handleStart(req: Request, res: any) {
       input: {
         currentWeightKg,
         goalWeightKg,
+        heightCm: heightCm ?? undefined,
       },
       estimate: null,
       workoutPlan: null,

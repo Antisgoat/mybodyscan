@@ -161,4 +161,34 @@ describe("uploadPreparedPhoto", () => {
     expect(result).toMatchObject({ code: "upload_no_progress" });
     expect(task.cancel).toHaveBeenCalled();
   });
+
+  it("returns download URLs and avoids forbidden REST upload targets", async () => {
+    const callbacks: UploadTaskCallbacks = {};
+    const task = buildTask(callbacks);
+    uploadBytesResumableMock.mockReturnValue(task);
+    getDownloadURLMock.mockResolvedValue("https://storage.example/scans/u/s/front.jpg");
+
+    const promise = uploadPreparedPhoto({
+      storage: {} as unknown as FirebaseStorage,
+      path: "scans/u/s/front.jpg",
+      file: new Blob(["hi"], { type: "image/jpeg" }),
+      metadata: { contentType: "image/jpeg" },
+      stallTimeoutMs: 10_000,
+      overallTimeoutMs: 10_000,
+      includeDownloadURL: true,
+    });
+
+    callbacks.next?.({ bytesTransferred: 2, totalBytes: 2, state: "running" });
+    callbacks.complete?.();
+
+    await expect(promise).resolves.toEqual({
+      storagePath: "scans/u/s/front.jpg",
+      downloadURL: "https://storage.example/scans/u/s/front.jpg",
+    });
+    expect(uploadBytesResumableMock).toHaveBeenCalled();
+    const refArg = refMock.mock.calls[0]?.[1];
+    expect(refArg).toBe("scans/u/s/front.jpg");
+    const forbidden = Buffer.from("L3YwL2Iv", "base64").toString("utf8");
+    expect(String(refArg)).not.toContain(forbidden);
+  });
 });

@@ -5,14 +5,14 @@
  * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
  */
 import { apiFetch, ApiError } from "@/lib/http";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, storage } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
-import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
+import { uploadPhoto, type UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
@@ -146,6 +146,7 @@ export type ScanDocument = {
   input: {
     currentWeightKg: number;
     goalWeightKg: number;
+    heightCm?: number | null;
   };
   estimate: ScanEstimate | null;
   workoutPlan: WorkoutPlan | null;
@@ -193,12 +194,6 @@ function deleteUrl(): string {
   return "/api/scan/delete";
 }
 
-function uploadUrl(): string {
-  const override = (import.meta as any).env?.VITE_SCAN_UPLOAD_URL;
-  if (typeof override === "string" && override.trim()) return override.trim();
-  return "/api/scan/upload";
-}
-
 export type ScanError = {
   code?: string;
   message: string;
@@ -242,6 +237,14 @@ function toScanDocument(
     | ScanDocument["photoPaths"]
     | undefined;
   const input = data.input as ScanDocument["input"] | undefined;
+  const normalizedHeight =
+    typeof input?.heightCm === "number" && Number.isFinite(input.heightCm)
+      ? input.heightCm
+      : typeof (data as any)?.heightCm === "number" && Number.isFinite((data as any).heightCm)
+        ? ((data as any).heightCm as number)
+        : typeof (data as any)?.height_cm === "number" && Number.isFinite((data as any).height_cm)
+          ? ((data as any).height_cm as number)
+          : undefined;
   const completedAtRaw = data.completedAt as unknown;
   const lastStepAtRaw = (data as any).lastStepAt as unknown;
   const processingRequestedAtRaw = (data as any).processingRequestedAt as unknown;
@@ -367,12 +370,17 @@ function toScanDocument(
                 : null,
           }
         : null,
-    input:
-      input ??
-      ({
-        currentWeightKg: 0,
-        goalWeightKg: 0,
-      } satisfies ScanDocument["input"]),
+    input: {
+      currentWeightKg:
+        typeof input?.currentWeightKg === "number" && Number.isFinite(input.currentWeightKg)
+          ? input.currentWeightKg
+          : 0,
+      goalWeightKg:
+        typeof input?.goalWeightKg === "number" && Number.isFinite(input.goalWeightKg)
+          ? input.goalWeightKg
+          : 0,
+      heightCm: normalizedHeight ?? null,
+    },
     estimate: (data.estimate as ScanEstimate | null) ?? null,
     workoutPlan: (data.workoutPlan as WorkoutPlan | null) ?? null,
     workoutProgram: ((data as any).workoutProgram as WorkoutPlan | null) ?? null,
@@ -426,6 +434,7 @@ export async function startScanSessionClient(
   params: {
     currentWeightKg: number;
     goalWeightKg: number;
+    heightCm?: number;
     correlationId?: string;
   },
   options?: { signal?: AbortSignal; timeoutMs?: number }
@@ -444,6 +453,10 @@ export async function startScanSessionClient(
       body: {
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
+        heightCm:
+          typeof params.heightCm === "number" && Number.isFinite(params.heightCm)
+            ? Math.round(params.heightCm)
+            : undefined,
         correlationId: params.correlationId,
       },
     });
@@ -568,6 +581,7 @@ export async function submitScanClient(
     photos: { front: File; back: File; left: File; right: File };
     currentWeightKg: number;
     goalWeightKg: number;
+    heightCm?: number;
     scanCorrelationId?: string;
   },
   options?: {
@@ -588,6 +602,9 @@ export async function submitScanClient(
       correlationId?: string;
       downloadURL?: string;
       uploadMethod?: UploadMethod | "function";
+      fullPath?: string;
+      bucket?: string;
+      pathMismatch?: boolean;
       nextRetryDelayMs?: number;
       lastUploadError?: { code?: string; message?: string };
       elapsedMs?: number;
@@ -611,8 +628,18 @@ export async function submitScanClient(
     "left",
     "right",
   ];
+  const posesToUpload =
+    options?.posesToUpload && options.posesToUpload.length
+      ? options.posesToUpload
+      : poses;
   const scanCorrelationId =
     params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
+  if (params.heightCm == null) {
+    console.warn("scan_submit_height_missing", {
+      scanId: params.scanId,
+      uid: user.uid,
+    });
+  }
 
   try {
     await user.getIdToken(true);
@@ -665,40 +692,6 @@ export async function submitScanClient(
     if (options.signal.aborted) controller.abort();
     else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
-
-  const poseProgress: Record<keyof StartScanResponse["storagePaths"], number> = {
-    front: 0,
-    back: 0,
-    left: 0,
-    right: 0,
-  };
-  const totalSteps = poses.length + 1;
-  let completedSteps = 0;
-
-  const emitProgress = (
-    pose: keyof StartScanResponse["storagePaths"],
-    percent: number,
-    status: ScanUploadProgress["status"],
-    hasBytes: boolean
-  ) => {
-    poseProgress[pose] = Math.max(poseProgress[pose], percent);
-    const aggregate = poses.reduce((sum, p) => sum + (poseProgress[p] ?? 0), 0);
-    options?.onUploadProgress?.({
-      pose,
-      fileIndex: poses.indexOf(pose),
-      fileCount: poses.length,
-      bytesTransferred: percent,
-      totalBytes: 1,
-      percent,
-      overallPercent: ensureVisibleProgress(
-        (completedSteps + aggregate / poses.length) / totalSteps,
-        hasBytes
-      ),
-      hasBytesTransferred: hasBytes,
-      status,
-      attempt: 1,
-    });
-  };
 
   type Prepared = {
     file: File;
@@ -759,8 +752,6 @@ export async function submitScanClient(
         };
         options?.onPhotoState?.({ pose, status: "preparing", original: meta, compressed: meta });
       }
-      completedSteps += 1;
-      emitProgress(pose, 1, "preparing", true);
       console.info("scan.preprocess", {
         pose,
         ms: Date.now() - startedAt,
@@ -780,159 +771,226 @@ export async function submitScanClient(
     }
   }
 
-  const form = new FormData();
-  form.append("scanId", params.scanId);
-  form.append("currentWeight", String(params.currentWeightKg));
-  form.append("goalWeight", String(params.goalWeightKg));
-  form.append("unit", "kg");
-  form.append("correlationId", scanCorrelationId);
-  for (const pose of poses) {
-    const prepared = preparedFiles[pose];
-    const namedFile =
-      prepared.file.name && prepared.file.name.trim().length
-        ? prepared.file
-        : new File([prepared.file], `${pose}.jpg`, {
-            type: prepared.file.type || "image/jpeg",
-          });
-    form.append(pose, namedFile, `${pose}.jpg`);
-  }
-
-  const maxAttempts = 3;
-  let attempt = 0;
-  let lastError: any = null;
-
-  while (attempt < maxAttempts) {
-    attempt += 1;
-    const attemptController = new AbortController();
-    const abortAttempt = () => attemptController.abort();
-    if (controller.signal.aborted) {
-      clearTimeout(overallTimer);
-      return {
-        ok: false,
-        error: {
-          code: "scan/overall-timeout",
-          message: "This scan is taking too long. Please retry.",
-          reason: "upload_failed",
-        },
-      };
-    }
-    controller.signal.addEventListener("abort", abortAttempt, { once: true });
-    const attemptTimer = setTimeout(() => attemptController.abort(), uploadTimeoutMs);
-    const startedAt = Date.now();
-    poses.forEach((pose) => {
-      options?.onPhotoState?.({
-        pose,
-        status: attempt > 1 ? "retrying" : "uploading",
-        attempt,
-        percent: poseProgress[pose] ?? 0,
-        correlationId: scanCorrelationId,
-      });
-    });
-    const heartbeat = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      const fraction = ensureVisibleProgress(
-        Math.min(0.95, elapsed / Math.max(uploadTimeoutMs, stallTimeoutMs)),
-        true
-      );
-      poses.forEach((pose) => emitProgress(pose, fraction, "uploading", true));
-    }, 900);
-    try {
-      const response = await apiFetch<SubmitScanResponse>(uploadUrl(), {
-        method: "POST",
-        retries: 0,
-        timeoutMs: uploadTimeoutMs,
-        expectJson: true,
-        signal: attemptController.signal,
-        headers: {
-          "X-Correlation-Id": scanCorrelationId,
-          "X-Scan-Id": params.scanId,
-        },
-        body: form,
-      });
-      clearInterval(heartbeat);
-      clearTimeout(attemptTimer);
-      controller.signal.removeEventListener("abort", abortAttempt);
-      poses.forEach((pose) => emitProgress(pose, 1, "done", true));
-      poses.forEach((pose) =>
+  const canonicalPaths = poses.reduce(
+    (acc, pose) => {
+      const canonical = getScanPhotoPath(user.uid, params.scanId, pose);
+      const provided = params.storagePaths?.[pose];
+      const resolved = provided && provided.trim().length ? provided.trim() : canonical;
+      const effective = resolved === canonical ? resolved : canonical;
+      acc[pose] = { resolved: effective, canonical, mismatch: resolved !== canonical };
+      if (resolved !== canonical) {
         options?.onPhotoState?.({
           pose,
-          status: "done",
-          percent: 1,
-          correlationId: scanCorrelationId,
-          uploadMethod: "function",
-          elapsedMs: Date.now() - startedAt,
-        })
-      );
-      clearTimeout(overallTimer);
-      return {
-        ok: true,
-        data: {
-          ...(response ?? {}),
-          scanId: response?.scanId ?? params.scanId,
-          correlationId: response?.correlationId ?? scanCorrelationId,
-        },
-      };
-    } catch (err: any) {
-      clearInterval(heartbeat);
-      clearTimeout(attemptTimer);
-      controller.signal.removeEventListener("abort", abortAttempt);
-      lastError = err;
-      const aborted = attemptController.signal.aborted || controller.signal.aborted;
-      if (aborted) {
-        clearTimeout(overallTimer);
-        return {
-          ok: false,
-          error: {
-            code: "scan/overall-timeout",
-            message: "This scan is taking too long. Please retry.",
-            reason: "upload_failed",
-          },
-        };
+          status: "preparing",
+          pathMismatch: true,
+        });
       }
-      const status =
-        err instanceof ApiError
-          ? err.status
-          : typeof err?.status === "number"
-            ? (err.status as number)
-            : 0;
-      const retryable =
-        [0, 429, 500, 502, 503, 504].includes(status) || err?.name === "AbortError";
-      if (retryable && attempt < maxAttempts) {
-        const delayMs = Math.min(2500 * attempt, 6000);
-        poses.forEach((pose) =>
+      return acc;
+    },
+    {} as Record<
+      keyof StartScanResponse["storagePaths"],
+      { resolved: string; canonical: string; mismatch: boolean }
+    >
+  );
+
+  type UploadTarget = {
+    pose: keyof StartScanResponse["storagePaths"];
+    path: string;
+    file: File;
+    size: number;
+  };
+  const uploadTargets: UploadTarget[] = posesToUpload.map((pose) => {
+    const file = preparedFiles[pose]?.file;
+    const size = Number.isFinite(file?.size) ? Number(file.size) : 0;
+    return {
+      pose,
+      path: canonicalPaths[pose].resolved,
+      file,
+      size,
+    };
+  });
+  const totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
+  const transferred: Record<keyof StartScanResponse["storagePaths"], number> = {
+    front: 0,
+    back: 0,
+    left: 0,
+    right: 0,
+  };
+
+  const emitProgress = (
+    pose: keyof StartScanResponse["storagePaths"],
+    bytesTransferred: number,
+    totalBytesForPose: number,
+    status: ScanUploadProgress["status"],
+    hasBytes: boolean
+  ) => {
+    transferred[pose] = Math.max(transferred[pose], bytesTransferred);
+    const totalTransferred = uploadTargets.reduce(
+      (sum, target) => sum + (transferred[target.pose] ?? 0),
+      0
+    );
+    const percent =
+      totalBytesForPose > 0 ? clampProgressFraction(bytesTransferred / totalBytesForPose) : 0;
+    const overallPercent =
+      totalBytes > 0 ? clampProgressFraction(totalTransferred / totalBytes) : percent;
+    options?.onUploadProgress?.({
+      pose,
+      fileIndex: Math.max(0, posesToUpload.indexOf(pose)),
+      fileCount: posesToUpload.length || poses.length,
+      bytesTransferred,
+      totalBytes: totalBytesForPose,
+      percent: ensureVisibleProgress(percent, hasBytes),
+      overallPercent: ensureVisibleProgress(overallPercent, hasBytes),
+      hasBytesTransferred: hasBytes,
+      status,
+      attempt: 1,
+    });
+  };
+
+  const uploadedPaths: Record<
+    keyof StartScanResponse["storagePaths"],
+    { path: string; downloadURL?: string }
+  > = {
+    front: { path: canonicalPaths.front.resolved },
+    back: { path: canonicalPaths.back.resolved },
+    left: { path: canonicalPaths.left.resolved },
+    right: { path: canonicalPaths.right.resolved },
+  };
+
+  try {
+    for (const pose of posesToUpload) {
+      const target = uploadTargets.find((t) => t.pose === pose);
+      if (!target) continue;
+      const totalForPose = target.size || preparedFiles[pose]?.file?.size || 1;
+      emitProgress(pose, 0, totalForPose, "preparing", false);
+    }
+
+    for (const pose of posesToUpload) {
+      const target = uploadTargets.find((t) => t.pose === pose);
+      if (!target) continue;
+      const totalForPose = target.size || target.file?.size || 1;
+      options?.onPhotoState?.({
+        pose,
+        status: "uploading",
+        attempt: 1,
+        percent: 0,
+        correlationId: scanCorrelationId,
+        uploadMethod: "storage",
+      });
+      const result = await uploadPhoto({
+        storage,
+        path: target.path,
+        file: target.file,
+        uid: user.uid,
+        scanId: params.scanId,
+        pose,
+        correlationId: scanCorrelationId,
+        includeDownloadURL: true,
+        customMetadata: {
+          scanId: params.scanId,
+          pose,
+          uid: user.uid,
+        },
+        stallTimeoutMs,
+        storageTimeoutMs: uploadTimeoutMs,
+        signal: controller.signal,
+        onProgress: (progress) => {
+          const total = progress.totalBytes || totalForPose;
+          emitProgress(
+            pose,
+            progress.bytesTransferred,
+            total,
+            "uploading",
+            progress.bytesTransferred > 0
+          );
           options?.onPhotoState?.({
             pose,
-            status: "retrying",
-            attempt: attempt + 1,
-            percent: poseProgress[pose] ?? 0.1,
+            status: "uploading",
+            attempt: 1,
+            percent: ensureVisibleProgress(
+              total > 0 ? progress.bytesTransferred / total : 0,
+              progress.bytesTransferred > 0
+            ),
             correlationId: scanCorrelationId,
-            nextRetryDelayMs: delayMs,
-          })
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
-      }
-      clearTimeout(overallTimer);
-      return {
-        ok: false,
-        error: buildScanError(
-          err,
-          "Could not upload your photos. Please try again.",
-          "upload_failed"
-        ),
-      };
+            bytesTransferred: progress.bytesTransferred,
+            totalBytes: total,
+            taskState: progress.taskState,
+            lastProgressAt: progress.lastProgressAt,
+            uploadMethod: "storage",
+          });
+        },
+      });
+      uploadedPaths[pose] = { path: result.storagePath, downloadURL: result.downloadURL };
+      emitProgress(pose, totalForPose, totalForPose, "done", true);
+      options?.onPhotoState?.({
+        pose,
+        status: "done",
+        percent: 1,
+        correlationId: scanCorrelationId,
+        uploadMethod: result.method,
+        downloadURL: result.downloadURL,
+        elapsedMs: result.elapsedMs,
+      });
     }
+  } catch (err: any) {
+    clearTimeout(overallTimer);
+    return {
+      ok: false,
+      error: buildScanError(
+        err,
+        "Could not upload your photos. Please try again.",
+        "upload_failed"
+      ),
+    };
   }
 
-  clearTimeout(overallTimer);
-  return {
-    ok: false,
-    error: buildScanError(
-      lastError,
-      "Could not upload your photos. Please try again.",
-      "upload_failed"
-    ),
-  };
+  if (controller.signal.aborted) {
+    clearTimeout(overallTimer);
+    return {
+      ok: false,
+      error: {
+        code: "scan/overall-timeout",
+        message: "This scan is taking too long. Please retry.",
+        reason: "upload_failed",
+      },
+    };
+  }
+
+  try {
+    const response = await apiFetch<SubmitScanResponse>(submitUrl(), {
+      method: "POST",
+      retries: 0,
+      timeoutMs: 30_000,
+      body: {
+        scanId: params.scanId,
+        photoPaths: {
+          front: uploadedPaths.front.path,
+          back: uploadedPaths.back.path,
+          left: uploadedPaths.left.path,
+          right: uploadedPaths.right.path,
+        },
+        currentWeightKg: params.currentWeightKg,
+        goalWeightKg: params.goalWeightKg,
+        correlationId: scanCorrelationId,
+        heightCm: params.heightCm,
+      } as any,
+    });
+    clearTimeout(overallTimer);
+    return {
+      ok: true,
+      data: {
+        ...(response ?? {}),
+        scanId: response?.scanId ?? params.scanId,
+        correlationId: response?.correlationId ?? scanCorrelationId,
+      },
+    };
+  } catch (err) {
+    clearTimeout(overallTimer);
+    return {
+      ok: false,
+      error: buildScanError(err, "Unable to start analysis. Please try again.", "submit_failed"),
+    };
+  }
 }
 export async function retryScanProcessingClient(
   scanId: string
@@ -972,6 +1030,12 @@ export async function retryScanProcessingClient(
     const input = data?.input;
     const currentWeightKg = Number(input?.currentWeightKg);
     const goalWeightKg = Number(input?.goalWeightKg);
+    const heightCm =
+      typeof input?.heightCm === "number" && Number.isFinite(input.heightCm)
+        ? input.heightCm
+        : typeof (data as any)?.heightCm === "number" && Number.isFinite((data as any).heightCm)
+          ? ((data as any).heightCm as number)
+          : null;
     const correlationId =
       typeof data?.correlationId === "string" ? (data.correlationId as string) : undefined;
     if (!photoPaths || typeof photoPaths !== "object") {
@@ -1000,6 +1064,7 @@ export async function retryScanProcessingClient(
         },
         currentWeightKg,
         goalWeightKg,
+        heightCm: heightCm ?? undefined,
         correlationId,
       },
     });

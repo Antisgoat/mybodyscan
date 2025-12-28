@@ -49,6 +49,9 @@ describe("uploadPhoto", () => {
 
     expect(result.method).toBe("storage");
     expect(uploadViaStorage).toHaveBeenCalledTimes(2);
+    expect(uploadViaStorage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeDownloadURL: true })
+    );
     Object.defineProperty(auth, "currentUser", {
       value: originalUser,
       configurable: true,

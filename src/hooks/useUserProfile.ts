@@ -12,6 +12,7 @@ export interface CoachProfile {
   age?: number;
   dob?: string;
   height_cm?: number;
+  heightCm?: number;
   weight_kg?: number;
   activity_level?: "sedentary" | "light" | "moderate" | "very" | "extra";
   goal?: "lose_fat" | "gain_muscle" | "improve_heart";
@@ -73,7 +74,18 @@ export function useUserProfile() {
     const unsub1 = onSnapshot(
       profileRef,
       (snap) => {
-        setProfile((snap.data() as CoachProfile) || null);
+        const raw = (snap.data() as CoachProfile) || null;
+        if (!raw) {
+          setProfile(null);
+          return;
+        }
+        const height =
+          typeof raw.heightCm === "number"
+            ? raw.heightCm
+            : typeof raw.height_cm === "number"
+              ? raw.height_cm
+              : undefined;
+        setProfile({ ...raw, heightCm: height, height_cm: height ?? raw.height_cm });
       },
       () => {
         // Swallow profile read errors to avoid crashing UI

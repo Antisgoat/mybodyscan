@@ -98,7 +98,7 @@ export async function uploadViaStorage(params: {
         cacheControl: "public,max-age=31536000",
         customMetadata: params.customMetadata,
       },
-      includeDownloadURL: params.includeDownloadURL || debugUploads,
+      includeDownloadURL: params.includeDownloadURL ?? true,
       signal: params.signal,
       stallTimeoutMs: params.stallTimeoutMs,
       overallTimeoutMs: params.overallTimeoutMs,

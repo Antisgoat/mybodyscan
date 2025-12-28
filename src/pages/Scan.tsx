@@ -19,6 +19,7 @@ import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
@@ -49,6 +50,13 @@ interface PhotoInputs {
 export default function ScanPage() {
   const { user, loading: authLoading } = useAuthUser();
   const { units } = useUnits();
+  const { profile } = useUserProfile();
+  const profileHeightCm =
+    typeof profile?.heightCm === "number" && Number.isFinite(profile.heightCm)
+      ? profile.heightCm
+      : typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+        ? profile.height_cm
+        : undefined;
   const nav = useNavigate();
   const location = useLocation();
   const appCheckStatus = useAppCheckStatus();
@@ -94,8 +102,10 @@ export default function ScanPage() {
     storagePaths: { front: string; back: string; left: string; right: string };
     currentWeightKg: number;
     goalWeightKg: number;
+    heightCm?: number;
     correlationId?: string;
   } | null>(null);
+  const missingHeight = profileHeightCm == null;
   type Pose = "front" | "back" | "left" | "right";
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
   type FileMeta = { name: string; size: number; type: string };
@@ -476,6 +486,7 @@ export default function ScanPage() {
         {
           currentWeightKg,
           goalWeightKg,
+          heightCm: profileHeightCm,
           correlationId: scanCorrelationId,
         },
         {
@@ -508,6 +519,7 @@ export default function ScanPage() {
         storagePaths: canonicalStoragePaths,
         currentWeightKg,
         goalWeightKg,
+        heightCm: profileHeightCm,
         correlationId: scanCorrelationId,
       });
       updatePipeline(startedScanId, {
@@ -579,9 +591,10 @@ export default function ScanPage() {
             right: photos.right!,
           },
           currentWeightKg,
-        goalWeightKg,
-        scanCorrelationId,
-      },
+          goalWeightKg,
+          heightCm: profileHeightCm,
+          scanCorrelationId,
+        },
       {
         onUploadProgress: (info: ScanUploadProgress) => {
           const filePercent = toVisiblePercent(info.percent);
@@ -867,6 +880,7 @@ export default function ScanPage() {
         },
         currentWeightKg: scanSession.currentWeightKg,
         goalWeightKg: scanSession.goalWeightKg,
+        heightCm: scanSession.heightCm ?? profileHeightCm,
         scanCorrelationId: scanSession.correlationId,
       },
       {
@@ -1009,6 +1023,7 @@ export default function ScanPage() {
         },
         currentWeightKg: scanSession.currentWeightKg,
         goalWeightKg: scanSession.goalWeightKg,
+        heightCm: scanSession.heightCm ?? profileHeightCm,
         scanCorrelationId: scanSession.correlationId,
       },
       {
@@ -1090,11 +1105,12 @@ export default function ScanPage() {
             back: photos.back!,
             left: photos.left!,
             right: photos.right!,
-          },
-          currentWeightKg: scanSession.currentWeightKg,
-          goalWeightKg: scanSession.goalWeightKg,
-          scanCorrelationId: scanSession.correlationId,
         },
+        currentWeightKg: scanSession.currentWeightKg,
+        goalWeightKg: scanSession.goalWeightKg,
+        heightCm: scanSession.heightCm ?? profileHeightCm,
+        scanCorrelationId: scanSession.correlationId,
+      },
         {
           posesToUpload: [pose],
           onPhotoState: (info) => {
@@ -1333,6 +1349,12 @@ export default function ScanPage() {
             />
           </label>
         </div>
+
+        {missingHeight ? (
+          <p className="text-xs text-amber-600">
+            Add your height in Settings to improve scan accuracy (optional).
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(["front", "back", "left", "right"] as Array<keyof PhotoInputs>).map(
@@ -1813,6 +1835,7 @@ export default function ScanPage() {
                         const start = await startScanSessionClient({
                           currentWeightKg: 80,
                           goalWeightKg: 75,
+                          heightCm: profileHeightCm,
                           correlationId: `debug-${Date.now()}`,
                         });
                         if (!start.ok) {
@@ -1836,6 +1859,7 @@ export default function ScanPage() {
                             },
                             currentWeightKg: 80,
                             goalWeightKg: 75,
+                            heightCm: profileHeightCm,
                             scanCorrelationId: start.data.correlationId ?? `debug-${Date.now()}`,
                           },
                           { overallTimeoutMs: 20_000 }
