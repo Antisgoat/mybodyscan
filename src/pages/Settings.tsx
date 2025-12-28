@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
+import HeightInputUS from "@/components/HeightInputUS";
 import {
   Select,
   SelectContent,
@@ -81,6 +82,7 @@ const Settings = () => {
   const { t, language, changeLanguage, availableLanguages } = useI18n();
   const navigate = useNavigate();
   const { profile } = useUserProfile();
+  const [heightInputCm, setHeightInputCm] = useState<number | undefined>();
   const [weightInput, setWeightInput] = useState("");
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [exportingData, setExportingData] = useState(false);
@@ -142,6 +144,16 @@ const Settings = () => {
   }, [profile?.weight_kg, units]);
 
   useEffect(() => {
+    const nextHeight =
+      typeof profile?.heightCm === "number" && Number.isFinite(profile.heightCm)
+        ? profile.heightCm
+        : typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+          ? profile.height_cm
+          : undefined;
+    setHeightInputCm(nextHeight);
+  }, [profile?.heightCm, profile?.height_cm]);
+
+  useEffect(() => {
     let active = true;
     if (!user) {
       setAppCheckStatus("checking");
@@ -188,6 +200,10 @@ const Settings = () => {
       });
       return;
     }
+    const normalizedHeightCm =
+      typeof heightInputCm === "number" && Number.isFinite(heightInputCm) && heightInputCm > 0
+        ? Math.round(heightInputCm)
+        : undefined;
     setSavingMetrics(true);
     try {
       const weightKg = Number(
@@ -200,8 +216,13 @@ const Settings = () => {
         "coach",
         "profile"
       );
-      await setDoc(profileRef, { weight_kg: weightKg }, { merge: true });
-      toast({ title: "Weight updated" });
+      const payload: Record<string, unknown> = { weight_kg: weightKg };
+      if (normalizedHeightCm) {
+        payload.height_cm = normalizedHeightCm;
+        payload.heightCm = normalizedHeightCm;
+      }
+      await setDoc(profileRef, payload, { merge: true });
+      toast({ title: "Metrics updated" });
     } catch (error) {
       toast(
         buildErrorToast(error, {
@@ -515,11 +536,40 @@ const Settings = () => {
             <CardTitle>Body metrics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>Height</Label>
-              <p className="text-sm text-muted-foreground">
-                {formatHeightFromCm(profile?.height_cm)}
+            <div className="space-y-2">
+              <Label htmlFor="height">
+                Height ({units === "metric" ? "cm" : "ft/in"})
+              </Label>
+              {units === "metric" ? (
+                <Input
+                  id="height"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Enter height in centimeters"
+                  value={heightInputCm ?? ""}
+                  onChange={(event) => {
+                    const next = parseFloat(event.target.value);
+                    setHeightInputCm(Number.isFinite(next) ? next : undefined);
+                  }}
+                />
+              ) : (
+                <HeightInputUS
+                  valueCm={heightInputCm}
+                  onChangeCm={(cm) =>
+                    setHeightInputCm(
+                      Number.isFinite(cm) && cm > 0 ? Number(cm) : undefined
+                    )
+                  }
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                Saved securely to improve scan estimates.
               </p>
+              {formatHeightFromCm(heightInputCm ?? profile?.heightCm ?? profile?.height_cm) ? (
+                <p className="text-xs text-muted-foreground">
+                  Current: {formatHeightFromCm(heightInputCm ?? profile?.heightCm ?? profile?.height_cm)}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="weight">
@@ -546,7 +596,7 @@ const Settings = () => {
               disabled={savingMetrics}
               className="w-full"
             >
-              {savingMetrics ? "Saving..." : "Save weight"}
+              {savingMetrics ? "Saving..." : "Save metrics"}
             </DemoWriteButton>
           </CardContent>
         </Card>

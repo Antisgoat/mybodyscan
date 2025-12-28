@@ -122,6 +122,7 @@ export interface ScanDocument {
   input: {
     currentWeightKg: number;
     goalWeightKg: number;
+    heightCm?: number | null;
   };
   estimate: ScanEstimate | null;
   workoutPlan: ScanWorkoutPlan | null;

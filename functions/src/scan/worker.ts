@@ -315,8 +315,13 @@ export const processQueuedScan = onDocumentWritten(
       // Pull height (and other profile details later) to compute BMI deterministically.
       const profileSnap = await db.doc(`users/${uid}/coach/profile`).get().catch(() => null);
       const profile = profileSnap?.exists ? (profileSnap.data() as any) : null;
-      const heightCm = Number(profile?.height_cm);
-      const heightOk = Number.isFinite(heightCm) && heightCm > 50 && heightCm < 260 ? heightCm : null;
+      const scanHeight = Number((input as any)?.heightCm ?? (input as any)?.height_cm);
+      const profileHeight = Number(profile?.height_cm ?? profile?.heightCm);
+      const chosenHeight = Number.isFinite(scanHeight) && scanHeight > 0 ? scanHeight : profileHeight;
+      const heightOk =
+        Number.isFinite(chosenHeight) && chosenHeight > 50 && chosenHeight < 260
+          ? Math.round(chosenHeight)
+          : null;
       const bmiComputed =
         heightOk != null
           ? round1(currentWeightKg / Math.pow(heightOk / 100, 2))

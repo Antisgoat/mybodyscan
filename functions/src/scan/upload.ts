@@ -256,6 +256,9 @@ export const scanUpload = onRequest(
       const goalWeightRaw =
         toNumber(fields.goalWeight ?? fields.goalWeightKg ?? fields.targetWeight) ??
         toNumber(fields.goalWeightLb);
+      const heightRaw =
+        toNumber((fields as any).height ?? (fields as any).heightCm ?? (fields as any).height_cm) ??
+        null;
       const unitRaw = (fields.unit || fields.units || "kg").toString().toLowerCase();
       const unit = unitRaw === "lb" || unitRaw === "lbs" ? "lb" : "kg";
       if (!Number.isFinite(currentWeightRaw ?? NaN) || !Number.isFinite(goalWeightRaw ?? NaN)) {
@@ -272,6 +275,10 @@ export const scanUpload = onRequest(
           reason: "invalid_weights",
         });
       }
+      const heightCm =
+        Number.isFinite(heightRaw ?? NaN) && (heightRaw as number) > 0
+          ? Math.round(heightRaw as number)
+          : undefined;
 
       const grouped: Record<Pose, ParsedFile | undefined> = {
         front: undefined,
@@ -361,6 +368,7 @@ export const scanUpload = onRequest(
           input: {
             currentWeightKg,
             goalWeightKg,
+            heightCm: heightCm ?? undefined,
           },
         },
         { merge: true }
