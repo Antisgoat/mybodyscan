@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitScanClient } from "@/lib/api/scan";
 
 const apiFetchMock = vi.fn();
-const uploadPhotoMock = vi.fn();
+const fetchMock = vi.fn();
 
 vi.mock("@/lib/http", () => {
   class ApiError extends Error {
@@ -17,10 +17,6 @@ vi.mock("@/lib/http", () => {
     ApiError,
   };
 });
-
-vi.mock("@/lib/uploads/uploadPhoto", () => ({
-  uploadPhoto: (...args: any[]) => uploadPhotoMock(...args),
-}));
 
 vi.mock("@/features/scan/resizeImage", () => ({
   prepareScanPhoto: vi.fn(async (file: File) => ({
@@ -49,18 +45,17 @@ vi.mock("@/lib/firebase", () => {
 describe("submitScanClient upload pipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (globalThis as any).fetch = fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ scanId: "scan-1", status: "queued" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ) as any;
   });
 
-  it("uploads all poses via Firebase Storage before submitting", async () => {
+  it("uploads all poses via the HTTPS function before submitting", async () => {
     const file = new File([new Uint8Array([1, 2, 3])], "p.jpg", { type: "image/jpeg" });
     apiFetchMock.mockResolvedValue({ scanId: "scan-1" });
-    uploadPhotoMock.mockImplementation(async ({ path }: { path: string }) => ({
-      method: "storage",
-      storagePath: path,
-      downloadURL: `https://example.com/${path}`,
-      elapsedMs: 5,
-      correlationId: "corr",
-    }));
 
     const result = await submitScanClient(
       {
@@ -75,20 +70,15 @@ describe("submitScanClient upload pipeline", () => {
         currentWeightKg: 70,
         goalWeightKg: 65,
         heightCm: 180,
+        unit: "kg",
       },
       { overallTimeoutMs: 10_000, stallTimeoutMs: 2_000, perPhotoTimeoutMs: 3_000 }
     );
 
     expect(result.ok).toBe(true);
-    expect(uploadPhotoMock).toHaveBeenCalledTimes(4);
-    const submitCall = apiFetchMock.mock.calls[0];
-    expect(String(submitCall?.[0] ?? "")).toContain("/api/scan/submit");
-    const body = submitCall?.[1]?.body;
-    expect(body).toMatchObject({
-      photoPaths: {
-        front: "scans/user-123/scan-1/front.jpg",
-      },
-      heightCm: 180,
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    const submitCall = fetchMock.mock.calls[0];
+    expect(String(submitCall?.[0] ?? "")).toContain("/api/scan/upload");
   });
 });

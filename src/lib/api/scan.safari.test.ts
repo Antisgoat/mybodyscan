@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitScanClient } from "@/lib/api/scan";
 
 const apiFetchMock = vi.fn();
-const uploadPhotoMock = vi.fn();
+const fetchMock = vi.fn();
 
 vi.mock("@/lib/http", () => {
   class ApiError extends Error {
@@ -17,10 +17,6 @@ vi.mock("@/lib/http", () => {
     ApiError,
   };
 });
-
-vi.mock("@/lib/uploads/uploadPhoto", () => ({
-  uploadPhoto: (...args: any[]) => uploadPhotoMock(...args),
-}));
 
 vi.mock("@/features/scan/resizeImage", () => ({
   prepareScanPhoto: vi.fn(async (file: File) => ({
@@ -49,6 +45,12 @@ vi.mock("@/lib/firebase", () => {
 describe("submitScanClient on Safari", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (globalThis as any).fetch = fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ scanId: "scan-1", status: "queued" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    ) as any;
     Object.defineProperty(window.navigator, "userAgent", {
       value:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
@@ -60,39 +62,21 @@ describe("submitScanClient on Safari", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses the storage uploader even on Safari and submits once", async () => {
+  it("uses the HTTPS function even on Safari and submits once", async () => {
     const file = new File([new Uint8Array([1, 2, 3])], "front.jpg", {
       type: "image/jpeg",
     });
     apiFetchMock.mockResolvedValue({ scanId: "scan-1" });
-    uploadPhotoMock.mockImplementation(async ({ path }: { path: string }) => ({
-      method: "storage",
-      storagePath: path,
-      downloadURL: `https://example.com/${path}`,
-      elapsedMs: 5,
-      correlationId: "corr",
-    }));
-    const storagePaths = {
-      front: "scans/user-123/scan-1/front.jpg",
-      back: "scans/user-123/scan-1/back.jpg",
-      left: "scans/user-123/scan-1/left.jpg",
-      right: "scans/user-123/scan-1/right.jpg",
-    };
-    const result = await submitScanClient(
-      {
-        scanId: "scan-1",
-        storagePaths,
-        photos: { front: file, back: file, left: file, right: file },
-        currentWeightKg: 70,
-        goalWeightKg: 65,
-      },
-      { posesToUpload: ["front"] }
-    );
+    const result = await submitScanClient({
+      scanId: "scan-1",
+      photos: { front: file, back: file, left: file, right: file },
+      currentWeightKg: 70,
+      goalWeightKg: 65,
+      unit: "kg",
+    });
 
     expect(result.ok).toBe(true);
-    expect(uploadPhotoMock).toHaveBeenCalledTimes(1);
-    const targetCall = uploadPhotoMock.mock.calls[0]?.[0];
-    expect(targetCall.path).toContain("front.jpg");
-    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });
