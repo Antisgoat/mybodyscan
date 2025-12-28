@@ -80,6 +80,13 @@
         }
       },
       {
+        "source": "/api/scan/upload",
+        "function": {
+          "functionId": "scanUpload",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/scan/delete",
         "function": {
           "functionId": "deleteScan",

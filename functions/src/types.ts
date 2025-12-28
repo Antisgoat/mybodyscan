@@ -70,7 +70,8 @@ export interface ScanDocument {
     | "queued"
     | "processing"
     | "complete"
-    | "error";
+    | "error"
+    | "failed";
   errorMessage?: string;
   errorReason?: string | null;
   errorInfo?: {
@@ -97,6 +98,17 @@ export interface ScanDocument {
     left: string;
     right: string;
   };
+  uploadedPoses?: {
+    front?: boolean;
+    back?: boolean;
+    left?: boolean;
+    right?: boolean;
+  } | null;
+  weights?: {
+    current?: number | null;
+    goal?: number | null;
+    unit?: string | null;
+  } | null;
   /**
    * Optional richer photo refs (derived from canonical `photoPaths`).
    * Uses Firebase Storage download tokens (NOT signed URLs).
