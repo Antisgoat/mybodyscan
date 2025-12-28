@@ -865,72 +865,120 @@ export async function submitScanClient(
       emitProgress(pose, 0, totalForPose, "preparing", false);
     }
 
-    for (const pose of posesToUpload) {
-      const target = uploadTargets.find((t) => t.pose === pose);
-      if (!target) continue;
-      const totalForPose = target.size || target.file?.size || 1;
-      options?.onPhotoState?.({
-        pose,
-        status: "uploading",
-        attempt: 1,
-        percent: 0,
-        correlationId: scanCorrelationId,
-        uploadMethod: "storage",
-      });
-      const result = await uploadPhoto({
-        storage,
-        path: target.path,
-        file: target.file,
-        uid: user.uid,
-        scanId: params.scanId,
-        pose,
-        correlationId: scanCorrelationId,
-        includeDownloadURL: true,
-        customMetadata: {
+    if (posesToUpload.length > 0) {
+      const queue = [...posesToUpload];
+      const inFlight = new Set<Promise<void>>();
+      const maxConcurrency = Math.min(2, Math.max(1, queue.length));
+      let failure: any = null;
+      if (controller.signal.aborted) {
+        const abortErr: any = new Error("Upload cancelled.");
+        abortErr.code = "upload_cancelled";
+        throw abortErr;
+      }
+
+      const runTargetUpload = async (target: UploadTarget) => {
+        const totalForPose = target.size || target.file?.size || 1;
+        const pose = target.pose;
+        options?.onPhotoState?.({
+          pose,
+          status: "uploading",
+          attempt: 1,
+          percent: 0,
+          correlationId: scanCorrelationId,
+          uploadMethod: "storage",
+        });
+        const result = await uploadPhoto({
+          storage,
+          path: target.path,
+          file: target.file,
+          uid: user.uid,
           scanId: params.scanId,
           pose,
-          uid: user.uid,
-        },
-        stallTimeoutMs,
-        storageTimeoutMs: uploadTimeoutMs,
-        signal: controller.signal,
-        onProgress: (progress) => {
-          const total = progress.totalBytes || totalForPose;
-          emitProgress(
+          correlationId: scanCorrelationId,
+          includeDownloadURL: true,
+          customMetadata: {
+            scanId: params.scanId,
             pose,
-            progress.bytesTransferred,
-            total,
-            "uploading",
-            progress.bytesTransferred > 0
-          );
-          options?.onPhotoState?.({
-            pose,
-            status: "uploading",
-            attempt: 1,
-            percent: ensureVisibleProgress(
-              total > 0 ? progress.bytesTransferred / total : 0,
-              progress.bytesTransferred > 0
-            ),
+            uid: user.uid,
             correlationId: scanCorrelationId,
-            bytesTransferred: progress.bytesTransferred,
-            totalBytes: total,
-            taskState: progress.taskState,
-            lastProgressAt: progress.lastProgressAt,
-            uploadMethod: "storage",
+          },
+          stallTimeoutMs,
+          storageTimeoutMs: uploadTimeoutMs,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            const total = progress.totalBytes || totalForPose;
+            emitProgress(
+              pose,
+              progress.bytesTransferred,
+              total,
+              "uploading",
+              progress.bytesTransferred > 0
+            );
+            options?.onPhotoState?.({
+              pose,
+              status: "uploading",
+              attempt: 1,
+              percent: ensureVisibleProgress(
+                total > 0 ? progress.bytesTransferred / total : 0,
+                progress.bytesTransferred > 0
+              ),
+              correlationId: scanCorrelationId,
+              bytesTransferred: progress.bytesTransferred,
+              totalBytes: total,
+              taskState: progress.taskState,
+              lastProgressAt: progress.lastProgressAt,
+              uploadMethod: "storage",
+            });
+          },
+        });
+        uploadedPaths[pose] = { path: result.storagePath, downloadURL: result.downloadURL };
+        emitProgress(pose, totalForPose, totalForPose, "done", true);
+        options?.onPhotoState?.({
+          pose,
+          status: "done",
+          percent: 1,
+          correlationId: scanCorrelationId,
+          uploadMethod: result.method,
+          downloadURL: result.downloadURL,
+          elapsedMs: result.elapsedMs,
+        });
+      };
+
+      const startNext = () => {
+        if (failure || controller.signal.aborted) return;
+        const pose = queue.shift();
+        if (!pose) return;
+        const target = uploadTargets.find((t) => t.pose === pose);
+        if (!target) {
+          startNext();
+          return;
+        }
+        const promise = runTargetUpload(target)
+          .catch((error) => {
+            if (!failure) {
+              failure = error;
+              controller.abort();
+            }
+          })
+          .finally(() => {
+            inFlight.delete(promise);
+            if (!failure && !controller.signal.aborted) {
+              startNext();
+            }
           });
-        },
-      });
-      uploadedPaths[pose] = { path: result.storagePath, downloadURL: result.downloadURL };
-      emitProgress(pose, totalForPose, totalForPose, "done", true);
-      options?.onPhotoState?.({
-        pose,
-        status: "done",
-        percent: 1,
-        correlationId: scanCorrelationId,
-        uploadMethod: result.method,
-        downloadURL: result.downloadURL,
-        elapsedMs: result.elapsedMs,
-      });
+        inFlight.add(promise);
+      };
+
+      for (let i = 0; i < maxConcurrency; i += 1) {
+        startNext();
+      }
+      await Promise.allSettled(Array.from(inFlight));
+      if (controller.signal.aborted && !failure) {
+        const abortErr: any = new Error("Upload cancelled.");
+        abortErr.code = "upload_cancelled";
+        failure = abortErr;
+      }
+      if (failure) throw failure;
     }
   } catch (err: any) {
     clearTimeout(overallTimer);

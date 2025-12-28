@@ -162,13 +162,8 @@ export async function uploadPhoto(params: {
     return "retry";
   };
 
-  const attemptStorage = async (attempt: number) => {
-    console.info("scan_upload_begin", {
-      ...telemetryBase,
-      method: "storage-sdk",
-      attempt,
-    });
-    const result = await uploadViaStorage({
+  try {
+    const storageResult = await uploadViaStorage({
       storage: params.storage,
       path: params.path,
       file: params.file,
@@ -179,42 +174,31 @@ export async function uploadPhoto(params: {
       signal: params.signal,
       onTask: params.onTask,
       onProgress: params.onProgress,
+      maxRetries: 3,
       debugSimulateFreeze: params.debugSimulateFreeze,
     });
     console.info("scan_upload_complete", {
       ...telemetryBase,
       method: "storage-sdk",
-      elapsedMs: result.elapsedMs,
-      attempt,
+      elapsedMs: storageResult.elapsedMs,
+      attempt: 1,
     });
-    return result;
-  };
-
-  let lastError: any = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      const storageResult = await attemptStorage(attempt);
-      return {
-        method: "storage",
-        storagePath: storageResult.storagePath,
-        downloadURL: storageResult.downloadURL,
-        elapsedMs: storageResult.elapsedMs,
-        correlationId: params.correlationId,
-      };
-    } catch (error: any) {
-      lastError = error;
-      const classification = classifyFallback(error);
-      if (classification === "unauthorized") {
-        logFailure("scan_upload_auth", error, attempt);
-        const friendly = new Error("Your session expired. Please sign in again and retry.");
-        (friendly as any).code = "storage/unauthorized";
-        throw friendly;
-      }
-      if (classification === "retry" && attempt < 2) continue;
-      logFailure("scan_upload_failed", error, attempt);
-      throw error;
+    return {
+      method: "storage",
+      storagePath: storageResult.storagePath,
+      downloadURL: storageResult.downloadURL,
+      elapsedMs: storageResult.elapsedMs,
+      correlationId: params.correlationId,
+    };
+  } catch (error: any) {
+    const classification = classifyFallback(error);
+    if (classification === "unauthorized") {
+      logFailure("scan_upload_auth", error, 1);
+      const friendly = new Error("Your session expired. Please sign in again and retry.");
+      (friendly as any).code = "storage/unauthorized";
+      throw friendly;
     }
+    logFailure("scan_upload_failed", error, 1);
+    throw error;
   }
-  logFailure("scan_upload_failed", lastError);
-  throw lastError ?? new Error("Upload failed.");
 }

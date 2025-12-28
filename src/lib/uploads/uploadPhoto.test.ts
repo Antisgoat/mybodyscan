@@ -8,7 +8,7 @@ vi.mock("@/lib/uploads/uploadViaStorage", () => ({
 }));
 
 describe("uploadPhoto", () => {
-  it("retries the Storage SDK once on retryable errors", async () => {
+  it("passes retry configuration to the Storage SDK uploader", async () => {
     const storageMock = {
       app: { options: { storageBucket: "mybodyscan-f3daf.appspot.com" } },
     } as any;
@@ -22,18 +22,12 @@ describe("uploadPhoto", () => {
       configurable: true,
     });
     const file = new File(["data"], "front.jpg", { type: "image/jpeg" });
-    vi.mocked(uploadViaStorage)
-      .mockRejectedValueOnce(
-        Object.assign(new Error("Upload stalled."), {
-          code: "upload_stalled",
-        })
-      )
-      .mockResolvedValueOnce({
-        method: "storage",
-        storagePath: "scans/user/scan/front.jpg",
-        downloadURL: undefined,
-        elapsedMs: 5,
-      } as any);
+    vi.mocked(uploadViaStorage).mockResolvedValueOnce({
+      method: "storage",
+      storagePath: "scans/user/scan/front.jpg",
+      downloadURL: undefined,
+      elapsedMs: 5,
+    } as any);
 
     const result = await uploadPhoto({
       storage: storageMock,
@@ -48,9 +42,9 @@ describe("uploadPhoto", () => {
     });
 
     expect(result.method).toBe("storage");
-    expect(uploadViaStorage).toHaveBeenCalledTimes(2);
+    expect(uploadViaStorage).toHaveBeenCalledTimes(1);
     expect(uploadViaStorage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ includeDownloadURL: true })
+      expect.objectContaining({ includeDownloadURL: true, maxRetries: 3 })
     );
     Object.defineProperty(auth, "currentUser", {
       value: originalUser,

@@ -81,14 +81,17 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
-      metadata: { contentType: "image/jpeg" },
+      uid: "u",
+      scanId: "s",
+      pose: "front",
+      contentType: "image/jpeg",
       stallTimeoutMs: 1000,
       overallTimeoutMs: 5000,
+      maxRetries: 1,
     }).catch((error) => error);
 
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(4200);
     const result = await promise;
     expect(result).toMatchObject({ code: "upload_no_progress" });
     expect(task.cancel).toHaveBeenCalled();
@@ -105,9 +108,11 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
-      metadata: { contentType: "image/jpeg" },
+      uid: "u",
+      scanId: "s",
+      pose: "front",
+      contentType: "image/jpeg",
       stallTimeoutMs: 10_000,
       overallTimeoutMs: 10_000,
     });
@@ -116,7 +121,9 @@ describe("uploadPreparedPhoto", () => {
     callbacks.complete?.();
 
     await expect(promise).resolves.toEqual({
+      path: "scans/u/s/front.jpg",
       storagePath: "scans/u/s/front.jpg",
+      size: 2,
     });
     expect(dom.removeEventListener).toHaveBeenCalled();
   });
@@ -129,9 +136,11 @@ describe("uploadPreparedPhoto", () => {
     await expect(
       uploadPreparedPhoto({
         storage: {} as unknown as FirebaseStorage,
-        path: "scans/u/s/front.jpg",
         file: zero,
-        metadata: { contentType: "image/jpeg" },
+        uid: "u",
+        scanId: "s",
+        pose: "front",
+        contentType: "image/jpeg",
         stallTimeoutMs: 1_000,
         overallTimeoutMs: 2_000,
       })
@@ -149,14 +158,17 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
-      metadata: { contentType: "image/jpeg" },
+      uid: "u",
+      scanId: "s",
+      pose: "front",
+      contentType: "image/jpeg",
       stallTimeoutMs: 12_000,
       overallTimeoutMs: 20_000,
+      maxRetries: 1,
     }).catch((error) => error);
 
-    await vi.advanceTimersByTimeAsync(3_200);
+    await vi.advanceTimersByTimeAsync(4_400);
     const result = await promise;
     expect(result).toMatchObject({ code: "upload_no_progress" });
     expect(task.cancel).toHaveBeenCalled();
@@ -170,9 +182,11 @@ describe("uploadPreparedPhoto", () => {
 
     const promise = uploadPreparedPhoto({
       storage: {} as unknown as FirebaseStorage,
-      path: "scans/u/s/front.jpg",
       file: new Blob(["hi"], { type: "image/jpeg" }),
-      metadata: { contentType: "image/jpeg" },
+      uid: "u",
+      scanId: "s",
+      pose: "front",
+      contentType: "image/jpeg",
       stallTimeoutMs: 10_000,
       overallTimeoutMs: 10_000,
       includeDownloadURL: true,
@@ -182,7 +196,9 @@ describe("uploadPreparedPhoto", () => {
     callbacks.complete?.();
 
     await expect(promise).resolves.toEqual({
+      path: "scans/u/s/front.jpg",
       storagePath: "scans/u/s/front.jpg",
+      size: 2,
       downloadURL: "https://storage.example/scans/u/s/front.jpg",
     });
     expect(uploadBytesResumableMock).toHaveBeenCalled();
