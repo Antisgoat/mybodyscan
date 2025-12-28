@@ -2,6 +2,7 @@ import type { FirebaseStorage } from "firebase/storage";
 import type { UploadTask } from "firebase/storage";
 import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
+import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
 
 export const SCAN_UPLOAD_CONTENT_TYPE = "image/jpeg";
 
@@ -46,6 +47,7 @@ export async function uploadViaStorage(params: {
     taskState: "running" | "paused" | "success" | "canceled" | "error";
     lastProgressAt: number;
   }) => void;
+  maxRetries?: number;
   debugSimulateFreeze?: boolean;
 }): Promise<UploadViaStorageResult> {
   const startedAt = Date.now();
@@ -89,19 +91,24 @@ export async function uploadViaStorage(params: {
 
   try {
     log("info", "start");
+    const canonicalPath = getScanPhotoPath(parsedPath.uid, parsedPath.scanId, parsedPath.pose as ScanPose);
+    const pathMismatch = canonicalPath !== params.path;
     const result = await uploadPreparedPhoto({
       storage: params.storage,
-      path: params.path,
+      uid: parsedPath.uid,
+      scanId: parsedPath.scanId,
+      pose: parsedPath.pose as ScanPose,
       file: params.file,
-      metadata: {
-        contentType: SCAN_UPLOAD_CONTENT_TYPE,
-        cacheControl: "public,max-age=31536000",
-        customMetadata: params.customMetadata,
-      },
+      contentType: SCAN_UPLOAD_CONTENT_TYPE,
       includeDownloadURL: params.includeDownloadURL ?? true,
       signal: params.signal,
       stallTimeoutMs: params.stallTimeoutMs,
       overallTimeoutMs: params.overallTimeoutMs,
+      maxRetries: params.maxRetries,
+      extraMetadata: {
+        ...params.customMetadata,
+        pathMismatch: pathMismatch ? "true" : undefined,
+      },
       onTask: params.onTask,
       onProgress: (progress) => {
         params.onProgress?.(progress);
@@ -132,7 +139,7 @@ export async function uploadViaStorage(params: {
     }
     return {
       method: "storage",
-      storagePath: result.storagePath,
+      storagePath: result.path,
       downloadURL: result.downloadURL,
       elapsedMs,
     };

@@ -1,12 +1,11 @@
+import { getDownloadURL, ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
+import type { FirebaseStorage, UploadTaskSnapshot } from "firebase/storage";
 import {
-  getDownloadURL,
-  ref,
-  uploadBytesResumable,
-  type UploadTask,
-  type UploadTaskSnapshot,
-} from "firebase/storage";
-import type { FirebaseStorage } from "firebase/storage";
-import { getUploadStallReason, type UploadTaskState } from "@/lib/uploads/retryPolicy";
+  classifyUploadRetryability,
+  getUploadStallReason,
+  type UploadTaskState,
+} from "@/lib/uploads/retryPolicy";
+import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
 
 export type UploadPreparedPhotoProgress = {
   bytesTransferred: number;
@@ -16,8 +15,31 @@ export type UploadPreparedPhotoProgress = {
 };
 
 export type UploadPreparedPhotoResult = {
+  path: string;
   storagePath: string;
   downloadURL?: string;
+  size: number;
+};
+
+export type UploadPreparedPhotoParams = {
+  storage: FirebaseStorage;
+  file: Blob;
+  uid: string;
+  scanId: string;
+  pose: ScanPose;
+  contentType: string;
+  includeDownloadURL?: boolean;
+  stallTimeoutMs?: number;
+  overallTimeoutMs?: number;
+  maxRetries?: number;
+  signal?: AbortSignal;
+  onTask?: (task: UploadTask) => void;
+  onProgress?: (progress: UploadPreparedPhotoProgress) => void;
+  /**
+   * Additional metadata to merge with the required scan identifiers.
+   */
+  extraMetadata?: Record<string, string | undefined>;
+  debugSimulateFreeze?: boolean;
 };
 
 export class UploadTimeoutError extends Error {
@@ -45,16 +67,106 @@ export class UploadZeroBytesError extends Error {
 }
 
 /**
- * Web uploader (Firebase Storage resumable) with:
- * - hard wall-clock timeout (overallTimeoutMs)
- * - stall detection based on Date.now deltas (stallTimeoutMs)
- * - visibility/online/offline rechecks so iOS timer throttling can't create infinite waits
- * - proper listener cleanup
- *
- * This module is intentionally isolated so later we can swap to Capacitor-friendly transports
- * (e.g., signed URL HTTP uploads) without touching scan flow UI.
+ * Canonical scan photo uploader (Firebase Storage Web SDK).
+ * - Hard wall-clock + stall timeouts per attempt
+ * - Exponential backoff retries (bounded)
+ * - Structured logging to help field-debug production issues
  */
-export async function uploadPreparedPhoto(params: {
+export async function uploadPreparedPhoto(params: UploadPreparedPhotoParams): Promise<UploadPreparedPhotoResult> {
+  const storagePath = getScanPhotoPath(params.uid, params.scanId, params.pose);
+  const fileSize = typeof params.file?.size === "number" ? Number(params.file.size) : 0;
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    const err = new UploadZeroBytesError("Upload failed: zero-byte file.");
+    (err as any).bytesTransferred = 0;
+    throw err;
+  }
+
+  const customMetadata = Object.fromEntries(
+    Object.entries({
+      uid: params.uid,
+      scanId: params.scanId,
+      pose: params.pose,
+      ...params.extraMetadata,
+    }).filter(([, value]) => typeof value === "string" && value.length > 0)
+  );
+
+  const metadata = {
+    contentType: params.contentType,
+    cacheControl: "public,max-age=31536000",
+    customMetadata: customMetadata as Record<string, string>,
+  };
+
+  const maxAttempts = Math.max(1, Math.min(5, Number(params.maxRetries ?? 3)));
+  const stallTimeoutMs = Math.max(500, Number(params.stallTimeoutMs ?? 15_000));
+  const overallTimeoutMs = Math.max(5_000, Number(params.overallTimeoutMs ?? 90_000));
+
+  let lastError: any = null;
+  let attempt = 0;
+  let backoffMs = 500;
+  const telemetryBase = {
+    scanId: params.scanId,
+    pose: params.pose,
+    uid: params.uid,
+    path: storagePath,
+  };
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const startedAt = Date.now();
+    console.info("scan_upload_start", { ...telemetryBase, attempt });
+    try {
+      const result = await runResumableUploadAttempt({
+        storage: params.storage,
+        path: storagePath,
+        file: params.file,
+        metadata,
+        includeDownloadURL: params.includeDownloadURL ?? true,
+        stallTimeoutMs,
+        overallTimeoutMs,
+        signal: params.signal,
+        onProgress: params.onProgress,
+        onTask: params.onTask,
+        debugSimulateFreeze: params.debugSimulateFreeze,
+      });
+      console.info("scan_upload_success", {
+        ...telemetryBase,
+        attempt,
+        elapsedMs: Date.now() - startedAt,
+        downloadURL: result.downloadURL ? "present" : "missing",
+      });
+      return {
+        path: storagePath,
+        storagePath,
+        downloadURL: result.downloadURL,
+        size: fileSize,
+      };
+    } catch (err: any) {
+      lastError = err;
+      const retryability = classifyUploadRetryability({
+        code: err?.code,
+        bytesTransferred: err?.bytesTransferred,
+        wasOffline: err?.wasOffline,
+      });
+      console.error("scan_upload_failure", {
+        ...telemetryBase,
+        attempt,
+        code: err?.code,
+        message: err?.message,
+        retryable: retryability.retryable,
+        reason: retryability.reason,
+      });
+      if (!retryability.retryable || attempt >= maxAttempts) {
+        throw err;
+      }
+      await waitWithAbort(backoffMs, params.signal);
+      backoffMs = Math.min(8_000, backoffMs * 2);
+    }
+  }
+
+  throw lastError ?? new Error("Upload failed.");
+}
+
+async function runResumableUploadAttempt(params: {
   storage: FirebaseStorage;
   path: string;
   file: Blob;
@@ -69,23 +181,11 @@ export async function uploadPreparedPhoto(params: {
   includeDownloadURL?: boolean;
   onTask?: (task: UploadTask) => void;
   onProgress?: (progress: UploadPreparedPhotoProgress) => void;
-  /**
-   * Dev helper: simulate an upload that never emits progress/completes.
-   * The hard timeout + visibility rechecks must still exit.
-   */
   debugSimulateFreeze?: boolean;
-}): Promise<UploadPreparedPhotoResult> {
+}): Promise<{ storagePath: string; downloadURL?: string }> {
   const startedAt = Date.now();
   const deadlineAt = startedAt + Math.max(1, Number(params.overallTimeoutMs || 0));
   const stallTimeoutMs = Math.max(250, Number(params.stallTimeoutMs || 0));
-  const fileSize = typeof params.file?.size === "number" ? Number(params.file.size) : 0;
-
-  if (!Number.isFinite(fileSize) || fileSize <= 0) {
-    const err = new UploadZeroBytesError("Upload failed: zero-byte file.");
-    (err as any).bytesTransferred = 0;
-    throw err;
-  }
-
   const storageRef = ref(params.storage, params.path);
 
   // Debug: simulate a “frozen” upload (no Firebase task, no events).
@@ -106,13 +206,12 @@ export async function uploadPreparedPhoto(params: {
     throw new UploadTimeoutError("Simulated frozen upload timed out.");
   }
 
-  return await new Promise<UploadPreparedPhotoResult>((resolve, reject) => {
+  return await new Promise<{ storagePath: string; downloadURL?: string }>((resolve, reject) => {
     let settled = false;
     let lastBytes = 0;
     let lastBytesAt = Date.now();
     let lastState: UploadTaskState = "running";
     let wasOffline = typeof navigator !== "undefined" ? navigator.onLine === false : false;
-    let hiddenAt: number | null = null;
 
     const task = uploadBytesResumable(storageRef, params.file, {
       contentType: params.metadata.contentType,
@@ -121,10 +220,13 @@ export async function uploadPreparedPhoto(params: {
     });
     params.onTask?.(task);
 
-    const safeReject = (err: unknown) => {
+    const safeReject = (err: any) => {
       if (settled) return;
       settled = true;
       cleanup();
+      err.bytesTransferred = lastBytes;
+      err.totalBytes = (params.file as any)?.size ?? 0;
+      err.wasOffline = wasOffline;
       reject(err);
     };
     const safeResolve = async () => {
@@ -154,13 +256,9 @@ export async function uploadPreparedPhoto(params: {
     const evaluate = (source: "interval" | "visibility" | "online" | "offline") => {
       if (settled) return;
       const now = Date.now();
-      const noProgressTimeout = 3000;
+      const noProgressTimeout = 4_000;
       const elapsedSinceBytes = now - lastBytesAt;
-      if (
-        lastBytes <= 0 &&
-        Number.isFinite(elapsedSinceBytes) &&
-        elapsedSinceBytes >= noProgressTimeout
-      ) {
+      if (lastBytes <= 0 && Number.isFinite(elapsedSinceBytes) && elapsedSinceBytes >= noProgressTimeout) {
         cancelTask();
         const err: any = new Error("Upload started but no bytes were sent.");
         err.code = "upload_no_progress";
@@ -172,9 +270,7 @@ export async function uploadPreparedPhoto(params: {
       if (now >= deadlineAt) {
         cancelTask();
         safeReject(
-          new UploadTimeoutError(
-            `Upload timed out after ${Math.round((now - startedAt) / 1000)}s.`
-          )
+          new UploadTimeoutError(`Upload timed out after ${Math.round((now - startedAt) / 1000)}s.`)
         );
         return;
       }
@@ -227,7 +323,6 @@ export async function uploadPreparedPhoto(params: {
 
     const onVis = () => {
       if (document.visibilityState === "hidden") {
-        hiddenAt = Date.now();
         return;
       }
       if (document.visibilityState === "visible") {
@@ -238,8 +333,6 @@ export async function uploadPreparedPhoto(params: {
         } catch {
           // ignore
         }
-        // Keep the timestamp for optional diagnostics.
-        if (hiddenAt != null) hiddenAt = null;
       }
     };
     const onOnline = () => {
@@ -372,4 +465,25 @@ async function waitUntilDeadlineOrAbort(params: {
     // This can be throttled in iOS background, but the only purpose here is the dev freeze helper.
     await new Promise((r) => setTimeout(r, 250));
   }
+}
+
+async function waitWithAbort(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return;
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("Upload cancelled."));
+    };
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+  });
 }
