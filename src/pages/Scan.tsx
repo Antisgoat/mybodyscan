@@ -25,9 +25,8 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
-import { auth, db, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { auth, db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
@@ -242,22 +241,6 @@ export default function ScanPage() {
         return;
       }
       rows.push({ name: "Auth", ok: true, detail: `uid=${user.uid}` });
-
-      try {
-        const storage = getFirebaseStorage();
-        const bytes = new Uint8Array(1024);
-        bytes.fill(0x5a);
-        const blob = new Blob([bytes], { type: "text/plain" });
-        const path = `user_uploads/${user.uid}/debug/system-check-${Date.now()}.txt`;
-        await uploadBytes(ref(storage, path), blob, { contentType: "text/plain" });
-        rows.push({ name: "Storage write", ok: true, detail: path });
-      } catch (err: any) {
-        rows.push({
-          name: "Storage write",
-          ok: false,
-          detail: `${err?.code ?? "error"} · ${err?.message ?? String(err)}`,
-        });
-      }
 
       try {
         const refDoc = doc(db, "users", user.uid, "diagnostics", "systemCheck");

@@ -22,7 +22,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
+import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,
@@ -47,7 +47,6 @@ import {
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
-import { uploadPreparedPhoto } from "@/lib/uploads/uploadPreparedPhoto";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 type JsonValue = unknown;
@@ -808,35 +807,27 @@ const UATPage = () => {
           code: "missing_session",
         });
       }
-      const storagePath = scanSession.storagePaths?.front;
-      if (!storagePath) {
-        throw Object.assign(new Error("missing_storage_path"), {
-          code: "missing_storage_path",
-        });
-      }
-      const blob = new Blob([DEFAULT_SCAN_UPLOAD_BYTES], {
-        type: "image/jpeg",
+      const blob = new Blob([DEFAULT_SCAN_UPLOAD_BYTES], { type: "image/jpeg" });
+      const form = new FormData();
+      form.append("scanId", scanSession.scanId);
+      form.append("currentWeight", "70");
+      form.append("goalWeight", "68");
+      form.append("unit", "kg");
+      (["front", "back", "left", "right"] as const).forEach((pose) => {
+        form.append(pose, blob, `${pose}.jpg`);
       });
-      const storage = getFirebaseStorage();
-      await uploadPreparedPhoto({
-        storage,
-        path: storagePath,
-        file: blob,
-        metadata: {
-          contentType: "image/jpeg",
-          cacheControl: "public,max-age=31536000",
-        },
-        stallTimeoutMs: 10_000,
-        overallTimeoutMs: 30_000,
+      const result = await runApi("/api/scan/upload", {
+        method: "POST",
+        body: form,
       });
-      const ok = true;
+      const ok = result.ok && (result.data as any)?.scanId === scanSession.scanId;
       return {
         ok,
         status: ok ? "pass" : "fail",
         code: ok ? null : "upload_failed",
-        message: ok ? "Uploaded sample front pose" : "Upload failed",
-        data: { storagePath },
-        httpStatus: ok ? 200 : 500,
+        message: ok ? "Uploaded sample poses" : "Upload failed",
+        data: { scanId: scanSession.scanId, response: result.data },
+        httpStatus: ok ? result.status : result.status ?? 500,
       };
     });
   }, [scanSession, scanUploadProbe]);
