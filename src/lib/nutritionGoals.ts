@@ -20,6 +20,11 @@ export type NutritionGoals = {
   tdee: number | null;
 };
 
+const KG_TO_LB = 2.2046226218;
+const PROTEIN_MIN_G = 110;
+const PROTEIN_MAX_G = 260;
+const WEIGHT_KG_FALLBACK_BMR_MULTIPLIER = 22;
+
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.min(max, Math.max(min, n));
@@ -69,9 +74,10 @@ function inferGoalFromWeights(args: {
  * - Lets caller override known targets (e.g. coach plan's calorieTarget/proteinFloor).
  *
  * Notes:
- * - BMR uses Katch-McArdle when body fat % is provided; otherwise falls back to a
- *   conservative estimate from body weight only.
- * - Macros are computed with a protein-first approach, then fats, then carbs fill.
+ * - BMR uses Katch-McArdle when body fat % is provided; otherwise falls back to
+ *   Mifflin-St Jeor when sex/age/height exist, then to a conservative weight-only estimate.
+ * - Macros are computed with a protein-first approach (lean-mass aware 0.75–1.0 g/lb),
+ *   then fats, then carbs fill.
  */
 export function deriveNutritionGoals(input: {
   /** Current body weight. */
@@ -84,6 +90,12 @@ export function deriveNutritionGoals(input: {
   goalWeightKg?: number | null;
   /** Optional activity level for TDEE. */
   activityLevel?: ActivityLevel | null;
+  /** Optional biological sex for BMR. */
+  sex?: "male" | "female" | "unspecified" | "other" | null;
+  /** Optional age in years for BMR. */
+  age?: number | null;
+  /** Optional height in centimeters for BMR. */
+  heightCm?: number | null;
   /**
    * Overrides from persisted plan data (e.g. coach plan).
    * If calories/protein are provided, carbs/fats are derived to match.
@@ -100,16 +112,28 @@ export function deriveNutritionGoals(input: {
     input.goal ??
     inferGoalFromWeights({ currentWeightKg: weightOk, goalWeightKg: input.goalWeightKg });
 
+  const age =
+    typeof input.age === "number" && Number.isFinite(input.age) && input.age >= 13 && input.age <= 100
+      ? Math.round(input.age)
+      : null;
+  const heightCm =
+    typeof input.heightCm === "number" && Number.isFinite(input.heightCm) && input.heightCm > 0
+      ? Number(input.heightCm)
+      : null;
+  const sex = input.sex === "male" || input.sex === "female" ? input.sex : null;
+
   // Katch-McArdle if possible: BMR = 370 + 21.6 * LBM_kg
   const lbmKg =
     weightOk != null && bfOk != null ? Math.max(0, weightOk * (1 - bfOk)) : null;
   const bmr =
     lbmKg != null
       ? roundInt(370 + 21.6 * lbmKg)
-      : weightOk != null
-        ? // fallback: ~22 kcal/kg/day (rough average), used only if BF% unknown
-          roundInt(22 * weightOk)
-        : null;
+      : weightOk != null && heightCm != null && age != null && sex
+        ? roundInt(10 * weightOk + 6.25 * heightCm - 5 * age + (sex === "male" ? 5 : -161))
+        : weightOk != null
+          ? // fallback: ~22 kcal/kg/day (rough average), used only if BF%/height/age unknown
+            roundInt(WEIGHT_KG_FALLBACK_BMR_MULTIPLIER * weightOk)
+          : null;
 
   const tdee =
     bmr != null ? roundInt(bmr * activityFactor(input.activityLevel)) : null;
@@ -132,16 +156,33 @@ export function deriveNutritionGoals(input: {
         : 2200;
 
   // Protein target: 0.8–1.0 g/lb body weight depending on goal.
-  const weightLb = weightOk != null ? weightOk * 2.2046226218 : null;
+  const weightLb = weightOk != null ? weightOk * KG_TO_LB : null;
+  const goalWeightKg =
+    typeof input.goalWeightKg === "number" && Number.isFinite(input.goalWeightKg) && input.goalWeightKg > 0
+      ? input.goalWeightKg
+      : null;
+  const goalWeightLb = goalWeightKg != null ? goalWeightKg * KG_TO_LB : null;
+  const proteinBaseLb =
+    lbmKg != null
+      ? lbmKg * KG_TO_LB
+      : goalWeightLb != null && (goal === "lose_fat" || goal === "gain_muscle")
+        ? goalWeightLb
+        : weightLb ?? goalWeightLb;
   const proteinPerLb =
-    goal === "lose_fat" ? 1.0 : goal === "recomp" ? 0.95 : goal === "maintain" ? 0.9 : 0.85;
-  const proteinTarget =
-    typeof input.overrides?.proteinGrams === "number" &&
-    Number.isFinite(input.overrides.proteinGrams)
+    lbmKg != null
+      ? goal === "lose_fat" || goal === "recomp"
+        ? 1
+        : 0.9
+      : goal === "lose_fat" || goal === "recomp"
+        ? 0.95
+        : 0.85;
+  const proteinTargetRaw =
+    typeof input.overrides?.proteinGrams === "number" && Number.isFinite(input.overrides.proteinGrams)
       ? roundInt(input.overrides.proteinGrams)
-      : weightLb != null
-        ? roundInt(weightLb * proteinPerLb)
+      : proteinBaseLb != null
+        ? roundInt(proteinBaseLb * proteinPerLb)
         : 140;
+  const proteinTarget = clamp(proteinTargetRaw, PROTEIN_MIN_G, PROTEIN_MAX_G);
 
   // Fat target: 0.25–0.4 g/lb depending on goal, but clamp to reasonable energy share.
   const fatPerLb =
@@ -181,4 +222,3 @@ export function deriveNutritionGoals(input: {
     tdee,
   };
 }
-

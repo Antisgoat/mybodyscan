@@ -908,7 +908,11 @@ export default function ScanResultPage() {
     "You";
 
   const sex =
-    profile?.sex === "male" || profile?.sex === "female" ? profile.sex : null;
+    profile?.sex === "male" || profile?.sex === "female"
+      ? profile.sex
+      : profile?.sex === "unspecified" || profile?.sex === "other"
+        ? profile.sex
+        : null;
   const age =
     typeof profile?.age === "number" && Number.isFinite(profile.age)
       ? profile.age
@@ -965,6 +969,9 @@ export default function ScanResultPage() {
           ? "gain_muscle"
           : null,
     activityLevel: profile?.activity_level ?? null,
+    sex,
+    age,
+    heightCm,
     overrides: {
       calories:
         typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)

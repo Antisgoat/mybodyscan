@@ -48,6 +48,7 @@ import {
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import type { CoachSex } from "@/hooks/useUserProfile";
 import { auth, db } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { setDoc } from "@/lib/dbWrite";
@@ -84,6 +85,8 @@ const Settings = () => {
   const { profile } = useUserProfile();
   const [heightInputCm, setHeightInputCm] = useState<number | undefined>();
   const [weightInput, setWeightInput] = useState("");
+  const [sexInput, setSexInput] = useState<CoachSex>("unspecified");
+  const [ageInput, setAgeInput] = useState("");
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -154,6 +157,24 @@ const Settings = () => {
   }, [profile?.heightCm, profile?.height_cm]);
 
   useEffect(() => {
+    if (
+      profile?.sex === "male" ||
+      profile?.sex === "female" ||
+      profile?.sex === "other" ||
+      profile?.sex === "unspecified"
+    ) {
+      setSexInput(profile.sex);
+    } else {
+      setSexInput("unspecified");
+    }
+    if (typeof profile?.age === "number" && Number.isFinite(profile.age)) {
+      setAgeInput(String(Math.round(profile.age)));
+    } else {
+      setAgeInput("");
+    }
+  }, [profile?.age, profile?.sex]);
+
+  useEffect(() => {
     let active = true;
     if (!user) {
       setAppCheckStatus("checking");
@@ -204,6 +225,17 @@ const Settings = () => {
       typeof heightInputCm === "number" && Number.isFinite(heightInputCm) && heightInputCm > 0
         ? Math.round(heightInputCm)
         : undefined;
+    const trimmedAge = ageInput.trim();
+    const parsedAge =
+      trimmedAge.length > 0 ? Number(trimmedAge) : undefined;
+    if (parsedAge != null && (!Number.isFinite(parsedAge) || parsedAge < 13 || parsedAge > 100)) {
+      toast({
+        title: "Enter a valid age",
+        description: "Age must be between 13 and 100.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSavingMetrics(true);
     try {
       const weightKg = Number(
@@ -220,6 +252,14 @@ const Settings = () => {
       if (normalizedHeightCm) {
         payload.height_cm = normalizedHeightCm;
         payload.heightCm = normalizedHeightCm;
+      }
+      const normalizedSex: CoachSex =
+        sexInput === "male" || sexInput === "female" || sexInput === "other"
+          ? sexInput
+          : "unspecified";
+      payload.sex = normalizedSex;
+      if (parsedAge != null) {
+        payload.age = Math.round(parsedAge);
       }
       await setDoc(profileRef, payload, { merge: true });
       toast({ title: "Metrics updated" });
@@ -536,6 +576,39 @@ const Settings = () => {
             <CardTitle>Body metrics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="sex">Sex</Label>
+              <Select value={sexInput} onValueChange={(value) => setSexInput(value as CoachSex)}>
+                <SelectTrigger id="sex">
+                  <SelectValue placeholder="Select sex" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unspecified">Unspecified</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Used for BMR/TDEE and fat percent ranges. Defaults to unspecified.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="age">Age</Label>
+              <Input
+                id="age"
+                type="number"
+                inputMode="numeric"
+                min={13}
+                max={100}
+                placeholder="Enter age in years"
+                value={ageInput}
+                onChange={(event) => setAgeInput(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional. Must be between 13 and 100.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="height">
                 Height ({units === "metric" ? "cm" : "ft/in"})
