@@ -618,6 +618,9 @@ export default function Meals() {
     }
     return deriveNutritionGoals({
       weightKg: profile?.weight_kg ?? null,
+      heightCm: profile?.height_cm ?? null,
+      age: profile?.age ?? null,
+      sex: profile?.sex ?? null,
       goalWeightKg: undefined,
       goal: profile?.goal === "lose_fat" ? "lose_fat" : profile?.goal === "gain_muscle" ? "gain_muscle" : null,
       activityLevel: profile?.activity_level ?? null,

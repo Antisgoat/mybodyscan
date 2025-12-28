@@ -7,8 +7,10 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
 import type { ProgramPreferences } from "@/lib/programs/preferences";
 
+export type CoachSex = "male" | "female" | "unspecified" | "other";
+
 export interface CoachProfile {
-  sex?: "male" | "female";
+  sex?: CoachSex;
   age?: number;
   dob?: string;
   height_cm?: number;
