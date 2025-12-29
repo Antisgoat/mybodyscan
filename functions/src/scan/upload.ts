@@ -139,6 +139,11 @@ function toKg(value: number, unit: string): number {
   return value;
 }
 
+function kgToLb(kg: number): number {
+  if (!Number.isFinite(kg)) return NaN;
+  return kg / 0.45359237;
+}
+
 async function savePhoto(params: {
   uid: string;
   scanId: string;
@@ -250,31 +255,62 @@ export const scanUpload = onRequest(
       if (!correlationId && typeof fields.correlationId === "string") {
         correlationId = fields.correlationId;
       }
+      const unitRaw = (fields.unit || fields.units || "kg").toString().toLowerCase();
+      const unit = unitRaw === "lb" || unitRaw === "lbs" ? "lb" : "kg";
+
+      // Canonical kg fields (preferred when present).
+      const currentWeightKgField = toNumber(fields.currentWeightKg);
+      const goalWeightKgField = toNumber(fields.goalWeightKg);
+
+      // Human-entered/raw fields (interpreted using `unit`).
+      // IMPORTANT: do NOT treat `currentWeightKg` as a raw weight, or we can mis-label kg as lb.
       const currentWeightRaw =
-        toNumber(fields.currentWeight ?? fields.currentWeightKg ?? fields.weight) ??
-        toNumber(fields.currentWeightLb);
+        toNumber(fields.currentWeight) ??
+        (unit === "lb" ? toNumber(fields.currentWeightLb) : null) ??
+        (unit === "kg" ? toNumber(fields.weight) : null);
       const goalWeightRaw =
-        toNumber(fields.goalWeight ?? fields.goalWeightKg ?? fields.targetWeight) ??
-        toNumber(fields.goalWeightLb);
+        toNumber(fields.goalWeight) ??
+        (unit === "lb" ? toNumber(fields.goalWeightLb) : null) ??
+        (unit === "kg" ? toNumber(fields.targetWeight) : null);
+
       const heightRaw =
         toNumber((fields as any).height ?? (fields as any).heightCm ?? (fields as any).height_cm) ??
         null;
-      const unitRaw = (fields.unit || fields.units || "kg").toString().toLowerCase();
-      const unit = unitRaw === "lb" || unitRaw === "lbs" ? "lb" : "kg";
-      if (!Number.isFinite(currentWeightRaw ?? NaN) || !Number.isFinite(goalWeightRaw ?? NaN)) {
+
+      const currentWeightKg =
+        currentWeightKgField != null
+          ? currentWeightKgField
+          : currentWeightRaw != null
+            ? toKg(currentWeightRaw, unit)
+            : NaN;
+      const goalWeightKg =
+        goalWeightKgField != null
+          ? goalWeightKgField
+          : goalWeightRaw != null
+            ? toKg(goalWeightRaw, unit)
+            : NaN;
+
+      if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
         throw new HttpsError("invalid-argument", "Missing or invalid weights.", {
           debugId: requestId,
           reason: "invalid_weights",
         });
       }
-      const currentWeightKg = toKg(currentWeightRaw as number, unit);
-      const goalWeightKg = toKg(goalWeightRaw as number, unit);
-      if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
-        throw new HttpsError("invalid-argument", "Weights must be numeric.", {
-          debugId: requestId,
-          reason: "invalid_weights",
-        });
-      }
+
+      // Ensure `weights.current/goal` always match `weights.unit` for display.
+      const storedCurrentRaw =
+        currentWeightRaw != null
+          ? currentWeightRaw
+          : unit === "lb"
+            ? kgToLb(currentWeightKg)
+            : currentWeightKg;
+      const storedGoalRaw =
+        goalWeightRaw != null
+          ? goalWeightRaw
+          : unit === "lb"
+            ? kgToLb(goalWeightKg)
+            : goalWeightKg;
+
       const heightCm =
         Number.isFinite(heightRaw ?? NaN) && (heightRaw as number) > 0
           ? Math.round(heightRaw as number)
@@ -361,8 +397,8 @@ export const scanUpload = onRequest(
             right: true,
           },
           weights: {
-            current: currentWeightRaw,
-            goal: goalWeightRaw,
+            current: storedCurrentRaw,
+            goal: storedGoalRaw,
             unit,
           },
           input: {
