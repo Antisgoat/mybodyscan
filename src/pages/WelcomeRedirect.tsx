@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthUser } from "@/lib/auth";
 
 const WelcomeRedirect = () => {
   const [countdown, setCountdown] = useState(1.5);
   const { user, authReady } = useAuthUser();
+  const demoRequested = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return new URLSearchParams(window.location.search).get("demo") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -21,6 +29,10 @@ const WelcomeRedirect = () => {
   }
 
   if (!user) {
+    // Demo mode must be accessible without auth.
+    if (demoRequested) {
+      return <Navigate to="/demo" replace />;
+    }
     return <Navigate to="/auth" replace />;
   }
 

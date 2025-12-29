@@ -146,6 +146,34 @@ const Results = () => {
     );
   }
 
+  // Signed-in users can legitimately have zero scans; never crash on a missing scan doc.
+  if (!activeScan) {
+    return (
+      <main className="min-h-screen p-6 max-w-md mx-auto">
+        <Seo
+          title="Results – MyBodyScan"
+          description="Review your body scan results and add notes."
+          canonical={window.location.href}
+        />
+        <DemoBanner />
+        <h1 className="text-2xl font-semibold mb-6">Results</h1>
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            <p className="text-muted-foreground">
+              No scans yet — start your first scan to see results here.
+            </p>
+            <Button
+              onClick={() => navigate(readOnlyDemo ? "/auth" : "/scan/new")}
+              className="w-full"
+            >
+              {readOnlyDemo ? "Sign in to start" : "Start a Scan"}
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   // Loading state
   if (loading && !demo) {
     return (

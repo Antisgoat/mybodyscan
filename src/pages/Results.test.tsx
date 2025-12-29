@@ -35,6 +35,25 @@ afterEach(() => {
 });
 
 describe("Results page weight units", () => {
+  it("renders an empty state for signed-in users with no scans (no crash)", () => {
+    mockUnits = "us";
+    mockLatest = {
+      scan: null,
+      loading: false,
+      error: null,
+      user: { uid: "user_1" },
+    };
+
+    render(
+      <MemoryRouter>
+        <Results />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/No scans yet/i)).toBeTruthy();
+    expect(screen.getByText(/Start a Scan/i)).toBeTruthy();
+  });
+
   it("renders stored 85.3 kg as ~188 lb when preferred unit is lb/us", () => {
     mockUnits = "us";
     mockLatest = {

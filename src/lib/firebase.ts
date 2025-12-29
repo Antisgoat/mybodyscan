@@ -3,8 +3,10 @@ import type { FirebaseApp, FirebaseOptions } from "firebase/app";
 import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
+  browserSessionPersistence,
   getAuth,
   GoogleAuthProvider,
+  indexedDBLocalPersistence,
   OAuthProvider,
   setPersistence,
   signInWithEmailAndPassword,
@@ -118,11 +120,40 @@ const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
         | undefined)
     : undefined;
 
+function resolveRuntimeAuthDomain(): string | undefined {
+  // iOS Safari + custom domain reliability:
+  // Prefer a same-origin authDomain (custom domain / *.web.app) when deployed,
+  // but never override localhost/dev unless explicitly configured via env.
+  if (typeof window === "undefined") return undefined;
+  const host = window.location.hostname?.trim();
+  if (!host) return undefined;
+  const lower = host.toLowerCase();
+  if (lower === "localhost" || lower === "127.0.0.1") return undefined;
+  if (lower.endsWith(".local")) return undefined;
+  // Avoid accidentally using raw IPs in production.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return undefined;
+  return host;
+}
+
+const runtimeAuthDomain = resolveRuntimeAuthDomain();
+
+const explicitAuthDomain = pickConfigValue(
+  envConfig.authDomain,
+  injectedConfig?.authDomain
+);
+
 const firebaseConfig: FirebaseRuntimeConfig = {
   ...(FALLBACK_FIREBASE_CONFIG as FirebaseRuntimeConfig),
   ...envConfig,
   ...(injectedConfig ?? {}),
 };
+
+// If no explicit authDomain was configured, prefer same-origin at runtime.
+// This is critical for iOS Safari where cross-site authDomain can lead to
+// redirect result loss and endless "back to login" loops.
+if (!explicitAuthDomain && runtimeAuthDomain) {
+  firebaseConfig.authDomain = runtimeAuthDomain;
+}
 
 const normalizedStorageBucket = normalizeStorageBucket(firebaseConfig.storageBucket);
 if (normalizedStorageBucket) {
@@ -215,10 +246,25 @@ function initializeFirebaseApp(): FirebaseApp {
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
 export const auth: Auth = getAuth(app);
-const persistenceReady: Promise<void> = setPersistence(
-  auth,
-  browserLocalPersistence
-).catch(() => undefined);
+const persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence)
+  .catch(async (err) => {
+    // Some environments (Safari private mode / constrained WebViews) can reject localStorage.
+    // Try IndexedDB-backed persistence next.
+    if (import.meta.env.DEV) {
+      console.warn("[firebase] browserLocalPersistence failed; retrying", err);
+    }
+    try {
+      await setPersistence(auth, indexedDBLocalPersistence);
+      return;
+    } catch (err2) {
+      if (import.meta.env.DEV) {
+        console.warn("[firebase] indexedDBLocalPersistence failed; retrying", err2);
+      }
+      // Last resort: session persistence (still supports redirect flows within a session).
+      await setPersistence(auth, browserSessionPersistence).catch(() => undefined);
+    }
+  })
+  .catch(() => undefined);
 
 export const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";

@@ -88,7 +88,7 @@ const Auth = () => {
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
   const authClient = useMemo(() => getFirebaseAuth(), []);
   const onBrowseDemo = useCallback(() => {
-    navigate("/welcome?demo=1", { replace: false });
+    navigate("/demo", { replace: false });
   }, [navigate]);
   const canonical =
     typeof window !== "undefined" ? window.location.href : undefined;
