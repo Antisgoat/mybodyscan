@@ -6,14 +6,14 @@ import {
   loadMore,
   type ScanItem,
 } from "@/features/history/useScansPage";
-import { normalizeScanMetrics } from "@/lib/scans";
+import { extractScanMetrics } from "@/lib/scans";
 import { getFrontThumbUrl } from "@/lib/scanMedia";
 import { deleteScanApi } from "@/lib/api/scan";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
-import { lbToKg } from "@/lib/units";
+import { summarizeScanMetrics } from "@/lib/scanDisplay";
 
 export default function HistoryPage() {
   const nav = useNavigate();
@@ -140,22 +140,13 @@ export default function HistoryPage() {
       )}
       <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((it) => {
-          const m = normalizeScanMetrics(it as any);
+          const metrics = extractScanMetrics(it as any);
+          const summary = summarizeScanMetrics(metrics, units);
           const sel = selected.includes(it.id);
           const statusMeta = scanStatusLabel(
             it.status as string | undefined,
             (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt
           );
-          const weightValue =
-            m.weightLb != null
-              ? units === "metric"
-                ? lbToKg(m.weightLb)
-                : m.weightLb
-              : null;
-          const weightText =
-            weightValue != null
-              ? `${weightValue.toFixed(1)} ${units === "metric" ? "kg" : "lb"}`
-              : "—";
           return (
             <li
               key={it.id}
@@ -200,8 +191,8 @@ export default function HistoryPage() {
                   </div>
                   {statusMeta.showMetrics ? (
                     <div className="text-sm font-medium">
-                      {m.bodyFatPct != null ? `${m.bodyFatPct}% BF` : "—"} ·{" "}
-                      {weightText}
+                      {summary.bodyFatText !== "—" ? `${summary.bodyFatText} BF` : "—"} ·{" "}
+                      {summary.weightText}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">

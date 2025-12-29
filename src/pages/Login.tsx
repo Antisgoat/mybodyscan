@@ -85,7 +85,7 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithGoogle(defaultTarget))}
+          onClick={() => wrap(() => signInWithGoogle(defaultTarget), { autoFinish: false })}
         >
           Continue with Google
         </button>

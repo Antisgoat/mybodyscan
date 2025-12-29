@@ -37,6 +37,13 @@ import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
+import {
+  clearPendingOAuth,
+  describeOAuthError,
+  peekPendingOAuth,
+  type OAuthProviderId,
+} from "@/lib/auth/oauth";
+import { reportError } from "@/lib/telemetry";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -65,6 +72,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [lastOAuthProvider, setLastOAuthProvider] =
+    useState<OAuthProviderId | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
@@ -93,6 +102,34 @@ const Auth = () => {
   }, [user, location.pathname, defaultTarget]);
 
   useEffect(() => {
+    if (user) {
+      clearPendingOAuth();
+      return;
+    }
+    const pending = peekPendingOAuth();
+    if (!pending) return;
+    setLastOAuthProvider(pending.providerId);
+    const elapsed = Date.now() - pending.startedAt;
+    const remaining = Math.max(0, 15_000 - elapsed);
+    if (remaining === 0) {
+      clearPendingOAuth();
+      const message = "Sign-in timed out. Please try again.";
+      setAuthError(message);
+      toast(message, "error");
+      return;
+    }
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      clearPendingOAuth();
+      setLoading(false);
+      const message = "Sign-in timed out. Please try again.";
+      setAuthError(message);
+      toast(message, "error");
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [user]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       const redirectError = await consumeAuthRedirectError();
@@ -115,6 +152,21 @@ const Auth = () => {
 
   useEffect(() => {
     warnIfDomainUnauthorized();
+  }, []);
+
+  useEffect(() => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "(unknown)";
+    const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
+    void reportError({
+      kind: "auth_origin_check",
+      message: "auth_origin_check",
+      extra: {
+        origin,
+        authDomain: (authOptions.authDomain as string) || null,
+        projectId: (authOptions.projectId as string) || null,
+      },
+    });
   }, []);
 
   useEffect(() => {
@@ -212,15 +264,24 @@ const Auth = () => {
   const handleGoogleSignIn = useCallback(async () => {
     setAuthError(null);
     setLoading(true);
+    setLastOAuthProvider("google.com");
     try {
       await startGoogleSignIn(defaultTarget);
     } catch (error: unknown) {
-      const normalized = normalizeFirebaseError(error);
-      const fallback = normalized.message ?? "Google sign-in failed.";
-      const message = formatError(fallback, normalized.code);
+      const mapped = describeOAuthError(error);
+      const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Google sign-in failed", {
-        code: normalized.code,
-        message: normalized.message,
+        code: mapped.code,
+        message: mapped.message,
+      });
+      void reportError({
+        kind: "auth_oauth_failed",
+        message: mapped.message || "Google sign-in failed",
+        code: mapped.code,
+        extra: {
+          provider: "google.com",
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
       });
       setAuthError(message);
       toast(message, "error");
@@ -232,15 +293,24 @@ const Auth = () => {
   const handleAppleSignIn = useCallback(async () => {
     setAuthError(null);
     setLoading(true);
+    setLastOAuthProvider("apple.com");
     try {
       await startAppleSignIn(defaultTarget);
     } catch (error: unknown) {
-      const normalized = normalizeFirebaseError(error);
-      const fallback = normalized.message ?? "Apple sign-in failed.";
-      const message = formatError(fallback, normalized.code);
+      const mapped = describeOAuthError(error);
+      const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Apple sign-in failed", {
-        code: normalized.code,
-        message: normalized.message,
+        code: mapped.code,
+        message: mapped.message,
+      });
+      void reportError({
+        kind: "auth_oauth_failed",
+        message: mapped.message || "Apple sign-in failed",
+        code: mapped.code,
+        extra: {
+          provider: "apple.com",
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
       });
       setAuthError(message);
       toast(message, "error");
@@ -476,6 +546,30 @@ const Auth = () => {
               </button>
             )}
           </div>
+          {authError && lastOAuthProvider ? (
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={() => {
+                  if (lastOAuthProvider === "google.com") {
+                    void handleGoogleSignIn();
+                    return;
+                  }
+                  if (lastOAuthProvider === "apple.com") {
+                    void handleAppleSignIn();
+                  }
+                }}
+              >
+                Try again
+              </Button>
+              <p className="mt-2 text-xs text-muted-foreground text-center">
+                If this keeps failing, check your connection or use a different sign-in method.
+              </p>
+            </div>
+          ) : null}
           <div className="mt-6">
             {demoEnabled && !user && (
               <div className="mt-4">
