@@ -52,22 +52,54 @@ export function round1(n: number): number {
  * Single source of truth for formatting stored kg into a preferred display unit.
  * Canonical storage is kilograms.
  */
+export function formatWeight(
+  weightKg: number | null | undefined,
+  unit: WeightUnit,
+  digits?: number
+): { value: number | null; label: WeightUnit; unitLabel: WeightUnit };
 export function formatWeight(args: {
   kg: number | null | undefined;
   preferredUnit: WeightUnit;
   digits?: number;
-}): { value: number | null; unitLabel: WeightUnit } {
-  const kg = args.kg;
-  const digits = typeof args.digits === "number" ? args.digits : 1;
+}): { value: number | null; label: WeightUnit; unitLabel: WeightUnit };
+export function formatWeight(
+  a:
+    | number
+    | null
+    | undefined
+    | { kg: number | null | undefined; preferredUnit: WeightUnit; digits?: number },
+  b?: WeightUnit,
+  c?: number
+): { value: number | null; label: WeightUnit; unitLabel: WeightUnit } {
+  const normalized =
+    typeof a === "object" && a !== null
+      ? {
+          kg: a.kg,
+          preferredUnit: a.preferredUnit,
+          digits: a.digits,
+        }
+      : {
+          kg: a as number | null | undefined,
+          preferredUnit: (b as WeightUnit) ?? "lb",
+          digits: c,
+        };
+  const kg = normalized.kg;
+  const digits = typeof normalized.digits === "number" ? normalized.digits : 1;
   if (kg == null || !Number.isFinite(kg)) {
-    return { value: null, unitLabel: args.preferredUnit };
+    return {
+      value: null,
+      unitLabel: normalized.preferredUnit,
+      label: normalized.preferredUnit,
+    };
   }
-  const raw = args.preferredUnit === "kg" ? kg : kgToLb(kg);
+  const raw = normalized.preferredUnit === "kg" ? kg : kgToLb(kg);
   const factor = Math.pow(10, digits);
   const rounded = Number.isFinite(raw) ? Math.round(raw * factor) / factor : NaN;
+  const value = Number.isFinite(rounded) ? rounded : null;
   return {
-    value: Number.isFinite(rounded) ? rounded : null,
-    unitLabel: args.preferredUnit,
+    value,
+    unitLabel: normalized.preferredUnit,
+    label: normalized.preferredUnit,
   };
 }
 

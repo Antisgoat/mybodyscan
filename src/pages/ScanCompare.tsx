@@ -7,8 +7,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { onSnapshot } from "firebase/firestore";
-import { scanDocRef, type ScanDoc, normalizeScanMetrics } from "@/lib/scans";
-import { lbToKg } from "@/lib/units";
+import { scanDocRef, type ScanDoc, extractScanMetrics } from "@/lib/scans";
+import { formatWeight } from "@/lib/units";
 import { useUnits } from "@/hooks/useUnits";
 
 export default function ScanComparePage() {
@@ -31,16 +31,12 @@ export default function ScanComparePage() {
     );
   }, [rightId]);
 
-  const L = useMemo(() => normalizeScanMetrics(left || undefined), [left]);
-  const R = useMemo(() => normalizeScanMetrics(right || undefined), [right]);
-  const weightUnitLabel = units === "metric" ? "kg" : "lb";
-  const convertWeight = (value: number | null) => {
-    if (value == null) return null;
-    const numeric = units === "metric" ? lbToKg(value) : value;
-    return Number.isFinite(numeric) ? Number(numeric.toFixed(1)) : null;
-  };
-  const leftWeight = convertWeight(L.weightLb);
-  const rightWeight = convertWeight(R.weightLb);
+  const L = useMemo(() => extractScanMetrics(left || undefined), [left]);
+  const R = useMemo(() => extractScanMetrics(right || undefined), [right]);
+  const preferredUnit = units === "metric" ? "kg" : "lb";
+  const weightUnitLabel = preferredUnit;
+  const leftWeight = formatWeight(L.weightKg, preferredUnit, 1).value;
+  const rightWeight = formatWeight(R.weightKg, preferredUnit, 1).value;
 
   function delta(a: number | null, b: number | null) {
     if (a == null || b == null) return { abs: null, pct: null };
@@ -48,7 +44,7 @@ export default function ScanComparePage() {
     const pct = a !== 0 ? Math.round(((b - a) / a) * 1000) / 10 : null;
     return { abs, pct };
   }
-  const dBF = delta(L.bodyFatPct, R.bodyFatPct);
+  const dBF = delta(L.bodyFatPercent, R.bodyFatPercent);
   const dW = delta(leftWeight, rightWeight);
   const dBMI = delta(L.bmi, R.bmi);
 
@@ -61,7 +57,7 @@ export default function ScanComparePage() {
 
   function share() {
     const url = window.location.href;
-    const text = `MyBodyScan compare — BF ${L.bodyFatPct ?? "—"}% → ${R.bodyFatPct ?? "—"}%`;
+    const text = `MyBodyScan compare — BF ${L.bodyFatPercent ?? "—"}% → ${R.bodyFatPercent ?? "—"}%`;
     if ((navigator as any).share) {
       void (navigator as any).share({ title: "MyBodyScan", text, url });
       return;
@@ -91,7 +87,7 @@ export default function ScanComparePage() {
         <CompareCol
           title="Left"
           id={leftId}
-          BF={L.bodyFatPct}
+          BF={L.bodyFatPercent}
           W={leftWeight}
           BMI={L.bmi}
           unitLabel={weightUnitLabel}
@@ -99,7 +95,7 @@ export default function ScanComparePage() {
         <CompareCol
           title="Right"
           id={rightId}
-          BF={R.bodyFatPct}
+          BF={R.bodyFatPercent}
           W={rightWeight}
           BMI={R.bmi}
           unitLabel={weightUnitLabel}

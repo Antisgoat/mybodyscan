@@ -73,6 +73,12 @@ export function useUnits(): UnitsState {
           { preferences: { units: next } },
           { merge: true }
         );
+        // Keep weight display preference stable across legacy/new UIs.
+        await setDoc(
+          doc(db, "users", user.uid, "coach", "profile"),
+          { unit: next === "metric" ? "kg" : "lb" },
+          { merge: true }
+        );
         setError(null);
       } catch (err: any) {
         setError(err?.message || "Unable to save units");

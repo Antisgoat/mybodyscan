@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { handleAuthRedirectResult, consumeNext } from "@/lib/auth/providers";
+import { handleAuthRedirectResult } from "@/lib/auth/providers";
+import { consumeAuthRedirect } from "@/lib/auth";
 
 export default function AuthCallbackPage() {
   const nav = useNavigate();
@@ -11,7 +12,7 @@ export default function AuthCallbackPage() {
     (async () => {
       await handleAuthRedirectResult();
       if (!alive) return;
-      const next = consumeNext();
+      const next = consumeAuthRedirect() ?? "/home";
       setMsg("Signed in. Redirecting…");
       setTimeout(() => nav(next), 10);
     })();

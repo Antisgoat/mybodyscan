@@ -248,7 +248,12 @@ const Settings = () => {
         "coach",
         "profile"
       );
-      const payload: Record<string, unknown> = { weight_kg: weightKg };
+      const unit = units === "metric" ? "kg" : "lb";
+      const payload: Record<string, unknown> = {
+        weightKg,
+        weight_kg: weightKg,
+        unit,
+      };
       if (normalizedHeightCm) {
         payload.height_cm = normalizedHeightCm;
         payload.heightCm = normalizedHeightCm;

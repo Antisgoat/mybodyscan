@@ -10,7 +10,7 @@ import {
   logFirebaseConfigSummary,
   logFirebaseRuntimeInfo,
 } from "./lib/firebase";
-import { handleAuthRedirectOnce } from "./lib/authRedirect";
+import { finalizeRedirectResult } from "@/lib/auth/oauth";
 import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
@@ -49,7 +49,7 @@ if (typeof window !== "undefined") {
 
 void (async () => {
   await firebaseReady();
-  await handleAuthRedirectOnce().catch(() => undefined);
+  await finalizeRedirectResult().catch(() => undefined);
   logFirebaseConfigSummary();
   logFirebaseRuntimeInfo();
 

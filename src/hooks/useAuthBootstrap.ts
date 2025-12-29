@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { bootstrapSystem } from "@/lib/system";
 import { useAuthUser } from "@/lib/auth";
+import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
 
 export function useAuthBootstrap() {
   const { user } = useAuthUser();
@@ -24,6 +25,14 @@ export function useAuthBootstrap() {
 
     void (async () => {
       try {
+        // Do not block navigation on profile writes; best-effort only.
+        void upsertUserRootProfile(user).catch(() => {
+          toast({
+            title: "Signed in, but profile sync failed",
+            description:
+              "You’re still signed in. If this persists, check your connection or try again.",
+          });
+        });
         await bootstrapSystem();
         await user.getIdToken(true);
         failureCountRef.current = 0;
