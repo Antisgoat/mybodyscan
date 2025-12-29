@@ -5,60 +5,13 @@ import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { useAuthUser } from "@/lib/auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
-import type { ProgramPreferences } from "@/lib/programs/preferences";
 import { setDoc } from "@/lib/dbWrite";
 import { normalizeWeightFields } from "@/lib/profile/normalizeWeight";
-import type { WeightUnit } from "@/lib/units";
+import { parseCoachPlanDocData } from "@/lib/coach/parseCoachPlan";
+import type { CoachPlan, CoachProfile, CoachSex } from "@/lib/coach/types";
+import type { ProgramPreferences } from "@/lib/programs/preferences";
 
-export type CoachSex = "male" | "female" | "unspecified" | "other";
-
-export interface CoachProfile {
-  sex?: CoachSex;
-  age?: number;
-  dob?: string;
-  height_cm?: number;
-  heightCm?: number;
-  weight_kg?: number;
-  /** Canonical storage (kg). Kept alongside `weight_kg` for backwards compatibility. */
-  weightKg?: number;
-  /** Preferred display unit for weight. */
-  unit?: WeightUnit;
-  activity_level?: "sedentary" | "light" | "moderate" | "very" | "extra";
-  goal?: "lose_fat" | "gain_muscle" | "improve_heart";
-  timeframe_weeks?: number;
-  style?: "ease_in" | "all_in";
-  medical_flags?: Record<string, boolean>;
-  currentProgramId?: string;
-  activeProgramId?: string;
-  lastCompletedWeekIdx?: number;
-  lastCompletedDayIdx?: number;
-  currentWeekIdx?: number;
-  currentDayIdx?: number;
-  startedAt?: string;
-  programPreferences?: ProgramPreferences;
-}
-
-export interface CoachPlanBlock {
-  title: string;
-  focus: string;
-  work: string[];
-}
-
-export interface CoachPlanSession {
-  day: string;
-  blocks: CoachPlanBlock[];
-}
-
-export interface CoachPlan {
-  days: number;
-  split: string;
-  sessions: CoachPlanSession[];
-  progression: { deloadEvery: number };
-  calorieTarget: number;
-  proteinFloor: number;
-  disclaimer?: string;
-  updatedAt?: Date;
-}
+export type { CoachPlan, CoachProfile, CoachSex };
 
 export function useUserProfile() {
   const [profile, setProfile] = useState<CoachProfile | null>(null);
@@ -124,18 +77,13 @@ export function useUserProfile() {
     const unsub2 = onSnapshot(
       planRef,
       (snap) => {
-        if (!snap.exists) {
+        // Firestore SDK: exists() is a function; missing-doc must be handled.
+        if (!snap.exists()) {
           setPlan(null);
           return;
         }
-        const data = snap.data() as CoachPlan & {
-          updatedAt?: { toDate?: () => Date };
-        };
-        const updatedAt = data.updatedAt?.toDate?.() ?? data.updatedAt;
-        setPlan({
-          ...data,
-          updatedAt: updatedAt instanceof Date ? updatedAt : undefined,
-        });
+        const raw = snap.data();
+        setPlan(parseCoachPlanDocData(raw));
       },
       () => {
         setPlan(null);

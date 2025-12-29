@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, X } from "lucide-react";
 
 export function CrashBanner() {
+  // Non-negotiable: never show this banner in production.
+  // Keep it available only for local/dev debugging.
+  if (!import.meta.env.DEV) {
+    return null;
+  }
   const [error, setError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 

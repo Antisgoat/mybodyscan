@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
+import { reportError } from "./telemetry";
 
 const BENIGN_ERRORS = new Set([
   "auth/no-auth-event",
@@ -32,15 +33,32 @@ let cachedOutcome: AuthRedirectOutcome | null = null;
 let resultConsumed = false;
 let errorConsumed = false;
 
+function authEvent(kind: string, extra?: Record<string, unknown>) {
+  const stamp = Date.now();
+  void reportError({
+    kind,
+    message: `${kind}:${stamp}`,
+    extra: { at: stamp, ...(extra ?? {}) },
+  });
+}
+
 async function resolveRedirect(): Promise<AuthRedirectOutcome> {
   let auth: Auth | null = null;
   try {
     await firebaseReady();
     auth = getFirebaseAuth();
+    authEvent("auth_redirect_result", { phase: "start" });
     const result = await getRedirectResult(auth);
     if (result) {
       await maybeApplyAppleProfile(result);
     }
+    const info = result ? getAdditionalUserInfo(result) : null;
+    authEvent("auth_redirect_result", {
+      phase: "done",
+      hasResult: Boolean(result),
+      providerId: info?.providerId ?? null,
+      isNewUser: info?.isNewUser ?? null,
+    });
     const outcome: AuthRedirectOutcome = {
       result: result ?? null,
       error: null,
@@ -51,6 +69,10 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
   } catch (error) {
     const fbError = (error as FirebaseError) ?? null;
     if (fbError?.code && BENIGN_ERRORS.has(fbError.code)) {
+      authEvent("auth_redirect_result", {
+        phase: "benign",
+        code: fbError.code,
+      });
       const outcome: AuthRedirectOutcome = {
         result: null,
         error: null,
@@ -59,6 +81,12 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
       cachedOutcome = outcome;
       return outcome;
     }
+    authEvent("auth_error", {
+      phase: "redirect_result",
+      code: fbError?.code ?? null,
+      message:
+        typeof (fbError as any)?.message === "string" ? (fbError as any).message : null,
+    });
     if (import.meta.env.DEV) {
       console.warn("[auth] Redirect result failed", fbError?.code || error);
     }

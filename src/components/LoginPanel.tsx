@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import { getFirebaseAuth } from "../lib/firebase";
 import {
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithPopup,
   signInWithEmailAndPassword,
 } from "firebase/auth";
+import { getFirebaseAuth } from "../lib/firebase";
+import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -43,9 +41,7 @@ export default function LoginPanel() {
           disabled={!!loading}
           onClick={() =>
             withLoad("google", async () => {
-              const auth = await getFirebaseAuth();
-              const provider = new GoogleAuthProvider();
-              await signInWithPopup(auth, provider);
+              await signInWithGoogle("/home");
             })
           }
         >
@@ -59,9 +55,7 @@ export default function LoginPanel() {
           disabled={!!loading}
           onClick={() =>
             withLoad("apple", async () => {
-              const auth = await getFirebaseAuth();
-              const provider = new OAuthProvider("apple.com");
-              await signInWithPopup(auth, provider);
+              await signInWithApple("/home");
             })
           }
         >
