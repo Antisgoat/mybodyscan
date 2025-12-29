@@ -267,11 +267,11 @@ export const scanUpload = onRequest(
       const currentWeightRaw =
         toNumber(fields.currentWeight) ??
         (unit === "lb" ? toNumber(fields.currentWeightLb) : null) ??
-        (unit === "kg" ? toNumber(fields.weight) : null);
+        toNumber(fields.weight);
       const goalWeightRaw =
         toNumber(fields.goalWeight) ??
         (unit === "lb" ? toNumber(fields.goalWeightLb) : null) ??
-        (unit === "kg" ? toNumber(fields.targetWeight) : null);
+        toNumber(fields.targetWeight);
 
       const heightRaw =
         toNumber((fields as any).height ?? (fields as any).heightCm ?? (fields as any).height_cm) ??
@@ -281,13 +281,26 @@ export const scanUpload = onRequest(
         currentWeightKgField != null
           ? currentWeightKgField
           : currentWeightRaw != null
-            ? toKg(currentWeightRaw, unit)
+            ? (() => {
+                // Back-compat heuristic: some older clients sent kg values while claiming unit="lb".
+                // If unit is lb but the numeric value is too small to plausibly be pounds,
+                // treat it as kg to avoid persisting "kg value + lb label" into Firestore.
+                if (unit === "lb" && currentWeightRaw > 0 && currentWeightRaw < 90) {
+                  return currentWeightRaw;
+                }
+                return toKg(currentWeightRaw, unit);
+              })()
             : NaN;
       const goalWeightKg =
         goalWeightKgField != null
           ? goalWeightKgField
           : goalWeightRaw != null
-            ? toKg(goalWeightRaw, unit)
+            ? (() => {
+                if (unit === "lb" && goalWeightRaw > 0 && goalWeightRaw < 90) {
+                  return goalWeightRaw;
+                }
+                return toKg(goalWeightRaw, unit);
+              })()
             : NaN;
 
       if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
