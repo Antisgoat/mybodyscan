@@ -136,8 +136,7 @@ function resolveRuntimeAuthDomain(): string | undefined {
 }
 
 const runtimeAuthDomain = resolveRuntimeAuthDomain();
-
-const explicitAuthDomain = pickConfigValue(
+const configuredAuthDomain = pickConfigValue(
   envConfig.authDomain,
   injectedConfig?.authDomain
 );
@@ -151,7 +150,20 @@ const firebaseConfig: FirebaseRuntimeConfig = {
 // If no explicit authDomain was configured, prefer same-origin at runtime.
 // This is critical for iOS Safari where cross-site authDomain can lead to
 // redirect result loss and endless "back to login" loops.
-if (!explicitAuthDomain && runtimeAuthDomain) {
+//
+// Non-negotiable: when running in the browser, OAuth must complete on the SAME ORIGIN
+// as the app (e.g. mybodyscanapp.com). Always prefer same-origin when we can resolve it.
+if (runtimeAuthDomain) {
+  if (
+    configuredAuthDomain &&
+    configuredAuthDomain.toLowerCase() !== runtimeAuthDomain.toLowerCase() &&
+    typeof console !== "undefined"
+  ) {
+    console.warn("[firebase] authDomain overridden to same-origin", {
+      configured: configuredAuthDomain,
+      runtime: runtimeAuthDomain,
+    });
+  }
   firebaseConfig.authDomain = runtimeAuthDomain;
 }
 
@@ -246,25 +258,46 @@ function initializeFirebaseApp(): FirebaseApp {
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
 export const auth: Auth = getAuth(app);
-const persistenceReady: Promise<void> = setPersistence(auth, browserLocalPersistence)
-  .catch(async (err) => {
-    // Some environments (Safari private mode / constrained WebViews) can reject localStorage.
-    // Try IndexedDB-backed persistence next.
-    if (import.meta.env.DEV) {
-      console.warn("[firebase] browserLocalPersistence failed; retrying", err);
-    }
+export type AuthPersistenceMode = "indexeddb" | "local" | "session" | "unknown";
+let authPersistenceMode: AuthPersistenceMode = "unknown";
+let persistenceReady: Promise<AuthPersistenceMode> | null = null;
+
+export function getAuthPersistenceMode(): AuthPersistenceMode {
+  return authPersistenceMode;
+}
+
+export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
+  if (persistenceReady) return persistenceReady;
+  // Prefer IndexedDB on iOS Safari (more reliable than localStorage with ITP).
+  persistenceReady = (async () => {
     try {
       await setPersistence(auth, indexedDBLocalPersistence);
-      return;
+      authPersistenceMode = "indexeddb";
+      return authPersistenceMode;
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[firebase] indexedDBLocalPersistence failed; retrying", err);
+      }
+    }
+
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      authPersistenceMode = "local";
+      return authPersistenceMode;
     } catch (err2) {
       if (import.meta.env.DEV) {
-        console.warn("[firebase] indexedDBLocalPersistence failed; retrying", err2);
+        console.warn("[firebase] browserLocalPersistence failed; retrying", err2);
       }
-      // Last resort: session persistence (still supports redirect flows within a session).
-      await setPersistence(auth, browserSessionPersistence).catch(() => undefined);
     }
-  })
-  .catch(() => undefined);
+
+    // Last resort: session persistence (still supports redirect flows within a session).
+    await setPersistence(auth, browserSessionPersistence).catch(() => undefined);
+    authPersistenceMode = "session";
+    return authPersistenceMode;
+  })();
+
+  return persistenceReady;
+}
 
 export const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
@@ -346,7 +379,7 @@ export function logFirebaseConfigSummary(): void {
 }
 
 export async function firebaseReady(): Promise<void> {
-  await persistenceReady.catch(() => undefined);
+  await ensureAuthPersistence().catch(() => undefined);
 }
 
 export function getFirebaseApp(): FirebaseApp {

@@ -1,0 +1,56 @@
+import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
+import { finalizeRedirectResult } from "@/lib/auth/oauth";
+import { startAuthListener } from "@/lib/auth";
+import { isNativeCapacitor } from "@/lib/platform";
+
+type InitAuthState = {
+  started: boolean;
+  completed: boolean;
+  persistence: ReturnType<typeof getAuthPersistenceMode>;
+  redirectError: string | null;
+};
+
+let initPromise: Promise<void> | null = null;
+const state: InitAuthState = {
+  started: false,
+  completed: false,
+  persistence: "unknown",
+  redirectError: null,
+};
+
+export function getInitAuthState(): InitAuthState {
+  return { ...state };
+}
+
+/**
+ * Boot-critical auth initialization:
+ * a) Explicitly set persistence (prefer IndexedDB; fallback to local/session)
+ * b) Finalize any pending redirect result (must happen before routing decisions)
+ * c) Attach onAuthStateChanged and wait for the first event (authReady)
+ */
+export async function initAuth(): Promise<void> {
+  if (initPromise) return initPromise;
+  state.started = true;
+  initPromise = (async () => {
+    state.persistence = await ensureAuthPersistence().catch(() => "unknown");
+
+    // Never attempt Firebase Web redirect/popup finalization inside native WKWebView.
+    // Native auth will be handled via the Capacitor auth implementation.
+    if (!isNativeCapacitor()) {
+      try {
+        await finalizeRedirectResult();
+        state.redirectError = null;
+      } catch (err: any) {
+        // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
+        state.redirectError =
+          typeof err?.message === "string" ? err.message : String(err);
+      }
+    }
+
+    await startAuthListener().catch(() => undefined);
+    state.completed = true;
+  })();
+
+  return initPromise;
+}
+

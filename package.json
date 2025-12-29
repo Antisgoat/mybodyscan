@@ -54,6 +54,9 @@
     "storage:cors:get": "bash scripts/storage-cors-get.sh"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^6.3.1",
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/browser": "^6.0.6",
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@google-cloud/storage": "^7.17.2",
@@ -119,8 +122,8 @@
     "@lhci/cli": "^0.14.0",
     "@playwright/test": "^1.48.0",
     "@tailwindcss/typography": "^0.5.16",
-    "@testing-library/react": "^16.3.0",
     "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20.19.13",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",

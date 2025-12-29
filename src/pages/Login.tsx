@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
-import { consumeAuthRedirect } from "@/lib/auth";
+import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere } from "@/state/demo";
-import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuthUser } from "@/lib/auth";
+import { signInApple, signInGoogle } from "@/lib/authFacade";
 
 export default function Login() {
   const location = useLocation();
@@ -20,6 +20,7 @@ export default function Login() {
   const [pass, setPass] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { user, authReady } = useAuthUser();
 
   const finish = () => {
     const stored = consumeAuthRedirect();
@@ -45,18 +46,11 @@ export default function Login() {
       return undefined;
     }
 
-    if (auth.currentUser) {
+    if (authReady && (user || auth.currentUser)) {
       finish();
-      return undefined;
     }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) finish();
-    });
-
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return undefined;
+  }, [authReady, user]);
 
   async function wrap<T>(
     fn: () => Promise<T>,
@@ -85,7 +79,9 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithGoogle(defaultTarget), { autoFinish: false })}
+          onClick={() =>
+            wrap(() => signInGoogle(defaultTarget), { autoFinish: false })
+          }
         >
           Continue with Google
         </button>
@@ -96,7 +92,7 @@ export default function Login() {
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
           onClick={() =>
-            wrap(() => signInWithApple(defaultTarget), { autoFinish: false })
+            wrap(() => signInApple(defaultTarget), { autoFinish: false })
           }
         >
           Continue with Apple

@@ -49,7 +49,12 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachSex } from "@/hooks/useUserProfile";
-import { auth, db } from "@/lib/firebase";
+import {
+  auth,
+  db,
+  getAuthPersistenceMode,
+  getFirebaseConfig,
+} from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
@@ -70,6 +75,9 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { useUnits } from "@/hooks/useUnits";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
+import { isIOSSafari } from "@/lib/isIOSWeb";
+import { getInitAuthState } from "@/lib/auth/initAuth";
+import { isNativeCapacitor } from "@/lib/platform";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -137,6 +145,21 @@ const Settings = () => {
           : "bg-destructive/10 text-destructive";
 
   const creditsLabel = creditsLoading ? "…" : unlimited ? "∞" : credits;
+  const firebaseCfg = getFirebaseConfig();
+  const runtimeHost =
+    typeof window !== "undefined" ? window.location.hostname : "";
+  const runtimeOrigin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const authDomain = String(firebaseCfg?.authDomain || "").trim();
+  const authDomainMismatch =
+    import.meta.env.PROD &&
+    Boolean(runtimeHost) &&
+    Boolean(authDomain) &&
+    runtimeHost.toLowerCase() !== authDomain.toLowerCase();
+  const persistenceMode = getAuthPersistenceMode();
+  const iosSafari = isIOSSafari();
+  const nativeCapacitor = isNativeCapacitor();
+  const initAuthState = getInitAuthState();
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
@@ -685,6 +708,18 @@ const Settings = () => {
               <CardTitle>Diagnostics</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              {authDomainMismatch ? (
+                <div className="rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <div className="font-semibold">
+                    Auth misconfiguration: authDomain must match this site
+                  </div>
+                  <div>
+                    Running on <span className="font-mono">{runtimeHost}</span>{" "}
+                    but Firebase authDomain is{" "}
+                    <span className="font-mono">{authDomain}</span>.
+                  </div>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between rounded border px-3 py-2">
                 <span>App Check</span>
                 <Badge
@@ -713,6 +748,55 @@ const Settings = () => {
                 <span>Auth email</span>
                 <span className="font-medium text-foreground">
                   {user.email || "(none)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Origin</span>
+                <span className="font-mono text-[11px] text-foreground">
+                  {runtimeOrigin || "(unknown)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Firebase authDomain</span>
+                <span className="font-mono text-[11px] text-foreground">
+                  {authDomain || "(unknown)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>iOS Safari</span>
+                <Badge
+                  variant={iosSafari ? "secondary" : "outline"}
+                  className="uppercase tracking-wide"
+                >
+                  {iosSafari ? "YES" : "NO"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Capacitor native</span>
+                <Badge
+                  variant={nativeCapacitor ? "secondary" : "outline"}
+                  className="uppercase tracking-wide"
+                >
+                  {nativeCapacitor ? "YES" : "NO"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Auth persistence</span>
+                <Badge className="uppercase tracking-wide" variant="outline">
+                  {persistenceMode}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Auth boot</span>
+                <span className="text-xs text-muted-foreground">
+                  {initAuthState.completed
+                    ? "ready"
+                    : initAuthState.started
+                      ? "starting"
+                      : "not-started"}
+                  {initAuthState.redirectError
+                    ? ` • redirectError`
+                    : ""}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded border px-3 py-2">

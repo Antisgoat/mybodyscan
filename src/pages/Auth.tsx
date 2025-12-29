@@ -15,10 +15,7 @@ import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
 import { consumeAuthRedirectError } from "@/lib/authRedirect";
-import {
-  signInWithApple as startAppleSignIn,
-  signInWithGoogle as startGoogleSignIn,
-} from "@/lib/auth/providers";
+import { signInApple as startAppleSignIn, signInGoogle as startGoogleSignIn } from "@/lib/authFacade";
 import {
   auth,
   firebaseConfigMissingKeys,
