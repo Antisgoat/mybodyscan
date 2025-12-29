@@ -1,6 +1,7 @@
 import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
 import { finalizeRedirectResult } from "@/lib/auth/oauth";
 import { startAuthListener } from "@/lib/auth";
+import { isNativeCapacitor } from "@/lib/platform";
 
 type InitAuthState = {
   started: boolean;
@@ -33,13 +34,17 @@ export async function initAuth(): Promise<void> {
   initPromise = (async () => {
     state.persistence = await ensureAuthPersistence().catch(() => "unknown");
 
-    try {
-      await finalizeRedirectResult();
-      state.redirectError = null;
-    } catch (err: any) {
-      // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
-      state.redirectError =
-        typeof err?.message === "string" ? err.message : String(err);
+    // Never attempt Firebase Web redirect/popup finalization inside native WKWebView.
+    // Native auth will be handled via the Capacitor auth implementation.
+    if (!isNativeCapacitor()) {
+      try {
+        await finalizeRedirectResult();
+        state.redirectError = null;
+      } catch (err: any) {
+        // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
+        state.redirectError =
+          typeof err?.message === "string" ? err.message : String(err);
+      }
     }
 
     await startAuthListener().catch(() => undefined);

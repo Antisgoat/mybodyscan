@@ -56,7 +56,7 @@ For Capacitor iOS/Android builds, **do not use Firebase popup/redirect inside WK
 
 Recommended approach:
 
-- Use a maintained plugin (preferred target): `@capacitor-firebase/authentication`
+- Use a maintained plugin (this repo is wired for): `@capacitor-firebase/authentication@6.x` (compatible with `@capacitor/core@6` + `firebase@11`)
 - Use **native Google Sign-In** and **Sign in with Apple**
 - Convert to Firebase credentials and sign in with Firebase Auth
 - Handle deep links / resume with the Capacitor App plugin
@@ -64,9 +64,21 @@ Recommended approach:
 #### Capacitor iOS checklist (high-level)
 
 - **Bundle ID** matches Firebase iOS app
-- **Google reversed client ID** configured
-- **URL schemes** + **deep link handling** set up
-- **Sign in with Apple** entitlement enabled
+- **Google reversed client ID** configured (from `GoogleService-Info.plist`)
+- **URL schemes** set:
+  - `REVERSED_CLIENT_ID` for Google
+  - any additional schemes required by your auth providers
+- **AppDelegate URL handling** is present (required by the plugin):
+  - `ApplicationDelegateProxy.shared.application(app, open: url, options: options)`
+  - if you also use messaging, ensure `Auth.auth().canHandle(url)` is checked first (see plugin README)
+- **Sign in with Apple** capability enabled
+- **Associated Domains** (only if you use Universal Links / dynamic links)
+
+#### Capacitor Android checklist (high-level)
+
+- `google-services.json` present and `google-services` plugin applied
+- SHA-1/SHA-256 fingerprints added in Firebase Console (for Google sign-in)
+- intent-filters / app links if using Universal Links / dynamic links
 
 ### Where to look in code
 
@@ -75,5 +87,5 @@ Recommended approach:
 - Firebase runtime config: `src/lib/firebase.ts`
 - Provider flows: `src/lib/auth/oauth.ts`, `src/lib/auth/providers.ts`
 - Diagnostics: `src/pages/Settings.tsx` (Settings → Diagnostics), `src/pages/Diagnostics.tsx`
-- Capacitor auth facade scaffold: `src/lib/authFacade.ts`
+- Capacitor auth facade (web + native): `src/lib/authFacade.ts`
 

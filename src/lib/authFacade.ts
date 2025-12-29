@@ -2,6 +2,12 @@ import type { User } from "firebase/auth";
 import { getCachedAuth, signOutAll } from "@/lib/auth";
 import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 import { isNativeCapacitor } from "@/lib/platform";
+import { getFirebaseAuth } from "@/lib/firebase";
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithCredential,
+} from "firebase/auth";
 
 type AuthFacade = {
   signInGoogle(next?: string | null): Promise<void>;
@@ -27,19 +33,51 @@ const WebAuth: AuthFacade = {
 
 const CapacitorAuth: AuthFacade = {
   async signInGoogle() {
-    throw new Error(
-      "Native Google sign-in not implemented yet (Capacitor scaffold)."
+    const { FirebaseAuthentication } = await import(
+      "@capacitor-firebase/authentication"
     );
+    const result = await FirebaseAuthentication.signInWithGoogle();
+    const nativeCred = result?.credential;
+    const idToken = nativeCred?.idToken ?? undefined;
+    const accessToken = nativeCred?.accessToken ?? undefined;
+    if (!idToken && !accessToken) {
+      throw new Error("Native Google sign-in did not return usable tokens.");
+    }
+    const webCred = GoogleAuthProvider.credential(idToken, accessToken);
+    await signInWithCredential(getFirebaseAuth(), webCred);
   },
   async signInApple() {
-    throw new Error(
-      "Native Apple sign-in not implemented yet (Capacitor scaffold)."
+    const { FirebaseAuthentication } = await import(
+      "@capacitor-firebase/authentication"
     );
+    const result = await FirebaseAuthentication.signInWithApple();
+    const nativeCred = result?.credential;
+    const idToken = nativeCred?.idToken ?? undefined;
+    const rawNonce = nativeCred?.nonce ?? undefined;
+    const accessToken = nativeCred?.accessToken ?? undefined;
+    if (!idToken) {
+      throw new Error("Native Apple sign-in did not return an idToken.");
+    }
+    const provider = new OAuthProvider("apple.com");
+    const webCred = provider.credential({
+      idToken,
+      rawNonce,
+      accessToken,
+    } as any);
+    await signInWithCredential(getFirebaseAuth(), webCred);
   },
   async signOut() {
     // When native auth is implemented, this should sign out both:
     // - the native provider session
     // - Firebase Auth session
+    try {
+      const { FirebaseAuthentication } = await import(
+        "@capacitor-firebase/authentication"
+      );
+      await FirebaseAuthentication.signOut().catch(() => undefined);
+    } catch {
+      // ignore plugin issues; still sign out web session
+    }
     await signOutAll();
   },
   getCurrentUser() {

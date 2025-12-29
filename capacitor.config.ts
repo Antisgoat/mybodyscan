@@ -12,6 +12,14 @@ const config = {
     androidScheme: "https",
     cleartext: false,
   },
+  plugins: {
+    // Native auth providers for future Capacitor builds (WKWebView-safe).
+    // This does NOT affect web builds.
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ["google.com", "apple.com"],
+    },
+  },
   ios: {
     contentInset: "automatic",
   },
