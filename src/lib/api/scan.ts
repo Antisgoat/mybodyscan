@@ -12,6 +12,7 @@ import {
   type UploadPreprocessMeta,
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
+import { kgToLb } from "@/lib/units";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -821,9 +822,21 @@ export async function submitScanClient(
 
     const token = await user.getIdToken();
     const form = new FormData();
-    form.set("currentWeight", String(params.currentWeightKg));
-    form.set("goalWeight", String(params.goalWeightKg));
-    form.set("unit", params.unit ?? "kg");
+    // IMPORTANT: The upload function interprets `currentWeight`/`goalWeight` in the provided `unit`.
+    // Our canonical inputs are kg, but we also store a human-friendly raw weight+unit in the scan doc.
+    // Therefore:
+    // - If unit=lb, send pounds for currentWeight/goalWeight.
+    // - Always include *explicit* kg fields for canonical storage and cross-version compatibility.
+    const unit = params.unit === "lb" ? "lb" : "kg";
+    const currentWeightRaw =
+      unit === "lb" ? kgToLb(params.currentWeightKg) : params.currentWeightKg;
+    const goalWeightRaw =
+      unit === "lb" ? kgToLb(params.goalWeightKg) : params.goalWeightKg;
+    form.set("currentWeight", String(currentWeightRaw));
+    form.set("goalWeight", String(goalWeightRaw));
+    form.set("unit", unit);
+    form.set("currentWeightKg", String(params.currentWeightKg));
+    form.set("goalWeightKg", String(params.goalWeightKg));
     if (typeof params.heightCm === "number") {
       form.set("height", String(params.heightCm));
     }

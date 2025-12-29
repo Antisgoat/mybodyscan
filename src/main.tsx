@@ -1,5 +1,5 @@
 import "./lib/bootProbe";
-import { StrictMode, Suspense } from "react";
+import { StrictMode, Suspense, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -47,40 +47,64 @@ if (typeof window !== "undefined") {
   initTelemetry();
 }
 
-void (async () => {
-  await firebaseReady();
-  await finalizeRedirectResult().catch(() => undefined);
-  logFirebaseConfigSummary();
-  logFirebaseRuntimeInfo();
+const BOOT_STYLE: Record<string, string | number> = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  padding: 24,
+  textAlign: "center",
+  color: "#6b7280",
+  fontFamily:
+    'system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif',
+};
 
-  void probeFirebaseRuntime();
+const PENDING_OAUTH_KEY = "mybodyscan:auth:oauth:pending";
 
-  if (typeof window !== "undefined" && typeof document !== "undefined") {
-    ReactDOM.createRoot(document.getElementById("root")!).render(
-      <StrictMode>
-        <AppErrorBoundary>
-          <Suspense
-            fallback={
-              <div
-                style={{
-                  minHeight: "100vh",
-                  display: "grid",
-                  placeItems: "center",
-                  padding: 24,
-                  textAlign: "center",
-                  color: "#6b7280",
-                  fontFamily:
-                    'system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif',
-                }}
-              >
-                Loading…
-              </div>
-            }
-          >
-            <App />
-          </Suspense>
-        </AppErrorBoundary>
-      </StrictMode>
-    );
+function BootGate() {
+  const [ready, setReady] = useState(false);
+  const label = useMemo(() => {
+    if (typeof window === "undefined") return "Loading…";
+    try {
+      return window.sessionStorage.getItem(PENDING_OAUTH_KEY)
+        ? "Completing sign-in…"
+        : "Loading…";
+    } catch {
+      return "Loading…";
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await firebaseReady();
+      await finalizeRedirectResult().catch(() => undefined);
+      logFirebaseConfigSummary();
+      logFirebaseRuntimeInfo();
+      void probeFirebaseRuntime();
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready) {
+    return <div style={BOOT_STYLE}>{label}</div>;
   }
-})();
+
+  return (
+    <Suspense fallback={<div style={BOOT_STYLE}>Loading…</div>}>
+      <App />
+    </Suspense>
+  );
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <BootGate />
+      </AppErrorBoundary>
+    </StrictMode>
+  );
+}

@@ -20,6 +20,16 @@ let signInGuard: { providerId: OAuthProviderId; startedAt: number } | null =
 let finalizePromise: Promise<UserCredential | null> | null = null;
 let popupThenRedirectFn = popupThenRedirectImported;
 
+function authEvent(kind: string, extra?: Record<string, unknown>) {
+  const stamp = Date.now();
+  // Telemetry dedupes by message; include a stamp to preserve event sequence.
+  void reportError({
+    kind,
+    message: `${kind}:${stamp}`,
+    extra: { at: stamp, ...(extra ?? {}) },
+  });
+}
+
 export function isIosSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -137,6 +147,12 @@ export async function signInWithOAuthProvider(
   options: OAuthStartOptions
 ): Promise<{ user: User | null; credential: UserCredential | null }> {
   const startedAt = Date.now();
+  authEvent("auth_start", {
+    provider: options.providerId,
+    next: options.next ?? null,
+    startedAt,
+    preferRedirect: shouldPreferRedirect(),
+  });
   if (signInGuard && startedAt - signInGuard.startedAt < MAX_AUTH_WAIT_MS) {
     const err = new Error("Sign-in already in progress.");
     (err as any).code = "auth/signin-already-in-progress";
@@ -166,6 +182,7 @@ export async function signInWithOAuthProvider(
 
   try {
     if (shouldPreferRedirect()) {
+      authEvent("auth_redirect_start", { provider: options.providerId });
       // Redirect returns immediately; completion happens after reload.
       await withTimeout(
         // `popupThenRedirect` always redirects on iOS WebKit; on desktop it tries popup first.
@@ -183,6 +200,7 @@ export async function signInWithOAuthProvider(
       return { user: null, credential: null };
     }
 
+    authEvent("auth_popup_start", { provider: options.providerId });
     const cred = await withTimeout(
       popupThenRedirectFn(auth, options.provider),
       MAX_AUTH_WAIT_MS,
@@ -192,9 +210,16 @@ export async function signInWithOAuthProvider(
     if (!cred) {
       return { user: null, credential: null };
     }
+    authEvent("auth_success", { provider: options.providerId, method: "popup" });
     clearPending();
     return { user: cred.user ?? null, credential: cred };
   } catch (error) {
+    authEvent("auth_error", {
+      provider: options.providerId,
+      code: typeof (error as any)?.code === "string" ? (error as any).code : null,
+      message:
+        typeof (error as any)?.message === "string" ? (error as any).message : null,
+    });
     clearPending();
     throw error;
   } finally {
@@ -221,6 +246,9 @@ export async function finalizeRedirectResult(): Promise<{
   )
     .then((cred) => {
       clearPending();
+      if (cred) {
+        authEvent("auth_success", { provider: "redirect", method: "redirect" });
+      }
       return cred ?? null;
     })
     .catch(async (err) => {
@@ -236,6 +264,7 @@ export async function finalizeRedirectResult(): Promise<{
         message,
         code,
       });
+      authEvent("auth_error", { provider: "redirect", code, message });
       // Preserve existing authRedirect.ts error consumption pipeline.
       throw err;
     });
