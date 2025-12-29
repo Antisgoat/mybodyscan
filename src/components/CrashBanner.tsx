@@ -6,13 +6,12 @@ import { AlertTriangle, X } from "lucide-react";
 export function CrashBanner() {
   // Non-negotiable: never show this banner in production.
   // Keep it available only for local/dev debugging.
-  if (!import.meta.env.DEV) {
-    return null;
-  }
+  const enabled = import.meta.env.DEV;
   const [error, setError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     const shouldIgnore = (detail: unknown) => {
       const source =
         (detail as any)?.reason ?? (detail as any)?.error ?? detail;
@@ -43,8 +42,9 @@ export function CrashBanner() {
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleError);
     };
-  }, []);
+  }, [enabled]);
 
+  if (!enabled) return null;
   if (!isVisible || !error) return null;
 
   return (
