@@ -8,6 +8,7 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
+import type { DisplayUnits } from "@/lib/units";
 
 export interface BodyTrendPoint {
   date: string;
@@ -17,9 +18,11 @@ export interface BodyTrendPoint {
 
 interface BodyTrendChartProps {
   data: BodyTrendPoint[];
+  /** Controls labels only; data is expected to already be in the chosen unit. */
+  units?: DisplayUnits;
 }
 
-export function BodyTrendChart({ data }: BodyTrendChartProps) {
+export function BodyTrendChart({ data, units = "us" }: BodyTrendChartProps) {
   if (!data.length) {
     return (
       <div className="flex h-48 w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/40 text-sm text-muted-foreground">
@@ -41,7 +44,11 @@ export function BodyTrendChart({ data }: BodyTrendChartProps) {
             yAxisId="weight"
             tick={{ fontSize: 12 }}
             width={48}
-            label={{ value: "lb", angle: -90, position: "insideLeft" }}
+            label={{
+              value: units === "metric" ? "kg" : "lb",
+              angle: -90,
+              position: "insideLeft",
+            }}
           />
           <YAxis
             yAxisId="bodyFat"
@@ -59,7 +66,7 @@ export function BodyTrendChart({ data }: BodyTrendChartProps) {
                 if (Number.isNaN(numeric)) {
                   return [value, "Weight"];
                 }
-                return [`${numeric.toFixed(1)} lb`, "Weight"];
+                return [`${numeric.toFixed(1)} ${units === "metric" ? "kg" : "lb"}`, "Weight"];
               }
               return [value, name];
             }}
@@ -71,7 +78,7 @@ export function BodyTrendChart({ data }: BodyTrendChartProps) {
             dataKey="weight"
             stroke="hsl(var(--primary))"
             strokeWidth={2}
-            name="Weight (lb)"
+            name={`Weight (${units === "metric" ? "kg" : "lb"})`}
             dot={{ r: 3 }}
           />
           <Line
