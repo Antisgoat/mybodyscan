@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
+import { signInApple, signInGoogle } from "@/lib/authFacade";
 
 export type NormalizedAuthError = { code?: string; message: string };
 
@@ -94,7 +94,7 @@ export async function googleSignIn(auth: Auth) {
     // Unified behavior:
     // - Mobile browsers (incl iOS Safari): redirect
     // - Desktop: popup with redirect fallback
-    await signInWithGoogle();
+    await signInGoogle();
     return { ok: true as const };
   } catch (error: unknown) {
     debugAuthFailure(error);
@@ -113,7 +113,7 @@ export async function appleSignIn() {
   await firebaseReady();
   const auth = getFirebaseAuth();
   try {
-    await signInWithApple();
+    await signInApple();
     return { ok: true as const };
   } catch (error: unknown) {
     debugAuthFailure(error);

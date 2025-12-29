@@ -3,8 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere } from "@/state/demo";
-import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 import { useAuthUser } from "@/lib/auth";
+import { signInApple, signInGoogle } from "@/lib/authFacade";
 
 export default function Login() {
   const location = useLocation();
@@ -79,7 +79,9 @@ export default function Login() {
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
-          onClick={() => wrap(() => signInWithGoogle(defaultTarget), { autoFinish: false })}
+          onClick={() =>
+            wrap(() => signInGoogle(defaultTarget), { autoFinish: false })
+          }
         >
           Continue with Google
         </button>
@@ -90,7 +92,7 @@ export default function Login() {
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
           onClick={() =>
-            wrap(() => signInWithApple(defaultTarget), { autoFinish: false })
+            wrap(() => signInApple(defaultTarget), { autoFinish: false })
           }
         >
           Continue with Apple

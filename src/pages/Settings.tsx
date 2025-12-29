@@ -77,6 +77,7 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
+import { isNativeCapacitor } from "@/lib/platform";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -157,6 +158,7 @@ const Settings = () => {
     runtimeHost.toLowerCase() !== authDomain.toLowerCase();
   const persistenceMode = getAuthPersistenceMode();
   const iosSafari = isIOSSafari();
+  const nativeCapacitor = isNativeCapacitor();
   const initAuthState = getInitAuthState();
 
   useEffect(() => {
@@ -767,6 +769,15 @@ const Settings = () => {
                   className="uppercase tracking-wide"
                 >
                   {iosSafari ? "YES" : "NO"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between rounded border px-3 py-2">
+                <span>Capacitor native</span>
+                <Badge
+                  variant={nativeCapacitor ? "secondary" : "outline"}
+                  className="uppercase tracking-wide"
+                >
+                  {nativeCapacitor ? "YES" : "NO"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between rounded border px-3 py-2">

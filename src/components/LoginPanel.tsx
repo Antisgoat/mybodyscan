@@ -3,7 +3,7 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { getFirebaseAuth } from "../lib/firebase";
-import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
+import { signInApple, signInGoogle } from "@/lib/authFacade";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -41,7 +41,7 @@ export default function LoginPanel() {
           disabled={!!loading}
           onClick={() =>
             withLoad("google", async () => {
-              await signInWithGoogle("/home");
+              await signInGoogle("/home");
             })
           }
         >
@@ -55,7 +55,7 @@ export default function LoginPanel() {
           disabled={!!loading}
           onClick={() =>
             withLoad("apple", async () => {
-              await signInWithApple("/home");
+              await signInApple("/home");
             })
           }
         >

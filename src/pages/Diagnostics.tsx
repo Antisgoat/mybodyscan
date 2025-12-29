@@ -7,6 +7,7 @@ import {
 import { useAuthUser } from "@/lib/auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
+import { isNativeCapacitor } from "@/lib/platform";
 
 export default function Diagnostics() {
   const [tokenLen, setTokenLen] = useState<number>(0);
@@ -29,6 +30,7 @@ export default function Diagnostics() {
     Boolean(authDomain) &&
     host.toLowerCase() !== authDomain.toLowerCase();
   const iosSafari = isIOSSafari();
+  const nativeCapacitor = isNativeCapacitor();
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +104,7 @@ export default function Diagnostics() {
               origin,
               host,
               isIOSSafari: iosSafari,
+              isNativeCapacitor: nativeCapacitor,
             },
             firebase: {
               projectId: cfg?.projectId ?? null,
