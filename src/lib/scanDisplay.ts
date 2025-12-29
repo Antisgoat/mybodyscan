@@ -3,6 +3,7 @@ import {
   kgToLb,
   lbToKg,
   formatBmi,
+  formatWeight,
   type DisplayUnits,
 } from "@/lib/units";
 import type { NormalizedScanMetrics } from "@/lib/scans";
@@ -28,29 +29,39 @@ export function summarizeScanMetrics(
   const bodyFatText =
     bodyFatPercent != null ? `${bodyFatPercent.toFixed(1)}%` : "—";
 
-  let weightLb = metrics?.weightLb ?? null;
-  if (weightLb == null && metrics?.weightKg != null) {
-    const pounds = kgToLb(metrics.weightKg);
+  // Normalize legacy/misalabeled weights:
+  // - Canonical storage is kg.
+  // - If we have both `weightKg` and `weightLb` but they are numerically ~equal,
+  //   treat `weightLb` as a mis-stored kg value and ignore it.
+  const weightKg =
+    typeof metrics?.weightKg === "number" && Number.isFinite(metrics.weightKg)
+      ? metrics.weightKg
+      : null;
+  let weightLb =
+    typeof metrics?.weightLb === "number" && Number.isFinite(metrics.weightLb)
+      ? metrics.weightLb
+      : null;
+  if (weightKg != null && weightLb != null && Math.abs(weightLb - weightKg) < 0.75) {
+    weightLb = null;
+  }
+
+  const normalizedKg =
+    weightKg != null
+      ? weightKg
+      : weightLb != null
+        ? lbToKg(weightLb)
+        : null;
+
+  const preferredUnit = units === "metric" ? "kg" : "lb";
+  const formatted = formatWeight({ kg: normalizedKg, preferredUnit, digits: 1 });
+  const weightText =
+    formatted.value != null ? `${formatted.value.toFixed(1)} ${formatted.unitLabel}` : "—";
+
+  // Preserve weightLb for callers that use it (best-effort).
+  if (weightLb == null && normalizedKg != null) {
+    const pounds = kgToLb(normalizedKg);
     weightLb = Number.isFinite(pounds) ? roundToTenths(pounds) : null;
   }
-  let displayWeight: number | null = null;
-  if (units === "metric") {
-    if (metrics?.weightKg != null) {
-      displayWeight = metrics.weightKg;
-    } else if (weightLb != null) {
-      const kg = lbToKg(weightLb);
-      displayWeight = Number.isFinite(kg) ? roundToTenths(kg) : null;
-    }
-  } else {
-    displayWeight =
-      weightLb ?? (metrics?.weightKg != null ? kgToLb(metrics.weightKg) : null);
-    if (displayWeight != null) {
-      displayWeight = roundToTenths(displayWeight);
-    }
-  }
-  const unitLabel = units === "metric" ? "kg" : "lb";
-  const weightText =
-    displayWeight != null ? `${displayWeight.toFixed(1)} ${unitLabel}` : "—";
 
   const bmi = metrics?.bmi ?? null;
   const bmiText = bmi != null ? formatBmi(bmi, 1) : "—";

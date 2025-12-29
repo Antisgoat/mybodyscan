@@ -1,6 +1,6 @@
 import { auth, db } from "@/lib/firebase";
 import { doc } from "firebase/firestore";
-import { kgToLb } from "@/lib/units";
+import { kgToLb, lbToKg } from "@/lib/units";
 
 export interface NormalizedScanMetrics {
   bodyFatPercent: number | null;
@@ -61,21 +61,61 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
     measurements.weight_kg
   );
 
+  // Prefer explicit pound fields. Avoid ambiguous `weight` fields unless we have
+  // no better option; some legacy scan docs stored kg into `weight` but UI treated it as lb.
   const weightLbDirect = firstNumber(
     metrics.weight_lb,
     metrics.weightLb,
-    metrics.weight,
     results.weight_lb,
     results.weightLb,
     fallback.weight_lbs,
     fallback.weightLb,
-    fallback.weight,
     measurements.weightLb,
     measurements.weight_lbs
   );
 
-  const weightLb =
-    weightLbDirect ?? (weightKg != null ? kgToLb(weightKg) : null);
+  // Ambiguous weight fields: interpret as kg by default (canonical), unless clearly lb.
+  const weightAmbiguous = firstNumber(
+    metrics.weight,
+    results.weight,
+    fallback.weight
+  );
+
+  const inferred = (() => {
+    // 1) If we have kg, trust it and compute lb.
+    if (weightKg != null) {
+      const lb = weightLbDirect != null ? weightLbDirect : kgToLb(weightKg);
+      // If direct lb value equals kg value, it's almost certainly mis-stored kg -> ignore.
+      const safeLb =
+        weightLbDirect != null && Math.abs(weightLbDirect - weightKg) < 0.75
+          ? kgToLb(weightKg)
+          : lb;
+      return { weightKg, weightLb: safeLb };
+    }
+
+    // 2) If we have explicit lb, compute kg.
+    if (weightLbDirect != null) {
+      return { weightKg: lbToKg(weightLbDirect), weightLb: weightLbDirect };
+    }
+
+    // 3) Fall back to ambiguous `weight`:
+    // - If it looks like a typical lb value (>=140), treat as lb.
+    // - Otherwise treat as kg (canonical).
+    if (weightAmbiguous != null) {
+      if (weightAmbiguous >= 140) {
+        return {
+          weightKg: lbToKg(weightAmbiguous),
+          weightLb: weightAmbiguous,
+        };
+      }
+      return {
+        weightKg: weightAmbiguous,
+        weightLb: kgToLb(weightAmbiguous),
+      };
+    }
+
+    return { weightKg: null, weightLb: null };
+  })();
 
   const method =
     typeof metrics.method === "string"
@@ -95,8 +135,8 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   return {
     bodyFatPercent,
     bmi,
-    weightKg,
-    weightLb,
+    weightKg: inferred.weightKg,
+    weightLb: inferred.weightLb,
     method,
     confidence,
   };

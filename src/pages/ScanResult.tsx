@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useUnits } from "@/hooks/useUnits";
-import { formatHeightFromCm, formatWeightFromKg, kgToLb } from "@/lib/units";
+import { formatHeightFromCm, formatWeight, formatWeightFromKg, kgToLb } from "@/lib/units";
 import { useAuthUser } from "@/lib/auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
@@ -1113,8 +1113,20 @@ export default function ScanResultPage() {
             <Badge variant="secondary">{goalLabel}</Badge>
             {delta ? (
               <Badge variant="outline">
-                vs last scan: {delta.weightKg >= 0 ? "+" : ""}
-                {delta.weightKg.toFixed(1)} kg · {delta.bfPct >= 0 ? "+" : ""}
+                {(() => {
+                  const preferredUnit = units === "metric" ? "kg" : "lb";
+                  const absKg = delta.weightKg;
+                  const formatted = formatWeight({ kg: absKg, preferredUnit, digits: 1 });
+                  const text =
+                    formatted.value != null
+                      ? `${formatted.value >= 0 ? "+" : ""}${formatted.value.toFixed(1)} ${formatted.unitLabel}`
+                      : "—";
+                  return (
+                    <>
+                      vs last scan: {text} · {delta.bfPct >= 0 ? "+" : ""}
+                    </>
+                  );
+                })()}
                 {delta.bfPct.toFixed(1)}%
               </Badge>
             ) : null}
