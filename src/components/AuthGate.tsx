@@ -1,33 +1,13 @@
-import React, { useEffect, useState } from "react";
-import {
-  getFirebaseInitError,
-  hasFirebaseConfig,
-  initFirebase,
-} from "@/lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import React from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/auth";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const { auth } = initFirebase();
-  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const { user, authReady } = useAuthUser();
+  const location = useLocation();
 
-  useEffect(() => {
-    if (!auth) {
-      setUser(null);
-      return undefined;
-    }
-    const unsubscribe = onAuthStateChanged(auth, (next) => {
-      setUser(next);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, [auth]);
-
-  if (user === undefined) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
-  }
-
-  if (!auth) {
+  if (!hasFirebaseConfig) {
     const reason =
       getFirebaseInitError() ||
       (hasFirebaseConfig
@@ -40,14 +20,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (!authReady) {
+    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  }
+
   if (!user) {
-    if (
-      typeof window !== "undefined" &&
-      window.location.pathname !== "/login"
-    ) {
-      window.location.href = "/login";
+    if (location.pathname === "/login" || location.pathname === "/auth") {
+      return null;
     }
-    return null;
+    const nextTarget = `${location.pathname}${location.search}`;
+    const destination = `/auth?next=${encodeURIComponent(nextTarget)}`;
+    return <Navigate to={destination} replace state={{ from: nextTarget }} />;
   }
 
   return <>{children}</>;

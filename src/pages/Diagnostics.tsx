@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { auth, envFlags } from "../lib/firebase";
+import {
+  envFlags,
+  getAuthPersistenceMode,
+  getFirebaseConfig,
+} from "../lib/firebase";
+import { useAuthUser } from "@/lib/auth";
+import { isIOSSafari } from "@/lib/isIOSWeb";
+import { getInitAuthState } from "@/lib/auth/initAuth";
 
 export default function Diagnostics() {
-  const [uid, setUid] = useState<string | null>(null);
   const [tokenLen, setTokenLen] = useState<number>(0);
   const [err, setErr] = useState<string | null>(null);
   const [health, setHealth] = useState<{
@@ -10,19 +16,38 @@ export default function Diagnostics() {
     stripePublishablePresent: boolean;
     appCheckSiteKeyPresent: boolean;
   } | null>(null);
+  const { user, authReady } = useAuthUser();
+  const cfg = getFirebaseConfig();
+  const persistence = getAuthPersistenceMode();
+  const initState = getInitAuthState();
+  const host = typeof window !== "undefined" ? window.location.hostname : "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const authDomain = String(cfg?.authDomain || "").trim();
+  const authDomainMismatch =
+    import.meta.env.PROD &&
+    Boolean(host) &&
+    Boolean(authDomain) &&
+    host.toLowerCase() !== authDomain.toLowerCase();
+  const iosSafari = isIOSSafari();
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (u) => {
-      setUid(u?.uid || null);
-      try {
-        const t = u ? await u.getIdToken() : "";
-        setTokenLen((t || "").length);
-      } catch (e: any) {
-        setErr(e?.message || String(e));
+    let cancelled = false;
+    void (async () => {
+      if (!authReady || !user) {
+        if (!cancelled) setTokenLen(0);
+        return;
       }
-    });
-    return () => unsub();
-  }, []);
+      try {
+        const t = await user.getIdToken();
+        if (!cancelled) setTokenLen((t || "").length);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,8 +95,21 @@ export default function Diagnostics() {
       >
         {JSON.stringify(
           {
-            uid,
+            authReady,
+            uid: user?.uid || "signed-out",
             tokenLen,
+            runtime: {
+              origin,
+              host,
+              isIOSSafari: iosSafari,
+            },
+            firebase: {
+              projectId: cfg?.projectId ?? null,
+              authDomain,
+              persistence,
+              initAuth: initState,
+              authDomainMismatch,
+            },
             env: {
               projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
               authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -87,6 +125,13 @@ export default function Diagnostics() {
           2
         )}
       </pre>
+      {authDomainMismatch ? (
+        <div style={{ marginTop: 12, color: "#b00020", fontSize: 12 }}>
+          <strong>Auth misconfiguration:</strong> Firebase authDomain must match
+          this site (<code>{host}</code>) for reliable iOS Safari + WebView
+          redirects. Current authDomain is <code>{authDomain}</code>.
+        </div>
+      ) : null}
       <div style={{ marginTop: 12, fontSize: 12, color: "#475569" }}>
         <div>
           <strong>Stripe secret detected:</strong>{" "}

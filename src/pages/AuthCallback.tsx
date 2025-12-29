@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { handleAuthRedirectResult } from "@/lib/auth/providers";
-import { consumeAuthRedirect } from "@/lib/auth";
+import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 
 export default function AuthCallbackPage() {
   const nav = useNavigate();

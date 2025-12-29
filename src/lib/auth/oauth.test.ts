@@ -13,7 +13,7 @@ vi.mock("@/lib/telemetry", () => {
   return { reportError: vi.fn().mockResolvedValue(undefined) };
 });
 
-vi.mock("@/lib/auth", () => {
+vi.mock("@/lib/auth/redirectState", () => {
   return { rememberAuthRedirect: vi.fn() };
 });
 

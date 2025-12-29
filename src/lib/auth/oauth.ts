@@ -7,7 +7,7 @@ import { getRedirectResult, signInWithRedirect } from "firebase/auth";
 import { reportError } from "@/lib/telemetry";
 import { getFirebaseAuth, getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
-import { rememberAuthRedirect } from "@/lib/auth";
+import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { handleAuthRedirectOnce } from "@/lib/authRedirect";
 
 export type OAuthProviderId = "google.com" | "apple.com";

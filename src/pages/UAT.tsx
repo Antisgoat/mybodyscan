@@ -44,7 +44,7 @@ import {
   type UatLogEntry,
   toJsonText,
 } from "@/lib/uat";
-import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth";
+import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";

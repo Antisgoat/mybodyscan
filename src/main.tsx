@@ -6,11 +6,10 @@ import "./index.css";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import {
-  firebaseReady,
   logFirebaseConfigSummary,
   logFirebaseRuntimeInfo,
 } from "./lib/firebase";
-import { finalizeRedirectResult } from "@/lib/auth/oauth";
+import { initAuth } from "@/lib/auth/initAuth";
 import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
@@ -76,8 +75,7 @@ function BootGate() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await firebaseReady();
-      await finalizeRedirectResult().catch(() => undefined);
+      await initAuth();
       logFirebaseConfigSummary();
       logFirebaseRuntimeInfo();
       void probeFirebaseRuntime();

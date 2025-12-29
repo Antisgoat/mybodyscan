@@ -1,16 +1,10 @@
 import type { Auth } from "firebase/auth";
 import {
-  GoogleAuthProvider,
-  OAuthProvider,
   fetchSignInMethodsForEmail,
   signInWithEmailAndPassword,
-  signInWithPopup,
-  signInWithRedirect,
 } from "firebase/auth";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { isCapacitor, isIOSWebView, isInAppBrowser } from "./platform";
-import { toast } from "./toast";
-import { isIOSSafari } from "./isIOSWeb";
+import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 
 export type NormalizedAuthError = { code?: string; message: string };
 
@@ -96,44 +90,13 @@ export async function emailPasswordSignIn(email: string, password: string) {
 }
 
 export async function googleSignIn(auth: Auth) {
-  const provider = new GoogleAuthProvider();
-
-  const redirect = async () => {
-    try {
-      await signInWithRedirect(auth, provider);
-      return { ok: true as const };
-    } catch (error) {
-      debugAuthFailure(error);
-      const mapped = await describeAuthErrorAsync(auth, error);
-      return { ok: false as const, code: mapped.code, message: mapped.message };
-    }
-  };
-
-  const constrainedWebView =
-    isIOSWebView() || isCapacitor() || isInAppBrowser() || isIOSSafari();
-  if (constrainedWebView) {
-    if (import.meta.env.DEV) {
-      toast("Using redirect for Google sign-in (WebView detected).");
-    }
-    return redirect();
-  }
-
   try {
-    await signInWithPopup(auth, provider);
+    // Unified behavior:
+    // - Mobile browsers (incl iOS Safari): redirect
+    // - Desktop: popup with redirect fallback
+    await signInWithGoogle();
     return { ok: true as const };
   } catch (error: unknown) {
-    const code = getErrorCode(error);
-    if (
-      code === "auth/operation-not-supported-in-this-environment" ||
-      code === "auth/popup-blocked" ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/internal-error" ||
-      !code
-    ) {
-      debugAuthFailure(error);
-      return redirect();
-    }
-
     debugAuthFailure(error);
     const mapped = await describeAuthErrorAsync(auth, error);
     return { ok: false as const, code: mapped.code, message: mapped.message };
@@ -149,42 +112,10 @@ export async function googleSignInWithFirebase() {
 export async function appleSignIn() {
   await firebaseReady();
   const auth = getFirebaseAuth();
-  const provider = new OAuthProvider("apple.com");
-  provider.addScope("email");
-  provider.addScope("name");
-
-  const startRedirect = async () => {
-    try {
-      await signInWithRedirect(auth, provider);
-      return { ok: true as const };
-    } catch (error) {
-      debugAuthFailure(error);
-      const mapped = await describeAuthErrorAsync(auth, error);
-      return { ok: false as const, code: mapped.code, message: mapped.message };
-    }
-  };
-
-  if (isIOSSafari()) {
-    return startRedirect();
-  }
-
   try {
-    await signInWithPopup(auth, provider);
+    await signInWithApple();
     return { ok: true as const };
   } catch (error: unknown) {
-    const code = getErrorCode(error);
-    if (
-      code === "auth/popup-blocked" ||
-      code === "auth/cancelled-popup-request" ||
-      code === "auth/popup-closed-by-user" ||
-      code === "auth/internal-error" ||
-      code === "auth/web-storage-unsupported" ||
-      code === "auth/operation-not-supported-in-this-environment"
-    ) {
-      debugAuthFailure(error);
-      return startRedirect();
-    }
-
     debugAuthFailure(error);
     const mapped = await describeAuthErrorAsync(auth, error);
     return { ok: false as const, code: mapped.code, message: mapped.message };

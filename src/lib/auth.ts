@@ -30,6 +30,8 @@ let authReadyFlag = !firebaseAuth || !!cachedUser;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
 let processedUidKey: string | null = null;
+let firstAuthEventResolve: (() => void) | null = null;
+let firstAuthEventPromise: Promise<void> | null = null;
 let cachedSnapshot: AuthSnapshot = {
   user: authReadyFlag ? cachedUser : null,
   authReady: authReadyFlag,
@@ -111,12 +113,31 @@ function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
 
 function ensureAuthListener() {
   if (!firebaseAuth || unsubscribeAuthListener) return;
+  if (!firstAuthEventPromise) {
+    firstAuthEventPromise = new Promise<void>((resolve) => {
+      firstAuthEventResolve = resolve;
+    });
+  }
   unsubscribeAuthListener = onAuthStateChanged(firebaseAuth, (user) => {
     const snapshotChanged = handleUserChange(user);
     if (snapshotChanged) {
       notifyAuthSubscribers();
     }
+    if (firstAuthEventResolve) {
+      firstAuthEventResolve();
+      firstAuthEventResolve = null;
+    }
   });
+}
+
+/**
+ * Ensures the auth state listener is attached and the first auth event has fired.
+ * This is used by boot code to block routing decisions until auth is fully initialized.
+ */
+export async function startAuthListener(): Promise<void> {
+  if (!firebaseAuth) return;
+  ensureAuthListener();
+  await (firstAuthEventPromise ?? Promise.resolve());
 }
 
 function subscribeAuth(listener: () => void) {
@@ -177,35 +198,6 @@ export function useAuthUser() {
     loading: !snapshot.authReady,
     authReady: snapshot.authReady,
   } as const;
-}
-
-const RETURN_PATH_STORAGE_KEY = "mybodyscan:auth:return";
-
-export function rememberAuthRedirect(path: string) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(RETURN_PATH_STORAGE_KEY, path);
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      console.warn("[auth] Unable to persist redirect target:", err);
-    }
-  }
-}
-
-export function consumeAuthRedirect(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = sessionStorage.getItem(RETURN_PATH_STORAGE_KEY);
-    if (stored) {
-      sessionStorage.removeItem(RETURN_PATH_STORAGE_KEY);
-      return stored;
-    }
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      console.warn("[auth] Unable to read redirect target:", err);
-    }
-  }
-  return null;
 }
 
 export async function signOutToAuth(): Promise<void> {
