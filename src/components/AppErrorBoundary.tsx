@@ -157,7 +157,7 @@ export class AppErrorBoundary extends Component<Props, State> {
             </button>
             <button
               onClick={() => {
-                window.location.href = "/welcome?demo=1";
+                window.location.href = "/demo";
               }}
               style={{
                 padding: "10px 16px",
