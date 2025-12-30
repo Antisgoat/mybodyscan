@@ -11,6 +11,7 @@ export function useCredits() {
   const [uid, setUid] = useState<string | null>(null);
   const [unlimitedFromToken, setUnlimitedFromToken] = useState(false);
   const [unlimitedFromMirror, setUnlimitedFromMirror] = useState(false);
+  const [unlimitedFromEntitlements, setUnlimitedFromEntitlements] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   let projectId = "";
@@ -34,6 +35,7 @@ export function useCredits() {
           setCredits(0);
           setUnlimitedFromToken(false);
           setUnlimitedFromMirror(false);
+          setUnlimitedFromEntitlements(false);
           setLoading(false);
           refreshAttemptRef.current = null;
         } else {
@@ -78,6 +80,7 @@ export function useCredits() {
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
     const userRef = doc(db, "users", uid);
+    const entitlementsRef = doc(db, `users/${uid}/private/entitlements`);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -103,9 +106,22 @@ export function useCredits() {
         setUnlimitedFromMirror(false);
       }
     );
+    const unsubEntitlements = onSnapshot(
+      entitlementsRef,
+      (snap) => {
+        setUnlimitedFromEntitlements(
+          snap.exists() && (snap.data() as any)?.unlimitedCredits === true
+        );
+      },
+      () => {
+        // Fail closed (including permission-denied).
+        setUnlimitedFromEntitlements(false);
+      }
+    );
     return () => {
       unsub();
       unsubUser();
+      unsubEntitlements();
     };
   }, [uid, refreshTick]);
 
@@ -113,7 +129,8 @@ export function useCredits() {
     setRefreshTick((prev) => prev + 1);
   }, []);
 
-  const unlimited = unlimitedFromToken || unlimitedFromMirror;
+  const unlimited =
+    unlimitedFromToken || unlimitedFromMirror || unlimitedFromEntitlements;
 
   if (unlimited) {
     return {
