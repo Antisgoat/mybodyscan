@@ -6,6 +6,25 @@ import { FieldValue, getFirestore } from "./firebase.js";
 
 const db = getFirestore();
 
+function normalizeBearer(value: string): string {
+  const v = String(value || "").trim();
+  if (!v) return "";
+  if (v.toLowerCase().startsWith("bearer ")) return v.slice("bearer ".length).trim();
+  return v;
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const aa = Buffer.from(String(a), "utf8");
+  const bb = Buffer.from(String(b), "utf8");
+  if (aa.length !== bb.length) return false;
+  return timingSafeEqual(aa, bb);
+}
+
+function readAuthHeader(req: Request): string {
+  // Express lower-cases header names; req.get is case-insensitive.
+  return String(req.get("authorization") || "").trim();
+}
+
 function readString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -90,12 +109,8 @@ export const revenueCatWebhook = onRequest(
       return;
     }
 
-    const secret = process.env.REVENUECAT_WEBHOOK_SIGNING_SECRET || "";
-    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
-    if (!rawBody) {
-      res.status(400).send("missing_raw_body");
-      return;
-    }
+    const secret = String(process.env.REVENUECAT_WEBHOOK_SIGNING_SECRET || "").trim();
+    const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody ?? null;
 
     const signatureHeader =
       (req.get("X-RevenueCat-Signature") ||
@@ -109,8 +124,22 @@ export const revenueCatWebhook = onRequest(
       return;
     }
 
-    if (!verifySignature({ rawBody, signatureHeader, secret })) {
-      res.status(401).send("invalid_signature");
+    // RevenueCat Dashboard "Authorization header value" validation.
+    // We store the secret WITHOUT the "Bearer " prefix and accept both:
+    //   Authorization: "Bearer <secret>"
+    //   Authorization: "<secret>"
+    const providedAuth = normalizeBearer(readAuthHeader(req));
+    const authOk = providedAuth ? safeEqual(providedAuth, secret) : false;
+
+    // Keep signature verification optional (non-blocking). If a signature header is present
+    // AND we have a raw body, we can additionally validate it; but bearer auth is sufficient.
+    const sigOk =
+      Boolean(signatureHeader) && rawBody
+        ? verifySignature({ rawBody, signatureHeader, secret })
+        : false;
+
+    if (!authOk && !sigOk) {
+      res.status(401).send("unauthorized");
       return;
     }
 
