@@ -3,6 +3,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 import { getEnv } from "./lib/env.js";
 import { isWhitelisted } from "./testWhitelist.js";
+import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
 
 function initializeFirebaseIfNeeded() {
   if (!admin.apps.length) {
@@ -44,7 +45,12 @@ export async function updateUserClaims(
   // Set unlimitedCredits if user is whitelisted
   const updatedClaims = {
     ...existingClaims,
-    unlimitedCredits: isWhitelisted(email || user.email),
+    unlimitedCredits: isUnlimitedUser({
+      uid,
+      email: (email || user.email || "").toString(),
+    })
+      ? true
+      : isWhitelisted(email || user.email),
   };
 
   await admin.auth().setCustomUserClaims(uid, updatedClaims);

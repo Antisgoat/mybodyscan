@@ -4,6 +4,8 @@ import { config } from "firebase-functions";
 import { getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
 import { updateUserClaims } from "./claims.js";
+import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
+import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
 
 const db = getFirestore();
 
@@ -27,6 +29,21 @@ export const handleUserCreate = auth.user().onCreate(async (user: any) => {
 
   // Update user claims (including unlimitedCredits for whitelisted users)
   await updateUserClaims(uid, email);
+
+  // Guarantee unlimited credits for allowlisted UIDs/emails, even when Apple provides no stable email.
+  const provider =
+    Array.isArray(user?.providerData) && user.providerData.length
+      ? String(user.providerData[0]?.providerId || "")
+      : "";
+  const shouldUnlimited = isUnlimitedUser({ uid, email: email || null });
+  if (shouldUnlimited) {
+    await ensureUnlimitedEntitlements({
+      uid,
+      email: email || null,
+      provider: provider || null,
+      source: "authTrigger",
+    });
+  }
 
   if (!email) return;
   const founders = parseFounderEmails();

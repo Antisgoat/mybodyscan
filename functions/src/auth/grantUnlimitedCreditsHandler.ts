@@ -3,17 +3,21 @@ import { HttpsError } from "firebase-functions/v2/https";
 export type GrantUnlimitedCreditsRequest = {
   emails?: unknown;
   email?: unknown;
+  uids?: unknown;
+  uid?: unknown;
   enabled?: unknown;
 };
 
 export type GrantUnlimitedCreditsUpdated = {
+  /** The resolved email, if present (may be empty when target was UID-only). */
   email: string;
   uid: string;
   enabled: boolean;
 };
 
 export type GrantUnlimitedCreditsFailed = {
-  email: string;
+  /** Target identifier (email or uid) */
+  target: string;
   reason: string;
 };
 
@@ -36,6 +40,10 @@ export type GrantUnlimitedCreditsDeps = {
 
   getUserByEmail: (
     email: string
+  ) => Promise<{ uid: string; email?: string | null; customClaims?: unknown }>;
+
+  getUserByUid: (
+    uid: string
   ) => Promise<{ uid: string; email?: string | null; customClaims?: unknown }>;
 
   setCustomUserClaims: (uid: string, claims: Record<string, unknown>) => Promise<void>;
@@ -62,10 +70,25 @@ function normalizeEmails(input: unknown): string[] {
   return Array.from(new Set(emails));
 }
 
+function normalizeUids(input: unknown): string[] {
+  const raw = Array.isArray(input) ? input : [];
+  const uids = raw
+    .map((v) => (typeof v === "string" ? v : ""))
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return Array.from(new Set(uids));
+}
+
 function normalizeSingleEmail(input: unknown): string | null {
   if (typeof input !== "string") return null;
   const email = input.trim().toLowerCase();
   return email ? email : null;
+}
+
+function normalizeSingleUid(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const uid = input.trim();
+  return uid ? uid : null;
 }
 
 function normalizeEnabled(input: unknown): boolean {
@@ -115,24 +138,35 @@ export async function grantUnlimitedCreditsHandler(
     if (list.length) return list;
     const single = normalizeSingleEmail(request.data?.email);
     if (single) return [single];
-    // Back-compat: previous implementation granted to the caller with no payload.
-    return [callerEmail];
+    return [];
   })();
 
-  if (!emails.length) {
-    throw new HttpsError("invalid-argument", "emails is required");
+  const uids = (() => {
+    const list = normalizeUids(request.data?.uids);
+    if (list.length) return list;
+    const single = normalizeSingleUid(request.data?.uid);
+    if (single) return [single];
+    return [];
+  })();
+
+  // Back-compat: previous implementation granted to the caller with no payload.
+  const targets =
+    emails.length || uids.length ? { emails, uids } : { emails: [callerEmail], uids: [] };
+
+  if (!targets.emails.length && !targets.uids.length) {
+    throw new HttpsError("invalid-argument", "email(s) or uid(s) is required");
   }
 
   const updated: GrantUnlimitedCreditsUpdated[] = [];
   const failed: GrantUnlimitedCreditsFailed[] = [];
   const atIso = deps.nowIso();
 
-  for (const email of emails) {
+  for (const email of targets.emails) {
     try {
       const target = await deps.getUserByEmail(email);
       const uid = String(target.uid || "");
       if (!uid) {
-        failed.push({ email, reason: "missing_uid" });
+        failed.push({ target: email, reason: "missing_uid" });
         continue;
       }
 
@@ -157,11 +191,53 @@ export async function grantUnlimitedCreditsHandler(
       updated.push({ email, uid, enabled });
     } catch (error: unknown) {
       if (isUserNotFound(error)) {
-        failed.push({ email, reason: "user_not_found" });
+        failed.push({ target: email, reason: "user_not_found" });
         continue;
       }
       failed.push({
-        email,
+        target: email,
+        reason: (error as Error)?.message || "unknown_error",
+      });
+    }
+  }
+
+  for (const uidTarget of targets.uids) {
+    try {
+      const target = await deps.getUserByUid(uidTarget);
+      const uid = String(target.uid || "");
+      if (!uid) {
+        failed.push({ target: uidTarget, reason: "missing_uid" });
+        continue;
+      }
+
+      const existingClaims =
+        target.customClaims && typeof target.customClaims === "object"
+          ? (target.customClaims as Record<string, unknown>)
+          : {};
+
+      await deps.setCustomUserClaims(uid, {
+        ...existingClaims,
+        unlimitedCredits: enabled,
+      });
+
+      await deps.writeUnlimitedCreditsMirror({
+        uid,
+        enabled,
+        grantedByEmail: callerEmail,
+        grantedByUid: auth.uid,
+        atIso,
+      });
+
+      const resolvedEmail =
+        typeof target.email === "string" ? target.email.trim().toLowerCase() : "";
+      updated.push({ email: resolvedEmail, uid, enabled });
+    } catch (error: unknown) {
+      if (isUserNotFound(error)) {
+        failed.push({ target: uidTarget, reason: "user_not_found" });
+        continue;
+      }
+      failed.push({
+        target: uidTarget,
         reason: (error as Error)?.message || "unknown_error",
       });
     }

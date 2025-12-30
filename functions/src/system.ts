@@ -3,6 +3,8 @@ import * as logger from "firebase-functions/logger";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { uidFromAuth } from "./util/auth.js";
+import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
+import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
 
 const allow = [
   "https://mybodyscanapp.com",
@@ -88,6 +90,25 @@ export const systemBootstrap = https.onRequest(
       const isAdminEmail = !!auth.email && emails.includes(auth.email!);
 
       let claimsUpdated = false;
+      let unlimitedUpdated = false;
+      let pathsUpdated: string[] = [];
+
+      const shouldUnlimited = isUnlimitedUser({
+        uid: auth.uid,
+        email: auth.email ?? null,
+      });
+      if (shouldUnlimited) {
+        const ensured = await ensureUnlimitedEntitlements({
+          uid: auth.uid,
+          email: auth.email ?? null,
+          provider: auth.provider ?? null,
+          source: "systemBootstrap",
+        });
+        unlimitedUpdated = ensured.didGrant;
+        pathsUpdated = ensured.pathsUpdated;
+        claimsUpdated = claimsUpdated || ensured.didSetClaims;
+      }
+
       if (isAdminEmail) {
         const user = await getAuth().getUser(auth.uid);
         const claims = user.customClaims || {};
@@ -109,7 +130,14 @@ export const systemBootstrap = https.onRequest(
         }
       }
 
-      res.json({ ok: true, admin: isAdminEmail, claimsUpdated });
+      res.json({
+        ok: true,
+        admin: isAdminEmail,
+        claimsUpdated,
+        unlimitedCredits: shouldUnlimited,
+        unlimitedUpdated,
+        pathsUpdated,
+      });
     } catch (e) {
       logger.error("systemBootstrap error", e);
       res.status(500).json({ error: "bootstrap_failed" });

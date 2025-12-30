@@ -1,6 +1,6 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { Timestamp, getFirestore } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { getEnv } from "../lib/env.js";
@@ -36,13 +36,28 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
         customClaims: (record.customClaims || {}) as unknown,
       };
     },
+    getUserByUid: async (uid: string) => {
+      const record = await auth.getUser(uid);
+      return {
+        uid: record.uid,
+        email: record.email ?? null,
+        customClaims: (record.customClaims || {}) as unknown,
+      };
+    },
     setCustomUserClaims: async (uid: string, claims: Record<string, unknown>) => {
       await auth.setCustomUserClaims(uid, claims);
     },
     writeUnlimitedCreditsMirror: async (params) => {
       const at = Timestamp.now();
+      const updatedAt = FieldValue.serverTimestamp();
+      const entitlementFields = params.enabled
+        ? { credits: 999_999_999 }
+        : null;
+
       const payload = {
         unlimitedCredits: params.enabled,
+        updatedAt,
+        ...(entitlementFields || null),
         unlimitedCreditsUpdatedAt: at,
         unlimitedCreditsGrantedBy: params.grantedByEmail,
         unlimitedCreditsGrantedByUid: params.grantedByUid,
@@ -52,6 +67,16 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
       };
 
       await Promise.all([
+        db
+          .doc(`users/${params.uid}/private/entitlements`)
+          .set(
+            {
+              unlimitedCredits: params.enabled,
+              updatedAt,
+              ...(entitlementFields || null),
+            },
+            { merge: true }
+          ),
         db.doc(`users/${params.uid}/private/admin`).set(payload, { merge: true }),
         db.doc(`users/${params.uid}`).set(payload, { merge: true }),
       ]);
