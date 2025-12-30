@@ -129,6 +129,13 @@
         }
       },
       {
+        "source": "/api/revenuecat/webhook",
+        "function": {
+          "functionId": "revenueCatWebhook",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/**",
         "function": {
           "functionId": "api",
@@ -167,13 +174,6 @@
         "source": "/stripeWebhook",
         "function": {
           "functionId": "stripeWebhook",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "/api/revenuecat/webhook",
-        "function": {
-          "functionId": "revenueCatWebhook",
           "region": "us-central1"
         }
       },
@@ -227,6 +227,7 @@
       "secrets": [
         "ADMIN_EMAIL_ALLOWLIST",
         "OPENAI_API_KEY",
+        "REVENUECAT_WEBHOOK_SIGNING_SECRET",
         "STRIPE_SECRET",
         "STRIPE_SECRET_KEY",
         "STRIPE_WEBHOOK_SECRET",
@@ -238,6 +239,7 @@
         "AUTH_EMAIL_ENABLED": "true",
         "AUTH_DEMO_ENABLED": "true",
         "APPCHECK_MODE": "soft",
+        "REVENUECAT_ENTITLEMENT_ID": "pro",
         "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
       }
     }
