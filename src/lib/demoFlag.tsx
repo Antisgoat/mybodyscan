@@ -14,6 +14,7 @@ export const DEMO_ALLOWED_PATHS = [
   "/home",
   "/demo",
   "/meals",
+  "/workouts",
   "/programs",
   "/coach",
   "/settings",
