@@ -1,5 +1,4 @@
-import { auth } from "./firebase";
-import { getAppCheckHeader } from "./appCheck";
+import { enqueue, initTelemetryClient, type TelemetryClientEvent } from "@/lib/telemetry/client";
 
 export type TelemetryPayload = {
   kind: string;
@@ -12,9 +11,6 @@ export type TelemetryPayload = {
 };
 
 const TELEMETRY_ENDPOINT = "/telemetry/log";
-const MAX_SESSION_EVENTS = 40;
-const sentKeys = new Set<string>();
-let sessionCount = 0;
 let listenersBound = false;
 
 function isTestLikeEnv(): boolean {
@@ -37,10 +33,6 @@ function resolveTelemetryUrl(): string | null {
   } catch {
     return null;
   }
-}
-
-function buildKey(message?: string | null, stack?: string | null): string {
-  return `${message || ""}|${stack || ""}`.slice(0, 500);
 }
 
 function stripUndefinedDeep(value: unknown, depth = 0): unknown {
@@ -79,73 +71,18 @@ export function buildTelemetryBody(payload: TelemetryPayload): Record<string, un
   return (stripUndefinedDeep(body) as Record<string, unknown>) || {};
 }
 
-async function getAuthToken(): Promise<string | undefined> {
-  try {
-    // In tests, module mocks may omit `auth`. Telemetry should never throw.
-    const user = (auth as any)?.currentUser;
-    if (!user) return undefined;
-    return await user.getIdToken();
-  } catch (error) {
-    // Never spam logs in tests; keep production logs useful.
-    if (!isTestLikeEnv()) {
-      console.warn("telemetry_token_error", (error as Error)?.message);
-    }
-    return undefined;
-  }
-}
-
 export async function reportError(payload: TelemetryPayload): Promise<void> {
-  if (!payload || !payload.kind) return;
-  if (sessionCount >= MAX_SESSION_EVENTS) return;
-  if (isTestLikeEnv()) return;
-
-  const key = buildKey(payload.message, payload.stack);
-  if (key && sentKeys.has(key)) {
-    return;
-  }
-  if (key) {
-    sentKeys.add(key);
-  }
-
-  sessionCount += 1;
-
-  const body = buildTelemetryBody(payload);
-
   try {
-    const url = resolveTelemetryUrl();
-    if (!url) {
-      return;
-    }
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    const token = await getAuthToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    // Soft-add AppCheck token if available (server does not require it, but helps
-    // in environments where upstream middleware is stricter).
-    const appCheckHeader = await getAppCheckHeader(false);
-    Object.assign(headers, appCheckHeader);
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      keepalive: true,
-    });
-    if (!response.ok && import.meta.env.DEV) {
-      console.info("[telemetry] failed", response.status);
-    } else if (import.meta.env.DEV) {
-      console.info(
-        "[telemetry] sent",
-        payload.kind,
-        payload.message?.slice(0, 60) ?? ""
-      );
-    }
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.info("[telemetry] error", (error as Error)?.message ?? error);
-    }
+    if (!payload || !payload.kind) return;
+    if (isTestLikeEnv()) return;
+    // Ensure absolute URL resolution works (and avoids oddities in test envs).
+    // If URL can't be resolved, just drop (best-effort).
+    if (!resolveTelemetryUrl()) return;
+
+    const body = buildTelemetryBody(payload) as TelemetryClientEvent;
+    enqueue(body);
+  } catch {
+    // Telemetry must never throw.
   }
 }
 
@@ -196,6 +133,11 @@ function onUnhandledRejection(event: PromiseRejectionEvent) {
 export function initTelemetry(): void {
   if (typeof window === "undefined" || listenersBound) return;
   listenersBound = true;
+  try {
+    initTelemetryClient();
+  } catch {
+    // ignore
+  }
   window.addEventListener("error", onWindowError);
   window.addEventListener("unhandledrejection", onUnhandledRejection);
 }

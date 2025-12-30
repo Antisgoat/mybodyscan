@@ -37,14 +37,14 @@ function authEvent(kind: string, extra?: Record<string, unknown>) {
   const stamp = Date.now();
   void reportError({
     kind,
-    message: `${kind}:${stamp}`,
+    message: kind,
     extra: { at: stamp, ...(extra ?? {}) },
   });
   // Compatibility with release logging names:
   if (kind === "auth_redirect_result") {
     void reportError({
       kind: "auth.redirect_result",
-      message: `auth.redirect_result:${stamp}`,
+      message: "auth.redirect_result",
       extra: { at: stamp, ...(extra ?? {}) },
     });
   }
