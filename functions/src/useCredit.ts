@@ -3,6 +3,7 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 import type { Request } from "express";
 import { verifyAppCheckStrict } from "./http.js";
 import { consumeCredit } from "./credits.js";
+import { hasUnlimitedCreditsMirror } from "./lib/unlimitedCredits.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
@@ -26,7 +27,8 @@ export async function useCreditHandler(
     await verifyAppCheckStrict(rawRequest);
   }
 
-  const unlimitedCredits = hasUnlimited(context);
+  const unlimitedCredits =
+    hasUnlimited(context) || (await hasUnlimitedCreditsMirror(uid));
   if (unlimitedCredits) {
     // Bypass credit consumption for whitelisted users
     return { ok: true, remaining: Infinity };

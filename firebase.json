@@ -218,6 +218,7 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ],
       "secrets": [
+        "ADMIN_EMAIL_ALLOWLIST",
         "OPENAI_API_KEY",
         "STRIPE_SECRET",
         "STRIPE_SECRET_KEY",

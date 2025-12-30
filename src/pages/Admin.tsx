@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -15,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useClaims } from "@/lib/claims";
+import { call } from "@/lib/callable";
 import {
   AdminUserRecord,
   adminFetchStripeEvents,
@@ -29,7 +32,15 @@ import {
 import { APPCHECK_SITE_KEY, STRIPE_PUBLISHABLE_KEY } from "@/lib/flags";
 import { buildErrorToast } from "@/lib/errorToasts";
 
-const STAFF_EMAIL_ALLOW = new Set(["developer@adlrlabs.com"]);
+const STAFF_EMAIL_ALLOW = new Set(
+  [
+    ...String(import.meta.env.VITE_ADMIN_EMAIL_ALLOWLIST || "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+    "developer@adlrlabs.com",
+  ].filter(Boolean)
+);
 
 function isStaffUser(
   user: { email?: string | null },
@@ -368,6 +379,157 @@ function TelemetryPanel({ events }: { events: TelemetryEventRecord[] }) {
   );
 }
 
+const DEFAULT_TESTER_EMAILS = [
+  "luisjm1620@gmail.com",
+  "pmendoza1397@gmail.com",
+  "tester@adlrlabs.com",
+].join("\n");
+
+type GrantUnlimitedCreditsResponse = {
+  ok?: boolean;
+  enabled?: boolean;
+  updated?: Array<{ email: string; uid: string; enabled: boolean }>;
+  failed?: Array<{ email: string; reason: string }>;
+};
+
+function TestersPanel() {
+  const [emailsText, setEmailsText] = useState(DEFAULT_TESTER_EMAILS);
+  const [enabled, setEnabled] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<GrantUnlimitedCreditsResponse | null>(
+    null
+  );
+
+  const emails = useMemo(() => {
+    const tokens = emailsText
+      .split(/[\n,]+/g)
+      .map((v) => v.trim().toLowerCase())
+      .filter(Boolean);
+    return Array.from(new Set(tokens));
+  }, [emailsText]);
+
+  const handleApply = useCallback(async () => {
+    if (!emails.length) {
+      toast({
+        title: "No emails",
+        description: "Paste one email per line.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setBusy(true);
+      setResult(null);
+      const response = await call<
+        { emails: string[]; enabled: boolean },
+        GrantUnlimitedCreditsResponse
+      >("grantUnlimitedCredits", { emails, enabled });
+      setResult(response.data || null);
+      toast({
+        title: "Done",
+        description: enabled
+          ? "Unlimited credits granted."
+          : "Unlimited credits revoked.",
+      });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: {
+            title: "Failed",
+            description: "You are not authorized, or a server error occurred.",
+            variant: "destructive",
+          },
+        })
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [emails, enabled]);
+
+  const updated = Array.isArray(result?.updated) ? result!.updated! : [];
+  const failed = Array.isArray(result?.failed) ? result!.failed! : [];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Testers (Unlimited credits)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Enter one email per line. This calls the secure{" "}
+              <code>grantUnlimitedCredits</code> function.
+            </p>
+            <Textarea
+              value={emailsText}
+              onChange={(e) => setEmailsText(e.target.value)}
+              rows={6}
+              placeholder="email@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              {emails.length} email{emails.length === 1 ? "" : "s"} detected
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <span className="text-sm">
+              Mode:{" "}
+              <strong>{enabled ? "Grant unlimited" : "Revoke unlimited"}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button onClick={handleApply} disabled={busy}>
+              {busy ? "Applying…" : "Apply"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Results</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="font-medium">Updated</p>
+              {!updated.length && (
+                <p className="text-muted-foreground">None</p>
+              )}
+              {updated.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {updated.map((row) => (
+                    <li key={`${row.email}-${row.uid}`}>
+                      <code>{row.email}</code> → <code>{row.uid}</code> (
+                      {row.enabled ? "enabled" : "disabled"})
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="font-medium">Failed</p>
+              {!failed.length && <p className="text-muted-foreground">None</p>}
+              {failed.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {failed.map((row) => (
+                    <li key={`${row.email}-${row.reason}`}>
+                      <code>{row.email}</code> — {row.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function AdminConsole() {
   const { user, claims, loading } = useClaims();
   const navigate = useNavigate();
@@ -482,6 +644,7 @@ export default function AdminConsole() {
       <Tabs defaultValue="users" className="w-full">
         <TabsList>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="testers">Testers</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
         </TabsList>
@@ -498,6 +661,9 @@ export default function AdminConsole() {
             )}
           </div>
           <UsersPanel users={users} onRefresh={refreshUsers} />
+        </TabsContent>
+        <TabsContent value="testers" className="space-y-4">
+          <TestersPanel />
         </TabsContent>
         <TabsContent value="payments">
           <PaymentsPanel events={events} />

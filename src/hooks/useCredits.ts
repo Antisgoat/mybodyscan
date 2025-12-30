@@ -9,7 +9,8 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
-  const [unlimited, setUnlimited] = useState(false);
+  const [unlimitedFromToken, setUnlimitedFromToken] = useState(false);
+  const [unlimitedFromMirror, setUnlimitedFromMirror] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   let projectId = "";
@@ -31,7 +32,8 @@ export function useCredits() {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
-          setUnlimited(false);
+          setUnlimitedFromToken(false);
+          setUnlimitedFromMirror(false);
           setLoading(false);
           refreshAttemptRef.current = null;
         } else {
@@ -51,7 +53,7 @@ export function useCredits() {
           const hasUnlimited =
             token.claims.unlimitedCredits === true ||
             token.claims.unlimited === true;
-          setUnlimited(hasUnlimited);
+          setUnlimitedFromToken(hasUnlimited);
         }
       },
       (err) => {
@@ -75,6 +77,7 @@ export function useCredits() {
 
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
+    const userRef = doc(db, "users", uid);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -90,12 +93,27 @@ export function useCredits() {
         setLoading(false);
       }
     );
-    return () => unsub();
+    const unsubUser = onSnapshot(
+      userRef,
+      (snap) => {
+        setUnlimitedFromMirror((snap.data() as any)?.unlimitedCredits === true);
+      },
+      () => {
+        // Fail closed.
+        setUnlimitedFromMirror(false);
+      }
+    );
+    return () => {
+      unsub();
+      unsubUser();
+    };
   }, [uid, refreshTick]);
 
   const refresh = useCallback(() => {
     setRefreshTick((prev) => prev + 1);
   }, []);
+
+  const unlimited = unlimitedFromToken || unlimitedFromMirror;
 
   if (unlimited) {
     return {
