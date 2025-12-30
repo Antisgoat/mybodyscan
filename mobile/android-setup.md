@@ -22,13 +22,24 @@ These steps assume `npx cap add android` has been executed from the repository r
    - No extra runtime permissions are needed beyond the system dialog Android shows for camera/gallery access
 7. **Build artifacts**
    - Use _Build > Build Bundle(s)/APK(s) > Build Bundle(s)_ to create an `.aab`
-   - Upload the bundle to Play Console, supply release notes about redirect-based Google sign-in and browser hand-off for Stripe
+   - Upload the bundle to Play Console, supply release notes about native Google/Apple sign-in and **in‑app purchases** (RevenueCat)
 8. **Testing checklist**
    - Verify Google sign-in triggers a redirect (no popups)
-   - Confirm Stripe checkout/portal exit the WebView to Chrome (our `openExternal` helper handles this)
+   - Confirm in-app purchase flow opens natively (no external checkout links inside the app)
    - Check Android hardware back during scan upload/processing shows the confirmation dialog
 
 Troubleshooting:
 
 - If Stripe opens inside the WebView, confirm the app was built after the `openExternal` helper landed
 - If the back confirmation does not appear, ensure the WebView is not overriding the history stack (Capacitor default is fine)
+
+## RevenueCat (In‑App Purchases)
+
+1. Run `npx cap sync android` after pulling changes.
+2. In Play Console:
+   - Create subscription products (base plans/offers) and publish to internal testing.
+3. In RevenueCat:
+   - Add Android products and attach them to the `pro` entitlement.
+4. Confirm the app is built with:
+   - `VITE_RC_API_KEY_ANDROID`
+   - `VITE_RC_ENTITLEMENT_ID` (default `pro`)

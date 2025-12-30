@@ -23,9 +23,20 @@ These steps assume you already ran `npx cap add ios` from the repository root.
    - If overriding, ensure `allowsBackForwardNavigationGestures` stays enabled so our back guard receives popstate events
 7. **Build pipeline**
    - Archive from Xcode (`Product > Archive`)
-   - Upload via the Organizer, attach release notes describing the redirect-based Google sign-in and external Stripe browser jump
+   - Upload via the Organizer, attach release notes describing native Google/Apple sign-in and **in‑app purchases** (RevenueCat)
 
 Troubleshooting:
 
 - If Google sign-in loops, confirm the redirect URI `https://mybodyscanapp.com/oauth/return` is listed in Firebase Auth
 - If the camera does not appear, check the `NSCameraUsageDescription` string and ensure the device has granted permission
+
+## RevenueCat (In‑App Purchases)
+
+1. Run `npx cap sync ios` after pulling changes.
+2. In Xcode:
+   - Ensure **In‑App Purchase** capability is enabled.
+3. In RevenueCat:
+   - Add iOS products and attach them to the `pro` entitlement.
+4. Confirm the app is built with:
+   - `VITE_RC_API_KEY_IOS`
+   - `VITE_RC_ENTITLEMENT_ID` (default `pro`)

@@ -39,4 +39,5 @@
 - Web app: `npm run typecheck && npm test && npm run build`
 - Functions: `npm --prefix functions install && npm --prefix functions run build`
 - Deploy (manual): `firebase deploy --only functions,firestore:rules`
+- Capacitor (native): `npm run build && npx cap sync`
 
