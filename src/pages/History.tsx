@@ -70,6 +70,10 @@ export default function HistoryPage() {
   }, [items, demo, user]); // eslint-disable-line
 
   function toggle(id: string) {
+    if (demo && !user) {
+      // Demo preview: keep selection UX simple; comparisons require an account.
+      return;
+    }
     setSelected((sel) => {
       if (sel.includes(id)) return sel.filter((x) => x !== id);
       if (sel.length >= 2) return [sel[1], id]; // keep at most 2
@@ -221,7 +225,14 @@ export default function HistoryPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
                 <div className="flex gap-2">
                   <button
-                    onClick={() => nav(`/scans/${it.id}`)}
+                    onClick={() => {
+                      if (demo && !user) {
+                        // Demo-safe route (does not require auth).
+                        nav(`/results/${it.id}`);
+                        return;
+                      }
+                      nav(`/scans/${it.id}`);
+                    }}
                     className="text-[11px] underline"
                   >
                     Open
@@ -263,8 +274,17 @@ export default function HistoryPage() {
       {/* Sticky compare bar */}
       <div className="fixed inset-x-0 bottom-3 flex justify-center">
         <button
-          disabled={selected.length !== 2}
-          onClick={() => nav(`/scans/compare/${selected[0]}/${selected[1]}`)}
+          disabled={demo && !user ? true : selected.length !== 2}
+          onClick={() => {
+            if (demo && !user) {
+              toast({
+                title: "Demo is read-only",
+                description: "Sign up to compare scans.",
+              });
+              return;
+            }
+            nav(`/scans/compare/${selected[0]}/${selected[1]}`);
+          }}
           className="rounded-full border bg-white px-4 py-2 text-sm shadow disabled:opacity-50"
         >
           Compare ({selected.length}/2)
