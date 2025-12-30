@@ -50,10 +50,14 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
     writeUnlimitedCreditsMirror: async (params) => {
       const at = Timestamp.now();
       const updatedAt = FieldValue.serverTimestamp();
+      const entitlementFields = params.enabled
+        ? { credits: 999_999_999 }
+        : null;
+
       const payload = {
         unlimitedCredits: params.enabled,
-        credits: 999_999_999,
         updatedAt,
+        ...(entitlementFields || null),
         unlimitedCreditsUpdatedAt: at,
         unlimitedCreditsGrantedBy: params.grantedByEmail,
         unlimitedCreditsGrantedByUid: params.grantedByUid,
@@ -68,8 +72,8 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
           .set(
             {
               unlimitedCredits: params.enabled,
-              credits: 999_999_999,
               updatedAt,
+              ...(entitlementFields || null),
             },
             { merge: true }
           ),
