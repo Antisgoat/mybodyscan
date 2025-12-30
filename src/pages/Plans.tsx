@@ -57,9 +57,6 @@ export default function Plans() {
   const { user } = useAuthUser();
   const iosBuild = isIOSBuild();
   const native = isNative();
-  if (native) {
-    return <Navigate to="/paywall" replace />;
-  }
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [billingActionError, setBillingActionError] = useState<{
     title: string;
@@ -368,6 +365,10 @@ export default function Plans() {
     .map((plan) => plan.envKey as string);
 
   const uniqueMissingEnvKeys = Array.from(new Set(missingPriceEnvKeys));
+
+  if (native) {
+    return <Navigate to="/paywall" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

@@ -24,10 +24,6 @@ const MODES: Record<keyof typeof PRICE_IDS, "payment" | "subscription"> = {
 };
 
 export default function Billing() {
-  const native = isNative();
-  if (native) {
-    return <Navigate to="/paywall" replace />;
-  }
   const [uid, setUid] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,6 +70,11 @@ export default function Billing() {
     } finally {
       setBusy(false);
     }
+  }
+
+  const native = isNative();
+  if (native) {
+    return <Navigate to="/paywall" replace />;
   }
 
   return (
