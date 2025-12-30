@@ -35,6 +35,13 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
+          // Keep Capacitor (and capacitor-firebase) code out of the eagerly-loaded
+          // firebase chunk. Otherwise, Rollup can merge a dynamically imported
+          // native-only module into a static chunk and execute it on web at boot.
+          if (id.includes("@capacitor-firebase/authentication"))
+            return "capacitor-firebase-auth";
+          if (id.includes("@capacitor-firebase")) return "capacitor-firebase";
+          if (id.includes("@capacitor/")) return "capacitor";
           if (id.includes("firebase")) return "firebase";
           if (id.includes("@tanstack")) return "tanstack";
           if (id.includes("recharts")) return "recharts";

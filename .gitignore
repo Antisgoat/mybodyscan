@@ -40,3 +40,6 @@ functions/lib/
 !.env.example
 !.env.sample
 !.env.schema
+
+# Temporary/debug artifacts (should never be committed)
+prod-*.js

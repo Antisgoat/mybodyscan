@@ -15,6 +15,7 @@ const BOOT_STYLE: Record<string, string | number> = {
 };
 
 const PENDING_OAUTH_KEY = "mybodyscan:auth:oauth:pending";
+const AUTH_BOOT_TIMEOUT_MS = 10_000;
 
 /**
  * Minimal boot gate to ensure auth + runtime probes happen
@@ -28,6 +29,7 @@ export function BootGate({
   fallback?: ReactNode;
 }) {
   const [ready, setReady] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const label = useMemo(() => {
     if (typeof window === "undefined") return "Loading…";
     try {
@@ -41,19 +43,63 @@ export function BootGate({
 
   useEffect(() => {
     let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setTimedOut(true);
+    }, AUTH_BOOT_TIMEOUT_MS);
     void (async () => {
       await initAuth();
       logFirebaseConfigSummary();
       logFirebaseRuntimeInfo();
       void probeFirebaseRuntime();
-      if (!cancelled) setReady(true);
+      if (!cancelled) {
+        setReady(true);
+        setTimedOut(false);
+      }
     })();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
   }, []);
 
   if (!ready) {
+    if (timedOut) {
+      return (
+        <div style={BOOT_STYLE}>
+          <div style={{ maxWidth: 520 }}>
+            <div style={{ fontWeight: 700, color: "#111827" }}>
+              Still loading…
+            </div>
+            <div style={{ marginTop: 8 }}>
+              If this doesn’t resolve, try reloading. If you’re signing in,
+              complete the login popup/redirect and then come back here.
+            </div>
+            <button
+              type="button"
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                background: "#111827",
+                color: "#ffffff",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                try {
+                  window.location.reload();
+                } catch {
+                  // ignore
+                }
+              }}
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
     return <div style={BOOT_STYLE}>{fallback ?? label}</div>;
   }
 
