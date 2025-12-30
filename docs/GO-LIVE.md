@@ -31,6 +31,7 @@ cd functions
 # App + host
 firebase functions:secrets:set HOST_BASE_URL --project mybodyscan-f3daf         # e.g. https://mybodyscanapp.com
 firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project mybodyscan-f3daf
+firebase functions:secrets:set ADMIN_EMAIL_ALLOWLIST --project mybodyscan-f3daf # comma-separated admin emails for grantUnlimitedCredits
 
 # Third-party services
 firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf

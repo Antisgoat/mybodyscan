@@ -218,6 +218,7 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ],
       "secrets": [
+        "ADMIN_EMAIL_ALLOWLIST",
         "OPENAI_API_KEY",
         "STRIPE_SECRET",
         "STRIPE_SECRET_KEY",
@@ -229,7 +230,6 @@
         "AUTH_APPLE_ENABLED": "true",
         "AUTH_EMAIL_ENABLED": "true",
         "AUTH_DEMO_ENABLED": "true",
-        "ADMIN_EMAIL_ALLOWLIST": "developer@adlrlabs.com",
         "APPCHECK_MODE": "soft",
         "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
       }

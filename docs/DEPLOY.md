@@ -15,6 +15,7 @@
    cd functions
    firebase functions:secrets:set HOST_BASE_URL --project mybodyscan-f3daf
    firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project mybodyscan-f3daf
+   firebase functions:secrets:set ADMIN_EMAIL_ALLOWLIST --project mybodyscan-f3daf
    firebase functions:secrets:set OPENAI_API_KEY --project mybodyscan-f3daf
    firebase functions:secrets:set USDA_FDC_API_KEY --project mybodyscan-f3daf
    firebase functions:secrets:set STRIPE_SECRET --project mybodyscan-f3daf
