@@ -102,6 +102,7 @@ const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 const DevAudit = lazy(() => import("./pages/DevAudit"));
 const Scan = lazy(() => import("./pages/Scan"));
 const Plans = lazy(() => import("./pages/Plans"));
+const Paywall = lazy(() => import("./pages/Paywall"));
 const Coach = lazy(() => import("./pages/Coach"));
 const Meals = lazy(() => import("./pages/Meals"));
 const ScanResult = lazy(() => import("./pages/ScanResult"));
@@ -829,6 +830,25 @@ const App = () => (
                   <RouteBoundary>
                     <PageSuspense>
                       <Plans />
+                    </PageSuspense>
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/paywall"
+          element={
+            <FeatureGate
+              name="account"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <PageSuspense>
+                      <Paywall />
                     </PageSuspense>
                   </RouteBoundary>
                 </AuthedLayout>

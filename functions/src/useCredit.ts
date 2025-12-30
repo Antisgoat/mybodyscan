@@ -4,6 +4,7 @@ import type { Request } from "express";
 import { verifyAppCheckStrict } from "./http.js";
 import { consumeCredit } from "./credits.js";
 import { hasUnlimitedCreditsMirror } from "./lib/unlimitedCredits.js";
+import { hasProEntitlement } from "./lib/proEntitlements.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
@@ -28,7 +29,9 @@ export async function useCreditHandler(
   }
 
   const unlimitedCredits =
-    hasUnlimited(context) || (await hasUnlimitedCreditsMirror(uid));
+    hasUnlimited(context) ||
+    (await hasUnlimitedCreditsMirror(uid)) ||
+    (await hasProEntitlement(uid));
   if (unlimitedCredits) {
     // Bypass credit consumption for whitelisted users
     return { ok: true, remaining: Infinity };

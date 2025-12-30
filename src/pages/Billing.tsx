@@ -6,7 +6,8 @@ import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
 import { auth, db } from "@/lib/firebase";
-import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
+import { Navigate } from "react-router-dom";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -23,7 +24,10 @@ const MODES: Record<keyof typeof PRICE_IDS, "payment" | "subscription"> = {
 };
 
 export default function Billing() {
-  const iosBuild = isIOSBuild();
+  const native = isNative();
+  if (native) {
+    return <Navigate to="/paywall" replace />;
+  }
   const [uid, setUid] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,12 +79,6 @@ export default function Billing() {
   return (
     <div className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-bold mb-4">Billing</h1>
-      {iosBuild && (
-        <p className="mb-4 text-sm text-gray-600">
-          Billing is disabled in the iOS build. Please use the web app to manage
-          plans.
-        </p>
-      )}
       <p className="mb-4 text-sm text-gray-600">
         Credits let you run body scans. Subscriptions deposit credits every
         billing cycle.
@@ -92,7 +90,7 @@ export default function Billing() {
       <div className="space-y-3">
         <button
           className="w-full border rounded p-2"
-          disabled={iosBuild || busy || !uid}
+          disabled={busy || !uid}
           onClick={() =>
             go(async () => {
               const priceId = PRICE_IDS.one;
@@ -124,7 +122,7 @@ export default function Billing() {
 
         <button
           className="w-full border rounded p-2"
-          disabled={iosBuild || busy || !uid}
+          disabled={busy || !uid}
           onClick={() =>
             go(async () => {
               const priceId = PRICE_IDS.monthly;
@@ -156,7 +154,7 @@ export default function Billing() {
 
         <button
           className="w-full border rounded p-2"
-          disabled={iosBuild || busy || !uid}
+          disabled={busy || !uid}
           onClick={() =>
             go(async () => {
               const priceId = PRICE_IDS.yearly;
@@ -188,7 +186,7 @@ export default function Billing() {
 
         <button
           className="w-full border rounded p-2"
-          disabled={iosBuild || busy || !uid}
+          disabled={busy || !uid}
           onClick={() =>
             go(async () => {
               const url = await createCustomerPortalSession();

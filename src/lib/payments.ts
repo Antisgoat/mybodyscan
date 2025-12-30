@@ -1,6 +1,6 @@
 import { loadStripe } from "@stripe/stripe-js";
 import { apiFetchJson } from "./apiFetch";
-import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
 
 type ErrorPayload = { error: string; code?: string };
 
@@ -31,7 +31,7 @@ function ensureStripePublishableKey(): string {
 }
 
 function assertPaymentsAllowed(): void {
-  if (isIOSBuild()) {
+  if (isNative()) {
     throw {
       error: "payments_disabled",
       code: "payments_disabled",

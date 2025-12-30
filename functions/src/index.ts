@@ -33,6 +33,7 @@ export {
   updateWorkoutPlan,
 } from "./workouts.js";
 export { stripeWebhook } from "./stripeWebhook.js";
+export { revenueCatWebhook } from "./revenueCatWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";
 export { createCheckout } from "./stripe/createCheckout.js";
 export { createCustomerPortal } from "./createCustomerPortal.js";

@@ -78,7 +78,6 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
-import { isIOSBuild } from "@/lib/iosBuild";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -115,7 +114,8 @@ const Settings = () => {
     stripeMode,
     stripeConfigured,
   } = computeFeatureStatuses(systemHealth ?? undefined);
-  const iosBuild = isIOSBuild();
+  // Stripe is web-only; native builds use in-app purchases.
+  const iosBuild = isNativeCapacitor();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";

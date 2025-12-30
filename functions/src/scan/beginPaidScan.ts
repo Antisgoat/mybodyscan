@@ -22,6 +22,7 @@ import { validateBeginPaidScanPayload } from "../validation/beginPaidScan.js";
 import { isStaff } from "../claims.js";
 import { errorCode, statusFromCode } from "../lib/errors.js";
 import { hasUnlimitedCreditsMirror } from "../lib/unlimitedCredits.js";
+import { hasProEntitlement } from "../lib/proEntitlements.js";
 
 const db = getFirestore();
 const MAX_DAILY_FAILS = 3;
@@ -36,8 +37,11 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
+  const proEntitled = await hasProEntitlement(uid);
   const unlimitedCredits =
-    claims?.unlimitedCredits === true || (await hasUnlimitedCreditsMirror(uid));
+    claims?.unlimitedCredits === true ||
+    (await hasUnlimitedCreditsMirror(uid)) ||
+    proEntitled;
 
   if (staffBypass) {
     console.info("beginPaidScan_staff_bypass", { uid });

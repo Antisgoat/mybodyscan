@@ -43,11 +43,10 @@ import { demoToast } from "@/lib/demoToast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { activateCatalogPlan } from "@/lib/workouts";
 import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
-import { useClaims } from "@/lib/claims";
-import { useSubscription } from "@/hooks/useSubscription";
 import { canStartPrograms } from "@/lib/entitlements";
-import { call } from "@/lib/callable";
+import { useEntitlements } from "@/lib/entitlements/store";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
+import { isNative } from "@/lib/platform";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -109,12 +108,10 @@ export default function ProgramDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [activationNote, setActivationNote] = useState<string | null>(null);
   const demo = useDemoMode();
-  const { claims } = useClaims();
-  const { subscription } = useSubscription();
+  const { entitlements, loading: entitlementsLoading } = useEntitlements();
   const startAllowed = canStartPrograms({
     demo,
-    claims: (claims || undefined) as any,
-    subscription: subscription || undefined,
+    entitlements,
   });
 
   useEffect(() => {
@@ -157,28 +154,23 @@ export default function ProgramDetail() {
       });
       return;
     }
-    // Claims can be stale right after an entitlement change; refresh once before gating/server calls.
-    let allowedNow = startAllowed;
-    try {
-      await call("refreshClaims");
-      await user.getIdToken(true);
-      const token = await user.getIdTokenResult().catch(() => null);
-      const refreshedClaims = (token?.claims ?? null) as any;
-      allowedNow = canStartPrograms({
-        demo,
-        claims: refreshedClaims || undefined,
-        subscription: subscription || undefined,
+    if (entitlementsLoading) {
+      toast({
+        title: "Checking access…",
+        description: "We’ll enable start once your account is synced.",
       });
-    } catch {
-      // ignore (fail closed below if not allowed)
+      return;
     }
-    if (!allowedNow) {
+    if (!startAllowed) {
       toast({
         title: "Programs locked",
         description:
-          "Your account can't start programs yet. Visit Plans to activate your account.",
+          isNative()
+            ? "Upgrade to Pro to start programs."
+            : "Upgrade to Pro to start programs. Visit Plans to activate your account.",
         variant: "destructive",
       });
+      window.location.assign(isNative() ? "/paywall" : "/plans");
       return;
     }
     try {

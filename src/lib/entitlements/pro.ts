@@ -1,0 +1,17 @@
+export type Entitlements = {
+  pro: boolean;
+  source?: "iap" | "stripe" | "admin";
+  /**
+   * Milliseconds since epoch (UTC). If null/undefined, treat as non-expiring.
+   */
+  expiresAt?: number | null;
+};
+
+export function hasPro(ent: Entitlements | null | undefined): boolean {
+  if (!ent?.pro) return false;
+  const expiresAt = ent.expiresAt;
+  if (expiresAt == null) return true;
+  if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) return false;
+  return expiresAt > Date.now();
+}
+

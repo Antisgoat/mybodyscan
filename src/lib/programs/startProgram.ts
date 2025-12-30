@@ -2,14 +2,14 @@ import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
 import { toast } from "@/hooks/use-toast";
-import { call } from "@/lib/callable";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { activateCatalogPlan } from "@/lib/workouts";
 import { buildCatalogPlanSubmission } from "@/lib/workoutsCatalog";
 import type { CatalogEntry } from "@/lib/coach/catalog";
 import type { Exercise } from "@/lib/coach/types";
 import { canStartPrograms } from "@/lib/entitlements";
-import type { ClaimsGate, SubscriptionGate } from "@/lib/entitlements";
+import type { Entitlements } from "@/lib/entitlements";
+import { isNative } from "@/lib/platform";
 
 function describeExercise(exercise: Exercise) {
   const parts: string[] = [];
@@ -30,11 +30,10 @@ function describeExercise(exercise: Exercise) {
 export async function startCatalogProgram(params: {
   entry: CatalogEntry;
   demo: boolean;
-  claims: ClaimsGate | null | undefined;
-  subscription: SubscriptionGate | null | undefined;
+  entitlements: Entitlements | null | undefined;
   navigate: (to: string, options?: { replace?: boolean }) => void;
 }): Promise<void> {
-  const { entry, demo, claims, subscription, navigate } = params;
+  const { entry, demo, entitlements, navigate } = params;
   const program = entry.program;
   const meta = entry.meta;
 
@@ -55,32 +54,21 @@ export async function startCatalogProgram(params: {
     return;
   }
 
-  // Claims can be stale right after an entitlement change; refresh once before gating/server calls.
-  let allowedNow = canStartPrograms({
-    demo,
-    claims: (claims || undefined) as any,
-    subscription: subscription || undefined,
-  });
-  try {
-    await call("refreshClaims");
-    await user.getIdToken(true);
-    const token = await user.getIdTokenResult().catch(() => null);
-    const refreshedClaims = (token?.claims ?? null) as any;
-    allowedNow = canStartPrograms({
-      demo,
-      claims: refreshedClaims || undefined,
-      subscription: subscription || undefined,
-    });
-  } catch {
-    // ignore (fail closed below)
-  }
+  const allowedNow = canStartPrograms({ demo, entitlements: entitlements ?? undefined });
   if (!allowedNow) {
     toast({
       title: "Programs locked",
       description:
-        "Your account can't start programs yet. Visit Plans to activate your account.",
+        isNative()
+          ? "Upgrade to Pro to start programs."
+          : "Upgrade to Pro to start programs. Visit Plans to activate your account.",
       variant: "destructive",
     });
+    if (isNative()) {
+      navigate("/paywall", { replace: false });
+    } else {
+      navigate("/plans", { replace: false });
+    }
     return;
   }
 

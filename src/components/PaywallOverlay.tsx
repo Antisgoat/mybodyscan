@@ -2,9 +2,8 @@ import { ReactNode } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { useNavigate } from "react-router-dom";
-import { useI18n } from "@/lib/i18n";
 import { Lock } from "lucide-react";
-import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
 
 interface PaywallOverlayProps {
   children: ReactNode;
@@ -20,8 +19,7 @@ export function PaywallOverlay({
   showOverlay,
 }: PaywallOverlayProps) {
   const navigate = useNavigate();
-  const { t } = useI18n();
-  const iosBuild = isIOSBuild();
+  const native = isNative();
 
   if (!showOverlay) {
     return <>{children}</>;
@@ -43,15 +41,12 @@ export function PaywallOverlay({
                 {description}
               </p>
             </div>
-            {iosBuild ? (
-              <div className="text-sm text-muted-foreground">
-                Available on web.
-              </div>
-            ) : (
-              <Button onClick={() => navigate("/plans")} className="w-full">
-                Upgrade Now
-              </Button>
-            )}
+            <Button
+              onClick={() => navigate(native ? "/paywall" : "/plans")}
+              className="w-full"
+            >
+              Upgrade Now
+            </Button>
           </CardContent>
         </Card>
       </div>

@@ -150,6 +150,30 @@ declare module "firebase-functions/v2/https" {
   }
 }
 
+declare module "firebase-functions/v2/firestore" {
+  export interface FirestoreOptions {
+    region?: string | string[];
+    timeoutSeconds?: number;
+    memory?: string;
+    secrets?: string[];
+    [key: string]: any;
+  }
+
+  export function onDocumentWritten(
+    document: string,
+    handler: (event: any) => any
+  ): any;
+  export function onDocumentWritten(
+    opts: FirestoreOptions,
+    handler: (event: any) => any
+  ): any;
+  export function onDocumentWritten(
+    opts: FirestoreOptions,
+    document: string,
+    handler: (event: any) => any
+  ): any;
+}
+
 declare module "firebase-functions/params" {
   export function defineString(name: string): any;
   export function defineSecret(name: string): any;
@@ -210,15 +234,6 @@ declare namespace NodeJS {
 }
 
 declare const process: NodeJS.Process;
-
-type Buffer = any;
-
-declare const Buffer: {
-  from(
-    data: string,
-    encoding?: string
-  ): { toString(encoding?: string): string };
-};
 
 type Stripe = any;
 

@@ -43,10 +43,10 @@ import { setDoc } from "@/lib/dbWrite";
 import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
 import { toDateOrNull } from "@/lib/time";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
-import { useClaims } from "@/lib/claims";
-import { useSubscription } from "@/hooks/useSubscription";
 import { canUseCoach } from "@/lib/entitlements";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { isNative } from "@/lib/platform";
 
 declare global {
   interface Window {
@@ -130,11 +130,9 @@ export default function CoachChatPage() {
   const demo = useDemoMode();
   const { plan } = useUserProfile();
   const location = useLocation();
-  const { claims, refresh: refreshClaimsHook } = useClaims();
-  const { subscription } = useSubscription();
+  const { entitlements, loading: entitlementsLoading } = useEntitlements();
   const missingThreadUpdatedAtRef = useRef<Set<string>>(new Set());
   const missingMessageCreatedAtRef = useRef<Set<string>>(new Set());
-  const entitlementRefreshAttemptedRef = useRef(false);
   const [threads, setThreads] = useState<ThreadMeta[]>(() =>
     demo
       ? [
@@ -177,8 +175,7 @@ export default function CoachChatPage() {
   const coachAvailable = coachConfigured && !coachPrereqMessage;
   const coachEntitled = canUseCoach({
     demo,
-    claims: (claims || undefined) as any,
-    subscription: subscription || undefined,
+    entitlements,
   });
   const { totals, latestScan } = useCoachTodayAtAGlance();
 
@@ -262,33 +259,20 @@ export default function CoachChatPage() {
       setHydratingHistory(false);
       return;
     }
+    if (entitlementsLoading) {
+      setHydratingHistory(true);
+      return;
+    }
     if (!coachEntitled) {
-      // If claims are stale, refresh once before failing closed.
-      if (!entitlementRefreshAttemptedRef.current) {
-        entitlementRefreshAttemptedRef.current = true;
-        setHydratingHistory(true);
-        void (async () => {
-          try {
-            await call("refreshClaims");
-          } catch {
-            // ignore
-          }
-          await refreshAuthTokenSoft();
-          try {
-            await refreshClaimsHook(true);
-          } catch {
-            // ignore
-          }
-        })();
-        return;
-      }
       // Avoid noisy permission-denied loops when a user truly isn't eligible.
       setThreads([]);
       setActiveThreadId(null);
       setMessages([]);
       setHydratingHistory(false);
       setCoachError(
-        "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+        isNative()
+          ? "Coach is a Pro feature. Upgrade to Pro to unlock Coach."
+          : "Coach is a Pro feature. Visit Plans to upgrade and unlock Coach."
       );
       return;
     }

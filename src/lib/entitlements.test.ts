@@ -4,8 +4,17 @@ import {
   hasActiveSubscription,
   canStartPrograms,
 } from "./entitlements";
+import { hasPro } from "./entitlements/pro";
 
 describe("entitlements helpers", () => {
+  it("hasPro respects expiry", () => {
+    expect(hasPro({ pro: false })).toBe(false);
+    expect(hasPro({ pro: true, expiresAt: null })).toBe(true);
+    expect(hasPro({ pro: true, expiresAt: Date.now() + 60_000 })).toBe(true);
+    expect(hasPro({ pro: true, expiresAt: Date.now() - 60_000 })).toBe(false);
+    expect(hasPro({ pro: true, expiresAt: Number.NaN })).toBe(false);
+  });
+
   it("treats unlimited/admin/staff claims as unlimited", () => {
     expect(hasUnlimitedEntitlement({ unlimited: true })).toBe(true);
     expect(hasUnlimitedEntitlement({ unlimitedCredits: true })).toBe(true);
@@ -28,16 +37,16 @@ describe("entitlements helpers", () => {
 
   it("gates program starts consistently", () => {
     expect(
-      canStartPrograms({ demo: true, claims: { unlimited: true }, subscription: { status: "none" } })
+      canStartPrograms({ demo: true, entitlements: { pro: true } })
     ).toBe(false);
     expect(
-      canStartPrograms({ demo: false, claims: { unlimited: true }, subscription: { status: "none" } })
+      canStartPrograms({ demo: false, entitlements: { pro: true } })
     ).toBe(true);
     expect(
-      canStartPrograms({ demo: false, claims: null, subscription: { status: "active" } })
+      canStartPrograms({ demo: false, entitlements: { pro: true } })
     ).toBe(true);
     expect(
-      canStartPrograms({ demo: false, claims: null, subscription: { status: "none" } })
+      canStartPrograms({ demo: false, entitlements: { pro: false } })
     ).toBe(false);
   });
 });

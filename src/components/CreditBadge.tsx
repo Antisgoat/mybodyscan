@@ -1,20 +1,18 @@
-import { useAuthUser } from "@/lib/useAuthUser"; // from Prompt #1
-import { useUserProfile } from "@/lib/useUserProfile";
-import { formatCredits } from "@/lib/credits";
-import { useUserClaims } from "@/lib/useUserClaims";
-import { hasUnlimitedEntitlement } from "@/lib/entitlements";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { useCredits } from "@/hooks/useCredits";
 
 export default function CreditBadge() {
   const { user, loading: authLoading } = useAuthUser();
-  const { profile, loading: profileLoading } = useUserProfile();
-  const claims = useUserClaims();
+  const { credits, loading: creditsLoading, unlimited } = useCredits();
 
   // Do not render while loading or signed out (prevents flicker)
-  if (authLoading || profileLoading || !user) return null;
+  if (authLoading || creditsLoading || !user) return null;
 
-  const hasUnlimitedClaim = hasUnlimitedEntitlement((claims ?? undefined) as any);
-
-  const label = hasUnlimitedClaim ? "Unlimited" : formatCredits(profile);
+  const label = (() => {
+    if (unlimited || credits === Infinity) return "Unlimited";
+    const n = Number.isFinite(credits) ? Math.max(0, Math.floor(Number(credits))) : 0;
+    return `${n} ${n === 1 ? "credit" : "credits"}`;
+  })();
   if (!label) return null;
 
   return (
