@@ -32,6 +32,12 @@
 - Enable webhook signing and set **`REVENUECAT_WEBHOOK_SIGNING_SECRET`** in Functions.
 - The webhook is authoritative: it writes `users/{uid}/entitlements/current` and uses idempotency via `revenuecat_events/{eventId}`.
 
+### Setting secrets (Firebase CLI)
+- Set the signing secret (prod):
+  - `firebase functions:secrets:set REVENUECAT_WEBHOOK_SIGNING_SECRET --project <project>`
+- Ensure the entitlement id is set (or keep the default `pro`):
+  - In `firebase.json`: `functions[].environmentVariables.REVENUECAT_ENTITLEMENT_ID`
+
 ### Firestore rules
 - Users can **read** `users/{uid}/entitlements/*`
 - Users cannot **write** entitlements docs (server-only)
