@@ -11,7 +11,8 @@ import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import { useSubscription } from "@/hooks/useSubscription";
-import { hasUnlimitedEntitlement } from "@/lib/entitlements";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { hasPro } from "@/lib/entitlements/pro";
 import {
   coachChatCollectionPath,
   coachThreadMessagesCollectionPath,
@@ -199,6 +200,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
   const { user, claims, refresh } = useClaims();
   const { credits, unlimited: creditsUnlimited } = useCredits();
   const { subscription } = useSubscription();
+  const { entitlements } = useEntitlements();
   const demo = useDemoMode();
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
@@ -285,9 +287,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
   const entitlementTier = (() => {
     if (!user) return "signed-out";
     if (demo) return "demo";
-    if (hasUnlimitedEntitlement((claims ?? undefined) as any)) return "unlimited";
-    const status = String(subscription?.status || "").toLowerCase();
-    if (status === "active" || status === "trialing") return "premium";
+    if (hasPro(entitlements)) return "pro";
     return "free";
   })();
   const coachPaths = uid

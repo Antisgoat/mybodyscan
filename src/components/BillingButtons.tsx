@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
-import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
 import {
   openCustomerPortal,
   startCheckout,
@@ -21,10 +21,10 @@ type Props = {
 export default function BillingButtons({ className }: Props) {
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
   const enabled = isStripeEnabled();
-  const iosBuild = isIOSBuild();
+  const native = isNative();
   const [portalAvailable, setPortalAvailable] = useState<boolean>(false);
   useEffect(() => {
-    if (iosBuild) {
+    if (native) {
       setPortalAvailable(false);
       return;
     }
@@ -119,10 +119,16 @@ export default function BillingButtons({ className }: Props) {
   return (
     <div className={className}>
       <div className="flex flex-wrap items-center gap-2">
-        {iosBuild ? (
-          <div className="text-xs text-muted-foreground">
-            Billing is available on the web.
-          </div>
+        {native ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => window.location.assign("/paywall")}
+            aria-label="Upgrade"
+          >
+            Upgrade
+          </Button>
         ) : (
           <>
             <Button
@@ -152,7 +158,7 @@ export default function BillingButtons({ className }: Props) {
           </>
         )}
       </div>
-      {!enabled && !iosBuild && (
+      {!enabled && !native && (
         <div className="mt-1 text-xs text-muted-foreground">
           Billing disabled (no Stripe key).
         </div>

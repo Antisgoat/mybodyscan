@@ -20,11 +20,10 @@ import type { ProgramGoal, ProgramLevel, ProgramEquipment } from "@/lib/coach/ty
 import { getPlan, getWorkouts, setWorkoutPlanStatusRemote } from "@/lib/workouts";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { useClaims } from "@/lib/claims";
-import { useSubscription } from "@/hooks/useSubscription";
 import { startCatalogProgram } from "@/lib/programs/startProgram";
 import { toast } from "@/hooks/use-toast";
 import { canStartPrograms } from "@/lib/entitlements";
+import { useEntitlements } from "@/lib/entitlements/store";
 import {
   DEFAULT_PROGRAM_PREFERENCES,
   normalizeProgramPreferences,
@@ -38,6 +37,7 @@ import { useAuthUser } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
+import { isNative } from "@/lib/platform";
 
 const PREFERENCES_KEY = "mbs.programPrefs";
 
@@ -122,8 +122,7 @@ export default function ProgramsCatalog() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const demo = useDemoMode();
-  const { claims, loading: claimsLoading, refresh: refreshClaims } = useClaims();
-  const { subscription, loading: subscriptionLoading } = useSubscription();
+  const { entitlements, loading: entitlementsLoading } = useEntitlements();
   const { profile } = useUserProfile();
   const { user, authReady } = useAuthUser();
 
@@ -176,11 +175,6 @@ export default function ProgramsCatalog() {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
   }, [authReady, demo, planPrefs, profile?.programPreferences, user]);
-
-  useEffect(() => {
-    if (demo) return;
-    void refreshClaims(false);
-  }, [demo, refreshClaims]);
 
   const planQuery = useQuery({
     queryKey: ["workouts", "plan"],
@@ -256,12 +250,8 @@ export default function ProgramsCatalog() {
     return entries.filter((e) => !exclude.has(e.meta.id));
   }, [catalogQuery.data, popularPrograms, recommendedPrograms]);
 
-  const entitlementsReady = !(claimsLoading || subscriptionLoading);
-  const canStart = canStartPrograms({
-    demo,
-    claims: (claims as any) ?? null,
-    subscription: (subscription as any) ?? null,
-  });
+  const entitlementsReady = !entitlementsLoading;
+  const canStart = canStartPrograms({ demo, entitlements });
 
   const bestMatch = useMemo(() => {
     const entries = catalogQuery.data ?? [];
@@ -381,13 +371,7 @@ export default function ProgramsCatalog() {
                 }
                 setStartingProgramId(meta.id);
                 try {
-                  await startCatalogProgram({
-                    entry,
-                    demo,
-                    claims: (claims as any) ?? null,
-                    subscription: (subscription as any) ?? null,
-                    navigate: nav,
-                  });
+                  await startCatalogProgram({ entry, demo, entitlements, navigate: nav });
                 } finally {
                   setStartingProgramId(null);
                 }
@@ -721,8 +705,7 @@ export default function ProgramsCatalog() {
                         await startCatalogProgram({
                           entry: bestMatch.entry,
                           demo,
-                          claims: (claims as any) ?? null,
-                          subscription: (subscription as any) ?? null,
+                          entitlements,
                           navigate: nav,
                         });
                       } finally {
@@ -763,9 +746,9 @@ export default function ProgramsCatalog() {
                       variant="secondary"
                       size="sm"
                       className="mt-3"
-                      onClick={() => nav("/plans")}
+                      onClick={() => nav(isNative() ? "/paywall" : "/plans")}
                     >
-                      Go to Plans
+                      Upgrade
                     </Button>
                   </div>
                 ) : null}

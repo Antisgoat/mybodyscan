@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
 import { reportError } from "@/lib/telemetry";
 import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
 
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
@@ -55,6 +56,7 @@ export default function Plans() {
   const { t } = useI18n();
   const { user } = useAuthUser();
   const iosBuild = isIOSBuild();
+  const native = isNative();
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [billingActionError, setBillingActionError] = useState<{
     title: string;
@@ -363,6 +365,10 @@ export default function Plans() {
     .map((plan) => plan.envKey as string);
 
   const uniqueMissingEnvKeys = Array.from(new Set(missingPriceEnvKeys));
+
+  if (native) {
+    return <Navigate to="/paywall" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">

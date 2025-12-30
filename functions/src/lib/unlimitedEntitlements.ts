@@ -54,31 +54,42 @@ export async function ensureUnlimitedEntitlements(
   const entitlementsRef = db.doc(`users/${uid}/private/entitlements`);
   const adminMirrorRef = db.doc(`users/${uid}/private/admin`);
   const userRootRef = db.doc(`users/${uid}`);
+  const proEntitlementsRef = db.doc(`users/${uid}/entitlements/current`);
 
-  const [entSnap, adminSnap, rootSnap] = await Promise.all([
+  const [entSnap, adminSnap, rootSnap, proSnap] = await Promise.all([
     entitlementsRef.get().catch(() => null),
     adminMirrorRef.get().catch(() => null),
     userRootRef.get().catch(() => null),
+    proEntitlementsRef.get().catch(() => null),
   ]);
 
-  const entOk = entSnap?.exists && (entSnap.data() as any)?.unlimitedCredits === true;
+  const entOk =
+    entSnap?.exists && (entSnap.data() as any)?.unlimitedCredits === true;
   const adminOk =
     adminSnap?.exists && (adminSnap.data() as any)?.unlimitedCredits === true;
   const rootOk =
     rootSnap?.exists && (rootSnap.data() as any)?.unlimitedCredits === true;
+  const proOk = proSnap?.exists && (proSnap.data() as any)?.pro === true;
 
   const needEntitlements = !entOk;
   const needAdminMirror = !adminOk;
   const needUserRoot = !rootOk;
+  const needProEntitlements = !proOk;
 
   let didWriteFirestore = false;
   const pathsUpdated: string[] = [];
 
-  if (needEntitlements || needAdminMirror || needUserRoot) {
+  if (needEntitlements || needAdminMirror || needUserRoot || needProEntitlements) {
     const updatedAt = FieldValue.serverTimestamp();
     const payload = {
       unlimitedCredits: true,
       credits: MAX_CREDITS,
+      updatedAt,
+    };
+    const proPayload = {
+      pro: true,
+      source: "admin",
+      expiresAt: null,
       updatedAt,
     };
 
@@ -110,6 +121,10 @@ export async function ensureUnlimitedEntitlements(
         )
       );
       pathsUpdated.push(`users/${uid}`);
+    }
+    if (needProEntitlements) {
+      writes.push(proEntitlementsRef.set(proPayload, { merge: true }));
+      pathsUpdated.push(`users/${uid}/entitlements/current`);
     }
 
     await Promise.all(writes);

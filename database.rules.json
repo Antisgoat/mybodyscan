@@ -241,6 +241,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Monetization entitlements (server-authored; user-readable)
+      // Canonical path: /users/{uid}/entitlements/current
+      match /entitlements/{docId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       match /coach/{sub=**} {
         allow read: if isOwner(uid);
         allow write: if !isDemoUser() && isOwner(uid) && !request.resource.id.matches('plan(/.*)?');

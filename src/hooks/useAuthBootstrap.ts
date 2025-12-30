@@ -4,6 +4,7 @@ import { disableDemoEverywhere } from "@/lib/demoState";
 import { bootstrapSystem } from "@/lib/system";
 import { useAuthUser } from "@/lib/auth";
 import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
+import { initPurchases } from "@/lib/billing/iapProvider";
 
 export function useAuthBootstrap() {
   const { user } = useAuthUser();
@@ -33,6 +34,8 @@ export function useAuthBootstrap() {
               "You’re still signed in. If this persists, check your connection or try again.",
           });
         });
+        // Native-only: bind RevenueCat appUserID to Firebase uid.
+        void initPurchases({ uid: user.uid }).catch(() => undefined);
         await bootstrapSystem();
         await user.getIdToken(true);
         failureCountRef.current = 0;

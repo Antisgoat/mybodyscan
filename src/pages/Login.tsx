@@ -5,6 +5,7 @@ import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
 import { useAuthUser } from "@/lib/auth";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { reportError } from "@/lib/telemetry";
 
 export default function Login() {
   const location = useLocation();
@@ -37,6 +38,15 @@ export default function Login() {
         sanitized = path || "/";
       }
     }
+    // Never redirect an authenticated user back into auth routes.
+    if (
+      typeof sanitized === "string" &&
+      (sanitized.startsWith("/login") ||
+        sanitized.startsWith("/auth") ||
+        sanitized.startsWith("/oauth"))
+    ) {
+      sanitized = "/home";
+    }
     window.location.replace(sanitized);
   };
 
@@ -59,13 +69,28 @@ export default function Login() {
     const { autoFinish = true } = options ?? {};
     setBusy(true);
     setMsg(null);
+    void reportError({
+      kind: "auth.login_start",
+      message: "auth.login_start",
+      extra: { target: defaultTarget },
+    });
     try {
       await fn();
+      void reportError({
+        kind: "auth.login_success",
+        message: "auth.login_success",
+        extra: { target: defaultTarget },
+      });
       if (autoFinish) finish();
     } catch (e: any) {
       const normalized = normalizeFirebaseError(e);
       const message = normalized.message || "Sign-in failed";
       setMsg(message);
+      void reportError({
+        kind: "auth.login_failed",
+        message: "auth.login_failed",
+        extra: { code: normalized.code ?? null, message },
+      });
     } finally {
       setBusy(false);
     }

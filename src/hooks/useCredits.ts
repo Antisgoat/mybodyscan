@@ -3,17 +3,19 @@ import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
 import { call } from "@/lib/callable";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { hasPro, type Entitlements } from "@/lib/entitlements/pro";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
-  const [unlimitedFromToken, setUnlimitedFromToken] = useState(false);
-  const [unlimitedFromMirror, setUnlimitedFromMirror] = useState(false);
-  const [unlimitedFromEntitlements, setUnlimitedFromEntitlements] = useState(false);
+  const [proFromToken, setProFromToken] = useState(false);
+  const [proFromMirror, setProFromMirror] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const { entitlements: firestoreEntitlements } = useEntitlements();
   let projectId = "";
   try {
     projectId = getFirebaseConfig().projectId;
@@ -33,9 +35,8 @@ export function useCredits() {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
-          setUnlimitedFromToken(false);
-          setUnlimitedFromMirror(false);
-          setUnlimitedFromEntitlements(false);
+          setProFromToken(false);
+          setProFromMirror(false);
           setLoading(false);
           refreshAttemptRef.current = null;
         } else {
@@ -52,10 +53,12 @@ export function useCredits() {
               }
             }
           }
-          const hasUnlimited =
+          const tokenPro =
             token.claims.unlimitedCredits === true ||
-            token.claims.unlimited === true;
-          setUnlimitedFromToken(hasUnlimited);
+            token.claims.unlimited === true ||
+            token.claims.admin === true ||
+            token.claims.staff === true;
+          setProFromToken(Boolean(tokenPro));
         }
       },
       (err) => {
@@ -80,7 +83,6 @@ export function useCredits() {
     setLoading(true);
     const ref = doc(db, `users/${uid}/private/credits`);
     const userRef = doc(db, "users", uid);
-    const entitlementsRef = doc(db, `users/${uid}/private/entitlements`);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -99,29 +101,16 @@ export function useCredits() {
     const unsubUser = onSnapshot(
       userRef,
       (snap) => {
-        setUnlimitedFromMirror((snap.data() as any)?.unlimitedCredits === true);
+        setProFromMirror((snap.data() as any)?.unlimitedCredits === true);
       },
       () => {
         // Fail closed.
-        setUnlimitedFromMirror(false);
-      }
-    );
-    const unsubEntitlements = onSnapshot(
-      entitlementsRef,
-      (snap) => {
-        setUnlimitedFromEntitlements(
-          snap.exists() && (snap.data() as any)?.unlimitedCredits === true
-        );
-      },
-      () => {
-        // Fail closed (including permission-denied).
-        setUnlimitedFromEntitlements(false);
+        setProFromMirror(false);
       }
     );
     return () => {
       unsub();
       unsubUser();
-      unsubEntitlements();
     };
   }, [uid, refreshTick]);
 
@@ -129,8 +118,12 @@ export function useCredits() {
     setRefreshTick((prev) => prev + 1);
   }, []);
 
-  const unlimited =
-    unlimitedFromToken || unlimitedFromMirror || unlimitedFromEntitlements;
+  const effectiveEntitlements: Entitlements =
+    proFromToken || proFromMirror
+      ? { pro: true, source: "admin", expiresAt: null }
+      : firestoreEntitlements;
+
+  const unlimited = hasPro(effectiveEntitlements);
 
   if (unlimited) {
     return {

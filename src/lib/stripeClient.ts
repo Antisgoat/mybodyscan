@@ -1,7 +1,8 @@
 import { STRIPE_PUBLISHABLE_KEY } from "./flags";
-import { isIOSBuild } from "@/lib/iosBuild";
+import { isNative } from "@/lib/platform";
 
 export function isStripeEnabled(): boolean {
-  if (isIOSBuild()) return false;
+  // Keep Stripe for web, hide on native (iOS/Android) builds.
+  if (isNative()) return false;
   return Boolean(STRIPE_PUBLISHABLE_KEY);
 }

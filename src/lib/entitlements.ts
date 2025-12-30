@@ -1,3 +1,5 @@
+import { hasPro } from "@/lib/entitlements/pro";
+
 export type SubscriptionGate = {
   status?: string | null;
 };
@@ -13,6 +15,13 @@ export type ClaimsGate = {
   [k: string]: unknown;
 };
 
+export type { Entitlements } from "@/lib/entitlements/pro";
+export { hasPro } from "@/lib/entitlements/pro";
+
+/**
+ * @deprecated Prefer the unified `Entitlements` doc + `hasPro()` gate.
+ * Kept for backwards compatibility in older call sites/tests.
+ */
 export function hasUnlimitedEntitlement(claims: ClaimsGate | null | undefined): boolean {
   if (!claims) return false;
   return (
@@ -25,6 +34,10 @@ export function hasUnlimitedEntitlement(claims: ClaimsGate | null | undefined): 
   );
 }
 
+/**
+ * @deprecated Prefer the unified `Entitlements` doc + `hasPro()` gate.
+ * Kept for backwards compatibility in older call sites/tests.
+ */
 export function hasActiveSubscription(sub: SubscriptionGate | null | undefined): boolean {
   const status = (sub?.status || "").toLowerCase();
   // Stripe-ish statuses we treat as entitled.
@@ -40,24 +53,17 @@ export function hasActiveSubscription(sub: SubscriptionGate | null | undefined):
 
 export function canUseCoach(params: {
   demo?: boolean;
-  claims?: ClaimsGate | null;
-  subscription?: SubscriptionGate | null;
+  entitlements?: import("@/lib/entitlements/pro").Entitlements | null;
 }): boolean {
   if (params.demo) return false;
-  if (hasUnlimitedEntitlement(params.claims)) return true;
-  if (hasActiveSubscription(params.subscription)) return true;
-  // Coach is currently a paid/unlimited feature.
-  return false;
+  return hasPro(params.entitlements);
 }
 
 export function canStartPrograms(params: {
   demo?: boolean;
-  claims?: ClaimsGate | null;
-  subscription?: SubscriptionGate | null;
+  entitlements?: import("@/lib/entitlements/pro").Entitlements | null;
 }): boolean {
   if (params.demo) return false;
-  if (hasUnlimitedEntitlement(params.claims)) return true;
-  if (hasActiveSubscription(params.subscription)) return true;
-  return false;
+  return hasPro(params.entitlements);
 }
 

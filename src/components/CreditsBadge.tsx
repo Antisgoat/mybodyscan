@@ -1,8 +1,5 @@
 import React from "react";
-import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
-import { useUserClaims } from "@/lib/useUserClaims";
-import { hasUnlimitedEntitlement } from "@/lib/entitlements";
 
 type Props = {
   className?: string;
@@ -10,24 +7,19 @@ type Props = {
 
 export default function CreditsBadge(props: Props) {
   const { className } = props;
-  const { user, claims, loading: claimsLoading, refresh } = useClaims();
   const {
     credits,
     loading: creditsLoading,
     unlimited: creditsUnlimited,
+    uid,
+    refresh,
   } = useCredits();
-  const directClaims = useUserClaims();
-  const loading = claimsLoading || creditsLoading;
+  const loading = creditsLoading;
 
   const text = (() => {
     if (loading) return "—";
-    if (!user) return "—";
-    const unlimited =
-      hasUnlimitedEntitlement((claims ?? undefined) as any) ||
-      hasUnlimitedEntitlement((directClaims ?? undefined) as any) ||
-      creditsUnlimited ||
-      credits === Infinity;
-    if (unlimited) return "Unlimited";
+    if (!uid) return "—";
+    if (creditsUnlimited || credits === Infinity) return "Unlimited";
     const n = Number.isFinite(credits)
       ? Math.max(0, Math.floor(Number(credits)))
       : 0;
@@ -35,15 +27,8 @@ export default function CreditsBadge(props: Props) {
   })();
 
   const title = (() => {
-    if (!user) return "Not signed in";
-    if (
-      hasUnlimitedEntitlement((claims ?? undefined) as any) ||
-      hasUnlimitedEntitlement((directClaims ?? undefined) as any) ||
-      creditsUnlimited ||
-      credits === Infinity
-    ) {
-      return "Unlimited credits";
-    }
+    if (!uid) return "Not signed in";
+    if (creditsUnlimited || credits === Infinity) return "Unlimited credits";
     return "Available credits";
   })();
 
