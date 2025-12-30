@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { disableDemo, enableDemo, setDemo } from "@/state/demo";
+import { disableDemo, enableDemo, isDemo, setDemo } from "@/state/demo";
 
 function clearStoredDemoFlags() {
   if (typeof window === "undefined") return;
@@ -71,17 +71,8 @@ export function useDemoWireup() {
       return;
     }
 
-    if (typeof window !== "undefined") {
-      try {
-        const stored = window.sessionStorage.getItem("mbs_demo");
-        if (stored === "1" || stored === "true") {
-          enableDemo();
-          return;
-        }
-      } catch {
-        // ignore storage read errors
-      }
-    }
+    // If demo is already enabled via persisted storage, do not disable it on navigation.
+    if (isDemo()) return;
 
     disableDemo();
   }, [authed, location.pathname, location.search]);

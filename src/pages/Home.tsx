@@ -68,9 +68,11 @@ function toDateOrNull(value: any): Date | null {
 function buildDemoLastScan(): LastScan {
   return {
     id: demoLatestScan.id,
-    createdAt: demoLatestScan.completedAt?.toDate
-      ? demoLatestScan.completedAt.toDate()
-      : new Date(),
+    createdAt:
+      toDateOrNull((demoLatestScan as any).completedAt) ??
+      toDateOrNull((demoLatestScan as any).updatedAt) ??
+      toDateOrNull((demoLatestScan as any).createdAt) ??
+      new Date(),
     status: demoLatestScan.status,
     raw: demoLatestScan,
   };
@@ -162,7 +164,9 @@ const Home = () => {
   const weight = summary.weightText;
   const bmi = summary.bmiText;
   const showOnboardingNudge =
-    !onboardingStatus.loading && !onboardingStatus.personalizationCompleted;
+    !demo &&
+    !onboardingStatus.loading &&
+    !onboardingStatus.personalizationCompleted;
   const nudgeDescription = onboardingStatus.hasAnyOnboardingData
     ? "Pick up where you left off to unlock personalized scans and workouts."
     : "Share your goals once to unlock personalized scans and workouts.";
@@ -405,10 +409,10 @@ const Home = () => {
         <div className="grid gap-3">
           {renderStartButton({ className: "w-full" })}
           <a
-            href={onboardingCtaTarget}
+            href={demo && !user ? "/auth" : onboardingCtaTarget}
             className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2"
           >
-            Personalize results (1 min)
+            {demo && !user ? "Sign up to personalize results" : "Personalize results (1 min)"}
           </a>
           <Button variant="secondary" onClick={() => navigate("/history")}>
             History

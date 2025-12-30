@@ -4,6 +4,7 @@ import type {
   TemplateDocWithId,
 } from "@/lib/nutritionCollections";
 import { demoMeals } from "@/lib/demoDataset";
+import { DEMO_USER_PROFILE } from "@/demo/fixtures";
 
 type DemoMealEntry = {
   id: string;
@@ -213,12 +214,7 @@ export const DEMO_COACH_PLAN: CoachPlan = {
 };
 
 export const DEMO_COACH_PROFILE: CoachProfile = {
-  goal: "lose_fat",
-  activity_level: "moderate",
-  currentProgramId: "demo-balanced",
-  activeProgramId: "demo-balanced",
-  currentWeekIdx: 0,
-  currentDayIdx: 1,
+  ...DEMO_USER_PROFILE,
 };
 
 export const DEMO_FAVORITES: FavoriteDocWithId[] = [

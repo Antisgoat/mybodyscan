@@ -4,6 +4,7 @@ import {
 } from "firebase/auth";
 import { getFirebaseAuth } from "../lib/firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { enableDemo } from "@/state/demo";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -98,6 +99,7 @@ export default function LoginPanel() {
           className="btn w-full"
           disabled={!!loading}
           onClick={() => {
+            enableDemo();
             window.location.assign("/demo");
           }}
         >

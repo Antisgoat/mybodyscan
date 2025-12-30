@@ -25,6 +25,10 @@ const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
   if (timestamp.toDate) return timestamp.toDate().toLocaleString();
   if (timestamp instanceof Date) return timestamp.toLocaleString();
+  if (typeof timestamp === "number") {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  }
   if (typeof timestamp === "string") {
     const date = new Date(timestamp);
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();

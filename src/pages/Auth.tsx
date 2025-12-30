@@ -32,6 +32,7 @@ import {
 } from "@/lib/firebase/runtimeConfig";
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
+import { enableDemo } from "@/state/demo";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import {
@@ -85,6 +86,7 @@ const Auth = () => {
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
   const authClient = useMemo(() => getFirebaseAuth(), []);
   const onBrowseDemo = useCallback(() => {
+    enableDemo();
     navigate("/demo", { replace: false });
   }, [navigate]);
   const canonical =

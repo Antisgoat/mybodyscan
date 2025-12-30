@@ -14,12 +14,16 @@ import { useAuthUser } from "@/lib/useAuthUser";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoScanHistory } from "@/lib/demoDataset";
+import { toDateOrNull } from "@/lib/time";
 
 export default function HistoryPage() {
   const nav = useNavigate();
   const { toast } = useToast();
   const { user, authReady } = useAuthUser();
   const { units } = useUnits();
+  const demo = useDemoMode();
   const uid = authReady ? (user?.uid ?? null) : null;
   const [items, setItems] = useState<ScanItem[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -29,6 +33,12 @@ export default function HistoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (demo && !user) {
+      setItems(demoScanHistory as unknown as ScanItem[]);
+      setThumbs({});
+      setError(null);
+      return;
+    }
     if (!uid) {
       setItems([]);
       setThumbs({});
@@ -45,10 +55,11 @@ export default function HistoryPage() {
       setError(message);
       return undefined;
     }
-  }, [uid]);
+  }, [uid, demo, user]);
 
   useEffect(() => {
     // Lazy-fetch thumbnails for newly visible items
+    if (demo && !user) return;
     items.forEach((it) => {
       if (thumbs[it.id] === undefined) {
         getFrontThumbUrl(it.id).then((url) =>
@@ -56,7 +67,7 @@ export default function HistoryPage() {
         );
       }
     });
-  }, [items]); // eslint-disable-line
+  }, [items, demo, user]); // eslint-disable-line
 
   function toggle(id: string) {
     setSelected((sel) => {
@@ -67,6 +78,13 @@ export default function HistoryPage() {
   }
 
   async function onDelete(id: string) {
+    if (demo && !user) {
+      toast({
+        title: "Demo is read-only",
+        description: "Sign up to save and manage your scans.",
+      });
+      return;
+    }
     if (!uid) {
       toast({
         title: "Sign in required",
@@ -107,6 +125,7 @@ export default function HistoryPage() {
 
   const lastId = items.at(-1)?.id;
   async function onLoadMore() {
+    if (demo && !user) return;
     if (!lastId || !uid) return;
     setLoadingMore(true);
     try {
@@ -120,7 +139,7 @@ export default function HistoryPage() {
   return (
     <div className="mx-auto max-w-2xl p-4">
       <h1 className="text-lg font-semibold">History</h1>
-      {authReady && !uid && (
+      {authReady && !uid && !(demo && !user) && (
         <Alert className="mt-3 border-amber-200 bg-amber-50 text-amber-900">
           <AlertTitle>Sign in to view scans</AlertTitle>
           <AlertDescription>
@@ -171,9 +190,7 @@ export default function HistoryPage() {
                 <div className="p-2 space-y-1">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate">
-                      {new Date(
-                        it.createdAt?.toMillis?.() ?? Date.now()
-                      ).toLocaleString()}
+                      {(toDateOrNull(it.createdAt) ?? new Date()).toLocaleString()}
                     </span>
                     <span>
                       <span
@@ -231,7 +248,7 @@ export default function HistoryPage() {
         })}
       </ul>
 
-      {lastId && (
+      {lastId && !(demo && !user) && (
         <div className="mt-3">
           <button
             onClick={onLoadMore}

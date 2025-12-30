@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
-import { disableDemoEverywhere } from "@/state/demo";
+import { disableDemoEverywhere, enableDemo } from "@/state/demo";
 import { useAuthUser } from "@/lib/auth";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 
@@ -132,6 +132,10 @@ export default function Login() {
       <Link
         className="mb-3 block w-full rounded border p-2 text-center"
         to="/demo"
+        onClick={() => {
+          // Durable demo enable (no auth / no network).
+          enableDemo();
+        }}
       >
         Browse demo
       </Link>
