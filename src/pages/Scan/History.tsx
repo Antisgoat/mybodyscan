@@ -13,15 +13,61 @@ import { deserializeScanDocument } from "@/lib/api/scan";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useDemoMode } from "@/components/DemoModeProvider";
+import { demoScanHistory } from "@/lib/demoDataset";
+import { demoToast } from "@/lib/demoToast";
 
 export default function ScanHistoryPage() {
   const [scans, setScans] = useState<ScanDocument[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthUser();
+  const demo = useDemoMode();
   const nav = useNavigate();
 
   useEffect(() => {
     const currentUser = user ?? auth.currentUser;
+    if (demo && !currentUser) {
+      const mapped = (demoScanHistory as any[]).map((s) => {
+        const createdMs =
+          typeof s?.createdAt === "number" ? s.createdAt : Date.now();
+        const updatedMs =
+          typeof s?.updatedAt === "number"
+            ? s.updatedAt
+            : typeof s?.completedAt === "number"
+              ? s.completedAt
+              : createdMs;
+        const completedMs =
+          typeof s?.completedAt === "number" ? s.completedAt : updatedMs;
+        const estimate = s?.metrics
+          ? {
+              bodyFatPercent:
+                typeof s.metrics.bodyFatPct === "number"
+                  ? s.metrics.bodyFatPct
+                  : undefined,
+              bmi: typeof s.metrics.bmi === "number" ? s.metrics.bmi : null,
+              notes: "",
+              leanMassKg: null,
+              fatMassKg: null,
+            }
+          : null;
+        return {
+          id: String(s?.id ?? ""),
+          uid: "demo",
+          createdAt: new Date(createdMs),
+          updatedAt: new Date(updatedMs),
+          completedAt: new Date(completedMs),
+          status: (s?.status as any) ?? "complete",
+          photoPaths: { front: "", back: "", left: "", right: "" },
+          input: { currentWeightKg: 0, goalWeightKg: 0, heightCm: null },
+          estimate,
+          workoutPlan: null,
+          nutritionPlan: null,
+        } satisfies Partial<ScanDocument> as ScanDocument;
+      });
+      setScans(mapped);
+      setError(null);
+      return;
+    }
     if (!currentUser) {
       setScans([]);
       return;
@@ -72,7 +118,13 @@ export default function ScanHistoryPage() {
                 <Button
                   variant="ghost"
                   className="text-sm"
-                  onClick={() => nav(`/scans/${scan.id}`)}
+                  onClick={() => {
+                    if (demo && !user) {
+                      demoToast();
+                      return;
+                    }
+                    nav(`/scans/${scan.id}`);
+                  }}
                 >
                   View
                 </Button>
@@ -83,6 +135,10 @@ export default function ScanHistoryPage() {
                     variant="outline"
                     className="text-xs"
                     onClick={async () => {
+                      if (demo && !user) {
+                        demoToast();
+                        return;
+                      }
                       const result = await retryScanProcessingClient(scan.id);
                       if (!result.ok) {
                         toast({
@@ -116,7 +172,9 @@ export default function ScanHistoryPage() {
           </div>
         ))}
         {scans.length === 0 && (
-          <p className="text-sm text-muted-foreground">No scans yet.</p>
+          <p className="text-sm text-muted-foreground">
+            {demo && !user ? "Demo scans unavailable." : "No scans yet."}
+          </p>
         )}
       </div>
     </div>

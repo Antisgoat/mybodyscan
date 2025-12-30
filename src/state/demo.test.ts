@@ -119,10 +119,10 @@ describe("demo state store", () => {
   });
 
   it("persists the session flag when toggling demo mode", () => {
-    expect(window.sessionStorage.getItem("mbs_demo")).toBeNull();
+    expect(window.localStorage.getItem("mbs_demo")).toBeNull();
     enableDemo();
-    expect(window.sessionStorage.getItem("mbs_demo")).toBe("1");
+    expect(window.localStorage.getItem("mbs_demo")).toBe("1");
     disableDemo();
-    expect(window.sessionStorage.getItem("mbs_demo")).toBeNull();
+    expect(window.localStorage.getItem("mbs_demo")).toBeNull();
   });
 });

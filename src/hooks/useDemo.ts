@@ -2,25 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { disableDemo, enableDemo, setDemo } from "@/state/demo";
-
-function clearStoredDemoFlags() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem("mbs.demo");
-    window.localStorage.removeItem("mbs:demo");
-    window.localStorage.removeItem("mbs_demo");
-  } catch (error) {
-    console.warn("demo.localStorage.clear_failed", error);
-  }
-  try {
-    window.sessionStorage.removeItem("mbs.demo");
-    window.sessionStorage.removeItem("mbs:demo");
-    window.sessionStorage.removeItem("mbs_demo");
-  } catch (error) {
-    console.warn("demo.sessionStorage.clear_failed", error);
-  }
-}
+import {
+  disableDemo,
+  disableDemoEverywhere,
+  enableDemo,
+  isDemo,
+  setDemo,
+} from "@/state/demo";
 
 export function useDemoWireup() {
   const location = useLocation();
@@ -39,8 +27,7 @@ export function useDemoWireup() {
       try {
         // Only wipe demo flags when a real authed user exists. When signed out, demo mode is allowed.
         if (user) {
-          clearStoredDemoFlags();
-          setDemo(false);
+          disableDemoEverywhere();
         }
       } catch (error) {
         console.warn("demo_wipe_failed", error);
@@ -71,17 +58,8 @@ export function useDemoWireup() {
       return;
     }
 
-    if (typeof window !== "undefined") {
-      try {
-        const stored = window.sessionStorage.getItem("mbs_demo");
-        if (stored === "1" || stored === "true") {
-          enableDemo();
-          return;
-        }
-      } catch {
-        // ignore storage read errors
-      }
-    }
+    // If demo is already enabled via persisted storage, do not disable it on navigation.
+    if (isDemo()) return;
 
     disableDemo();
   }, [authed, location.pathname, location.search]);

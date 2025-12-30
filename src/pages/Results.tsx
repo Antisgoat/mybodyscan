@@ -20,11 +20,16 @@ import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
 import { kgToLb } from "@/lib/units";
+import { demoToast } from "@/lib/demoToast";
 // Helper function to format dates
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
   if (timestamp.toDate) return timestamp.toDate().toLocaleString();
   if (timestamp instanceof Date) return timestamp.toLocaleString();
+  if (typeof timestamp === "number") {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  }
   if (typeof timestamp === "string") {
     const date = new Date(timestamp);
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
@@ -258,7 +263,16 @@ const Results = () => {
               <p className="text-muted-foreground mb-4">
                 No scans yet. Start your first body scan to see results here.
               </p>
-              <Button onClick={() => navigate("/scan/new")} className="w-full">
+              <Button
+                onClick={() => {
+                  if (readOnlyDemo) {
+                    demoToast();
+                    return;
+                  }
+                  navigate("/scan/new");
+                }}
+                className="w-full"
+              >
                 Start Your First Scan
               </Button>
             </CardContent>
@@ -338,7 +352,16 @@ const Results = () => {
                     statusMeta.helperText ||
                     "We couldn't process your scan. Please try again."}
                 </p>
-                <Button onClick={() => navigate("/scan/new")} variant="outline">
+                <Button
+                  onClick={() => {
+                    if (readOnlyDemo) {
+                      demoToast();
+                      return;
+                    }
+                    navigate("/scan/new");
+                  }}
+                  variant="outline"
+                >
                   Try Again
                 </Button>
               </div>
@@ -457,7 +480,16 @@ const Results = () => {
         <Button variant="secondary" onClick={() => navigate("/history")}>
           History
         </Button>
-        <Button variant="outline" onClick={() => navigate("/scan/new")}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (readOnlyDemo) {
+              demoToast();
+              return;
+            }
+            navigate("/scan/new");
+          }}
+        >
           New Scan
         </Button>
       </div>

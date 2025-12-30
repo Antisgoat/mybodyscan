@@ -15,7 +15,7 @@ import CreditBadge from "@/components/CreditBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { AppFooter } from "@/components/AppFooter";
-import { isDemoAllowed, setDemo } from "@/state/demo";
+import { disableDemoEverywhere, isDemoAllowed } from "@/state/demo";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -34,22 +34,9 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
 ];
 
 function exitDemo() {
-  try {
-    window.localStorage.removeItem("mbs.demo");
-    window.localStorage.removeItem("mbs:demo");
-    window.localStorage.removeItem("mbs_demo");
-  } catch (error) {
-    console.warn("demo.localStorage.clear_failed", error);
-  }
-  try {
-    window.sessionStorage.removeItem("mbs.demo");
-    window.sessionStorage.removeItem("mbs:demo");
-    window.sessionStorage.removeItem("mbs_demo");
-  } catch (error) {
-    console.warn("demo.sessionStorage.clear_failed", error);
-  }
-  setDemo(false);
-  window.location.href = "/home";
+  disableDemoEverywhere();
+  // Exiting demo should never bounce through protected routes.
+  window.location.href = "/auth";
 }
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {

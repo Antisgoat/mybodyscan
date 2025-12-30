@@ -5,6 +5,7 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import { HOW_IT_WORKS } from "@/content/howItWorks";
 import { PRICING_CATALOG } from "@/content/pricing";
+import { enableDemo } from "@/state/demo";
 
 const PublicLanding = () => {
   const navigate = useNavigate();
@@ -43,7 +44,11 @@ const PublicLanding = () => {
               >
                 Pricing
               </Button>
-              <Link to={demoLink} className="btn-secondary">
+              <Link
+                to={demoLink}
+                className="btn-secondary"
+                onClick={() => enableDemo()}
+              >
                 Browse the demo
               </Link>
             </div>

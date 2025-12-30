@@ -12,6 +12,17 @@ let loggedListenerError = false;
 let notifyingListeners = false;
 let queuedNotification: boolean | null = null;
 
+function readLocalDemo(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(SESSION_KEY);
+    if (value == null) return null;
+    return value === "1" || value === "true";
+  } catch {
+    return null;
+  }
+}
+
 function readSessionDemo(): boolean | null {
   if (typeof window === "undefined") return null;
   try {
@@ -35,6 +46,9 @@ function readQueryDemo(): boolean {
 
 function resolveDemo(): boolean {
   if (explicit !== null) return explicit;
+  const localValue = readLocalDemo();
+  if (localValue !== null) return localValue;
+  // Back-compat: older builds used sessionStorage.
   const sessionValue = readSessionDemo();
   if (sessionValue !== null) return sessionValue;
   return readQueryDemo();
@@ -74,13 +88,13 @@ function update(next: boolean) {
   notifyListeners(next);
 }
 
-function persistSession(value: boolean) {
+function persistLocal(value: boolean) {
   if (typeof window === "undefined") return;
   try {
     if (value) {
-      window.sessionStorage.setItem(SESSION_KEY, "1");
+      window.localStorage.setItem(SESSION_KEY, "1");
     } else {
-      window.sessionStorage.removeItem(SESSION_KEY);
+      window.localStorage.removeItem(SESSION_KEY);
     }
   } catch {
     // ignore storage failures
@@ -97,13 +111,13 @@ export function get(): { demo: boolean } {
 
 export function enableDemo(): void {
   explicit = true;
-  persistSession(true);
+  persistLocal(true);
   update(true);
 }
 
 export function disableDemo(): void {
   explicit = false;
-  persistSession(false);
+  persistLocal(false);
   update(false);
 }
 
@@ -116,6 +130,9 @@ export function disableDemoEverywhere(
   disableDemo();
   if (typeof window !== "undefined") {
     try {
+      window.localStorage.removeItem(SESSION_KEY);
+      window.localStorage.removeItem("mbs.demo");
+      window.localStorage.removeItem("mbs:demo");
       window.sessionStorage.removeItem(SESSION_KEY);
       window.sessionStorage.removeItem("mbs.demo");
       window.sessionStorage.removeItem("mbs:demo");
@@ -160,6 +177,11 @@ export function subscribeDemo(listener: Listener): () => void {
 
 export function isDemo(): boolean {
   return get().demo;
+}
+
+// New explicit API names (requested): a single source of truth.
+export function isDemoEnabled(): boolean {
+  return isDemo();
 }
 
 export function setDemo(value: boolean): void {
