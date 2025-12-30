@@ -261,7 +261,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
     setPending(true);
     try {
       enableDemoMode();
-      navigate("/", { replace: true });
+      navigate("/demo", { replace: true });
     } catch (error) {
       toast(
         buildErrorToast(error, {

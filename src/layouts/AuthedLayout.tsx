@@ -49,7 +49,8 @@ function exitDemo() {
     console.warn("demo.sessionStorage.clear_failed", error);
   }
   setDemo(false);
-  window.location.href = "/home";
+  // Exiting demo should never bounce through protected routes.
+  window.location.href = "/auth";
 }
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
