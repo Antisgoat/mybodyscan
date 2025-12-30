@@ -180,7 +180,8 @@ async function handleGrantCredits(
 async function handleToggleUnlimited(
   req: Request,
   res: Response,
-  staffUid: string
+  staffUid: string,
+  staffEmail: string | null
 ) {
   const body =
     typeof req.body === "object" && req.body ? (req.body as any) : {};
@@ -197,14 +198,20 @@ async function handleToggleUnlimited(
       ...existingClaims,
       unlimitedCredits: value,
     });
-    await db.doc(`users/${uid}/private/admin`).set(
-      {
-        unlimitedCredits: value,
-        unlimitedUpdatedAt: Timestamp.now(),
-        unlimitedUpdatedBy: staffUid,
-      },
-      { merge: true }
-    );
+    const now = Timestamp.now();
+    const mirror = {
+      unlimitedCredits: value,
+      unlimitedUpdatedAt: now,
+      unlimitedUpdatedBy: staffUid,
+      // First-class fields for audit/UI immediacy
+      unlimitedCreditsUpdatedAt: now,
+      unlimitedCreditsGrantedBy: staffEmail || staffUid,
+      unlimitedCreditsGrantedByUid: staffUid,
+    };
+    await Promise.all([
+      db.doc(`users/${uid}/private/admin`).set(mirror, { merge: true }),
+      db.doc(`users/${uid}`).set(mirror, { merge: true }),
+    ]);
     res.json({ ok: true, unlimited: value });
   } catch (error) {
     console.error("admin_toggle_unlimited_error", {
@@ -327,7 +334,7 @@ export const adminGateway = onRequest(
         return;
       }
       case "admin/users/toggleUnlimited": {
-        await handleToggleUnlimited(req, res, staffInfo.uid);
+        await handleToggleUnlimited(req, res, staffInfo.uid, staffInfo.email);
         return;
       }
       case "admin/users/refreshClaims": {
