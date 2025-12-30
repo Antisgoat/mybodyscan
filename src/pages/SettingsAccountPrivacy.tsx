@@ -5,6 +5,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   reauthenticateWithPopup,
+  reauthenticateWithRedirect,
   GoogleAuthProvider,
   signOut,
   type User,
@@ -12,6 +13,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
+import { isIOSWebKit } from "@/lib/ua";
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -39,7 +41,13 @@ export default function SettingsAccountPrivacyPage() {
       );
       await reauthenticateWithCredential(currentUser, cred);
     } else if (p.includes("google")) {
-      await reauthenticateWithPopup(currentUser, new GoogleAuthProvider());
+      const provider = new GoogleAuthProvider();
+      // iOS Safari/WebKit popups are unreliable; prefer redirect reauth.
+      if (isIOSWebKit()) {
+        await reauthenticateWithRedirect(currentUser, provider);
+        return;
+      }
+      await reauthenticateWithPopup(currentUser, provider);
     }
   }
 

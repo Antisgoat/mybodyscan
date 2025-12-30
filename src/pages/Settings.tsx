@@ -78,6 +78,7 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
+import { isIOSBuild } from "@/lib/iosBuild";
 
 const Settings = () => {
   const [notifications, setNotifications] = useState({
@@ -114,6 +115,7 @@ const Settings = () => {
     stripeMode,
     stripeConfigured,
   } = computeFeatureStatuses(systemHealth ?? undefined);
+  const iosBuild = isIOSBuild();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
@@ -366,6 +368,13 @@ const Settings = () => {
   };
 
   const handleOpenBillingPortal = async () => {
+    if (iosBuild) {
+      toast({
+        title: "Available on web",
+        description: "Billing is disabled in the iOS build. Use the web app.",
+      });
+      return;
+    }
     try {
       setOpeningPortal(true);
       const result = await openCustomerPortal({ navigate: false });
@@ -1000,15 +1009,24 @@ const Settings = () => {
                 variant="outline"
                 onClick={handleOpenBillingPortal}
                 className="w-full flex items-center justify-center gap-2"
-                disabled={openingPortal}
+                disabled={openingPortal || iosBuild}
               >
                 {openingPortal ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <CreditCard className="h-4 w-4" />
                 )}
-                {openingPortal ? "Opening portal…" : "Open billing portal"}
+                {iosBuild
+                  ? "Billing available on web"
+                  : openingPortal
+                    ? "Opening portal…"
+                    : "Open billing portal"}
               </Button>
+                {iosBuild && (
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    Billing is available on web.
+                  </p>
+                )}
             </div>
             <div className="grid gap-2">
               <Button

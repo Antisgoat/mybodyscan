@@ -15,8 +15,12 @@ const ORIGIN_ALLOWLIST = new Set([
   "https://www.mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  "http://localhost",
+  "http://127.0.0.1",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "capacitor://localhost",
+  "ionic://localhost",
 ]);
 
 const STAFF_EMAIL_ALLOWLIST = new Set(["developer@adlrlabs.com"]);

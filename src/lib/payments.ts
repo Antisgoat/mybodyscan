@@ -1,5 +1,6 @@
 import { loadStripe } from "@stripe/stripe-js";
 import { apiFetchJson } from "./apiFetch";
+import { isIOSBuild } from "@/lib/iosBuild";
 
 type ErrorPayload = { error: string; code?: string };
 
@@ -27,6 +28,15 @@ function ensureStripePublishableKey(): string {
     error: "stripe_config_missing",
     code: "stripe_config_missing",
   } satisfies ErrorPayload;
+}
+
+function assertPaymentsAllowed(): void {
+  if (isIOSBuild()) {
+    throw {
+      error: "payments_disabled",
+      code: "payments_disabled",
+    } satisfies ErrorPayload;
+  }
 }
 
 const checkoutFunctionUrl = (
@@ -216,6 +226,7 @@ export async function startCheckout(
   input: CheckoutInput,
   options?: CheckoutOptions
 ) {
+  assertPaymentsAllowed();
   const request = resolveCheckoutRequest(input);
   if (!request) {
     throw {
@@ -272,6 +283,7 @@ export async function startCheckout(
 }
 
 export async function openCustomerPortal(options?: CheckoutOptions) {
+  assertPaymentsAllowed();
   let result: { url?: string };
   try {
     result = await apiFetchJson("/billing/portal", { method: "POST" });

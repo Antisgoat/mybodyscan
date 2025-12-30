@@ -40,6 +40,14 @@ function authEvent(kind: string, extra?: Record<string, unknown>) {
     message: `${kind}:${stamp}`,
     extra: { at: stamp, ...(extra ?? {}) },
   });
+  // Compatibility with release logging names:
+  if (kind === "auth_redirect_result") {
+    void reportError({
+      kind: "auth.redirect_result",
+      message: `auth.redirect_result:${stamp}`,
+      extra: { at: stamp, ...(extra ?? {}) },
+    });
+  }
 }
 
 async function resolveRedirect(): Promise<AuthRedirectOutcome> {

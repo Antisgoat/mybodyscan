@@ -1,7 +1,7 @@
 import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
 import { finalizeRedirectResult } from "@/lib/auth/oauth";
 import { startAuthListener } from "@/lib/auth";
-import { isNativeCapacitor } from "@/lib/platform";
+import { reportError } from "@/lib/telemetry";
 
 type InitAuthState = {
   started: boolean;
@@ -32,23 +32,36 @@ export async function initAuth(): Promise<void> {
   if (initPromise) return initPromise;
   state.started = true;
   initPromise = (async () => {
+    void reportError({
+      kind: "auth.init",
+      message: "auth.init",
+      extra: { phase: "start" },
+    });
     state.persistence = await ensureAuthPersistence().catch(() => "unknown");
 
-    // Never attempt Firebase Web redirect/popup finalization inside native WKWebView.
-    // Native auth will be handled via the Capacitor auth implementation.
-    if (!isNativeCapacitor()) {
-      try {
-        await finalizeRedirectResult();
-        state.redirectError = null;
-      } catch (err: any) {
-        // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
-        state.redirectError =
-          typeof err?.message === "string" ? err.message : String(err);
-      }
+    // Always attempt redirect finalization (safe if no redirect is pending).
+    // This is critical for iOS Safari and also covers edge cases where a WebView
+    // ends up using web-based redirects (or reauth redirects) instead of native auth.
+    try {
+      await finalizeRedirectResult();
+      state.redirectError = null;
+    } catch (err: any) {
+      // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
+      state.redirectError =
+        typeof err?.message === "string" ? err.message : String(err);
     }
 
     await startAuthListener().catch(() => undefined);
     state.completed = true;
+    void reportError({
+      kind: "auth.init",
+      message: "auth.init",
+      extra: {
+        phase: "done",
+        persistence: state.persistence,
+        redirectError: state.redirectError ? true : false,
+      },
+    });
   })();
 
   return initPromise;

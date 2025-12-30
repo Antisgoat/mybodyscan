@@ -6,7 +6,10 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 vi.mock("@/lib/auth", () => {
-  return { useAuthUser: () => ({ user: null, authReady: false }) };
+  return {
+    useAuthUser: () => ({ user: null, authReady: false }),
+    useAuthPhase: () => "booting",
+  };
 });
 
 vi.mock("@/lib/demo", () => {
