@@ -3,6 +3,18 @@ import type { Request, Response } from "express";
 const ALLOWED_ORIGINS = new Set([
   "https://mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
+  "https://www.mybodyscanapp.com",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+  // Local dev + preview
+  "http://localhost",
+  "http://127.0.0.1",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+  // iOS wrappers / WebViews (Capacitor/Ionic)
+  "capacitor://localhost",
+  "ionic://localhost",
 ]);
 
 export class HttpError extends Error {

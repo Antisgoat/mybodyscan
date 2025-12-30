@@ -20,6 +20,7 @@ import { apiFetchJson } from "@/lib/apiFetch";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
 import { reportError } from "@/lib/telemetry";
+import { isIOSBuild } from "@/lib/iosBuild";
 
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
@@ -53,6 +54,7 @@ type PlanConfig = {
 export default function Plans() {
   const { t } = useI18n();
   const { user } = useAuthUser();
+  const iosBuild = isIOSBuild();
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [billingActionError, setBillingActionError] = useState<{
     title: string;
@@ -119,6 +121,14 @@ export default function Plans() {
   };
 
   const handleManageSubscription = async () => {
+    if (iosBuild) {
+      setBillingActionError({
+        title: "Available on web",
+        message:
+          "Subscription management is disabled in the iOS build. Please use the web app to manage plans.",
+      });
+      return;
+    }
     if (!BILLING_CONFIGURED) {
       setBillingActionError({
         title: "Billing unavailable",
@@ -159,9 +169,17 @@ export default function Plans() {
   };
 
   const authed = Boolean(user);
-  const canBuy = authed && BILLING_CONFIGURED;
+  const canBuy = authed && BILLING_CONFIGURED && !iosBuild;
 
   const handleCheckout = async (plan: PlanConfig) => {
+    if (iosBuild) {
+      setBillingActionError({
+        title: "Available on web",
+        message:
+          "Purchases are disabled in the iOS build. Please use the web app to manage plans.",
+      });
+      return;
+    }
     if (!user) {
       window.location.assign("/auth?next=/plans");
       return;
@@ -377,6 +395,15 @@ export default function Plans() {
             </div>
           </Alert>
         )}
+        {iosBuild && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Purchases and subscription management are disabled in the iOS build
+              for App Store compliance. Use the web app to manage billing.
+            </AlertDescription>
+          </Alert>
+        )}
         {canceled && (
           <Alert
             variant="destructive"
@@ -496,7 +523,7 @@ export default function Plans() {
             </AlertDescription>
           </Alert>
         )}
-        {!BILLING_CONFIGURED && (
+        {!BILLING_CONFIGURED && !iosBuild && (
           <Alert className="border-amber-300 bg-amber-50 text-amber-900">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -604,6 +631,11 @@ export default function Plans() {
                         t("plans.buyNow")
                       )}
                     </Button>
+                    {iosBuild && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Billing is available on web.
+                      </p>
+                    )}
                     {!authed && (
                       <>
                         <a

@@ -10,6 +10,8 @@ const ALLOWED_ORIGINS = new Set([
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   // Local dev / preview / emulators
+  "http://localhost",
+  "http://127.0.0.1",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:8080",
@@ -18,6 +20,9 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:4173",
   "http://localhost:5000",
   "http://127.0.0.1:5000",
+  // iOS wrappers / WebViews (Capacitor/Ionic)
+  "capacitor://localhost",
+  "ionic://localhost",
 ]);
 
 interface TelemetryBody {

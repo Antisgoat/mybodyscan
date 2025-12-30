@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { isStripeEnabled } from "@/lib/stripeClient";
 import { toast } from "@/hooks/use-toast";
+import { isIOSBuild } from "@/lib/iosBuild";
 import {
   openCustomerPortal,
   startCheckout,
@@ -20,8 +21,13 @@ type Props = {
 export default function BillingButtons({ className }: Props) {
   const [pending, setPending] = useState<"checkout" | "portal" | null>(null);
   const enabled = isStripeEnabled();
+  const iosBuild = isIOSBuild();
   const [portalAvailable, setPortalAvailable] = useState<boolean>(false);
   useEffect(() => {
+    if (iosBuild) {
+      setPortalAvailable(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const shimEnabled = isHostingShimEnabled();
@@ -113,32 +119,40 @@ export default function BillingButtons({ className }: Props) {
   return (
     <div className={className}>
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onBuy}
-          disabled={!enabled || busy}
-          aria-label="Buy credits"
-        >
-          {pending === "checkout" ? "Loading…" : "Buy Credits"}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={onManage}
-          disabled={!enabled || busy || !portalAvailable}
-          aria-label="Manage billing"
-        >
-          {pending === "portal"
-            ? "Loading…"
-            : portalAvailable
-              ? "Manage Billing"
-              : "Portal unavailable"}
-        </Button>
+        {iosBuild ? (
+          <div className="text-xs text-muted-foreground">
+            Billing is available on the web.
+          </div>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onBuy}
+              disabled={!enabled || busy}
+              aria-label="Buy credits"
+            >
+              {pending === "checkout" ? "Loading…" : "Buy Credits"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onManage}
+              disabled={!enabled || busy || !portalAvailable}
+              aria-label="Manage billing"
+            >
+              {pending === "portal"
+                ? "Loading…"
+                : portalAvailable
+                  ? "Manage Billing"
+                  : "Portal unavailable"}
+            </Button>
+          </>
+        )}
       </div>
-      {!enabled && (
+      {!enabled && !iosBuild && (
         <div className="mt-1 text-xs text-muted-foreground">
           Billing disabled (no Stripe key).
         </div>

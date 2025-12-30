@@ -17,6 +17,28 @@ const sentKeys = new Set<string>();
 let sessionCount = 0;
 let listenersBound = false;
 
+function isTestLikeEnv(): boolean {
+  // Vitest runs in Node where relative fetch URLs throw (and we don't want noisy logs).
+  try {
+    const mode = (import.meta as any)?.env?.MODE;
+    if (mode === "test") return true;
+  } catch {
+    // ignore
+  }
+  // Common heuristic for Vitest/Jest
+  return Boolean((globalThis as any).__vitest_worker__ || (globalThis as any).jest);
+}
+
+function resolveTelemetryUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    // Ensure absolute URL so Node's fetch (used by vitest/jsdom) won't throw on a relative path.
+    return new URL(TELEMETRY_ENDPOINT, window.location.origin).toString();
+  } catch {
+    return null;
+  }
+}
+
 function buildKey(message?: string | null, stack?: string | null): string {
   return `${message || ""}|${stack || ""}`.slice(0, 500);
 }
@@ -59,11 +81,15 @@ export function buildTelemetryBody(payload: TelemetryPayload): Record<string, un
 
 async function getAuthToken(): Promise<string | undefined> {
   try {
-    const user = auth.currentUser;
+    // In tests, module mocks may omit `auth`. Telemetry should never throw.
+    const user = (auth as any)?.currentUser;
     if (!user) return undefined;
     return await user.getIdToken();
   } catch (error) {
-    console.warn("telemetry_token_error", (error as Error)?.message);
+    // Never spam logs in tests; keep production logs useful.
+    if (!isTestLikeEnv()) {
+      console.warn("telemetry_token_error", (error as Error)?.message);
+    }
     return undefined;
   }
 }
@@ -71,6 +97,7 @@ async function getAuthToken(): Promise<string | undefined> {
 export async function reportError(payload: TelemetryPayload): Promise<void> {
   if (!payload || !payload.kind) return;
   if (sessionCount >= MAX_SESSION_EVENTS) return;
+  if (isTestLikeEnv()) return;
 
   const key = buildKey(payload.message, payload.stack);
   if (key && sentKeys.has(key)) {
@@ -85,6 +112,10 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
   const body = buildTelemetryBody(payload);
 
   try {
+    const url = resolveTelemetryUrl();
+    if (!url) {
+      return;
+    }
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -96,7 +127,7 @@ export async function reportError(payload: TelemetryPayload): Promise<void> {
     // in environments where upstream middleware is stricter).
     const appCheckHeader = await getAppCheckHeader(false);
     Object.assign(headers, appCheckHeader);
-    const response = await fetch(TELEMETRY_ENDPOINT, {
+    const response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

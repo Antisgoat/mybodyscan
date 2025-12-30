@@ -10,6 +10,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   // Local dev + preview
+  "http://localhost",
+  "http://127.0.0.1",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:4173",

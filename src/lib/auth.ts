@@ -4,6 +4,7 @@ import {
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
+import { reportError } from "@/lib/telemetry";
 import {
   Auth,
   createUserWithEmailAndPassword,
@@ -21,6 +22,8 @@ type AuthSnapshot = {
   user: Auth["currentUser"] | null;
   authReady: boolean;
 };
+
+export type AuthPhase = "booting" | "signedOut" | "signedIn";
 
 let cachedUser: Auth["currentUser"] | null =
   typeof window !== "undefined" && firebaseAuth
@@ -78,6 +81,17 @@ async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
 function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
   cachedUser = nextUser;
   authReadyFlag = true;
+  void reportError({
+    kind: "auth.state_changed",
+    message: "auth.state_changed",
+    extra: {
+      signedIn: Boolean(nextUser),
+      anonymous: Boolean(nextUser?.isAnonymous),
+      providerCount: Array.isArray(nextUser?.providerData)
+        ? nextUser?.providerData.length
+        : 0,
+    },
+  });
   const snapshotChanged = updateAuthSnapshot();
 
   if (!nextUser) {
@@ -198,6 +212,12 @@ export function useAuthUser() {
     loading: !snapshot.authReady,
     authReady: snapshot.authReady,
   } as const;
+}
+
+export function useAuthPhase(): AuthPhase {
+  const { user, authReady } = useAuthUser();
+  if (!authReady) return "booting";
+  return user ? "signedIn" : "signedOut";
 }
 
 export async function signOutToAuth(): Promise<void> {

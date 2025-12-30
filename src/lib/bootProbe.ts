@@ -7,7 +7,7 @@ import {
   APPCHECK_SITE_KEY,
 } from "./flags";
 
-if (isWeb) {
+if (isWeb()) {
   (async () => {
     const key = (import.meta.env.VITE_FIREBASE_API_KEY || "").trim();
     const apiKeyPresent = Boolean(key);
@@ -96,7 +96,7 @@ if (isWeb) {
     }
   })();
 
-  if ((import.meta as any)?.env?.DEV) {
+  if ((import.meta as any)?.env?.DEV && typeof window !== "undefined") {
     window.addEventListener("unhandledrejection", (e) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any,no-console
       console.error("[boot] unhandledrejection:", (e as any)?.reason ?? e);
