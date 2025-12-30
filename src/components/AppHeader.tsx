@@ -5,10 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import {
-  enableDemo as enableDemoMode,
-  disableDemo as disableDemoMode,
-} from "@/lib/demoFlag";
+import { disableDemoEverywhere, enableDemo } from "@/state/demo";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
 import { toast } from "@/hooks/use-toast";
 import { buildErrorToast } from "@/lib/errorToasts";
@@ -260,7 +257,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
     if (pending) return;
     setPending(true);
     try {
-      enableDemoMode();
+      enableDemo();
       navigate("/demo", { replace: true });
     } catch (error) {
       toast(
@@ -379,7 +376,7 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
             <button
               type="button"
               onClick={() => {
-                disableDemoMode();
+                disableDemoEverywhere();
                 navigate("/auth", { replace: true });
               }}
               style={demoBtn}
