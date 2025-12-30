@@ -686,6 +686,10 @@ export default function CoachChatPage() {
     if (pending) {
       return;
     }
+    if (demo) {
+      demoToast();
+      return;
+    }
     if (!coachAvailable) {
       const message =
         coachPrereqMessage ??
@@ -693,7 +697,7 @@ export default function CoachChatPage() {
       setCoachError(message);
       return;
     }
-    if (!demo && !demoGuard("coach chat")) {
+    if (!demoGuard("coach chat")) {
       return;
     }
 
