@@ -12,6 +12,11 @@ function makeDeps(overrides = {}) {
       email,
       customClaims: {},
     }),
+    getUserByUid: async (uid) => ({
+      uid,
+      email: null,
+      customClaims: {},
+    }),
     setCustomUserClaims: async () => {},
     writeUnlimitedCreditsMirror: async () => {},
     ...overrides,
@@ -63,7 +68,7 @@ test("grantUnlimitedCredits: user not found returns failed entry", async () => {
   assert.equal(res.updated.length, 1);
   assert.equal(res.updated[0].email, "ok@example.com");
   assert.equal(res.failed.length, 1);
-  assert.equal(res.failed[0].email, "missing@example.com");
+  assert.equal(res.failed[0].target, "missing@example.com");
   assert.equal(res.failed[0].reason, "user_not_found");
 });
 
