@@ -25,6 +25,8 @@ jobs:
         run: npm run lint
       - name: Typecheck & Build
         run: npm run typecheck && npm run build
+      - name: Verify dist assets exist
+        run: node scripts/verify-dist-assets.js
 
   functions-build:
     name: Functions build
