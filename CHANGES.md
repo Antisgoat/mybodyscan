@@ -27,7 +27,8 @@
 
 ### RevenueCat webhook setup
 - In RevenueCat → **Webhooks**, add an endpoint pointing at your Firebase Function:
-  - `https://<region>-<project>.cloudfunctions.net/revenueCatWebhook`
+  - Preferred (stable via Hosting rewrite): `https://<your-host>/api/revenuecat/webhook`
+  - Direct Cloud Function URL (also works): `https://<region>-<project>.cloudfunctions.net/revenueCatWebhook`
 - Enable webhook signing and set **`REVENUECAT_WEBHOOK_SIGNING_SECRET`** in Functions.
 - The webhook is authoritative: it writes `users/{uid}/entitlements/current` and uses idempotency via `revenuecat_events/{eventId}`.
 

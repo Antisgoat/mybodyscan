@@ -171,6 +171,13 @@
         }
       },
       {
+        "source": "/api/revenuecat/webhook",
+        "function": {
+          "functionId": "revenueCatWebhook",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/system/health",
         "function": {
           "functionId": "systemHealth",
