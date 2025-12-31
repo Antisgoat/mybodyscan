@@ -128,9 +128,9 @@ test("grantProAllowlist: writes users/{uid}/entitlements/current with merge sema
 
   const afterPaid = db.__get(paidPath);
   assert.equal(afterPaid.pro, true);
-  // Must not clobber paid source/expiresAt/stripe fields.
-  assert.equal(afterPaid.source, "stripe");
-  assert.equal(afterPaid.expiresAt, 123);
+  // Must preserve paid fields but enforce durable admin Pro.
+  assert.equal(afterPaid.source, "admin");
+  assert.equal(afterPaid.expiresAt, null);
   assert.deepEqual(afterPaid.stripe, { customerId: "cus_123" });
   // Must not overwrite existing grantedAt.
   assert.equal(afterPaid.grantedAt, "keep_me");

@@ -70,12 +70,19 @@ export async function ensureUnlimitedEntitlements(
     adminSnap?.exists && (adminSnap.data() as any)?.unlimitedCredits === true;
   const rootOk =
     rootSnap?.exists && (rootSnap.data() as any)?.unlimitedCredits === true;
-  const proOk = proSnap?.exists && (proSnap.data() as any)?.pro === true;
+  const proData = proSnap?.exists ? ((proSnap.data() as any) ?? {}) : null;
+  const proOk = Boolean(proData?.pro === true);
+  const proSource = typeof proData?.source === "string" ? String(proData.source) : "";
+  const proExpiresAt = proData?.expiresAt ?? undefined;
 
   const needEntitlements = !entOk;
   const needAdminMirror = !adminOk;
   const needUserRoot = !rootOk;
-  const needProEntitlements = !proOk;
+  // Important: unlimited/test/staff users must have durable admin Pro.
+  // If Pro is true but written by Stripe/RevenueCat, we still need to rewrite
+  // the SSoT doc to `source: "admin"` + `expiresAt: null` so paid updates can't revoke.
+  const needProEntitlements =
+    !proOk || !(proSource === "admin" || proSource === "admin_allowlist") || proExpiresAt !== null;
 
   let didWriteFirestore = false;
   const pathsUpdated: string[] = [];

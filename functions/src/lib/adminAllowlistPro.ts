@@ -83,23 +83,37 @@ export async function ensureAdminProEntitlement(
   const didWrite = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const existing = snap.exists ? ((snap.data() as any) ?? {}) : {};
-    if (existing?.pro === true) {
-      return false;
-    }
 
     const existingSource =
       typeof existing?.source === "string" ? String(existing.source) : "";
-    const isPaidSource = existingSource === "iap" || existingSource === "stripe";
-    const nextSource = isPaidSource ? existingSource : "admin_allowlist";
+    const existingExpiresAt = existing?.expiresAt ?? undefined;
+    const existingGrantedAt = existing?.grantedAt ?? undefined;
 
-    // Preserve grantedAt if already present (idempotent), else set on first grant.
-    const hasGrantedAt = existing?.grantedAt != null;
+    // For allowlisted/unlimited/staff users, we want a durable admin Pro grant:
+    // - `pro: true`
+    // - `source: "admin"` so Stripe/RevenueCat cannot overwrite/revoke it
+    // - `expiresAt: null` (non-expiring)
+    // - `grantedAt` set once (server timestamp)
+    //
+    // We intentionally update even if `pro === true` already, so that a paid
+    // entitlement (source "stripe"/"iap") can't later revoke access for
+    // allowlisted users.
+    const alreadyCorrect =
+      existing?.pro === true &&
+      (existingSource === "admin" || existingSource === "admin_allowlist") &&
+      existingExpiresAt === null;
+
+    if (alreadyCorrect) {
+      return false;
+    }
+
     const payload: Record<string, unknown> = {
       pro: true,
-      source: nextSource,
+      source: "admin",
+      expiresAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (!hasGrantedAt) {
+    if (existingGrantedAt == null) {
       payload.grantedAt = FieldValue.serverTimestamp();
     }
 

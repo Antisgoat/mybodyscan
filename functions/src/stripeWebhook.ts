@@ -20,8 +20,28 @@ async function writeStripeProEntitlement(params: {
     const snap = await tx.get(entRef);
     const current = snap.exists ? (snap.data() as any) : null;
     const currentSource = typeof current?.source === "string" ? current.source : "";
+    const isAdminSource = currentSource === "admin" || currentSource === "admin_allowlist";
     // Never let Stripe events revoke IAP/Admin access.
-    if (!params.pro && (currentSource === "iap" || currentSource === "admin") && current?.pro === true) {
+    if (!params.pro && (currentSource === "iap" || isAdminSource) && current?.pro === true) {
+      return;
+    }
+    // Never overwrite an admin-granted Pro with Stripe state.
+    // We still store Stripe event metadata for debugging, but keep `source: "admin"` and `expiresAt: null`.
+    if (isAdminSource) {
+      tx.set(
+        entRef,
+        {
+          pro: true,
+          source: "admin",
+          expiresAt: null,
+          updatedAt: FieldValue.serverTimestamp(),
+          stripe: {
+            eventId: params.eventId,
+            type: params.eventType,
+          },
+        },
+        { merge: true }
+      );
       return;
     }
     tx.set(

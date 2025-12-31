@@ -53,7 +53,7 @@ function makeFakeDb(initial = {}) {
   };
 }
 
-test("ensureAdminGrantedProEntitlement: preserves paid source", async () => {
+test("ensureAdminGrantedProEntitlement: writes durable admin Pro (non-expiring)", async () => {
   const uid = "u_paid";
   const path = `users/${uid}/entitlements/current`;
   const db = makeFakeDb({
@@ -65,8 +65,8 @@ test("ensureAdminGrantedProEntitlement: preserves paid source", async () => {
 
   const after = db.__get(path);
   assert.equal(after.pro, true);
-  assert.equal(after.source, "iap");
-  assert.equal(after.expiresAt, 999);
+  assert.equal(after.source, "admin");
+  assert.equal(after.expiresAt, null);
   assert.equal(after.grantedAt, "keep");
 });
 

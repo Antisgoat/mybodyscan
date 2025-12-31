@@ -31,20 +31,25 @@ export async function ensureAdminGrantedProEntitlement(
   const didWrite = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const existing = snap.exists ? ((snap.data() as any) ?? {}) : {};
-    if (existing?.pro === true) return false;
 
     const existingSource =
       typeof existing?.source === "string" ? String(existing.source) : "";
-    const isPaidSource = existingSource === "iap" || existingSource === "stripe";
-    const nextSource = isPaidSource ? existingSource : "admin";
+    const existingExpiresAt = existing?.expiresAt ?? undefined;
+    const existingGrantedAt = existing?.grantedAt ?? undefined;
 
-    const hasGrantedAt = existing?.grantedAt != null;
+    const alreadyCorrect =
+      existing?.pro === true &&
+      (existingSource === "admin" || existingSource === "admin_allowlist") &&
+      existingExpiresAt === null;
+    if (alreadyCorrect) return false;
+
     const payload: Record<string, unknown> = {
       pro: true,
-      source: nextSource,
+      source: "admin",
+      expiresAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (!hasGrantedAt) payload.grantedAt = FieldValue.serverTimestamp();
+    if (existingGrantedAt == null) payload.grantedAt = FieldValue.serverTimestamp();
 
     tx.set(ref, payload, { merge: true });
     return true;

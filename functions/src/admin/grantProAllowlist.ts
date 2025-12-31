@@ -69,17 +69,26 @@ async function writeAdminProEntitlement(uid: string, deps: Deps): Promise<{ didW
     const snap = await tx.get(ref);
     const existing = snap.exists ? ((snap.data() as any) ?? {}) : {};
     const existingSource = typeof existing?.source === "string" ? String(existing.source) : "";
-    const isPaidSource = existingSource === "iap" || existingSource === "stripe";
-    const nextSource = isPaidSource ? existingSource : "admin";
+    const existingExpiresAt = existing?.expiresAt ?? undefined;
+    const existingGrantedAt = existing?.grantedAt ?? undefined;
+
+    // For explicit admin grants, we want a durable admin Pro grant even if a paid
+    // entitlement exists. This prevents Stripe/RevenueCat writes from later revoking
+    // access for admin-granted users.
+    const alreadyCorrect =
+      existing?.pro === true &&
+      (existingSource === "admin" || existingSource === "admin_allowlist") &&
+      existingExpiresAt === null;
+    if (alreadyCorrect) return false;
 
     const alreadyPro = existing?.pro === true;
-    const hasGrantedAt = existing?.grantedAt != null;
     const payload: Record<string, unknown> = {
       pro: true,
-      source: nextSource,
+      source: "admin",
+      expiresAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (!hasGrantedAt) {
+    if (existingGrantedAt == null) {
       payload.grantedAt = FieldValue.serverTimestamp();
     }
     tx.set(ref, payload, { merge: true });
