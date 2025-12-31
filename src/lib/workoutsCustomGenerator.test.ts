@@ -4,6 +4,8 @@ import type { MovementPattern } from "@/data/exercises";
 import { getExerciseByExactName, searchExercises } from "@/lib/exercises/library";
 import { generateCustomPlanDaysFromLibrary } from "@/lib/workoutsCustomGenerator";
 
+type MuscleGroup = "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
+
 function patternsForDay(day: { exercises: Array<{ name: string }> }): Set<MovementPattern> {
   const out = new Set<MovementPattern>();
   for (const ex of day.exercises) {
@@ -11,6 +13,49 @@ function patternsForDay(day: { exercises: Array<{ name: string }> }): Set<Moveme
     if (lib) out.add(lib.movementPattern);
   }
   return out;
+}
+
+function computeWeekSets(days: Array<{ exercises: Array<{ name: string; sets?: number }> }>): Record<MuscleGroup, number> {
+  const out: Record<MuscleGroup, number> = {
+    chest: 0,
+    back: 0,
+    legs: 0,
+    shoulders: 0,
+    arms: 0,
+    calves: 0,
+    core: 0,
+  };
+  for (const d of days) {
+    for (const ex of d.exercises) {
+      const lib = getExerciseByExactName(ex.name);
+      const sets = typeof ex.sets === "number" && ex.sets > 0 ? ex.sets : 3;
+      if (!lib) continue;
+      const tags = new Set((lib.tags ?? []).map((t) => t.toLowerCase()));
+      if (lib.movementPattern === "horizontal_push" || tags.has("chest")) out.chest += sets;
+      if (lib.movementPattern === "horizontal_pull" || lib.movementPattern === "vertical_pull" || tags.has("back") || tags.has("lats")) out.back += sets;
+      if (lib.movementPattern === "squat" || lib.movementPattern === "hinge" || tags.has("quads") || tags.has("hamstrings") || tags.has("glutes")) out.legs += sets;
+      if (lib.movementPattern === "vertical_push" || tags.has("lateral_delts") || tags.has("rear_delts")) out.shoulders += sets;
+      if (tags.has("biceps") || tags.has("triceps")) out.arms += sets;
+      if (tags.has("calves")) out.calves += sets;
+      if (lib.movementPattern === "core" || lib.movementPattern === "carry" || tags.has("core")) out.core += sets;
+    }
+  }
+  return out;
+}
+
+function pushPullSets(days: Array<{ exercises: Array<{ name: string; sets?: number }> }>): { push: number; pull: number } {
+  let push = 0;
+  let pull = 0;
+  for (const d of days) {
+    for (const ex of d.exercises) {
+      const lib = getExerciseByExactName(ex.name);
+      const sets = typeof ex.sets === "number" && ex.sets > 0 ? ex.sets : 3;
+      if (!lib) continue;
+      if (lib.movementPattern === "horizontal_push" || lib.movementPattern === "vertical_push") push += sets;
+      if (lib.movementPattern === "horizontal_pull" || lib.movementPattern === "vertical_pull") pull += sets;
+    }
+  }
+  return { push, pull };
 }
 
 function primaryCompoundIdsForWeek(days: Array<{ exercises: Array<{ name: string }> }>): string[] {
@@ -119,6 +164,31 @@ describe("custom plan generation (exercise library)", () => {
     expect(lower2.has("hinge")).toBe(true);
   });
 
+  it("science-based volume sanity: Upper/Lower hypertrophy lands in reasonable weekly set ranges", () => {
+    const prefs: CustomPlanPrefs = {
+      goal: "build_muscle",
+      experience: "intermediate",
+      focus: "upper_lower",
+      daysPerWeek: 4,
+      preferredDays: ["Mon", "Tue", "Thu", "Fri"],
+      timePerWorkout: "45",
+      equipment: ["gym"],
+      trainingStyle: "hypertrophy",
+    };
+    const days = generateCustomPlanDaysFromLibrary(prefs, { variant: 1 });
+    const sets = computeWeekSets(days);
+
+    // With 4x/week, 5 exercises/day, we expect moderate volume without extremes.
+    expect(sets.chest).toBeGreaterThanOrEqual(8);
+    expect(sets.back).toBeGreaterThanOrEqual(8);
+    expect(sets.legs).toBeGreaterThanOrEqual(10);
+    expect(sets.core).toBeGreaterThanOrEqual(3);
+
+    expect(sets.chest).toBeLessThanOrEqual(22);
+    expect(sets.back).toBeLessThanOrEqual(24);
+    expect(sets.legs).toBeLessThanOrEqual(28);
+  });
+
   it("Full Body 3-day: each day contains at least one legs + one upper push/pull movement", () => {
     const prefs: CustomPlanPrefs = {
       goal: "performance",
@@ -138,6 +208,26 @@ describe("custom plan generation (exercise library)", () => {
       expect(patterns.has("horizontal_push") || patterns.has("vertical_push")).toBe(true);
       expect(patterns.has("horizontal_pull") || patterns.has("vertical_pull")).toBe(true);
     }
+  });
+
+  it("full body push/pull balance stays within a reasonable band", () => {
+    const prefs: CustomPlanPrefs = {
+      goal: "recomp",
+      experience: "beginner",
+      focus: "full_body",
+      daysPerWeek: 3,
+      preferredDays: ["Mon", "Wed", "Fri"],
+      timePerWorkout: "45",
+      equipment: ["gym"],
+      trainingStyle: "balanced",
+    };
+    const days = generateCustomPlanDaysFromLibrary(prefs, { variant: 1 });
+    const { push, pull } = pushPullSets(days);
+    expect(push).toBeGreaterThan(0);
+    expect(pull).toBeGreaterThan(0);
+    const ratio = push / pull;
+    expect(ratio).toBeGreaterThanOrEqual(0.6);
+    expect(ratio).toBeLessThanOrEqual(1.4);
   });
 });
 

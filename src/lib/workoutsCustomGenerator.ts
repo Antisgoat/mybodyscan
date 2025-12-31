@@ -6,6 +6,10 @@ type Experience = NonNullable<CustomPlanPrefs["experience"]>;
 type Goal = NonNullable<CustomPlanPrefs["goal"]>;
 type Focus = NonNullable<CustomPlanPrefs["focus"]>;
 
+type MuscleGroup = "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
+type MuscleTargets = Record<MuscleGroup, { min: number; max: number }>;
+type MuscleVolume = Record<MuscleGroup, number>;
+
 type Slot = {
   key: string;
   label: string;
@@ -102,6 +106,107 @@ function experienceOrder(e: Experience): number {
   return e === "beginner" ? 0 : e === "intermediate" ? 1 : 2;
 }
 
+function emptyVolume(): MuscleVolume {
+  return {
+    chest: 0,
+    back: 0,
+    legs: 0,
+    shoulders: 0,
+    arms: 0,
+    calves: 0,
+    core: 0,
+  };
+}
+
+function volumeTargets(params: {
+  goal: Goal;
+  experience: Experience;
+  daysPerWeek: number;
+  focus: Focus;
+}): MuscleTargets {
+  // Science-based-ish defaults:
+  // - Hypertrophy: ~10–20 hard sets/muscle/week (lower for beginners, cut phases).
+  // - Strength/performance: moderate volume, heavier compounds (sets may be fewer).
+  // We keep conservative ranges so small library constraints don't break generation.
+  const days = clampInt(params.daysPerWeek, 2, 6, 4);
+  const exp = params.experience;
+  const goal = params.goal;
+
+  const base =
+    goal === "build_muscle" || goal === "recomp"
+      ? exp === "beginner"
+        ? { min: 6, max: 12 }
+        : exp === "intermediate"
+          ? { min: 8, max: 16 }
+          : { min: 10, max: 20 }
+      : goal === "lose_fat"
+        ? exp === "beginner"
+          ? { min: 4, max: 10 }
+          : { min: 6, max: 12 }
+        : // performance
+          exp === "beginner"
+          ? { min: 5, max: 10 }
+          : { min: 6, max: 14 };
+
+  // Adjust for fewer training days (harder to hit volume) vs more days (more capacity).
+  const dayAdj = days <= 3 ? -1 : days >= 5 ? 1 : 0;
+  const min = Math.max(3, base.min + dayAdj);
+  const max = Math.max(min + 2, base.max + dayAdj);
+
+  // Split-specific nudges: bro split tends to give higher single-day volume per muscle,
+  // but lower frequency; keep upper bound a touch higher.
+  const broBoost = params.focus === "bro_split" ? 2 : 0;
+
+  return {
+    chest: { min, max: max + broBoost },
+    back: { min, max: max + broBoost },
+    legs: { min, max: max + broBoost },
+    shoulders: { min: Math.max(3, min - 1), max: Math.max(6, max - 1 + broBoost) },
+    arms: { min: Math.max(3, min - 2), max: Math.max(6, max - 2 + broBoost) },
+    calves: { min: goal === "performance" ? 3 : 2, max: goal === "build_muscle" ? 8 : 6 },
+    core: { min: goal === "performance" ? 4 : 3, max: 10 },
+  };
+}
+
+function tagsSet(ex: Exercise): Set<string> {
+  return new Set((ex.tags ?? []).map((t) => t.toLowerCase()));
+}
+
+function exerciseMuscleContribution(ex: Exercise, sets: number): Partial<MuscleVolume> {
+  const t = tagsSet(ex);
+  const out: Partial<MuscleVolume> = {};
+
+  // Legs
+  if (t.has("quads") || t.has("hamstrings") || t.has("glutes") || ex.movementPattern === "squat" || ex.movementPattern === "hinge") {
+    out.legs = (out.legs ?? 0) + sets;
+  }
+  if (t.has("calves")) out.calves = (out.calves ?? 0) + sets;
+
+  // Push
+  if (t.has("chest") || ex.movementPattern === "horizontal_push") out.chest = (out.chest ?? 0) + sets;
+  if (t.has("lateral_delts") || t.has("rear_delts") || ex.movementPattern === "vertical_push") out.shoulders = (out.shoulders ?? 0) + sets;
+  if (t.has("triceps")) out.arms = (out.arms ?? 0) + sets;
+
+  // Pull
+  if (t.has("lats") || t.has("back") || ex.movementPattern === "horizontal_pull" || ex.movementPattern === "vertical_pull") {
+    out.back = (out.back ?? 0) + sets;
+  }
+  if (t.has("biceps")) out.arms = (out.arms ?? 0) + sets;
+
+  // Core/carry
+  if (ex.movementPattern === "core" || ex.movementPattern === "carry" || t.has("core")) {
+    out.core = (out.core ?? 0) + sets;
+  }
+
+  return out;
+}
+
+function addVolume(total: MuscleVolume, delta: Partial<MuscleVolume>) {
+  for (const k of Object.keys(delta) as MuscleGroup[]) {
+    total[k] = (total[k] ?? 0) + (delta[k] ?? 0);
+  }
+}
+
 function setsRepsForSlot(params: {
   goal: Goal;
   experience: Experience;
@@ -154,7 +259,7 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
       { key: "push_v1", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
       { key: "push_delts", label: "Lateral delts", includeTags: ["lateral_delts"] },
       { key: "push_tri", label: "Triceps", includeTags: ["triceps"] },
-      { key: "push_core", label: "Core", movementPattern: "core", optional: true },
+      { key: "push_health", label: "Rear delts / shoulder health", includeTags: ["rear_delts"], optional: true },
     ],
   };
   const pushB: DayTemplate = {
@@ -164,7 +269,7 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
       { key: "push_h1", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
       { key: "push_chest", label: "Chest accessory", includeTags: ["chest"] },
       { key: "push_tri", label: "Triceps", includeTags: ["triceps"] },
-      { key: "push_core", label: "Carry", movementPattern: "carry", optional: true },
+      { key: "push_core", label: "Core", movementPattern: "core", optional: true },
     ],
   };
 
@@ -175,7 +280,7 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
       { key: "pull_h1", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
       { key: "pull_rear", label: "Rear delts", includeTags: ["rear_delts"] },
       { key: "pull_bi", label: "Biceps", includeTags: ["biceps"] },
-      { key: "pull_core", label: "Core", movementPattern: "core", optional: true },
+      { key: "pull_carry", label: "Carry", movementPattern: "carry", optional: true },
     ],
   };
   const pullB: DayTemplate = {
@@ -185,7 +290,7 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
       { key: "pull_v1", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
       { key: "pull_lats", label: "Lats accessory", includeTags: ["lats"] },
       { key: "pull_bi", label: "Biceps", includeTags: ["biceps"] },
-      { key: "pull_carry", label: "Carry", movementPattern: "carry", optional: true },
+      { key: "pull_core", label: "Core", movementPattern: "core", optional: true },
     ],
   };
 
@@ -376,6 +481,9 @@ function scoreCandidate(params: {
   slot: Slot;
   usedIds: Set<string>;
   usedPrimaryCompounds: Set<string>;
+  weekVolume: MuscleVolume;
+  targets: MuscleTargets;
+  assumedSets: number;
 }): number {
   let score = 0;
 
@@ -411,6 +519,20 @@ function scoreCandidate(params: {
     if (params.ex.tags.includes("full_gym")) score += 1;
   }
 
+  // Volume steering: gently prefer muscles that are under target, and avoid over-shooting.
+  const delta = exerciseMuscleContribution(params.ex, params.assumedSets);
+  for (const group of Object.keys(delta) as MuscleGroup[]) {
+    const add = delta[group] ?? 0;
+    if (!add) continue;
+    const cur = params.weekVolume[group] ?? 0;
+    const target = params.targets[group];
+    if (cur < target.min) {
+      score += Math.min(6, (target.min - cur) * 0.35);
+    } else if (cur > target.max) {
+      score -= Math.min(6, (cur - target.max) * 0.35);
+    }
+  }
+
   return score;
 }
 
@@ -425,6 +547,8 @@ function pickExerciseForSlot(params: {
   usedIds: Set<string>;
   usedPrimaryCompounds: Set<string>;
   perDayPatternCounts: Record<MovementPattern, number>;
+  weekVolume: MuscleVolume;
+  targets: MuscleTargets;
 }): Exercise | null {
   const baseFilter = (list: Exercise[]) =>
     list.filter((ex) => {
@@ -434,6 +558,15 @@ function pickExerciseForSlot(params: {
         if (params.slot.isPrimaryCompound) return false;
       }
       if ((params.slot.movementPattern === "squat" || ex.movementPattern === "squat") && (params.perDayPatternCounts.squat ?? 0) >= 2) {
+        return false;
+      }
+      // Guardrail: avoid 3+ push or pull patterns in one session.
+      const pushCount = (params.perDayPatternCounts.horizontal_push ?? 0) + (params.perDayPatternCounts.vertical_push ?? 0);
+      const pullCount = (params.perDayPatternCounts.horizontal_pull ?? 0) + (params.perDayPatternCounts.vertical_pull ?? 0);
+      if ((ex.movementPattern === "horizontal_push" || ex.movementPattern === "vertical_push") && pushCount >= 2 && !params.slot.isPrimaryCompound) {
+        return false;
+      }
+      if ((ex.movementPattern === "horizontal_pull" || ex.movementPattern === "vertical_pull") && pullCount >= 2 && !params.slot.isPrimaryCompound) {
         return false;
       }
       return true;
@@ -483,6 +616,14 @@ function pickExerciseForSlot(params: {
 
     if (!candidates.length) continue;
 
+    const assumedSets = setsRepsForSlot({
+      goal: params.goal,
+      experience: params.experience,
+      isPrimaryCompound: Boolean(params.slot.isPrimaryCompound),
+      movementPattern: params.slot.movementPattern,
+      includeTags: params.slot.includeTags,
+    }).sets;
+
     // Deterministic ranking with stable shuffle tie-break.
     const ranked = candidates
       .map((ex) => ({
@@ -495,6 +636,9 @@ function pickExerciseForSlot(params: {
           slot: params.slot,
           usedIds: params.usedIds,
           usedPrimaryCompounds: params.usedPrimaryCompounds,
+          weekVolume: params.weekVolume,
+          targets: params.targets,
+          assumedSets,
         }),
       }))
       .sort((a, b) => b.score - a.score);
@@ -519,6 +663,7 @@ export function generateCustomPlanDaysFromLibrary(
   const experience = (prefs.experience ?? "beginner") as Experience;
   const { mode, allowed } = allowedEquipFromPrefs(prefs);
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
+  const targets = volumeTargets({ goal, experience, daysPerWeek, focus });
 
   // Seed should be stable across regenerations for same prefs, but vary with preferredDays (user schedule).
   const variant = clampInt(options?.variant ?? 0, 0, 50, 0);
@@ -538,6 +683,7 @@ export function generateCustomPlanDaysFromLibrary(
   const templates = buildTemplates(focus, daysPerWeek);
   const usedIds = new Set<string>();
   const usedPrimaryCompounds = new Set<string>();
+  const weekVolume: MuscleVolume = emptyVolume();
 
   return weekdays.map((day, dayIdx) => {
     const template = templates[dayIdx % templates.length]!;
@@ -576,6 +722,8 @@ export function generateCustomPlanDaysFromLibrary(
         usedIds,
         usedPrimaryCompounds,
         perDayPatternCounts,
+        weekVolume,
+        targets,
       });
 
       const fallbackName =
@@ -606,6 +754,7 @@ export function generateCustomPlanDaysFromLibrary(
         usedPrimaryCompounds.add(ex.id);
       }
       perDayPatternCounts[ex.movementPattern] = (perDayPatternCounts[ex.movementPattern] ?? 0) + 1;
+      addVolume(weekVolume, exerciseMuscleContribution(ex, sr.sets));
     }
 
     // Guardrail: ensure at least 1 exercise exists.
