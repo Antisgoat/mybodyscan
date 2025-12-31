@@ -63,6 +63,7 @@ export default function Workouts() {
   const [recentExerciseLogs, setRecentExerciseLogs] = useState<
     Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null; iso?: string }>
   >({});
+  const [recentPrCount7, setRecentPrCount7] = useState<number>(0);
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
   const [bodyFeel, setBodyFeel] = useState<BodyFeel>("");
@@ -140,6 +141,34 @@ export default function Workouts() {
         const snaps = await getDocs(query(col, orderBy("updatedAt", "desc"), limit(14)));
         if (isCancelled?.()) return;
         const out: Record<string, any> = {};
+        const byIsoAsc = snaps.docs
+          .slice()
+          .map((d) => ({ iso: d.id, data: d.data() as any }))
+          .filter((d) => typeof d.iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.iso))
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+
+        // Count PR events in the last 7 days (excluding today), per exercise compared to its prior log.
+        const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const lastSeen: Record<string, { load?: string | null; repsDone?: string | null }> = {};
+        let prCount = 0;
+        for (const entry of byIsoAsc) {
+          if (entry.iso >= todayISO) continue;
+          const logs = entry.data?.logs;
+          if (!logs || typeof logs !== "object") continue;
+          for (const [exerciseId, log] of Object.entries(logs as Record<string, any>)) {
+            if (!log || typeof log !== "object") continue;
+            const cur = {
+              load: typeof (log as any).load === "string" ? (log as any).load : null,
+              repsDone: typeof (log as any).repsDone === "string" ? (log as any).repsDone : null,
+            };
+            const prev = lastSeen[exerciseId] ?? null;
+            if (entry.iso >= sevenDaysAgoIso && prev && isPR({ previous: prev, current: cur })) {
+              prCount += 1;
+            }
+            lastSeen[exerciseId] = cur;
+          }
+        }
+
         for (const docSnap of snaps.docs) {
           const iso = docSnap.id;
           if (iso === todayISO) continue;
@@ -158,9 +187,13 @@ export default function Workouts() {
           }
         }
         setRecentExerciseLogs(out);
+        setRecentPrCount7(prCount);
       } catch (e) {
         console.warn("workouts.recent_logs_failed", e);
-        if (!isCancelled?.()) setRecentExerciseLogs({});
+        if (!isCancelled?.()) {
+          setRecentExerciseLogs({});
+          setRecentPrCount7(0);
+        }
       }
     },
     [todayISO]
@@ -665,6 +698,9 @@ export default function Workouts() {
           <p className="text-xs text-muted-foreground">
             {Math.round(weekRatio * 100)}% this week
           </p>
+          <p className="text-xs text-muted-foreground">
+            PRs (last 7 days): {recentPrCount7}
+          </p>
         </div>
         <div className="w-full bg-secondary rounded-full h-2">
           <div
@@ -745,6 +781,29 @@ export default function Workouts() {
                             </span>
                           ) : null}
                         </p>
+                      ) : null}
+                      {lastLog ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const copied = {
+                                load: lastLog.load ?? null,
+                                repsDone: lastLog.repsDone ?? null,
+                                rpe: lastLog.rpe ?? null,
+                              };
+                              setExerciseLogs((cur) => ({
+                                ...(cur ?? {}),
+                                [ex.id]: copied,
+                              }));
+                              void saveExerciseLog(ex.id, copied);
+                            }}
+                          >
+                            Copy last
+                          </Button>
+                        </div>
                       ) : null}
                       {tip ? (
                         <p className="mt-2 text-xs text-muted-foreground">
