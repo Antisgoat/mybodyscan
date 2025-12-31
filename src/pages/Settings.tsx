@@ -104,6 +104,7 @@ const Settings = () => {
   const { refresh: refreshClaimsHook } = useClaims();
   const { user } = useAuthUser();
   const demoMode = useDemoMode();
+  const [grantingProAllowlist, setGrantingProAllowlist] = useState(false);
   const [appCheckStatus, setAppCheckStatus] = useState<
     "checking" | "present" | "absent"
   >("checking");
@@ -162,6 +163,9 @@ const Settings = () => {
   const iosSafari = isIOSSafari();
   const nativeCapacitor = isNativeCapacitor();
   const initAuthState = getInitAuthState();
+  const canSeeAdminTools =
+    typeof user?.email === "string" &&
+    user.email.trim().toLowerCase().endsWith("@adlrlabs.com");
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
@@ -557,6 +561,64 @@ const Settings = () => {
     }
   };
 
+  const handleGrantProAllowlist = async () => {
+    if (!user?.uid) {
+      toast({
+        title: "Sign in required",
+        description: "Sign in to run admin actions.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setGrantingProAllowlist(true);
+    try {
+      const payload = {
+        emails: [
+          "developer@adlrlabs.com",
+          "luisjm1620@gmail.com",
+          "pmendoza1397@gmail.com",
+          "tester@adlrlabs.com",
+        ],
+        uids: ["ww481RPvMYZzwn5vLX8FXyRlGVV2", "iYnHMbPSV1aJCyc3cIsdz1dLm092"],
+      };
+      const res = await call("grantProAllowlist", payload);
+      const data = (res as any)?.data as any;
+      const grantedUids: string[] = Array.isArray(data?.grantedUids)
+        ? data.grantedUids
+        : [];
+      const alreadyProUids: string[] = Array.isArray(data?.alreadyProUids)
+        ? data.alreadyProUids
+        : [];
+      const notFoundEmails: string[] = Array.isArray(data?.notFoundEmails)
+        ? data.notFoundEmails
+        : [];
+
+      const lines: string[] = [];
+      if (grantedUids.length) lines.push(`Granted: ${grantedUids.join(", ")}`);
+      if (alreadyProUids.length)
+        lines.push(`Already Pro: ${alreadyProUids.join(", ")}`);
+      if (notFoundEmails.length)
+        lines.push(`Not found: ${notFoundEmails.join(", ")}`);
+
+      toast({
+        title: "Pro allowlist processed",
+        description: lines.length ? lines.join("\n") : "Done.",
+      });
+    } catch (error) {
+      toast(
+        buildErrorToast(error, {
+          fallback: {
+            title: "Grant failed",
+            description: "Unable to grant Pro. Check permissions and try again.",
+            variant: "destructive",
+          },
+        })
+      );
+    } finally {
+      setGrantingProAllowlist(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <main className="max-w-md mx-auto p-6 space-y-6">
@@ -817,6 +879,30 @@ const Settings = () => {
                   {stripeConfigured ? "Present" : "Missing"}
                 </Badge>
               </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {canSeeAdminTools ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Admin tools</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="text-xs text-muted-foreground">
+                Restricted to <span className="font-mono">@adlrlabs.com</span>{" "}
+                accounts.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleGrantProAllowlist}
+                disabled={grantingProAllowlist}
+              >
+                {grantingProAllowlist
+                  ? "Granting…"
+                  : "Grant Pro to Team/Testers"}
+              </Button>
             </CardContent>
           </Card>
         ) : null}

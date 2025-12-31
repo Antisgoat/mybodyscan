@@ -3,19 +3,16 @@ import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
 import { call } from "@/lib/callable";
-import { useEntitlements } from "@/lib/entitlements/store";
-import { hasPro, type Entitlements } from "@/lib/entitlements/pro";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
-  const [proFromToken, setProFromToken] = useState(false);
-  const [proFromMirror, setProFromMirror] = useState(false);
+  const [unlimitedFromToken, setUnlimitedFromToken] = useState(false);
+  const [unlimitedFromMirror, setUnlimitedFromMirror] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
-  const { entitlements: firestoreEntitlements } = useEntitlements();
   let projectId = "";
   try {
     projectId = getFirebaseConfig().projectId;
@@ -35,8 +32,8 @@ export function useCredits() {
         setUid(u?.uid ?? null);
         if (!u) {
           setCredits(0);
-          setProFromToken(false);
-          setProFromMirror(false);
+          setUnlimitedFromToken(false);
+          setUnlimitedFromMirror(false);
           setLoading(false);
           refreshAttemptRef.current = null;
         } else {
@@ -58,7 +55,7 @@ export function useCredits() {
             token.claims.unlimited === true ||
             token.claims.admin === true ||
             token.claims.staff === true;
-          setProFromToken(Boolean(tokenPro));
+          setUnlimitedFromToken(Boolean(tokenPro));
         }
       },
       (err) => {
@@ -101,11 +98,11 @@ export function useCredits() {
     const unsubUser = onSnapshot(
       userRef,
       (snap) => {
-        setProFromMirror((snap.data() as any)?.unlimitedCredits === true);
+        setUnlimitedFromMirror((snap.data() as any)?.unlimitedCredits === true);
       },
       () => {
         // Fail closed.
-        setProFromMirror(false);
+        setUnlimitedFromMirror(false);
       }
     );
     return () => {
@@ -118,12 +115,7 @@ export function useCredits() {
     setRefreshTick((prev) => prev + 1);
   }, []);
 
-  const effectiveEntitlements: Entitlements =
-    proFromToken || proFromMirror
-      ? { pro: true, source: "admin", expiresAt: null }
-      : firestoreEntitlements;
-
-  const unlimited = hasPro(effectiveEntitlements);
+  const unlimited = unlimitedFromToken || unlimitedFromMirror;
 
   if (unlimited) {
     return {

@@ -3,17 +3,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
-vi.mock("@/lib/entitlements/store", () => {
-  return {
-    useEntitlements: () => ({
-      uid: "u1",
-      entitlements: { pro: true, source: "iap", expiresAt: null },
-      loading: false,
-      error: null,
-    }),
-  };
-});
-
 vi.mock("@/lib/callable", () => {
   return { call: vi.fn().mockResolvedValue({ data: { ok: true } }) };
 });
@@ -26,12 +15,14 @@ vi.mock("@/lib/firebase", () => {
   };
 });
 
+let mockClaims: Record<string, unknown> = {};
+
 vi.mock("firebase/auth", () => {
   return {
     onIdTokenChanged: (_auth: any, next: any) => {
       const mockUser = {
         uid: "u1",
-        getIdTokenResult: async () => ({ claims: {} }),
+        getIdTokenResult: async () => ({ claims: mockClaims }),
       };
       void next(mockUser);
       return () => {};
@@ -39,14 +30,28 @@ vi.mock("firebase/auth", () => {
   };
 });
 
+let userUnlimitedCreditsMirror = false;
+
 vi.mock("firebase/firestore", () => {
   return {
-    doc: () => ({}),
-    onSnapshot: (_ref: any, next: any) => {
-      next({
-        data: () => ({ creditsSummary: { totalAvailable: 3 } }),
-        exists: () => true,
-      });
+    doc: (_db: any, ...segments: string[]) => {
+      return { __path: segments.join("/") };
+    },
+    onSnapshot: (ref: any, next: any) => {
+      const path = String(ref?.__path || "");
+      if (path.endsWith("/private/credits")) {
+        next({
+          data: () => ({ creditsSummary: { totalAvailable: 3 } }),
+          exists: () => true,
+        });
+      } else if (path === "users/u1") {
+        next({
+          data: () => ({ unlimitedCredits: userUnlimitedCreditsMirror }),
+          exists: () => true,
+        });
+      } else {
+        next({ data: () => ({}), exists: () => true });
+      }
       return () => {};
     },
   };
@@ -54,14 +59,37 @@ vi.mock("firebase/firestore", () => {
 
 import { useCredits } from "./useCredits";
 
-describe("useCredits (pro entitlement)", () => {
-  it("treats pro users as unlimited (credits Infinity)", async () => {
+describe("useCredits (unlimited credits)", () => {
+  it("treats unlimitedCredits claim as unlimited credits (Infinity)", async () => {
+    mockClaims = { unlimitedCredits: true };
+    userUnlimitedCreditsMirror = false;
     const { result } = renderHook(() => useCredits());
     await waitFor(() => {
       expect(result.current.unlimited).toBe(true);
     });
     expect(result.current.credits).toBe(Infinity);
     expect(result.current.remaining).toBe(Infinity);
+  });
+
+  it("treats users/{uid}.unlimitedCredits mirror as unlimited credits (Infinity)", async () => {
+    mockClaims = {};
+    userUnlimitedCreditsMirror = true;
+    const { result } = renderHook(() => useCredits());
+    await waitFor(() => {
+      expect(result.current.unlimited).toBe(true);
+    });
+    expect(result.current.credits).toBe(Infinity);
+  });
+
+  it("does not treat Pro entitlements as unlimited credits", async () => {
+    mockClaims = {};
+    userUnlimitedCreditsMirror = false;
+    const { result } = renderHook(() => useCredits());
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(result.current.unlimited).toBe(false);
+    expect(result.current.credits).toBe(3);
   });
 });
 
