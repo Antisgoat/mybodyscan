@@ -22,6 +22,8 @@ export async function useCreditHandler(
   if (!uid) {
     throw new HttpsError("unauthenticated", "Authentication required");
   }
+  const tokenEmail = context.auth?.token?.email;
+  const email = typeof tokenEmail === "string" ? tokenEmail : null;
 
   const rawRequest = context.rawRequest as Request | undefined;
   if (rawRequest) {
@@ -31,7 +33,7 @@ export async function useCreditHandler(
   const unlimitedCredits =
     hasUnlimited(context) ||
     (await hasUnlimitedCreditsMirror(uid)) ||
-    (await hasProEntitlement(uid));
+    (await hasProEntitlement(uid, email));
   if (unlimitedCredits) {
     // Bypass credit consumption for whitelisted users
     return { ok: true, remaining: Infinity };

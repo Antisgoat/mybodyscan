@@ -33,6 +33,9 @@ export default function Workouts() {
   const searchParams = new URLSearchParams(location.search);
   const requestedPlanId = searchParams.get("plan");
   const startedParam = searchParams.get("started") === "1";
+  const fromPlanStartParam = searchParams.get("fromPlanStart") === "1";
+  const cameFromPlanStartState = Boolean((location.state as any)?.cameFromPlanStart);
+  const planStartSignal = startedParam || fromPlanStartParam || cameFromPlanStartState;
   type WorkoutExercise = {
     id: string;
     name?: string;
@@ -59,6 +62,7 @@ export default function Workouts() {
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activationPending, setActivationPending] = useState(false);
+  const [showPlanStartHint, setShowPlanStartHint] = useState(false);
   const { health: systemHealth, error: healthError } = useSystemHealth();
   const { workoutsConfigured, workoutAdjustConfigured } =
     computeFeatureStatuses(systemHealth ?? undefined);
@@ -311,10 +315,11 @@ export default function Workouts() {
 
   useEffect(() => {
     if (
-      startedParam &&
+      planStartSignal &&
       plan &&
       (!requestedPlanId || plan.id === requestedPlanId)
     ) {
+      setShowPlanStartHint(true);
       toast({
         title: "Plan ready",
         description: "Your new workout program is active.",
@@ -322,11 +327,14 @@ export default function Workouts() {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete("started");
       nextParams.delete("plan");
+      nextParams.delete("fromPlanStart");
       const nextSearch = nextParams.toString();
-      const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-      window.history.replaceState({}, "", nextUrl);
+      nav(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
+        { replace: true, state: {} }
+      );
     }
-  }, [location.pathname, plan, requestedPlanId, searchParams, startedParam]);
+  }, [location.pathname, nav, plan, planStartSignal, requestedPlanId, searchParams]);
 
   const formatDelta = (value: number) =>
     value >= 0 ? `+${value}` : `${value}`;
@@ -535,7 +543,7 @@ export default function Workouts() {
             <Button onClick={() => nav("/programs/customize?fromActive=1")} variant="outline" className="w-full">
               Customize plan
             </Button>
-            {cameFromPlanStart ? (
+            {showPlanStartHint ? (
               <p className="text-xs text-muted-foreground">
                 Your new program is active. If today looks wrong, pull down to refresh.
               </p>

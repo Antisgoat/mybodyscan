@@ -1,5 +1,6 @@
 import { FieldValue, getFirestore } from "../firebase.js";
 import { isUnlimitedUser } from "./unlimitedUsers.js";
+import { STAFF_PRO_EMAIL_ALLOWLIST, STAFF_PRO_UID_ALLOWLIST } from "./staffPro.js";
 
 export type AdminProParams = {
   uid?: string | null;
@@ -26,18 +27,11 @@ function normalizeUid(uid?: string | null): string | null {
  * - UID allowlist exists for Apple/Google accounts without stable emails.
  * - IMPORTANT: Unlimited allowlist users MUST be treated as Pro too. We enforce that
  *   by treating `isUnlimitedUser(...)` as an automatic Pro grant.
+ *
+ * Canonical STAFF/TEST allowlist is shared via `staffPro.ts` to keep server gates consistent.
  */
-export const ADMIN_PRO_EMAILS = new Set<string>(
-  [
-    "developer@adlrlabs.com",
-    "luisjm1620@gmail.com",
-    "pmendoza1397@gmail.com",
-    "tester@adlrlabs.com",
-  ].map((e) => e.toLowerCase())
-);
-
-// Keep empty by default; add UIDs as needed.
-export const ADMIN_PRO_UIDS = new Set<string>([]);
+export const ADMIN_PRO_UIDS = STAFF_PRO_UID_ALLOWLIST;
+export const ADMIN_PRO_EMAILS = STAFF_PRO_EMAIL_ALLOWLIST;
 
 export function isAdminPro(params: AdminProParams): boolean {
   // Non-negotiable: unlimited allowlist implies Pro.
