@@ -80,6 +80,13 @@ import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
 
 const Settings = () => {
+  const DEVELOPER_EMAIL = "developer@adlrlabs.com";
+  const TESTER_UIDS = [
+    "DbGEQQuSE2agIIqTUBkaAYCYCP92",
+    "iYnHMbPSV1aJCyc3cIsdz1dLm092",
+    "ww481RPvMYZzwn5vLX8FXyRlGVV2",
+    "GBdtbwUcYGYMuA1QW0Ik6K9tP0w1",
+  ] as const;
   const [notifications, setNotifications] = useState({
     scanReminder: true,
     workoutReminder: true,
@@ -104,7 +111,11 @@ const Settings = () => {
   const { refresh: refreshClaimsHook } = useClaims();
   const { user } = useAuthUser();
   const demoMode = useDemoMode();
-  const [grantingProAllowlist, setGrantingProAllowlist] = useState(false);
+  const [grantingTesterPro, setGrantingTesterPro] = useState(false);
+  const [testerProResult, setTesterProResult] = useState<{
+    updated: string[];
+    failed: Array<{ uid: string; error: string }>;
+  } | null>(null);
   const [appCheckStatus, setAppCheckStatus] = useState<
     "checking" | "present" | "absent"
   >("checking");
@@ -165,7 +176,7 @@ const Settings = () => {
   const initAuthState = getInitAuthState();
   const canSeeAdminTools =
     typeof user?.email === "string" &&
-    user.email.trim().toLowerCase().endsWith("@adlrlabs.com");
+    user.email.trim().toLowerCase() === DEVELOPER_EMAIL;
 
   useEffect(() => {
     if (profile?.weight_kg != null) {
@@ -561,7 +572,7 @@ const Settings = () => {
     }
   };
 
-  const handleGrantProAllowlist = async () => {
+  const handleGrantProToTesters = async () => {
     if (!user?.uid) {
       toast({
         title: "Sign in required",
@@ -570,52 +581,43 @@ const Settings = () => {
       });
       return;
     }
-    setGrantingProAllowlist(true);
+    setGrantingTesterPro(true);
+    setTesterProResult(null);
     try {
-      const payload = {
-        emails: [
-          "developer@adlrlabs.com",
-          "luisjm1620@gmail.com",
-          "pmendoza1397@gmail.com",
-          "tester@adlrlabs.com",
-        ],
-        uids: ["ww481RPvMYZzwn5vLX8FXyRlGVV2", "iYnHMbPSV1aJCyc3cIsdz1dLm092"],
-      };
-      const res = await call("grantProAllowlist", payload);
-      const data = (res as any)?.data as any;
-      const grantedUids: string[] = Array.isArray(data?.grantedUids)
-        ? data.grantedUids
-        : [];
-      const alreadyProUids: string[] = Array.isArray(data?.alreadyProUids)
-        ? data.alreadyProUids
-        : [];
-      const notFoundEmails: string[] = Array.isArray(data?.notFoundEmails)
-        ? data.notFoundEmails
-        : [];
+      const res = await call<
+        { uids: string[]; pro?: boolean },
+        { updated: string[]; failed: Array<{ uid: string; error: string }> }
+      >("adminGrantProEntitlements", { uids: [...TESTER_UIDS], pro: true });
+      const updated = Array.isArray(res?.data?.updated) ? res.data.updated : [];
+      const failed = Array.isArray(res?.data?.failed) ? res.data.failed : [];
+      setTesterProResult({ updated, failed });
 
-      const lines: string[] = [];
-      if (grantedUids.length) lines.push(`Granted: ${grantedUids.join(", ")}`);
-      if (alreadyProUids.length)
-        lines.push(`Already Pro: ${alreadyProUids.join(", ")}`);
-      if (notFoundEmails.length)
-        lines.push(`Not found: ${notFoundEmails.join(", ")}`);
-
-      toast({
-        title: "Pro allowlist processed",
-        description: lines.length ? lines.join("\n") : "Done.",
-      });
+      if (failed.length) {
+        toast({
+          title: "Partial success",
+          description: `Updated ${updated.length}; failed ${failed.length}. See details below.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Pro granted",
+          description:
+            "Tester entitlements updated. Testers may need to refresh or relaunch to see Pro access.",
+        });
+      }
     } catch (error) {
       toast(
         buildErrorToast(error, {
           fallback: {
             title: "Grant failed",
-            description: "Unable to grant Pro. Check permissions and try again.",
+            description:
+              "You are not authorized, or a server error occurred. Check logs and try again.",
             variant: "destructive",
           },
         })
       );
     } finally {
-      setGrantingProAllowlist(false);
+      setGrantingTesterPro(false);
     }
   };
 
@@ -890,19 +892,59 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-xs text-muted-foreground">
-                Restricted to <span className="font-mono">@adlrlabs.com</span>{" "}
-                accounts.
+                Restricted to{" "}
+                <span className="font-mono">{DEVELOPER_EMAIL}</span>.
               </p>
+              <div className="rounded border px-3 py-2">
+                <p className="text-xs font-medium text-foreground">
+                  Tester UIDs (fixed)
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {TESTER_UIDS.map((uid) => (
+                    <li key={uid} className="font-mono">
+                      {uid}
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={handleGrantProAllowlist}
-                disabled={grantingProAllowlist}
+                onClick={handleGrantProToTesters}
+                disabled={grantingTesterPro}
               >
-                {grantingProAllowlist
-                  ? "Granting…"
-                  : "Grant Pro to Team/Testers"}
+                {grantingTesterPro ? "Granting…" : "Grant Pro to Testers"}
               </Button>
+              {testerProResult ? (
+                <div className="space-y-2 rounded border px-3 py-2 text-xs">
+                  <div>
+                    <div className="font-medium text-foreground">Updated</div>
+                    <div className="text-muted-foreground">
+                      {testerProResult.updated.length
+                        ? testerProResult.updated.join(", ")
+                        : "None"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">Failed</div>
+                    {testerProResult.failed.length ? (
+                      <ul className="mt-1 space-y-1 text-muted-foreground">
+                        {testerProResult.failed.map((row) => (
+                          <li key={`${row.uid}-${row.error}`}>
+                            <span className="font-mono">{row.uid}</span> —{" "}
+                            {row.error}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-muted-foreground">None</div>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground">
+                    Note: testers may need to refresh/relaunch to pick up Pro.
+                  </p>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
