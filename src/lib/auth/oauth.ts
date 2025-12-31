@@ -22,10 +22,9 @@ let popupThenRedirectFn = popupThenRedirectImported;
 
 function authEvent(kind: string, extra?: Record<string, unknown>) {
   const stamp = Date.now();
-  // Telemetry dedupes by message; include a stamp to preserve event sequence.
   void reportError({
     kind,
-    message: `${kind}:${stamp}`,
+    message: kind,
     extra: { at: stamp, ...(extra ?? {}) },
   });
 }

@@ -35,6 +35,10 @@ interface TelemetryBody {
   extra?: unknown;
 }
 
+type TelemetryBatchBody = {
+  events?: unknown;
+};
+
 function applyCors(req: Request, res: Response): { ended: boolean } {
   const origin = req.headers.origin as string | undefined;
   if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -64,11 +68,9 @@ function sanitizeString(value: unknown, limit: number): string | null {
 function normalizeExtra(extra: unknown): Record<string, unknown> | null {
   if (!extra) return null;
   if (typeof extra === "object" && !Array.isArray(extra)) {
+    const entries = Object.entries(extra as Record<string, unknown>).slice(0, 50);
     return Object.fromEntries(
-      Object.entries(extra as Record<string, unknown>).map(([key, value]) => [
-        key,
-        typeof value === "string" ? value.slice(0, 200) : value,
-      ])
+      entries.map(([key, value]) => [key, normalizeExtraValue(value)])
     );
   }
   try {
@@ -77,6 +79,17 @@ function normalizeExtra(extra: unknown): Record<string, unknown> | null {
     };
   } catch {
     return { value: String(extra).slice(0, 200) };
+  }
+}
+
+function normalizeExtraValue(value: unknown): unknown {
+  if (value == null) return value;
+  if (typeof value === "string") return value.slice(0, 200);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  try {
+    return JSON.stringify(value).slice(0, 800);
+  } catch {
+    return String(value).slice(0, 200);
   }
 }
 
@@ -108,73 +121,120 @@ export const telemetryLogHttp = onRequest(
       return;
     }
 
-    let body: TelemetryBody | null = null;
+    let eventsRaw: unknown[] = [];
     try {
-      body =
-        typeof req.body === "object" && req.body
-          ? (req.body as TelemetryBody)
+      // Firebase/Express typically parses JSON bodies into objects, but Safari `sendBeacon`
+      // can occasionally arrive as a raw string payload depending on runtime headers.
+      let parsedBody: unknown = req.body;
+      if (typeof parsedBody === "string") {
+        try {
+          parsedBody = JSON.parse(parsedBody);
+        } catch {
+          parsedBody = null;
+        }
+      } else if (Buffer.isBuffer(parsedBody)) {
+        try {
+          parsedBody = JSON.parse(parsedBody.toString("utf8"));
+        } catch {
+          parsedBody = null;
+        }
+      }
+
+      const root =
+        typeof parsedBody === "object" && parsedBody
+          ? (parsedBody as TelemetryBody & TelemetryBatchBody)
           : null;
+      if (root && Array.isArray((root as any).events)) {
+        eventsRaw = (root as any).events as unknown[];
+      } else if (root) {
+        eventsRaw = [root as TelemetryBody];
+      } else {
+        eventsRaw = [];
+      }
     } catch {
-      body = null;
+      eventsRaw = [];
     }
 
-    if (!body) {
-      res.status(400).json({ error: "invalid_payload" });
+    const events = eventsRaw
+      .filter((entry): entry is TelemetryBody => Boolean(entry && typeof entry === "object"))
+      .slice(0, 20);
+
+    if (!events.length) {
+      // Best-effort: telemetry must never spam clients with errors.
+      res.status(204).end();
       return;
     }
 
     const uid = await identifyUid(req);
     const ip = identifierFromRequest(req);
 
-    const limitKey = uid ? `telemetry_uid_${uid}` : `telemetry_ip_${ip}`;
-    const limitResult = await ensureRateLimit({
-      key: limitKey,
-      identifier: uid || ip,
-      limit: 10,
-      windowSeconds: 300,
-    });
-
-    if (!limitResult.allowed) {
-      res.status(429).json({
-        error: "rate_limited",
-        retryAfter: limitResult.retryAfterSeconds ?? null,
+    try {
+      const limitKey = uid ? `telemetry_uid_${uid}` : `telemetry_ip_${ip}`;
+      const limitResult = await ensureRateLimit({
+        key: limitKey,
+        identifier: uid || ip,
+        // Requests are batched on the client; this is a per-request guardrail.
+        // When limited, we drop events but still respond 204 to avoid browser console noise.
+        limit: 120,
+        windowSeconds: 300,
       });
-      return;
+
+      if (!limitResult.allowed) {
+        try {
+          if (typeof limitResult.retryAfterSeconds === "number") {
+            res.setHeader("Retry-After", String(limitResult.retryAfterSeconds));
+          }
+        } catch {
+          // ignore
+        }
+        // Drop silently (best-effort).
+        res.status(204).end();
+        return;
+      }
+    } catch (error) {
+      // If rate limiting breaks for any reason, fail-open and keep telemetry best-effort.
+      console.warn("telemetry_rate_limit_error", { message: (error as Error)?.message });
     }
 
-    const doc = {
-      createdAt: Timestamp.now(),
-      uid: uid ?? null,
-      ip: ip || null,
-      userAgent: sanitizeString(req.get("user-agent"), 300),
-      url: sanitizeString(body.url, 500),
-      kind: sanitizeString(body.kind, 100),
-      message: sanitizeString(body.message, 320),
-      code:
-        typeof body.code === "string" || typeof body.code === "number"
-          ? String(body.code).slice(0, 120)
-          : null,
-      stack: sanitizeString(body.stack, 1200),
-      component: sanitizeString(body.component, 120),
-      extra: normalizeExtra(body.extra),
-      headers: {
-        referer: sanitizeString(req.get("referer") || req.get("referrer"), 500),
-      },
-    };
-
     try {
-      await db.collection("telemetryEvents").add({
-        ...doc,
-        recordedAt: FieldValue.serverTimestamp(),
-      });
+      const batch = db.batch();
+      const createdAt = Timestamp.now();
+      const ua = sanitizeString(req.get("user-agent"), 300);
+      const referer = sanitizeString(req.get("referer") || req.get("referrer"), 500);
+
+      for (const body of events) {
+        const doc = {
+          createdAt,
+          uid: uid ?? null,
+          ip: ip || null,
+          userAgent: ua,
+          url: sanitizeString(body.url, 500),
+          kind: sanitizeString(body.kind, 100),
+          message: sanitizeString(body.message, 320),
+          code:
+            typeof body.code === "string" || typeof body.code === "number"
+              ? String(body.code).slice(0, 120)
+              : null,
+          stack: sanitizeString(body.stack, 1200),
+          component: sanitizeString(body.component, 120),
+          extra: normalizeExtra(body.extra),
+          headers: { referer },
+          recordedAt: FieldValue.serverTimestamp(),
+        };
+        const ref = db.collection("telemetryEvents").doc();
+        batch.set(ref, doc, { merge: false });
+      }
+
+      await batch.commit();
     } catch (error) {
       console.error("telemetry_store_error", {
         message: (error as Error)?.message,
       });
-      res.status(500).json({ error: "store_failed" });
+      // Best-effort: don't surface errors to the browser.
+      res.status(204).end();
       return;
     }
 
-    res.json({ ok: true });
+    res.status(204).end();
   }
 );
