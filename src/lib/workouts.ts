@@ -12,6 +12,10 @@ import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
 import { fnJson } from "@/lib/fnCall";
+import {
+  buildCustomPlanTitleFromPrefs,
+  generateCustomPlanDaysFromLibrary,
+} from "@/lib/workoutsCustomGenerator";
 
 export interface WorkoutExercise {
   id: string;
@@ -235,16 +239,29 @@ export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
 export async function previewCustomPlan(params: {
   prefs: CustomPlanPrefs;
   title?: string;
+  /**
+   * Optional deterministic variant seed.
+   * Allows "Generate again" to produce a different plan without randomness.
+   */
+  variant?: number;
 }): Promise<{ title: string; prefs: CustomPlanPrefs; days: CatalogPlanDay[] }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_preview_custom_plan" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/previewCustomPlan", params);
+  // Local, deterministic generator (web + Capacitor-friendly).
+  // Keeping this client-side avoids network flakiness and makes Swap quality consistent.
+  const title =
+    typeof params.title === "string" && params.title.trim().length
+      ? params.title.trim()
+      : buildCustomPlanTitleFromPrefs(params.prefs);
+  const days = generateCustomPlanDaysFromLibrary(params.prefs, {
+    variant: typeof params.variant === "number" ? params.variant : undefined,
+  });
   return {
-    title: typeof res?.title === "string" ? res.title : "Custom plan",
-    prefs: (res?.prefs as CustomPlanPrefs) ?? params.prefs,
-    days: Array.isArray(res?.days) ? (res.days as CatalogPlanDay[]) : [],
+    title,
+    prefs: params.prefs,
+    days,
   };
 }
 
@@ -396,6 +413,21 @@ export async function markExerciseDone(
     throw new Error("demo-blocked");
   }
   return callFn("/markExerciseDone", { planId, dayIndex, exerciseId, done });
+}
+
+export async function logWorkoutExercise(params: {
+  planId: string;
+  exerciseId: string;
+  load?: string | null;
+  repsDone?: string | null;
+  rpe?: number | null;
+}): Promise<{ ok: true }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_log_exercise" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/logWorkoutExercise", params);
+  return { ok: Boolean(res?.ok) as true };
 }
 
 export async function getWeeklyCompletion(planId: string) {

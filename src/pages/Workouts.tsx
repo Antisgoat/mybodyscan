@@ -13,16 +13,18 @@ import {
   getPlan,
   markExerciseDone,
   getWeeklyCompletion,
+  logWorkoutExercise,
 } from "@/lib/workouts";
 import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { authedFetch } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { formatLogSummary, isPR, progressionTip } from "@/lib/workoutsProgression";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -55,6 +57,13 @@ export default function Workouts() {
 
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [completed, setCompleted] = useState<string[]>([]);
+  const [exerciseLogs, setExerciseLogs] = useState<
+    Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null }>
+  >({});
+  const [recentExerciseLogs, setRecentExerciseLogs] = useState<
+    Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null; iso?: string }>
+  >({});
+  const [recentPrCount7, setRecentPrCount7] = useState<number>(0);
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
   const [bodyFeel, setBodyFeel] = useState<BodyFeel>("");
@@ -96,8 +105,14 @@ export default function Workouts() {
         const done = snap.exists()
           ? ((snap.data()?.completed as string[]) ?? [])
           : [];
+        const logsRaw = snap.exists() ? (snap.data()?.logs as any) : null;
+        const logs =
+          logsRaw && typeof logsRaw === "object" && !Array.isArray(logsRaw)
+            ? (logsRaw as Record<string, any>)
+            : {};
         if (!isCancelled?.()) {
           setCompleted(done);
+          setExerciseLogs(logs);
           setRatio(
             p.days[idx].exercises.length
               ? done.length / p.days[idx].exercises.length
@@ -108,11 +123,131 @@ export default function Workouts() {
         console.warn("workouts.progress", error);
         if (!isCancelled?.()) {
           setCompleted([]);
+          setExerciseLogs({});
           setRatio(0);
         }
       }
     },
     [todayISO, todayName, workoutsConfigured]
+  );
+
+  const loadRecentLogs = useCallback(
+    async (p: WorkoutPlan, isCancelled?: () => boolean) => {
+      if (!p?.id) return;
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      try {
+        const col = collection(db, `users/${uid}/workoutPlans/${p.id}/progress`);
+        const snaps = await getDocs(query(col, orderBy("updatedAt", "desc"), limit(14)));
+        if (isCancelled?.()) return;
+        const out: Record<string, any> = {};
+        const byIsoAsc = snaps.docs
+          .slice()
+          .map((d) => ({ iso: d.id, data: d.data() as any }))
+          .filter((d) => typeof d.iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.iso))
+          .sort((a, b) => a.iso.localeCompare(b.iso));
+
+        // Count PR events in the last 7 days (excluding today), per exercise compared to its prior log.
+        const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const lastSeen: Record<string, { load?: string | null; repsDone?: string | null }> = {};
+        let prCount = 0;
+        for (const entry of byIsoAsc) {
+          if (entry.iso >= todayISO) continue;
+          const logs = entry.data?.logs;
+          if (!logs || typeof logs !== "object") continue;
+          for (const [exerciseId, log] of Object.entries(logs as Record<string, any>)) {
+            if (!log || typeof log !== "object") continue;
+            const cur = {
+              load: typeof (log as any).load === "string" ? (log as any).load : null,
+              repsDone: typeof (log as any).repsDone === "string" ? (log as any).repsDone : null,
+            };
+            const prev = lastSeen[exerciseId] ?? null;
+            if (entry.iso >= sevenDaysAgoIso && prev && isPR({ previous: prev, current: cur })) {
+              prCount += 1;
+            }
+            lastSeen[exerciseId] = cur;
+          }
+        }
+
+        for (const docSnap of snaps.docs) {
+          const iso = docSnap.id;
+          if (iso === todayISO) continue;
+          const data = docSnap.data() as any;
+          const logs = data?.logs;
+          if (!logs || typeof logs !== "object") continue;
+          for (const [exerciseId, entry] of Object.entries(logs)) {
+            if (out[exerciseId]) continue;
+            if (!entry || typeof entry !== "object") continue;
+            out[exerciseId] = {
+              load: typeof (entry as any).load === "string" ? (entry as any).load : null,
+              repsDone: typeof (entry as any).repsDone === "string" ? (entry as any).repsDone : null,
+              rpe: typeof (entry as any).rpe === "number" ? (entry as any).rpe : null,
+              iso,
+            };
+          }
+        }
+        setRecentExerciseLogs(out);
+        setRecentPrCount7(prCount);
+      } catch (e) {
+        console.warn("workouts.recent_logs_failed", e);
+        if (!isCancelled?.()) {
+          setRecentExerciseLogs({});
+          setRecentPrCount7(0);
+        }
+      }
+    },
+    [todayISO]
+  );
+
+  const logKey = useCallback((exerciseId: string) => `workouts:lastLog:${exerciseId}`, []);
+
+  const getLocalLog = useCallback(
+    (exerciseId: string) => {
+      try {
+        const raw = localStorage.getItem(logKey(exerciseId));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        return parsed as { load?: string | null; repsDone?: string | null; rpe?: number | null };
+      } catch {
+        return null;
+      }
+    },
+    [logKey]
+  );
+
+  const setLocalLog = useCallback(
+    (exerciseId: string, value: { load?: string | null; repsDone?: string | null; rpe?: number | null }) => {
+      try {
+        localStorage.setItem(logKey(exerciseId), JSON.stringify(value));
+      } catch {
+        // ignore
+      }
+    },
+    [logKey]
+  );
+
+  const saveExerciseLog = useCallback(
+    async (exerciseId: string, patch: { load?: string | null; repsDone?: string | null; rpe?: number | null }) => {
+      if (!plan) return;
+      const prev = exerciseLogs?.[exerciseId] ?? {};
+      const next = { ...prev, ...patch };
+      setExerciseLogs((cur) => ({ ...(cur ?? {}), [exerciseId]: next }));
+      setLocalLog(exerciseId, next);
+      try {
+        await logWorkoutExercise({
+          planId: plan.id,
+          exerciseId,
+          load: next.load ?? null,
+          repsDone: next.repsDone ?? null,
+          rpe: next.rpe ?? null,
+        });
+      } catch (e) {
+        // Non-blocking: user can still complete workouts even if log write fails.
+        console.warn("workouts.log_exercise_failed", e);
+      }
+    },
+    [exerciseLogs, plan, setLocalLog]
   );
 
   useEffect(() => {
@@ -188,6 +323,7 @@ export default function Workouts() {
           setLoadError(null);
         }
         await loadProgress(currentPlan as WorkoutPlan, () => cancelled);
+        await loadRecentLogs(currentPlan as WorkoutPlan, () => cancelled);
         try {
           const wk = await getWeeklyCompletion(currentPlan.id);
           if (!cancelled) {
@@ -562,6 +698,9 @@ export default function Workouts() {
           <p className="text-xs text-muted-foreground">
             {Math.round(weekRatio * 100)}% this week
           </p>
+          <p className="text-xs text-muted-foreground">
+            PRs (last 7 days): {recentPrCount7}
+          </p>
         </div>
         <div className="w-full bg-secondary rounded-full h-2">
           <div
@@ -571,7 +710,52 @@ export default function Workouts() {
         </div>
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
-            {todayExercises.map((ex) => (
+            {todayExercises.map((ex) => {
+              const serverLog = exerciseLogs?.[ex.id] ?? null;
+              const localLog = getLocalLog(ex.id);
+              const lastLog = recentExerciseLogs?.[ex.id] ?? null;
+              const merged = {
+                load:
+                  typeof serverLog?.load === "string"
+                    ? serverLog.load
+                    : typeof localLog?.load === "string"
+                      ? localLog.load
+                      : "",
+                repsDone:
+                  typeof serverLog?.repsDone === "string"
+                    ? serverLog.repsDone
+                    : typeof localLog?.repsDone === "string"
+                      ? localLog.repsDone
+                      : "",
+                rpe:
+                  typeof serverLog?.rpe === "number"
+                    ? serverLog.rpe
+                    : typeof localLog?.rpe === "number"
+                      ? localLog.rpe
+                      : null,
+              };
+              const current = {
+                ...merged,
+                ...(exerciseLogs?.[ex.id] ?? {}),
+              };
+              const tip =
+                typeof ex.name === "string" && ex.name.trim().length
+                  ? progressionTip({
+                      exerciseName: ex.name,
+                      targetReps: ex.reps ?? "",
+                      repsDone: current.repsDone || null,
+                      rpe: current.rpe,
+                    })
+                  : null;
+              const lastSummary = lastLog ? formatLogSummary(lastLog) : "";
+              const currentSummary = formatLogSummary(current);
+              const showPR = Boolean(
+                lastLog &&
+                  (current.load || current.repsDone) &&
+                  isPR({ previous: lastLog, current })
+              );
+
+              return (
               <Card key={ex.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -588,11 +772,116 @@ export default function Workouts() {
                           : "—"}{" "}
                         sets × {ex.reps ?? "—"} reps
                       </p>
+                      {lastLog && lastSummary ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Last{lastLog.iso ? ` (${lastLog.iso})` : ""}: {lastSummary}
+                          {showPR ? (
+                            <span className="ml-2 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              PR
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : null}
+                      {lastLog ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const copied = {
+                                load: lastLog.load ?? null,
+                                repsDone: lastLog.repsDone ?? null,
+                                rpe: lastLog.rpe ?? null,
+                              };
+                              setExerciseLogs((cur) => ({
+                                ...(cur ?? {}),
+                                [ex.id]: copied,
+                              }));
+                              void saveExerciseLog(ex.id, copied);
+                            }}
+                          >
+                            Copy last
+                          </Button>
+                        </div>
+                      ) : null}
+                      {tip ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {tip}
+                        </p>
+                      ) : null}
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder={
+                            lastLog?.load
+                              ? `Weight (last: ${lastLog.load})`
+                              : "Weight (e.g. 135lb)"
+                          }
+                          value={current.load ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), load: v },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { load: (current.load ?? "").trim() || null })
+                          }
+                        />
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder={
+                            lastLog?.repsDone
+                              ? `Reps (last: ${lastLog.repsDone})`
+                              : "Reps done"
+                          }
+                          value={current.repsDone ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), repsDone: v },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { repsDone: (current.repsDone ?? "").trim() || null })
+                          }
+                        />
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder="RPE (1-10)"
+                          value={current.rpe == null ? "" : String(current.rpe)}
+                          inputMode="decimal"
+                          onChange={(e) => {
+                            const raw = e.target.value.trim();
+                            const num = raw ? Number(raw) : NaN;
+                            const next =
+                              Number.isFinite(num) && num >= 1 && num <= 10
+                                ? num
+                                : null;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), rpe: next },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { rpe: current.rpe })
+                          }
+                        />
+                      </div>
+                      {currentSummary ? (
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          Today: {currentSummary}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="font-medium text-foreground">

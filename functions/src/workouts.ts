@@ -1415,6 +1415,82 @@ async function handleMarkDone(req: Request, res: Response) {
   res.json({ ratio });
 }
 
+async function handleLogWorkoutExercise(req: Request, res: Response) {
+  const uid = await requireAuth(req);
+  await ensureSoftAppCheckFromRequest(req as any, {
+    fn: "logWorkoutExercise",
+    uid,
+  });
+  const body = req.body as {
+    planId?: string;
+    exerciseId?: string;
+    load?: string | null;
+    repsDone?: string | null;
+    rpe?: number | null;
+  };
+  const planId = typeof body?.planId === "string" ? body.planId.trim() : "";
+  const exerciseId =
+    typeof body?.exerciseId === "string" ? body.exerciseId.trim() : "";
+  if (!planId || !exerciseId) {
+    throw new HttpsError("invalid-argument", "Invalid payload");
+  }
+
+  const load =
+    typeof body?.load === "string" && body.load.trim().length
+      ? body.load.trim().slice(0, 24)
+      : null;
+  const repsDone =
+    typeof body?.repsDone === "string" && body.repsDone.trim().length
+      ? body.repsDone.trim().slice(0, 24)
+      : null;
+  const rpeRaw = Number(body?.rpe);
+  const rpe =
+    Number.isFinite(rpeRaw) && rpeRaw >= 1 && rpeRaw <= 10
+      ? Math.round(rpeRaw * 10) / 10
+      : null;
+
+  // Ensure plan exists (and belongs to user via path).
+  const planSnap = await db.doc(`users/${uid}/workoutPlans/${planId}`).get();
+  if (!planSnap.exists) {
+    throw new HttpsError("not-found", "Plan not found");
+  }
+
+  const iso = new Date().toISOString().slice(0, 10);
+  const progressRef = db.doc(
+    `users/${uid}/workoutPlans/${planId}/progress/${iso}`
+  );
+  const now = Timestamp.now();
+
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(
+      progressRef
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    const completed: string[] = snap.exists
+      ? (snap.data()?.completed as string[]) || []
+      : [];
+    const logs = snap.exists && snap.data()?.logs && typeof snap.data()?.logs === "object"
+      ? ({ ...(snap.data()?.logs as Record<string, any>) } as Record<string, any>)
+      : ({} as Record<string, any>);
+    logs[exerciseId] = scrubUndefined({
+      load: load ?? null,
+      repsDone: repsDone ?? null,
+      rpe: rpe ?? null,
+      updatedAt: now,
+    });
+    tx.set(
+      progressRef,
+      scrubUndefined({
+        completed,
+        logs,
+        updatedAt: now,
+      }),
+      { merge: true }
+    );
+  });
+
+  res.json({ ok: true });
+}
+
 async function handleGetWorkouts(req: Request, res: Response) {
   const uid = await requireAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, { fn: "getWorkouts", uid });
@@ -1476,6 +1552,7 @@ export const getPlan = withHandler(handleGetPlan);
 export const getCurrentPlan = getPlan;
 export const markExerciseDone = withHandler(handleMarkDone);
 export const addWorkoutLog = markExerciseDone;
+export const logWorkoutExercise = withHandler(handleLogWorkoutExercise);
 export const getWorkouts = withHandler(handleGetWorkouts);
 
 // Body-feel adjustment endpoint
