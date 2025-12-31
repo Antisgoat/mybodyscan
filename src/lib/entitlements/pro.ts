@@ -1,6 +1,6 @@
 export type Entitlements = {
   pro: boolean;
-  source?: "iap" | "stripe" | "admin";
+  source?: "iap" | "stripe" | "admin" | "admin_allowlist";
   /**
    * Milliseconds since epoch (UTC). If null/undefined, treat as non-expiring.
    */

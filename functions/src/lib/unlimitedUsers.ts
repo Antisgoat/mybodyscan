@@ -16,6 +16,7 @@ export const UNLIMITED_UID_ALLOWLIST = new Set<string>([
 ]);
 
 export const UNLIMITED_EMAIL_ALLOWLIST = new Set<string>([
+  "developer@adlrlabs.com",
   "luisjm1620@gmail.com",
   "pmendoza1397@gmail.com",
   "tester@adlrlabs.com",

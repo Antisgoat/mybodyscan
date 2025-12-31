@@ -9,6 +9,13 @@ vi.mock("@/lib/system", () => {
   return { bootstrapSystem: vi.fn().mockResolvedValue(undefined) };
 });
 
+const syncEntitlementsSpy = vi
+  .fn()
+  .mockResolvedValue({ ok: true, didWrite: false, entitlements: null });
+vi.mock("@/lib/entitlements/syncEntitlements", () => {
+  return { syncEntitlements: (...args: any[]) => syncEntitlementsSpy(...args) };
+});
+
 const upsertSpy = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/auth/userProfileUpsert", () => {
   return { upsertUserRootProfile: (...args: any[]) => upsertSpy(...args) };
@@ -32,6 +39,7 @@ describe("useAuthBootstrap", () => {
     __authTestInternals.reset();
     upsertSpy.mockClear();
     mockUser.getIdToken.mockClear();
+    syncEntitlementsSpy.mockClear();
   });
 
   it("kicks off non-blocking user profile upsert on sign-in", async () => {
@@ -44,6 +52,18 @@ describe("useAuthBootstrap", () => {
     await waitFor(() => {
       expect(upsertSpy).toHaveBeenCalledTimes(1);
       expect(upsertSpy).toHaveBeenCalledWith(mockUser);
+    });
+  });
+
+  it("calls syncEntitlements once per sign-in", async () => {
+    render(<Harness />);
+
+    act(() => {
+      __authTestInternals.emit(mockUser, { authReady: true });
+    });
+
+    await waitFor(() => {
+      expect(syncEntitlementsSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

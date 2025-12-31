@@ -4,6 +4,7 @@ import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { getEnv } from "../lib/env.js";
+import { ensureAdminGrantedProEntitlement } from "../lib/adminGrantPro.js";
 import {
   grantUnlimitedCreditsHandler,
   type GrantUnlimitedCreditsDeps,
@@ -79,6 +80,11 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
           ),
         db.doc(`users/${params.uid}/private/admin`).set(payload, { merge: true }),
         db.doc(`users/${params.uid}`).set(payload, { merge: true }),
+        // If an admin grants unlimited credits, they must also have Pro access.
+        // Single source of truth: `users/{uid}/entitlements/current`.
+        params.enabled
+          ? ensureAdminGrantedProEntitlement(params.uid, { db })
+          : Promise.resolve(),
       ]);
     },
   };

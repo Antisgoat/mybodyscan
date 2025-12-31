@@ -46,6 +46,7 @@ export { telemetryLogHttp } from "./http/telemetry.js";
 export { uatHelper } from "./http/uat.js";
 export { refreshClaims } from "./auth/refreshClaims.js";
 export { grantUnlimitedCredits } from "./auth/grantUnlimitedCredits.js";
+export { syncEntitlements } from "./syncEntitlements.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { systemBootstrap } from "./system.js";
 export { deleteAccount } from "./http/deleteAccount.js";
