@@ -107,6 +107,7 @@ export default function CustomizeProgram() {
   const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(null);
   const [generating, setGenerating] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [generationVariant, setGenerationVariant] = useState<number>(0);
   const [swapTarget, setSwapTarget] = useState<{ dayIndex: number; exerciseIndex: number } | null>(null);
   const [swapQuery, setSwapQuery] = useState<string>("");
 
@@ -228,6 +229,8 @@ export default function CustomizeProgram() {
     try {
       const safeDaysPerWeek = normalizeDaysPerWeek(daysPerWeek);
       const safePreferred = ensureUniqueDays(preferredDays, safeDaysPerWeek);
+      const nextVariant = generationVariant + 1;
+      setGenerationVariant(nextVariant);
       const res = await previewCustomPlan({
         prefs: {
           ...prefs,
@@ -235,6 +238,7 @@ export default function CustomizeProgram() {
           preferredDays: safePreferred,
         },
         title: title.trim() ? title.trim() : undefined,
+        variant: nextVariant,
       });
       setTitle(res.title);
       const days = Array.isArray(res.days) ? res.days : [];

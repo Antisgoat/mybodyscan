@@ -239,6 +239,11 @@ export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
 export async function previewCustomPlan(params: {
   prefs: CustomPlanPrefs;
   title?: string;
+  /**
+   * Optional deterministic variant seed.
+   * Allows "Generate again" to produce a different plan without randomness.
+   */
+  variant?: number;
 }): Promise<{ title: string; prefs: CustomPlanPrefs; days: CatalogPlanDay[] }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_preview_custom_plan" });
@@ -250,7 +255,9 @@ export async function previewCustomPlan(params: {
     typeof params.title === "string" && params.title.trim().length
       ? params.title.trim()
       : buildCustomPlanTitleFromPrefs(params.prefs);
-  const days = generateCustomPlanDaysFromLibrary(params.prefs);
+  const days = generateCustomPlanDaysFromLibrary(params.prefs, {
+    variant: typeof params.variant === "number" ? params.variant : undefined,
+  });
   return {
     title,
     prefs: params.prefs,

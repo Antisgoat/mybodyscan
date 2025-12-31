@@ -508,7 +508,10 @@ function pickExerciseForSlot(params: {
   return null;
 }
 
-export function generateCustomPlanDaysFromLibrary(prefs: CustomPlanPrefs): CatalogPlanDay[] {
+export function generateCustomPlanDaysFromLibrary(
+  prefs: CustomPlanPrefs,
+  options?: { variant?: number }
+): CatalogPlanDay[] {
   const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
   const weekdays = (Array.isArray(prefs.preferredDays) && prefs.preferredDays.length ? prefs.preferredDays : pickWeekdays(daysPerWeek)).slice(0, daysPerWeek) as CatalogPlanDay["day"][];
   const focus = (prefs.focus ?? "full_body") as Focus;
@@ -518,6 +521,7 @@ export function generateCustomPlanDaysFromLibrary(prefs: CustomPlanPrefs): Catal
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
 
   // Seed should be stable across regenerations for same prefs, but vary with preferredDays (user schedule).
+  const variant = clampInt(options?.variant ?? 0, 0, 50, 0);
   const seedBase = normalizeExerciseName(
     JSON.stringify({
       goal,
@@ -526,6 +530,7 @@ export function generateCustomPlanDaysFromLibrary(prefs: CustomPlanPrefs): Catal
       daysPerWeek,
       timePerWorkout: prefs.timePerWorkout ?? "45",
       mode,
+      variant,
       preferredDays: weekdays,
     })
   );

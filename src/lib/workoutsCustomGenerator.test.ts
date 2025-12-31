@@ -25,6 +25,34 @@ function primaryCompoundIdsForWeek(days: Array<{ exercises: Array<{ name: string
 }
 
 describe("custom plan generation (exercise library)", () => {
+  it("variant changes produce different (but valid) plans", () => {
+    const prefs: CustomPlanPrefs = {
+      goal: "build_muscle",
+      experience: "intermediate",
+      focus: "full_body",
+      daysPerWeek: 3,
+      preferredDays: ["Mon", "Wed", "Fri"],
+      timePerWorkout: "45",
+      equipment: ["gym"],
+      trainingStyle: "balanced",
+    };
+
+    const v1 = generateCustomPlanDaysFromLibrary(prefs, { variant: 1 });
+    const v2 = generateCustomPlanDaysFromLibrary(prefs, { variant: 2 });
+
+    const names1 = v1.flatMap((d) => d.exercises.map((e) => e.name)).join("|");
+    const names2 = v2.flatMap((d) => d.exercises.map((e) => e.name)).join("|");
+    expect(names1).not.toEqual(names2);
+
+    // Still meets basic patterns.
+    for (const d of v1) {
+      const patterns = patternsForDay(d);
+      expect(patterns.has("squat") || patterns.has("hinge")).toBe(true);
+      expect(patterns.has("horizontal_push") || patterns.has("vertical_push")).toBe(true);
+      expect(patterns.has("horizontal_pull") || patterns.has("vertical_pull")).toBe(true);
+    }
+  });
+
   it("PPL 6-day: each day meets required movement patterns and avoids duplicate primary compounds", () => {
     const prefs: CustomPlanPrefs = {
       goal: "build_muscle",
@@ -36,7 +64,7 @@ describe("custom plan generation (exercise library)", () => {
       equipment: ["gym"],
       trainingStyle: "balanced",
     };
-    const days = generateCustomPlanDaysFromLibrary(prefs);
+    const days = generateCustomPlanDaysFromLibrary(prefs, { variant: 1 });
     expect(days).toHaveLength(6);
 
     // Day order is deterministic by template cycle.
