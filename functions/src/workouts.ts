@@ -23,6 +23,7 @@ import {
   hasActiveSubscriptionFromUserDoc,
   hasUnlimitedAccessFromClaims,
 } from "./lib/entitlements.js";
+import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { structuredJsonChat } from "./openai/client.js";
 import { openAiSecretParam } from "./openai/keys.js";
 
@@ -577,7 +578,10 @@ async function requireProgramsEntitlement(uid: string, claims: any) {
   // Keep this logic server-side so UI gating can't be bypassed.
   try {
     const unlimited = hasUnlimitedAccessFromClaims(claims);
-    if (!unlimited) {
+    const tokenEmail = (claims as any)?.email;
+    const email = typeof tokenEmail === "string" ? tokenEmail : null;
+    const staffOrPro = unlimited || (await hasProEntitlement(uid, email));
+    if (!staffOrPro) {
       const userSnap = await db.doc(`users/${uid}`).get();
       const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
       if (!active) {

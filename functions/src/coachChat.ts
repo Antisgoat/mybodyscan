@@ -20,6 +20,7 @@ import {
   hasActiveSubscriptionFromUserDoc,
   hasUnlimitedAccessFromClaims,
 } from "./lib/entitlements.js";
+import { hasProEntitlement } from "./lib/proEntitlements.js";
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -808,8 +809,10 @@ export const coachChat = onCall<CoachChatRequest>(
     // Keep this server-side so a misconfigured client can't bypass it.
     try {
       const token = request.auth?.token as any;
+      const tokenEmail = typeof token?.email === "string" ? token.email : null;
       const unlimited = hasUnlimitedAccessFromClaims(token);
-      if (!unlimited) {
+      const staffOrPro = unlimited || (await hasProEntitlement(uid, tokenEmail));
+      if (!staffOrPro) {
         const userSnap = await db.doc(`users/${uid}`).get();
         const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
         if (!active) {

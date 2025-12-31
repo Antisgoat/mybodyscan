@@ -1,4 +1,5 @@
 import { getFirestore } from "../firebase.js";
+import { isStaffProEmail, isStaffProUid } from "./staffPro.js";
 
 function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -17,9 +18,15 @@ function readNumber(value: unknown): number | null {
   return null;
 }
 
-export async function hasProEntitlement(uid: string): Promise<boolean> {
+export async function hasProEntitlement(
+  uid: string,
+  email?: string | null
+): Promise<boolean> {
   const trimmed = String(uid || "").trim();
   if (!trimmed) return false;
+  // Staff/test allowlist (server-authoritative bypass).
+  if (isStaffProUid(trimmed)) return true;
+  if (isStaffProEmail(email)) return true;
   const db = getFirestore();
   const ref = db.doc(`users/${trimmed}/entitlements/current`);
   const snap = await ref.get().catch(() => null);

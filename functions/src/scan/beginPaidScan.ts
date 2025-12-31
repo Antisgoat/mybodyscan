@@ -37,7 +37,9 @@ async function handler(req: ExpressRequest, res: ExpressResponse) {
   await verifyAppCheckStrict(req);
   const { uid, claims } = await requireAuthWithClaims(req);
   const staffBypass = await isStaff(uid);
-  const proEntitled = await hasProEntitlement(uid);
+  const tokenEmail = (claims as any)?.email;
+  const email = typeof tokenEmail === "string" ? tokenEmail : null;
+  const proEntitled = await hasProEntitlement(uid, email);
   const unlimitedCredits =
     claims?.unlimitedCredits === true ||
     (await hasUnlimitedCreditsMirror(uid)) ||
