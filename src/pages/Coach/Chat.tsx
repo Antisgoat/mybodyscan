@@ -384,7 +384,7 @@ export default function CoachChatPage() {
             // Keep this inline (not a scary global toast) so the rest of the page remains usable.
             setCoachError(
               isPermissionDenied(err)
-                ? "Coach is temporarily unavailable. Please try again later or contact support."
+                ? "Coach access is still syncing. Try again shortly, or sign out and back in if it persists."
                 : "Unable to load coach chats. Please try again in a moment."
             );
           }
@@ -490,7 +490,7 @@ export default function CoachChatPage() {
               warned = true;
               setCoachError(
                 isPermissionDenied(err)
-                  ? "Coach is temporarily unavailable. Please try again later or contact support."
+                  ? "Coach access is still syncing. Try again shortly, or sign out and back in if it persists."
                   : "Unable to load recent coach messages."
               );
             }
@@ -575,7 +575,7 @@ export default function CoachChatPage() {
             warned = true;
             setCoachError(
               isPermissionDenied(err)
-                ? "Coach is temporarily unavailable. Please try again later or contact support."
+                ? "Coach access is still syncing. Try again shortly, or sign out and back in if it persists."
                 : "Unable to load coach thread."
             );
           }
