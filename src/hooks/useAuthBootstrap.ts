@@ -5,6 +5,7 @@ import { bootstrapSystem } from "@/lib/system";
 import { useAuthUser } from "@/lib/auth";
 import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
 import { initPurchases } from "@/lib/billing/iapProvider";
+import { syncEntitlements } from "@/lib/entitlements/syncEntitlements";
 
 export function useAuthBootstrap() {
   const { user } = useAuthUser();
@@ -37,6 +38,19 @@ export function useAuthBootstrap() {
         // Native-only: bind RevenueCat appUserID to Firebase uid.
         void initPurchases({ uid: user.uid }).catch(() => undefined);
         await bootstrapSystem();
+
+        // Best-effort: ensure allowlisted admin Pro is reflected in Firestore SSoT.
+        // Retry a couple times to handle transient callable/appcheck failures.
+        const sleep = (ms: number) =>
+          new Promise<void>((resolve) => setTimeout(resolve, ms));
+        for (let attempt = 0; attempt <= 2; attempt += 1) {
+          const res = await syncEntitlements();
+          if (res?.ok) break;
+          if (attempt < 2) {
+            await sleep(250 * (attempt + 1));
+          }
+        }
+
         await user.getIdToken(true);
         failureCountRef.current = 0;
       } catch (e) {

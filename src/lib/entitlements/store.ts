@@ -73,7 +73,10 @@ function normalizeEntitlements(raw: unknown): Entitlements {
   const data = raw && typeof raw === "object" ? (raw as any) : {};
   const pro = data?.pro === true;
   const source =
-    data?.source === "iap" || data?.source === "stripe" || data?.source === "admin"
+    data?.source === "iap" ||
+    data?.source === "stripe" ||
+    data?.source === "admin" ||
+    data?.source === "admin_allowlist"
       ? (data.source as Entitlements["source"])
       : undefined;
   const expiresAt = normalizeExpiresAt(data?.expiresAt);

@@ -1,4 +1,5 @@
 import { getAuth, getFirestore, FieldValue } from "../firebase.js";
+import { ensureAdminProEntitlement } from "./adminAllowlistPro.js";
 
 export type EnsureUnlimitedEntitlementsParams = {
   uid: string;
@@ -86,12 +87,6 @@ export async function ensureUnlimitedEntitlements(
       credits: MAX_CREDITS,
       updatedAt,
     };
-    const proPayload = {
-      pro: true,
-      source: "admin",
-      expiresAt: null,
-      updatedAt,
-    };
 
     const writes: Promise<unknown>[] = [];
     if (needEntitlements) {
@@ -123,7 +118,7 @@ export async function ensureUnlimitedEntitlements(
       pathsUpdated.push(`users/${uid}`);
     }
     if (needProEntitlements) {
-      writes.push(proEntitlementsRef.set(proPayload, { merge: true }));
+      writes.push(ensureAdminProEntitlement(uid, params.email ?? null, { db }));
       pathsUpdated.push(`users/${uid}/entitlements/current`);
     }
 
