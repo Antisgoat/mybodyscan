@@ -27,6 +27,7 @@ export {
   generateWorkoutPlan,
   getPlan,
   getWorkouts,
+  logWorkoutExercise,
   markExerciseDone,
   previewCustomPlan,
   setWorkoutPlanStatus,

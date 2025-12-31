@@ -13,6 +13,7 @@ import {
   getPlan,
   markExerciseDone,
   getWeeklyCompletion,
+  logWorkoutExercise,
 } from "@/lib/workouts";
 import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
@@ -23,6 +24,7 @@ import { authedFetch } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
+import { progressionTip } from "@/lib/workoutsProgression";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -55,6 +57,9 @@ export default function Workouts() {
 
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [completed, setCompleted] = useState<string[]>([]);
+  const [exerciseLogs, setExerciseLogs] = useState<
+    Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null }>
+  >({});
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
   const [bodyFeel, setBodyFeel] = useState<BodyFeel>("");
@@ -96,8 +101,14 @@ export default function Workouts() {
         const done = snap.exists()
           ? ((snap.data()?.completed as string[]) ?? [])
           : [];
+        const logsRaw = snap.exists() ? (snap.data()?.logs as any) : null;
+        const logs =
+          logsRaw && typeof logsRaw === "object" && !Array.isArray(logsRaw)
+            ? (logsRaw as Record<string, any>)
+            : {};
         if (!isCancelled?.()) {
           setCompleted(done);
+          setExerciseLogs(logs);
           setRatio(
             p.days[idx].exercises.length
               ? done.length / p.days[idx].exercises.length
@@ -108,11 +119,63 @@ export default function Workouts() {
         console.warn("workouts.progress", error);
         if (!isCancelled?.()) {
           setCompleted([]);
+          setExerciseLogs({});
           setRatio(0);
         }
       }
     },
     [todayISO, todayName, workoutsConfigured]
+  );
+
+  const logKey = useCallback((exerciseId: string) => `workouts:lastLog:${exerciseId}`, []);
+
+  const getLocalLog = useCallback(
+    (exerciseId: string) => {
+      try {
+        const raw = localStorage.getItem(logKey(exerciseId));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        return parsed as { load?: string | null; repsDone?: string | null; rpe?: number | null };
+      } catch {
+        return null;
+      }
+    },
+    [logKey]
+  );
+
+  const setLocalLog = useCallback(
+    (exerciseId: string, value: { load?: string | null; repsDone?: string | null; rpe?: number | null }) => {
+      try {
+        localStorage.setItem(logKey(exerciseId), JSON.stringify(value));
+      } catch {
+        // ignore
+      }
+    },
+    [logKey]
+  );
+
+  const saveExerciseLog = useCallback(
+    async (exerciseId: string, patch: { load?: string | null; repsDone?: string | null; rpe?: number | null }) => {
+      if (!plan) return;
+      const prev = exerciseLogs?.[exerciseId] ?? {};
+      const next = { ...prev, ...patch };
+      setExerciseLogs((cur) => ({ ...(cur ?? {}), [exerciseId]: next }));
+      setLocalLog(exerciseId, next);
+      try {
+        await logWorkoutExercise({
+          planId: plan.id,
+          exerciseId,
+          load: next.load ?? null,
+          repsDone: next.repsDone ?? null,
+          rpe: next.rpe ?? null,
+        });
+      } catch (e) {
+        // Non-blocking: user can still complete workouts even if log write fails.
+        console.warn("workouts.log_exercise_failed", e);
+      }
+    },
+    [exerciseLogs, plan, setLocalLog]
   );
 
   useEffect(() => {
@@ -571,7 +634,40 @@ export default function Workouts() {
         </div>
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
-            {todayExercises.map((ex) => (
+            {todayExercises.map((ex) => {
+              const serverLog = exerciseLogs?.[ex.id] ?? null;
+              const localLog = getLocalLog(ex.id);
+              const merged = {
+                load:
+                  typeof serverLog?.load === "string"
+                    ? serverLog.load
+                    : typeof localLog?.load === "string"
+                      ? localLog.load
+                      : "",
+                repsDone:
+                  typeof serverLog?.repsDone === "string"
+                    ? serverLog.repsDone
+                    : typeof localLog?.repsDone === "string"
+                      ? localLog.repsDone
+                      : "",
+                rpe:
+                  typeof serverLog?.rpe === "number"
+                    ? serverLog.rpe
+                    : typeof localLog?.rpe === "number"
+                      ? localLog.rpe
+                      : null,
+              };
+              const tip =
+                typeof ex.name === "string" && ex.name.trim().length
+                  ? progressionTip({
+                      exerciseName: ex.name,
+                      targetReps: ex.reps ?? "",
+                      repsDone: merged.repsDone || null,
+                      rpe: merged.rpe,
+                    })
+                  : null;
+
+              return (
               <Card key={ex.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -588,11 +684,70 @@ export default function Workouts() {
                           : "—"}{" "}
                         sets × {ex.reps ?? "—"} reps
                       </p>
+                      {tip ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {tip}
+                        </p>
+                      ) : null}
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder="Weight (e.g. 135lb)"
+                          value={merged.load}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), load: v },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { load: merged.load || null })
+                          }
+                        />
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder="Reps done"
+                          value={merged.repsDone}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), repsDone: v },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { repsDone: merged.repsDone || null })
+                          }
+                        />
+                        <input
+                          className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+                          placeholder="RPE (1-10)"
+                          value={merged.rpe == null ? "" : String(merged.rpe)}
+                          inputMode="decimal"
+                          onChange={(e) => {
+                            const raw = e.target.value.trim();
+                            const num = raw ? Number(raw) : NaN;
+                            const next =
+                              Number.isFinite(num) && num >= 1 && num <= 10
+                                ? num
+                                : null;
+                            setExerciseLogs((cur) => ({
+                              ...(cur ?? {}),
+                              [ex.id]: { ...(cur?.[ex.id] ?? {}), rpe: next },
+                            }));
+                          }}
+                          onBlur={() =>
+                            saveExerciseLog(ex.id, { rpe: merged.rpe })
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="font-medium text-foreground">

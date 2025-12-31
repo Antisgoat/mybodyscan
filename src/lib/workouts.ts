@@ -415,6 +415,21 @@ export async function markExerciseDone(
   return callFn("/markExerciseDone", { planId, dayIndex, exerciseId, done });
 }
 
+export async function logWorkoutExercise(params: {
+  planId: string;
+  exerciseId: string;
+  load?: string | null;
+  repsDone?: string | null;
+  rpe?: number | null;
+}): Promise<{ ok: true }> {
+  if (isDemoActive()) {
+    track("demo_block", { action: "workout_log_exercise" });
+    throw new Error("demo-blocked");
+  }
+  const res = await callFn("/logWorkoutExercise", params);
+  return { ok: Boolean(res?.ok) as true };
+}
+
 export async function getWeeklyCompletion(planId: string) {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_weekly" });
