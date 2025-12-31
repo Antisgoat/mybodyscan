@@ -123,9 +123,26 @@ export const telemetryLogHttp = onRequest(
 
     let eventsRaw: unknown[] = [];
     try {
+      // Firebase/Express typically parses JSON bodies into objects, but Safari `sendBeacon`
+      // can occasionally arrive as a raw string payload depending on runtime headers.
+      let parsedBody: unknown = req.body;
+      if (typeof parsedBody === "string") {
+        try {
+          parsedBody = JSON.parse(parsedBody);
+        } catch {
+          parsedBody = null;
+        }
+      } else if (Buffer.isBuffer(parsedBody)) {
+        try {
+          parsedBody = JSON.parse(parsedBody.toString("utf8"));
+        } catch {
+          parsedBody = null;
+        }
+      }
+
       const root =
-        typeof req.body === "object" && req.body
-          ? (req.body as TelemetryBody & TelemetryBatchBody)
+        typeof parsedBody === "object" && parsedBody
+          ? (parsedBody as TelemetryBody & TelemetryBatchBody)
           : null;
       if (root && Array.isArray((root as any).events)) {
         eventsRaw = (root as any).events as unknown[];
@@ -151,27 +168,32 @@ export const telemetryLogHttp = onRequest(
     const uid = await identifyUid(req);
     const ip = identifierFromRequest(req);
 
-    const limitKey = uid ? `telemetry_uid_${uid}` : `telemetry_ip_${ip}`;
-    const limitResult = await ensureRateLimit({
-      key: limitKey,
-      identifier: uid || ip,
-      // Requests are batched on the client; this is a per-request guardrail.
-      // When limited, we drop events but still respond 204 to avoid browser console noise.
-      limit: 120,
-      windowSeconds: 300,
-    });
+    try {
+      const limitKey = uid ? `telemetry_uid_${uid}` : `telemetry_ip_${ip}`;
+      const limitResult = await ensureRateLimit({
+        key: limitKey,
+        identifier: uid || ip,
+        // Requests are batched on the client; this is a per-request guardrail.
+        // When limited, we drop events but still respond 204 to avoid browser console noise.
+        limit: 120,
+        windowSeconds: 300,
+      });
 
-    if (!limitResult.allowed) {
-      try {
-        if (typeof limitResult.retryAfterSeconds === "number") {
-          res.setHeader("Retry-After", String(limitResult.retryAfterSeconds));
+      if (!limitResult.allowed) {
+        try {
+          if (typeof limitResult.retryAfterSeconds === "number") {
+            res.setHeader("Retry-After", String(limitResult.retryAfterSeconds));
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
+        // Drop silently (best-effort).
+        res.status(204).end();
+        return;
       }
-      // Drop silently (best-effort).
-      res.status(204).end();
-      return;
+    } catch (error) {
+      // If rate limiting breaks for any reason, fail-open and keep telemetry best-effort.
+      console.warn("telemetry_rate_limit_error", { message: (error as Error)?.message });
     }
 
     try {
