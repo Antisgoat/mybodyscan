@@ -155,7 +155,7 @@ export default function PaywallPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Pro includes unlimited scan credits and premium features across web and mobile.
+            Pro unlocks premium features across web and mobile.
           </p>
           {entitlementsLoading ? (
             <div className="text-sm text-muted-foreground">Checking your access…</div>
