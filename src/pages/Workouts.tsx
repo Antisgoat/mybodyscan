@@ -19,12 +19,12 @@ import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { authedFetch } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
-import { progressionTip } from "@/lib/workoutsProgression";
+import { formatLogSummary, isPR, progressionTip } from "@/lib/workoutsProgression";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -59,6 +59,9 @@ export default function Workouts() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [exerciseLogs, setExerciseLogs] = useState<
     Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null }>
+  >({});
+  const [recentExerciseLogs, setRecentExerciseLogs] = useState<
+    Record<string, { load?: string | null; repsDone?: string | null; rpe?: number | null; iso?: string }>
   >({});
   const [ratio, setRatio] = useState(0);
   const [weekRatio, setWeekRatio] = useState(0);
@@ -125,6 +128,42 @@ export default function Workouts() {
       }
     },
     [todayISO, todayName, workoutsConfigured]
+  );
+
+  const loadRecentLogs = useCallback(
+    async (p: WorkoutPlan, isCancelled?: () => boolean) => {
+      if (!p?.id) return;
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      try {
+        const col = collection(db, `users/${uid}/workoutPlans/${p.id}/progress`);
+        const snaps = await getDocs(query(col, orderBy("updatedAt", "desc"), limit(14)));
+        if (isCancelled?.()) return;
+        const out: Record<string, any> = {};
+        for (const docSnap of snaps.docs) {
+          const iso = docSnap.id;
+          if (iso === todayISO) continue;
+          const data = docSnap.data() as any;
+          const logs = data?.logs;
+          if (!logs || typeof logs !== "object") continue;
+          for (const [exerciseId, entry] of Object.entries(logs)) {
+            if (out[exerciseId]) continue;
+            if (!entry || typeof entry !== "object") continue;
+            out[exerciseId] = {
+              load: typeof (entry as any).load === "string" ? (entry as any).load : null,
+              repsDone: typeof (entry as any).repsDone === "string" ? (entry as any).repsDone : null,
+              rpe: typeof (entry as any).rpe === "number" ? (entry as any).rpe : null,
+              iso,
+            };
+          }
+        }
+        setRecentExerciseLogs(out);
+      } catch (e) {
+        console.warn("workouts.recent_logs_failed", e);
+        if (!isCancelled?.()) setRecentExerciseLogs({});
+      }
+    },
+    [todayISO]
   );
 
   const logKey = useCallback((exerciseId: string) => `workouts:lastLog:${exerciseId}`, []);
@@ -251,6 +290,7 @@ export default function Workouts() {
           setLoadError(null);
         }
         await loadProgress(currentPlan as WorkoutPlan, () => cancelled);
+        await loadRecentLogs(currentPlan as WorkoutPlan, () => cancelled);
         try {
           const wk = await getWeeklyCompletion(currentPlan.id);
           if (!cancelled) {
@@ -637,6 +677,7 @@ export default function Workouts() {
             {todayExercises.map((ex) => {
               const serverLog = exerciseLogs?.[ex.id] ?? null;
               const localLog = getLocalLog(ex.id);
+              const lastLog = recentExerciseLogs?.[ex.id] ?? null;
               const merged = {
                 load:
                   typeof serverLog?.load === "string"
@@ -657,15 +698,26 @@ export default function Workouts() {
                       ? localLog.rpe
                       : null,
               };
+              const current = {
+                ...merged,
+                ...(exerciseLogs?.[ex.id] ?? {}),
+              };
               const tip =
                 typeof ex.name === "string" && ex.name.trim().length
                   ? progressionTip({
                       exerciseName: ex.name,
                       targetReps: ex.reps ?? "",
-                      repsDone: merged.repsDone || null,
-                      rpe: merged.rpe,
+                      repsDone: current.repsDone || null,
+                      rpe: current.rpe,
                     })
                   : null;
+              const lastSummary = lastLog ? formatLogSummary(lastLog) : "";
+              const currentSummary = formatLogSummary(current);
+              const showPR = Boolean(
+                lastLog &&
+                  (current.load || current.repsDone) &&
+                  isPR({ previous: lastLog, current })
+              );
 
               return (
               <Card key={ex.id}>
@@ -684,6 +736,16 @@ export default function Workouts() {
                           : "—"}{" "}
                         sets × {ex.reps ?? "—"} reps
                       </p>
+                      {lastLog && lastSummary ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Last{lastLog.iso ? ` (${lastLog.iso})` : ""}: {lastSummary}
+                          {showPR ? (
+                            <span className="ml-2 rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              PR
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : null}
                       {tip ? (
                         <p className="mt-2 text-xs text-muted-foreground">
                           {tip}
@@ -692,8 +754,12 @@ export default function Workouts() {
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         <input
                           className="w-full rounded-md border bg-background px-2 py-1 text-xs"
-                          placeholder="Weight (e.g. 135lb)"
-                          value={merged.load}
+                          placeholder={
+                            lastLog?.load
+                              ? `Weight (last: ${lastLog.load})`
+                              : "Weight (e.g. 135lb)"
+                          }
+                          value={current.load ?? ""}
                           onChange={(e) => {
                             const v = e.target.value;
                             setExerciseLogs((cur) => ({
@@ -702,13 +768,17 @@ export default function Workouts() {
                             }));
                           }}
                           onBlur={() =>
-                            saveExerciseLog(ex.id, { load: merged.load || null })
+                            saveExerciseLog(ex.id, { load: (current.load ?? "").trim() || null })
                           }
                         />
                         <input
                           className="w-full rounded-md border bg-background px-2 py-1 text-xs"
-                          placeholder="Reps done"
-                          value={merged.repsDone}
+                          placeholder={
+                            lastLog?.repsDone
+                              ? `Reps (last: ${lastLog.repsDone})`
+                              : "Reps done"
+                          }
+                          value={current.repsDone ?? ""}
                           onChange={(e) => {
                             const v = e.target.value;
                             setExerciseLogs((cur) => ({
@@ -717,13 +787,13 @@ export default function Workouts() {
                             }));
                           }}
                           onBlur={() =>
-                            saveExerciseLog(ex.id, { repsDone: merged.repsDone || null })
+                            saveExerciseLog(ex.id, { repsDone: (current.repsDone ?? "").trim() || null })
                           }
                         />
                         <input
                           className="w-full rounded-md border bg-background px-2 py-1 text-xs"
                           placeholder="RPE (1-10)"
-                          value={merged.rpe == null ? "" : String(merged.rpe)}
+                          value={current.rpe == null ? "" : String(current.rpe)}
                           inputMode="decimal"
                           onChange={(e) => {
                             const raw = e.target.value.trim();
@@ -738,10 +808,15 @@ export default function Workouts() {
                             }));
                           }}
                           onBlur={() =>
-                            saveExerciseLog(ex.id, { rpe: merged.rpe })
+                            saveExerciseLog(ex.id, { rpe: current.rpe })
                           }
                         />
                       </div>
+                      {currentSummary ? (
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          Today: {currentSummary}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>

@@ -1,6 +1,7 @@
 import { getExerciseByExactName } from "@/lib/exercises/library";
 
 export type RepRange = { min: number; max: number } | null;
+export type ParsedLoad = { value: number; unit: "lb" | "kg" } | null;
 
 export function parseRepRange(value: unknown): RepRange {
   if (typeof value !== "string") return null;
@@ -23,6 +24,16 @@ export function parseRepRange(value: unknown): RepRange {
   return { min, max };
 }
 
+export function parseLoad(value: unknown): ParsedLoad {
+  if (typeof value !== "string") return null;
+  const raw = value.trim().toLowerCase();
+  if (!raw) return null;
+  const unit: "lb" | "kg" = raw.includes("kg") ? "kg" : "lb";
+  const num = Number.parseFloat(raw.replace(/[^0-9.]+/g, ""));
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return { value: num, unit };
+}
+
 export function isAtTopOfRange(params: {
   targetReps: unknown;
   repsDone: unknown;
@@ -35,6 +46,53 @@ export function isAtTopOfRange(params: {
   const n = Number(done);
   if (!Number.isFinite(n)) return false;
   return n >= range.max;
+}
+
+export function formatLogSummary(params: {
+  load?: string | null;
+  repsDone?: string | null;
+  rpe?: number | null;
+}): string {
+  const parts: string[] = [];
+  const load = typeof params.load === "string" ? params.load.trim() : "";
+  const reps = typeof params.repsDone === "string" ? params.repsDone.trim() : "";
+  if (load) parts.push(load);
+  if (reps) parts.push(`${reps} reps`);
+  if (typeof params.rpe === "number" && Number.isFinite(params.rpe)) {
+    parts.push(`RPE ${params.rpe}`);
+  }
+  return parts.join(" · ");
+}
+
+export function isPR(params: {
+  previous?: { load?: string | null; repsDone?: string | null } | null;
+  current?: { load?: string | null; repsDone?: string | null } | null;
+}): boolean {
+  const prev = params.previous ?? null;
+  const cur = params.current ?? null;
+  if (!cur) return false;
+
+  const prevLoad = parseLoad(prev?.load ?? null);
+  const curLoad = parseLoad(cur?.load ?? null);
+
+  const prevReps = Number(prev?.repsDone ?? NaN);
+  const curReps = Number(cur?.repsDone ?? NaN);
+
+  // Prefer weight-based PR if both loads exist in the same unit.
+  if (prevLoad && curLoad && prevLoad.unit === curLoad.unit) {
+    if (curLoad.value > prevLoad.value) return true;
+    if (curLoad.value < prevLoad.value) return false;
+    if (Number.isFinite(prevReps) && Number.isFinite(curReps) && curReps > prevReps) {
+      return true;
+    }
+    return false;
+  }
+
+  // Otherwise fall back to reps-based PR if both are numeric.
+  if (Number.isFinite(prevReps) && Number.isFinite(curReps)) {
+    return curReps > prevReps;
+  }
+  return false;
 }
 
 export function progressionTip(params: {

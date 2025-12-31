@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAtTopOfRange, parseRepRange, progressionTip } from "@/lib/workoutsProgression";
+import { formatLogSummary, isAtTopOfRange, isPR, parseLoad, parseRepRange, progressionTip } from "@/lib/workoutsProgression";
 
 describe("workouts progression helpers", () => {
   it("parses rep ranges", () => {
@@ -8,6 +8,32 @@ describe("workouts progression helpers", () => {
     expect(parseRepRange(" 8–12 ")).toEqual({ min: 8, max: 12 });
     expect(parseRepRange("30-45s")).toBeNull();
     expect(parseRepRange("")).toBeNull();
+  });
+
+  it("parses loads", () => {
+    expect(parseLoad("135lb")).toEqual({ value: 135, unit: "lb" });
+    expect(parseLoad("60 kg")).toEqual({ value: 60, unit: "kg" });
+    expect(parseLoad("")).toBeNull();
+  });
+
+  it("formats a log summary", () => {
+    expect(formatLogSummary({ load: "135lb", repsDone: "10", rpe: 8 })).toContain("135lb");
+    expect(formatLogSummary({ load: "135lb", repsDone: "10", rpe: 8 })).toContain("10 reps");
+  });
+
+  it("detects PRs", () => {
+    expect(
+      isPR({
+        previous: { load: "135lb", repsDone: "8" },
+        current: { load: "135lb", repsDone: "9" },
+      })
+    ).toBe(true);
+    expect(
+      isPR({
+        previous: { load: "135lb", repsDone: "10" },
+        current: { load: "140lb", repsDone: "6" },
+      })
+    ).toBe(true);
   });
 
   it("detects top-of-range", () => {
