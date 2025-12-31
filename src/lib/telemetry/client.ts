@@ -30,6 +30,38 @@ const BACKOFF_429_MS = 60_000;
 const queue: TelemetryClientEvent[] = [];
 const lastSeenAt = new Map<string, number>();
 
+type TelemetryDebugSnapshot = {
+  queueSize: number;
+  inFlight: boolean;
+  nextAllowedSendInMs: number;
+  backoffRemainingMs: number;
+  counts: {
+    enqueued: number;
+    droppedDedupe: number;
+    droppedOverflow: number;
+    droppedNoUrl: number;
+    flushesAttempted: number;
+    flushesThrottled: number;
+    flushesBackedOff: number;
+    sentBeacon: number;
+    sentFetch: number;
+    requeued429: number;
+  };
+};
+
+const debugCounts: TelemetryDebugSnapshot["counts"] = {
+  enqueued: 0,
+  droppedDedupe: 0,
+  droppedOverflow: 0,
+  droppedNoUrl: 0,
+  flushesAttempted: 0,
+  flushesThrottled: 0,
+  flushesBackedOff: 0,
+  sentBeacon: 0,
+  sentFetch: 0,
+  requeued429: 0,
+};
+
 let started = false;
 let flushTimer: number | null = null;
 let inFlight = false;
@@ -84,6 +116,7 @@ function clampQueue(): void {
   const overflow = queue.length - MAX_QUEUE_EVENTS;
   if (overflow <= 0) return;
   queue.splice(0, overflow);
+  debugCounts.droppedOverflow += overflow;
 }
 
 async function getAuthToken(): Promise<string | undefined> {
@@ -128,6 +161,18 @@ function startIfNeeded(): void {
   } catch {
     flushTimer = null;
   }
+
+  // Dev-only debugging hook (no UI impact; safe to ignore).
+  if (typeof window !== "undefined" && import.meta.env.DEV) {
+    try {
+      (window as any).__mbsTelemetry = {
+        getSnapshot: getDebugSnapshot,
+        flush: () => flush({ useBeacon: false, reason: "manual" }),
+      };
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export function enqueue(event: TelemetryClientEvent, options?: EnqueueOptions): void {
@@ -141,6 +186,7 @@ export function enqueue(event: TelemetryClientEvent, options?: EnqueueOptions): 
     const dedupeKey = computeDedupeKey(event, route, uid);
     const last = lastSeenAt.get(dedupeKey) ?? 0;
     if (t - last < DEDUPE_TTL_MS) {
+      debugCounts.droppedDedupe += 1;
       return;
     }
     lastSeenAt.set(dedupeKey, t);
@@ -159,6 +205,7 @@ export function enqueue(event: TelemetryClientEvent, options?: EnqueueOptions): 
         (typeof window !== "undefined" ? window.location.href : undefined),
       extra,
     });
+    debugCounts.enqueued += 1;
     clampQueue();
   } catch {
     // Telemetry must never throw.
@@ -170,14 +217,22 @@ export async function flush(options?: { useBeacon?: boolean; reason?: string }):
     startIfNeeded();
     if (!queue.length) return;
 
+    debugCounts.flushesAttempted += 1;
     const t = nowMs();
-    if (t < backoffUntil) return;
-    if (t < nextAllowedSendAt) return;
+    if (t < backoffUntil) {
+      debugCounts.flushesBackedOff += 1;
+      return;
+    }
+    if (t < nextAllowedSendAt) {
+      debugCounts.flushesThrottled += 1;
+      return;
+    }
     if (inFlight) return;
 
     const url = resolveTelemetryUrl();
     if (!url) {
       // No window / no origin; drop silently (best-effort).
+      debugCounts.droppedNoUrl += queue.length;
       queue.splice(0, queue.length);
       return;
     }
@@ -203,6 +258,7 @@ export async function flush(options?: { useBeacon?: boolean; reason?: string }):
         if (!ok) {
           // If the beacon queue is full, just drop (best-effort, no spam).
         }
+        debugCounts.sentBeacon += 1;
         return;
       } catch {
         return;
@@ -232,10 +288,12 @@ export async function flush(options?: { useBeacon?: boolean; reason?: string }):
         body: JSON.stringify(payload),
         keepalive: true,
       });
+      debugCounts.sentFetch += 1;
 
       if (resp.status === 429) {
         // Back off and re-queue (bounded).
         backoffUntil = nowMs() + BACKOFF_429_MS;
+        debugCounts.requeued429 += events.length;
         queue.unshift(...events);
         clampQueue();
       }
@@ -263,4 +321,41 @@ export function initTelemetryClient(): void {
     // ignore
   }
 }
+
+export function getDebugSnapshot(): TelemetryDebugSnapshot {
+  const t = nowMs();
+  return {
+    queueSize: queue.length,
+    inFlight,
+    nextAllowedSendInMs: Math.max(0, nextAllowedSendAt - t),
+    backoffRemainingMs: Math.max(0, backoffUntil - t),
+    counts: { ...debugCounts },
+  };
+}
+
+export const __telemetryClientTestInternals = {
+  reset() {
+    try {
+      queue.splice(0, queue.length);
+      lastSeenAt.clear();
+      inFlight = false;
+      nextAllowedSendAt = 0;
+      backoffUntil = 0;
+      if (flushTimer != null) {
+        try {
+          clearInterval(flushTimer);
+        } catch {
+          // ignore
+        }
+      }
+      flushTimer = null;
+      started = false;
+      for (const key of Object.keys(debugCounts) as Array<keyof typeof debugCounts>) {
+        debugCounts[key] = 0;
+      }
+    } catch {
+      // ignore
+    }
+  },
+};
 
