@@ -29,38 +29,40 @@ import {
 } from "@/lib/workouts";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { validateWorkoutPlanDays } from "@/lib/workoutsCustomValidation";
+import type { Equipment, MovementPattern } from "@/data/exercises";
+import {
+  getExerciseByExactName,
+  normalizeExerciseName,
+  searchExercises,
+} from "@/lib/exercises/library";
 
 type DayName = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 const DAYS: DayName[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Small built-in swap catalog. (Kept intentionally small for bundle size; users can still type any name.)
-const EXERCISE_CATALOG: string[] = [
-  "Back squat",
-  "Front squat",
-  "Romanian deadlift",
-  "Deadlift",
-  "Hip thrust",
-  "Lunge",
-  "Leg press",
-  "Leg curl",
-  "Calf raise",
-  "Bench press",
-  "Incline bench press",
-  "Dumbbell bench press",
-  "Push-up",
-  "Overhead press",
-  "Lateral raise",
-  "Pull-up",
-  "Lat pulldown",
-  "Barbell row",
-  "Dumbbell row",
-  "Seated cable row",
-  "Face pull",
-  "Biceps curl",
-  "Triceps pressdown",
-  "Plank",
-  "Hanging knee raise",
-].sort((a, b) => a.localeCompare(b));
+function allowedEquipmentFromPrefs(prefs: CustomPlanPrefs): {
+  mode: "full_gym" | "minimal";
+  allowed: Set<Equipment>;
+} {
+  const eq = new Set((prefs.equipment ?? []).map((s) => String(s).toLowerCase()));
+  const minimal =
+    prefs.trainingStyle === "minimal_equipment" ||
+    (!eq.has("gym") && (eq.has("dumbbells") || eq.has("bodyweight")));
+  if (minimal) {
+    return { mode: "minimal", allowed: new Set<Equipment>(["dumbbell", "bodyweight"]) };
+  }
+  return {
+    mode: "full_gym",
+    allowed: new Set<Equipment>([
+      "barbell",
+      "dumbbell",
+      "machine",
+      "cables",
+      "smith",
+      "bodyweight",
+      "kettlebell",
+    ]),
+  };
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -138,6 +140,67 @@ export default function CustomizeProgram() {
       cardioPreference,
     ]
   );
+
+  const swapContext = useMemo(() => {
+    if (!swapTarget || !generatedDays) return null;
+    const day = generatedDays[swapTarget.dayIndex];
+    const ex = day?.exercises?.[swapTarget.exerciseIndex];
+    const currentName = typeof ex?.name === "string" ? ex.name : "";
+    const inferred = currentName ? getExerciseByExactName(currentName) : null;
+    const inferredPattern: MovementPattern | null = inferred?.movementPattern ?? null;
+    const inferredTags = inferred?.tags ?? [];
+    const equip = allowedEquipmentFromPrefs(prefs);
+    return {
+      currentName,
+      inferredPattern,
+      inferredTags,
+      allowedEquipment: equip.allowed,
+      mode: equip.mode,
+      excludeId: inferred?.id ?? null,
+    };
+  }, [generatedDays, prefs, swapTarget]);
+
+  const swapResults = useMemo(() => {
+    if (!swapContext) return [];
+    const excludeIds = new Set<string>();
+    if (swapContext.excludeId) excludeIds.add(swapContext.excludeId);
+
+    // If we can infer a pattern, restrict to that to keep Swap meaningful.
+    const movementPattern = swapContext.inferredPattern;
+
+    // If the current exercise is an isolation (arms/delts), keep it relevant by using tags.
+    const tagsForSwap = (() => {
+      const t = new Set(swapContext.inferredTags.map((x) => x.toLowerCase()));
+      if (t.has("biceps")) return ["biceps"];
+      if (t.has("triceps")) return ["triceps"];
+      if (t.has("lateral_delts")) return ["lateral_delts"];
+      if (t.has("rear_delts")) return ["rear_delts"];
+      if (t.has("calves")) return ["calves"];
+      if (t.has("hamstrings")) return ["hamstrings"];
+      if (t.has("quads")) return ["quads"];
+      return [];
+    })();
+
+    const q = swapQuery.trim();
+    const candidates = searchExercises({
+      query: q,
+      movementPattern,
+      includeTags: tagsForSwap.length ? tagsForSwap : undefined,
+      equipment: swapContext.allowedEquipment,
+      mode: swapContext.mode,
+      excludeIds,
+      limit: 80,
+    });
+
+    // Keep a stable order when query is empty to feel deterministic.
+    if (!q) {
+      return candidates
+        .slice()
+        .sort((a, b) => normalizeExerciseName(a.name).localeCompare(normalizeExerciseName(b.name)))
+        .slice(0, 30);
+    }
+    return candidates.slice(0, 30);
+  }, [swapContext, swapQuery]);
 
   const preferredDaySet = useMemo(() => new Set(preferredDays), [preferredDays]);
 
@@ -450,6 +513,36 @@ export default function CustomizeProgram() {
 
             <section className="space-y-2">
               <Label>Equipment</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={equipment.includes("gym") ? "default" : "outline"}
+                  onClick={() => {
+                    setEquipment(["gym"]);
+                    if (trainingStyle === "minimal_equipment") {
+                      setTrainingStyle("balanced");
+                    }
+                  }}
+                >
+                  Full gym
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={
+                    equipment.includes("dumbbells") && equipment.includes("bodyweight")
+                      ? "default"
+                      : "outline"
+                  }
+                  onClick={() => {
+                    setEquipment(["dumbbells", "bodyweight"]);
+                    setTrainingStyle("minimal_equipment");
+                  }}
+                >
+                  Minimal equipment
+                </Button>
+              </div>
               <div className="grid gap-2 md:grid-cols-2">
                 {[
                   ["bodyweight", "Bodyweight"],
@@ -631,29 +724,25 @@ export default function CustomizeProgram() {
                                       autoFocus
                                     />
                                     <div className="max-h-72 overflow-auto rounded-md border">
-                                      {EXERCISE_CATALOG.filter((name) => {
-                                        const q = swapQuery.trim().toLowerCase();
-                                        if (!q) return true;
-                                        return name.toLowerCase().includes(q);
-                                      })
-                                        .slice(0, 30)
-                                        .map((name) => (
+                                      {swapResults.map((exercise) => (
                                           <button
-                                            key={name}
+                                            key={exercise.id}
                                             type="button"
                                             className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
                                             onClick={() => {
-                                              updateExercise(dayIndex, exIdx, { name });
+                                              updateExercise(dayIndex, exIdx, {
+                                                name: exercise.name,
+                                              });
                                               setSwapTarget(null);
                                               setSwapQuery("");
                                               toast({ title: "Exercise updated" });
                                             }}
                                           >
-                                            <span className="font-medium">{name}</span>
+                                            <span className="font-medium">{exercise.name}</span>
                                             <span className="text-xs text-muted-foreground">Select</span>
                                           </button>
                                         ))}
-                                      {!EXERCISE_CATALOG.length ? (
+                                      {!swapResults.length ? (
                                         <div className="p-3 text-sm text-muted-foreground">No exercises available.</div>
                                       ) : null}
                                     </div>

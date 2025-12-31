@@ -12,6 +12,10 @@ import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
 import { fnJson } from "@/lib/fnCall";
+import {
+  buildCustomPlanTitleFromPrefs,
+  generateCustomPlanDaysFromLibrary,
+} from "@/lib/workoutsCustomGenerator";
 
 export interface WorkoutExercise {
   id: string;
@@ -240,11 +244,17 @@ export async function previewCustomPlan(params: {
     track("demo_block", { action: "workout_preview_custom_plan" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/previewCustomPlan", params);
+  // Local, deterministic generator (web + Capacitor-friendly).
+  // Keeping this client-side avoids network flakiness and makes Swap quality consistent.
+  const title =
+    typeof params.title === "string" && params.title.trim().length
+      ? params.title.trim()
+      : buildCustomPlanTitleFromPrefs(params.prefs);
+  const days = generateCustomPlanDaysFromLibrary(params.prefs);
   return {
-    title: typeof res?.title === "string" ? res.title : "Custom plan",
-    prefs: (res?.prefs as CustomPlanPrefs) ?? params.prefs,
-    days: Array.isArray(res?.days) ? (res.days as CatalogPlanDay[]) : [],
+    title,
+    prefs: params.prefs,
+    days,
   };
 }
 
