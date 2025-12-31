@@ -1,5 +1,6 @@
 export type Entitlements = {
   pro: boolean;
+  // Keep "admin_allowlist" for backwards compatibility with older writes.
   source?: "iap" | "stripe" | "admin" | "admin_allowlist";
   /**
    * Milliseconds since epoch (UTC). If null/undefined, treat as non-expiring.

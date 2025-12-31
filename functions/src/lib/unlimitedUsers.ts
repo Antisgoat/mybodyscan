@@ -11,6 +11,8 @@ export type UnlimitedUserParams = {
  * - Email matching is case-insensitive.
  */
 export const UNLIMITED_UID_ALLOWLIST = new Set<string>([
+  "DbGEQQuSE2agIIqTUBkaAYCYCP92",
+  "GBdtbwUcYGYMuA1QW0Ik6K9tP0w1",
   "ww481RPvMYZzwn5vLX8FXyRlGVV2",
   "iYnHMbPSV1aJCyc3cIsdz1dLm092",
 ]);

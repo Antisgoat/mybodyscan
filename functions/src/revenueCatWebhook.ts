@@ -195,8 +195,9 @@ export const revenueCatWebhook = onRequest(
       const currentSnap = await tx.get(entRef);
       const current = currentSnap.exists ? (currentSnap.data() as any) : null;
       const currentSource = readString(current?.source);
+      const isAdminSource = currentSource === "admin" || currentSource === "admin_allowlist";
       // Never let IAP events revoke Stripe/Admin access.
-      if (!pro && (currentSource === "stripe" || currentSource === "admin") && current?.pro === true) {
+      if (!pro && (currentSource === "stripe" || isAdminSource) && current?.pro === true) {
         tx.create(eventRef, {
           receivedAt: FieldValue.serverTimestamp(),
           ignored: true,
@@ -212,6 +213,27 @@ export const revenueCatWebhook = onRequest(
         type: eventType,
         uid: appUserId,
       });
+
+      // Never overwrite an admin-granted Pro with IAP state; keep `source: "admin"` and `expiresAt: null`.
+      if (isAdminSource) {
+        tx.set(
+          entRef,
+          {
+            pro: true,
+            source: "admin",
+            expiresAt: null,
+            updatedAt: FieldValue.serverTimestamp(),
+            revenueCat: {
+              eventId,
+              type: eventType,
+              entitlementId,
+            },
+          },
+          { merge: true }
+        );
+        return;
+      }
+
       tx.set(
         entRef,
         {
