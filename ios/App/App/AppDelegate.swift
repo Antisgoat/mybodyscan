@@ -7,7 +7,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        let resourcesURL = Bundle.main.resourceURL
+        let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
+        let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+
+        NSLog("[MBS] didFinishLaunching")
+        NSLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
+        NSLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
+
         return true
     }
 
