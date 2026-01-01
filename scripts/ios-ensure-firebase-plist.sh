@@ -7,8 +7,40 @@ src="$repo_root/secrets/GoogleService-Info.plist"
 dest="$repo_root/ios/App/App/GoogleService-Info.plist"
 dest_dir="$(dirname "$dest")"
 
+cleanup_dest_dir() {
+  # Remove any misnamed variants so only one exists in the Xcode project folder.
+  shopt -s nullglob
+  for f in "$dest_dir"/GoogleService-Info*; do
+    [[ "$f" == "$dest" ]] && continue
+    if [[ -f "$f" ]]; then
+      rm -f "$f"
+    fi
+  done
+  shopt -u nullglob
+}
+
+# If the plist already exists in the iOS app folder, we're done.
+# This keeps local rebuilds deterministic even if ./secrets is not present.
+if [[ -f "$dest" ]]; then
+  cleanup_dest_dir
+  echo "OK: ensured ios/App/App/GoogleService-Info.plist"
+  exit 0
+fi
+
 if [[ ! -f "$src" ]]; then
-  cat >&2 <<'EOF'
+  # Developers commonly end up with a misnamed Firebase download (e.g. "GoogleService-Info-2.plist"
+  # or "GoogleService-Info (1).plist"). If there's exactly one plausible candidate, accept it.
+  shopt -s nullglob nocaseglob
+  candidates=("$repo_root/secrets"/GoogleService-Info*.plist)
+  shopt -u nocaseglob
+
+  if [[ ${#candidates[@]} -eq 1 ]]; then
+    echo "warn: Found Firebase plist at: ${candidates[0]}" >&2
+    echo "warn: Copying it to ./secrets/GoogleService-Info.plist" >&2
+    mkdir -p "$(dirname "$src")"
+    cp -f "${candidates[0]}" "$src"
+  else
+    cat >&2 <<'EOF'
 error: Missing secrets/GoogleService-Info.plist
 
 FirebaseApp.configure() requires an iOS Firebase config plist named exactly:
@@ -22,20 +54,20 @@ Fix:
   4) Re-run:
        bash scripts/ios-ensure-firebase-plist.sh
 EOF
-  exit 1
+    if [[ ${#candidates[@]} -gt 1 ]]; then
+      echo >&2
+      echo "Found multiple candidates in ./secrets; keep exactly one:" >&2
+      for c in "${candidates[@]}"; do
+        echo "  - $c" >&2
+      done
+    fi
+    exit 1
+  fi
 fi
 
 mkdir -p "$dest_dir"
 cp -f "$src" "$dest"
 
-# Remove any misnamed variants so only one exists.
-shopt -s nullglob
-for f in "$dest_dir"/GoogleService-Info*; do
-  [[ "$f" == "$dest" ]] && continue
-  if [[ -f "$f" ]]; then
-    rm -f "$f"
-  fi
-done
-shopt -u nullglob
+cleanup_dest_dir
 
 echo "OK: ensured ios/App/App/GoogleService-Info.plist"
