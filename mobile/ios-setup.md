@@ -15,13 +15,18 @@ These steps assume you already ran `npx cap add ios` from the repository root.
 4. **Info.plist adjustments**
    - Ensure `NSCameraUsageDescription` exists (camera capture relies on the native permission dialog)
    - Verify `NSPhotoLibraryAddUsageDescription` / `NSPhotoLibraryUsageDescription` if gallery access is required
-5. **Universal link testing** (optional today)
+5. **Firebase iOS config (GoogleService-Info.plist)**
+   - The filename must be **exactly** `GoogleService-Info.plist` (case-sensitive).
+   - Source of truth: `./secrets/GoogleService-Info.plist`
+   - Build-time destination (Xcode bundles this): `ios/App/App/GoogleService-Info.plist`
+   - The iOS target runs a build step that copies from `./secrets` into `ios/App/App/` and fails fast if it can’t find a valid file.
+6. **Universal link testing** (optional today)
    - Install the app on a device
    - Run `xcrun simctl openurl booted https://mybodyscanapp.com/oauth/return` to confirm it opens inside the app when the universal link entitlement is active
-6. **WebView tuning**
+7. **WebView tuning**
    - Capacitor automatically uses `WKWebView`
    - If overriding, ensure `allowsBackForwardNavigationGestures` stays enabled so our back guard receives popstate events
-7. **Build pipeline**
+8. **Build pipeline**
    - Archive from Xcode (`Product > Archive`)
    - Upload via the Organizer, attach release notes describing native Google/Apple sign-in and **in‑app purchases** (RevenueCat)
 
