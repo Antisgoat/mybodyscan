@@ -4,14 +4,9 @@
  * No imports here to avoid TS type resolution when Capacitor packages aren’t installed yet.
  */
 const config = {
-  appId: "app.mybodyscan",
+  appId: "com.mybodyscan.app",
   appName: "MyBodyScan",
   webDir: "dist",
-  bundledWebRuntime: false,
-  server: {
-    androidScheme: "https",
-    cleartext: false,
-  },
   plugins: {
     // Native auth providers for future Capacitor builds (WKWebView-safe).
     // This does NOT affect web builds.
