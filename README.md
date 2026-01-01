@@ -72,6 +72,20 @@ Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets
 
 The web app now includes WebView guardrails so it can be wrapped with Capacitor. See [mobile/WRAP.md](mobile/WRAP.md) for the complete step-by-step plan covering Capacitor setup, platform provisioning, and build handoff.
 
+### iOS Firebase setup
+
+`FirebaseApp.configure()` requires `GoogleService-Info.plist` to be present in the iOS app bundle. This repo expects the source-of-truth plist to live in `./secrets/` and be copied into `ios/App/App/GoogleService-Info.plist` (exact filename) before building.
+
+1. Download `GoogleService-Info.plist` from Firebase Console → **Project settings** → **Your apps** → **iOS**.
+2. Save it to `./secrets/GoogleService-Info.plist`.
+3. Run (or just build in Xcode; the iOS target runs this automatically and fails fast if the secrets file is missing):
+
+```sh
+bash scripts/ios-ensure-firebase-plist.sh
+```
+
+4. Open `ios/App/App.xcworkspace` in Xcode and build/run the `App` scheme.
+
 Highlights:
 
 - Google sign-in auto-detects iOS/Android WebViews and uses redirect flows (no popup requirements)
