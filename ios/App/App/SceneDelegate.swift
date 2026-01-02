@@ -10,10 +10,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     print("✅ SceneDelegate willConnect called")
 
     guard let windowScene = scene as? UIWindowScene else { return }
+
     let window = UIWindow(windowScene: windowScene)
     window.rootViewController = InspectingBridgeViewController()
     self.window = window
     window.makeKeyAndVisible()
   }
 }
-
