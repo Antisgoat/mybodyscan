@@ -5,7 +5,6 @@ final class InspectingBridgeViewController: CAPBridgeViewController, WKNavigatio
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    // proof native VC loaded
     print("✅ InspectingBridgeViewController loaded")
 
     if let url = Bundle.main.url(forResource: "index", withExtension: "html") {
