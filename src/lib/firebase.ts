@@ -260,11 +260,28 @@ function initializeFirebaseApp(): FirebaseApp {
 
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
-export const auth: Auth = isNative()
-  ? initializeAuth(app, {
-      persistence: [indexedDBLocalPersistence, inMemoryPersistence],
-    })
-  : getAuth(app);
+
+let authInitMode: "native" | "web" = isNative() ? "native" : "web";
+let authPersistence: "indexeddb" | "memory" | "web" = "web";
+
+function initNativeAuth(): Auth {
+  try {
+    authPersistence = "indexeddb";
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence],
+    });
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.warn("[firebase] native indexedDB auth failed; falling back", err);
+    }
+    authPersistence = "memory";
+    return initializeAuth(app, {
+      persistence: [inMemoryPersistence],
+    });
+  }
+}
+
+export const auth: Auth = authInitMode === "native" ? initNativeAuth() : getAuth(app);
 export type AuthPersistenceMode = "indexeddb" | "local" | "session" | "unknown";
 let authPersistenceMode: AuthPersistenceMode = "unknown";
 let persistenceReady: Promise<AuthPersistenceMode> | null = null;
@@ -397,6 +414,13 @@ export function getFirebaseAuth(): Auth {
   return auth;
 }
 
+export function getFirebaseAuthRuntime(): {
+  mode: "native" | "web";
+  persistence: "indexeddb" | "memory" | "web";
+} {
+  return { mode: authInitMode, persistence: authPersistence };
+}
+
 export function getFirebaseFirestore(): Firestore {
   return db;
 }
@@ -457,10 +481,20 @@ export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
 export async function signInWithGoogle() {
+  if (isNative()) {
+    throw new Error(
+      "Google sign-in via popup is not supported on native; use email/password."
+    );
+  }
   return signInWithPopup(auth, googleProvider);
 }
 
 export async function signInWithApple() {
+  if (isNative()) {
+    throw new Error(
+      "Apple redirect sign-in is not supported on native; use email/password."
+    );
+  }
   return signInWithRedirect(auth, appleProvider);
 }
 

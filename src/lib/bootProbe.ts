@@ -6,9 +6,15 @@ import {
   SW_ENABLED,
   APPCHECK_SITE_KEY,
 } from "./flags";
+import { getFirebaseAuthRuntime } from "./firebase";
 
 if (isWeb()) {
   (async () => {
+    const origin =
+      typeof location !== "undefined" && location?.origin
+        ? location.origin
+        : "(unknown)";
+    const authRuntime = getFirebaseAuthRuntime();
     const key = (import.meta.env.VITE_FIREBASE_API_KEY || "").trim();
     const apiKeyPresent = Boolean(key);
     let identityToolkitReachable: boolean | null = null;
@@ -53,7 +59,12 @@ if (isWeb()) {
 
     try {
       console.log("[boot] summary:", {
-        origin: location.origin,
+        origin,
+        platform: {
+          nativeAuth: authRuntime.mode === "native",
+          authMode: authRuntime.mode,
+          authPersistence: authRuntime.persistence,
+        },
         apiKey: apiKeyPresent,
         identityToolkit: {
           reachable: identityToolkitReachable,
