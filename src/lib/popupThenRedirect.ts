@@ -6,6 +6,7 @@ import {
   type UserCredential,
 } from "firebase/auth";
 import { isIOSWebKit } from "./ua";
+import { isNative } from "@/lib/platform";
 
 /**
  * Attempt popup sign-in; on common popup failures, fall back to redirect.
@@ -16,6 +17,9 @@ export async function popupThenRedirect(
   auth: Auth,
   provider: AuthProvider
 ): Promise<UserCredential | undefined> {
+  if (isNative()) {
+    return;
+  }
   // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
   if (isIOSWebKit()) {
     await signInWithRedirect(auth, provider);

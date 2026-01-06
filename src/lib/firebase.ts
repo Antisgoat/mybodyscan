@@ -4,9 +4,11 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
   browserSessionPersistence,
+  initializeAuth,
   getAuth,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
+  inMemoryPersistence,
   OAuthProvider,
   setPersistence,
   signInWithEmailAndPassword,
@@ -21,6 +23,7 @@ import {
   getStorage,
   type FirebaseStorage,
 } from "firebase/storage";
+import { isNative } from "@/lib/platform";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -257,7 +260,11 @@ function initializeFirebaseApp(): FirebaseApp {
 
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
-export const auth: Auth = getAuth(app);
+export const auth: Auth = isNative()
+  ? initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, inMemoryPersistence],
+    })
+  : getAuth(app);
 export type AuthPersistenceMode = "indexeddb" | "local" | "session" | "unknown";
 let authPersistenceMode: AuthPersistenceMode = "unknown";
 let persistenceReady: Promise<AuthPersistenceMode> | null = null;
