@@ -18,7 +18,9 @@ export async function popupThenRedirect(
   provider: AuthProvider
 ): Promise<UserCredential | undefined> {
   if (isNative()) {
-    return;
+    throw new Error(
+      "Popup/redirect sign-in is not supported on native builds; use email/password."
+    );
   }
   // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
   if (isIOSWebKit()) {

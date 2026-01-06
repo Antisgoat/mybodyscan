@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
 import { isIOSWebKit } from "@/lib/ua";
+import { isNative } from "@/lib/platform";
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -41,6 +42,11 @@ export default function SettingsAccountPrivacyPage() {
       );
       await reauthenticateWithCredential(currentUser, cred);
     } else if (p.includes("google")) {
+      if (isNative()) {
+        throw new Error(
+          "Google re-authentication is not supported on native; use email/password."
+        );
+      }
       const provider = new GoogleAuthProvider();
       // iOS Safari/WebKit popups are unreliable; prefer redirect reauth.
       if (isIOSWebKit()) {
