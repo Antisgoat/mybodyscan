@@ -1,5 +1,4 @@
 import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
-import { finalizeRedirectResult } from "@/lib/auth/oauth";
 import { startAuthListener } from "@/lib/auth";
 import { reportError } from "@/lib/telemetry";
 import { isNative } from "@/lib/platform";
@@ -45,6 +44,7 @@ export async function initAuth(): Promise<void> {
       // This is critical for iOS Safari and also covers edge cases where a WebView
       // ends up using web-based redirects (or reauth redirects) instead of native auth.
       try {
+        const { finalizeRedirectResult } = await import("@/lib/auth/oauth");
         await finalizeRedirectResult();
         state.redirectError = null;
       } catch (err: any) {

@@ -5,6 +5,7 @@ import {
 import { getFirebaseAuth } from "../lib/firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 import { enableDemo } from "@/state/demo";
+import { isNativeCapacitor } from "@/lib/platform";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -22,6 +23,7 @@ export default function LoginPanel() {
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const native = isNativeCapacitor();
 
   async function withLoad<T>(label: string, fn: () => Promise<T>) {
     setLoading(label);
@@ -36,7 +38,14 @@ export default function LoginPanel() {
     <div className="mx-auto max-w-sm p-6 space-y-3">
       <h1 className="text-2xl font-semibold">Sign in</h1>
 
-      {ENABLE_GOOGLE && (
+      {native && (
+        <p className="text-sm opacity-80">
+          On iOS, Google/Apple sign-in is unavailable right now. Please use
+          email/password (Google sign-in remains available on the web).
+        </p>
+      )}
+
+      {!native && ENABLE_GOOGLE && (
         <button
           className="btn w-full"
           disabled={!!loading}
@@ -50,7 +59,7 @@ export default function LoginPanel() {
         </button>
       )}
 
-      {ENABLE_APPLE && (
+      {!native && ENABLE_APPLE && (
         <button
           className="btn w-full"
           disabled={!!loading}
@@ -84,7 +93,7 @@ export default function LoginPanel() {
             disabled={!!loading || !email || !password}
             onClick={() =>
               withLoad("email", async () => {
-                const auth = await getFirebaseAuth();
+                const auth = getFirebaseAuth();
                 await signInWithEmailAndPassword(auth, email, password);
               })
             }

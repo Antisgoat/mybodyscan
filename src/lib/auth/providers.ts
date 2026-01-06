@@ -4,11 +4,11 @@ import {
   OAuthProvider,
   type UserCredential,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { signInWithOAuthProvider } from "@/lib/auth/oauth";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
+  const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const provider = new GoogleAuthProvider();
   // Keep scopes explicit for parity with Apple
   provider.addScope("email");
@@ -17,6 +17,7 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
+  const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const provider = new OAuthProvider("apple.com");
   // Request user name & email on first sign-in; Apple may provide them once.
   provider.addScope("email");
@@ -30,7 +31,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
 export async function handleAuthRedirectResult(): Promise<UserCredential | null> {
   if (isNative()) return null;
   try {
-    const cred = await getRedirectResult(auth);
+    const cred = await getRedirectResult(getFirebaseAuth());
     return cred; // may be null if no redirect pending
   } catch (e) {
     // Swallow popup blockers/redirect oddities; caller can show a toast if needed.

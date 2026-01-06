@@ -9,6 +9,10 @@ export default tseslint.config(
     ignores: [
       "dist",
       "vendor/**",
+      // Capacitor iOS generated web assets (minified bundles)
+      "ios/App/App/public/**",
+      // Xcode/Pods are not JS lint targets
+      "ios/**",
       "functions-disabled/**",
       "tests/**",
       "e2e/**",

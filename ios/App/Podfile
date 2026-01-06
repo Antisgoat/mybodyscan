@@ -7,7 +7,10 @@ use_frameworks!
 # workaround to avoid Xcode caching of Pods that requires
 # Product -> Clean Build Folder after new Cordova plugins installed
 # Requires CocoaPods 1.6 or newer
-install! 'cocoapods', :disable_input_output_paths => true
+# NOTE: Keep CocoaPods input/output paths enabled so Xcode can correctly
+# compute dependency graph and avoid noisy "run script will be run during every build"
+# warnings. If plugin changes require a clean build, use Xcode's Clean Build Folder.
+# install! 'cocoapods', :disable_input_output_paths => true
 
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
@@ -29,6 +32,14 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
       config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+
+      # Reduce noisy Swift warnings from third-party pods (RevenueCat, etc).
+      # Prefer upgrading pods when possible; this is a pragmatic fallback.
+      if ['RevenueCat', 'PurchasesHybridCommon', 'RevenuecatPurchasesCapacitor'].include?(target.name)
+        config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
+        inherited = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+        config.build_settings['OTHER_SWIFT_FLAGS'] = "#{inherited} -suppress-warnings"
+      end
     end
   end
 end

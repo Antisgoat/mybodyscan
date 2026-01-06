@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
@@ -9,6 +9,7 @@ vi.mock("@/lib/uploads/uploadViaStorage", () => ({
 
 describe("uploadPhoto", () => {
   it("passes retry configuration to the Storage SDK uploader", async () => {
+    const auth = getFirebaseAuth();
     const storageMock = {
       app: { options: { storageBucket: "mybodyscan-f3daf.appspot.com" } },
     } as any;

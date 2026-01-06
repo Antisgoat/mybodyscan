@@ -45,12 +45,16 @@ import {
   toJsonText,
 } from "@/lib/uat";
 import { consumeAuthRedirect, rememberAuthRedirect } from "@/lib/auth/redirectState";
-import { peekAuthRedirectOutcome } from "@/lib/authRedirect";
 import { call } from "@/lib/callable";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 
 type JsonValue = unknown;
 type ErrorWithCode = { code?: unknown; message?: unknown };
+
+async function loadAuthRedirectOutcome() {
+  const mod = await import("@/lib/authRedirect");
+  return mod.peekAuthRedirectOutcome();
+}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
@@ -217,9 +221,7 @@ const UATPage = () => {
   } = useClaims();
   const [logs, setLogs] = useState<UatLogEntry[]>([]);
   const [scanSession, setScanSession] = useState<ScanSession | null>(null);
-  const [authOutcome, setAuthOutcome] = useState(() =>
-    peekAuthRedirectOutcome()
-  );
+  const [authOutcome, setAuthOutcome] = useState<any>(null);
   const [pretendCredits, setPretendCredits] = useState<number | null>(null);
   const access = useMemo(() => resolveUatAccess(user, claims), [user, claims]);
 
@@ -235,9 +237,16 @@ const UATPage = () => {
   }, []);
 
   useEffect(() => {
+    let alive = true;
     if (!authOutcome) {
-      setAuthOutcome(peekAuthRedirectOutcome());
+      void loadAuthRedirectOutcome().then((outcome) => {
+        if (!alive) return;
+        setAuthOutcome(outcome);
+      });
     }
+    return () => {
+      alive = false;
+    };
   }, [authOutcome]);
 
   const runtimeProbe = useProbe<Record<string, unknown>>(
@@ -1197,7 +1206,11 @@ const UATPage = () => {
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setAuthOutcome(peekAuthRedirectOutcome())}
+                  onClick={() => {
+                    void loadAuthRedirectOutcome().then((outcome) => {
+                      setAuthOutcome(outcome);
+                    });
+                  }}
                 >
                   <RotateCcw className="mr-2 h-4 w-4" />
                   Refresh last auth event

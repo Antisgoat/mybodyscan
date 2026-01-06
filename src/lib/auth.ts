@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import {
   auth as firebaseAuth,
+  getFirebaseAuth,
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
@@ -25,11 +26,13 @@ type AuthSnapshot = {
 
 export type AuthPhase = "booting" | "signedOut" | "signedIn";
 
-let cachedUser: Auth["currentUser"] | null =
-  typeof window !== "undefined" && firebaseAuth
-    ? firebaseAuth.currentUser
-    : null;
-let authReadyFlag = !firebaseAuth || !!cachedUser;
+const shouldInitializeAuth =
+  typeof window !== "undefined" && Boolean(hasFirebaseConfig);
+
+// IMPORTANT: do not initialize Firebase Auth at module import time.
+// Auth is lazily initialized when the first subscriber attaches.
+let cachedUser: Auth["currentUser"] | null = null;
+let authReadyFlag = !shouldInitializeAuth;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
 let processedUidKey: string | null = null;
@@ -126,13 +129,15 @@ function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
 }
 
 function ensureAuthListener() {
-  if (!firebaseAuth || unsubscribeAuthListener) return;
+  if (unsubscribeAuthListener) return;
+  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
+  if (!auth) return;
   if (!firstAuthEventPromise) {
     firstAuthEventPromise = new Promise<void>((resolve) => {
       firstAuthEventResolve = resolve;
     });
   }
-  unsubscribeAuthListener = onAuthStateChanged(firebaseAuth, (user) => {
+  unsubscribeAuthListener = onAuthStateChanged(auth, (user) => {
     const snapshotChanged = handleUserChange(user);
     if (snapshotChanged) {
       notifyAuthSubscribers();
@@ -149,7 +154,7 @@ function ensureAuthListener() {
  * This is used by boot code to block routing decisions until auth is fully initialized.
  */
 export async function startAuthListener(): Promise<void> {
-  if (!firebaseAuth) return;
+  if (!hasFirebaseConfig) return;
   ensureAuthListener();
   await (firstAuthEventPromise ?? Promise.resolve());
 }
@@ -186,7 +191,8 @@ function updateAuthSnapshot(): boolean {
 }
 
 async function ensureFirebaseAuth(): Promise<Auth> {
-  if (!firebaseAuth) {
+  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
+  if (!auth) {
     const reason =
       getFirebaseInitError() ||
       (hasFirebaseConfig
@@ -194,7 +200,7 @@ async function ensureFirebaseAuth(): Promise<Auth> {
         : "Firebase not configured");
     throw new Error(reason);
   }
-  return firebaseAuth;
+  return auth;
 }
 
 export function getCachedAuth(): Auth | null {
@@ -266,11 +272,8 @@ type AuthTestInternals = {
 };
 
 function resetAuthStore(): void {
-  cachedUser =
-    typeof window !== "undefined" && firebaseAuth
-      ? firebaseAuth.currentUser
-      : null;
-  authReadyFlag = !firebaseAuth || !!cachedUser;
+  cachedUser = typeof window !== "undefined" && firebaseAuth ? firebaseAuth.currentUser : null;
+  authReadyFlag = !shouldInitializeAuth || !!cachedUser;
   processedUidKey = null;
   cachedSnapshot = {
     user: authReadyFlag ? cachedUser : null,

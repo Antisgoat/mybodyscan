@@ -14,7 +14,6 @@ import {
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
-import { consumeAuthRedirectError } from "@/lib/authRedirect";
 import { signInApple as startAppleSignIn, signInGoogle as startGoogleSignIn } from "@/lib/authFacade";
 import {
   auth,
@@ -24,6 +23,7 @@ import {
   hasFirebaseConfig,
   getFirebaseAuth,
 } from "@/lib/firebase";
+import { isNativeCapacitor } from "@/lib/platform";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
   getIdentityToolkitProbeStatus,
@@ -35,12 +35,6 @@ import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
-import {
-  clearPendingOAuth,
-  describeOAuthError,
-  peekPendingOAuth,
-  type OAuthProviderId,
-} from "@/lib/auth/oauth";
 import { reportError } from "@/lib/telemetry";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
@@ -58,6 +52,7 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const native = isNativeCapacitor();
   const from = (location.state as any)?.from || "/home";
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -71,7 +66,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [lastOAuthProvider, setLastOAuthProvider] =
-    useState<OAuthProviderId | null>(null);
+    useState<("google.com" | "apple.com") | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
@@ -84,7 +79,6 @@ const Auth = () => {
   const demoEnabled =
     demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
-  const authClient = useMemo(() => getFirebaseAuth(), []);
   const onBrowseDemo = useCallback(() => {
     enableDemo();
     navigate("/demo", { replace: false });
@@ -102,35 +96,49 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      clearPendingOAuth();
+      if (!native) {
+        void import("@/lib/auth/oauth").then(({ clearPendingOAuth }) => {
+          clearPendingOAuth();
+        });
+      }
       return;
     }
-    const pending = peekPendingOAuth();
-    if (!pending) return;
-    setLastOAuthProvider(pending.providerId);
-    const elapsed = Date.now() - pending.startedAt;
-    const remaining = Math.max(0, 15_000 - elapsed);
-    if (remaining === 0) {
-      clearPendingOAuth();
-      const message = "Sign-in timed out. Please try again.";
-      setAuthError(message);
-      toast(message, "error");
-      return;
-    }
-    setLoading(true);
-    const timer = window.setTimeout(() => {
-      clearPendingOAuth();
-      setLoading(false);
-      const message = "Sign-in timed out. Please try again.";
-      setAuthError(message);
-      toast(message, "error");
-    }, remaining);
-    return () => window.clearTimeout(timer);
-  }, [user]);
+    if (native) return;
+    let cancelled = false;
+    void import("@/lib/auth/oauth").then(({ peekPendingOAuth, clearPendingOAuth }) => {
+      if (cancelled) return;
+      const pending = peekPendingOAuth();
+      if (!pending) return;
+      setLastOAuthProvider(pending.providerId);
+      const elapsed = Date.now() - pending.startedAt;
+      const remaining = Math.max(0, 15_000 - elapsed);
+      if (remaining === 0) {
+        clearPendingOAuth();
+        const message = "Sign-in timed out. Please try again.";
+        setAuthError(message);
+        toast(message, "error");
+        return;
+      }
+      setLoading(true);
+      const timer = window.setTimeout(() => {
+        clearPendingOAuth();
+        setLoading(false);
+        const message = "Sign-in timed out. Please try again.";
+        setAuthError(message);
+        toast(message, "error");
+      }, remaining);
+      return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [native, user]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      if (native) return;
+      const { consumeAuthRedirectError } = await import("@/lib/authRedirect");
       const redirectError = await consumeAuthRedirectError();
       if (cancelled || !redirectError) {
         return;
@@ -147,7 +155,7 @@ const Auth = () => {
     return () => {
       cancelled = true;
     };
-  }, [toast]);
+  }, [native, toast]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();
@@ -187,6 +195,7 @@ const Auth = () => {
     try {
       setAuthError(null);
       if (mode === "signin") {
+        const authClient = getFirebaseAuth();
         try {
           await signInWithEmailAndPassword(authClient, email, password);
           return;
@@ -261,12 +270,19 @@ const Auth = () => {
   };
 
   const handleGoogleSignIn = useCallback(async () => {
+    if (native) {
+      setAuthError(
+        "Google sign-in is available on web. On iOS, please use email/password for now."
+      );
+      return;
+    }
     setAuthError(null);
     setLoading(true);
     setLastOAuthProvider("google.com");
     try {
       await startGoogleSignIn(defaultTarget);
     } catch (error: unknown) {
+      const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
       const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Google sign-in failed", {
@@ -287,15 +303,22 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [defaultTarget, native]);
 
   const handleAppleSignIn = useCallback(async () => {
+    if (native) {
+      setAuthError(
+        "Apple sign-in is available on web. On iOS, please use email/password for now."
+      );
+      return;
+    }
     setAuthError(null);
     setLoading(true);
     setLastOAuthProvider("apple.com");
     try {
       await startAppleSignIn(defaultTarget);
     } catch (error: unknown) {
+      const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
       const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Apple sign-in failed", {
@@ -316,7 +339,7 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [defaultTarget, native]);
 
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin =
@@ -520,7 +543,13 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {ENABLE_GOOGLE && (
+            {native ? (
+              <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                Google/Apple sign-in is available on web. On iOS, please use
+                email/password for now.
+              </div>
+            ) : null}
+            {!native && ENABLE_GOOGLE && (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -531,7 +560,7 @@ const Auth = () => {
                 Continue with Google
               </button>
             )}
-            {ENABLE_APPLE && (
+            {!native && ENABLE_APPLE && (
               <button
                 type="button"
                 onClick={handleAppleSignIn}
