@@ -14,7 +14,6 @@ import {
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
 import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
-import { consumeAuthRedirectError } from "@/lib/authRedirect";
 import { signInApple as startAppleSignIn, signInGoogle as startGoogleSignIn } from "@/lib/authFacade";
 import {
   auth,
@@ -36,12 +35,6 @@ import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
-import {
-  clearPendingOAuth,
-  describeOAuthError,
-  peekPendingOAuth,
-  type OAuthProviderId,
-} from "@/lib/auth/oauth";
 import { reportError } from "@/lib/telemetry";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
@@ -73,7 +66,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [lastOAuthProvider, setLastOAuthProvider] =
-    useState<OAuthProviderId | null>(null);
+    useState<("google.com" | "apple.com") | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
@@ -103,35 +96,49 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      clearPendingOAuth();
+      if (!native) {
+        void import("@/lib/auth/oauth").then(({ clearPendingOAuth }) => {
+          clearPendingOAuth();
+        });
+      }
       return;
     }
-    const pending = peekPendingOAuth();
-    if (!pending) return;
-    setLastOAuthProvider(pending.providerId);
-    const elapsed = Date.now() - pending.startedAt;
-    const remaining = Math.max(0, 15_000 - elapsed);
-    if (remaining === 0) {
-      clearPendingOAuth();
-      const message = "Sign-in timed out. Please try again.";
-      setAuthError(message);
-      toast(message, "error");
-      return;
-    }
-    setLoading(true);
-    const timer = window.setTimeout(() => {
-      clearPendingOAuth();
-      setLoading(false);
-      const message = "Sign-in timed out. Please try again.";
-      setAuthError(message);
-      toast(message, "error");
-    }, remaining);
-    return () => window.clearTimeout(timer);
-  }, [user]);
+    if (native) return;
+    let cancelled = false;
+    void import("@/lib/auth/oauth").then(({ peekPendingOAuth, clearPendingOAuth }) => {
+      if (cancelled) return;
+      const pending = peekPendingOAuth();
+      if (!pending) return;
+      setLastOAuthProvider(pending.providerId);
+      const elapsed = Date.now() - pending.startedAt;
+      const remaining = Math.max(0, 15_000 - elapsed);
+      if (remaining === 0) {
+        clearPendingOAuth();
+        const message = "Sign-in timed out. Please try again.";
+        setAuthError(message);
+        toast(message, "error");
+        return;
+      }
+      setLoading(true);
+      const timer = window.setTimeout(() => {
+        clearPendingOAuth();
+        setLoading(false);
+        const message = "Sign-in timed out. Please try again.";
+        setAuthError(message);
+        toast(message, "error");
+      }, remaining);
+      return () => window.clearTimeout(timer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [native, user]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      if (native) return;
+      const { consumeAuthRedirectError } = await import("@/lib/authRedirect");
       const redirectError = await consumeAuthRedirectError();
       if (cancelled || !redirectError) {
         return;
@@ -148,7 +155,7 @@ const Auth = () => {
     return () => {
       cancelled = true;
     };
-  }, [toast]);
+  }, [native, toast]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();
@@ -275,6 +282,7 @@ const Auth = () => {
     try {
       await startGoogleSignIn(defaultTarget);
     } catch (error: unknown) {
+      const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
       const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Google sign-in failed", {
@@ -310,6 +318,7 @@ const Auth = () => {
     try {
       await startAppleSignIn(defaultTarget);
     } catch (error: unknown) {
+      const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
       const message = formatError(mapped.userMessage, mapped.code);
       console.error("[Auth] Apple sign-in failed", {

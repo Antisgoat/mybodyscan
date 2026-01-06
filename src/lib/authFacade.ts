@@ -6,7 +6,6 @@ import {
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { getCachedAuth, signOutAll } from "@/lib/auth";
-import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 import { isNativeCapacitor } from "@/lib/platform";
 import { getFirebaseAuth } from "@/lib/firebase";
 
@@ -22,9 +21,11 @@ type AuthFacade = {
 
 const WebAuth: AuthFacade = {
   async signInGoogle(next) {
+    const { signInWithGoogle } = await import("@/lib/auth/providers");
     await signInWithGoogle(next);
   },
   async signInApple(next) {
+    const { signInWithApple } = await import("@/lib/auth/providers");
     await signInWithApple(next);
   },
   async signInEmailPassword(email, password) {

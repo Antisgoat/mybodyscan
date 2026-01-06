@@ -5,10 +5,10 @@ import {
   type UserCredential,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase";
-import { signInWithOAuthProvider } from "@/lib/auth/oauth";
 import { isNative } from "@/lib/platform";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
+  const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const provider = new GoogleAuthProvider();
   // Keep scopes explicit for parity with Apple
   provider.addScope("email");
@@ -17,6 +17,7 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
+  const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const provider = new OAuthProvider("apple.com");
   // Request user name & email on first sign-in; Apple may provide them once.
   provider.addScope("email");

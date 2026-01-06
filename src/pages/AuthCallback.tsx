@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { handleAuthRedirectResult } from "@/lib/auth/providers";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
+import { isNativeCapacitor } from "@/lib/platform";
 
 export default function AuthCallbackPage() {
   const nav = useNavigate();
@@ -10,7 +10,11 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      await handleAuthRedirectResult();
+      // This route is web-only. On native, jump to home.
+      if (!isNativeCapacitor()) {
+        const { handleAuthRedirectResult } = await import("@/lib/auth/providers");
+        await handleAuthRedirectResult();
+      }
       if (!alive) return;
       const next = consumeAuthRedirect() ?? "/home";
       setMsg("Signed in. Redirecting…");
