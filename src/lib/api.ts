@@ -5,7 +5,8 @@ import { auth as firebaseAuth } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import { nutritionSearch as nutritionSearchCallable } from "@/lib/api/nutrition";
-import type { Auth, User } from "firebase/auth";
+type Auth = import("firebase/auth").Auth;
+type User = import("firebase/auth").User;
 import { apiFetchJson } from "./apiFetch";
 import {
   openCustomerPortal as openPaymentsPortal,

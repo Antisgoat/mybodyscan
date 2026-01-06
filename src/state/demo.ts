@@ -1,4 +1,4 @@
-import type { User } from "firebase/auth";
+type User = import("firebase/auth").User;
 
 type Listener = () => void;
 

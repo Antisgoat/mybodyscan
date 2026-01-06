@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { db, requireAuth } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { isNative } from "@/lib/platform";
 
 export type UnitSystem = "US" | "metric";
 
@@ -12,18 +12,30 @@ export function useUserUnits() {
   const [uid, setUid] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!firebaseAuth) {
+    if (isNative()) {
       setUid(null);
       setLoading(false);
       return undefined;
     }
-    setUid(firebaseAuth.currentUser?.uid ?? null);
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-      setUid(user?.uid ?? null);
-    });
+    let unsub: (() => void) | null = null;
+    let cancelled = false;
+    void (async () => {
+      const auth = await requireAuth().catch(() => null);
+      if (!auth || cancelled) {
+        setUid(null);
+        setLoading(false);
+        return;
+      }
+      setUid(auth.currentUser?.uid ?? null);
+      const { onAuthStateChanged } = await import("firebase/auth");
+      unsub = onAuthStateChanged(auth, (user) => {
+        setUid(user?.uid ?? null);
+      });
+    })();
 
     return () => {
-      unsubscribe();
+      cancelled = true;
+      if (unsub) unsub();
     };
   }, []);
 

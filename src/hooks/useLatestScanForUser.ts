@@ -6,10 +6,10 @@ import {
   limit,
   collection,
 } from "firebase/firestore";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { db, requireAuth } from "@/lib/firebase";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
+import { isNative } from "@/lib/platform";
 
 type ScanData = {
   id: string;
@@ -31,30 +31,42 @@ export function useLatestScanForUser() {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<import("firebase/auth").User | null>(null);
 
   useEffect(() => {
-    if (!firebaseAuth) {
+    if (isNative()) {
       setLoading(false);
       setError("auth_unavailable");
       return undefined;
     }
 
-    const unsubAuth = onAuthStateChanged(firebaseAuth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
-        if (isDemo()) {
-          setScan(demoLatestScan as unknown as ScanData);
-        } else {
-          setScan(null);
-        }
+    let unsubAuth: (() => void) | null = null;
+    let cancelled = false;
+    void (async () => {
+      const auth = await requireAuth().catch(() => null);
+      if (!auth || cancelled) {
         setLoading(false);
-        setError(null);
+        setError("auth_unavailable");
+        return;
       }
-    });
+      const { onAuthStateChanged } = await import("firebase/auth");
+      unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+        if (!currentUser) {
+          if (isDemo()) {
+            setScan(demoLatestScan as unknown as ScanData);
+          } else {
+            setScan(null);
+          }
+          setLoading(false);
+          setError(null);
+        }
+      });
+    })();
 
     return () => {
-      unsubAuth();
+      cancelled = true;
+      if (unsubAuth) unsubAuth();
     };
   }, []);
 

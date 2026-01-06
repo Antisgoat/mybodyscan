@@ -23,8 +23,15 @@ export default defineConfig(({ mode }) => ({
       // Prevent Firebase SDK duplication in bundled output, which can cause
       // runtime crashes in WKWebView (e.g. "@firebase/auth INTERNAL ASSERTION FAILED").
       "firebase",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/functions",
+      "firebase/storage",
       "@firebase/app",
       "@firebase/auth",
+      "@firebase/component",
+      "@firebase/util",
       "@firebase/firestore",
       "@firebase/functions",
       "@firebase/storage",
@@ -65,5 +72,18 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ["@zxing/browser", "@zxing/library"],
+    // Avoid prebundling an extra copy of Firebase.
+    exclude: [
+      "firebase",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/functions",
+      "firebase/storage",
+      "@firebase/app",
+      "@firebase/auth",
+      "@firebase/component",
+      "@firebase/util",
+    ],
   },
 }));

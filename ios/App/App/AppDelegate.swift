@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,6 +8,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // FirebaseCore: configure once if present.
+        // IMPORTANT: Do not crash if GoogleService-Info.plist is missing.
+        if FirebaseApp.app() == nil {
+            let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+            if plistPath != nil {
+                FirebaseApp.configure()
+                NSLog("[MBS] FirebaseApp configured")
+            } else {
+                // TODO: Add ios/App/App/GoogleService-Info.plist to the Xcode project (Build Resources).
+                NSLog("[MBS][TODO] Missing GoogleService-Info.plist; skipping FirebaseApp.configure()")
+            }
+        }
+
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
         let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false

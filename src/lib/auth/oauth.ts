@@ -1,11 +1,6 @@
-import type {
-  AuthProvider,
-  UserCredential,
-  User,
-} from "firebase/auth";
-import { getRedirectResult, signInWithRedirect } from "firebase/auth";
+type AuthProvider = import("firebase/auth").AuthProvider;
 import { reportError } from "@/lib/telemetry";
-import { getFirebaseAuth, getFirebaseConfig } from "@/lib/firebase";
+import { getFirebaseConfig, requireAuth } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { isNative } from "@/lib/platform";
@@ -17,7 +12,9 @@ const MAX_AUTH_WAIT_MS = 15_000;
 
 let signInGuard: { providerId: OAuthProviderId; startedAt: number } | null =
   null;
-let finalizePromise: Promise<UserCredential | null> | null = null;
+let finalizePromise:
+  | Promise<import("firebase/auth").UserCredential | null>
+  | null = null;
 let popupThenRedirectFn = popupThenRedirectImported;
 
 function authEvent(kind: string, extra?: Record<string, unknown>) {
@@ -144,7 +141,10 @@ export type OAuthStartOptions = {
  */
 export async function signInWithOAuthProvider(
   options: OAuthStartOptions
-): Promise<{ user: User | null; credential: UserCredential | null }> {
+): Promise<{
+  user: import("firebase/auth").User | null;
+  credential: import("firebase/auth").UserCredential | null;
+}> {
   const startedAt = Date.now();
   authEvent("auth_start", {
     provider: options.providerId,
@@ -169,7 +169,7 @@ export async function signInWithOAuthProvider(
   }
   signInGuard = { providerId: options.providerId, startedAt };
 
-  const auth = getFirebaseAuth();
+  const auth = await requireAuth();
   const cfg = getFirebaseConfig();
   const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
   void reportError({
@@ -200,6 +200,9 @@ export async function signInWithOAuthProvider(
         (async () => {
           // Avoid duplicate redirect attempts: clear any stale redirect result first.
           // (Firebase SDK is safe if none is pending.)
+          const { getRedirectResult, signInWithRedirect } = await import(
+            "firebase/auth"
+          );
           await getRedirectResult(auth).catch(() => undefined);
           await signInWithRedirect(auth, options.provider);
         })(),
@@ -241,8 +244,8 @@ export async function signInWithOAuthProvider(
  * This must be called exactly once on app startup.
  */
 export async function finalizeRedirectResult(): Promise<{
-  user: User | null;
-  credential: UserCredential | null;
+  user: import("firebase/auth").User | null;
+  credential: import("firebase/auth").UserCredential | null;
 } | null> {
   if (isNative()) {
     return null;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import type { User } from "firebase/auth";
+type User = import("firebase/auth").User;
 
 export type UserProfile = {
   role?: string;

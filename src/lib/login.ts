@@ -1,8 +1,3 @@
-import type { Auth } from "firebase/auth";
-import {
-  fetchSignInMethodsForEmail,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 
@@ -80,7 +75,8 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
 export async function emailPasswordSignIn(email: string, password: string) {
   try {
     await firebaseReady();
-    const auth = getFirebaseAuth();
+    const auth = await getFirebaseAuth();
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
     await signInWithEmailAndPassword(auth, email, password);
     return { ok: true as const };
   } catch (e) {
@@ -89,7 +85,7 @@ export async function emailPasswordSignIn(email: string, password: string) {
   }
 }
 
-export async function googleSignIn(auth: Auth) {
+export async function googleSignIn(auth: import("firebase/auth").Auth) {
   try {
     // Unified behavior:
     // - Mobile browsers (incl iOS Safari): redirect
@@ -105,13 +101,13 @@ export async function googleSignIn(auth: Auth) {
 
 export async function googleSignInWithFirebase() {
   await firebaseReady();
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   return googleSignIn(auth);
 }
 
 export async function appleSignIn() {
   await firebaseReady();
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   try {
     await signInApple();
     return { ok: true as const };
@@ -155,7 +151,7 @@ function debugAuthFailure(err: unknown): void {
 }
 
 export async function describeAuthErrorAsync(
-  auth: Auth,
+  auth: import("firebase/auth").Auth,
   error: unknown
 ): Promise<NormalizedAuthError> {
   const code = getErrorCode(error);
@@ -167,7 +163,7 @@ export async function describeAuthErrorAsync(
 }
 
 async function buildAccountExistsMessage(
-  auth: Auth,
+  auth: import("firebase/auth").Auth,
   error: unknown
 ): Promise<string> {
   const fallback =
@@ -179,6 +175,7 @@ async function buildAccountExistsMessage(
   }
 
   try {
+    const { fetchSignInMethodsForEmail } = await import("firebase/auth");
     const methods = await fetchSignInMethodsForEmail(auth, email);
     if (!Array.isArray(methods) || methods.length === 0) {
       return fallback;

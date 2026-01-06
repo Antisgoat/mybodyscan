@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { db, requireAuth } from "@/lib/firebase";
+import { isNative } from "@/lib/platform";
 
 type InternalState = {
   authResolved: boolean;
@@ -12,8 +12,8 @@ type InternalState = {
 };
 
 const initialState: InternalState = {
-  authResolved: !firebaseAuth,
-  metaLoading: !!firebaseAuth,
+  authResolved: false,
+  metaLoading: true,
   personalizationCompleted: false,
   hasDraft: false,
   hasRootData: false,
@@ -28,7 +28,7 @@ export function useOnboardingStatus() {
   const [state, setState] = useState<InternalState>(initialState);
 
   useEffect(() => {
-    if (!firebaseAuth || !db) {
+    if (isNative()) {
       setState({
         authResolved: true,
         metaLoading: false,
@@ -42,9 +42,21 @@ export function useOnboardingStatus() {
     let unsubscribeMeta: (() => void) | null = null;
     let cancelled = false;
 
-    const unsubscribeAuth = onAuthStateChanged(
-      firebaseAuth,
-      (user) => {
+    let unsubscribeAuth: (() => void) | null = null;
+    void (async () => {
+      const auth = await requireAuth().catch(() => null);
+      if (!auth || !db || cancelled) {
+        setState({
+          authResolved: true,
+          metaLoading: false,
+          personalizationCompleted: false,
+          hasDraft: false,
+          hasRootData: false,
+        });
+        return;
+      }
+      const { onAuthStateChanged } = await import("firebase/auth");
+      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
         if (cancelled) return;
         if (unsubscribeMeta) {
           unsubscribeMeta();
@@ -123,12 +135,13 @@ export function useOnboardingStatus() {
           hasRootData: false,
         });
       }
-    );
+      );
+    })();
 
     return () => {
       cancelled = true;
       if (unsubscribeMeta) unsubscribeMeta();
-      unsubscribeAuth();
+      if (unsubscribeAuth) unsubscribeAuth();
     };
   }, []);
 

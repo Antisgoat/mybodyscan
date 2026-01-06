@@ -4,7 +4,7 @@ const BASE = "/admin";
 
 async function getToken(): Promise<string | undefined> {
   try {
-    const user = auth.currentUser;
+    const user = auth?.currentUser ?? null;
     if (!user) return undefined;
     return await user.getIdToken();
   } catch {

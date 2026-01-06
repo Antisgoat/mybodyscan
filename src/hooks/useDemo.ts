@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/auth";
 import {
   disableDemo,
   disableDemoEverywhere,
@@ -13,29 +12,20 @@ import {
 export function useDemoWireup() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState<boolean>(Boolean(auth?.currentUser));
+  const { user, authReady } = useAuthUser();
+  const [authed, setAuthed] = useState<boolean>(Boolean(user));
 
   useEffect(() => {
-    if (!auth) {
-      setAuthed(false);
-      return undefined;
-    }
-    // Subscribe once. Re-subscribing on every navigation can cause re-entrant demo state toggles
-    // (and in production can surface as React max-update-depth / #185).
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setAuthed(Boolean(user));
-      try {
-        // Only wipe demo flags when a real authed user exists. When signed out, demo mode is allowed.
-        if (user) {
-          disableDemoEverywhere();
-        }
-      } catch (error) {
-        console.warn("demo_wipe_failed", error);
+    if (!authReady) return;
+    setAuthed(Boolean(user));
+    try {
+      if (user) {
+        disableDemoEverywhere();
       }
-    });
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch (error) {
+      console.warn("demo_wipe_failed", error);
+    }
+  }, [authReady, user]);
 
   useEffect(() => {
     // If we become authed, ensure any demo query param is removed to avoid leaking demo links into the authed app.

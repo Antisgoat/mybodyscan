@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { loadStripe } from "@stripe/stripe-js";
 import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
-import { auth, db } from "@/lib/firebase";
+import { db, requireAuth } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 import { Navigate } from "react-router-dom";
 
@@ -35,28 +34,36 @@ export default function Billing() {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
-    if (!auth) {
-      setUid(null);
-      setCredits(null);
-      return undefined;
-    }
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setUid(user?.uid || null);
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = undefined;
-      }
-      if (user?.uid && db) {
-        unsubscribeDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
-          setCredits((snap.data()?.credits as number) ?? 0);
-        });
-      } else {
+    if (isNative()) return undefined;
+    let unsubscribeAuth: (() => void) | null = null;
+    let cancelled = false;
+    void (async () => {
+      const auth = await requireAuth().catch(() => null);
+      if (!auth || cancelled) {
+        setUid(null);
         setCredits(null);
+        return;
       }
-    });
+      const { onAuthStateChanged } = await import("firebase/auth");
+      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+        setUid(user?.uid || null);
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = undefined;
+        }
+        if (user?.uid && db) {
+          unsubscribeDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
+            setCredits((snap.data()?.credits as number) ?? 0);
+          });
+        } else {
+          setCredits(null);
+        }
+      });
+    })();
     return () => {
       if (unsubscribeDoc) unsubscribeDoc();
-      unsubscribeAuth();
+      cancelled = true;
+      if (unsubscribeAuth) unsubscribeAuth();
     };
   }, []);
 

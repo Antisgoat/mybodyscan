@@ -1,37 +1,28 @@
 import { useSyncExternalStore } from "react";
 import {
   auth as firebaseAuth,
-  getFirebaseAuth,
+  requireAuth,
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
-import {
-  Auth,
-  createUserWithEmailAndPassword,
-  EmailAuthProvider,
-  linkWithCredential,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signOut,
-  updateProfile,
-} from "firebase/auth";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { call } from "@/lib/callable";
+import { isNative } from "@/lib/platform";
 
 type AuthSnapshot = {
-  user: Auth["currentUser"] | null;
+  user: import("firebase/auth").Auth["currentUser"] | null;
   authReady: boolean;
 };
 
 export type AuthPhase = "booting" | "signedOut" | "signedIn";
 
 const shouldInitializeAuth =
-  typeof window !== "undefined" && Boolean(hasFirebaseConfig);
+  typeof window !== "undefined" && Boolean(hasFirebaseConfig) && !isNative();
 
 // IMPORTANT: do not initialize Firebase Auth at module import time.
 // Auth is lazily initialized when the first subscriber attaches.
-let cachedUser: Auth["currentUser"] | null = null;
+let cachedUser: import("firebase/auth").Auth["currentUser"] | null = null;
 let authReadyFlag = !shouldInitializeAuth;
 const authListeners = new Set<() => void>();
 let unsubscribeAuthListener: (() => void) | null = null;
@@ -55,7 +46,9 @@ function notifyAuthSubscribers() {
   });
 }
 
-async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
+async function refreshClaimsFor(
+  user: NonNullable<import("firebase/auth").Auth["currentUser"]>
+) {
   try {
     await user.getIdToken(true);
   } catch (err) {
@@ -81,7 +74,9 @@ async function refreshClaimsFor(user: NonNullable<Auth["currentUser"]>) {
   }
 }
 
-function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
+function handleUserChange(
+  nextUser: import("firebase/auth").Auth["currentUser"] | null
+): boolean {
   cachedUser = nextUser;
   authReadyFlag = true;
   void reportError({
@@ -128,15 +123,22 @@ function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
   return snapshotChanged;
 }
 
-function ensureAuthListener() {
+async function ensureAuthListener(): Promise<void> {
+  if (isNative()) {
+    // Native boot must not evaluate firebase/auth or attach web listeners.
+    authReadyFlag = true;
+    updateAuthSnapshot();
+    return;
+  }
   if (unsubscribeAuthListener) return;
-  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
+  const auth = firebaseAuth ?? (hasFirebaseConfig ? await requireAuth() : null);
   if (!auth) return;
   if (!firstAuthEventPromise) {
     firstAuthEventPromise = new Promise<void>((resolve) => {
       firstAuthEventResolve = resolve;
     });
   }
+  const { onAuthStateChanged } = await import("firebase/auth");
   unsubscribeAuthListener = onAuthStateChanged(auth, (user) => {
     const snapshotChanged = handleUserChange(user);
     if (snapshotChanged) {
@@ -154,13 +156,15 @@ function ensureAuthListener() {
  * This is used by boot code to block routing decisions until auth is fully initialized.
  */
 export async function startAuthListener(): Promise<void> {
+  if (isNative()) return;
   if (!hasFirebaseConfig) return;
-  ensureAuthListener();
+  await ensureAuthListener();
   await (firstAuthEventPromise ?? Promise.resolve());
 }
 
 function subscribeAuth(listener: () => void) {
-  ensureAuthListener();
+  // Fire-and-forget: useSyncExternalStore subscribe cannot be async.
+  void ensureAuthListener();
   authListeners.add(listener);
   return () => {
     authListeners.delete(listener);
@@ -190,8 +194,12 @@ function updateAuthSnapshot(): boolean {
   return true;
 }
 
-async function ensureFirebaseAuth(): Promise<Auth> {
-  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
+async function ensureFirebaseAuth(): Promise<import("firebase/auth").Auth> {
+  if (isNative()) {
+    // Only initialize auth on native when user explicitly signs in.
+    // Callers should still be able to attempt email/password flows.
+  }
+  const auth = firebaseAuth ?? (hasFirebaseConfig ? await requireAuth() : null);
   if (!auth) {
     const reason =
       getFirebaseInitError() ||
@@ -203,7 +211,7 @@ async function ensureFirebaseAuth(): Promise<Auth> {
   return auth;
 }
 
-export function getCachedAuth(): Auth | null {
+export function getCachedAuth(): import("firebase/auth").Auth | null {
   return firebaseAuth;
 }
 
@@ -228,6 +236,7 @@ export function useAuthPhase(): AuthPhase {
 
 export async function signOutToAuth(): Promise<void> {
   const auth = await ensureFirebaseAuth();
+  const { signOut } = await import("firebase/auth");
   await signOut(auth);
   window.location.href = "/auth";
 }
@@ -239,6 +248,8 @@ export async function createAccountEmail(
 ) {
   const auth = await ensureFirebaseAuth();
   const user = auth.currentUser;
+  const { EmailAuthProvider, linkWithCredential, createUserWithEmailAndPassword, updateProfile } =
+    await import("firebase/auth");
   const cred = EmailAuthProvider.credential(email, password);
   if (user?.isAnonymous) {
     const res = await linkWithCredential(user, cred);
@@ -251,13 +262,17 @@ export async function createAccountEmail(
 }
 
 export function sendReset(email: string) {
-  return ensureFirebaseAuth().then((auth) =>
-    sendPasswordResetEmail(auth, email)
-  );
+  return ensureFirebaseAuth().then(async (auth) => {
+    const { sendPasswordResetEmail } = await import("firebase/auth");
+    return sendPasswordResetEmail(auth, email);
+  });
 }
 
 export function signOutAll() {
-  return ensureFirebaseAuth().then((auth) => signOut(auth));
+  return ensureFirebaseAuth().then(async (auth) => {
+    const { signOut } = await import("firebase/auth");
+    return signOut(auth);
+  });
 }
 
 export { isIOSSafari } from "@/lib/isIOSWeb";
@@ -265,7 +280,7 @@ export { isIOSSafari } from "@/lib/isIOSWeb";
 type AuthTestInternals = {
   reset(): void;
   emit(
-    user: Auth["currentUser"] | null,
+    user: import("firebase/auth").Auth["currentUser"] | null,
     options?: { authReady?: boolean }
   ): void;
   snapshot(): AuthSnapshot;
