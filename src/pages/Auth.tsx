@@ -23,7 +23,7 @@ import {
   hasFirebaseConfig,
   getFirebaseAuth,
 } from "@/lib/firebase";
-import { isNativeCapacitor } from "@/lib/platform";
+import { isNative } from "@/lib/platform";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
   getIdentityToolkitProbeStatus,
@@ -33,7 +33,6 @@ import {
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
 
@@ -52,7 +51,7 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const native = isNativeCapacitor();
+  const native = isNative();
   const from = (location.state as any)?.from || "/home";
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -195,7 +194,8 @@ const Auth = () => {
     try {
       setAuthError(null);
       if (mode === "signin") {
-        const authClient = getFirebaseAuth();
+        const { signInWithEmailAndPassword } = await import("firebase/auth");
+        const authClient = await getFirebaseAuth();
         try {
           await signInWithEmailAndPassword(authClient, email, password);
           return;

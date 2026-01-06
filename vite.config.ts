@@ -23,8 +23,15 @@ export default defineConfig(({ mode }) => ({
       // Prevent Firebase SDK duplication in bundled output, which can cause
       // runtime crashes in WKWebView (e.g. "@firebase/auth INTERNAL ASSERTION FAILED").
       "firebase",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "firebase/functions",
+      "firebase/storage",
       "@firebase/app",
       "@firebase/auth",
+      "@firebase/util",
+      "@firebase/component",
       "@firebase/firestore",
       "@firebase/functions",
       "@firebase/storage",

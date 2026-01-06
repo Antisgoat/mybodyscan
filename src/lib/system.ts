@@ -15,7 +15,7 @@ function isSoftBootstrapStatus(status?: number): boolean {
 }
 
 export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser ?? null;
   if (!user) return null;
 
   try {

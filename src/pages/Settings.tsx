@@ -77,7 +77,7 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
-import { isNativeCapacitor } from "@/lib/platform";
+import { isNative } from "@/lib/platform";
 
 const Settings = () => {
   const DEVELOPER_EMAIL = "developer@adlrlabs.com";
@@ -127,7 +127,7 @@ const Settings = () => {
     stripeConfigured,
   } = computeFeatureStatuses(systemHealth ?? undefined);
   // Stripe is web-only; native builds use in-app purchases.
-  const iosBuild = isNativeCapacitor();
+  const iosBuild = isNative();
 
   const deleteDialogOpen = deleteStep > 0;
   const canAdvanceDelete = deleteConfirmInput.trim().toUpperCase() === "DELETE";
@@ -172,7 +172,7 @@ const Settings = () => {
     runtimeHost.toLowerCase() !== authDomain.toLowerCase();
   const persistenceMode = getAuthPersistenceMode();
   const iosSafari = isIOSSafari();
-  const nativeCapacitor = isNativeCapacitor();
+  const nativeCapacitor = isNative();
   const initAuthState = getInitAuthState();
   const canSeeAdminTools =
     typeof user?.email === "string" &&
@@ -243,7 +243,8 @@ const Settings = () => {
   }, [user]);
 
   const handleSaveMetrics = async () => {
-    if (!auth.currentUser) {
+    const currentUser = auth?.currentUser ?? null;
+    if (!currentUser) {
       toast({
         title: "Sign in required",
         description: "Sign in to update your profile.",
@@ -284,7 +285,7 @@ const Settings = () => {
       const profileRef = doc(
         db,
         "users",
-        auth.currentUser.uid,
+        currentUser.uid,
         "coach",
         "profile"
       );
@@ -519,7 +520,7 @@ const Settings = () => {
   };
 
   const handleRefreshClaims = async () => {
-    const user = auth.currentUser;
+    const user = auth?.currentUser ?? null;
     if (!user) {
       toast({
         title: "Sign in required",

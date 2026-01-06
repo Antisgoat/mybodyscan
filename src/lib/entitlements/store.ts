@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
-import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot, type Unsubscribe, Timestamp } from "firebase/firestore";
-import { auth as firebaseAuth, db as firebaseDb } from "@/lib/firebase";
+import { auth as firebaseAuth, db as firebaseDb, getFirebaseAuth } from "@/lib/firebase";
 import type { Entitlements } from "@/lib/entitlements/pro";
+import { isNative } from "@/lib/platform";
 
 type Snapshot = {
   uid: string | null;
@@ -24,6 +24,7 @@ const listeners = new Set<() => void>();
 let unsubscribeAuth: Unsubscribe | null = null;
 let unsubscribeDoc: Unsubscribe | null = null;
 let activeUid: string | null = null;
+let authListenerInitStarted = false;
 
 function notify() {
   listeners.forEach((fn) => {
@@ -138,44 +139,70 @@ function attachDocListener(uid: string) {
 }
 
 function ensureListener() {
-  if (unsubscribeAuth || !firebaseAuth) {
-    // No auth configured; treat as signed-out.
-    if (!firebaseAuth) {
+  if (unsubscribeAuth || authListenerInitStarted) return;
+
+  // Native boot: do not initialize Firebase Auth implicitly.
+  if (isNative()) {
+    setSnapshot({
+      uid: null,
+      entitlements: DEFAULT_ENTITLEMENTS,
+      loading: false,
+      error: null,
+    });
+    return;
+  }
+
+  authListenerInitStarted = true;
+  setSnapshot({ loading: true });
+
+  void (async () => {
+    try {
+      const auth = firebaseAuth ?? (await getFirebaseAuth());
+      const { onIdTokenChanged } = await import("firebase/auth");
+      unsubscribeAuth = onIdTokenChanged(
+        auth,
+        (user) => {
+          const nextUid = user?.uid ?? null;
+          if (!nextUid) {
+            activeUid = null;
+            detachDocListener();
+            setSnapshot({
+              uid: null,
+              entitlements: DEFAULT_ENTITLEMENTS,
+              loading: false,
+              error: null,
+            });
+            return;
+          }
+          if (activeUid === nextUid) return;
+          activeUid = nextUid;
+          attachDocListener(nextUid);
+        },
+        (err) => {
+          activeUid = null;
+          detachDocListener();
+          setSnapshot({
+            uid: null,
+            entitlements: DEFAULT_ENTITLEMENTS,
+            loading: false,
+            error: err?.message ? String(err.message) : "auth_listener_failed",
+          });
+        }
+      );
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[entitlements] auth listener init failed", error);
+      }
       setSnapshot({
         uid: null,
         entitlements: DEFAULT_ENTITLEMENTS,
         loading: false,
         error: "auth_unavailable",
       });
+    } finally {
+      authListenerInitStarted = false;
     }
-    return;
-  }
-
-  unsubscribeAuth = onIdTokenChanged(
-    firebaseAuth,
-    (user) => {
-      const nextUid = user?.uid ?? null;
-      if (!nextUid) {
-        activeUid = null;
-        detachDocListener();
-        setSnapshot({ uid: null, entitlements: DEFAULT_ENTITLEMENTS, loading: false, error: null });
-        return;
-      }
-      if (activeUid === nextUid) return;
-      activeUid = nextUid;
-      attachDocListener(nextUid);
-    },
-    (err) => {
-      activeUid = null;
-      detachDocListener();
-      setSnapshot({
-        uid: null,
-        entitlements: DEFAULT_ENTITLEMENTS,
-        loading: false,
-        error: err?.message ? String(err.message) : "auth_listener_failed",
-      });
-    }
-  );
+  })();
 }
 
 function subscribe(listener: () => void) {

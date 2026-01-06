@@ -8,18 +8,13 @@ export function isWeb(): boolean {
 
 export function isNative(): boolean {
   try {
-    const anyWin = globalThis as any;
-    const cap = anyWin.Capacitor;
-    if (!cap || typeof cap !== "object") return false;
-    // Capacitor v3+ exposes isNativePlatform; older versions expose getPlatform()
-    if (typeof cap.isNativePlatform === "function") {
-      return !!cap.isNativePlatform();
-    }
-    if (typeof cap.getPlatform === "function") {
-      const p = cap.getPlatform();
-      return p === "ios" || p === "android";
-    }
-    return false;
+    const w = window as any;
+    const proto = window.location?.protocol;
+    return (
+      proto === "capacitor:" ||
+      proto === "ionic:" ||
+      !!w?.Capacitor?.isNativePlatform?.()
+    );
   } catch {
     return false;
   }
@@ -106,14 +101,8 @@ export function getCanonicalOAuthReturnUrl(): string {
   return `${DEFAULT_REDIRECT_HOST}/oauth/return`;
 }
 
-export function isNativeCapacitor(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return Boolean((window as any).Capacitor?.isNativePlatform?.());
-  } catch {
-    return false;
-  }
-}
+// Backward-compatible alias for older code paths.
+export const isNativeCapacitor = isNative;
 
 export async function openExternalUrl(url: string): Promise<void> {
   const anyWin = globalThis as any;

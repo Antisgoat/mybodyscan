@@ -1,11 +1,8 @@
 import React, { useState } from "react";
-import {
-  signInWithEmailAndPassword,
-} from "firebase/auth";
-import { getFirebaseAuth } from "../lib/firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 import { enableDemo } from "@/state/demo";
-import { isNativeCapacitor } from "@/lib/platform";
+import { isNative } from "@/lib/platform";
+import { requireAuth } from "@/lib/firebase";
 
 const on = (k: string, def = false) => {
   const v = (import.meta as any).env?.[k];
@@ -23,7 +20,7 @@ export default function LoginPanel() {
   const [loading, setLoading] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const native = isNativeCapacitor();
+  const native = isNative();
 
   async function withLoad<T>(label: string, fn: () => Promise<T>) {
     setLoading(label);
@@ -93,7 +90,8 @@ export default function LoginPanel() {
             disabled={!!loading || !email || !password}
             onClick={() =>
               withLoad("email", async () => {
-                const auth = getFirebaseAuth();
+                const { signInWithEmailAndPassword } = await import("firebase/auth");
+                const auth = await requireAuth();
                 await signInWithEmailAndPassword(auth, email, password);
               })
             }

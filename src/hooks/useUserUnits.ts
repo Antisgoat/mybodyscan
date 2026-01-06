@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { useAuthUser } from "@/lib/auth";
 
 export type UnitSystem = "US" | "metric";
 
@@ -10,22 +10,21 @@ export function useUserUnits() {
   const [units, setUnits] = useState<UnitSystem>("US"); // Default to US units
   const [loading, setLoading] = useState(true);
   const [uid, setUid] = useState<string | null>(null);
+  const { user, authReady } = useAuthUser();
 
   useEffect(() => {
-    if (!firebaseAuth) {
+    if (!authReady) {
+      setLoading(true);
+      return;
+    }
+    if (!user) {
       setUid(null);
       setLoading(false);
       return undefined;
     }
-    setUid(firebaseAuth.currentUser?.uid ?? null);
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-      setUid(user?.uid ?? null);
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+    setUid(user.uid);
+    return undefined;
+  }, [authReady, user?.uid]);
 
   useEffect(() => {
     if (!uid) {

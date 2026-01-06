@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { onIdTokenChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth as firebaseAuth, db, getFirebaseConfig } from "@/lib/firebase";
+import { db, getFirebaseConfig } from "@/lib/firebase";
 import { call } from "@/lib/callable";
+import { useAuthUser } from "@/lib/auth";
 
 export function useCredits() {
   const [credits, setCredits] = useState(0);
@@ -13,6 +13,7 @@ export function useCredits() {
   const [unlimitedFromMirror, setUnlimitedFromMirror] = useState(false);
   const refreshAttemptRef = useRef<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const { user, authReady } = useAuthUser();
   let projectId = "";
   try {
     projectId = getFirebaseConfig().projectId;
@@ -21,53 +22,58 @@ export function useCredits() {
   }
 
   useEffect(() => {
-    if (!firebaseAuth) {
-      setError("auth_unavailable");
-      setLoading(false);
-      return undefined;
-    }
-    const unsubscribe = onIdTokenChanged(
-      firebaseAuth,
-      async (u) => {
-        setUid(u?.uid ?? null);
-        if (!u) {
-          setCredits(0);
-          setUnlimitedFromToken(false);
-          setUnlimitedFromMirror(false);
-          setLoading(false);
-          refreshAttemptRef.current = null;
-        } else {
-          let token = await u.getIdTokenResult();
-          if (refreshAttemptRef.current !== u.uid) {
-            refreshAttemptRef.current = u.uid;
-            try {
-              await call("refreshClaims");
-              token = await u.getIdTokenResult(true);
-              setRefreshTick((prev) => prev + 1);
-            } catch (refreshError) {
-              if (import.meta.env.DEV) {
-                console.warn("[credits] refreshClaims failed", refreshError);
-              }
+    let alive = true;
+    void (async () => {
+      if (!authReady) {
+        if (alive) setLoading(true);
+        return;
+      }
+
+      setUid(user?.uid ?? null);
+      if (!user) {
+        setCredits(0);
+        setUnlimitedFromToken(false);
+        setUnlimitedFromMirror(false);
+        setLoading(false);
+        setError(null);
+        refreshAttemptRef.current = null;
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        let token = await user.getIdTokenResult();
+        if (refreshAttemptRef.current !== user.uid) {
+          refreshAttemptRef.current = user.uid;
+          try {
+            await call("refreshClaims");
+            token = await user.getIdTokenResult(true);
+            setRefreshTick((prev) => prev + 1);
+          } catch (refreshError) {
+            if (import.meta.env.DEV) {
+              console.warn("[credits] refreshClaims failed", refreshError);
             }
           }
-          const tokenPro =
-            token.claims.unlimitedCredits === true ||
-            token.claims.unlimited === true ||
-            token.claims.admin === true ||
-            token.claims.staff === true;
-          setUnlimitedFromToken(Boolean(tokenPro));
         }
-      },
-      (err) => {
-        setError(err.message);
+        const tokenPro =
+          token.claims.unlimitedCredits === true ||
+          token.claims.unlimited === true ||
+          token.claims.admin === true ||
+          token.claims.staff === true;
+        if (!alive) return;
+        setUnlimitedFromToken(Boolean(tokenPro));
+        setLoading(false);
+      } catch (err: any) {
+        if (!alive) return;
+        setError(err?.message ? String(err.message) : "credits_token_failed");
         setLoading(false);
       }
-    );
-
+    })();
     return () => {
-      unsubscribe();
+      alive = false;
     };
-  }, []);
+  }, [authReady, user]);
 
   useEffect(() => {
     if (!uid) return;

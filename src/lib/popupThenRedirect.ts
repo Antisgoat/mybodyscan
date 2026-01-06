@@ -1,10 +1,4 @@
-import {
-  signInWithPopup,
-  signInWithRedirect,
-  type Auth,
-  type AuthProvider,
-  type UserCredential,
-} from "firebase/auth";
+import type { Auth, AuthProvider, UserCredential } from "firebase/auth";
 import { isIOSWebKit } from "./ua";
 import { isNative } from "@/lib/platform";
 
@@ -24,10 +18,12 @@ export async function popupThenRedirect(
   }
   // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
   if (isIOSWebKit()) {
+    const { signInWithRedirect } = await import("firebase/auth");
     await signInWithRedirect(auth, provider);
     return;
   }
   try {
+    const { signInWithPopup } = await import("firebase/auth");
     const cred = await signInWithPopup(auth, provider);
     return cred;
   } catch (err) {
@@ -41,6 +37,7 @@ export async function popupThenRedirect(
       code === "auth/operation-not-supported-in-this-environment"
     ) {
       // Start redirect flow; control returns after page reload.
+      const { signInWithRedirect } = await import("firebase/auth");
       await signInWithRedirect(auth, provider);
       return;
     }

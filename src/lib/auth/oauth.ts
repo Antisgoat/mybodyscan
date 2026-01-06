@@ -3,7 +3,6 @@ import type {
   UserCredential,
   User,
 } from "firebase/auth";
-import { getRedirectResult, signInWithRedirect } from "firebase/auth";
 import { reportError } from "@/lib/telemetry";
 import { getFirebaseAuth, getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
@@ -53,11 +52,7 @@ function shouldPreferRedirect(): boolean {
   // iOS WebKit: popups are unreliable; redirect is safer.
   if (isMobileLike()) return true;
   // WebView-ish environments: also prefer redirect.
-  try {
-    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
-  } catch {
-    // ignore
-  }
+  if (isNative()) return true;
   try {
     if ((window as any).flutter_inappwebview != null) return true;
   } catch {
@@ -169,7 +164,7 @@ export async function signInWithOAuthProvider(
   }
   signInGuard = { providerId: options.providerId, startedAt };
 
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   const cfg = getFirebaseConfig();
   const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
   void reportError({
@@ -198,6 +193,9 @@ export async function signInWithOAuthProvider(
         // Force redirect behavior by calling signInWithRedirect directly via getRedirectResult? No: simplest is popupThenRedirect + iOS/mobile guard.
         // Here, we explicitly trigger redirect to avoid any popup hangs.
         (async () => {
+          const { getRedirectResult, signInWithRedirect } = await import(
+            "firebase/auth"
+          );
           // Avoid duplicate redirect attempts: clear any stale redirect result first.
           // (Firebase SDK is safe if none is pending.)
           await getRedirectResult(auth).catch(() => undefined);
