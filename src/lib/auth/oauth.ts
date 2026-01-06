@@ -8,7 +8,6 @@ import { reportError } from "@/lib/telemetry";
 import { getFirebaseAuth, getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
-import { handleAuthRedirectOnce } from "@/lib/authRedirect";
 import { isNative } from "@/lib/platform";
 
 export type OAuthProviderId = "google.com" | "apple.com";
@@ -252,6 +251,7 @@ export async function finalizeRedirectResult(): Promise<{
     const cred = await finalizePromise;
     return cred ? { user: cred.user ?? null, credential: cred } : null;
   }
+  const { handleAuthRedirectOnce } = await import("@/lib/authRedirect");
   finalizePromise = withTimeout(
     handleAuthRedirectOnce().then((outcome) => outcome.result),
     MAX_AUTH_WAIT_MS,
