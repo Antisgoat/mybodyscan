@@ -6,8 +6,22 @@ export function isWeb(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
+function isCapacitorScheme(): boolean {
+  // Critical: in WKWebView, `window.Capacitor` may not be available at the exact
+  // moment our first modules evaluate, but the URL scheme is already set.
+  // Treat capacitor:// (and ionic://) as native to avoid booting web-only code.
+  if (typeof window === "undefined") return false;
+  try {
+    const protocol = window.location?.protocol || "";
+    return protocol === "capacitor:" || protocol === "ionic:";
+  } catch {
+    return false;
+  }
+}
+
 export function isNative(): boolean {
   try {
+    if (isCapacitorScheme()) return true;
     const anyWin = globalThis as any;
     const cap = anyWin.Capacitor;
     if (!cap || typeof cap !== "object") return false;
@@ -72,6 +86,7 @@ export function isIOSWebView(): boolean {
 
 export function isCapacitor(): boolean {
   if (!isWeb()) return false;
+  if (isCapacitorScheme()) return true;
   const candidate: any = (window as any).Capacitor;
   if (!candidate) return false;
   try {
@@ -109,6 +124,7 @@ export function getCanonicalOAuthReturnUrl(): string {
 export function isNativeCapacitor(): boolean {
   if (typeof window === "undefined") return false;
   try {
+    if (isCapacitorScheme()) return true;
     return Boolean((window as any).Capacitor?.isNativePlatform?.());
   } catch {
     return false;
