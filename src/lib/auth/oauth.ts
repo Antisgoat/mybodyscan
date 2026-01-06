@@ -9,6 +9,7 @@ import { getFirebaseAuth, getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { handleAuthRedirectOnce } from "@/lib/authRedirect";
+import { isNative } from "@/lib/platform";
 
 export type OAuthProviderId = "google.com" | "apple.com";
 
@@ -152,6 +153,12 @@ export async function signInWithOAuthProvider(
     startedAt,
     preferRedirect: shouldPreferRedirect(),
   });
+  if (isNative()) {
+    authEvent("auth_skip_native", { provider: options.providerId });
+    clearPending();
+    signInGuard = null;
+    return { user: null, credential: null };
+  }
   if (signInGuard && startedAt - signInGuard.startedAt < MAX_AUTH_WAIT_MS) {
     const err = new Error("Sign-in already in progress.");
     (err as any).code = "auth/signin-already-in-progress";
@@ -234,6 +241,9 @@ export async function finalizeRedirectResult(): Promise<{
   user: User | null;
   credential: UserCredential | null;
 } | null> {
+  if (isNative()) {
+    return null;
+  }
   if (finalizePromise) {
     const cred = await finalizePromise;
     return cred ? { user: cred.user ?? null, credential: cred } : null;
@@ -319,4 +329,3 @@ export const __oauthTestInternals = {
     clearPending();
   },
 };
-

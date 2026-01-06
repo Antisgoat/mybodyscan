@@ -6,6 +6,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { signInWithOAuthProvider } from "@/lib/auth/oauth";
+import { isNative } from "@/lib/platform";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   const provider = new GoogleAuthProvider();
@@ -27,6 +28,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
 
 // Handle a completed redirect (Apple/Google).
 export async function handleAuthRedirectResult(): Promise<UserCredential | null> {
+  if (isNative()) return null;
   try {
     const cred = await getRedirectResult(auth);
     return cred; // may be null if no redirect pending

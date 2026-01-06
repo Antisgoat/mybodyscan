@@ -9,6 +9,7 @@ import {
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
+import { isNative } from "@/lib/platform";
 
 const BENIGN_ERRORS = new Set([
   "auth/no-auth-event",
@@ -51,6 +52,15 @@ function authEvent(kind: string, extra?: Record<string, unknown>) {
 }
 
 async function resolveRedirect(): Promise<AuthRedirectOutcome> {
+  if (isNative()) {
+    const outcome: AuthRedirectOutcome = {
+      result: null,
+      error: null,
+      normalizedError: null,
+    };
+    cachedOutcome = outcome;
+    return outcome;
+  }
   let auth: Auth | null = null;
   try {
     await firebaseReady();
