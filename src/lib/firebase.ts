@@ -260,14 +260,80 @@ function initializeFirebaseApp(): FirebaseApp {
 
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
-export const auth: Auth = isNative()
-  ? initializeAuth(app, {
-      persistence: [indexedDBLocalPersistence, inMemoryPersistence],
-    })
-  : getAuth(app);
-export type AuthPersistenceMode = "indexeddb" | "local" | "session" | "unknown";
+
+export type AuthPersistenceMode =
+  | "indexeddb"
+  | "local"
+  | "session"
+  | "memory"
+  | "unknown";
 let authPersistenceMode: AuthPersistenceMode = "unknown";
 let persistenceReady: Promise<AuthPersistenceMode> | null = null;
+let authInstance: Auth | null = null;
+let nativeAuthPersistenceMode: AuthPersistenceMode | null = null;
+
+function initializeNativeAuth(app: FirebaseApp): Auth {
+  // Native Capacitor: opt into initializeAuth with explicit persistence only.
+  // Never provide popupRedirectResolver so the SDK doesn't load gapi/web OAuth.
+  const attempts: Array<{
+    persistence: Parameters<typeof initializeAuth>[1]["persistence"];
+    mode: AuthPersistenceMode;
+  }> = [
+    { persistence: [indexedDBLocalPersistence], mode: "indexeddb" },
+    { persistence: [inMemoryPersistence], mode: "memory" },
+  ];
+
+  let lastError: unknown = null;
+  for (const attempt of attempts) {
+    try {
+      const instance = initializeAuth(app, { persistence: attempt.persistence });
+      authPersistenceMode = attempt.mode;
+      nativeAuthPersistenceMode = attempt.mode;
+      return instance;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[firebase] native auth init failed; retrying", {
+          mode: attempt.mode,
+          error,
+        });
+      }
+      lastError = error;
+    }
+  }
+
+  firebaseInitError ??= "Failed to initialize Firebase Auth on native";
+  if (import.meta.env.DEV && lastError) {
+    console.error("[firebase] native auth init ultimate failure", lastError);
+  }
+  // Try a last-resort in-memory instance; avoid throwing to keep UI rendering.
+  try {
+    const fallback = initializeAuth(app, { persistence: [inMemoryPersistence] });
+    authPersistenceMode = "memory";
+    nativeAuthPersistenceMode = "memory";
+    return fallback;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error("[firebase] native auth fallback failed", error);
+    }
+    authPersistenceMode = nativeAuthPersistenceMode ?? "unknown";
+    const placeholder = {
+      app,
+      name: "[native-auth-unavailable]",
+      currentUser: null,
+    } as Auth;
+    authInstance = placeholder;
+    return placeholder;
+  }
+}
+
+export function getFirebaseAuth(): Auth {
+  if (authInstance) return authInstance;
+  const app = getFirebaseApp();
+  authInstance = isNative() ? initializeNativeAuth(app) : getAuth(app);
+  return authInstance;
+}
+
+export const auth: Auth = getFirebaseAuth();
 
 export function getAuthPersistenceMode(): AuthPersistenceMode {
   return authPersistenceMode;
@@ -275,6 +341,14 @@ export function getAuthPersistenceMode(): AuthPersistenceMode {
 
 export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
   if (persistenceReady) return persistenceReady;
+  const auth = getFirebaseAuth();
+  if (isNative()) {
+    // Native builds rely on initializeAuth; do not trigger web popup/redirect plumbing.
+    authPersistenceMode =
+      nativeAuthPersistenceMode ?? authPersistenceMode ?? "unknown";
+    persistenceReady = Promise.resolve(authPersistenceMode);
+    return persistenceReady;
+  }
   // Prefer IndexedDB on iOS Safari (more reliable than localStorage with ITP).
   persistenceReady = (async () => {
     try {
@@ -393,10 +467,6 @@ export function getFirebaseApp(): FirebaseApp {
   return app;
 }
 
-export function getFirebaseAuth(): Auth {
-  return auth;
-}
-
 export function getFirebaseFirestore(): Firestore {
   return db;
 }
@@ -457,17 +527,33 @@ export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 
 export async function signInWithGoogle() {
+  if (isNative()) {
+    throw new Error("Web popup sign-in is disabled on native builds.");
+  }
+  const auth = getFirebaseAuth();
   return signInWithPopup(auth, googleProvider);
 }
 
 export async function signInWithApple() {
+  if (isNative()) {
+    throw new Error("Web redirect sign-in is disabled on native builds.");
+  }
+  const auth = getFirebaseAuth();
   return signInWithRedirect(auth, appleProvider);
 }
 
 export async function signInWithEmail(email: string, password: string) {
+  const auth = getFirebaseAuth();
   return signInWithEmailAndPassword(auth, email, password);
 }
 
 export function initFirebase() {
-  return { app, auth, db, storage, functions, analytics: analyticsInstance };
+  return {
+    app,
+    auth: getFirebaseAuth(),
+    db,
+    storage,
+    functions,
+    analytics: analyticsInstance,
+  };
 }

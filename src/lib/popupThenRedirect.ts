@@ -18,7 +18,9 @@ export async function popupThenRedirect(
   provider: AuthProvider
 ): Promise<UserCredential | undefined> {
   if (isNative()) {
-    return;
+    throw new Error(
+      "Popup/redirect OAuth is disabled on native builds; use native auth instead."
+    );
   }
   // iOS WebKit (Safari) has unreliable popup behavior; prefer redirect immediately
   if (isIOSWebKit()) {
