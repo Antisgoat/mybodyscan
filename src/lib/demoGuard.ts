@@ -1,8 +1,17 @@
-import { auth } from "./firebase";
+import { getFirebaseAuth, hasFirebaseConfig } from "./firebase";
 import { isDemoActive } from "./demo";
 
 function isReadOnlyDemo(): boolean {
-  const user = auth.currentUser;
+  // Avoid assuming Auth is initialized at import-time.
+  // Demo guard should never crash if Auth is unavailable.
+  let user = null as unknown;
+  if (hasFirebaseConfig) {
+    try {
+      user = getFirebaseAuth().currentUser;
+    } catch {
+      user = null;
+    }
+  }
   // Any authenticated session bypasses read-only demo.
   if (user) return false;
 
