@@ -17,7 +17,19 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom"],
+    dedupe: [
+      "react",
+      "react-dom",
+      // Prevent Firebase SDK duplication in bundled output, which can cause
+      // runtime crashes in WKWebView (e.g. "@firebase/auth INTERNAL ASSERTION FAILED").
+      "firebase",
+      "@firebase/app",
+      "@firebase/auth",
+      "@firebase/firestore",
+      "@firebase/functions",
+      "@firebase/storage",
+      "@firebase/analytics",
+    ],
   },
   test: {
     exclude: [

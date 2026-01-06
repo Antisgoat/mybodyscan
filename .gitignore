@@ -19,6 +19,13 @@ dist-ssr
 *.gif
 *.mp4
 
+# iOS native assets must be committed for Xcode/App Store
+!ios/**/*.png
+!ios/**/*.jpg
+!ios/**/*.jpeg
+!ios/**/*.gif
+!resources/**/*.png
+
 # Env files
 .env.local
 .env.production

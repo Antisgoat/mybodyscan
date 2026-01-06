@@ -4,7 +4,7 @@ import {
   OAuthProvider,
   type UserCredential,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { signInWithOAuthProvider } from "@/lib/auth/oauth";
 import { isNative } from "@/lib/platform";
 
@@ -30,7 +30,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
 export async function handleAuthRedirectResult(): Promise<UserCredential | null> {
   if (isNative()) return null;
   try {
-    const cred = await getRedirectResult(auth);
+    const cred = await getRedirectResult(getFirebaseAuth());
     return cred; // may be null if no redirect pending
   } catch (e) {
     // Swallow popup blockers/redirect oddities; caller can show a toast if needed.

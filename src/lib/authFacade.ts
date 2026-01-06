@@ -1,19 +1,23 @@
-import type { User } from "firebase/auth";
+import type { Unsubscribe, User } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
 import { getCachedAuth, signOutAll } from "@/lib/auth";
 import { signInWithApple, signInWithGoogle } from "@/lib/auth/providers";
 import { isNativeCapacitor } from "@/lib/platform";
 import { getFirebaseAuth } from "@/lib/firebase";
-import {
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithCredential,
-} from "firebase/auth";
 
 type AuthFacade = {
   signInGoogle(next?: string | null): Promise<void>;
   signInApple(next?: string | null): Promise<void>;
+  signInEmailPassword(email: string, password: string): Promise<void>;
+  signUpEmailPassword(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   getCurrentUser(): User | null;
+  onCurrentUserChanged(cb: (user: User | null) => void): Unsubscribe;
 };
 
 const WebAuth: AuthFacade = {
@@ -23,86 +27,54 @@ const WebAuth: AuthFacade = {
   async signInApple(next) {
     await signInWithApple(next);
   },
+  async signInEmailPassword(email, password) {
+    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+  },
+  async signUpEmailPassword(email, password) {
+    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+  },
   async signOut() {
     await signOutAll();
   },
   getCurrentUser() {
     return getCachedAuth()?.currentUser ?? null;
+  },
+  onCurrentUserChanged(cb) {
+    return onAuthStateChanged(getFirebaseAuth(), cb);
   },
 };
 
-const CapacitorAuth: AuthFacade = {
-  async signInGoogle(next) {
-    try {
-      const { FirebaseAuthentication } = await import(
-        "@capacitor-firebase/authentication"
-      );
-      const result = await FirebaseAuthentication.signInWithGoogle();
-      const nativeCred = result?.credential;
-      const idToken = nativeCred?.idToken ?? undefined;
-      const accessToken = nativeCred?.accessToken ?? undefined;
-      if (!idToken && !accessToken) {
-        throw new Error("Native Google sign-in did not return usable tokens.");
-      }
-      const webCred = GoogleAuthProvider.credential(idToken, accessToken);
-      await signInWithCredential(getFirebaseAuth(), webCred);
-      return;
-    } catch (error) {
-      // Fallback: if the Capacitor plugin is missing/unavailable, use web OAuth.
-      // This is important for WKWebView builds that temporarily ship without the plugin.
-      await WebAuth.signInGoogle(next);
-      return;
-    }
+const NativeAuth: AuthFacade = {
+  async signInGoogle() {
+    // Non-negotiable: do NOT run web popup/redirect OAuth inside WKWebView.
+    // To ship quickly and comply with App Store review, we use email/password on iOS for now.
+    throw new Error("Google sign-in is not available on iOS. Use email/password.");
   },
-  async signInApple(next) {
-    try {
-      const { FirebaseAuthentication } = await import(
-        "@capacitor-firebase/authentication"
-      );
-      const result = await FirebaseAuthentication.signInWithApple();
-      const nativeCred = result?.credential;
-      const idToken = nativeCred?.idToken ?? undefined;
-      const rawNonce = nativeCred?.nonce ?? undefined;
-      const accessToken = nativeCred?.accessToken ?? undefined;
-      if (!idToken) {
-        throw new Error("Native Apple sign-in did not return an idToken.");
-      }
-      const provider = new OAuthProvider("apple.com");
-      const webCred = provider.credential({
-        idToken,
-        rawNonce,
-        accessToken,
-      } as any);
-      await signInWithCredential(getFirebaseAuth(), webCred);
-      return;
-    } catch (error) {
-      // Fallback: web OAuth redirect flow.
-      await WebAuth.signInApple(next);
-      return;
-    }
+  async signInApple() {
+    // Non-negotiable: do NOT run web redirect OAuth inside WKWebView.
+    throw new Error("Apple sign-in is not available on iOS. Use email/password.");
+  },
+  async signInEmailPassword(email, password) {
+    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+  },
+  async signUpEmailPassword(email, password) {
+    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
   },
   async signOut() {
-    // When native auth is implemented, this should sign out both:
-    // - the native provider session
-    // - Firebase Auth session
-    try {
-      const { FirebaseAuthentication } = await import(
-        "@capacitor-firebase/authentication"
-      );
-      await FirebaseAuthentication.signOut().catch(() => undefined);
-    } catch {
-      // ignore plugin issues; still sign out web session
-    }
+    // Ensure Firebase session is cleared even if native provider sessions exist.
+    await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
     await signOutAll();
   },
   getCurrentUser() {
     return getCachedAuth()?.currentUser ?? null;
+  },
+  onCurrentUserChanged(cb) {
+    return onAuthStateChanged(getFirebaseAuth(), cb);
   },
 };
 
 function impl(): AuthFacade {
-  // Prefer native auth in Capacitor, but keep a safe fallback inside each method.
-  return isNativeCapacitor() ? CapacitorAuth : WebAuth;
+  return isNativeCapacitor() ? NativeAuth : WebAuth;
 }
 
 export function signInGoogle(next?: string | null) {
@@ -113,11 +85,23 @@ export function signInApple(next?: string | null) {
   return impl().signInApple(next);
 }
 
+export function signInEmailPassword(email: string, password: string) {
+  return impl().signInEmailPassword(email, password);
+}
+
+export function signUpEmailPassword(email: string, password: string) {
+  return impl().signUpEmailPassword(email, password);
+}
+
 export function signOut() {
   return impl().signOut();
 }
 
 export function getCurrentUser() {
   return impl().getCurrentUser();
+}
+
+export function onCurrentUserChanged(cb: (user: User | null) => void) {
+  return impl().onCurrentUserChanged(cb);
 }
 

@@ -271,6 +271,7 @@ let authPersistenceMode: AuthPersistenceMode = "unknown";
 let persistenceReady: Promise<AuthPersistenceMode> | null = null;
 let authInstance: Auth | null = null;
 let nativeAuthPersistenceMode: AuthPersistenceMode | null = null;
+export let auth: Auth | null = null;
 
 function initializeNativeAuth(app: FirebaseApp): Auth {
   // Native Capacitor: opt into initializeAuth with explicit persistence only.
@@ -330,10 +331,9 @@ export function getFirebaseAuth(): Auth {
   if (authInstance) return authInstance;
   const app = getFirebaseApp();
   authInstance = isNative() ? initializeNativeAuth(app) : getAuth(app);
+  auth = authInstance;
   return authInstance;
 }
-
-export const auth: Auth = getFirebaseAuth();
 
 export function getAuthPersistenceMode(): AuthPersistenceMode {
   return authPersistenceMode;
@@ -341,7 +341,6 @@ export function getAuthPersistenceMode(): AuthPersistenceMode {
 
 export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
   if (persistenceReady) return persistenceReady;
-  const auth = getFirebaseAuth();
   if (isNative()) {
     // Native builds rely on initializeAuth; do not trigger web popup/redirect plumbing.
     authPersistenceMode =
@@ -349,6 +348,7 @@ export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
     persistenceReady = Promise.resolve(authPersistenceMode);
     return persistenceReady;
   }
+  const auth = getFirebaseAuth();
   // Prefer IndexedDB on iOS Safari (more reliable than localStorage with ITP).
   persistenceReady = (async () => {
     try {

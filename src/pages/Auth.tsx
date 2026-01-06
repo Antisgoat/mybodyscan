@@ -24,6 +24,7 @@ import {
   hasFirebaseConfig,
   getFirebaseAuth,
 } from "@/lib/firebase";
+import { isNativeCapacitor } from "@/lib/platform";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
 import {
   getIdentityToolkitProbeStatus,
@@ -58,6 +59,7 @@ const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const Auth = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const native = isNativeCapacitor();
   const from = (location.state as any)?.from || "/home";
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -84,7 +86,6 @@ const Auth = () => {
   const demoEnabled =
     demoEnv !== "false" && import.meta.env.VITE_ENABLE_DEMO !== "false";
   const firebaseInitError = useMemo(() => getFirebaseInitError(), []);
-  const authClient = useMemo(() => getFirebaseAuth(), []);
   const onBrowseDemo = useCallback(() => {
     enableDemo();
     navigate("/demo", { replace: false });
@@ -187,6 +188,7 @@ const Auth = () => {
     try {
       setAuthError(null);
       if (mode === "signin") {
+        const authClient = getFirebaseAuth();
         try {
           await signInWithEmailAndPassword(authClient, email, password);
           return;
@@ -261,6 +263,12 @@ const Auth = () => {
   };
 
   const handleGoogleSignIn = useCallback(async () => {
+    if (native) {
+      setAuthError(
+        "Google sign-in is available on web. On iOS, please use email/password for now."
+      );
+      return;
+    }
     setAuthError(null);
     setLoading(true);
     setLastOAuthProvider("google.com");
@@ -287,9 +295,15 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [defaultTarget, native]);
 
   const handleAppleSignIn = useCallback(async () => {
+    if (native) {
+      setAuthError(
+        "Apple sign-in is available on web. On iOS, please use email/password for now."
+      );
+      return;
+    }
     setAuthError(null);
     setLoading(true);
     setLastOAuthProvider("apple.com");
@@ -316,7 +330,7 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
-  }, [defaultTarget]);
+  }, [defaultTarget, native]);
 
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin =
@@ -520,7 +534,13 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {ENABLE_GOOGLE && (
+            {native ? (
+              <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                Google/Apple sign-in is available on web. On iOS, please use
+                email/password for now.
+              </div>
+            ) : null}
+            {!native && ENABLE_GOOGLE && (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -531,7 +551,7 @@ const Auth = () => {
                 Continue with Google
               </button>
             )}
-            {ENABLE_APPLE && (
+            {!native && ENABLE_APPLE && (
               <button
                 type="button"
                 onClick={handleAppleSignIn}

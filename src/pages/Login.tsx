@@ -6,9 +6,11 @@ import { disableDemoEverywhere, enableDemo } from "@/state/demo";
 import { useAuthUser } from "@/lib/auth";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 import { reportError } from "@/lib/telemetry";
+import { isNativeCapacitor } from "@/lib/platform";
 
 export default function Login() {
   const location = useLocation();
+  const native = isNativeCapacitor();
   const from = (location.state as { from?: string } | null)?.from;
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -56,7 +58,7 @@ export default function Login() {
       return undefined;
     }
 
-    if (authReady && (user || auth.currentUser)) {
+    if (authReady && (user || auth?.currentUser)) {
       finish();
     }
     return undefined;
@@ -100,7 +102,14 @@ export default function Login() {
     <div className="mx-auto max-w-sm p-6">
       <h1 className="mb-4 text-2xl font-bold">Sign in</h1>
 
-      {providerFlags.google && (
+      {native && (
+        <p className="mb-3 text-sm text-gray-600">
+          Google/Apple sign-in is available on web. On iOS, please use
+          email/password for now.
+        </p>
+      )}
+
+      {!native && providerFlags.google && (
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
@@ -112,7 +121,7 @@ export default function Login() {
         </button>
       )}
 
-      {providerFlags.apple && (
+      {!native && providerFlags.apple && (
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
