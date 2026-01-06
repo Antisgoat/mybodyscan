@@ -1,13 +1,8 @@
-import type { Unsubscribe, User } from "firebase/auth";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-} from "firebase/auth";
+type Unsubscribe = () => void;
+type User = import("firebase/auth").User;
 import { getCachedAuth, signOutAll } from "@/lib/auth";
 import { isNativeCapacitor } from "@/lib/platform";
-import { getFirebaseAuth } from "@/lib/firebase";
+import { requireAuth } from "@/lib/firebase";
 
 type AuthFacade = {
   signInGoogle(next?: string | null): Promise<void>;
@@ -29,10 +24,14 @@ const WebAuth: AuthFacade = {
     await signInWithApple(next);
   },
   async signInEmailPassword(email, password) {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const auth = await requireAuth();
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    await signInWithEmailAndPassword(auth, email, password);
   },
   async signUpEmailPassword(email, password) {
-    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const auth = await requireAuth();
+    const { createUserWithEmailAndPassword } = await import("firebase/auth");
+    await createUserWithEmailAndPassword(auth, email, password);
   },
   async signOut() {
     await signOutAll();
@@ -41,7 +40,22 @@ const WebAuth: AuthFacade = {
     return getCachedAuth()?.currentUser ?? null;
   },
   onCurrentUserChanged(cb) {
-    return onAuthStateChanged(getFirebaseAuth(), cb);
+    let cancelled = false;
+    let unsub: Unsubscribe | null = null;
+    void (async () => {
+      try {
+        const auth = await requireAuth();
+        if (cancelled) return;
+        const { onAuthStateChanged } = await import("firebase/auth");
+        unsub = onAuthStateChanged(auth, cb);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsub) unsub();
+    };
   },
 };
 
@@ -56,21 +70,46 @@ const NativeAuth: AuthFacade = {
     throw new Error("Apple sign-in is not available on iOS. Use email/password.");
   },
   async signInEmailPassword(email, password) {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const auth = await requireAuth();
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    await signInWithEmailAndPassword(auth, email, password);
   },
   async signUpEmailPassword(email, password) {
-    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const auth = await requireAuth();
+    const { createUserWithEmailAndPassword } = await import("firebase/auth");
+    await createUserWithEmailAndPassword(auth, email, password);
   },
   async signOut() {
     // Ensure Firebase session is cleared even if native provider sessions exist.
-    await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
+    try {
+      const auth = await requireAuth();
+      const { signOut } = await import("firebase/auth");
+      await signOut(auth);
+    } catch {
+      // ignore
+    }
     await signOutAll();
   },
   getCurrentUser() {
     return getCachedAuth()?.currentUser ?? null;
   },
   onCurrentUserChanged(cb) {
-    return onAuthStateChanged(getFirebaseAuth(), cb);
+    let cancelled = false;
+    let unsub: Unsubscribe | null = null;
+    void (async () => {
+      try {
+        const auth = await requireAuth();
+        if (cancelled) return;
+        const { onAuthStateChanged } = await import("firebase/auth");
+        unsub = onAuthStateChanged(auth, cb);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsub) unsub();
+    };
   },
 };
 

@@ -54,7 +54,6 @@
     "storage:cors:get": "bash scripts/storage-cors-get.sh"
   },
   "dependencies": {
-    "@firebase/auth": "1.10.8",
     "@capacitor-firebase/authentication": "^6.3.1",
     "@capacitor/app": "^6.0.3",
     "@capacitor/browser": "^6.0.6",

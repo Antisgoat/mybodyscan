@@ -21,7 +21,7 @@ import {
   firebaseConfigWarningKeys,
   getFirebaseInitError,
   hasFirebaseConfig,
-  getFirebaseAuth,
+  requireAuth,
 } from "@/lib/firebase";
 import { isNativeCapacitor } from "@/lib/platform";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
@@ -33,7 +33,6 @@ import {
 import { toast } from "@/lib/toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
 
@@ -195,8 +194,9 @@ const Auth = () => {
     try {
       setAuthError(null);
       if (mode === "signin") {
-        const authClient = getFirebaseAuth();
+        const authClient = await requireAuth();
         try {
+          const { signInWithEmailAndPassword } = await import("firebase/auth");
           await signInWithEmailAndPassword(authClient, email, password);
           return;
         } catch (err: unknown) {

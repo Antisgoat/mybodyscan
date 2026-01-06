@@ -1,7 +1,6 @@
 import { env } from "@/env";
 import type { FirebaseApp, FirebaseOptions } from "firebase/app";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import type { Auth } from "firebase/auth";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
@@ -255,9 +254,9 @@ export type AuthPersistenceMode =
   | "unknown";
 let authPersistenceMode: AuthPersistenceMode = "unknown";
 let persistenceReady: Promise<AuthPersistenceMode> | null = null;
-export let auth: Auth | null = null;
+export let auth: import("firebase/auth").Auth | null = null;
 
-export async function getFirebaseAuth(): Promise<Auth> {
+export async function getFirebaseAuth(): Promise<import("firebase/auth").Auth> {
   if (auth) return auth;
   const { getAuth, initializeAuth, inMemoryPersistence } = await import(
     "firebase/auth"
@@ -273,7 +272,7 @@ export async function getFirebaseAuth(): Promise<Auth> {
   return auth;
 }
 
-export async function requireAuth(): Promise<Auth> {
+export async function requireAuth(): Promise<import("firebase/auth").Auth> {
   return await getFirebaseAuth();
 }
 

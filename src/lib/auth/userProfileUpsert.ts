@@ -1,8 +1,9 @@
-import type { User } from "firebase/auth";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
 import { setDoc, updateDoc } from "@/lib/dbWrite";
+
+type User = import("firebase/auth").User;
 
 type UpsertUserFields = {
   createdAt?: unknown;

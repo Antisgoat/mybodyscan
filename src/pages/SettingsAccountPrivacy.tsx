@@ -1,20 +1,13 @@
 import { useEffect, useState } from "react";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { auth } from "@/lib/firebase";
-import {
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  reauthenticateWithPopup,
-  reauthenticateWithRedirect,
-  GoogleAuthProvider,
-  signOut,
-  type User,
-} from "firebase/auth";
+import { requireAuth } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
 import { isIOSWebKit } from "@/lib/ua";
 import { isNative } from "@/lib/platform";
+
+type User = import("firebase/auth").User;
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -38,6 +31,13 @@ export default function SettingsAccountPrivacyPage() {
         "Re-authentication via web popup/redirect is not available on native builds."
       );
     }
+    const {
+      EmailAuthProvider,
+      GoogleAuthProvider,
+      reauthenticateWithCredential,
+      reauthenticateWithPopup,
+      reauthenticateWithRedirect,
+    } = await import("firebase/auth");
     const p = provider || "";
     if (p.includes("password")) {
       if (!password) throw new Error("Please enter your password");
@@ -82,6 +82,8 @@ export default function SettingsAccountPrivacyPage() {
       }
 
       setMsg("Account deleted.");
+      const auth = await requireAuth();
+      const { signOut } = await import("firebase/auth");
       await signOut(auth);
       nav("/auth");
     } catch (e: any) {

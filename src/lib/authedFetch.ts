@@ -10,7 +10,7 @@ export async function authedJsonPost<T>(
   body: unknown,
   options: AuthedJsonOptions = {}
 ): Promise<T> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser ?? null;
   const idToken = user ? await user.getIdToken() : null;
   const headers = new Headers({ "Content-Type": "application/json" });
   if (idToken) {

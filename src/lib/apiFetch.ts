@@ -21,7 +21,7 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   }
 
   try {
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
       const token = await auth.currentUser.getIdToken();
       headers.set("Authorization", `Bearer ${token}`);
     }

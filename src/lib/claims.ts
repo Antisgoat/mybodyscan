@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { auth } from "./firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
 import { bootstrapSystem } from "@/lib/system";
 import { call } from "./callable";
+import { useAuthUser } from "@/lib/auth";
+import { isNative } from "@/lib/platform";
+import { requireAuth } from "@/lib/firebase";
 
 export type UserClaims = {
   dev?: boolean;
@@ -10,7 +11,10 @@ export type UserClaims = {
   [k: string]: unknown;
 } | null;
 
-async function readClaims(u: User | null, force: boolean): Promise<UserClaims> {
+async function readClaims(
+  u: import("firebase/auth").User | null,
+  force: boolean
+): Promise<UserClaims> {
   if (!u) return null;
   try {
     const res = await u.getIdTokenResult(force);
@@ -33,6 +37,10 @@ export async function refreshClaimsAndAdminBoost() {
     console.warn("refreshClaims failed", error);
   }
 
+  if (isNative()) {
+    return { admin: false, unlimited: false } as any;
+  }
+  const auth = await requireAuth().catch(() => null);
   await auth?.currentUser?.getIdToken(true);
 
   const info = await auth?.currentUser?.getIdTokenResult();
@@ -52,7 +60,7 @@ export async function refreshClaimsAndAdminBoost() {
     } catch (error) {
       console.warn("refreshClaims retry failed", error);
     }
-    await auth.currentUser?.getIdToken(true);
+    await auth?.currentUser?.getIdToken(true);
   }
 
   return { admin: isAdmin, unlimited: isUnlimited } as any;
@@ -60,35 +68,45 @@ export async function refreshClaimsAndAdminBoost() {
 
 /** Refresh claims on the current user. Force defaults to true for compatibility. */
 export async function fetchClaims(force = true): Promise<UserClaims> {
+  if (isNative()) return null;
+  const auth = await requireAuth().catch(() => null);
   const u = auth?.currentUser ?? null;
   return await readClaims(u, force);
 }
 
 /** React hook to expose current user + claims with a refresh() helper. */
 export function useClaims(): {
-  user: User | null;
+  user: import("firebase/auth").User | null;
   claims: UserClaims;
   loading: boolean;
   refresh: (force?: boolean) => Promise<UserClaims>;
 } {
-  const [user, setUser] = useState<User | null>(auth?.currentUser ?? null);
+  const { user, authReady } = useAuthUser();
   const [claims, setClaims] = useState<UserClaims>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const lastUidRef = useRef<string | null>(auth?.currentUser?.uid ?? null);
+  const lastUidRef = useRef<string | null>(user?.uid ?? null);
   const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    if (!auth) {
-      setLoading(false);
-      setUser(null);
-      return undefined;
-    }
-
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!alive) return;
-      setUser(u);
+    if (!authReady) {
       setLoading(true);
+      return () => {
+        alive = false;
+      };
+    }
+    // Native builds: do not query token claims at boot.
+    if (isNative()) {
+      setLoading(false);
+      setClaims(null);
+      return () => {
+        alive = false;
+      };
+    }
+    void (async () => {
+      if (!alive) return;
+      setLoading(true);
+      const u = user ?? null;
       const currentUid = u?.uid ?? null;
       const shouldForce =
         currentUid != null && lastUidRef.current !== currentUid;
@@ -127,13 +145,13 @@ export function useClaims(): {
     });
     return () => {
       alive = false;
-      unsub();
     };
-  }, []);
+  }, [authReady, user]);
 
   const refresh = useMemo(() => {
     return async (force = true) => {
-      const u = auth?.currentUser;
+      if (isNative()) return null;
+      const u = user ?? null;
       setLoading(true);
       const c = await readClaims(u, force);
       if (force && u?.uid) {
@@ -161,7 +179,7 @@ export function useClaims(): {
       }
       return c;
     };
-  }, []);
+  }, [user]);
 
   return { user, claims, loading, refresh };
 }

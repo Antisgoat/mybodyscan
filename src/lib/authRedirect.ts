@@ -1,12 +1,5 @@
 import type { FirebaseError } from "firebase/app";
-import {
-  getAdditionalUserInfo,
-  getRedirectResult,
-  type UserCredential,
-  updateProfile,
-  type Auth,
-} from "firebase/auth";
-import { firebaseReady, getFirebaseAuth } from "./firebase";
+import { firebaseReady, requireAuth } from "./firebase";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
 import { isNative } from "@/lib/platform";
@@ -18,7 +11,7 @@ const BENIGN_ERRORS = new Set([
 ]);
 
 type AuthRedirectOutcome = {
-  result: UserCredential | null;
+  result: import("firebase/auth").UserCredential | null;
   error: FirebaseError | null;
   normalizedError: NormalizedAuthError | null;
 };
@@ -61,15 +54,17 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     cachedOutcome = outcome;
     return outcome;
   }
-  let auth: Auth | null = null;
+  let auth: import("firebase/auth").Auth | null = null;
   try {
     await firebaseReady();
-    auth = getFirebaseAuth();
+    auth = await requireAuth();
     authEvent("auth_redirect_result", { phase: "start" });
+    const { getRedirectResult } = await import("firebase/auth");
     const result = await getRedirectResult(auth);
     if (result) {
       await maybeApplyAppleProfile(result);
     }
+    const { getAdditionalUserInfo } = await import("firebase/auth");
     const info = result ? getAdditionalUserInfo(result) : null;
     authEvent("auth_redirect_result", {
       phase: "done",
@@ -112,7 +107,7 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     let normalized: NormalizedAuthError | null = null;
     if (fbError) {
       try {
-        auth ??= getFirebaseAuth();
+        auth ??= await requireAuth();
         normalized = await describeAuthErrorAsync(auth, fbError);
       } catch (normalizeError) {
         if (import.meta.env.DEV) {
@@ -188,8 +183,11 @@ type AppleAdditionalProfile = {
   lastName?: string;
 };
 
-async function maybeApplyAppleProfile(result: UserCredential | null) {
+async function maybeApplyAppleProfile(
+  result: import("firebase/auth").UserCredential | null
+) {
   if (!result) return;
+  const { getAdditionalUserInfo, updateProfile } = await import("firebase/auth");
   const info = getAdditionalUserInfo(result);
   if (info?.providerId !== APPLE_PROVIDER_ID) return;
   if (!info.isNewUser || !result.user || result.user.displayName) return;

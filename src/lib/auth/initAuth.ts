@@ -54,6 +54,7 @@ export async function initAuth(): Promise<void> {
       }
     }
 
+    // On native boot, auth is intentionally not initialized.
     await startAuthListener().catch(() => undefined);
     state.completed = true;
     void reportError({
