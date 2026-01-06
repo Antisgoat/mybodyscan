@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GoogleAuthProvider } from "firebase/auth";
 import { Copy, ExternalLink, RefreshCw, RotateCcw, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -290,7 +289,8 @@ const UATPage = () => {
   const handleGoogleProbe = useCallback(async () => {
     await googleProbe.run(async () => {
       await firebaseReady();
-      const authInstance = getFirebaseAuth();
+      const authInstance = await getFirebaseAuth();
+      const { GoogleAuthProvider } = await import("firebase/auth");
       const provider = new GoogleAuthProvider();
       const redirectCapable =
         typeof window !== "undefined" && typeof window.location !== "undefined";
@@ -326,7 +326,7 @@ const UATPage = () => {
   const { toast } = useToast();
 
   const authHeaders = useCallback(async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = auth?.currentUser ?? null;
     if (!currentUser) {
       throw Object.assign(new Error("auth_required"), {
         code: "auth_required",

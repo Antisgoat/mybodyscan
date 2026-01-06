@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { loadStripe } from "@stripe/stripe-js";
 import { startCheckout } from "@/lib/api/billing";
@@ -8,6 +7,7 @@ import { openExternalUrl } from "@/lib/platform";
 import { auth, db } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 import { Navigate } from "react-router-dom";
+import { useAuthUser } from "@/lib/auth";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -28,6 +28,7 @@ export default function Billing() {
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { user, authReady } = useAuthUser();
   const stripePromise = useMemo(() => {
     const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
     return key ? loadStripe(key) : null;
@@ -35,30 +36,23 @@ export default function Billing() {
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
-    if (!auth) {
-      setUid(null);
-      setCredits(null);
-      return undefined;
+    const nextUid = authReady ? (user?.uid ?? null) : null;
+    setUid(nextUid);
+    if (unsubscribeDoc) {
+      unsubscribeDoc();
+      unsubscribeDoc = undefined;
     }
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setUid(user?.uid || null);
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = undefined;
-      }
-      if (user?.uid && db) {
-        unsubscribeDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
-          setCredits((snap.data()?.credits as number) ?? 0);
-        });
-      } else {
-        setCredits(null);
-      }
-    });
+    if (nextUid && db) {
+      unsubscribeDoc = onSnapshot(doc(db, "users", nextUid), (snap) => {
+        setCredits((snap.data()?.credits as number) ?? 0);
+      });
+    } else {
+      setCredits(null);
+    }
     return () => {
       if (unsubscribeDoc) unsubscribeDoc();
-      unsubscribeAuth();
     };
-  }, []);
+  }, [authReady, user?.uid]);
 
   async function go<T>(fn: () => Promise<T>) {
     setBusy(true);

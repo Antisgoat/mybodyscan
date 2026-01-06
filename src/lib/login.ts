@@ -1,8 +1,4 @@
 import type { Auth } from "firebase/auth";
-import {
-  fetchSignInMethodsForEmail,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
 
@@ -80,7 +76,8 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
 export async function emailPasswordSignIn(email: string, password: string) {
   try {
     await firebaseReady();
-    const auth = getFirebaseAuth();
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await getFirebaseAuth();
     await signInWithEmailAndPassword(auth, email, password);
     return { ok: true as const };
   } catch (e) {
@@ -105,13 +102,13 @@ export async function googleSignIn(auth: Auth) {
 
 export async function googleSignInWithFirebase() {
   await firebaseReady();
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   return googleSignIn(auth);
 }
 
 export async function appleSignIn() {
   await firebaseReady();
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   try {
     await signInApple();
     return { ok: true as const };
@@ -179,6 +176,7 @@ async function buildAccountExistsMessage(
   }
 
   try {
+    const { fetchSignInMethodsForEmail } = await import("firebase/auth");
     const methods = await fetchSignInMethodsForEmail(auth, email);
     if (!Array.isArray(methods) || methods.length === 0) {
       return fallback;

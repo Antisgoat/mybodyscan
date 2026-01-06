@@ -1,15 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { auth } from "@/lib/firebase";
-import {
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  reauthenticateWithPopup,
-  reauthenticateWithRedirect,
-  GoogleAuthProvider,
-  signOut,
-  type User,
-} from "firebase/auth";
+import type { User } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
@@ -41,12 +33,20 @@ export default function SettingsAccountPrivacyPage() {
     const p = provider || "";
     if (p.includes("password")) {
       if (!password) throw new Error("Please enter your password");
+      const { EmailAuthProvider, reauthenticateWithCredential } = await import(
+        "firebase/auth"
+      );
       const cred = EmailAuthProvider.credential(
         currentUser.email || "",
         password
       );
       await reauthenticateWithCredential(currentUser, cred);
     } else if (p.includes("google")) {
+      const {
+        GoogleAuthProvider,
+        reauthenticateWithPopup,
+        reauthenticateWithRedirect,
+      } = await import("firebase/auth");
       const provider = new GoogleAuthProvider();
       // iOS Safari/WebKit popups are unreliable; prefer redirect reauth.
       if (isIOSWebKit()) {
@@ -82,7 +82,10 @@ export default function SettingsAccountPrivacyPage() {
       }
 
       setMsg("Account deleted.");
-      await signOut(auth);
+      if (auth) {
+        const { signOut } = await import("firebase/auth");
+        await signOut(auth);
+      }
       nav("/auth");
     } catch (e: any) {
       setErr(e?.message || "Could not delete account");

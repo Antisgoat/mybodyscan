@@ -55,7 +55,7 @@ export async function fnJson<T = unknown>(
     signal?: AbortSignal;
   } = {}
 ): Promise<T> {
-  const user = auth.currentUser;
+  const user = auth?.currentUser ?? null;
   if (!user) {
     const err: FnCallError = new Error("auth_required");
     err.status = 401;

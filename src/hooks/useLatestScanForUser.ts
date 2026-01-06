@@ -6,10 +6,11 @@ import {
   limit,
   collection,
 } from "firebase/firestore";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import type { User } from "firebase/auth";
+import { db } from "@/lib/firebase";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
+import { useAuthUser } from "@/lib/auth";
 
 type ScanData = {
   id: string;
@@ -31,32 +32,23 @@ export function useLatestScanForUser() {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const { user, authReady } = useAuthUser();
 
   useEffect(() => {
-    if (!firebaseAuth) {
-      setLoading(false);
-      setError("auth_unavailable");
-      return undefined;
+    if (!authReady) {
+      setLoading(true);
+      return;
     }
-
-    const unsubAuth = onAuthStateChanged(firebaseAuth, (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
-        if (isDemo()) {
-          setScan(demoLatestScan as unknown as ScanData);
-        } else {
-          setScan(null);
-        }
-        setLoading(false);
-        setError(null);
+    if (!user) {
+      if (isDemo()) {
+        setScan(demoLatestScan as unknown as ScanData);
+      } else {
+        setScan(null);
       }
-    });
-
-    return () => {
-      unsubAuth();
-    };
-  }, []);
+      setLoading(false);
+      setError(null);
+    }
+  }, [authReady, user]);
 
   useEffect(() => {
     if (!user) {

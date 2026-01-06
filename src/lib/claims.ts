@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { auth } from "./firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import type { User } from "firebase/auth";
+import { auth, requireAuth } from "./firebase";
 import { bootstrapSystem } from "@/lib/system";
 import { call } from "./callable";
+import { useAuthUser } from "@/lib/auth";
 
 export type UserClaims = {
   dev?: boolean;
@@ -33,14 +34,15 @@ export async function refreshClaimsAndAdminBoost() {
     console.warn("refreshClaims failed", error);
   }
 
-  await auth?.currentUser?.getIdToken(true);
+  const a = auth ?? (await requireAuth().catch(() => null));
+  await a?.currentUser?.getIdToken(true);
 
-  const info = await auth?.currentUser?.getIdTokenResult();
+  const info = await a?.currentUser?.getIdTokenResult();
   const isAdmin = !!info?.claims?.admin;
   const isUnlimited =
     !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
 
-  const email = auth?.currentUser?.email || "";
+  const email = a?.currentUser?.email || "";
   if (!isUnlimited && email.toLowerCase() === "developer@adlrlabs.com") {
     try {
       await call("grantUnlimitedCredits");
@@ -52,7 +54,7 @@ export async function refreshClaimsAndAdminBoost() {
     } catch (error) {
       console.warn("refreshClaims retry failed", error);
     }
-    await auth.currentUser?.getIdToken(true);
+    await a?.currentUser?.getIdToken(true);
   }
 
   return { admin: isAdmin, unlimited: isUnlimited } as any;
@@ -60,7 +62,8 @@ export async function refreshClaimsAndAdminBoost() {
 
 /** Refresh claims on the current user. Force defaults to true for compatibility. */
 export async function fetchClaims(force = true): Promise<UserClaims> {
-  const u = auth?.currentUser ?? null;
+  const a = auth ?? (await requireAuth().catch(() => null));
+  const u = a?.currentUser ?? null;
   return await readClaims(u, force);
 }
 
@@ -71,69 +74,67 @@ export function useClaims(): {
   loading: boolean;
   refresh: (force?: boolean) => Promise<UserClaims>;
 } {
-  const [user, setUser] = useState<User | null>(auth?.currentUser ?? null);
+  const { user, authReady } = useAuthUser();
   const [claims, setClaims] = useState<UserClaims>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const lastUidRef = useRef<string | null>(auth?.currentUser?.uid ?? null);
+  const [loading, setLoading] = useState<boolean>(!authReady);
+  const lastUidRef = useRef<string | null>(user?.uid ?? null);
   const bootstrappedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    if (!auth) {
-      setLoading(false);
-      setUser(null);
-      return undefined;
-    }
-
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!alive) return;
-      setUser(u);
-      setLoading(true);
-      const currentUid = u?.uid ?? null;
-      const shouldForce =
-        currentUid != null && lastUidRef.current !== currentUid;
-      const c = await readClaims(u, shouldForce);
-      if (!alive) return;
-      lastUidRef.current = currentUid;
-      setClaims(c);
-      setLoading(false);
-
-      if (u?.uid) {
-        if (bootstrappedRef.current !== u.uid) {
-          bootstrappedRef.current = u.uid;
-          void (async () => {
-            try {
-              const result = await bootstrapSystem();
-              if (!result) return;
-              if (result.claimsUpdated) {
-                await u.getIdToken(true);
-                const refreshed = await readClaims(u, true);
-                if (!alive) return;
-                lastUidRef.current = u.uid;
-                setClaims(refreshed);
-              } else if (typeof result.credits === "number") {
-                setClaims((prev) =>
-                  prev ? { ...prev, credits: result.credits } : prev
-                );
-              }
-            } catch (error) {
-              console.error("claims_bootstrap_error", error);
-            }
-          })();
-        }
-      } else {
-        bootstrappedRef.current = null;
-      }
-    });
     return () => {
       alive = false;
-      unsub();
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      if (!authReady) {
+        setLoading(true);
+        return;
+      }
+      if (!user) {
+        bootstrappedRef.current = null;
+        lastUidRef.current = null;
+        setClaims(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const shouldForce = lastUidRef.current !== user.uid;
+      const c = await readClaims(user, shouldForce);
+      if (!alive) return;
+      lastUidRef.current = user.uid;
+      setClaims(c);
+      setLoading(false);
+
+      if (bootstrappedRef.current === user.uid) return;
+      bootstrappedRef.current = user.uid;
+      try {
+        const result = await bootstrapSystem();
+        if (!result) return;
+        if (result.claimsUpdated) {
+          await user.getIdToken(true);
+          const refreshed = await readClaims(user, true);
+          if (!alive) return;
+          setClaims(refreshed);
+        } else if (typeof result.credits === "number") {
+          setClaims((prev) => (prev ? { ...prev, credits: result.credits } : prev));
+        }
+      } catch (error) {
+        console.error("claims_bootstrap_error", error);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [authReady, user]);
+
   const refresh = useMemo(() => {
     return async (force = true) => {
-      const u = auth?.currentUser;
+      const u = user;
       setLoading(true);
       const c = await readClaims(u, force);
       if (force && u?.uid) {
@@ -161,7 +162,7 @@ export function useClaims(): {
       }
       return c;
     };
-  }, []);
+  }, [user]);
 
-  return { user, claims, loading, refresh };
+  return { user: authReady ? user : null, claims, loading: !authReady || loading, refresh };
 }

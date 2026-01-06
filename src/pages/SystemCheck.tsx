@@ -9,8 +9,8 @@ import {
   cameraReadyOnThisDevice,
   hasGetUserMedia,
   isSecureContextOrLocal,
-  isNativeCapacitor,
 } from "@/lib/platform";
+import { isNative } from "@/lib/platform";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { Badge } from "@/components/ui/badge";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
@@ -119,7 +119,7 @@ export default function SystemCheckPage() {
 
   const envRows = [
     ["User", user ? user.uid : "(signed out)"],
-    ["Capacitor Native", String(isNativeCapacitor())],
+    ["Capacitor Native", String(isNative())],
     ["Secure Context / Localhost", String(isSecureContextOrLocal())],
     ["getUserMedia()", String(hasGetUserMedia())],
     ["Camera Ready", String(cameraReadyOnThisDevice())],

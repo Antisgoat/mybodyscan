@@ -6,18 +6,10 @@ import {
   hasFirebaseConfig,
 } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
-import {
-  Auth,
-  createUserWithEmailAndPassword,
-  EmailAuthProvider,
-  linkWithCredential,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  signOut,
-  updateProfile,
-} from "firebase/auth";
+import type { Auth, Unsubscribe } from "firebase/auth";
 import { DEMO_SESSION_KEY } from "@/lib/demoFlag";
 import { call } from "@/lib/callable";
+import { isNative } from "@/lib/platform";
 
 type AuthSnapshot = {
   user: Auth["currentUser"] | null;
@@ -27,7 +19,7 @@ type AuthSnapshot = {
 export type AuthPhase = "booting" | "signedOut" | "signedIn";
 
 const shouldInitializeAuth =
-  typeof window !== "undefined" && Boolean(hasFirebaseConfig);
+  typeof window !== "undefined" && Boolean(hasFirebaseConfig) && !isNative();
 
 // IMPORTANT: do not initialize Firebase Auth at module import time.
 // Auth is lazily initialized when the first subscriber attaches.
@@ -42,6 +34,7 @@ let cachedSnapshot: AuthSnapshot = {
   user: authReadyFlag ? cachedUser : null,
   authReady: authReadyFlag,
 };
+let authListenerInitStarted = false;
 
 function notifyAuthSubscribers() {
   authListeners.forEach((listener) => {
@@ -129,24 +122,52 @@ function handleUserChange(nextUser: Auth["currentUser"] | null): boolean {
 }
 
 function ensureAuthListener() {
-  if (unsubscribeAuthListener) return;
-  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
-  if (!auth) return;
+  if (unsubscribeAuthListener || authListenerInitStarted) return;
+
+  // Native builds: do not import/init Firebase Auth on boot.
+  if (!shouldInitializeAuth) {
+    authReadyFlag = true;
+    updateAuthSnapshot();
+    return;
+  }
+
+  authListenerInitStarted = true;
   if (!firstAuthEventPromise) {
     firstAuthEventPromise = new Promise<void>((resolve) => {
       firstAuthEventResolve = resolve;
     });
   }
-  unsubscribeAuthListener = onAuthStateChanged(auth, (user) => {
-    const snapshotChanged = handleUserChange(user);
-    if (snapshotChanged) {
+
+  void (async () => {
+    try {
+      const auth = firebaseAuth ?? (hasFirebaseConfig ? await getFirebaseAuth() : null);
+      if (!auth) return;
+      const { onAuthStateChanged } = await import("firebase/auth");
+      unsubscribeAuthListener = onAuthStateChanged(auth, (user) => {
+        const snapshotChanged = handleUserChange(user);
+        if (snapshotChanged) {
+          notifyAuthSubscribers();
+        }
+        if (firstAuthEventResolve) {
+          firstAuthEventResolve();
+          firstAuthEventResolve = null;
+        }
+      });
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[auth] failed to start auth listener", error);
+      }
+      authReadyFlag = true;
+      updateAuthSnapshot();
       notifyAuthSubscribers();
+      if (firstAuthEventResolve) {
+        firstAuthEventResolve();
+        firstAuthEventResolve = null;
+      }
+    } finally {
+      authListenerInitStarted = false;
     }
-    if (firstAuthEventResolve) {
-      firstAuthEventResolve();
-      firstAuthEventResolve = null;
-    }
-  });
+  })();
 }
 
 /**
@@ -191,7 +212,7 @@ function updateAuthSnapshot(): boolean {
 }
 
 async function ensureFirebaseAuth(): Promise<Auth> {
-  const auth = firebaseAuth ?? (hasFirebaseConfig ? getFirebaseAuth() : null);
+  const auth = firebaseAuth ?? (hasFirebaseConfig ? await getFirebaseAuth() : null);
   if (!auth) {
     const reason =
       getFirebaseInitError() ||
@@ -228,6 +249,7 @@ export function useAuthPhase(): AuthPhase {
 
 export async function signOutToAuth(): Promise<void> {
   const auth = await ensureFirebaseAuth();
+  const { signOut } = await import("firebase/auth");
   await signOut(auth);
   window.location.href = "/auth";
 }
@@ -238,6 +260,12 @@ export async function createAccountEmail(
   displayName?: string
 ) {
   const auth = await ensureFirebaseAuth();
+  const {
+    createUserWithEmailAndPassword,
+    EmailAuthProvider,
+    linkWithCredential,
+    updateProfile,
+  } = await import("firebase/auth");
   const user = auth.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
   if (user?.isAnonymous) {
@@ -251,13 +279,17 @@ export async function createAccountEmail(
 }
 
 export function sendReset(email: string) {
-  return ensureFirebaseAuth().then((auth) =>
-    sendPasswordResetEmail(auth, email)
-  );
+  return ensureFirebaseAuth().then(async (auth) => {
+    const { sendPasswordResetEmail } = await import("firebase/auth");
+    return sendPasswordResetEmail(auth, email);
+  });
 }
 
 export function signOutAll() {
-  return ensureFirebaseAuth().then((auth) => signOut(auth));
+  return ensureFirebaseAuth().then(async (auth) => {
+    const { signOut } = await import("firebase/auth");
+    return signOut(auth);
+  });
 }
 
 export { isIOSSafari } from "@/lib/isIOSWeb";

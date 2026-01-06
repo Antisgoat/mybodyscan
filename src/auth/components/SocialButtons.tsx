@@ -14,7 +14,7 @@ import {
   googleSignInWithFirebase,
   type NormalizedAuthError,
 } from "@/lib/login";
-import { isNativeCapacitor } from "@/lib/platform";
+import { isNative } from "@/lib/platform";
 
 export type SocialProvider = "google" | "apple";
 
@@ -50,7 +50,7 @@ export function SocialButtons({
   renderGoogle,
   renderApple,
 }: SocialButtonsProps) {
-  const native = useMemo(() => isNativeCapacitor(), []);
+  const native = useMemo(() => isNative(), []);
   const googleEnabled = useMemo(
     () => !native && parseBoolean(import.meta.env.VITE_ENABLE_GOOGLE),
     [native]

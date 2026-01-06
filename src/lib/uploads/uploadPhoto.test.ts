@@ -9,7 +9,7 @@ vi.mock("@/lib/uploads/uploadViaStorage", () => ({
 
 describe("uploadPhoto", () => {
   it("passes retry configuration to the Storage SDK uploader", async () => {
-    const auth = getFirebaseAuth();
+    const auth = await getFirebaseAuth();
     const storageMock = {
       app: { options: { storageBucket: "mybodyscan-f3daf.appspot.com" } },
     } as any;

@@ -1,13 +1,7 @@
 import type { Unsubscribe, User } from "firebase/auth";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-} from "firebase/auth";
 import { getCachedAuth, signOutAll } from "@/lib/auth";
-import { isNativeCapacitor } from "@/lib/platform";
-import { getFirebaseAuth } from "@/lib/firebase";
+import { isNative } from "@/lib/platform";
+import { requireAuth } from "@/lib/firebase";
 
 type AuthFacade = {
   signInGoogle(next?: string | null): Promise<void>;
@@ -29,10 +23,14 @@ const WebAuth: AuthFacade = {
     await signInWithApple(next);
   },
   async signInEmailPassword(email, password) {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await requireAuth();
+    await signInWithEmailAndPassword(auth, email, password);
   },
   async signUpEmailPassword(email, password) {
-    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const { createUserWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await requireAuth();
+    await createUserWithEmailAndPassword(auth, email, password);
   },
   async signOut() {
     await signOutAll();
@@ -41,7 +39,23 @@ const WebAuth: AuthFacade = {
     return getCachedAuth()?.currentUser ?? null;
   },
   onCurrentUserChanged(cb) {
-    return onAuthStateChanged(getFirebaseAuth(), cb);
+    cb(getCachedAuth()?.currentUser ?? null);
+    let unsub: Unsubscribe | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { onAuthStateChanged } = await import("firebase/auth");
+        const auth = await requireAuth();
+        if (cancelled) return;
+        unsub = onAuthStateChanged(auth, cb);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsub) unsub();
+    };
   },
 };
 
@@ -56,26 +70,35 @@ const NativeAuth: AuthFacade = {
     throw new Error("Apple sign-in is not available on iOS. Use email/password.");
   },
   async signInEmailPassword(email, password) {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const { signInWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await requireAuth();
+    await signInWithEmailAndPassword(auth, email, password);
   },
   async signUpEmailPassword(email, password) {
-    await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    const { createUserWithEmailAndPassword } = await import("firebase/auth");
+    const auth = await requireAuth();
+    await createUserWithEmailAndPassword(auth, email, password);
   },
   async signOut() {
-    // Ensure Firebase session is cleared even if native provider sessions exist.
-    await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
+    // Best-effort: only sign out if auth was already initialized.
+    const cached = getCachedAuth();
+    if (cached) {
+      const { signOut: firebaseSignOut } = await import("firebase/auth");
+      await firebaseSignOut(cached).catch(() => undefined);
+    }
     await signOutAll();
   },
   getCurrentUser() {
     return getCachedAuth()?.currentUser ?? null;
   },
   onCurrentUserChanged(cb) {
-    return onAuthStateChanged(getFirebaseAuth(), cb);
+    cb(getCachedAuth()?.currentUser ?? null);
+    return () => undefined;
   },
 };
 
 function impl(): AuthFacade {
-  return isNativeCapacitor() ? NativeAuth : WebAuth;
+  return isNative() ? NativeAuth : WebAuth;
 }
 
 export function signInGoogle(next?: string | null) {
