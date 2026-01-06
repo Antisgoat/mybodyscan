@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
 import { isIOSWebKit } from "@/lib/ua";
+import { isNative } from "@/lib/platform";
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -32,6 +33,11 @@ export default function SettingsAccountPrivacyPage() {
   }, [user, loading, nav]);
 
   async function ensureRecentLogin(currentUser: User) {
+    if (isNative()) {
+      throw new Error(
+        "Re-authentication via web popup/redirect is not available on native builds."
+      );
+    }
     const p = provider || "";
     if (p.includes("password")) {
       if (!password) throw new Error("Please enter your password");

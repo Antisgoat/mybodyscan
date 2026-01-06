@@ -157,7 +157,11 @@ export async function signInWithOAuthProvider(
     authEvent("auth_skip_native", { provider: options.providerId });
     clearPending();
     signInGuard = null;
-    return { user: null, credential: null };
+    const err = new Error(
+      "Web-based OAuth popups/redirects are disabled on native builds. Use native auth plugins instead."
+    );
+    (err as any).code = "auth/native-web-oauth-blocked";
+    throw err;
   }
   if (signInGuard && startedAt - signInGuard.startedAt < MAX_AUTH_WAIT_MS) {
     const err = new Error("Sign-in already in progress.");
