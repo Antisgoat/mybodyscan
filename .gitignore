@@ -24,6 +24,7 @@ dist-ssr
 !ios/**/*.jpg
 !ios/**/*.jpeg
 !ios/**/*.gif
+!ios/**/*.xcassets/**/*
 !resources/**/*.png
 
 # Env files

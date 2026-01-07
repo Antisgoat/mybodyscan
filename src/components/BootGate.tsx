@@ -1,7 +1,6 @@
 import { ReactNode, Suspense, useEffect, useMemo, useState } from "react";
-import { initAuth } from "@/lib/auth/initAuth";
-import { probeFirebaseRuntime } from "@/lib/firebase/runtimeConfig";
 import { logFirebaseConfigSummary, logFirebaseRuntimeInfo } from "@/lib/firebase";
+import { isNative } from "@/lib/platform";
 
 const BOOT_STYLE: Record<string, string | number> = {
   minHeight: "100vh",
@@ -47,10 +46,20 @@ export function BootGate({
       if (!cancelled) setTimedOut(true);
     }, AUTH_BOOT_TIMEOUT_MS);
     void (async () => {
-      await initAuth();
+      // Always safe to log config summary on both web + native.
       logFirebaseConfigSummary();
       logFirebaseRuntimeInfo();
-      void probeFirebaseRuntime();
+
+      // CRITICAL: On native (WKWebView) boot, do not load or execute any web auth/OAuth code.
+      // This prevents issues like "@firebase/auth INTERNAL ASSERTION FAILED" from crashing WKWebView.
+      if (!isNative()) {
+        const [{ initAuth }, { probeFirebaseRuntime }] = await Promise.all([
+          import("@/lib/auth/initAuth"),
+          import("@/lib/firebase/runtimeConfig"),
+        ]);
+        await initAuth();
+        void probeFirebaseRuntime();
+      }
       if (!cancelled) {
         setReady(true);
         setTimedOut(false);
