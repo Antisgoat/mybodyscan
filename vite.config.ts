@@ -96,6 +96,11 @@ export default defineConfig(({ mode }) => ({
       external: [/^functions\/.*/],
       output: {
         manualChunks(id) {
+          // Create a predictable firebase-* chunk for boot greps that is safe.
+          // (The actual Firebase SDK core chunk is named "fb-*".)
+          if (id.includes("/src/lib/firebase/runtimeConfig.ts")) {
+            return "firebase-runtime";
+          }
           if (!id.includes("node_modules")) return;
           // Keep Capacitor (and capacitor-firebase) code out of the eagerly-loaded
           // firebase chunk. Otherwise, Rollup can merge a dynamically imported
@@ -111,10 +116,13 @@ export default defineConfig(({ mode }) => ({
             id.includes("/node_modules/firebase/auth") ||
             id.includes("/node_modules/@firebase/auth")
           ) {
-            return "firebase-auth";
+            // Intentionally not prefixed with "firebase-" so our boot-chunk greps
+            // (firebase-*.js) don't match this optional lazy auth chunk.
+            return "web-auth";
           }
-          if (id.includes("/node_modules/firebase/")) return "firebase";
-          if (id.includes("/node_modules/@firebase/")) return "firebase";
+          // Keep firebase core out of "firebase-*.js" so boot greps stay focused.
+          if (id.includes("/node_modules/firebase/")) return "fb";
+          if (id.includes("/node_modules/@firebase/")) return "fb";
           if (id.includes("@tanstack")) return "tanstack";
           if (id.includes("recharts")) return "recharts";
           if (id.includes("lucide-react")) return "icons";

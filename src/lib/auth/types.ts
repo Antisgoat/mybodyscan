@@ -3,7 +3,7 @@ export type Unsubscribe = () => void;
 /**
  * Minimal cross-platform user shape used by the app.
  * - Web: derived from Firebase JS SDK `User`
- * - Native: derived from `@capacitor-firebase/authentication` plugin `User`
+ * - Native: derived from the native Firebase auth plugin user payload
  *
  * IMPORTANT: This intentionally does NOT expose Firebase JS SDK methods like `getIdToken()`
  * so native code never needs to import/execute `firebase/auth`.

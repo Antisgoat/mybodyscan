@@ -9,7 +9,6 @@ import {
   type FirebaseStorage,
 } from "firebase/storage";
 import { isNative } from "@/lib/platform";
-import { loadAuthSdk } from "@/lib/auth/authSdk";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -393,65 +392,6 @@ export const envFlags = providerFlags;
 
 export async function signInWithEmail(email: string, password: string) {
   throw new Error("signInWithEmail moved to authFacade");
-}
-
-// ---- Firebase Auth (lazy, native-safe) ----
-export let auth: import("firebase/auth").Auth | null = null;
-let authPromise: Promise<import("firebase/auth").Auth> | null = null;
-
-/**
- * Lazy Firebase Auth accessor.
- *
- * CRITICAL:
- * - Never call this during native boot.
- * - Never statically import `firebase/auth` from anywhere.
- * - On native (WKWebView/Capacitor), prefer `inMemoryPersistence` and avoid `initializeAuth()`.
- */
-export async function getFirebaseAuth(): Promise<import("firebase/auth").Auth> {
-  if (auth) return auth;
-  if (authPromise) return authPromise;
-
-  authPromise = (async () => {
-    // HARD BLOCK: never import/execute Firebase JS Auth on native (WKWebView).
-    // Native builds must use Capacitor auth plugins and only invoke them lazily.
-    if (isNative()) {
-      const err = new Error("Firebase JS Auth is disabled on native builds");
-      (err as any).code = "auth/native-js-auth-disabled";
-      throw err;
-    }
-    const {
-      getAuth,
-      setPersistence,
-      inMemoryPersistence,
-      indexedDBLocalPersistence,
-      browserLocalPersistence,
-      browserSessionPersistence,
-    } = await loadAuthSdk();
-
-    const a = getAuth(app);
-
-    // Web: prefer IndexedDB, fallback to local/session. Never throw here.
-    try {
-      await setPersistence(a, indexedDBLocalPersistence);
-    } catch (e1) {
-      try {
-        await setPersistence(a, browserLocalPersistence);
-      } catch (e2) {
-        try {
-          await setPersistence(a, browserSessionPersistence);
-        } catch (e3) {
-          if (import.meta.env.DEV) {
-            console.warn("[auth] setPersistence failed; continuing", { e1, e2, e3 });
-          }
-        }
-      }
-    }
-
-    auth = a;
-    return a;
-  })();
-
-  return authPromise;
 }
 
 export function initFirebase() {

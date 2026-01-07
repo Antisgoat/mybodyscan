@@ -1,4 +1,5 @@
 import { isNative } from "@/lib/platform";
+import { signInWithApple, signInWithGoogle } from "@/auth/facade";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   if (isNative()) {
@@ -6,8 +7,7 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
       "Google sign-in is not available on iOS. Use email/password for now."
     );
   }
-  const { webSignInGoogle } = await import("@/lib/auth/webFirebaseAuth");
-  await webSignInGoogle(next);
+  await signInWithGoogle(next);
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
@@ -16,20 +16,15 @@ export async function signInWithApple(next?: string | null): Promise<void> {
       "Apple sign-in is not available on iOS. Use email/password for now."
     );
   }
-  const { webSignInApple } = await import("@/lib/auth/webFirebaseAuth");
-  await webSignInApple(next);
+  await signInWithApple(next);
 }
 
 // Handle a completed redirect (Apple/Google).
-export async function handleAuthRedirectResult(): Promise<
-  import("firebase/auth").UserCredential | null
-> {
+export async function handleAuthRedirectResult(): Promise<any | null> {
   if (isNative()) return null;
   try {
-    const { webHandleAuthRedirectResult } = await import(
-      "@/lib/auth/webFirebaseAuth"
-    );
-    return (await webHandleAuthRedirectResult()) as any;
+    const { finalizeRedirectResult } = await import("@/auth/impl.web");
+    return await finalizeRedirectResult();
   } catch (e) {
     // Swallow popup blockers/redirect oddities; caller can show a toast if needed.
     return null;

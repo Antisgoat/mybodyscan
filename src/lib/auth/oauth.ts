@@ -1,30 +1,6 @@
-import { reportError } from "@/lib/telemetry";
-import { getFirebaseConfig } from "@/lib/firebase";
-import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
-import { rememberAuthRedirect } from "@/lib/auth/redirectState";
-import { isNative } from "@/lib/platform";
-import { loadAuthSdk } from "@/lib/auth/authSdk";
-
 export type OAuthProviderId = "google.com" | "apple.com";
 
 const PENDING_KEY = "mybodyscan:auth:oauth:pending";
-const MAX_AUTH_WAIT_MS = 15_000;
-
-let signInGuard: { providerId: OAuthProviderId; startedAt: number } | null =
-  null;
-let finalizePromise:
-  | Promise<import("firebase/auth").UserCredential | null>
-  | null = null;
-let popupThenRedirectFn = popupThenRedirectImported;
-
-function authEvent(kind: string, extra?: Record<string, unknown>) {
-  const stamp = Date.now();
-  void reportError({
-    kind,
-    message: kind,
-    extra: { at: stamp, ...(extra ?? {}) },
-  });
-}
 
 export function isIosSafari(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -126,172 +102,6 @@ export function clearPendingOAuth(): void {
   clearPending();
 }
 
-export type OAuthStartOptions = {
-  providerId: OAuthProviderId;
-  provider: any;
-  next?: string | null;
-};
-
-/**
- * Provider-agnostic OAuth sign-in entrypoint:
- * - Redirect on mobile/iOS Safari/WebViews
- * - Popup on desktop, with safe redirect fallback
- * - Prevents multiple simultaneous sign-ins
- * - Enforces a 15s max wait for popup flows (no silent hangs)
- */
-export async function signInWithOAuthProvider(
-  options: OAuthStartOptions
-): Promise<{
-  user: import("firebase/auth").User | null;
-  credential: import("firebase/auth").UserCredential | null;
-}> {
-  const startedAt = Date.now();
-  authEvent("auth_start", {
-    provider: options.providerId,
-    next: options.next ?? null,
-    startedAt,
-    preferRedirect: shouldPreferRedirect(),
-  });
-  if (isNative()) {
-    authEvent("auth_skip_native", { provider: options.providerId });
-    clearPending();
-    signInGuard = null;
-    const err = new Error(
-      "Web-based OAuth popups/redirects are disabled on native builds. Use native auth plugins instead."
-    );
-    (err as any).code = "auth/native-web-oauth-blocked";
-    throw err;
-  }
-  if (signInGuard && startedAt - signInGuard.startedAt < MAX_AUTH_WAIT_MS) {
-    const err = new Error("Sign-in already in progress.");
-    (err as any).code = "auth/signin-already-in-progress";
-    throw err;
-  }
-  signInGuard = { providerId: options.providerId, startedAt };
-
-  // Store pending state BEFORE any awaited work so we never "silently hang" without UI state.
-  if (options.next) {
-    rememberAuthRedirect(options.next);
-  }
-  storePending({ providerId: options.providerId, startedAt });
-
-  const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
-  const auth = await webRequireAuth();
-  const cfg = getFirebaseConfig();
-  const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
-  void reportError({
-    kind: "auth_origin_check",
-    message: "auth_origin_check",
-    extra: {
-      origin,
-      authDomain: cfg?.authDomain ?? null,
-      projectId: cfg?.projectId ?? null,
-      provider: options.providerId,
-    },
-  });
-
-  try {
-    if (shouldPreferRedirect()) {
-      authEvent("auth_redirect_start", { provider: options.providerId });
-      // Redirect returns immediately; completion happens after reload.
-      await withTimeout(
-        // `popupThenRedirect` always redirects on iOS WebKit; on desktop it tries popup first.
-        // Force redirect behavior by calling signInWithRedirect directly via getRedirectResult? No: simplest is popupThenRedirect + iOS/mobile guard.
-        // Here, we explicitly trigger redirect to avoid any popup hangs.
-        (async () => {
-          // Avoid duplicate redirect attempts: clear any stale redirect result first.
-          // (Firebase SDK is safe if none is pending.)
-          const { getRedirectResult, signInWithRedirect } = await loadAuthSdk();
-          await getRedirectResult(auth).catch(() => undefined);
-          await signInWithRedirect(auth, options.provider);
-        })(),
-        MAX_AUTH_WAIT_MS,
-        "auth/timeout"
-      );
-      return { user: null, credential: null };
-    }
-
-    authEvent("auth_popup_start", { provider: options.providerId });
-    const { signInWithPopup, signInWithRedirect } = await loadAuthSdk();
-    const cred = await withTimeout(
-      popupThenRedirectFn(auth, options.provider, {
-        signInWithPopup,
-        signInWithRedirect,
-      }),
-      MAX_AUTH_WAIT_MS,
-      "auth/timeout"
-    );
-    // popupThenRedirect returns undefined if redirect was initiated.
-    if (!cred) {
-      return { user: null, credential: null };
-    }
-    authEvent("auth_success", { provider: options.providerId, method: "popup" });
-    clearPending();
-    return { user: cred.user ?? null, credential: cred };
-  } catch (error) {
-    authEvent("auth_error", {
-      provider: options.providerId,
-      code: typeof (error as any)?.code === "string" ? (error as any).code : null,
-      message:
-        typeof (error as any)?.message === "string" ? (error as any).message : null,
-    });
-    clearPending();
-    throw error;
-  } finally {
-    signInGuard = null;
-  }
-}
-
-/**
- * Finalize a pending redirect result at boot.
- * This must be called exactly once on app startup.
- */
-export async function finalizeRedirectResult(): Promise<{
-  user: import("firebase/auth").User | null;
-  credential: import("firebase/auth").UserCredential | null;
-} | null> {
-  if (isNative()) {
-    return null;
-  }
-  if (finalizePromise) {
-    const cred = await finalizePromise;
-    return cred ? { user: cred.user ?? null, credential: cred } : null;
-  }
-  const { handleAuthRedirectOnce } = await import("@/lib/authRedirect");
-  finalizePromise = withTimeout(
-    handleAuthRedirectOnce().then((outcome) => outcome.result),
-    MAX_AUTH_WAIT_MS,
-    "auth/timeout"
-  )
-    .then((cred) => {
-      clearPending();
-      if (cred) {
-        authEvent("auth_success", { provider: "redirect", method: "redirect" });
-      }
-      return cred ?? null;
-    })
-    .catch(async (err) => {
-      clearPending();
-      const code =
-        typeof (err as any)?.code === "string" ? (err as any).code : undefined;
-      const message =
-        typeof (err as any)?.message === "string"
-          ? (err as any).message
-          : "Redirect sign-in failed.";
-      void reportError({
-        kind: "auth_redirect_finalize_failed",
-        message,
-        code,
-      });
-      authEvent("auth_error", { provider: "redirect", code, message });
-      // Preserve existing authRedirect.ts error consumption pipeline.
-      throw err;
-    });
-
-  const cred = await finalizePromise.catch(() => null);
-  return cred ? { user: cred.user ?? null, credential: cred } : null;
-}
-
 export function describeOAuthError(err: unknown): {
   code?: string;
   message: string;
@@ -329,13 +139,7 @@ export function describeOAuthError(err: unknown): {
 }
 
 export const __oauthTestInternals = {
-  setPopupThenRedirectForTest(fn: typeof popupThenRedirectImported) {
-    popupThenRedirectFn = fn;
-  },
   reset() {
-    signInGuard = null;
-    finalizePromise = null;
-    popupThenRedirectFn = popupThenRedirectImported;
     clearPending();
   },
 };

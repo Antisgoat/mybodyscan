@@ -2,7 +2,6 @@ import type { FirebaseError } from "firebase/app";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
 import { isNative } from "@/lib/platform";
-import { loadAuthSdk } from "@/lib/auth/authSdk";
 
 const BENIGN_ERRORS = new Set([
   "auth/no-auth-event",
@@ -11,7 +10,7 @@ const BENIGN_ERRORS = new Set([
 ]);
 
 type AuthRedirectOutcome = {
-  result: import("firebase/auth").UserCredential | null;
+  result: any | null;
   error: FirebaseError | null;
   normalizedError: NormalizedAuthError | null;
 };
@@ -54,24 +53,11 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     cachedOutcome = outcome;
     return outcome;
   }
-  let auth: import("firebase/auth").Auth | null = null;
+  let auth: any | null = null;
   try {
-    const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
+    const { finalizeRedirectResult, webRequireAuth } = await import("@/auth/impl.web");
     auth = await webRequireAuth();
-    authEvent("auth_redirect_result", { phase: "start" });
-    const { getRedirectResult } = await loadAuthSdk();
-    const result = await getRedirectResult(auth);
-    if (result) {
-      await maybeApplyAppleProfile(result);
-    }
-    const { getAdditionalUserInfo } = await loadAuthSdk();
-    const info = result ? getAdditionalUserInfo(result) : null;
-    authEvent("auth_redirect_result", {
-      phase: "done",
-      hasResult: Boolean(result),
-      providerId: info?.providerId ?? null,
-      isNewUser: info?.isNewUser ?? null,
-    });
+    const result = await finalizeRedirectResult().catch(() => null);
     const outcome: AuthRedirectOutcome = {
       result: result ?? null,
       error: null,
@@ -107,7 +93,7 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     let normalized: NormalizedAuthError | null = null;
     if (fbError) {
       try {
-        const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
+        const { webRequireAuth } = await import("@/auth/impl.web");
         auth ??= await webRequireAuth();
         normalized = await describeAuthErrorAsync(auth, fbError);
       } catch (normalizeError) {
@@ -142,7 +128,7 @@ export function handleAuthRedirectOnce(): Promise<AuthRedirectOutcome> {
   return outcomePromise;
 }
 
-export async function consumeAuthRedirectResult(): Promise<UserCredential | null> {
+export async function consumeAuthRedirectResult(): Promise<any | null> {
   const outcome = await handleAuthRedirectOnce();
   if (resultConsumed) {
     return null;
@@ -175,34 +161,5 @@ export async function consumeAuthRedirectError(): Promise<FriendlyFirebaseError 
 export function peekAuthRedirectOutcome(): AuthRedirectOutcome | null {
   return cachedOutcome;
 }
-
-const APPLE_PROVIDER_ID = "apple.com";
-
-type AppleAdditionalProfile = {
-  name?: { firstName?: string; lastName?: string };
-  firstName?: string;
-  lastName?: string;
-};
-
-async function maybeApplyAppleProfile(
-  result: import("firebase/auth").UserCredential | null
-) {
-  if (!result) return;
-  const { getAdditionalUserInfo, updateProfile } = await loadAuthSdk();
-  const info = getAdditionalUserInfo(result);
-  if (info?.providerId !== APPLE_PROVIDER_ID) return;
-  if (!info.isNewUser || !result.user || result.user.displayName) return;
-  const profile = info.profile as AppleAdditionalProfile | undefined;
-  const firstName = profile?.name?.firstName ?? profile?.firstName ?? "";
-  const lastName = profile?.name?.lastName ?? profile?.lastName ?? "";
-  const displayName = `${firstName} ${lastName}`.trim();
-  if (displayName) {
-    try {
-      await updateProfile(result.user, { displayName });
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn("[auth] Failed to populate Apple display name", error);
-      }
-    }
-  }
-}
+// Apple display name population lives in `src/auth/impl.web.ts` so
+// `firebase/auth` is only imported in a single web-only module.

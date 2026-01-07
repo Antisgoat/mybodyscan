@@ -1,22 +1,38 @@
 import { useSyncExternalStore } from "react";
 import { isNative } from "@/lib/platform";
-import type { AuthState, AuthUser, Unsubscribe } from "@/lib/auth/types";
-import type { AuthFacade } from "@/lib/auth/facadeTypes";
+import type { AuthUser, Unsubscribe } from "@/lib/auth/types";
+import type { UserLike } from "@/auth/types";
+import {
+  createUserWithEmailAndPassword as facadeCreateUser,
+  getCurrentUser as facadeGetCurrentUser,
+  getIdToken as facadeGetIdToken,
+  onAuthStateChanged as facadeOnAuthStateChanged,
+  onIdTokenChanged as facadeOnIdTokenChanged,
+  sendPasswordResetEmail as facadeSendPasswordResetEmail,
+  signInWithApple as facadeSignInApple,
+  signInWithEmailAndPassword as facadeSignInEmail,
+  signInWithGoogle as facadeSignInGoogle,
+  signOut as facadeSignOut,
+} from "@/auth/facade";
 
-let cachedImpl: Promise<AuthFacade> | null = null;
-async function impl(): Promise<AuthFacade> {
-  // `isNative()` uses URL scheme (capacitor://) so it is safe during early boot.
-  if (cachedImpl) return cachedImpl;
-  cachedImpl = isNative()
-    ? import("@/lib/auth/nativeFacadeImpl").then((m) => m.nativeAuthImpl)
-    : import("@/lib/auth/webFacadeImpl").then((m) => m.webAuthImpl);
-  return cachedImpl;
+function toAuthUser(u: UserLike | null): AuthUser | null {
+  if (!u) return null;
+  return {
+    uid: u.uid,
+    email: u.email,
+    displayName: u.displayName,
+    photoUrl: u.photoUrl,
+    phoneNumber: u.phoneNumber,
+    emailVerified: u.emailVerified,
+    isAnonymous: u.isAnonymous,
+    providerId: u.providerId,
+  };
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   // Native boot firewall: do not import native auth plugin unless explicitly enabled.
   if (isNative() && !nativeAuthEnabled) return null;
-  return (await impl()).getCurrentUser();
+  return toAuthUser(await facadeGetCurrentUser());
 }
 
 export async function onAuthStateChanged(
@@ -31,7 +47,7 @@ export async function onAuthStateChanged(
     }
     return () => undefined;
   }
-  return (await impl()).onAuthStateChanged((state) => cb(state.user ?? null));
+  return facadeOnAuthStateChanged((u) => cb(toAuthUser(u)));
 }
 
 export async function onIdTokenChanged(
@@ -46,7 +62,7 @@ export async function onIdTokenChanged(
     }
     return () => undefined;
   }
-  return (await impl()).onIdTokenChanged(cb);
+  return facadeOnIdTokenChanged(cb);
 }
 
 export async function getIdToken(options?: {
@@ -54,7 +70,7 @@ export async function getIdToken(options?: {
 }): Promise<string | null> {
   // Native boot firewall: do not import native auth plugin unless explicitly enabled.
   if (isNative() && !nativeAuthEnabled) return null;
-  return (await impl()).getIdToken(options);
+  return facadeGetIdToken(Boolean(options?.forceRefresh));
 }
 
 export async function requireIdToken(options?: {
@@ -70,27 +86,37 @@ export async function requireIdToken(options?: {
 }
 
 export function signInGoogle(next?: string | null) {
-  return impl().then((i) => i.signInGoogle(next));
+  // Web-only. Native builds should not attempt web OAuth.
+  return facadeSignInGoogle(next);
 }
 
 export function signInApple(next?: string | null) {
-  return impl().then((i) => i.signInApple(next));
+  // Web-only. Native builds should not attempt web OAuth.
+  return facadeSignInApple(next);
 }
 
 export async function signInEmailPassword(email: string, password: string) {
-  return (await impl()).signInEmail(email, password);
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    nativeAuthEnabled = true;
+  }
+  return toAuthUser(await facadeSignInEmail(email, password));
 }
 
 export async function signUpEmailPassword(email: string, password: string) {
-  return (await impl()).createUserEmail(email, password);
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    nativeAuthEnabled = true;
+  }
+  return toAuthUser(await facadeCreateUser(email, password));
 }
 
 export function signOut() {
-  return impl().then((i) => i.signOut());
+  return facadeSignOut();
 }
 
 export function sendReset(email: string) {
-  return impl().then((i) => i.sendPasswordResetEmail(email));
+  return facadeSendPasswordResetEmail(email);
 }
 
 // ---- App auth store (single source of truth for user+boot gating) ----
@@ -142,8 +168,8 @@ async function ensureListener(): Promise<void> {
       firstAuthEventResolve = resolve;
     });
   }
-  const u = await (await impl()).onAuthStateChanged((state) => {
-    emit(state.user ?? null);
+  const u = await facadeOnAuthStateChanged((u2) => {
+    emit((u2 as any) ?? null);
   });
   unsubscribe = u;
 }
@@ -216,9 +242,9 @@ export async function createAccountEmail(
   displayName?: string
 ) {
   if (!isNative()) {
-    const { webCreateAccountEmail } = await import("@/lib/auth/webFirebaseAuth");
-    const res = await webCreateAccountEmail(email, password, displayName);
-    return res.user;
+    const { createAccountEmail: webCreate } = await import("@/auth/impl.web");
+    const user = await webCreate(email, password, displayName);
+    return toAuthUser(user);
   }
   const user = await signUpEmailPassword(email, password);
   return user;
@@ -236,7 +262,6 @@ export const __authTestInternals = {
         }
       }
       unsubscribe = null;
-      cachedImpl = null;
       nativeAuthEnabled = false;
       cachedUser = null;
       authReadyFlag = false;
