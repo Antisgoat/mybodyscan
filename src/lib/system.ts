@@ -1,5 +1,5 @@
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
-import { auth } from "@/lib/firebase";
+import { getCurrentUser } from "@/lib/authFacade";
 
 type BootstrapResponse = {
   ok: boolean;
@@ -15,7 +15,7 @@ function isSoftBootstrapStatus(status?: number): boolean {
 }
 
 export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
-  const user = auth.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user) return null;
 
   try {

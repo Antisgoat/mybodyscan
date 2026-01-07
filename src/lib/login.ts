@@ -1,5 +1,4 @@
-import { firebaseReady, getFirebaseAuth } from "./firebase";
-import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { signInApple, signInEmailPassword, signInGoogle } from "@/lib/authFacade";
 import { isNative } from "@/lib/platform";
 
 export type NormalizedAuthError = { code?: string; message: string };
@@ -75,28 +74,11 @@ export function describeAuthError(err: unknown): NormalizedAuthError {
 
 export async function emailPasswordSignIn(email: string, password: string) {
   try {
-    await firebaseReady();
-    const auth = await getFirebaseAuth();
-    const { signInWithEmailAndPassword } = await import("firebase/auth");
-    await signInWithEmailAndPassword(auth, email, password);
+    await signInEmailPassword(email, password);
     return { ok: true as const };
   } catch (e) {
     const m = describeAuthError(e);
     return { ok: false as const, code: m.code, message: m.message };
-  }
-}
-
-export async function googleSignIn(auth: import("firebase/auth").Auth) {
-  try {
-    // Unified behavior:
-    // - Mobile browsers (incl iOS Safari): redirect
-    // - Desktop: popup with redirect fallback
-    await signInGoogle();
-    return { ok: true as const };
-  } catch (error: unknown) {
-    debugAuthFailure(error);
-    const mapped = await describeAuthErrorAsync(auth, error);
-    return { ok: false as const, code: mapped.code, message: mapped.message };
   }
 }
 
@@ -108,9 +90,14 @@ export async function googleSignInWithFirebase() {
       message: "Google sign-in is not available on iOS. Use email/password.",
     };
   }
-  await firebaseReady();
-  const auth = await getFirebaseAuth();
-  return googleSignIn(auth);
+  try {
+    await signInGoogle();
+    return { ok: true as const };
+  } catch (error: unknown) {
+    debugAuthFailure(error);
+    const mapped = describeAuthError(error);
+    return { ok: false as const, code: mapped.code, message: mapped.message };
+  }
 }
 
 export async function appleSignIn() {
@@ -121,14 +108,12 @@ export async function appleSignIn() {
       message: "Apple sign-in is not available on iOS. Use email/password.",
     };
   }
-  await firebaseReady();
-  const auth = await getFirebaseAuth();
   try {
     await signInApple();
     return { ok: true as const };
   } catch (error: unknown) {
     debugAuthFailure(error);
-    const mapped = await describeAuthErrorAsync(auth, error);
+    const mapped = describeAuthError(error);
     return { ok: false as const, code: mapped.code, message: mapped.message };
   }
 }
@@ -166,65 +151,16 @@ function debugAuthFailure(err: unknown): void {
 }
 
 export async function describeAuthErrorAsync(
-  auth: import("firebase/auth").Auth,
+  _auth: unknown,
   error: unknown
 ): Promise<NormalizedAuthError> {
   const code = getErrorCode(error);
   if (code === "auth/account-exists-with-different-credential") {
-    const collisionMessage = await buildAccountExistsMessage(auth, error);
-    return { code, message: collisionMessage };
+    return {
+      code,
+      message:
+        "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.",
+    };
   }
   return describeAuthError(error);
 }
-
-async function buildAccountExistsMessage(
-  auth: import("firebase/auth").Auth,
-  error: unknown
-): Promise<string> {
-  const fallback =
-    "This email is already linked to a different sign-in method. Use that method, then link Google from Settings.";
-  const fbError = error as NormalizedFirebaseError | undefined;
-  const email = fbError?.customData?.email;
-  if (!email) {
-    return fallback;
-  }
-
-  try {
-    const { fetchSignInMethodsForEmail } = await import("firebase/auth");
-    const methods = await fetchSignInMethodsForEmail(auth, email);
-    if (!Array.isArray(methods) || methods.length === 0) {
-      return fallback;
-    }
-    const friendly = methods
-      .map((method) => FRIENDLY_PROVIDER_NAMES[method] || method)
-      .filter(Boolean);
-    if (friendly.length === 0) {
-      return fallback;
-    }
-    if (friendly.length === 1) {
-      return `Sign in with ${friendly[0]} for ${email}, then link Google from Settings.`;
-    }
-    const last = friendly[friendly.length - 1];
-    const rest = friendly.slice(0, -1);
-    const list = `${rest.join(", ")} or ${last}`;
-    return `Sign in with ${list} for ${email}, then link Google from Settings.`;
-  } catch (fetchError) {
-    if (import.meta.env.DEV) {
-      console.warn("[auth] fetchSignInMethodsForEmail failed", fetchError);
-    }
-    return fallback;
-  }
-}
-
-type NormalizedFirebaseError = {
-  code?: string;
-  customData?: {
-    email?: string;
-  };
-};
-
-const FRIENDLY_PROVIDER_NAMES: Record<string, string> = {
-  password: "email and password",
-  "google.com": "Google",
-  "apple.com": "Apple",
-};

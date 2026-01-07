@@ -1,5 +1,5 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
-import { auth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
@@ -55,7 +55,7 @@ function assertUploadRuntimeReady(params: {
 }): void {
   const bucket = params.storage?.app?.options?.storageBucket;
   const origin = typeof window !== "undefined" ? window.location.origin : "unknown";
-  const authUid = auth.currentUser?.uid || null;
+  const authUid = getCachedUser()?.uid || null;
   if (!loggedSanityCheck) {
     loggedSanityCheck = true;
     console.info("scan_storage_runtime", {

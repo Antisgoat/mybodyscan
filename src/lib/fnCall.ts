@@ -1,6 +1,6 @@
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { fnUrl } from "@/lib/env";
-import { auth } from "@/lib/firebase";
+import { requireIdToken } from "@/lib/authFacade";
 
 export type FnCallError = Error & {
   status?: number;
@@ -55,15 +55,8 @@ export async function fnJson<T = unknown>(
     signal?: AbortSignal;
   } = {}
 ): Promise<T> {
-  const user = auth.currentUser;
-  if (!user) {
-    const err: FnCallError = new Error("auth_required");
-    err.status = 401;
-    throw err;
-  }
-
   const endpoint = fnUrl(path);
-  const idToken = await user.getIdToken();
+  const idToken = await requireIdToken();
 
   await ensureAppCheck();
   const appCheckHeaders = await getAppCheckTokenHeader();

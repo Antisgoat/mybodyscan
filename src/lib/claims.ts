@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bootstrapSystem } from "@/lib/system";
 import { call } from "./callable";
-import { useAuthUser } from "@/lib/auth";
+import { getCurrentUser, getIdToken, useAuthUser } from "@/lib/authFacade";
 import { isNative } from "@/lib/platform";
-import { requireAuth } from "@/lib/firebase";
+import type { AuthUser } from "@/lib/auth/types";
 
 export type UserClaims = {
   dev?: boolean;
@@ -11,20 +11,42 @@ export type UserClaims = {
   [k: string]: unknown;
 } | null;
 
-async function readClaims(
-  u: import("firebase/auth").User | null,
+function base64UrlDecode(input: string): string {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = normalized.length % 4;
+  const padded = pad ? normalized + "=".repeat(4 - pad) : normalized;
+  // atob is available in browser/WebView environments.
+  return atob(padded);
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const json = base64UrlDecode(parts[1]!);
+    const obj = JSON.parse(json) as Record<string, unknown>;
+    return obj && typeof obj === "object" ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readClaimsForUser(
+  u: AuthUser | null,
   force: boolean
 ): Promise<UserClaims> {
   if (!u) return null;
   try {
-    const res = await u.getIdTokenResult(force);
-    const c = (res?.claims || {}) as Record<string, unknown>;
-    // Normalize credits to number if present
-    const raw = c["credits"];
+    const token = await getIdToken({ forceRefresh: force });
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload) return null;
+    const raw = payload["credits"];
     const credits = typeof raw === "number" ? raw : undefined;
-    const dev = c["dev"] === true;
-    const unlimitedCredits = c["unlimitedCredits"] === true;
-    return { ...c, dev, credits, unlimitedCredits };
+    const dev = payload["dev"] === true;
+    const unlimitedCredits = payload["unlimitedCredits"] === true;
+    const unlimited = payload["unlimited"] === true;
+    return { ...payload, dev, credits, unlimitedCredits, unlimited };
   } catch {
     return null;
   }
@@ -37,18 +59,14 @@ export async function refreshClaimsAndAdminBoost() {
     console.warn("refreshClaims failed", error);
   }
 
-  if (isNative()) {
-    return { admin: false, unlimited: false } as any;
-  }
-  const auth = await requireAuth().catch(() => null);
-  await auth?.currentUser?.getIdToken(true);
+  const user = await getCurrentUser().catch(() => null);
+  const claims = await readClaimsForUser(user, true);
+  const isAdmin = Boolean((claims as any)?.admin);
+  const isUnlimited = Boolean(
+    (claims as any)?.unlimited || (claims as any)?.unlimitedCredits
+  );
 
-  const info = await auth?.currentUser?.getIdTokenResult();
-  const isAdmin = !!info?.claims?.admin;
-  const isUnlimited =
-    !!info?.claims?.unlimited || !!info?.claims?.unlimitedCredits;
-
-  const email = auth?.currentUser?.email || "";
+  const email = user?.email || "";
   if (!isUnlimited && email.toLowerCase() === "developer@adlrlabs.com") {
     try {
       await call("grantUnlimitedCredits");
@@ -60,7 +78,7 @@ export async function refreshClaimsAndAdminBoost() {
     } catch (error) {
       console.warn("refreshClaims retry failed", error);
     }
-    await auth?.currentUser?.getIdToken(true);
+    await getIdToken({ forceRefresh: true }).catch(() => null);
   }
 
   return { admin: isAdmin, unlimited: isUnlimited } as any;
@@ -68,15 +86,13 @@ export async function refreshClaimsAndAdminBoost() {
 
 /** Refresh claims on the current user. Force defaults to true for compatibility. */
 export async function fetchClaims(force = true): Promise<UserClaims> {
-  if (isNative()) return null;
-  const auth = await requireAuth().catch(() => null);
-  const u = auth?.currentUser ?? null;
-  return await readClaims(u, force);
+  const u = await getCurrentUser().catch(() => null);
+  return await readClaimsForUser(u, force);
 }
 
 /** React hook to expose current user + claims with a refresh() helper. */
 export function useClaims(): {
-  user: import("firebase/auth").User | null;
+  user: AuthUser | null;
   claims: UserClaims;
   loading: boolean;
   refresh: (force?: boolean) => Promise<UserClaims>;
@@ -95,14 +111,6 @@ export function useClaims(): {
         alive = false;
       };
     }
-    // Native builds: do not query token claims at boot.
-    if (isNative()) {
-      setLoading(false);
-      setClaims(null);
-      return () => {
-        alive = false;
-      };
-    }
     void (async () => {
       if (!alive) return;
       setLoading(true);
@@ -110,7 +118,7 @@ export function useClaims(): {
       const currentUid = u?.uid ?? null;
       const shouldForce =
         currentUid != null && lastUidRef.current !== currentUid;
-      const c = await readClaims(u, shouldForce);
+      const c = await readClaimsForUser(u, shouldForce);
       if (!alive) return;
       lastUidRef.current = currentUid;
       setClaims(c);
@@ -124,8 +132,8 @@ export function useClaims(): {
               const result = await bootstrapSystem();
               if (!result) return;
               if (result.claimsUpdated) {
-                await u.getIdToken(true);
-                const refreshed = await readClaims(u, true);
+                await getIdToken({ forceRefresh: true }).catch(() => null);
+                const refreshed = await readClaimsForUser(u, true);
                 if (!alive) return;
                 lastUidRef.current = u.uid;
                 setClaims(refreshed);
@@ -150,10 +158,9 @@ export function useClaims(): {
 
   const refresh = useMemo(() => {
     return async (force = true) => {
-      if (isNative()) return null;
       const u = user ?? null;
       setLoading(true);
-      const c = await readClaims(u, force);
+      const c = await readClaimsForUser(u, force);
       if (force && u?.uid) {
         lastUidRef.current = u.uid;
       }
@@ -163,8 +170,8 @@ export function useClaims(): {
         try {
           const result = await bootstrapSystem();
           if (result?.claimsUpdated) {
-            await u.getIdToken(true);
-            const refreshed = await readClaims(u, true);
+            await getIdToken({ forceRefresh: true }).catch(() => null);
+            const refreshed = await readClaimsForUser(u, true);
             setClaims(refreshed);
             return refreshed;
           }

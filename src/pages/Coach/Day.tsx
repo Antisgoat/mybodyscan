@@ -17,7 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/authFacade";
 import {
   applyDeloadToDay,
   computeNextTargets,
@@ -112,6 +113,7 @@ function structureBlocks(
 export default function CoachDay() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user: currentUser } = useAuthUser();
   const [setData, setSetData] = useState<Record<string, SetEntry>>({});
   const [activeTimers, setActiveTimers] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -245,7 +247,7 @@ export default function CoachDay() {
     let cancelled = false;
 
     async function loadTargets() {
-      const user = auth.currentUser;
+      const user = currentUser;
       if (!effectiveDay || !rawProgram || !user) {
         if (!cancelled) {
           setNextTargets([]);
@@ -361,7 +363,7 @@ export default function CoachDay() {
 
   const handleComplete = async () => {
     if (!day || !rawProgram) return;
-    const user = auth.currentUser;
+    const user = currentUser;
     if (!user) {
       toast({
         title: "Please sign in",

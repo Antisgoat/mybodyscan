@@ -1,12 +1,10 @@
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { getCurrentUser, getIdToken, requireIdToken } from "@/lib/authFacade";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import { nutritionSearch as nutritionSearchCallable } from "@/lib/api/nutrition";
-type Auth = import("firebase/auth").Auth;
-type User = import("firebase/auth").User;
 import { apiFetchJson } from "./apiFetch";
 import {
   openCustomerPortal as openPaymentsPortal,
@@ -38,25 +36,22 @@ function showDemoPreviewToast(description?: string) {
 }
 
 async function getAuthContext(): Promise<{
-  auth: Auth | null;
-  user: User | null;
+  user: Awaited<ReturnType<typeof getCurrentUser>> | null;
 }> {
-  return { auth: firebaseAuth, user: firebaseAuth?.currentUser ?? null };
+  const user = await getCurrentUser().catch(() => null);
+  return { user };
 }
 
-async function requireAuthContext(): Promise<{ auth: Auth; user: User }> {
-  const { auth, user } = await getAuthContext();
-  if (!auth) {
-    const error: any = new Error("auth_unavailable");
-    error.code = "auth_unavailable";
-    throw error;
-  }
+async function requireAuthContext(): Promise<{
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+}> {
+  const { user } = await getAuthContext();
   if (!user) {
     const error: any = new Error("auth_required");
     error.code = "auth_required";
     throw error;
   }
-  return { auth, user };
+  return { user };
 }
 
 export async function billingCheckout(
@@ -225,7 +220,7 @@ export async function coachSend(
     throw new Error("message_required");
   }
 
-  const user = firebaseAuth?.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user && !isDemo()) {
     const authError: any = new Error("auth_required");
     authError.code = "auth_required";
@@ -405,8 +400,7 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
       } else {
         const [fallbackIdToken] = await Promise.all([
           (async () => {
-            const { user } = await getAuthContext();
-            return user ? user.getIdToken() : null;
+            return await getIdToken();
           })(),
         ]);
         const fallbackHeaders = new Headers({
@@ -459,8 +453,8 @@ async function authedFetch(path: string, init?: RequestInit) {
     toast({ title: "Server not configured" });
     return new Response(null, { status: 503 });
   }
-  const { user } = await requireAuthContext();
-  const t = await user.getIdToken();
+  await requireAuthContext();
+  const t = await requireIdToken();
   const headers = new Headers(init?.headers ?? undefined);
   headers.set(
     "Content-Type",

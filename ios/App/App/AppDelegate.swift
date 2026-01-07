@@ -7,19 +7,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // FirebaseCore: configure once if present.
-        // IMPORTANT: Do not crash if GoogleService-Info.plist is missing.
-        if FirebaseApp.app() == nil {
-            let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-            if plistPath != nil {
-                FirebaseApp.configure()
-                NSLog("[MBS] FirebaseApp configured")
-            } else {
-                // TODO: Add ios/App/App/GoogleService-Info.plist to the Xcode project (Build Resources).
-                NSLog("[MBS][TODO] Missing GoogleService-Info.plist; skipping FirebaseApp.configure()")
-            }
+    override init() {
+        super.init()
+        configureFirebaseIfPresent(context: "init")
+    }
+
+    private func configureFirebaseIfPresent(context: String) {
+        // Configure as early as possible to ensure any Firebase-using plugin
+        // sees a configured default app.
+        if FirebaseApp.app() != nil { return }
+        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+        if plistPath != nil {
+            FirebaseApp.configure()
+            NSLog("[MBS] FirebaseApp configured (\(context))")
+        } else {
+            // NOTE: Do not hardcode secrets in Swift; this file must come from the Xcode project.
+            NSLog("[MBS][TODO] Missing GoogleService-Info.plist; skipping FirebaseApp.configure() (\(context))")
         }
+    }
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        configureFirebaseIfPresent(context: "didFinishLaunching")
 
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")

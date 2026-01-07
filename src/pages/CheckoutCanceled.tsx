@@ -2,7 +2,7 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { useBackNavigationGuard } from "@/lib/back";
 
 export default function CheckoutCanceled() {
@@ -15,7 +15,7 @@ export default function CheckoutCanceled() {
     return () => clearTimeout(t);
   }, [navigate]);
   const handleReturn = () => {
-    navigate(firebaseAuth?.currentUser ? "/scan/new" : "/auth");
+    navigate(getCachedUser() ? "/scan/new" : "/auth");
   };
 
   return (

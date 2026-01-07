@@ -11,7 +11,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { auth, db, firebaseReady } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { requireIdToken, useAuthUser } from "@/lib/authFacade";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import {
@@ -104,11 +105,10 @@ type ExportProbeState = {
 async function authedHeaders(
   includeJson = true
 ): Promise<Record<string, string>> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("auth_required");
+  const token = await requireIdToken();
   const headers: Record<string, string> = {};
   if (includeJson) headers["Content-Type"] = "application/json";
-  headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  headers.Authorization = `Bearer ${token}`;
   return headers;
 }
 
@@ -279,7 +279,7 @@ export default function SmokeKit() {
   }, []);
 
   async function handleRefreshClaims() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setClaimsState({ status: "error", error: "auth_required" });
       return;
@@ -340,14 +340,13 @@ export default function SmokeKit() {
   }
 
   async function probeRules() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setRulesProbe({ status: "error", error: "auth_required" });
       return;
     }
     setRulesProbe({ status: "running" });
     try {
-      await firebaseReady();
       const privateDoc = doc(
         db,
         `users/${currentUser.uid}/private/__rules_probe`
@@ -404,7 +403,7 @@ export default function SmokeKit() {
   }
 
   async function probeExportData() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setExportProbe({ status: "error", error: "auth_required" });
       return;
@@ -438,7 +437,7 @@ export default function SmokeKit() {
   }
 
   async function probeCheckout(priceId: string) {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setCheckoutProbes((prev) => ({
         ...prev,
@@ -506,7 +505,7 @@ export default function SmokeKit() {
   }
 
   async function probePortal() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setPortalProbe({ status: "error", error: "auth_required" });
       return;
@@ -564,7 +563,7 @@ export default function SmokeKit() {
   }
 
   async function probeScanStart() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setScanStart({ status: "error", error: "auth_required" });
       return;
@@ -598,7 +597,7 @@ export default function SmokeKit() {
   }
 
   async function probeScanSubmit() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setScanSubmit({ status: "error", error: "auth_required" });
       return;
@@ -632,7 +631,7 @@ export default function SmokeKit() {
   }
 
   async function probeCoach() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setCoachProbe({ status: "error", error: "auth_required" });
       return;
@@ -670,7 +669,7 @@ export default function SmokeKit() {
   }
 
   async function probeNutritionSearch() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setNutritionSearchProbe({ status: "error", error: "auth_required" });
       return;
@@ -704,7 +703,7 @@ export default function SmokeKit() {
   }
 
   async function probeBarcode() {
-    const currentUser = auth.currentUser;
+    const currentUser = user;
     if (!currentUser) {
       setBarcodeProbe({ status: "error", error: "auth_required" });
       return;

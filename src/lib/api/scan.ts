@@ -5,7 +5,8 @@
  * - Submits metadata to the HTTPS function, handles cleanup (`deleteScanApi`), and fetches Firestore results.
  */
 import { apiFetch, ApiError } from "@/lib/http";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { getCurrentUser, getIdToken, requireIdToken } from "@/lib/authFacade";
 import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,
@@ -444,7 +445,7 @@ export async function startScanSessionClient(
   },
   options?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<ScanApiResult<StartScanResponse>> {
-  const user = auth.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user)
     return {
       ok: false,
@@ -631,7 +632,7 @@ export async function submitScanClient(
     perPhotoTimeoutMs?: number;
   }
 ): Promise<ScanApiResult<SubmitScanResponse>> {
-  const user = auth.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user)
     return {
       ok: false,
@@ -647,7 +648,10 @@ export async function submitScanClient(
   }
 
   try {
-    await user.getIdToken(true);
+    const refreshed = await getIdToken({ forceRefresh: true });
+    if (!refreshed) {
+      throw new Error("auth_required");
+    }
   } catch (error: any) {
     return {
       ok: false,
@@ -820,7 +824,7 @@ export async function submitScanClient(
       });
     });
 
-    const token = await user.getIdToken();
+    const token = await requireIdToken();
     const form = new FormData();
     // IMPORTANT: The upload function interprets `currentWeight`/`goalWeight` in the provided `unit`.
     // Our canonical inputs are kg, but we also store a human-friendly raw weight+unit in the scan doc.
@@ -913,7 +917,7 @@ export async function submitScanClient(
 export async function retryScanProcessingClient(
   scanId: string
 ): Promise<ScanApiResult<void>> {
-  const user = auth.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user) {
     return {
       ok: false,
@@ -923,7 +927,8 @@ export async function retryScanProcessingClient(
   const trimmed = scanId.trim();
   if (!trimmed) return { ok: false, error: { message: "Missing scan id." } };
   try {
-    await user.getIdToken(true);
+    const refreshed = await getIdToken({ forceRefresh: true });
+    if (!refreshed) throw new Error("auth_required");
   } catch (err: any) {
     return {
       ok: false,
@@ -998,7 +1003,7 @@ export async function retryScanProcessingClient(
 export async function getScan(
   scanId: string
 ): Promise<ScanApiResult<ScanDocument>> {
-  const uid = auth.currentUser?.uid;
+  const uid = (await getCurrentUser().catch(() => null))?.uid ?? null;
   if (!uid)
     return {
       ok: false,

@@ -1,6 +1,5 @@
-type AuthProvider = import("firebase/auth").AuthProvider;
 import { reportError } from "@/lib/telemetry";
-import { getFirebaseConfig, requireAuth } from "@/lib/firebase";
+import { getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { isNative } from "@/lib/platform";
@@ -128,7 +127,7 @@ export function clearPendingOAuth(): void {
 
 export type OAuthStartOptions = {
   providerId: OAuthProviderId;
-  provider: AuthProvider;
+  provider: any;
   next?: string | null;
 };
 
@@ -169,7 +168,8 @@ export async function signInWithOAuthProvider(
   }
   signInGuard = { providerId: options.providerId, startedAt };
 
-  const auth = await requireAuth();
+  const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
+  const auth = await webRequireAuth();
   const cfg = getFirebaseConfig();
   const origin = typeof window !== "undefined" ? window.location.origin : "(unknown)";
   void reportError({
@@ -213,8 +213,12 @@ export async function signInWithOAuthProvider(
     }
 
     authEvent("auth_popup_start", { provider: options.providerId });
+    const { signInWithPopup, signInWithRedirect } = await import("firebase/auth");
     const cred = await withTimeout(
-      popupThenRedirectFn(auth, options.provider),
+      popupThenRedirectFn(auth, options.provider, {
+        signInWithPopup,
+        signInWithRedirect,
+      }),
       MAX_AUTH_WAIT_MS,
       "auth/timeout"
     );

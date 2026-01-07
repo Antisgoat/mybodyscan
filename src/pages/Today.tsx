@@ -8,18 +8,20 @@ import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutritionBackend";
 import { getPlan } from "@/lib/workouts";
 import { DemoBanner } from "@/components/DemoBanner";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { useAuthUser } from "@/lib/authFacade";
 
 export default function Today() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const demo = useDemoMode();
+  const { user } = useAuthUser();
   const { plan: coachPlan } = useUserProfile();
   const todayISO = new Date().toISOString().slice(0, 10);
   // Health connectors are not live yet; always surface the "coming soon" banner
@@ -87,7 +89,7 @@ export default function Today() {
           }
           return;
         }
-        const uid = auth.currentUser?.uid;
+        const uid = user?.uid ?? null;
         if (!uid) {
           if (!cancelled) {
             setWorkout({ done: 0, total: planDays[idx].exercises.length });
@@ -123,7 +125,7 @@ export default function Today() {
     return () => {
       cancelled = true;
     };
-  }, [demo, todayISO]);
+  }, [demo, todayISO, user?.uid]);
 
   const handleScan = () => {
     track("start_scan_click");

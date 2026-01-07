@@ -87,6 +87,10 @@ export default defineConfig(({ mode }) => ({
     ],
   },
   build: {
+    // IMPORTANT: Capacitor uses the same `dist/` as web, but iOS WKWebView boot is
+    // extremely sensitive to pulling in web auth code. Disable HTML modulepreload
+    // injection so `firebase-auth-*` is never preloaded at native boot.
+    modulePreload: false,
     chunkSizeWarningLimit: 1800,
     rollupOptions: {
       external: [/^functions\/.*/],

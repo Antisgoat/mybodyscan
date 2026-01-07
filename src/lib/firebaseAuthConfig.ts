@@ -1,4 +1,4 @@
-import { firebaseReady, getFirebaseConfig } from "@/lib/firebase";
+import { getFirebaseConfig } from "@/lib/firebase";
 import { isIdentityToolkitProbeEnabled } from "@/lib/firebase/identityToolkitProbe";
 import type { IdentityToolkitProbeStatus } from "@/lib/firebase/runtimeConfig";
 
@@ -140,7 +140,6 @@ export async function loadFirebaseAuthClientConfig(): Promise<FirebaseAuthClient
     return cachedConfigPromise;
   }
 
-  await firebaseReady();
   const runtimeConfig = getFirebaseConfig();
 
   const apiKey = runtimeConfig.apiKey;

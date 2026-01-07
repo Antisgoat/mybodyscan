@@ -18,7 +18,8 @@ import {
 import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/authFacade";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { authedFetch } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,6 +30,7 @@ import { formatLogSummary, isPR, progressionTip } from "@/lib/workoutsProgressio
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Workouts() {
+  const { user } = useAuthUser();
   const { t } = useI18n();
   const location = useLocation();
   const nav = useNavigate();
@@ -95,7 +97,7 @@ export default function Workouts() {
       if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
       const idx = p.days.findIndex((d) => d.day === todayName);
       if (idx < 0) return;
-      const uid = auth.currentUser?.uid;
+      const uid = user?.uid ?? null;
       if (!uid) return;
       try {
         const snap = await getDoc(
@@ -134,7 +136,7 @@ export default function Workouts() {
   const loadRecentLogs = useCallback(
     async (p: WorkoutPlan, isCancelled?: () => boolean) => {
       if (!p?.id) return;
-      const uid = auth.currentUser?.uid;
+      const uid = user?.uid ?? null;
       if (!uid) return;
       try {
         const col = collection(db, `users/${uid}/workoutPlans/${p.id}/progress`);

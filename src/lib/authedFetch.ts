@@ -1,5 +1,5 @@
 import { apiFetchJson } from "@/lib/apiFetch";
-import { auth } from "@/lib/firebase";
+import { requireIdToken } from "@/lib/authFacade";
 
 export type AuthedJsonOptions = {
   signal?: AbortSignal;
@@ -10,12 +10,9 @@ export async function authedJsonPost<T>(
   body: unknown,
   options: AuthedJsonOptions = {}
 ): Promise<T> {
-  const user = auth?.currentUser ?? null;
-  const idToken = user ? await user.getIdToken() : null;
+  const idToken = await requireIdToken();
   const headers = new Headers({ "Content-Type": "application/json" });
-  if (idToken) {
-    headers.set("Authorization", `Bearer ${idToken}`);
-  }
+  headers.set("Authorization", `Bearer ${idToken}`);
 
   const payload = await apiFetchJson(path, {
     method: "POST",

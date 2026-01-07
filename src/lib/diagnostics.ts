@@ -1,7 +1,7 @@
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { getBreadcrumbs } from "./logger";
 export function buildDiagnostics(): string {
-  const u = firebaseAuth?.currentUser;
+  const u = getCachedUser();
   const info = {
     uid: u?.uid || "signed-out",
     email: u?.email || "",

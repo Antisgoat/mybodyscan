@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
   envFlags,
-  getAuthPersistenceMode,
   getFirebaseConfig,
 } from "../lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { getIdToken, useAuthUser } from "@/lib/authFacade";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
@@ -19,7 +18,7 @@ export default function Diagnostics() {
   } | null>(null);
   const { user, authReady } = useAuthUser();
   const cfg = getFirebaseConfig();
-  const persistence = getAuthPersistenceMode();
+  const persistence = isNativeCapacitor() ? "native" : "unknown";
   const initState = getInitAuthState();
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -40,7 +39,7 @@ export default function Diagnostics() {
         return;
       }
       try {
-        const t = await user.getIdToken();
+        const t = await getIdToken();
         if (!cancelled) setTokenLen((t || "").length);
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || String(e));

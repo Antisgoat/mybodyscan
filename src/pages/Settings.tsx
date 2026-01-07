@@ -29,7 +29,7 @@ import {
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
-import { signOutAll } from "@/lib/auth";
+import { signOut } from "@/lib/authFacade";
 import { toast } from "@/hooks/use-toast";
 import { supportMailto } from "@/lib/support";
 import { Link, useNavigate } from "react-router-dom";
@@ -50,9 +50,7 @@ import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachSex } from "@/hooks/useUserProfile";
 import {
-  auth,
   db,
-  getAuthPersistenceMode,
   getFirebaseConfig,
 } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
@@ -170,7 +168,7 @@ const Settings = () => {
     Boolean(runtimeHost) &&
     Boolean(authDomain) &&
     runtimeHost.toLowerCase() !== authDomain.toLowerCase();
-  const persistenceMode = getAuthPersistenceMode();
+  const persistenceMode = isNativeCapacitor() ? "native" : "unknown";
   const iosSafari = isIOSSafari();
   const nativeCapacitor = isNativeCapacitor();
   const initAuthState = getInitAuthState();
@@ -243,7 +241,7 @@ const Settings = () => {
   }, [user]);
 
   const handleSaveMetrics = async () => {
-    if (!auth.currentUser) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Sign in to update your profile.",
@@ -284,7 +282,7 @@ const Settings = () => {
       const profileRef = doc(
         db,
         "users",
-        auth.currentUser.uid,
+        user.uid,
         "coach",
         "profile"
       );
@@ -434,7 +432,7 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
-    await signOutAll();
+    await signOut();
     navigate("/auth");
   };
 
@@ -489,7 +487,7 @@ const Settings = () => {
       setDeletingAccount(true);
       await requestAccountDeletion();
       toast({ title: "Account deleted", description: "We signed you out." });
-      await signOutAll();
+      await signOut();
       navigate("/auth", { replace: true });
     } catch (error) {
       toast(
@@ -519,8 +517,8 @@ const Settings = () => {
   };
 
   const handleRefreshClaims = async () => {
-    const user = auth.currentUser;
-    if (!user) {
+    const currentUser = user;
+    if (!currentUser) {
       toast({
         title: "Sign in required",
         description: "Sign in to refresh claims.",
@@ -546,7 +544,7 @@ const Settings = () => {
         description = `Credits remaining: ${claims.credits}`;
       } else {
         const snapshot = await getDoc(
-          doc(db, `users/${user.uid}/private/credits`)
+          doc(db, `users/${currentUser.uid}/private/credits`)
         );
         const remaining = snapshot.data()?.creditsSummary?.totalAvailable as
           | number

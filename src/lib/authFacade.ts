@@ -1,147 +1,182 @@
-type Unsubscribe = () => void;
-type User = import("firebase/auth").User;
-import { getCachedAuth, signOutAll } from "@/lib/auth";
-import { isNativeCapacitor } from "@/lib/platform";
-import { requireAuth } from "@/lib/firebase";
+import { useSyncExternalStore } from "react";
+import { isNative } from "@/lib/platform";
+import type { AuthState, AuthUser, Unsubscribe } from "@/lib/auth/types";
+import type { AuthFacade } from "@/lib/auth/facadeTypes";
 
-type AuthFacade = {
-  signInGoogle(next?: string | null): Promise<void>;
-  signInApple(next?: string | null): Promise<void>;
-  signInEmailPassword(email: string, password: string): Promise<void>;
-  signUpEmailPassword(email: string, password: string): Promise<void>;
-  signOut(): Promise<void>;
-  getCurrentUser(): User | null;
-  onCurrentUserChanged(cb: (user: User | null) => void): Unsubscribe;
-};
+let cachedImpl: Promise<AuthFacade> | null = null;
+async function impl(): Promise<AuthFacade> {
+  // `isNative()` uses URL scheme (capacitor://) so it is safe during early boot.
+  if (cachedImpl) return cachedImpl;
+  cachedImpl = isNative()
+    ? import("@/lib/auth/nativeFacadeImpl").then((m) => m.nativeAuthImpl)
+    : import("@/lib/auth/webFacadeImpl").then((m) => m.webAuthImpl);
+  return cachedImpl;
+}
 
-const WebAuth: AuthFacade = {
-  async signInGoogle(next) {
-    const { signInWithGoogle } = await import("@/lib/auth/providers");
-    await signInWithGoogle(next);
-  },
-  async signInApple(next) {
-    const { signInWithApple } = await import("@/lib/auth/providers");
-    await signInWithApple(next);
-  },
-  async signInEmailPassword(email, password) {
-    const auth = await requireAuth();
-    const { signInWithEmailAndPassword } = await import("firebase/auth");
-    await signInWithEmailAndPassword(auth, email, password);
-  },
-  async signUpEmailPassword(email, password) {
-    const auth = await requireAuth();
-    const { createUserWithEmailAndPassword } = await import("firebase/auth");
-    await createUserWithEmailAndPassword(auth, email, password);
-  },
-  async signOut() {
-    await signOutAll();
-  },
-  getCurrentUser() {
-    return getCachedAuth()?.currentUser ?? null;
-  },
-  onCurrentUserChanged(cb) {
-    let cancelled = false;
-    let unsub: Unsubscribe | null = null;
-    void (async () => {
-      try {
-        const auth = await requireAuth();
-        if (cancelled) return;
-        const { onAuthStateChanged } = await import("firebase/auth");
-        unsub = onAuthStateChanged(auth, cb);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (unsub) unsub();
-    };
-  },
-};
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  return (await impl()).getCurrentUser();
+}
 
-const NativeAuth: AuthFacade = {
-  async signInGoogle() {
-    // Non-negotiable: do NOT run web popup/redirect OAuth inside WKWebView.
-    // To ship quickly and comply with App Store review, we use email/password on iOS for now.
-    throw new Error("Google sign-in is not available on iOS. Use email/password.");
-  },
-  async signInApple() {
-    // Non-negotiable: do NOT run web redirect OAuth inside WKWebView.
-    throw new Error("Apple sign-in is not available on iOS. Use email/password.");
-  },
-  async signInEmailPassword(email, password) {
-    const auth = await requireAuth();
-    const { signInWithEmailAndPassword } = await import("firebase/auth");
-    await signInWithEmailAndPassword(auth, email, password);
-  },
-  async signUpEmailPassword(email, password) {
-    const auth = await requireAuth();
-    const { createUserWithEmailAndPassword } = await import("firebase/auth");
-    await createUserWithEmailAndPassword(auth, email, password);
-  },
-  async signOut() {
-    // Ensure Firebase session is cleared even if native provider sessions exist.
-    try {
-      const auth = await requireAuth();
-      const { signOut } = await import("firebase/auth");
-      await signOut(auth);
-    } catch {
-      // ignore
-    }
-    await signOutAll();
-  },
-  getCurrentUser() {
-    return getCachedAuth()?.currentUser ?? null;
-  },
-  onCurrentUserChanged(cb) {
-    let cancelled = false;
-    let unsub: Unsubscribe | null = null;
-    void (async () => {
-      try {
-        const auth = await requireAuth();
-        if (cancelled) return;
-        const { onAuthStateChanged } = await import("firebase/auth");
-        unsub = onAuthStateChanged(auth, cb);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (unsub) unsub();
-    };
-  },
-};
+export async function onAuthStateChanged(
+  cb: (user: AuthUser | null) => void
+): Promise<Unsubscribe> {
+  return (await impl()).onAuthStateChanged((state) => cb(state.user ?? null));
+}
 
-function impl(): AuthFacade {
-  return isNativeCapacitor() ? NativeAuth : WebAuth;
+export async function onIdTokenChanged(
+  cb: (token: string | null) => void
+): Promise<Unsubscribe> {
+  return (await impl()).onIdTokenChanged(cb);
+}
+
+export async function getIdToken(options?: {
+  forceRefresh?: boolean;
+}): Promise<string | null> {
+  return (await impl()).getIdToken(options);
+}
+
+export async function requireIdToken(options?: {
+  forceRefresh?: boolean;
+}): Promise<string> {
+  const token = await getIdToken(options);
+  if (!token) {
+    const err: any = new Error("auth_required");
+    err.code = "auth_required";
+    throw err;
+  }
+  return token;
 }
 
 export function signInGoogle(next?: string | null) {
-  return impl().signInGoogle(next);
+  return impl().then((i) => i.signInGoogle(next));
 }
 
 export function signInApple(next?: string | null) {
-  return impl().signInApple(next);
+  return impl().then((i) => i.signInApple(next));
 }
 
-export function signInEmailPassword(email: string, password: string) {
-  return impl().signInEmailPassword(email, password);
+export async function signInEmailPassword(email: string, password: string) {
+  return (await impl()).signInEmail(email, password);
 }
 
-export function signUpEmailPassword(email: string, password: string) {
-  return impl().signUpEmailPassword(email, password);
+export async function signUpEmailPassword(email: string, password: string) {
+  return (await impl()).createUserEmail(email, password);
 }
 
 export function signOut() {
-  return impl().signOut();
+  return impl().then((i) => i.signOut());
 }
 
-export function getCurrentUser() {
-  return impl().getCurrentUser();
+export function sendReset(email: string) {
+  return impl().then((i) => i.sendPasswordResetEmail(email));
 }
 
-export function onCurrentUserChanged(cb: (user: User | null) => void) {
-  return impl().onCurrentUserChanged(cb);
+// ---- App auth store (single source of truth for user+boot gating) ----
+type AuthSnapshot = {
+  user: AuthUser | null;
+  authReady: boolean;
+};
+
+let cachedUser: AuthUser | null = null;
+let authReadyFlag = false;
+let cachedSnapshot: AuthSnapshot = { user: null, authReady: false };
+const listeners = new Set<() => void>();
+let unsubscribe: Unsubscribe | null = null;
+let firstAuthEventResolve: (() => void) | null = null;
+let firstAuthEventPromise: Promise<void> | null = null;
+
+function emit(nextUser: AuthUser | null) {
+  cachedUser = nextUser;
+  authReadyFlag = true;
+  cachedSnapshot = { user: cachedUser, authReady: authReadyFlag };
+  for (const l of listeners) {
+    try {
+      l();
+    } catch {
+      // ignore subscriber errors
+    }
+  }
+  if (firstAuthEventResolve) {
+    firstAuthEventResolve();
+    firstAuthEventResolve = null;
+  }
 }
+
+async function ensureListener(): Promise<void> {
+  if (unsubscribe) return;
+  if (!firstAuthEventPromise) {
+    firstAuthEventPromise = new Promise<void>((resolve) => {
+      firstAuthEventResolve = resolve;
+    });
+  }
+  const u = await (await impl()).onAuthStateChanged((state) => {
+    emit(state.user ?? null);
+  });
+  unsubscribe = u;
+}
+
+export async function startAuthListener(): Promise<void> {
+  await ensureListener();
+  await (firstAuthEventPromise ?? Promise.resolve());
+}
+
+function subscribe(listener: () => void) {
+  void ensureListener();
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot(): AuthSnapshot {
+  return cachedSnapshot;
+}
+
+function getServerSnapshot(): AuthSnapshot {
+  return { user: null, authReady: false };
+}
+
+export function useAuthUser() {
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return {
+    user: snapshot.authReady ? snapshot.user : null,
+    loading: !snapshot.authReady,
+    authReady: snapshot.authReady,
+  } as const;
+}
+
+export type AuthPhase = "booting" | "signedOut" | "signedIn";
+export function useAuthPhase(): AuthPhase {
+  const { user, authReady } = useAuthUser();
+  if (!authReady) return "booting";
+  return user ? "signedIn" : "signedOut";
+}
+
+/** Synchronous best-effort cached user (for non-React helpers like telemetry). */
+export function getCachedUser(): AuthUser | null {
+  return cachedUser;
+}
+
+export async function signOutToAuth(): Promise<void> {
+  await signOut().catch(() => undefined);
+  if (typeof window !== "undefined") {
+    window.location.href = "/auth";
+  }
+}
+
+// Back-compat wrapper used by existing UI (web uses anonymous-link semantics).
+export async function createAccountEmail(
+  email: string,
+  password: string,
+  displayName?: string
+) {
+  if (!isNative()) {
+    const { webCreateAccountEmail } = await import("@/lib/auth/webFirebaseAuth");
+    const res = await webCreateAccountEmail(email, password, displayName);
+    return res.user;
+  }
+  const user = await signUpEmailPassword(email, password);
+  return user;
+}
+
 

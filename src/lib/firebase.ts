@@ -8,7 +8,6 @@ import {
   getStorage,
   type FirebaseStorage,
 } from "firebase/storage";
-import { isNative } from "@/lib/platform";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -246,87 +245,6 @@ function initializeFirebaseApp(): FirebaseApp {
 export const app: FirebaseApp = initializeFirebaseApp();
 export const firebaseApp: FirebaseApp = app;
 
-export type AuthPersistenceMode =
-  | "indexeddb"
-  | "local"
-  | "session"
-  | "memory"
-  | "unknown";
-let authPersistenceMode: AuthPersistenceMode = "unknown";
-let persistenceReady: Promise<AuthPersistenceMode> | null = null;
-export let auth: import("firebase/auth").Auth | null = null;
-
-export async function getFirebaseAuth(): Promise<import("firebase/auth").Auth> {
-  if (auth) return auth;
-  const { getAuth, initializeAuth, inMemoryPersistence } = await import(
-    "firebase/auth"
-  );
-  const app = getFirebaseApp();
-  if (isNative()) {
-    // Native: only in-memory, no IndexedDB, no popupRedirectResolver
-    auth = initializeAuth(app, { persistence: [inMemoryPersistence] });
-    authPersistenceMode = "memory";
-    return auth;
-  }
-  auth = getAuth(app);
-  return auth;
-}
-
-export async function requireAuth(): Promise<import("firebase/auth").Auth> {
-  return await getFirebaseAuth();
-}
-
-export function getAuthPersistenceMode(): AuthPersistenceMode {
-  return authPersistenceMode;
-}
-
-export async function ensureAuthPersistence(): Promise<AuthPersistenceMode> {
-  if (persistenceReady) return persistenceReady;
-  if (isNative()) {
-    // Native builds: do not load firebase/auth at boot. When Auth is created,
-    // it uses in-memory persistence only.
-    authPersistenceMode = authPersistenceMode === "unknown" ? "memory" : authPersistenceMode;
-    persistenceReady = Promise.resolve(authPersistenceMode ?? "memory");
-    return persistenceReady;
-  }
-  // Prefer IndexedDB on iOS Safari (more reliable than localStorage with ITP).
-  persistenceReady = (async () => {
-    const auth = await requireAuth();
-    const {
-      setPersistence,
-      indexedDBLocalPersistence,
-      browserLocalPersistence,
-      browserSessionPersistence,
-    } = await import("firebase/auth");
-    try {
-      await setPersistence(auth, indexedDBLocalPersistence);
-      authPersistenceMode = "indexeddb";
-      return authPersistenceMode;
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn("[firebase] indexedDBLocalPersistence failed; retrying", err);
-      }
-    }
-
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-      authPersistenceMode = "local";
-      return authPersistenceMode;
-    } catch (err2) {
-      if (import.meta.env.DEV) {
-        console.warn("[firebase] browserLocalPersistence failed; retrying", err2);
-      }
-    }
-
-    // Last resort: session persistence (still supports redirect flows within a session).
-    await setPersistence(auth, browserSessionPersistence).catch(() => undefined);
-    authPersistenceMode = "session";
-    return authPersistenceMode;
-  })();
-
-  return persistenceReady;
-}
-
 export const db: Firestore = getFirestore(app);
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
 export const functions: Functions = getFunctions(app, functionsRegion);
@@ -407,7 +325,8 @@ export function logFirebaseConfigSummary(): void {
 }
 
 export async function firebaseReady(): Promise<void> {
-  await ensureAuthPersistence().catch(() => undefined);
+  // Intentionally no-op: auth is managed by `authFacade` (web vs native split).
+  return;
 }
 
 export function getFirebaseApp(): FirebaseApp {
@@ -471,15 +390,12 @@ export const providerFlags = {
 export const envFlags = providerFlags;
 
 export async function signInWithEmail(email: string, password: string) {
-  const auth = await requireAuth();
-  const { signInWithEmailAndPassword } = await import("firebase/auth");
-  return signInWithEmailAndPassword(auth, email, password);
+  throw new Error("signInWithEmail moved to authFacade");
 }
 
 export function initFirebase() {
   return {
     app,
-    auth,
     db,
     storage,
     functions,

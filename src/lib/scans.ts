@@ -1,4 +1,5 @@
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { doc } from "firebase/firestore";
 import { kgToLb, lbToKg } from "@/lib/units";
 
@@ -160,7 +161,7 @@ export type ScanDoc = {
 };
 
 export function scanDocRef(scanId: string) {
-  const uid = auth.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("No current user");
   return doc(db, "users", uid, "scans", scanId);
 }

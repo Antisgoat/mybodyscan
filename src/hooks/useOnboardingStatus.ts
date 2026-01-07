@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { db, requireAuth } from "@/lib/firebase";
-import { isNative } from "@/lib/platform";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/authFacade";
 
 type InternalState = {
   authResolved: boolean;
@@ -26,9 +26,16 @@ const hasNonEmptyObject = (value: unknown): boolean => {
 
 export function useOnboardingStatus() {
   const [state, setState] = useState<InternalState>(initialState);
+  const { user, authReady } = useAuthUser();
+  const uid = user?.uid ?? null;
 
   useEffect(() => {
-    if (isNative()) {
+    if (!authReady || !db) {
+      setState((prev) => ({ ...prev, authResolved: false, metaLoading: true }));
+      return;
+    }
+
+    if (!uid) {
       setState({
         authResolved: true,
         metaLoading: false,
@@ -39,111 +46,51 @@ export function useOnboardingStatus() {
       return;
     }
 
-    let unsubscribeMeta: (() => void) | null = null;
-    let cancelled = false;
+    setState({
+      authResolved: true,
+      metaLoading: true,
+      personalizationCompleted: false,
+      hasDraft: false,
+      hasRootData: false,
+    });
 
-    let unsubscribeAuth: (() => void) | null = null;
-    void (async () => {
-      const auth = await requireAuth().catch(() => null);
-      if (!auth || !db || cancelled) {
-        setState({
-          authResolved: true,
+    const metaRef = doc(db, "users", uid, "meta", "onboarding");
+    const unsubscribeMeta = onSnapshot(
+      metaRef,
+      (snapshot) => {
+        const data = snapshot.exists() ? snapshot.data() : null;
+        const completed = data?.completed === true;
+        const hasDraft = hasNonEmptyObject(data?.draft);
+        setState((prev) => ({
+          ...prev,
           metaLoading: false,
-          personalizationCompleted: false,
-          hasDraft: false,
-          hasRootData: false,
-        });
-        return;
-      }
-      const { onAuthStateChanged } = await import("firebase/auth");
-      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-        if (cancelled) return;
-        if (unsubscribeMeta) {
-          unsubscribeMeta();
-          unsubscribeMeta = null;
-        }
-
-        if (!user) {
-          setState({
-            authResolved: true,
-            metaLoading: false,
-            personalizationCompleted: false,
-            hasDraft: false,
-            hasRootData: false,
-          });
-          return;
-        }
-
-        setState({
-          authResolved: true,
-          metaLoading: true,
-          personalizationCompleted: false,
-          hasDraft: false,
-          hasRootData: false,
-        });
-
-        const metaRef = doc(db, "users", user.uid, "meta", "onboarding");
-        unsubscribeMeta = onSnapshot(
-          metaRef,
-          (snapshot) => {
-            if (cancelled) return;
-            const data = snapshot.exists() ? snapshot.data() : null;
-            const completed = data?.completed === true;
-            const hasDraft = hasNonEmptyObject(data?.draft);
-            setState((prev) => ({
-              ...prev,
-              metaLoading: false,
-              personalizationCompleted: completed,
-              hasDraft,
-            }));
-          },
-          () => {
-            if (cancelled) return;
-            setState((prev) => ({
-              ...prev,
-              metaLoading: false,
-              personalizationCompleted: false,
-              hasDraft: false,
-            }));
-          }
-        );
-
-        void getDoc(doc(db, "users", user.uid))
-          .then((userDoc) => {
-            if (cancelled) return;
-            const hasRootData = hasNonEmptyObject(userDoc.data()?.onboarding);
-            setState((prev) => ({
-              ...prev,
-              hasRootData,
-            }));
-          })
-          .catch(() => {
-            if (cancelled) return;
-            setState((prev) => ({
-              ...prev,
-              hasRootData: false,
-            }));
-          });
+          personalizationCompleted: completed,
+          hasDraft,
+        }));
       },
       () => {
-        if (cancelled) return;
-        setState({
-          authResolved: true,
+        setState((prev) => ({
+          ...prev,
           metaLoading: false,
           personalizationCompleted: false,
           hasDraft: false,
-          hasRootData: false,
-        });
+        }));
       }
-      );
-    })();
+    );
+
+    void getDoc(doc(db, "users", uid))
+      .then((userDoc) => {
+        const hasRootData = hasNonEmptyObject(userDoc.data()?.onboarding);
+        setState((prev) => ({ ...prev, hasRootData }));
+      })
+      .catch(() => {
+        setState((prev) => ({ ...prev, hasRootData: false }));
+      });
 
     return () => {
-      cancelled = true;
-      if (unsubscribeMeta) unsubscribeMeta();
-      if (unsubscribeAuth) unsubscribeAuth();
+      unsubscribeMeta();
     };
-  }, []);
+  }, [authReady, uid]);
 
   return useMemo(() => {
     const loading = !state.authResolved || state.metaLoading;

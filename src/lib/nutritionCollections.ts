@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
-import { getCachedAuth } from "@/lib/auth";
+import { getCachedUser } from "@/lib/authFacade";
 
 export interface FavoriteDoc {
   name: string;
@@ -31,7 +31,7 @@ export interface TemplateDoc {
 }
 
 function assertUid(): string {
-  const uid = getCachedAuth()?.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
   return uid;
 }

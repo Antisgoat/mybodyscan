@@ -1,45 +1,22 @@
 import { useState, useEffect } from "react";
-import { db, requireAuth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, onSnapshot } from "firebase/firestore";
-import { isNative } from "@/lib/platform";
+import { useAuthUser } from "@/lib/authFacade";
 
 export type UnitSystem = "US" | "metric";
 
 export function useUserUnits() {
   const [units, setUnits] = useState<UnitSystem>("US"); // Default to US units
   const [loading, setLoading] = useState(true);
-  const [uid, setUid] = useState<string | null>(null);
+  const { user, authReady } = useAuthUser();
+  const uid = user?.uid ?? null;
 
   useEffect(() => {
-    if (isNative()) {
-      setUid(null);
-      setLoading(false);
-      return undefined;
+    if (!authReady) {
+      setLoading(true);
+      return;
     }
-    let unsub: (() => void) | null = null;
-    let cancelled = false;
-    void (async () => {
-      const auth = await requireAuth().catch(() => null);
-      if (!auth || cancelled) {
-        setUid(null);
-        setLoading(false);
-        return;
-      }
-      setUid(auth.currentUser?.uid ?? null);
-      const { onAuthStateChanged } = await import("firebase/auth");
-      unsub = onAuthStateChanged(auth, (user) => {
-        setUid(user?.uid ?? null);
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-      if (unsub) unsub();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!uid) {
       setLoading(false);
       return;
@@ -69,7 +46,7 @@ export function useUserUnits() {
     );
 
     return unsubscribe;
-  }, [uid]);
+  }, [authReady, uid]);
 
   const updateUnits = async (newUnits: UnitSystem) => {
     if (!uid || !db) return;

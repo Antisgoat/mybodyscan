@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-type User = import("firebase/auth").User;
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/authFacade";
 
 export type UserProfile = {
   role?: string;
@@ -13,15 +13,20 @@ export type UserProfile = {
 export function useUserProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const { user, authReady } = useAuthUser();
+  const uid = user?.uid ?? null;
 
   useEffect(() => {
-    const u: User | null = auth.currentUser;
-    if (!u) {
+    if (!authReady) {
+      setLoading(true);
+      return;
+    }
+    if (!uid) {
       setProfile(null);
       setLoading(false);
       return;
     }
-    const ref = doc(db, "users", u.uid);
+    const ref = doc(db, "users", uid);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -35,7 +40,7 @@ export function useUserProfile() {
       }
     );
     return () => unsub();
-  }, [auth?.currentUser?.uid]); // re-sub when uid changes
+  }, [authReady, uid]); // re-sub when uid changes
 
   return { profile, loading };
 }

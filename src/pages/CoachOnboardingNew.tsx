@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc } from "firebase/firestore";
 import { useComputePlan } from "@/hooks/useComputePlan";
@@ -22,6 +22,7 @@ import HeightInputUS from "@/components/HeightInputUS";
 import { kgToLb, lbToKg } from "@/lib/units";
 import { useUnits } from "@/hooks/useUnits";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
+import { useAuthUser } from "@/lib/authFacade";
 
 interface OnboardingData {
   sex?: "male" | "female";
@@ -53,6 +54,7 @@ export default function CoachOnboardingNew() {
   const [plan, setPlan] = useState<any>(null);
 
   const navigate = useNavigate();
+  const { user } = useAuthUser();
   const { computePlan } = useComputePlan();
   const { toast } = useToast();
   const { units } = useUnits();
@@ -76,7 +78,7 @@ export default function CoachOnboardingNew() {
   };
 
   const handleComputePlan = async () => {
-    if (!auth.currentUser) return;
+    if (!user) return;
 
     setComputing(true);
     try {
@@ -84,7 +86,7 @@ export default function CoachOnboardingNew() {
       const profileRef = doc(
         db,
         "users",
-        auth.currentUser.uid,
+        user.uid,
         "coach",
         "profile"
       );

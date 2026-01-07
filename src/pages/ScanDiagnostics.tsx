@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
-  auth,
   getFirebaseConfig,
   getFirebaseStorage,
   storage as storageInstance,
 } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 
 type Check = { name: string; ok: boolean; detail?: string };
 
@@ -25,8 +25,8 @@ export default function ScanDiagnosticsPage() {
         rows.push({ name: "Firebase app", ok: Boolean(cfg?.projectId), detail: cfg?.projectId });
         rows.push({
           name: "Auth UID",
-          ok: Boolean(auth.currentUser?.uid),
-          detail: auth.currentUser?.uid || "missing",
+          ok: Boolean(getCachedUser()?.uid),
+          detail: getCachedUser()?.uid || "missing",
         });
         const storage = getFirebaseStorage();
         rows.push({

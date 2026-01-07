@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import { appCheck } from "@/lib/appCheck";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
+import { useAuthUser } from "@/lib/authFacade";
 
 type Check = {
   name: string;
@@ -36,7 +36,7 @@ const TESTS: Check[] = [
 ];
 
 export default function SystemCheckPro() {
-  const user = auth.currentUser;
+  const { user } = useAuthUser();
   const [appCheckToken, setAppCheckToken] = useState<string>("");
   const [rows, setRows] = useState<
     { name: string; ok: boolean; status?: number; error?: string }[]

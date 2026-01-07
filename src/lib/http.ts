@@ -1,4 +1,4 @@
-import { auth } from "@/lib/firebase";
+import { getIdToken } from "@/lib/authFacade";
 import { appCheck } from "@/lib/appCheck";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import {
@@ -39,11 +39,8 @@ export class ApiError extends Error {
 }
 
 async function getAuthHeaders() {
-  const u = auth?.currentUser ?? null;
   const [idToken, ac] = await Promise.all([
-    u
-      ? u.getIdToken(/*forceRefresh*/ false).catch(() => "")
-      : Promise.resolve(""),
+    getIdToken({ forceRefresh: false }).then((t) => t || "").catch(() => ""),
     appCheck
       ? getAppCheckToken(appCheck, false).catch(() => null)
       : Promise.resolve(null),

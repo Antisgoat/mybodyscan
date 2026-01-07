@@ -26,7 +26,8 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
-import { auth, db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
+import { db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
+import { getIdToken } from "@/lib/authFacade";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
@@ -332,15 +333,38 @@ export default function ScanPage() {
       if (!showDebug) return;
       if (!user) return;
       try {
-        const result = await user.getIdTokenResult();
+        const token = await getIdToken();
         if (!active) return;
-        const issuedAt = Date.parse(result.issuedAtTime);
+        const parts = token ? token.split(".") : [];
+        const payload =
+          parts.length >= 2
+            ? (() => {
+                try {
+                  const raw = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+                  const pad = raw.length % 4;
+                  const padded = pad ? raw + "=".repeat(4 - pad) : raw;
+                  return JSON.parse(atob(padded)) as any;
+                } catch {
+                  return null;
+                }
+              })()
+            : null;
+        const iatMs =
+          typeof payload?.iat === "number" ? Math.round(payload.iat * 1000) : NaN;
+        const expMs =
+          typeof payload?.exp === "number" ? Math.round(payload.exp * 1000) : NaN;
         const now = Date.now();
-        const ageSeconds = Number.isFinite(issuedAt) ? Math.max(0, Math.round((now - issuedAt) / 1000)) : undefined;
+        const ageSeconds = Number.isFinite(iatMs)
+          ? Math.max(0, Math.round((now - iatMs) / 1000))
+          : undefined;
         setTokenInfo((prev) => ({
           ...(prev ?? {}),
-          issuedAtTime: result.issuedAtTime,
-          expirationTime: result.expirationTime,
+          issuedAtTime: Number.isFinite(iatMs)
+            ? new Date(iatMs).toISOString()
+            : undefined,
+          expirationTime: Number.isFinite(expMs)
+            ? new Date(expMs).toISOString()
+            : undefined,
           ageSeconds,
         }));
       } catch (err: any) {
@@ -547,29 +571,13 @@ export default function ScanPage() {
       uploadAbortRef.current = abortController;
       // Force-refresh auth before uploads (Safari can hold a stale token across restores).
       try {
-        await auth.currentUser?.getIdToken(true);
+        await getIdToken({ forceRefresh: true });
         if (showDebug) {
-          const result = await auth.currentUser?.getIdTokenResult().catch(() => null);
-          if (result) {
-            const issuedAt = Date.parse(result.issuedAtTime);
-            const now = Date.now();
-            const ageSeconds = Number.isFinite(issuedAt)
-              ? Math.max(0, Math.round((now - issuedAt) / 1000))
-              : undefined;
-            setTokenInfo((prev) => ({
-              ...(prev ?? {}),
-              issuedAtTime: result.issuedAtTime,
-              expirationTime: result.expirationTime,
-              ageSeconds,
-              refreshedAt: Date.now(),
-              refreshError: undefined,
-            }));
-          } else {
-            setTokenInfo((prev) => ({
-              ...(prev ?? {}),
-              refreshedAt: Date.now(),
-            }));
-          }
+          setTokenInfo((prev) => ({
+            ...(prev ?? {}),
+            refreshedAt: Date.now(),
+            refreshError: undefined,
+          }));
         }
       } catch (err: any) {
         if (showDebug) {
@@ -1899,7 +1907,7 @@ export default function ScanPage() {
                     className="rounded border px-3 py-2 text-xs"
                     disabled={uploadSmokeTest.status === "running"}
                     onClick={async () => {
-                      const uid = auth.currentUser?.uid;
+                      const uid = user?.uid ?? null;
                       if (!uid) {
                         setUploadSmokeTest({
                           status: "fail",

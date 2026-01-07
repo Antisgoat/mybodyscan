@@ -21,7 +21,7 @@ import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
 import { useAuthUser } from "@/lib/auth";
 import { useClaims } from "@/lib/claims";
-import { auth, firebaseReady, getFirebaseAuth } from "@/lib/firebase";
+import { requireIdToken } from "@/lib/authFacade";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,
@@ -288,10 +288,6 @@ const UATPage = () => {
 
   const handleGoogleProbe = useCallback(async () => {
     await googleProbe.run(async () => {
-      await firebaseReady();
-      const authInstance = await getFirebaseAuth();
-      const { GoogleAuthProvider } = await import("firebase/auth");
-      const provider = new GoogleAuthProvider();
       const redirectCapable =
         typeof window !== "undefined" && typeof window.location !== "undefined";
       const popupCapable =
@@ -302,12 +298,12 @@ const UATPage = () => {
         status: ok ? "pass" : "fail",
         code: ok ? null : "redirect_unsupported",
         message: ok
-          ? `Redirect ready • popup=${popupCapable ? "yes" : "no"} • provider=${provider.providerId}`
+          ? `Redirect ready • popup=${popupCapable ? "yes" : "no"} • provider=google.com`
           : "Firebase Auth redirect API unavailable",
         data: {
           redirectCapable,
           popupCapable,
-          providerId: provider.providerId,
+          providerId: "google.com",
         },
       };
     });
@@ -319,20 +315,13 @@ const UATPage = () => {
     );
     if (!confirmed) return;
     rememberAuthRedirect("/__uat");
-    await firebaseReady();
     await googleSignInWithFirebase();
   }, []);
 
   const { toast } = useToast();
 
   const authHeaders = useCallback(async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw Object.assign(new Error("auth_required"), {
-        code: "auth_required",
-      });
-    }
-    const token = await currentUser.getIdToken();
+    const token = await requireIdToken();
     return {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -502,7 +491,6 @@ const UATPage = () => {
     await seedUnlimitedProbe.run(async () => {
       const email = "developer@adlrlabs.com";
       try {
-        await firebaseReady();
         const response = await call<
           { email: string },
           Record<string, unknown> | null

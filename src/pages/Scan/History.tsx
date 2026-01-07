@@ -7,8 +7,8 @@ import {
   query,
 } from "firebase/firestore";
 import { retryScanProcessingClient, type ScanDocument } from "@/lib/api/scan";
-import { auth, db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/useAuthUser";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/lib/authFacade";
 import { deserializeScanDocument } from "@/lib/api/scan";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -25,7 +25,7 @@ export default function ScanHistoryPage() {
   const nav = useNavigate();
 
   useEffect(() => {
-    const currentUser = user ?? auth.currentUser;
+    const currentUser = user;
     if (demo && !currentUser) {
       const mapped = (demoScanHistory as any[]).map((s) => {
         const createdMs =
@@ -93,7 +93,7 @@ export default function ScanHistoryPage() {
       }
     );
     return () => unsub();
-  }, [user]);
+  }, [demo, user]);
 
   return (
     <div className="space-y-4">
