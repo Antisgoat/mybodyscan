@@ -11,5 +11,6 @@ export {
   signOutToAuth,
   createAccountEmail,
   sendReset,
+  __authTestInternals,
 } from "@/lib/authFacade";
 

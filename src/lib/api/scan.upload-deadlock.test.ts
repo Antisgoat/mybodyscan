@@ -31,14 +31,16 @@ vi.mock("@/features/scan/resizeImage", () => ({
 
 vi.mock("@/lib/firebase", () => {
   return {
-    auth: {
-      currentUser: {
-        uid: "user-123",
-        getIdToken: vi.fn().mockResolvedValue("token"),
-      },
-    },
     db: {} as any,
     storage: {} as any,
+  };
+});
+
+vi.mock("@/lib/authFacade", () => {
+  return {
+    getCurrentUser: vi.fn(async () => ({ uid: "user-123" })),
+    getIdToken: vi.fn(async () => "token"),
+    requireIdToken: vi.fn(async () => "token"),
   };
 });
 

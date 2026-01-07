@@ -4,8 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/firebase", () => {
   return {
-    getFirebaseAuth: () => ({}),
     getFirebaseConfig: () => ({ authDomain: "example.firebaseapp.com", projectId: "example" }),
+  };
+});
+
+vi.mock("@/lib/auth/webFirebaseAuth", () => {
+  return {
+    // Keep this test hermetic: OAuth code should not require Firebase Auth SDK at all.
+    webRequireAuth: vi.fn(async () => ({})),
   };
 });
 
@@ -56,6 +62,11 @@ describe("signInWithOAuthProvider", () => {
   });
 
   it("stores pending state and times out within 15s (no silent hang)", async () => {
+    // `vi.resetModules()` can clear dynamic-import module state; re-apply mocks used by this flow.
+    vi.doMock("@/lib/auth/webFirebaseAuth", () => ({
+      webRequireAuth: vi.fn(async () => ({})),
+    }));
+
     vi.useFakeTimers();
     // Ensure the code path uses popupThenRedirect (desktop-ish), not redirect.
     setUserAgent(
@@ -80,6 +91,11 @@ describe("signInWithOAuthProvider", () => {
       next: "/home",
     });
 
+    // Pending state is stored after the first awaited step in the OAuth flow.
+    for (let i = 0; i < 5; i += 1) {
+      if (peekPendingOAuth()) break;
+      await Promise.resolve();
+    }
     expect(peekPendingOAuth()?.providerId).toBe("google.com");
 
     const rejection = expect(promise).rejects.toMatchObject({ code: "auth/timeout" });

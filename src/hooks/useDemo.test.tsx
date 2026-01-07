@@ -13,14 +13,9 @@ describe("useDemoWireup", () => {
   it("does not disable demo for signed-out users and does not re-subscribe on navigation", async () => {
     vi.resetModules();
 
-    const onAuthStateChanged = vi.fn((_auth: any, cb: (user: any) => void) => {
-      // Simulate Firebase immediately reporting the signed-out state.
-      cb(null);
-      return () => undefined;
-    });
-
-    vi.doMock("firebase/auth", () => ({ onAuthStateChanged }));
-    vi.doMock("@/lib/firebase", () => ({ auth: { currentUser: null } }));
+    vi.doMock("@/lib/auth", () => ({
+      useAuthUser: () => ({ user: null, authReady: true }),
+    }));
 
     // Ensure the module initializes with demo=1 in the real window location.
     window.history.replaceState({}, "", "/welcome?demo=1");
@@ -52,8 +47,5 @@ describe("useDemoWireup", () => {
 
     // Demo should remain enabled (old behavior would have wiped it on signed-out auth callback).
     expect(demoState.isDemo()).toBe(true);
-
-    // Listener should only be installed once.
-    expect(onAuthStateChanged).toHaveBeenCalledTimes(1);
   });
 });

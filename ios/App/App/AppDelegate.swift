@@ -15,14 +15,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func configureFirebaseIfPresent(context: String) {
         // Configure as early as possible to ensure any Firebase-using plugin
         // sees a configured default app.
-        if FirebaseApp.app() != nil { return }
         let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+        NSLog("[MBS] GoogleService-Info.plist found=%d (%@)", plistPath != nil ? 1 : 0, context)
+        if FirebaseApp.app() != nil { return }
         if plistPath != nil {
             FirebaseApp.configure()
-            NSLog("[MBS] FirebaseApp configured (\(context))")
+            NSLog("[MBS] FirebaseApp.configure() ok (\(context))")
         } else {
             // NOTE: Do not hardcode secrets in Swift; this file must come from the Xcode project.
-            NSLog("[MBS][TODO] Missing GoogleService-Info.plist; skipping FirebaseApp.configure() (\(context))")
+            NSLog("[MBS] Missing GoogleService-Info.plist; skipping FirebaseApp.configure() (\(context))")
         }
     }
 

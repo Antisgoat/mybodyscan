@@ -9,7 +9,6 @@ vi.mock("@/lib/callable", () => {
 
 vi.mock("@/lib/firebase", () => {
   return {
-    auth: { currentUser: { uid: "u1" } },
     db: {},
     getFirebaseConfig: () => ({ projectId: "test" }),
   };
@@ -17,16 +16,22 @@ vi.mock("@/lib/firebase", () => {
 
 let mockClaims: Record<string, unknown> = {};
 
-vi.mock("firebase/auth", () => {
+function base64UrlEncode(obj: unknown): string {
+  const json = JSON.stringify(obj ?? {});
+  const b64 = btoa(json);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function buildJwtFromClaims(claims: Record<string, unknown>): string {
+  const header = base64UrlEncode({ alg: "none", typ: "JWT" });
+  const payload = base64UrlEncode({ ...claims, sub: "u1" });
+  return `${header}.${payload}.`;
+}
+
+vi.mock("@/lib/authFacade", () => {
   return {
-    onIdTokenChanged: (_auth: any, next: any) => {
-      const mockUser = {
-        uid: "u1",
-        getIdTokenResult: async () => ({ claims: mockClaims }),
-      };
-      void next(mockUser);
-      return () => {};
-    },
+    useAuthUser: () => ({ user: { uid: "u1" }, authReady: true }),
+    getIdToken: vi.fn(async () => buildJwtFromClaims(mockClaims)),
   };
 });
 

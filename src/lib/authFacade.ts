@@ -14,24 +14,46 @@ async function impl(): Promise<AuthFacade> {
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) return null;
   return (await impl()).getCurrentUser();
 }
 
 export async function onAuthStateChanged(
   cb: (user: AuthUser | null) => void
 ): Promise<Unsubscribe> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    try {
+      queueMicrotask(() => cb(null));
+    } catch {
+      // ignore
+    }
+    return () => undefined;
+  }
   return (await impl()).onAuthStateChanged((state) => cb(state.user ?? null));
 }
 
 export async function onIdTokenChanged(
   cb: (token: string | null) => void
 ): Promise<Unsubscribe> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    try {
+      queueMicrotask(() => cb(null));
+    } catch {
+      // ignore
+    }
+    return () => undefined;
+  }
   return (await impl()).onIdTokenChanged(cb);
 }
 
 export async function getIdToken(options?: {
   forceRefresh?: boolean;
 }): Promise<string | null> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) return null;
   return (await impl()).getIdToken(options);
 }
 
@@ -78,12 +100,14 @@ type AuthSnapshot = {
 };
 
 let cachedUser: AuthUser | null = null;
-let authReadyFlag = false;
+// On native boot, do NOT initialize auth; treat as "ready but signed out" so the UI can render.
+let authReadyFlag = isNative();
 let cachedSnapshot: AuthSnapshot = { user: null, authReady: false };
 const listeners = new Set<() => void>();
 let unsubscribe: Unsubscribe | null = null;
 let firstAuthEventResolve: (() => void) | null = null;
 let firstAuthEventPromise: Promise<void> | null = null;
+let nativeAuthEnabled = false;
 
 function emit(nextUser: AuthUser | null) {
   cachedUser = nextUser;
@@ -104,6 +128,15 @@ function emit(nextUser: AuthUser | null) {
 
 async function ensureListener(): Promise<void> {
   if (unsubscribe) return;
+  if (isNative() && !nativeAuthEnabled) {
+    // Native boot firewall: do not import/execute native auth plugin unless enabled.
+    // Ensure consumers don't hang forever waiting for authReady.
+    if (!authReadyFlag) {
+      authReadyFlag = true;
+      cachedSnapshot = { user: cachedUser, authReady: true };
+    }
+    return;
+  }
   if (!firstAuthEventPromise) {
     firstAuthEventPromise = new Promise<void>((resolve) => {
       firstAuthEventResolve = resolve;
@@ -116,12 +149,20 @@ async function ensureListener(): Promise<void> {
 }
 
 export async function startAuthListener(): Promise<void> {
+  if (isNative()) {
+    // Explicit opt-in: importing the native auth plugin can indirectly pull in Firebase JS auth
+    // (via plugin web fallbacks). Never do this during native boot.
+    nativeAuthEnabled = true;
+  }
   await ensureListener();
   await (firstAuthEventPromise ?? Promise.resolve());
 }
 
 function subscribe(listener: () => void) {
-  void ensureListener();
+  // Native boot firewall: avoid importing native auth plugin on first render.
+  if (!isNative() || nativeAuthEnabled) {
+    void ensureListener();
+  }
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -129,6 +170,10 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot(): AuthSnapshot {
+  // Keep snapshot consistent with native boot behavior.
+  if (isNative() && !nativeAuthEnabled) {
+    return { user: cachedUser, authReady: true };
+  }
   return cachedSnapshot;
 }
 
@@ -178,5 +223,58 @@ export async function createAccountEmail(
   const user = await signUpEmailPassword(email, password);
   return user;
 }
+
+// ---- Test helpers (not part of the public app API) ----
+export const __authTestInternals = {
+  reset() {
+    try {
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch {
+          // ignore
+        }
+      }
+      unsubscribe = null;
+      cachedImpl = null;
+      nativeAuthEnabled = false;
+      cachedUser = null;
+      authReadyFlag = false;
+      cachedSnapshot = { user: null, authReady: false };
+      listeners.clear();
+      firstAuthEventResolve = null;
+      firstAuthEventPromise = null;
+    } catch {
+      // ignore
+    }
+  },
+  emit(user: any, options?: { authReady?: boolean }) {
+    try {
+      if (options && typeof options.authReady === "boolean") {
+        authReadyFlag = options.authReady;
+      } else {
+        authReadyFlag = true;
+      }
+      cachedUser = user ?? null;
+      cachedSnapshot = { user: cachedUser, authReady: authReadyFlag };
+      for (const l of listeners) {
+        try {
+          l();
+        } catch {
+          // ignore
+        }
+      }
+      if (firstAuthEventResolve && authReadyFlag) {
+        firstAuthEventResolve();
+        firstAuthEventResolve = null;
+      }
+    } catch {
+      // ignore
+    }
+  },
+  snapshot() {
+    return { ...cachedSnapshot };
+  },
+};
 
 

@@ -3,6 +3,7 @@ import { getFirebaseConfig } from "@/lib/firebase";
 import { popupThenRedirect as popupThenRedirectImported } from "@/lib/popupThenRedirect";
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { isNative } from "@/lib/platform";
+import { loadAuthSdk } from "@/lib/auth/authSdk";
 
 export type OAuthProviderId = "google.com" | "apple.com";
 
@@ -168,6 +169,12 @@ export async function signInWithOAuthProvider(
   }
   signInGuard = { providerId: options.providerId, startedAt };
 
+  // Store pending state BEFORE any awaited work so we never "silently hang" without UI state.
+  if (options.next) {
+    rememberAuthRedirect(options.next);
+  }
+  storePending({ providerId: options.providerId, startedAt });
+
   const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
   const auth = await webRequireAuth();
   const cfg = getFirebaseConfig();
@@ -183,12 +190,6 @@ export async function signInWithOAuthProvider(
     },
   });
 
-  if (options.next) {
-    rememberAuthRedirect(options.next);
-  }
-
-  storePending({ providerId: options.providerId, startedAt });
-
   try {
     if (shouldPreferRedirect()) {
       authEvent("auth_redirect_start", { provider: options.providerId });
@@ -200,9 +201,7 @@ export async function signInWithOAuthProvider(
         (async () => {
           // Avoid duplicate redirect attempts: clear any stale redirect result first.
           // (Firebase SDK is safe if none is pending.)
-          const { getRedirectResult, signInWithRedirect } = await import(
-            "firebase/auth"
-          );
+          const { getRedirectResult, signInWithRedirect } = await loadAuthSdk();
           await getRedirectResult(auth).catch(() => undefined);
           await signInWithRedirect(auth, options.provider);
         })(),
@@ -213,7 +212,7 @@ export async function signInWithOAuthProvider(
     }
 
     authEvent("auth_popup_start", { provider: options.providerId });
-    const { signInWithPopup, signInWithRedirect } = await import("firebase/auth");
+    const { signInWithPopup, signInWithRedirect } = await loadAuthSdk();
     const cred = await withTimeout(
       popupThenRedirectFn(auth, options.provider, {
         signInWithPopup,
