@@ -12,12 +12,6 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { initializeApp } from "firebase/app";
 import {
-  connectAuthEmulator,
-  inMemoryPersistence,
-  initializeAuth,
-  signInAnonymously,
-} from "firebase/auth";
-import {
   connectFirestoreEmulator,
   doc,
   getDoc,
@@ -114,6 +108,13 @@ async function httpJson(url, { idToken, body }) {
 }
 
 async function main() {
+  const {
+    connectAuthEmulator,
+    inMemoryPersistence,
+    initializeAuth,
+    signInAnonymously,
+  } = await import("firebase/auth");
+
   const projectId =
     process.env.GCLOUD_PROJECT ||
     process.env.FIREBASE_PROJECT ||
