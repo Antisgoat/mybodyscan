@@ -43,6 +43,10 @@ const firebaseInternalAliases: Record<string, string> = Object.fromEntries(
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // NOTE:
+  // - `mode === "native"` is a special build mode for Capacitor/WKWebView.
+  // - In native builds we must NEVER bundle or execute Firebase JS Auth.
+  //   We hard-alias all firebase/auth entrypoints to throwing stubs.
   base: "/",
   server: {
     host: "::",
@@ -55,6 +59,32 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       ...firebaseInternalAliases,
+      ...(mode === "native"
+        ? {
+            // Hard-disable Firebase JS Auth on native builds (WKWebView safety).
+            // If anything accidentally imports these, it will throw a clear error
+            // rather than crashing the WebView at boot.
+            "firebase/auth": path.resolve(
+              __dirname,
+              "./src/shims/firebase-auth.native.ts"
+            ),
+            "@firebase/auth": path.resolve(
+              __dirname,
+              "./src/shims/firebase-auth.native.ts"
+            ),
+            "firebase/auth/cordova": path.resolve(
+              __dirname,
+              "./src/shims/firebase-auth.native.ts"
+            ),
+
+            // Prevent the plugin web bundle (which can import firebase/auth) from
+            // being pulled into the native build graph.
+            "@capacitor-firebase/authentication": path.resolve(
+              __dirname,
+              "./src/shims/cap-firebase-auth.native.ts"
+            ),
+          }
+        : {}),
     },
     dedupe: [
       "react",

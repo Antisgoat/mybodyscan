@@ -24,9 +24,21 @@ let implPromise: Promise<AuthImpl> | null = null;
 
 function loadImpl(): Promise<AuthImpl> {
   if (!implPromise) {
-    implPromise = isNative()
-      ? import("./impl.native").then((m) => m.impl)
-      : import("./impl.web").then((m) => m.impl);
+    // CRITICAL:
+    // - Native builds must NEVER bundle or execute Firebase JS Auth.
+    // - Use Vite build mode (`vite build --mode native`) to select the native impl
+    //   at build-time so the web impl (and firebase/auth) is excluded from output.
+    //
+    // We still keep `isNative()` as a runtime safety check for dev/preview, but
+    // native builds should always use `MODE === "native"`.
+    const mode = import.meta.env.MODE;
+    if (mode === "native") {
+      implPromise = import("./impl.native").then((m) => m.impl);
+    } else if (isNative()) {
+      implPromise = import("./impl.native").then((m) => m.impl);
+    } else {
+      implPromise = import("./impl.web").then((m) => m.impl);
+    }
   }
   return implPromise;
 }
