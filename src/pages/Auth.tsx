@@ -102,23 +102,6 @@ const Auth = () => {
   }, [user, location.pathname, defaultTarget]);
 
   useEffect(() => {
-    // Native boot firewall: only import/attach native auth listeners after the user
-    // actually opens the Auth UI. This keeps WKWebView boot stable.
-    if (!native) return;
-    let cancelled = false;
-    void startAuthListener().catch((err) => {
-      if (cancelled) return;
-      console.warn("[auth] native auth listener failed to start", err);
-      setAuthError(
-        "Sign-in is currently unavailable on this device. Please try again later."
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [native]);
-
-  useEffect(() => {
     if (user) {
       if (!native) {
         void import("@/lib/auth/oauth").then(({ clearPendingOAuth }) => {
@@ -220,6 +203,11 @@ const Auth = () => {
       setAuthError(null);
       if (mode === "signin") {
         try {
+          if (native) {
+            // Lazy, user-action-only: start the native auth listener when the user
+            // explicitly attempts to sign in (never at boot).
+            await startAuthListener().catch(() => undefined);
+          }
           await signInEmailPassword(email, password);
           return;
         } catch (err: unknown) {
@@ -273,6 +261,9 @@ const Auth = () => {
           return;
         }
       } else {
+        if (native) {
+          await startAuthListener().catch(() => undefined);
+        }
         await createAccountEmail(email, password);
       }
     } catch (err: unknown) {

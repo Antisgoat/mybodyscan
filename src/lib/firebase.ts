@@ -412,6 +412,13 @@ export async function getFirebaseAuth(): Promise<import("firebase/auth").Auth> {
   if (authPromise) return authPromise;
 
   authPromise = (async () => {
+    // HARD BLOCK: never import/execute Firebase JS Auth on native (WKWebView).
+    // Native builds must use Capacitor auth plugins and only invoke them lazily.
+    if (isNative()) {
+      const err = new Error("Firebase JS Auth is disabled on native builds");
+      (err as any).code = "auth/native-js-auth-disabled";
+      throw err;
+    }
     const {
       getAuth,
       setPersistence,
@@ -422,17 +429,6 @@ export async function getFirebaseAuth(): Promise<import("firebase/auth").Auth> {
     } = await loadAuthSdk();
 
     const a = getAuth(app);
-
-    // Native: keep it in-memory; never crash boot on persistence errors.
-    if (isNative()) {
-      try {
-        await setPersistence(a, inMemoryPersistence);
-      } catch {
-        // ignore (some environments/plugins may reject persistence operations)
-      }
-      auth = a;
-      return a;
-    }
 
     // Web: prefer IndexedDB, fallback to local/session. Never throw here.
     try {
