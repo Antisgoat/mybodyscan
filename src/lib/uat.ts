@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-type User = import("firebase/auth").User;
+import type { UserLike as User } from "@/auth/types";
 
 import type { UserClaims } from "./claims";
 

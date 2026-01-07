@@ -3,15 +3,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ensureAuthPersistence = vi.fn().mockResolvedValue("indexeddb");
-vi.mock("@/lib/auth/webFirebaseAuth", () => {
+vi.mock("@/auth/impl.web", () => {
   return {
-    webEnsureAuthPersistence: (...args: any[]) => ensureAuthPersistence(...args),
+    ensureWebAuthPersistence: (...args: any[]) => ensureAuthPersistence(...args),
+    finalizeRedirectResult: vi.fn().mockResolvedValue(null),
   };
-});
-
-const finalizeRedirectResult = vi.fn().mockResolvedValue(null);
-vi.mock("@/lib/auth/oauth", () => {
-  return { finalizeRedirectResult: (...args: any[]) => finalizeRedirectResult(...args) };
 });
 
 const startAuthListener = vi.fn().mockResolvedValue(undefined);
@@ -36,7 +32,10 @@ describe("initAuth", () => {
   });
 
   it("swallows redirect finalization errors (doesn't crash boot)", async () => {
-    finalizeRedirectResult.mockRejectedValueOnce(new Error("redirect_failed"));
+    const { finalizeRedirectResult } = await import("@/auth/impl.web");
+    (finalizeRedirectResult as any).mockRejectedValueOnce(
+      new Error("redirect_failed")
+    );
     const { initAuth, getInitAuthState } = await import("./initAuth");
     await expect(initAuth()).resolves.toBeUndefined();
     const state = getInitAuthState();

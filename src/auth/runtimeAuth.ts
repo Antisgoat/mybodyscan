@@ -1,5 +1,5 @@
 import { isNative } from "@/lib/platform";
-import { getFirebaseApp } from "@/lib/firebase";
+import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/facade";
 
 import type { Unsubscribe } from "@/lib/auth/types";
 
@@ -25,9 +25,7 @@ export async function onAuthStateChangedSafe(
     return () => undefined;
   }
   try {
-    const { getAuth, onAuthStateChanged } = await import("firebase/auth");
-    const auth = getAuth(getFirebaseApp());
-    const unsub = onAuthStateChanged(auth, (u) => listener(u ?? null));
+    const unsub = await onAuthStateChanged((u) => listener(u ?? null));
     return () => unsub();
   } catch {
     try {
@@ -42,9 +40,7 @@ export async function onAuthStateChangedSafe(
 export async function getCurrentUserSafe(): Promise<any | null> {
   if (isNative()) return null;
   try {
-    const { getAuth } = await import("firebase/auth");
-    const auth = getAuth(getFirebaseApp());
-    return auth.currentUser ?? null;
+    return (await getCurrentUser()) ?? null;
   } catch {
     return null;
   }
@@ -55,9 +51,7 @@ export async function getIdTokenSafe(
 ): Promise<string | null> {
   if (isNative()) return null;
   try {
-    const user = await getCurrentUserSafe();
-    if (!user) return null;
-    return await user.getIdToken(Boolean(forceRefresh));
+    return await getIdToken(forceRefresh);
   } catch {
     return null;
   }

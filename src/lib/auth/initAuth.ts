@@ -44,10 +44,8 @@ export async function initAuth(): Promise<void> {
     });
     // Web-only: set Firebase JS SDK persistence early.
     if (!isNative()) {
-      const { webEnsureAuthPersistence } = await import(
-        "@/lib/auth/webFirebaseAuth"
-      );
-      state.persistence = await webEnsureAuthPersistence().catch(() => "unknown");
+      const { ensureWebAuthPersistence } = await import("@/auth/impl.web");
+      state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
     } else {
       state.persistence = "memory";
     }
@@ -57,8 +55,8 @@ export async function initAuth(): Promise<void> {
       // This is critical for iOS Safari and also covers edge cases where a WebView
       // ends up using web-based redirects (or reauth redirects) instead of native auth.
       try {
-        const { finalizeRedirectResult } = await import("@/lib/auth/oauth");
-        await finalizeRedirectResult();
+        const { finalizeRedirectResult } = await import("@/auth/impl.web");
+        await finalizeRedirectResult().catch(() => null);
         state.redirectError = null;
       } catch (err: any) {
         // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
