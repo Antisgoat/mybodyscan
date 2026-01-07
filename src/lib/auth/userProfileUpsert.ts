@@ -3,7 +3,7 @@ import { db } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
 import { setDoc, updateDoc } from "@/lib/dbWrite";
 
-type User = import("firebase/auth").User;
+import type { AuthUser } from "@/lib/auth/types";
 
 type UpsertUserFields = {
   createdAt?: unknown;
@@ -24,7 +24,7 @@ function cleanString(value: unknown): string | undefined {
  * - Sets createdAt only when the doc doesn't exist yet
  * - Adds email/displayName when present (never overwrites with empty)
  */
-export async function upsertUserRootProfile(user: User): Promise<void> {
+export async function upsertUserRootProfile(user: AuthUser): Promise<void> {
   if (!user?.uid) return;
   const ref = doc(db, "users", user.uid);
   const email = cleanString(user.email);

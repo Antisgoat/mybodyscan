@@ -1,5 +1,4 @@
 import type { FirebaseError } from "firebase/app";
-import { firebaseReady, requireAuth } from "./firebase";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
 import { isNative } from "@/lib/platform";
@@ -56,8 +55,8 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
   }
   let auth: import("firebase/auth").Auth | null = null;
   try {
-    await firebaseReady();
-    auth = await requireAuth();
+    const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
+    auth = await webRequireAuth();
     authEvent("auth_redirect_result", { phase: "start" });
     const { getRedirectResult } = await import("firebase/auth");
     const result = await getRedirectResult(auth);
@@ -107,7 +106,8 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     let normalized: NormalizedAuthError | null = null;
     if (fbError) {
       try {
-        auth ??= await requireAuth();
+        const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
+        auth ??= await webRequireAuth();
         normalized = await describeAuthErrorAsync(auth, fbError);
       } catch (normalizeError) {
         if (import.meta.env.DEV) {

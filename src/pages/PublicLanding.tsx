@@ -1,7 +1,7 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Seo } from "@/components/Seo";
-import { auth as firebaseAuth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import silhouetteFront from "@/assets/silhouette-front.png";
 import { HOW_IT_WORKS } from "@/content/howItWorks";
 import { PRICING_CATALOG } from "@/content/pricing";
@@ -11,7 +11,7 @@ const PublicLanding = () => {
   const navigate = useNavigate();
   const demoLink = "/demo";
   const handleLaunch = () => {
-    if (firebaseAuth?.currentUser) navigate("/home");
+    if (getCachedUser()) navigate("/home");
     else navigate("/auth");
   };
 

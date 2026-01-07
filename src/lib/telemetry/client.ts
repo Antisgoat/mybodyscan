@@ -1,4 +1,4 @@
-import { auth } from "@/lib/firebase";
+import { getCachedUser, getIdToken } from "@/lib/authFacade";
 import { getAppCheckHeader } from "@/lib/appCheck";
 
 export type TelemetryClientEvent = {
@@ -82,7 +82,7 @@ function getRouteFallback(): string {
 
 function getUidFallback(): string | null {
   try {
-    return auth?.currentUser?.uid ?? null;
+    return getCachedUser()?.uid ?? null;
   } catch {
     return null;
   }
@@ -121,9 +121,8 @@ function clampQueue(): void {
 
 async function getAuthToken(): Promise<string | undefined> {
   try {
-    const user = auth?.currentUser;
-    if (!user) return undefined;
-    return await user.getIdToken();
+    const token = await getIdToken();
+    return token || undefined;
   } catch {
     return undefined;
   }

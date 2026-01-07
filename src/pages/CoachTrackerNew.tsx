@@ -26,7 +26,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,7 @@ import { format } from "date-fns";
 import { Seo } from "@/components/Seo";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { addMeal as logMeal, type MealEntry } from "@/lib/nutritionBackend";
+import { useAuthUser } from "@/lib/authFacade";
 
 interface NutritionLog {
   calories: number;
@@ -75,9 +76,10 @@ export default function CoachTrackerNew() {
 
   const { plan } = useUserProfile();
   const { toast } = useToast();
+  const { user } = useAuthUser();
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const uid = auth.currentUser?.uid;
+  const uid = user?.uid ?? null;
 
   // Load daily log
   useEffect(() => {

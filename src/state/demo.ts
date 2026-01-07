@@ -1,4 +1,4 @@
-type User = import("firebase/auth").User;
+import type { AuthUser } from "@/lib/auth/types";
 
 type Listener = () => void;
 
@@ -192,7 +192,7 @@ export function setDemo(value: boolean): void {
   }
 }
 
-export function isDemoAllowed(user: User | null): boolean {
+export function isDemoAllowed(user: AuthUser | null): boolean {
   if (user) return false;
   return get().demo;
 }

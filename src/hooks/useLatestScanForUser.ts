@@ -6,10 +6,10 @@ import {
   limit,
   collection,
 } from "firebase/firestore";
-import { db, requireAuth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
-import { isNative } from "@/lib/platform";
+import { useAuthUser } from "@/lib/authFacade";
 
 type ScanData = {
   id: string;
@@ -31,52 +31,26 @@ export function useLatestScanForUser() {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<import("firebase/auth").User | null>(null);
+  const { user, authReady } = useAuthUser();
 
   useEffect(() => {
-    if (isNative()) {
-      setLoading(false);
-      setError("auth_unavailable");
-      return undefined;
-    }
-
-    let unsubAuth: (() => void) | null = null;
-    let cancelled = false;
-    void (async () => {
-      const auth = await requireAuth().catch(() => null);
-      if (!auth || cancelled) {
-        setLoading(false);
-        setError("auth_unavailable");
-        return;
-      }
-      const { onAuthStateChanged } = await import("firebase/auth");
-      unsubAuth = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
-        if (!currentUser) {
-          if (isDemo()) {
-            setScan(demoLatestScan as unknown as ScanData);
-          } else {
-            setScan(null);
-          }
-          setLoading(false);
-          setError(null);
-        }
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-      if (unsubAuth) unsubAuth();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!user) {
-      if (isDemo()) {
-        setLoading(false);
-      }
+    if (!authReady) {
+      setLoading(true);
       return;
     }
+    if (!user) {
+      if (isDemo()) {
+        setScan(demoLatestScan as unknown as ScanData);
+      } else {
+        setScan(null);
+      }
+      setLoading(false);
+      setError(null);
+    }
+  }, [authReady, user]);
+
+  useEffect(() => {
+    if (!user) return;
 
     setLoading(true);
     setError(null);

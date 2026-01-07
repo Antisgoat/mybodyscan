@@ -1,5 +1,5 @@
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
-import { auth } from "@/lib/firebase";
+import { getIdToken } from "@/lib/authFacade";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
@@ -21,8 +21,8 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   }
 
   try {
-    if (auth?.currentUser) {
-      const token = await auth.currentUser.getIdToken();
+    const token = await getIdToken();
+    if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
   } catch (error) {

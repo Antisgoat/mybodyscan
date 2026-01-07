@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { requireAuth } from "../lib/firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { signInEmailPassword } from "@/lib/authFacade";
 import { enableDemo } from "@/state/demo";
 import { isNativeCapacitor } from "@/lib/platform";
 
@@ -90,11 +90,7 @@ export default function LoginPanel() {
             disabled={!!loading || !email || !password}
             onClick={() =>
               withLoad("email", async () => {
-                const auth = await requireAuth();
-                const { signInWithEmailAndPassword } = await import(
-                  "firebase/auth"
-                );
-                await signInWithEmailAndPassword(auth, email, password);
+                await signInEmailPassword(email, password);
               })
             }
           >

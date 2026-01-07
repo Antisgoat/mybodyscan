@@ -34,7 +34,7 @@ import type {
   ProgramFaq,
 } from "@/lib/coach/types";
 import { isDeloadWeek } from "@/lib/coach/progression";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
@@ -47,6 +47,7 @@ import { canStartPrograms } from "@/lib/entitlements";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { isNative } from "@/lib/platform";
+import { useAuthUser } from "@/lib/authFacade";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",
@@ -108,6 +109,7 @@ export default function ProgramDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [activationNote, setActivationNote] = useState<string | null>(null);
   const demo = useDemoMode();
+  const { user: currentUser } = useAuthUser();
   const { entitlements, loading: entitlementsLoading } = useEntitlements();
   const startAllowed = canStartPrograms({
     demo,
@@ -146,7 +148,7 @@ export default function ProgramDetail() {
       demoToast();
       return;
     }
-    const user = auth.currentUser;
+    const user = currentUser;
     if (!user) {
       toast({
         title: "Sign in required",

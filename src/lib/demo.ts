@@ -1,10 +1,10 @@
-import { auth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { get as getDemoState } from "@/state/demo";
 
 export function isDemoActive(): boolean {
   // Demo mode only applies when signed out and the local demo flag is set.
   // Keep this logic simple and resilient (works in Safari/Capacitor without OAuth redirects).
-  if (auth?.currentUser) return false;
+  if (getCachedUser()) return false;
   return Boolean(getDemoState().demo);
 }
 

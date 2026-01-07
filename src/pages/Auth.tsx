@@ -13,15 +13,18 @@ import {
 } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
-import { createAccountEmail, sendReset, useAuthUser } from "@/lib/auth";
-import { signInApple as startAppleSignIn, signInGoogle as startGoogleSignIn } from "@/lib/authFacade";
+import { createAccountEmail, sendReset, useAuthUser } from "@/lib/authFacade";
 import {
-  auth,
+  signInApple as startAppleSignIn,
+  signInEmailPassword,
+  signInGoogle as startGoogleSignIn,
+} from "@/lib/authFacade";
+import {
   firebaseConfigMissingKeys,
   firebaseConfigWarningKeys,
   getFirebaseInitError,
+  getFirebaseConfig,
   hasFirebaseConfig,
-  requireAuth,
 } from "@/lib/firebase";
 import { isNativeCapacitor } from "@/lib/platform";
 import { warnIfDomainUnauthorized } from "@/lib/firebaseAuthConfig";
@@ -163,14 +166,14 @@ const Auth = () => {
   useEffect(() => {
     const origin =
       typeof window !== "undefined" ? window.location.origin : "(unknown)";
-    const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
+    const config = getFirebaseConfig() as Record<string, unknown>;
     void reportError({
       kind: "auth_origin_check",
       message: "auth_origin_check",
       extra: {
         origin,
-        authDomain: (authOptions.authDomain as string) || null,
-        projectId: (authOptions.projectId as string) || null,
+        authDomain: (config.authDomain as string) || null,
+        projectId: (config.projectId as string) || null,
       },
     });
   }, []);
@@ -194,10 +197,8 @@ const Auth = () => {
     try {
       setAuthError(null);
       if (mode === "signin") {
-        const authClient = await requireAuth();
         try {
-          const { signInWithEmailAndPassword } = await import("firebase/auth");
-          await signInWithEmailAndPassword(authClient, email, password);
+          await signInEmailPassword(email, password);
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & {
@@ -344,7 +345,7 @@ const Auth = () => {
   const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin =
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
-  const authOptions = (auth?.app?.options ?? {}) as Record<string, unknown>;
+  const config = getFirebaseConfig() as Record<string, unknown>;
   const showDebugPanel =
     import.meta.env.DEV ||
     host.startsWith("localhost") ||
@@ -631,11 +632,11 @@ const Auth = () => {
                 </div>
                 <div>Origin: {origin}</div>
                 <div>
-                  Project ID: {(authOptions.projectId as string) || "(unknown)"}
+                  Project ID: {(config.projectId as string) || "(unknown)"}
                 </div>
                 <div>
                   Auth domain:{" "}
-                  {(authOptions.authDomain as string) || "(unknown)"}
+                  {(config.authDomain as string) || "(unknown)"}
                 </div>
                 <div>Has config: {String(hasFirebaseConfig)}</div>
                 <div>
@@ -657,8 +658,8 @@ const Auth = () => {
                     : ""}
                 </div>
                 <div>
-                  Current user: {auth?.currentUser?.email || "(none)"} · UID:{" "}
-                  {auth?.currentUser?.uid || "-"}
+                  Current user: {user?.email || "(none)"} · UID:{" "}
+                  {user?.uid || "-"}
                 </div>
                 <div>
                   Last auth error: {authError || firebaseInitError || "none"}

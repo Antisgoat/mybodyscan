@@ -1,9 +1,8 @@
 import { Navigate } from "react-router-dom";
-import { getCachedAuth } from "@/lib/auth";
+import { getCachedUser } from "@/lib/authFacade";
 
 const RootRedirect = () => {
-  const user = getCachedAuth()?.currentUser;
-  return <Navigate to={user ? "/home" : "/auth"} replace />;
+  return <Navigate to={getCachedUser() ? "/home" : "/auth"} replace />;
 };
 
 export default RootRedirect;

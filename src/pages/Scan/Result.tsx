@@ -35,7 +35,7 @@ import {
   type ScanUploadProgress,
 } from "@/lib/api/scan";
 import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
-import { auth, getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import { getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   CAPTURE_VIEW_SETS,

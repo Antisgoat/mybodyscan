@@ -1,12 +1,11 @@
-import { auth } from "./firebase";
+import { getIdToken } from "@/lib/authFacade";
 
 const BASE = "/admin";
 
 async function getToken(): Promise<string | undefined> {
   try {
-    const user = auth?.currentUser ?? null;
-    if (!user) return undefined;
-    return await user.getIdToken();
+    const token = await getIdToken();
+    return token || undefined;
   } catch {
     return undefined;
   }

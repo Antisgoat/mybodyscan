@@ -1,4 +1,5 @@
-import { auth as firebaseAuth, db } from "./firebase";
+import { db } from "./firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import {
   collection,
   doc,
@@ -146,7 +147,7 @@ async function callFn(path: string, body?: any) {
 }
 
 async function fetchPlanFromFirestore() {
-  const uid = firebaseAuth?.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
   try {
     const metaSnap = await getDoc(
@@ -169,7 +170,7 @@ async function fetchPlanFromFirestore() {
 }
 
 async function fetchProgressFromFirestore(planId: string) {
-  const uid = firebaseAuth?.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
   try {
     const progressRef = collection(
@@ -321,7 +322,7 @@ export async function activateCatalogPlan(
   const confirmPolls = Math.max(1, Math.min(8, options?.confirmPolls ?? 5));
   const backoffMs = Math.max(150, Math.min(3000, options?.backoffMs ?? 500));
 
-  const uid = firebaseAuth?.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
 
   let lastErr: unknown = null;
@@ -435,7 +436,7 @@ export async function getWeeklyCompletion(planId: string) {
     track("demo_block", { action: "workout_weekly" });
     return 0;
   }
-  const uid = firebaseAuth?.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
   const col = collection(db, `users/${uid}/workoutPlans/${planId}/progress`);
   const snaps = await getDocs(col);

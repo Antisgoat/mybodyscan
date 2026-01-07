@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { bootstrapSystem } from "@/lib/system";
-import { useAuthUser } from "@/lib/auth";
+import { getIdToken, useAuthUser } from "@/lib/authFacade";
 import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
 import { initPurchases } from "@/lib/billing/iapProvider";
 import { syncEntitlements } from "@/lib/entitlements/syncEntitlements";
@@ -51,7 +51,7 @@ export function useAuthBootstrap() {
           }
         }
 
-        await user.getIdToken(true);
+        await getIdToken({ forceRefresh: true });
         failureCountRef.current = 0;
       } catch (e) {
         console.warn("bootstrap failed", e);

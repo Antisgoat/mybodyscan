@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-import { getCachedAuth } from "@/lib/auth";
+import { getCachedUser } from "@/lib/authFacade";
 import { reportError } from "@/lib/telemetry";
 import { isDemoAllowed } from "@/state/demo";
 
@@ -30,8 +30,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       error instanceof Error
         ? error
         : new Error(typeof error === "string" ? error : "Unknown error");
-    const auth = getCachedAuth();
-    const user = auth?.currentUser;
+    const user = getCachedUser();
     const location =
       typeof window !== "undefined" ? window.location.href : undefined;
     const demo = isDemoAllowed(user ?? null);

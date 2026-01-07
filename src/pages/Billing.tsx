@@ -4,9 +4,10 @@ import { loadStripe } from "@stripe/stripe-js";
 import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
-import { db, requireAuth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 import { Navigate } from "react-router-dom";
+import { useAuthUser } from "@/lib/authFacade";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),
@@ -23,7 +24,8 @@ const MODES: Record<keyof typeof PRICE_IDS, "payment" | "subscription"> = {
 };
 
 export default function Billing() {
-  const [uid, setUid] = useState<string | null>(null);
+  const { user, authReady } = useAuthUser();
+  const uid = user?.uid ?? null;
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -33,39 +35,22 @@ export default function Billing() {
   }, []);
 
   useEffect(() => {
-    let unsubscribeDoc: (() => void) | undefined;
-    if (isNative()) return undefined;
-    let unsubscribeAuth: (() => void) | null = null;
-    let cancelled = false;
-    void (async () => {
-      const auth = await requireAuth().catch(() => null);
-      if (!auth || cancelled) {
-        setUid(null);
-        setCredits(null);
-        return;
-      }
-      const { onAuthStateChanged } = await import("firebase/auth");
-      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-        setUid(user?.uid || null);
-        if (unsubscribeDoc) {
-          unsubscribeDoc();
-          unsubscribeDoc = undefined;
-        }
-        if (user?.uid && db) {
-          unsubscribeDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
-            setCredits((snap.data()?.credits as number) ?? 0);
-          });
-        } else {
-          setCredits(null);
-        }
-      });
-    })();
     return () => {
-      if (unsubscribeDoc) unsubscribeDoc();
-      cancelled = true;
-      if (unsubscribeAuth) unsubscribeAuth();
+      // handled by onSnapshot cleanup below
     };
   }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!uid || !db) {
+      setCredits(null);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, "users", uid), (snap) => {
+      setCredits((snap.data()?.credits as number) ?? 0);
+    });
+    return () => unsub();
+  }, [authReady, uid]);
 
   async function go<T>(fn: () => Promise<T>) {
     setBusy(true);

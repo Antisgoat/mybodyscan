@@ -1,5 +1,5 @@
 import { getStorage } from "firebase/storage";
-import { auth } from "@/lib/firebase";
+import { getCachedUser } from "@/lib/authFacade";
 import { reportError } from "@/lib/telemetry";
 import { getScanPhotoPath } from "@/lib/scanPaths";
 import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";
@@ -8,7 +8,7 @@ const THUMB_REPORT_TTL_MS = 5 * 60 * 1000;
 const lastThumbReportAt = new Map<string, number>();
 
 export async function getFrontThumbUrl(scanId: string): Promise<string | null> {
-  const uid = auth.currentUser?.uid;
+  const uid = getCachedUser()?.uid;
   if (!uid) return null;
   const storage = getStorage();
   const candidates = [getScanPhotoPath(uid, scanId, "front")];

@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { useMemo } from "react";
-import { auth as firebaseAuth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { getCurrentUser } from "@/lib/authFacade";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
 import type {
@@ -26,7 +27,7 @@ export function useHealthDaily() {
 
   async function syncDay(date: string): Promise<DailySummary> {
     const summary = await adapter.getDailySummary(date);
-    const uid = firebaseAuth?.currentUser?.uid;
+    const uid = (await getCurrentUser().catch(() => null))?.uid ?? null;
     if (uid && db) {
       const ref = doc(db, "users", uid, "healthDaily", date);
       await setDoc(

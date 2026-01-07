@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
-import { useAuthUser } from "@/lib/useAuthUser";
-import { requireAuth } from "@/lib/firebase";
+import { signOutToAuth, useAuthUser } from "@/lib/authFacade";
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";
-import { isIOSWebKit } from "@/lib/ua";
 import { isNative } from "@/lib/platform";
-
-type User = import("firebase/auth").User;
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -22,40 +18,8 @@ export default function SettingsAccountPrivacyPage() {
 
   useEffect(() => {
     if (!loading && !user) nav("/auth?next=/settings/account");
-    if (user) setProvider(user.providerData[0]?.providerId || null);
+    if (user) setProvider(user.providerId || null);
   }, [user, loading, nav]);
-
-  async function ensureRecentLogin(currentUser: User) {
-    if (isNative()) {
-      throw new Error(
-        "Re-authentication via web popup/redirect is not available on native builds."
-      );
-    }
-    const {
-      EmailAuthProvider,
-      GoogleAuthProvider,
-      reauthenticateWithCredential,
-      reauthenticateWithPopup,
-      reauthenticateWithRedirect,
-    } = await import("firebase/auth");
-    const p = provider || "";
-    if (p.includes("password")) {
-      if (!password) throw new Error("Please enter your password");
-      const cred = EmailAuthProvider.credential(
-        currentUser.email || "",
-        password
-      );
-      await reauthenticateWithCredential(currentUser, cred);
-    } else if (p.includes("google")) {
-      const provider = new GoogleAuthProvider();
-      // iOS Safari/WebKit popups are unreliable; prefer redirect reauth.
-      if (isIOSWebKit()) {
-        await reauthenticateWithRedirect(currentUser, provider);
-        return;
-      }
-      await reauthenticateWithPopup(currentUser, provider);
-    }
-  }
 
   async function onDelete() {
     setErr(null);
@@ -67,7 +31,11 @@ export default function SettingsAccountPrivacyPage() {
     }
     setBusy(true);
     try {
-      await ensureRecentLogin(user);
+      if (isNative()) {
+        throw new Error(
+          "Account deletion requires recent login. Please delete your account on web."
+        );
+      }
 
       const data = await apiFetchWithFallback<{ ok?: boolean; error?: string }>(
         "deleteAccount",
@@ -82,10 +50,8 @@ export default function SettingsAccountPrivacyPage() {
       }
 
       setMsg("Account deleted.");
-      const auth = await requireAuth();
-      const { signOut } = await import("firebase/auth");
-      await signOut(auth);
-      nav("/auth");
+      await signOutToAuth();
+      nav("/auth", { replace: true });
     } catch (e: any) {
       setErr(e?.message || "Could not delete account");
     } finally {

@@ -1,11 +1,17 @@
-import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
 import { reportError } from "@/lib/telemetry";
 import { isNative } from "@/lib/platform";
+
+type AuthPersistenceMode =
+  | "indexeddb"
+  | "local"
+  | "session"
+  | "memory"
+  | "unknown";
 
 type InitAuthState = {
   started: boolean;
   completed: boolean;
-  persistence: ReturnType<typeof getAuthPersistenceMode>;
+  persistence: AuthPersistenceMode;
   redirectError: string | null;
 };
 
@@ -36,7 +42,15 @@ export async function initAuth(): Promise<void> {
       message: "auth.init",
       extra: { phase: "start" },
     });
-    state.persistence = await ensureAuthPersistence().catch(() => "unknown");
+    // Web-only: set Firebase JS SDK persistence early.
+    if (!isNative()) {
+      const { webEnsureAuthPersistence } = await import(
+        "@/lib/auth/webFirebaseAuth"
+      );
+      state.persistence = await webEnsureAuthPersistence().catch(() => "unknown");
+    } else {
+      state.persistence = "memory";
+    }
 
     if (!isNative()) {
       // Always attempt redirect finalization (safe if no redirect is pending).
@@ -55,7 +69,7 @@ export async function initAuth(): Promise<void> {
 
     // On native boot, auth is intentionally not initialized.
     if (!isNative()) {
-      const { startAuthListener } = await import("@/lib/auth");
+      const { startAuthListener } = await import("@/lib/authFacade");
       await startAuthListener().catch(() => undefined);
     }
     state.completed = true;

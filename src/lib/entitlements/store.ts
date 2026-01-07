@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { doc, onSnapshot, type Unsubscribe, Timestamp } from "firebase/firestore";
-import { db as firebaseDb, requireAuth } from "@/lib/firebase";
-import { isNative } from "@/lib/platform";
+import { db as firebaseDb } from "@/lib/firebase";
+import { onAuthStateChanged } from "@/lib/authFacade";
 import type { Entitlements } from "@/lib/entitlements/pro";
 
 type Snapshot = {
@@ -139,60 +139,24 @@ function attachDocListener(uid: string) {
 
 function ensureListener() {
   if (unsubscribeAuth) return;
-  if (isNative()) {
-    // Native builds: do not initialize web auth listeners.
-    setSnapshot({
-      uid: null,
-      entitlements: DEFAULT_ENTITLEMENTS,
-      loading: false,
-      error: "auth_unavailable",
-    });
-    return;
-  }
   void (async () => {
-    const auth = await requireAuth().catch(() => null);
-    if (!auth || unsubscribeAuth) {
-      if (!auth) {
-        setSnapshot({
-          uid: null,
-          entitlements: DEFAULT_ENTITLEMENTS,
-          loading: false,
-          error: "auth_unavailable",
-        });
-      }
-      return;
-    }
-    const { onIdTokenChanged } = await import("firebase/auth");
-    unsubscribeAuth = onIdTokenChanged(
-      auth,
-      (user) => {
-        const nextUid = user?.uid ?? null;
-        if (!nextUid) {
-          activeUid = null;
-          detachDocListener();
-          setSnapshot({
-            uid: null,
-            entitlements: DEFAULT_ENTITLEMENTS,
-            loading: false,
-            error: null,
-          });
-          return;
-        }
-        if (activeUid === nextUid) return;
-        activeUid = nextUid;
-        attachDocListener(nextUid);
-      },
-      (err) => {
+    unsubscribeAuth = await onAuthStateChanged((user) => {
+      const nextUid = user?.uid ?? null;
+      if (!nextUid) {
         activeUid = null;
         detachDocListener();
         setSnapshot({
           uid: null,
           entitlements: DEFAULT_ENTITLEMENTS,
           loading: false,
-          error: err?.message ? String(err.message) : "auth_listener_failed",
+          error: null,
         });
+        return;
       }
-    );
+      if (activeUid === nextUid) return;
+      activeUid = nextUid;
+      attachDocListener(nextUid);
+    });
   })();
 }
 

@@ -1,11 +1,11 @@
-import { getCachedAuth } from "@/lib/auth";
+import { getCachedUser } from "@/lib/authFacade";
 
 export function supportMailto(extra?: Record<string, string>) {
   const lines: string[] = [];
   const version = (import.meta.env.VITE_APP_VERSION as string) || "0.0.0";
   lines.push(`version=${version}`);
 
-  const user = getCachedAuth()?.currentUser;
+  const user = getCachedUser();
   if (user) {
     lines.push(`uid=${user.uid}`);
     if (user.email) lines.push(`email=${user.email}`);

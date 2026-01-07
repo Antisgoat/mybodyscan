@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { auth, providerFlags, signInWithEmail } from "@/lib/firebase";
+import { providerFlags } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
-import { useAuthUser } from "@/lib/auth";
-import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { signInApple, signInEmailPassword, signInGoogle, useAuthUser } from "@/lib/authFacade";
 import { reportError } from "@/lib/telemetry";
 import { isNativeCapacitor } from "@/lib/platform";
 
@@ -53,12 +52,7 @@ export default function Login() {
   };
 
   useEffect(() => {
-    if (!auth) {
-      setMsg("Authentication unavailable. Please reload or try again later.");
-      return undefined;
-    }
-
-    if (authReady && (user || auth?.currentUser)) {
+    if (authReady && user) {
       finish();
     }
     return undefined;
@@ -156,7 +150,7 @@ export default function Login() {
           <button
             className="w-full rounded border p-2"
             disabled={busy}
-            onClick={() => wrap(() => signInWithEmail(email, pass))}
+            onClick={() => wrap(() => signInEmailPassword(email, pass))}
           >
             Continue with Email
           </button>

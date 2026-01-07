@@ -1,4 +1,5 @@
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { getCurrentUser } from "@/lib/authFacade";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
 import { toast } from "@/hooks/use-toast";
@@ -45,7 +46,7 @@ export async function startCatalogProgram(params: {
     });
     return;
   }
-  const user = auth.currentUser;
+  const user = await getCurrentUser().catch(() => null);
   if (!user) {
     toast({
       title: "Sign in required",

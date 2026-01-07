@@ -2,7 +2,6 @@ import { kcalFromMacros } from "./nutritionMath";
 import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { auth as firebaseAuth } from "@/lib/firebase";
 import { scrubUndefined } from "@/lib/scrubUndefined";
 import { fnJson } from "@/lib/fnCall";
 
