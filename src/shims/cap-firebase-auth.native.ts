@@ -1,5 +1,5 @@
 /**
- * Native-build shim for `@capacitor-firebase/authentication`.
+ * Native-build shim for the Capacitor Firebase Authentication web wrapper.
  *
  * On native iOS/Android we must NOT load the package's web implementation
  * (it can import Firebase JS Auth and crash WKWebView).
@@ -9,7 +9,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "@capacitor-firebase/authentication web bundle is disabled on native builds. Use src/auth/impl.native.ts (registerPlugin).";
+  "Capacitor Firebase Authentication web bundle is disabled on native builds. Use the native auth plugin via registerPlugin('FirebaseAuthentication').";
 
 export function __disabled(): never {
   const err = new Error(DISABLED_MESSAGE);

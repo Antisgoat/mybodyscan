@@ -7,93 +7,91 @@
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled on native builds. Use src/auth/facade (native plugin).";
+  "Firebase JS Auth is disabled in native builds. Use the native auth facade.";
 
-function disabled(name: string): never {
-  const err = new Error(`${DISABLED_MESSAGE} (attempted: ${name})`);
-  (err as any).code = "auth/firebase-js-disabled";
-  throw err;
+function disabled(): never {
+  throw new Error(DISABLED_MESSAGE);
 }
 
 // ---- Common functions ----
 export function getAuth(): never {
-  return disabled("getAuth");
+  return disabled();
 }
 
 export function initializeAuth(): never {
-  return disabled("initializeAuth");
+  return disabled();
 }
 
 export function onAuthStateChanged(): never {
-  return disabled("onAuthStateChanged");
+  return disabled();
 }
 
 export function signInWithEmailAndPassword(): never {
-  return disabled("signInWithEmailAndPassword");
+  return disabled();
 }
 
 export function createUserWithEmailAndPassword(): never {
-  return disabled("createUserWithEmailAndPassword");
+  return disabled();
 }
 
 export function signOut(): never {
-  return disabled("signOut");
+  return disabled();
 }
 
 export function getIdToken(): never {
-  return disabled("getIdToken");
+  return disabled();
 }
 
 export function signInWithPopup(): never {
-  return disabled("signInWithPopup");
+  return disabled();
 }
 
 export function signInWithRedirect(): never {
-  return disabled("signInWithRedirect");
+  return disabled();
 }
 
 export function getRedirectResult(): never {
-  return disabled("getRedirectResult");
+  return disabled();
 }
 
 export function getAdditionalUserInfo(): never {
-  return disabled("getAdditionalUserInfo");
+  return disabled();
 }
 
 export function linkWithCredential(): never {
-  return disabled("linkWithCredential");
+  return disabled();
 }
 
 export function onIdTokenChanged(): never {
-  return disabled("onIdTokenChanged");
+  return disabled();
 }
 
 export function sendPasswordResetEmail(): never {
-  return disabled("sendPasswordResetEmail");
+  return disabled();
 }
 
 export function updateProfile(): never {
-  return disabled("updateProfile");
+  return disabled();
 }
 
 export function setPersistence(): never {
-  return disabled("setPersistence");
+  return disabled();
 }
 
 // ---- Persistence placeholders ----
-export const inMemoryPersistence: unknown = {
+export const inMemoryPersistence: any = {
   __native_disabled: true,
   toString: () => "inMemoryPersistence(native-disabled)",
 };
-export const indexedDBLocalPersistence: unknown = {
+export const indexedDBLocalPersistence: any = {
   __native_disabled: true,
   toString: () => "indexedDBLocalPersistence(native-disabled)",
 };
-export const browserLocalPersistence: unknown = {
+export const browserLocalPersistence: any = {
   __native_disabled: true,
   toString: () => "browserLocalPersistence(native-disabled)",
 };
-export const browserSessionPersistence: unknown = {
+export const browserSessionPersistence: any = {
   __native_disabled: true,
   toString: () => "browserSessionPersistence(native-disabled)",
 };
@@ -101,20 +99,20 @@ export const browserSessionPersistence: unknown = {
 // ---- Provider placeholders ----
 export class GoogleAuthProvider {
   constructor() {
-    disabled("new GoogleAuthProvider()");
+    disabled();
   }
 }
 
 export class OAuthProvider {
   constructor() {
-    disabled("new OAuthProvider()");
+    disabled();
   }
 }
 
 // Some codebases reference `EmailAuthProvider` directly; keep a stub to fail loudly.
 export class EmailAuthProvider {
   static credential(): never {
-    return disabled("EmailAuthProvider.credential");
+    return disabled();
   }
 }
 

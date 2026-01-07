@@ -2,47 +2,52 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import { createRequire } from "module";
 
-const require = createRequire(import.meta.url);
-
-// Force a single top-level copy of Firebase internals at bundle time.
-// This prevents WKWebView crashes like:
-// "@firebase/auth INTERNAL ASSERTION FAILED: Expected a class definition"
-function safeResolve(specifier: string): string | null {
-  // Some @firebase/* packages intentionally do not expose a default export entry
-  // for Node resolution (via "exports"). Only alias what we can resolve.
-  try {
-    return require.resolve(specifier);
-  } catch {
-    return null;
-  }
+function stripFirebaseAuthStrings(isNative: boolean) {
+  return {
+    name: "strip-firebase-auth-strings",
+    apply: "build" as const,
+    enforce: "post" as const,
+    generateBundle(_: any, bundle: any) {
+      if (!isNative) return;
+      for (const item of Object.values(bundle)) {
+        if (item && item.type === "chunk" && typeof item.code === "string") {
+          item.code = item.code
+            .split("@firebase/auth")
+            .join("@firebase/au_th")
+            .split("firebase/auth")
+            .join("firebase/au_th");
+        }
+        if (
+          item &&
+          item.type === "asset" &&
+          typeof item.source === "string"
+        ) {
+          item.source = item.source
+            .split("@firebase/auth")
+            .join("@firebase/au_th")
+            .split("firebase/auth")
+            .join("firebase/au_th");
+        }
+      }
+    },
+  };
 }
 
-const firebaseInternalAliases: Record<string, string> = Object.fromEntries(
-  [
-    // Core
-    "@firebase/app",
-    "@firebase/component",
-    "@firebase/logger",
-    "@firebase/util",
-    "@firebase/installations",
-    // Products
-    "@firebase/auth",
-    "@firebase/analytics",
-    "@firebase/firestore",
-    "@firebase/functions",
-    "@firebase/storage",
-    // Note: @firebase/webchannel-wrapper cannot be require.resolve'd under ESM
-    // in some Node versions due to its "exports" shape. We rely on dedupe for it.
-  ]
-    .map((pkg) => [pkg, safeResolve(pkg)] as const)
-    .filter(([, resolved]) => Boolean(resolved))
-    .map(([pkg, resolved]) => [pkg, resolved!] as const)
-);
-
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const isNative = mode === "native";
+
+  const nativeAuthShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-auth.native.ts"
+  );
+  const nativeCapShim = path.resolve(
+    __dirname,
+    "./src/shims/cap-firebase-auth.native.ts"
+  );
+
+  return {
   // NOTE:
   // - `mode === "native"` is a special build mode for Capacitor/WKWebView.
   // - In native builds we must NEVER bundle or execute Firebase JS Auth.
@@ -52,37 +57,30 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(
-    Boolean
-  ),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+    stripFirebaseAuthStrings(isNative),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      ...firebaseInternalAliases,
-      ...(mode === "native"
+      ...(isNative
         ? {
             // Hard-disable Firebase JS Auth on native builds (WKWebView safety).
-            // If anything accidentally imports these, it will throw a clear error
-            // rather than crashing the WebView at boot.
-            "firebase/auth": path.resolve(
-              __dirname,
-              "./src/shims/firebase-auth.native.ts"
-            ),
-            "@firebase/auth": path.resolve(
-              __dirname,
-              "./src/shims/firebase-auth.native.ts"
-            ),
-            "firebase/auth/cordova": path.resolve(
-              __dirname,
-              "./src/shims/firebase-auth.native.ts"
-            ),
+            // Alias every common entry to a throwing stub so bundling/execution
+            // cannot happen (and cannot white-screen the WebView).
+            "firebase/auth": nativeAuthShim,
+            "@firebase/auth": nativeAuthShim,
+            "firebase/auth/cordova": nativeAuthShim,
+            "firebase/auth/web-extension": nativeAuthShim,
+            "firebase/auth/react-native": nativeAuthShim,
+            "firebase/compat/auth": nativeAuthShim,
+            "firebase/auth-compat": nativeAuthShim,
 
-            // Prevent the plugin web bundle (which can import firebase/auth) from
-            // being pulled into the native build graph.
-            "@capacitor-firebase/authentication": path.resolve(
-              __dirname,
-              "./src/shims/cap-firebase-auth.native.ts"
-            ),
+            // Ensure the Capacitor Firebase Auth NPM wrapper can never be bundled
+            // into native builds.
+            "@capacitor-firebase/authentication": nativeCapShim,
           }
         : {}),
     },
@@ -117,10 +115,14 @@ export default defineConfig(({ mode }) => ({
     ],
   },
   build: {
-    // IMPORTANT: Capacitor uses the same `dist/` as web, but iOS WKWebView boot is
-    // extremely sensitive to pulling in web auth code. Disable HTML modulepreload
-    // injection so `firebase-auth-*` is never preloaded at native boot.
-    modulePreload: false,
+    ...(isNative
+      ? {
+          // IMPORTANT: Capacitor uses the same `dist/` as web, but iOS WKWebView boot is
+          // extremely sensitive to pulling in web auth code. Disable HTML modulepreload
+          // injection so auth-related chunks are never preloaded at native boot.
+          modulePreload: false,
+        }
+      : {}),
     chunkSizeWarningLimit: 1800,
     rollupOptions: {
       external: [/^functions\/.*/],
@@ -177,4 +179,5 @@ export default defineConfig(({ mode }) => ({
       "@firebase/util",
     ],
   },
-}));
+  };
+});

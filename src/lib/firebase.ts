@@ -8,7 +8,6 @@ import {
   getStorage,
   type FirebaseStorage,
 } from "firebase/storage";
-import { isNative } from "@/lib/platform";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
