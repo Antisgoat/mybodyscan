@@ -1,5 +1,6 @@
 import type { AuthState, AuthUser, Unsubscribe } from "@/lib/auth/types";
 import { getFirebaseApp, getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
+import { loadAuthSdk } from "@/lib/auth/authSdk";
 
 function toAuthUser(user: any): AuthUser | null {
   if (!user) return null;
@@ -22,7 +23,7 @@ async function getWebAuth() {
       (hasFirebaseConfig ? "Authentication unavailable" : "Firebase not configured");
     throw new Error(reason);
   }
-  const { getAuth } = await import("firebase/auth");
+  const { getAuth } = await loadAuthSdk();
   return getAuth(getFirebaseApp());
 }
 
@@ -56,7 +57,7 @@ export async function webEnsureAuthPersistence(): Promise<AuthPersistenceMode> {
       indexedDBLocalPersistence,
       browserLocalPersistence,
       browserSessionPersistence,
-    } = await import("firebase/auth");
+    } = await loadAuthSdk();
 
     try {
       await setPersistence(auth, indexedDBLocalPersistence);
@@ -99,7 +100,7 @@ export async function webOnAuthStateChanged(
   cb: (state: AuthState) => void
 ): Promise<Unsubscribe> {
   const auth = await getWebAuth();
-  const { onAuthStateChanged } = await import("firebase/auth");
+  const { onAuthStateChanged } = await loadAuthSdk();
   const unsub = onAuthStateChanged(auth, (user) => cb({ user: toAuthUser(user) }));
   return () => unsub();
 }
@@ -108,7 +109,7 @@ export async function webOnIdTokenChanged(
   cb: (token: string | null) => void
 ): Promise<Unsubscribe> {
   const auth = await getWebAuth();
-  const { onIdTokenChanged } = await import("firebase/auth");
+  const { onIdTokenChanged } = await loadAuthSdk();
   const unsub = onIdTokenChanged(auth, async (user) => {
     try {
       const token = user ? await user.getIdToken() : null;
@@ -131,7 +132,7 @@ export async function webGetIdToken(options?: {
 
 export async function webSignInEmail(email: string, password: string) {
   const auth = await getWebAuth();
-  const { signInWithEmailAndPassword } = await import("firebase/auth");
+  const { signInWithEmailAndPassword } = await loadAuthSdk();
   const res = await signInWithEmailAndPassword(auth, email, password);
   return { user: toAuthUser(res.user) };
 }
@@ -147,7 +148,7 @@ export async function webCreateAccountEmail(
     linkWithCredential,
     createUserWithEmailAndPassword,
     updateProfile,
-  } = await import("firebase/auth");
+  } = await loadAuthSdk();
 
   const existing = auth.currentUser;
   const cred = EmailAuthProvider.credential(email, password);
@@ -164,20 +165,20 @@ export async function webCreateAccountEmail(
 
 export async function webSendPasswordResetEmail(email: string): Promise<void> {
   const auth = await getWebAuth();
-  const { sendPasswordResetEmail } = await import("firebase/auth");
+  const { sendPasswordResetEmail } = await loadAuthSdk();
   await sendPasswordResetEmail(auth, email);
 }
 
 export async function webSignOut(): Promise<void> {
   const auth = await getWebAuth();
-  const { signOut } = await import("firebase/auth");
+  const { signOut } = await loadAuthSdk();
   await signOut(auth);
 }
 
 // OAuth helpers are web-only and must never be imported/executed on native.
 export async function webSignInGoogle(next?: string | null): Promise<void> {
   const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
-  const { GoogleAuthProvider } = await import("firebase/auth");
+  const { GoogleAuthProvider } = await loadAuthSdk();
   const provider = new GoogleAuthProvider();
   provider.addScope("email");
   provider.addScope("profile");
@@ -186,7 +187,7 @@ export async function webSignInGoogle(next?: string | null): Promise<void> {
 
 export async function webSignInApple(next?: string | null): Promise<void> {
   const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
-  const { OAuthProvider } = await import("firebase/auth");
+  const { OAuthProvider } = await loadAuthSdk();
   const provider = new OAuthProvider("apple.com");
   provider.addScope("email");
   provider.addScope("name");
@@ -196,7 +197,7 @@ export async function webSignInApple(next?: string | null): Promise<void> {
 export async function webHandleAuthRedirectResult(): Promise<any | null> {
   try {
     const auth = await getWebAuth();
-    const { getRedirectResult } = await import("firebase/auth");
+    const { getRedirectResult } = await loadAuthSdk();
     return await getRedirectResult(auth);
   } catch {
     return null;

@@ -30,13 +30,11 @@ vi.mock("firebase/firestore", () => ({
 }));
 
 vi.mock("./firebase", () => ({
-  auth: {
-    currentUser: {
-      uid: "u1",
-      getIdToken: vi.fn(async () => "token"),
-    },
-  },
   db: {},
+}));
+
+vi.mock("@/lib/authFacade", () => ({
+  getCachedUser: () => ({ uid: "u1" }),
 }));
 
 describe("activateCatalogPlan", () => {

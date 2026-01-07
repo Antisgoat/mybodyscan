@@ -2,6 +2,7 @@ import type { FirebaseError } from "firebase/app";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
 import { isNative } from "@/lib/platform";
+import { loadAuthSdk } from "@/lib/auth/authSdk";
 
 const BENIGN_ERRORS = new Set([
   "auth/no-auth-event",
@@ -58,12 +59,12 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     const { webRequireAuth } = await import("@/lib/auth/webFirebaseAuth");
     auth = await webRequireAuth();
     authEvent("auth_redirect_result", { phase: "start" });
-    const { getRedirectResult } = await import("firebase/auth");
+    const { getRedirectResult } = await loadAuthSdk();
     const result = await getRedirectResult(auth);
     if (result) {
       await maybeApplyAppleProfile(result);
     }
-    const { getAdditionalUserInfo } = await import("firebase/auth");
+    const { getAdditionalUserInfo } = await loadAuthSdk();
     const info = result ? getAdditionalUserInfo(result) : null;
     authEvent("auth_redirect_result", {
       phase: "done",
@@ -187,7 +188,7 @@ async function maybeApplyAppleProfile(
   result: import("firebase/auth").UserCredential | null
 ) {
   if (!result) return;
-  const { getAdditionalUserInfo, updateProfile } = await import("firebase/auth");
+  const { getAdditionalUserInfo, updateProfile } = await loadAuthSdk();
   const info = getAdditionalUserInfo(result);
   if (info?.providerId !== APPLE_PROVIDER_ID) return;
   if (!info.isNewUser || !result.user || result.user.displayName) return;

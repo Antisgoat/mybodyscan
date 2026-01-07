@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { getFirebaseAuth } from "@/lib/firebase";
 import { uploadPhoto } from "@/lib/uploads/uploadPhoto";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 
@@ -7,21 +6,15 @@ vi.mock("@/lib/uploads/uploadViaStorage", () => ({
   uploadViaStorage: vi.fn(),
 }));
 
+vi.mock("@/lib/authFacade", () => ({
+  getCachedUser: () => ({ uid: "user" }),
+}));
+
 describe("uploadPhoto", () => {
   it("passes retry configuration to the Storage SDK uploader", async () => {
-    const auth = await getFirebaseAuth();
     const storageMock = {
       app: { options: { storageBucket: "mybodyscan-f3daf.appspot.com" } },
     } as any;
-    const fakeUser = {
-      uid: "user",
-      getIdToken: vi.fn().mockResolvedValue("token"),
-    } as any;
-    const originalUser = auth.currentUser;
-    Object.defineProperty(auth, "currentUser", {
-      value: fakeUser,
-      configurable: true,
-    });
     const file = new File(["data"], "front.jpg", { type: "image/jpeg" });
     vi.mocked(uploadViaStorage).mockResolvedValueOnce({
       method: "storage",
@@ -47,9 +40,5 @@ describe("uploadPhoto", () => {
     expect(uploadViaStorage).toHaveBeenLastCalledWith(
       expect.objectContaining({ includeDownloadURL: true, maxRetries: 3 })
     );
-    Object.defineProperty(auth, "currentUser", {
-      value: originalUser,
-      configurable: true,
-    });
   });
 });

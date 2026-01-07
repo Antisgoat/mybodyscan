@@ -36,6 +36,8 @@ vi.mock("@/lib/firebase", () => {
 vi.mock("@/lib/authFacade", () => ({
   signInApple: vi.fn(),
   signInGoogle: vi.fn(),
+  signInEmailPassword: vi.fn(),
+  useAuthUser: () => ({ user: null, authReady: true }),
 }));
 
 import Login from "@/pages/Login";

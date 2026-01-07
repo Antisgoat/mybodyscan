@@ -3,11 +3,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ensureAuthPersistence = vi.fn().mockResolvedValue("indexeddb");
-const getAuthPersistenceMode = vi.fn().mockReturnValue("indexeddb");
-vi.mock("@/lib/firebase", () => {
+vi.mock("@/lib/auth/webFirebaseAuth", () => {
   return {
-    ensureAuthPersistence: (...args: any[]) => ensureAuthPersistence(...args),
-    getAuthPersistenceMode: (...args: any[]) => getAuthPersistenceMode(...args),
+    webEnsureAuthPersistence: (...args: any[]) => ensureAuthPersistence(...args),
   };
 });
 
@@ -17,7 +15,7 @@ vi.mock("@/lib/auth/oauth", () => {
 });
 
 const startAuthListener = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/lib/auth", () => {
+vi.mock("@/lib/authFacade", () => {
   return { startAuthListener: (...args: any[]) => startAuthListener(...args) };
 });
 

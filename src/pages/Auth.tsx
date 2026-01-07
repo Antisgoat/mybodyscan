@@ -13,7 +13,12 @@ import {
 } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast as notify } from "@/hooks/use-toast";
-import { createAccountEmail, sendReset, useAuthUser } from "@/lib/authFacade";
+import {
+  createAccountEmail,
+  sendReset,
+  startAuthListener,
+  useAuthUser,
+} from "@/lib/authFacade";
 import {
   signInApple as startAppleSignIn,
   signInEmailPassword,
@@ -95,6 +100,23 @@ const Auth = () => {
       window.location.replace(defaultTarget);
     }
   }, [user, location.pathname, defaultTarget]);
+
+  useEffect(() => {
+    // Native boot firewall: only import/attach native auth listeners after the user
+    // actually opens the Auth UI. This keeps WKWebView boot stable.
+    if (!native) return;
+    let cancelled = false;
+    void startAuthListener().catch((err) => {
+      if (cancelled) return;
+      console.warn("[auth] native auth listener failed to start", err);
+      setAuthError(
+        "Sign-in is currently unavailable on this device. Please try again later."
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [native]);
 
   useEffect(() => {
     if (user) {
