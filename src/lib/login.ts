@@ -1,5 +1,6 @@
 import { firebaseReady, getFirebaseAuth } from "./firebase";
 import { signInApple, signInGoogle } from "@/lib/authFacade";
+import { isNative } from "@/lib/platform";
 
 export type NormalizedAuthError = { code?: string; message: string };
 
@@ -100,12 +101,26 @@ export async function googleSignIn(auth: import("firebase/auth").Auth) {
 }
 
 export async function googleSignInWithFirebase() {
+  if (isNative()) {
+    return {
+      ok: false as const,
+      code: "auth/native-web-oauth-blocked",
+      message: "Google sign-in is not available on iOS. Use email/password.",
+    };
+  }
   await firebaseReady();
   const auth = await getFirebaseAuth();
   return googleSignIn(auth);
 }
 
 export async function appleSignIn() {
+  if (isNative()) {
+    return {
+      ok: false as const,
+      code: "auth/native-web-oauth-blocked",
+      message: "Apple sign-in is not available on iOS. Use email/password.",
+    };
+  }
   await firebaseReady();
   const auth = await getFirebaseAuth();
   try {

@@ -2,6 +2,11 @@ import { requireAuth } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
+  if (isNative()) {
+    throw new Error(
+      "Google sign-in is not available on iOS. Use email/password for now."
+    );
+  }
   const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const { GoogleAuthProvider } = await import("firebase/auth");
   const provider = new GoogleAuthProvider();
@@ -12,6 +17,11 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
+  if (isNative()) {
+    throw new Error(
+      "Apple sign-in is not available on iOS. Use email/password for now."
+    );
+  }
   const { signInWithOAuthProvider } = await import("@/lib/auth/oauth");
   const { OAuthProvider } = await import("firebase/auth");
   const provider = new OAuthProvider("apple.com");

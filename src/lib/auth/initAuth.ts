@@ -1,5 +1,4 @@
 import { ensureAuthPersistence, getAuthPersistenceMode } from "@/lib/firebase";
-import { startAuthListener } from "@/lib/auth";
 import { reportError } from "@/lib/telemetry";
 import { isNative } from "@/lib/platform";
 
@@ -55,7 +54,10 @@ export async function initAuth(): Promise<void> {
     }
 
     // On native boot, auth is intentionally not initialized.
-    await startAuthListener().catch(() => undefined);
+    if (!isNative()) {
+      const { startAuthListener } = await import("@/lib/auth");
+      await startAuthListener().catch(() => undefined);
+    }
     state.completed = true;
     void reportError({
       kind: "auth.init",
