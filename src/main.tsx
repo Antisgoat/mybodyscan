@@ -8,6 +8,7 @@ import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
+import { isNative } from "@/lib/platform";
 
 // Legacy shim: some older code may still reference global sanitizeFoodItem.
 // This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
@@ -128,6 +129,8 @@ function BootFailureScreen({ failure }: { failure: BootFailure }) {
 }
 
 function renderBootFailure(error: unknown, code?: string) {
+  // Crash shield is native-only to prevent blank white screens in WKWebView.
+  if (!isNative()) return;
   if (typeof window === "undefined") return;
   const anyWin = window as any;
   if (anyWin.__mbsBootFailureRendered) return;

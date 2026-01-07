@@ -3,6 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { getCachedUser } from "@/lib/authFacade";
 import { reportError } from "@/lib/telemetry";
 import { isDemoAllowed } from "@/state/demo";
+import { isNative } from "@/lib/platform";
 
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; stack?: string };
@@ -77,7 +78,8 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      const shouldShowStack = import.meta.env.DEV && this.state.stack;
+      // On native builds, always show stack in-app to avoid "white screen" ambiguity.
+      const shouldShowStack = (isNative() || import.meta.env.DEV) && this.state.stack;
       return (
         <div
           style={{
