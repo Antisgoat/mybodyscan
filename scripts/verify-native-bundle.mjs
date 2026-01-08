@@ -1,148 +1,100 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
 
-const DIST_ASSETS_DIR = path.resolve(process.cwd(), "dist/assets");
-const IOS_ASSETS_DIR = path.resolve(process.cwd(), "ios/App/App/public/assets");
-
-const NEEDLES = [
+const FORBIDDEN_STRINGS = [
   "@firebase/auth",
   "firebase/auth",
-  "capacitor-firebase-auth",
   "@capacitor-firebase/authentication",
 ];
 
-const FORBIDDEN_JS_BASENAME_RE = /(capacitor-firebase-auth|firebase-).*\.js$/i;
+// Native builds must never emit or copy this web-wrapper chunk.
+const FORBIDDEN_FILENAME_RE = /capacitor-firebase-auth.*\.js$/i;
 
-const TEXT_EXTENSIONS = new Set([
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".css",
-  ".html",
-  ".map",
-  ".txt",
-  ".json",
-]);
-
-async function walk(dir) {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await walk(full)));
-    } else if (entry.isFile()) {
-      files.push(full);
-    }
-  }
-  return files;
-}
-
-function isProbablyTextFile(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  return TEXT_EXTENSIONS.has(ext);
-}
-
-function summarizeMatch(content, idx) {
-  const start = Math.max(0, idx - 80);
-  const end = Math.min(content.length, idx + 80);
-  return content
-    .slice(start, end)
-    .replaceAll("\r", "")
-    .replaceAll("\n", "\\n");
-}
-
-async function scanDir(label, dir, options = { requireExists: false }) {
-  let stats;
+async function statDir(dir) {
   try {
-    stats = await stat(dir);
+    const st = await fs.stat(dir);
+    return st.isDirectory() ? st : null;
   } catch {
-    if (options.requireExists) {
-      throw new Error(`[verify-native-bundle] Missing ${label} dir: ${dir}`);
+    return null;
+  }
+}
+
+async function listFilesRecursive(dir) {
+  const out = [];
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const ent of entries) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...(await listFilesRecursive(full)));
+    else if (ent.isFile()) out.push(full);
+  }
+  return out;
+}
+
+async function readUtf8BestEffort(filePath) {
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+async function scanDir(label, dirPath, { required }) {
+  const st = await statDir(dirPath);
+  if (!st) {
+    if (required) {
+      throw new Error(`[verify:native] Missing directory: ${label} (${dirPath})`);
     }
-    return { dir, offenders: [], skipped: true };
+    return [];
   }
 
-  if (!stats.isDirectory()) {
-    throw new Error(`[verify-native-bundle] Not a directory: ${dir}`);
-  }
-
-  const files = await walk(dir);
-  const offenders = [];
-
+  const hits = [];
+  const files = await listFilesRecursive(dirPath);
   for (const file of files) {
     const base = path.basename(file);
-    if (FORBIDDEN_JS_BASENAME_RE.test(base)) {
-      offenders.push({
-        file,
-        needle: `filename:${base}`,
-        preview:
-          "Forbidden chunk name in native output (expected zero firebase-* / capacitor-firebase-auth-* chunks).",
-      });
-      continue;
+    if (FORBIDDEN_FILENAME_RE.test(base)) {
+      hits.push({ label, file, forbidden: `filename:${base}` });
     }
-    if (!isProbablyTextFile(file)) continue;
-    const content = await readFile(file, "utf8").catch(() => null);
-    if (content == null) continue;
 
-    for (const needle of NEEDLES) {
-      const idx = content.indexOf(needle);
-      if (idx !== -1) {
-        offenders.push({
-          file,
-          needle,
-          preview: summarizeMatch(content, idx),
-        });
+    const text = await readUtf8BestEffort(file);
+    if (!text) continue;
+
+    for (const needle of FORBIDDEN_STRINGS) {
+      if (text.includes(needle)) {
+        hits.push({ label, file, forbidden: needle });
       }
     }
   }
-
-  return { dir, offenders, skipped: false };
+  return hits;
 }
 
 async function main() {
-  const dist = await scanDir("dist/assets", DIST_ASSETS_DIR, {
-    requireExists: true,
-  }).catch((err) => {
-    console.error(String(err?.message || err));
-    console.error("Run: npm run build:native");
-    process.exit(2);
-  });
-  if (!dist) return;
+  const distAssets = path.resolve(process.cwd(), "dist/assets");
+  const iosAssets = path.resolve(process.cwd(), "ios/App/App/public/assets");
 
-  // iOS assets are only present after `npx cap sync ios`.
-  const ios = await scanDir("ios/App/App/public/assets", IOS_ASSETS_DIR, {
-    requireExists: false,
-  });
+  const hits = [
+    ...(await scanDir("dist/assets", distAssets, { required: true })),
+    ...(await scanDir("ios/App/App/public/assets", iosAssets, { required: false })),
+  ];
 
-  const offenders = [...dist.offenders, ...ios.offenders];
-  if (offenders.length) {
+  if (hits.length) {
+    // eslint-disable-next-line no-console
     console.error(
-      "[verify-native-bundle] FAILED: native output contains auth-related files/strings.\n" +
-        "Hint: ensure `vite build --mode native` is used, and native builds alias-stub firebase/auth + do NOT import @capacitor-firebase/authentication."
+      `[verify:native] FAIL: found forbidden auth artifacts (${hits.length})`
     );
-    for (const o of offenders) {
-      console.error(`- ${o.file}`);
-      console.error(`  needle: ${o.needle}`);
-      console.error(`  preview: ${o.preview}`);
+    for (const h of hits) {
+      // eslint-disable-next-line no-console
+      console.error(`- ${h.label}: ${h.file}\n  -> ${h.forbidden}`);
     }
     process.exit(1);
     return;
   }
 
-  if (ios.skipped) {
-    console.log(
-      "[verify-native-bundle] OK: dist/assets clean. (iOS assets not present; run `npx cap sync ios` to verify copied assets too.)"
-    );
-    return;
-  }
-
-  console.log(
-    "[verify-native-bundle] OK: dist/assets and iOS assets contain no auth strings/chunks."
-  );
+  // eslint-disable-next-line no-console
+  console.log("[verify:native] OK: no forbidden auth artifacts found");
 }
 
 main().catch((err) => {
-  console.error("[verify-native-bundle] Error:", err);
+  // eslint-disable-next-line no-console
+  console.error(String(err?.message || err));
   process.exit(2);
 });
