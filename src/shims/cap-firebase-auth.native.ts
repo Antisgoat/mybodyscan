@@ -9,7 +9,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled on native builds. Use the native auth facade.";
+  "@capacitor-firebase/authentication must not be imported in native builds. Use registerPlugin('FirebaseAuthentication').";
 
 export function __disabled(): never {
   const err = new Error(DISABLED_MESSAGE);

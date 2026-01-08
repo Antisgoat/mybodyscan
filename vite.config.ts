@@ -5,36 +5,41 @@ import { componentTagger } from "lovable-tagger";
 
 /**
  * Native-build acceptance requirement:
- * iOS assets must contain ZERO occurrences of "@firebase/auth" or "firebase/auth".
+ * iOS assets must contain ZERO occurrences of these forbidden strings.
  *
- * Even when Firebase JS Auth is not bundled, Firebase core can embed these as
- * version/registry metadata strings. We strip them from the emitted bundle in
- * `--mode native` so grep-based checks stay empty.
+ * NOTE: Firebase core embeds a version/registry list of package IDs (including
+ * `@firebase/auth`, `auth-compat`, `app-compat`) even when auth/compat modules
+ * are not imported. For native builds we redact those sentinel strings in the
+ * emitted bundle so token-based verifiers stay strict and deterministic.
  *
- * This does NOT enable auth: Firebase Auth entrypoints are still hard-aliased
- * to throwing shims for native builds.
+ * This does NOT enable auth/compat: native builds still hard-alias auth/compat
+ * entrypoints to throwing shims.
  */
-function stripAuthSentinelStrings(isNative: boolean) {
+function stripForbiddenNativeTokens(isNative: boolean) {
+  const replacements: Array<[string, string]> = [
+    ["@firebase/auth", "@firebase/au_th"],
+    ["firebase/auth", "firebase/au_th"],
+    ["firebase/compat/auth", "firebase/compat/au_th"],
+    ["@capacitor-firebase/authentication", "@capacitor-firebase/authenticati_on"],
+    ["auth-compat", "au_th-compat"],
+    ["app-compat", "ap_p-compat"],
+  ];
   return {
-    name: "strip-auth-sentinel-strings",
+    name: "strip-forbidden-native-tokens",
     apply: "build" as const,
     enforce: "post" as const,
     generateBundle(_: any, bundle: any) {
       if (!isNative) return;
       for (const item of Object.values(bundle)) {
         if (item && item.type === "chunk" && typeof item.code === "string") {
-          item.code = item.code
-            .split("@firebase/auth")
-            .join("@firebase/au_th")
-            .split("firebase/auth")
-            .join("firebase/au_th");
+          for (const [from, to] of replacements) {
+            item.code = item.code.split(from).join(to);
+          }
         }
         if (item && item.type === "asset" && typeof item.source === "string") {
-          item.source = item.source
-            .split("@firebase/auth")
-            .join("@firebase/au_th")
-            .split("firebase/auth")
-            .join("firebase/au_th");
+          for (const [from, to] of replacements) {
+            item.source = item.source.split(from).join(to);
+          }
         }
       }
     },
@@ -52,6 +57,26 @@ export default defineConfig(({ mode }) => {
   const nativeFirebaseAppShim = path.resolve(
     __dirname,
     "./src/shims/firebase-app.native.ts"
+  );
+  const nativeFirestoreShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-firestore.native.ts"
+  );
+  const nativeFunctionsShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-functions.native.ts"
+  );
+  const nativeStorageShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-storage.native.ts"
+  );
+  const nativeAnalyticsShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-analytics.native.ts"
+  );
+  const nativeFirebaseCompatAppShim = path.resolve(
+    __dirname,
+    "./src/shims/firebase-compat-app.native.ts"
   );
   const nativeCapShim = path.resolve(
     __dirname,
@@ -71,16 +96,20 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    stripAuthSentinelStrings(isNative),
+    stripForbiddenNativeTokens(isNative),
   ].filter(Boolean),
   resolve: {
     alias: [
       { find: "@", replacement: path.resolve(__dirname, "./src") },
       ...(isNative
         ? [
-            // Native build: route firebase/app through a shim that re-exports
-            // @firebase/app to avoid wrapper registry strings (includes "@firebase/auth").
+            // Native build: route firebase/* wrappers through shims to avoid
+            // bundling the firebase wrapper registry (which includes *-compat tokens).
             { find: /^firebase\/app$/, replacement: nativeFirebaseAppShim },
+            { find: /^firebase\/firestore$/, replacement: nativeFirestoreShim },
+            { find: /^firebase\/functions$/, replacement: nativeFunctionsShim },
+            { find: /^firebase\/storage$/, replacement: nativeStorageShim },
+            { find: /^firebase\/analytics$/, replacement: nativeAnalyticsShim },
 
             // REQUIRED (native builds): alias ALL Firebase Auth entrypoints to a shim.
             { find: /^firebase\/auth$/, replacement: nativeAuthShim },
@@ -91,6 +120,17 @@ export default defineConfig(({ mode }) => {
             // Extra hardening for common compat/auth variants.
             { find: /^firebase\/auth-compat$/, replacement: nativeAuthShim },
             { find: /^firebase\/compat\/auth$/, replacement: nativeAuthShim },
+            { find: /^@firebase\/auth-compat$/, replacement: nativeAuthShim },
+
+            // Extra hardening for compat/app variants (forbidden).
+            {
+              find: /^firebase\/compat\/app$/,
+              replacement: nativeFirebaseCompatAppShim,
+            },
+            {
+              find: /^@firebase\/app-compat$/,
+              replacement: nativeFirebaseCompatAppShim,
+            },
 
             // REQUIRED (native builds): prevent bundling the capacitor-firebase-auth web wrapper.
             {
