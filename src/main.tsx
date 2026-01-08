@@ -169,8 +169,18 @@ try {
   renderBootFailure(e, "env_assert_failed");
 }
 
-// Boot error trap to capture first thrown error before any UI swallows it
+// Telemetry should initialize on both web and native.
 if (typeof window !== "undefined") {
+  try {
+    initTelemetry();
+  } catch (e) {
+    renderBootFailure(e, "telemetry_init_failed");
+  }
+}
+
+// Boot error trap to capture first thrown error before any UI swallows it.
+// Native-only (per crash-shield spec) to prevent WKWebView blank screens.
+if (typeof window !== "undefined" && isNative()) {
   window.addEventListener("error", (e) => {
     if (!(window as any).__firstBootError) {
       (window as any).__firstBootError = true;
@@ -193,11 +203,6 @@ if (typeof window !== "undefined") {
     }
     renderBootFailure(e?.reason || e, "unhandled_rejection");
   });
-  try {
-    initTelemetry();
-  } catch (e) {
-    renderBootFailure(e, "telemetry_init_failed");
-  }
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
