@@ -1,10 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-const ASSETS_DIR = path.resolve(
-  process.cwd(),
-  "ios/App/App/public/assets"
-);
+const DIST_ASSETS_DIR = path.resolve(process.cwd(), "dist/assets");
+const IOS_ASSETS_DIR = path.resolve(process.cwd(), "ios/App/App/public/assets");
 
 const NEEDLES = [
   "@firebase/auth",
@@ -12,6 +10,8 @@ const NEEDLES = [
   "capacitor-firebase-auth",
   "@capacitor-firebase/authentication",
 ];
+
+const FORBIDDEN_JS_BASENAME_RE = /(capacitor-firebase-auth|firebase-).*\.js$/i;
 
 const TEXT_EXTENSIONS = new Set([
   ".js",
@@ -52,29 +52,35 @@ function summarizeMatch(content, idx) {
     .replaceAll("\n", "\\n");
 }
 
-async function main() {
+async function scanDir(label, dir, options = { requireExists: false }) {
   let stats;
   try {
-    stats = await stat(ASSETS_DIR);
+    stats = await stat(dir);
   } catch {
-    console.error(
-      `[verify-native-bundle] Missing assets dir: ${ASSETS_DIR}\n` +
-        "Run: npm run ios:sync"
-    );
-    process.exit(2);
-    return;
+    if (options.requireExists) {
+      throw new Error(`[verify-native-bundle] Missing ${label} dir: ${dir}`);
+    }
+    return { dir, offenders: [], skipped: true };
   }
 
   if (!stats.isDirectory()) {
-    console.error(`[verify-native-bundle] Not a directory: ${ASSETS_DIR}`);
-    process.exit(2);
-    return;
+    throw new Error(`[verify-native-bundle] Not a directory: ${dir}`);
   }
 
-  const files = await walk(ASSETS_DIR);
+  const files = await walk(dir);
   const offenders = [];
 
   for (const file of files) {
+    const base = path.basename(file);
+    if (FORBIDDEN_JS_BASENAME_RE.test(base)) {
+      offenders.push({
+        file,
+        needle: `filename:${base}`,
+        preview:
+          "Forbidden chunk name in native output (expected zero firebase-* / capacitor-firebase-auth-* chunks).",
+      });
+      continue;
+    }
     if (!isProbablyTextFile(file)) continue;
     const content = await readFile(file, "utf8").catch(() => null);
     if (content == null) continue;
@@ -91,9 +97,29 @@ async function main() {
     }
   }
 
+  return { dir, offenders, skipped: false };
+}
+
+async function main() {
+  const dist = await scanDir("dist/assets", DIST_ASSETS_DIR, {
+    requireExists: true,
+  }).catch((err) => {
+    console.error(String(err?.message || err));
+    console.error("Run: npm run build:native");
+    process.exit(2);
+  });
+  if (!dist) return;
+
+  // iOS assets are only present after `npx cap sync ios`.
+  const ios = await scanDir("ios/App/App/public/assets", IOS_ASSETS_DIR, {
+    requireExists: false,
+  });
+
+  const offenders = [...dist.offenders, ...ios.offenders];
   if (offenders.length) {
     console.error(
-      "[verify-native-bundle] FAILED: native iOS assets contain auth-related strings:"
+      "[verify-native-bundle] FAILED: native output contains auth-related files/strings.\n" +
+        "Hint: ensure `vite build --mode native` is used, and native builds alias-stub firebase/auth + do NOT import @capacitor-firebase/authentication."
     );
     for (const o of offenders) {
       console.error(`- ${o.file}`);
@@ -104,7 +130,16 @@ async function main() {
     return;
   }
 
-  console.log("[verify-native-bundle] OK: no auth strings found in iOS assets.");
+  if (ios.skipped) {
+    console.log(
+      "[verify-native-bundle] OK: dist/assets clean. (iOS assets not present; run `npx cap sync ios` to verify copied assets too.)"
+    );
+    return;
+  }
+
+  console.log(
+    "[verify-native-bundle] OK: dist/assets and iOS assets contain no auth strings/chunks."
+  );
 }
 
 main().catch((err) => {

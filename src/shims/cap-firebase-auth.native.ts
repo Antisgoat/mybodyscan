@@ -9,7 +9,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "Capacitor Firebase Authentication web wrapper is disabled on native builds. Use src/auth/facade (native plugin).";
+  "Firebase JS Auth is disabled on native builds. Use the native auth facade.";
 
 export function __disabled(): never {
   const err = new Error(DISABLED_MESSAGE);
@@ -19,4 +19,7 @@ export function __disabled(): never {
 
 // Common export names that might be referenced in some code paths.
 export default __disabled;
+
+// Throw immediately on import (native builds must never load this module).
+__disabled();
 
