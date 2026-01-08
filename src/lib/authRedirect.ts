@@ -44,7 +44,9 @@ function authEvent(kind: string, extra?: Record<string, unknown>) {
 }
 
 async function resolveRedirect(): Promise<AuthRedirectOutcome> {
-  if (isNative()) {
+  // Compile-time guard: in `--mode native` we must not even bundle the web impl.
+  const isNativeBuild = import.meta.env.MODE === "native";
+  if (isNativeBuild || isNative()) {
     const outcome: AuthRedirectOutcome = {
       result: null,
       error: null,

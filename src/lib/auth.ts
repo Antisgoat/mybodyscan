@@ -1,5 +1,5 @@
 /**
- * DEPRECATED: `src/lib/authFacade.ts` is the only supported app auth entrypoint.
+ * DEPRECATED: `src/auth/facade.ts` is the only supported app auth entrypoint.
  *
  * This file is kept as a thin compatibility shim so older imports don't
  * accidentally pull `firebase/auth` into the native (WKWebView) boot graph.
@@ -12,5 +12,5 @@ export {
   createAccountEmail,
   sendReset,
   __authTestInternals,
-} from "@/lib/authFacade";
+} from "@/auth/facade";
 

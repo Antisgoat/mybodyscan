@@ -7,7 +7,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled in native builds. Use the native auth facade.";
+  "Firebase JS Auth is disabled on native builds. Use src/auth/facade (native plugin).";
 
 function disabled(): never {
   throw new Error(DISABLED_MESSAGE);

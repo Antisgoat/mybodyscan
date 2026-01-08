@@ -9,7 +9,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "Capacitor Firebase Authentication web bundle is disabled on native builds. Use the native auth plugin via registerPlugin('FirebaseAuthentication').";
+  "Capacitor Firebase Authentication web wrapper is disabled on native builds. Use src/auth/facade (native plugin).";
 
 export function __disabled(): never {
   const err = new Error(DISABLED_MESSAGE);
