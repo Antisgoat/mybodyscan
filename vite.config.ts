@@ -134,17 +134,12 @@ export default defineConfig(({ mode }) => {
     ],
   },
   build: {
+    // Disable modulepreload tags in HTML. This prevents eager preloads of chunks
+    // that can cause WKWebView boot issues, and is required for native build mode.
+    modulePreload: false,
     // Native/web builds share `dist/`. Ensure we always clean it so stale chunks
     // (e.g. web-auth / firebase auth code) cannot linger between builds.
     emptyOutDir: true,
-    ...(isNative
-      ? {
-          // IMPORTANT: Capacitor uses the same `dist/` as web, but iOS WKWebView boot is
-          // extremely sensitive to pulling in web auth code. Disable HTML modulepreload
-          // injection so auth-related chunks are never preloaded at native boot.
-          modulePreload: false,
-        }
-      : {}),
     chunkSizeWarningLimit: 1800,
     rollupOptions: {
       external: [/^functions\/.*/],
