@@ -115,6 +115,9 @@ export default defineConfig(({ mode }) => {
     ],
   },
   build: {
+    // Native/web builds share `dist/`. Ensure we always clean it so stale chunks
+    // (e.g. web-auth / firebase auth code) cannot linger between builds.
+    emptyOutDir: true,
     ...(isNative
       ? {
           // IMPORTANT: Capacitor uses the same `dist/` as web, but iOS WKWebView boot is
