@@ -7,7 +7,7 @@
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled on native builds. Use src/auth/facade (native plugin).";
+  "Firebase JS Auth is disabled on native builds. Use the native auth facade.";
 
 function disabled(): never {
   throw new Error(DISABLED_MESSAGE);
@@ -99,13 +99,26 @@ export const browserSessionPersistence: any = {
 // ---- Provider placeholders ----
 export class GoogleAuthProvider {
   constructor() {
-    disabled();
+    // Allow construction so incidental type checks don't explode,
+    // but fail on any actual usage.
+  }
+  addScope(): never {
+    return disabled();
+  }
+  setCustomParameters(): never {
+    return disabled();
   }
 }
 
 export class OAuthProvider {
-  constructor() {
-    disabled();
+  constructor(_providerId?: string) {
+    // see GoogleAuthProvider comment
+  }
+  addScope(): never {
+    return disabled();
+  }
+  setCustomParameters(): never {
+    return disabled();
   }
 }
 

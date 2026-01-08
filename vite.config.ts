@@ -131,9 +131,8 @@ export default defineConfig(({ mode }) => {
     ],
   },
   build: {
-    // Disable modulepreload tags in HTML. This prevents eager preloads of chunks
-    // that can cause WKWebView boot issues, and is required for native build mode.
-    modulePreload: false,
+    // Native builds: disable modulepreload tags in HTML to avoid eager preloads.
+    ...(isNative ? { modulePreload: false } : {}),
     // Native/web builds share `dist/`. Ensure we always clean it so stale chunks
     // (e.g. web-auth / firebase auth code) cannot linger between builds.
     emptyOutDir: true,
