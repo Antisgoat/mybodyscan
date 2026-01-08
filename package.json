@@ -17,6 +17,7 @@
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "ios:sync": "npm run build:native && npx cap sync ios",
     "ios:assets": "npx @capacitor/assets generate --ios",
+    "verify:native-bundle": "node scripts/verify-native-bundle.mjs",
     "lint": "eslint .",
     "check:bundle": "node scripts/check-bundle.js",
     "check:storage-rest": "node scripts/check-storage-rest.js",
