@@ -186,6 +186,23 @@ export const impl: AuthImpl = {
     return u;
   },
 
+  async createAccountEmail(email: string, password: string, _displayName?: string) {
+    // Native plugin does not currently support anonymous-link semantics.
+    // Create the user normally.
+    const res = await FirebaseAuthentication.createUserWithEmailAndPassword({
+      email,
+      password,
+    });
+    cachedUser = toUserLike(res?.user);
+    const u = cachedUser ?? (await refreshCurrentUser());
+    if (!u || !u.uid) {
+      const err: any = new Error("Native sign-up did not return a user");
+      err.code = "auth/native-no-user";
+      throw err;
+    }
+    return u;
+  },
+
   async sendPasswordResetEmail(email: string) {
     await attachListenerIfAvailable();
     // Optional method; only call if present.

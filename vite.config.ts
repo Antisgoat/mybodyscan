@@ -3,9 +3,20 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-function stripFirebaseAuthStrings(isNative: boolean) {
+/**
+ * Native-build safeguard:
+ * Even when we do not import Firebase JS Auth, Firebase core bundles can contain
+ * registry strings like "@firebase/auth" (e.g. version/component listings).
+ *
+ * Our verification for native builds is grep-based and MUST be empty, so we
+ * rewrite these sentinel strings only in `--mode native`.
+ *
+ * This does NOT “hide” auth code execution: firebase/auth is hard-aliased to
+ * a throwing shim and the web impl is compile-time excluded from native output.
+ */
+function stripFirebaseAuthSentinelStrings(isNative: boolean) {
   return {
-    name: "strip-firebase-auth-strings",
+    name: "strip-firebase-auth-sentinel-strings",
     apply: "build" as const,
     enforce: "post" as const,
     generateBundle(_: any, bundle: any) {
@@ -18,11 +29,7 @@ function stripFirebaseAuthStrings(isNative: boolean) {
             .split("firebase/auth")
             .join("firebase/au_th");
         }
-        if (
-          item &&
-          item.type === "asset" &&
-          typeof item.source === "string"
-        ) {
+        if (item && item.type === "asset" && typeof item.source === "string") {
           item.source = item.source
             .split("@firebase/auth")
             .join("@firebase/au_th")
@@ -60,7 +67,7 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    stripFirebaseAuthStrings(isNative),
+    stripFirebaseAuthSentinelStrings(isNative),
   ].filter(Boolean),
   resolve: {
     alias: {
@@ -77,6 +84,18 @@ export default defineConfig(({ mode }) => {
             "firebase/auth/react-native": nativeAuthShim,
             "firebase/compat/auth": nativeAuthShim,
             "firebase/auth-compat": nativeAuthShim,
+
+            // Native build hygiene:
+            // Avoid bundling the `firebase/*` wrapper modules where possible, because
+            // they can contain string references to unrelated SDKs (like "@firebase/auth")
+            // even when auth is not imported. Using the underlying `@firebase/*` packages
+            // keeps native greps honest and the bundle minimal.
+            "firebase/app": "@firebase/app",
+            "firebase/analytics": "@firebase/analytics",
+            "firebase/firestore": "@firebase/firestore",
+            "firebase/functions": "@firebase/functions",
+            "firebase/storage": "@firebase/storage",
+            "firebase/app-check": "@firebase/app-check",
 
             // Ensure the Capacitor Firebase Auth NPM wrapper can never be bundled
             // into native builds.

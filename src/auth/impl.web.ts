@@ -358,6 +358,10 @@ export const impl: AuthImpl = {
     return toUserLike(res.user)!;
   },
 
+  async createAccountEmail(email: string, password: string, displayName?: string) {
+    return createAccountEmail(email, password, displayName);
+  },
+
   async sendPasswordResetEmail(email: string) {
     const auth = await getWebAuth();
     await fbSendPasswordResetEmail(auth, email);

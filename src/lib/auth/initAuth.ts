@@ -36,6 +36,7 @@ export function getInitAuthState(): InitAuthState {
 export async function initAuth(): Promise<void> {
   if (initPromise) return initPromise;
   state.started = true;
+  const isNativeBuild = import.meta.env.MODE === "native";
   initPromise = (async () => {
     void reportError({
       kind: "auth.init",
@@ -43,14 +44,16 @@ export async function initAuth(): Promise<void> {
       extra: { phase: "start" },
     });
     // Web-only: set Firebase JS SDK persistence early.
-    if (!isNative()) {
+    // IMPORTANT: The `MODE === "native"` check is compile-time, so native builds
+    // do not even bundle the web impl (and thus never bundle firebase/auth).
+    if (!isNativeBuild && !isNative()) {
       const { ensureWebAuthPersistence } = await import("@/auth/impl.web");
       state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
     } else {
       state.persistence = "memory";
     }
 
-    if (!isNative()) {
+    if (!isNativeBuild && !isNative()) {
       // Always attempt redirect finalization (safe if no redirect is pending).
       // This is critical for iOS Safari and also covers edge cases where a WebView
       // ends up using web-based redirects (or reauth redirects) instead of native auth.
@@ -66,8 +69,8 @@ export async function initAuth(): Promise<void> {
     }
 
     // On native boot, auth is intentionally not initialized.
-    if (!isNative()) {
-      const { startAuthListener } = await import("@/lib/authFacade");
+    if (!isNativeBuild && !isNative()) {
+      const { startAuthListener } = await import("@/auth/facade");
       await startAuthListener().catch(() => undefined);
     }
     state.completed = true;
