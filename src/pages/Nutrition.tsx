@@ -12,7 +12,7 @@ import {
   getNutritionHistory,
   type NutritionHistoryDay,
 } from "@/lib/nutritionBackend";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { roundGrams, roundKcal } from "@/lib/nutritionMath";
 import NutritionSearch from "@/components/NutritionSearch";

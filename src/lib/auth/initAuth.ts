@@ -59,7 +59,7 @@ export async function initAuth(): Promise<void> {
       // ends up using web-based redirects (or reauth redirects) instead of native auth.
       try {
         const { finalizeRedirectResult } = await import("@/auth/impl.web");
-        await finalizeRedirectResult().catch(() => null);
+        await finalizeRedirectResult();
         state.redirectError = null;
       } catch (err: any) {
         // Never crash boot on redirect errors; they are surfaced via UI/telemetry.

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { useDemoMode } from "@/components/DemoModeProvider";
 
 export type DisplayUnits = "us" | "metric";

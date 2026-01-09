@@ -5,7 +5,7 @@ import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "../lib/dbWrite";
 import { DemoWriteButton } from "../components/DemoWriteGuard";
 import { db } from "../lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import ToastMBS from "../components/ToastMBS";
 import { toFriendlyMBS } from "../lib/errors.mbs";
 import ScanTipsMBS from "../components/ScanTipsMBS";

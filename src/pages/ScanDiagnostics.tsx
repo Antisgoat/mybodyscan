@@ -5,7 +5,7 @@ import {
   getFirebaseStorage,
   storage as storageInstance,
 } from "@/lib/firebase";
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 
 type Check = { name: string; ok: boolean; detail?: string };
 

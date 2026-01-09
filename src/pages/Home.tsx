@@ -25,7 +25,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { extractScanMetrics } from "@/lib/scans";
 import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { useDemoMode } from "@/components/DemoModeProvider";

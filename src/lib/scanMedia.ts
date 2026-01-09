@@ -1,5 +1,5 @@
 import { getStorage } from "firebase/storage";
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 import { reportError } from "@/lib/telemetry";
 import { getScanPhotoPath } from "@/lib/scanPaths";
 import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";

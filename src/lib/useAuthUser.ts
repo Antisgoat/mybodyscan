@@ -1,1 +1,1 @@
-export { useAuthUser } from "@/lib/auth";
+export { useAuthUser } from "@/auth/facade";

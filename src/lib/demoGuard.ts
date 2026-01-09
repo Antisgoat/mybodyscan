@@ -1,4 +1,4 @@
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 import { isDemoActive } from "./demo";
 
 function isReadOnlyDemo(): boolean {

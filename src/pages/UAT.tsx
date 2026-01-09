@@ -19,9 +19,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
 import { cn } from "@/lib/utils";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { useClaims } from "@/lib/claims";
-import { requireIdToken } from "@/lib/authFacade";
+import { requireIdToken } from "@/auth/facade";
 import { googleSignInWithFirebase } from "@/lib/login";
 import {
   PRICE_IDS,

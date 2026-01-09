@@ -20,7 +20,7 @@ import { sanitizeReturnTo } from "@/lib/returnTo";
 import { toast } from "@/hooks/use-toast";
 import HeightInputUS from "@/components/HeightInputUS";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 

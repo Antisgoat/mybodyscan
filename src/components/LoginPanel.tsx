@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { signInApple, signInGoogle } from "@/lib/authFacade";
-import { signInEmailPassword } from "@/lib/authFacade";
+import { signInApple, signInGoogle, signInEmailPassword } from "@/auth/facade";
 import { enableDemo } from "@/state/demo";
 import { isNativeCapacitor } from "@/lib/platform";
 

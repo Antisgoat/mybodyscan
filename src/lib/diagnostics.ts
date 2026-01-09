@@ -1,4 +1,4 @@
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 import { getBreadcrumbs } from "./logger";
 export function buildDiagnostics(): string {
   const u = getCachedUser();

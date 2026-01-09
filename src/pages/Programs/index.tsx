@@ -33,7 +33,7 @@ import {
   type ProgramPreferenceGoal,
   type ProgramPreferences,
 } from "@/lib/programs/preferences";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { db } from "@/lib/firebase";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
