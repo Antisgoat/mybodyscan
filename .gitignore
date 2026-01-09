@@ -51,3 +51,7 @@ functions/lib/
 
 # Temporary/debug artifacts (should never be committed)
 prod-*.js
+
+# Capacitor sync output (keep placeholder index tracked)
+ios/App/App/public/**
+!ios/App/App/public/index.html

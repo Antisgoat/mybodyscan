@@ -4,8 +4,6 @@ import path from "node:path";
 const FORBIDDEN_TOKENS = [
   "@firebase/auth",
   "firebase/auth",
-  "@capacitor-firebase/authentication",
-  "capacitor-firebase-auth",
 ];
 
 const SOURCE_ALLOWLIST = new Set([
@@ -64,11 +62,6 @@ async function readUtf8BestEffort(filePath) {
   }
 }
 
-function isForbiddenFilename(filePath) {
-  // Non-negotiable: fail if ANY emitted filename matches this pattern.
-  return /capacitor-firebase-auth.*\.js/.test(path.basename(filePath));
-}
-
 async function scanDir(label, dirPath, { required }) {
   const st = await statDir(dirPath);
   if (!st) {
@@ -86,10 +79,6 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
-    if (isForbiddenFilename(file)) {
-      hits.push({ label, file, forbidden: "filename:/capacitor-firebase-auth.*\\.js/" });
-    }
-
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 

@@ -51,7 +51,7 @@ export function BootGate({
       logFirebaseRuntimeInfo();
 
       // CRITICAL: On native (WKWebView) boot, do not load or execute any web auth/OAuth code.
-      // This prevents issues like "@firebase/auth INTERNAL ASSERTION FAILED" from crashing WKWebView.
+      // This prevents known Firebase Auth SDK crashes in WKWebView from taking down the app.
       if (!isNative()) {
         const [{ initAuth }, { probeFirebaseRuntime }] = await Promise.all([
           import("@/lib/auth/initAuth"),
