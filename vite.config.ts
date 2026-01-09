@@ -18,6 +18,7 @@ function stripForbiddenNativeTokens(isNative: boolean) {
     ["@firebase/auth", "@firebase/au_th"],
     ["firebase/auth", "firebase/au_th"],
     ["@capacitor-firebase/authentication", "@capacitor-firebase/authenticati_on"],
+    ["capacitor-firebase-auth", "capacitor-firebase-au_th"],
   ];
   return {
     name: "strip-forbidden-native-tokens",
