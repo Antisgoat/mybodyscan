@@ -179,6 +179,10 @@ export async function sendReset(email: string) {
 }
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    nativeAuthEnabled = true;
+  }
   const impl = await loadImpl();
   if (!impl.signInWithGoogle) {
     const err: any = new Error("Google sign-in not supported");
@@ -189,6 +193,10 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
+  // Native boot firewall: do not import native auth plugin unless explicitly enabled.
+  if (isNative() && !nativeAuthEnabled) {
+    nativeAuthEnabled = true;
+  }
   const impl = await loadImpl();
   if (!impl.signInWithApple) {
     const err: any = new Error("Apple sign-in not supported");

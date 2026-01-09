@@ -1,9 +1,7 @@
 import type { AuthImpl } from "./facade";
 import type { Unsubscribe, UserLike } from "./types";
 
-import { registerPlugin } from "@capacitor/core";
-
-const FirebaseAuthentication = registerPlugin<any>("FirebaseAuthentication");
+import { FirebaseAuthentication } from "@/lib/native/firebaseAuthentication";
 
 let cachedUser: UserLike | null = null;
 let listenerAttached = false;
@@ -153,6 +151,28 @@ export const impl: AuthImpl = {
     await attachListenerIfAvailable();
     await FirebaseAuthentication.signOut();
     cachedUser = null;
+  },
+
+  async signInWithGoogle(_next?: string | null) {
+    await attachListenerIfAvailable();
+    if (typeof FirebaseAuthentication.signInWithGoogle !== "function") {
+      const err: any = new Error("Google sign-in not supported");
+      err.code = "auth/unsupported";
+      throw err;
+    }
+    const res = await FirebaseAuthentication.signInWithGoogle();
+    cachedUser = toUserLike(res?.user);
+  },
+
+  async signInWithApple(_next?: string | null) {
+    await attachListenerIfAvailable();
+    if (typeof FirebaseAuthentication.signInWithApple !== "function") {
+      const err: any = new Error("Apple sign-in not supported");
+      err.code = "auth/unsupported";
+      throw err;
+    }
+    const res = await FirebaseAuthentication.signInWithApple();
+    cachedUser = toUserLike(res?.user);
   },
 
   async signInWithEmailAndPassword(email: string, password: string) {

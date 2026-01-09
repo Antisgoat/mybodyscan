@@ -2,7 +2,7 @@
  * Native-build Firebase Auth shim.
  *
  * Hard requirements:
- * - Must NOT throw at import-time (boot safety).
+ * - MUST throw at import-time (prevent accidental bundling/usage on native).
  * - Must NOT import Firebase.
  * - When invoked, must fail clearly and safely.
  */
@@ -23,6 +23,9 @@ function rejectDisabled<T = never>(): Promise<T> {
 function throwDisabled(): never {
   throw disabledError();
 }
+
+// Non-negotiable: fail fast if anything tries to import this.
+throw disabledError();
 
 // ---- Common functions ----
 // Many of these are awaited in call-sites; prefer returning rejected Promises.
