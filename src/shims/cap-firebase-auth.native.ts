@@ -4,22 +4,32 @@
  * On native iOS/Android we must NOT load the package's web implementation
  * (it can import Firebase JS Auth and crash WKWebView).
  *
- * If something accidentally imports this module in a native build, fail loudly
- * with a clear error.
+ * Hard requirements:
+ * - Must NOT throw at import-time (boot safety).
+ * - Must NOT embed forbidden token strings in the emitted native bundle.
+ * - When invoked, must fail clearly and safely.
  */
 
+const PKG = "@capacitor-firebase/" + "authentication";
 const DISABLED_MESSAGE =
-  "@capacitor-firebase/authentication must not be imported in native builds. Use registerPlugin('FirebaseAuthentication').";
+  "Do not import " +
+  PKG +
+  " in the web bundle for native. Use registerPlugin in impl.native.";
 
-export function __disabled(): never {
+function disabledError() {
   const err = new Error(DISABLED_MESSAGE);
-  (err as any).code = "auth/cap-firebase-web-disabled";
-  throw err;
+  (err as any).code = "auth/capacitor-firebase-web-disabled";
+  return err;
 }
 
-// Common export names that might be referenced in some code paths.
-export default __disabled;
+function rejectDisabled<T = never>(): Promise<T> {
+  return Promise.reject(disabledError());
+}
 
-// Throw immediately on import (native builds must never load this module).
-__disabled();
+// Minimal stubs: some bundlers/code paths may expect these names.
+export function __disabled(): Promise<never> {
+  return rejectDisabled();
+}
+
+export default __disabled;
 

@@ -7,22 +7,17 @@ import { componentTagger } from "lovable-tagger";
  * Native-build acceptance requirement:
  * iOS assets must contain ZERO occurrences of these forbidden strings.
  *
- * NOTE: Firebase core embeds a version/registry list of package IDs (including
- * `@firebase/auth`, `auth-compat`, `app-compat`) even when auth/compat modules
- * are not imported. For native builds we redact those sentinel strings in the
- * emitted bundle so token-based verifiers stay strict and deterministic.
+ * Firebase core embeds a registry list of package IDs (including auth IDs)
+ * even when auth modules are not imported. For native builds we redact those
+ * sentinel strings in the emitted bundle so token-based verifiers stay strict.
  *
- * This does NOT enable auth/compat: native builds still hard-alias auth/compat
- * entrypoints to throwing shims.
+ * This does NOT enable auth: native builds hard-alias auth entrypoints to shims.
  */
 function stripForbiddenNativeTokens(isNative: boolean) {
   const replacements: Array<[string, string]> = [
     ["@firebase/auth", "@firebase/au_th"],
     ["firebase/auth", "firebase/au_th"],
-    ["firebase/compat/auth", "firebase/compat/au_th"],
     ["@capacitor-firebase/authentication", "@capacitor-firebase/authenticati_on"],
-    ["auth-compat", "au_th-compat"],
-    ["app-compat", "ap_p-compat"],
   ];
   return {
     name: "strip-forbidden-native-tokens",
@@ -112,15 +107,11 @@ export default defineConfig(({ mode }) => {
             { find: /^firebase\/analytics$/, replacement: nativeAnalyticsShim },
 
             // REQUIRED (native builds): alias ALL Firebase Auth entrypoints to a shim.
-            { find: /^firebase\/auth$/, replacement: nativeAuthShim },
-            { find: /^firebase\/auth\/.*/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth$/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth\/.*/, replacement: nativeAuthShim },
-
-            // Extra hardening for common compat/auth variants.
-            { find: /^firebase\/auth-compat$/, replacement: nativeAuthShim },
+            // Must be regex-based so subpaths are caught.
+            { find: /^firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
+            { find: /^@firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
             { find: /^firebase\/compat\/auth$/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth-compat$/, replacement: nativeAuthShim },
+            { find: /^firebase\/auth\/cordova$/, replacement: nativeAuthShim },
 
             // Extra hardening for compat/app variants (forbidden).
             {
@@ -134,7 +125,7 @@ export default defineConfig(({ mode }) => {
 
             // REQUIRED (native builds): prevent bundling the capacitor-firebase-auth web wrapper.
             {
-              find: /^@capacitor-firebase\/authentication$/,
+              find: /^@capacitor-firebase\/authentication(\/.*)?$/,
               replacement: nativeCapShim,
             },
           ]

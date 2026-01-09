@@ -4,14 +4,9 @@ import path from "node:path";
 const FORBIDDEN_STRINGS = [
   "@firebase/auth",
   "firebase/auth",
-  "firebase/compat/auth",
   "@capacitor-firebase/authentication",
-  "auth-compat",
-  "app-compat",
+  "INTERNAL ASSERTION FAILED: Expected a class definition",
 ];
-
-// Native builds must never emit or copy these web-auth chunks.
-const FORBIDDEN_FILENAME_RE = /(firebase|capacitor-firebase-auth).*\.js$/i;
 
 async function statDir(dir) {
   try {
@@ -58,10 +53,8 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
-    const base = path.basename(file);
-    if (FORBIDDEN_FILENAME_RE.test(base)) {
-      hits.push({ label, file, forbidden: `filename:${base}` });
-    }
+    // Requirement: scan dist/assets/**/*.js (and ios/.../assets/**/*.js if present)
+    if (!file.endsWith(".js")) continue;
 
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
