@@ -1,5 +1,4 @@
 import UIKit
-import FirebaseCore
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
