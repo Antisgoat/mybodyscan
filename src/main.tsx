@@ -181,28 +181,46 @@ if (typeof window !== "undefined") {
 // Boot error trap to capture first thrown error before any UI swallows it.
 // Native-only (per crash-shield spec) to prevent WKWebView blank screens.
 if (typeof window !== "undefined" && isNative()) {
-  window.addEventListener("error", (e) => {
-    if (!(window as any).__firstBootError) {
-      (window as any).__firstBootError = true;
-      console.error(
-        "[boot] first error:",
-        e?.error || e?.message,
-        e?.filename,
-        e?.lineno,
-        e?.colno,
-        e?.error?.stack
-      );
+  // Spec requirement: use window.onerror + window.onunhandledrejection (native only).
+  // Keep handlers idempotent and do not throw from within them.
+  window.onerror = (
+    message,
+    source,
+    lineno,
+    colno,
+    error
+  ): boolean => {
+    try {
+      if (!(window as any).__firstBootError) {
+        (window as any).__firstBootError = true;
+        console.error(
+          "[boot] first error:",
+          error || message,
+          source,
+          lineno,
+          colno,
+          (error as any)?.stack
+        );
+      }
+      renderBootFailure(error || message, "window_error");
+    } catch {
+      // ignore
     }
-    // Render a loud error screen if the app never mounted / crashed hard.
-    renderBootFailure(e?.error || e?.message || e, "window_error");
-  });
-  window.addEventListener("unhandledrejection", (e) => {
-    if (!(window as any).__firstBootError) {
-      (window as any).__firstBootError = true;
-      console.error("[boot] first unhandledrejection:", e?.reason);
+    // Returning false allows the default browser logging behavior.
+    return false;
+  };
+
+  window.onunhandledrejection = (e: PromiseRejectionEvent): void => {
+    try {
+      if (!(window as any).__firstBootError) {
+        (window as any).__firstBootError = true;
+        console.error("[boot] first unhandledrejection:", e?.reason);
+      }
+      renderBootFailure(e?.reason || e, "unhandled_rejection");
+    } catch {
+      // ignore
     }
-    renderBootFailure(e?.reason || e, "unhandled_rejection");
-  });
+  };
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
