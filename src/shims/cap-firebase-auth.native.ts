@@ -5,16 +5,14 @@
  * (it can import Firebase JS Auth and crash WKWebView).
  *
  * Hard requirements:
- * - Must NOT throw at import-time (boot safety).
+ * - MUST throw at import-time (to prevent accidental use).
  * - Must NOT embed forbidden token strings in the emitted native bundle.
  * - When invoked, must fail clearly and safely.
  */
 
-const PKG = "@capacitor-firebase/" + "authentication";
 const DISABLED_MESSAGE =
-  "Do not import " +
-  PKG +
-  " in the web bundle for native. Use registerPlugin in impl.native.";
+  "Capacitor Firebase Authentication web implementation is disabled on native builds. " +
+  "Use the native auth facade.";
 
 function disabledError() {
   const err = new Error(DISABLED_MESSAGE);
@@ -25,6 +23,9 @@ function disabledError() {
 function rejectDisabled<T = never>(): Promise<T> {
   return Promise.reject(disabledError());
 }
+
+// Non-negotiable: fail fast if anything tries to import this.
+throw disabledError();
 
 // Minimal stubs: some bundlers/code paths may expect these names.
 export function __disabled(): Promise<never> {

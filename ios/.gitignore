@@ -12,5 +12,6 @@ capacitor-cordova-ios-plugins
 App/App/capacitor.config.json
 App/App/config.xml
 
-# Firebase iOS config (generated from ./secrets/GoogleService-Info.plist)
-App/App/GoogleService-Info.plist
+# Firebase iOS config (must be present for native builds)
+# NOTE: This file is required for FirebaseApp.configure() to succeed.
+# If you need to keep it out of git in some environments, use a private fork or CI secret injection.

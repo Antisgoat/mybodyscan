@@ -7,25 +7,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    private func configureFirebaseIfPresent(context: String) {
-        // Configure as early as possible to ensure any Firebase-using plugin
-        // sees a configured default app.
-        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-        NSLog("[MBS] GoogleService-Info.plist found=%d (%@)", plistPath != nil ? 1 : 0, context)
+    private func configureFirebase(context: String) {
+        // Non-negotiable: configure the DEFAULT Firebase app exactly once,
+        // as early as possible during app startup.
         if FirebaseApp.app() != nil { return }
-        if plistPath != nil {
-            FirebaseApp.configure()
-            NSLog("[MBS] FirebaseApp.configure() ok (\(context))")
-        } else {
-            // NOTE: Do not hardcode secrets in Swift; this file must come from the Xcode project.
-            NSLog("[MBS] Missing GoogleService-Info.plist; skipping FirebaseApp.configure() (\(context))")
-        }
+        FirebaseApp.configure()
+        NSLog("[MBS] FirebaseApp.configure() ok (\(context))")
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Non-negotiable: configure the DEFAULT Firebase app exactly once,
-        // during didFinishLaunchingWithOptions.
-        configureFirebaseIfPresent(context: "didFinishLaunching")
+        // MUST occur before any Capacitor bridge init / plugin access.
+        configureFirebase(context: "didFinishLaunching")
 
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")

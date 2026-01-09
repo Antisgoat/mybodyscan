@@ -106,15 +106,11 @@ export default defineConfig(({ mode }) => {
             { find: /^firebase\/storage$/, replacement: nativeStorageShim },
             { find: /^firebase\/analytics$/, replacement: nativeAnalyticsShim },
 
-            // REQUIRED (native builds): alias Firebase Auth entrypoints to a shim.
-            // Keep aliases OFF for web builds.
-            { find: /^firebase\/auth$/, replacement: nativeAuthShim },
-            { find: /^firebase\/auth\/cordova$/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth$/, replacement: nativeAuthShim },
-
-            // Hardening: catch auth subpaths if they appear (should be rare).
-            { find: /^firebase\/auth\/.*$/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth\/.*$/, replacement: nativeAuthShim },
+            // REQUIRED (native builds): hard-alias auth entrypoints to shims.
+            // IMPORTANT: keep aliases OFF for web builds.
+            { find: /^firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
+            { find: /^@firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
+            { find: /^firebase\/auth\/cordova(\/.*)?$/, replacement: nativeAuthShim },
 
             // Extra hardening for compat/app variants (forbidden).
             {
@@ -126,14 +122,9 @@ export default defineConfig(({ mode }) => {
               replacement: nativeFirebaseCompatAppShim,
             },
 
-            // REQUIRED (native builds): prevent bundling the capacitor-firebase-auth web wrapper.
-            { find: /^@capacitor-firebase\/authentication$/, replacement: nativeCapShim },
-
-            // Hardening: catch deep imports if they appear.
-            {
-              find: /^@capacitor-firebase\/authentication\/.*$/,
-              replacement: nativeCapShim,
-            },
+            // REQUIRED (native builds): prevent bundling capacitor-firebase-auth web wrappers.
+            { find: /^@capacitor-firebase\/authentication(\/.*)?$/, replacement: nativeCapShim },
+            { find: /^capacitor-firebase-auth(\/.*)?$/, replacement: nativeCapShim },
           ]
         : []),
     ],

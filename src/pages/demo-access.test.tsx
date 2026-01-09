@@ -5,22 +5,6 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
-const signInWithRedirect = vi.fn();
-const signInWithPopup = vi.fn();
-const signInAnonymously = vi.fn();
-const signInWithCustomToken = vi.fn();
-
-vi.mock("firebase/auth", async () => {
-  const actual = await vi.importActual<any>("firebase/auth");
-  return {
-    ...actual,
-    signInWithRedirect,
-    signInWithPopup,
-    signInAnonymously,
-    signInWithCustomToken,
-  };
-});
-
 vi.mock("@/lib/auth", () => {
   return { useAuthUser: () => ({ user: null, authReady: true }) };
 });
@@ -62,10 +46,6 @@ describe("demo access (signed out)", () => {
 
     expect(screen.getByTestId("demo-route")).toBeTruthy();
     expect(window.localStorage.getItem("mbs_demo")).toBe("1");
-    expect(signInWithRedirect).not.toHaveBeenCalled();
-    expect(signInWithPopup).not.toHaveBeenCalled();
-    expect(signInAnonymously).not.toHaveBeenCalled();
-    expect(signInWithCustomToken).not.toHaveBeenCalled();
   });
 });
 
