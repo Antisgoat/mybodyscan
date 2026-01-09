@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { getFirebaseInitError, hasFirebaseConfig } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, authReady } = useAuthUser();

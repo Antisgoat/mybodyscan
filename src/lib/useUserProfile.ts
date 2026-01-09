@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/authFacade";
+import { useAuthUser } from "@/auth/facade";
 
 export type UserProfile = {
   role?: string;

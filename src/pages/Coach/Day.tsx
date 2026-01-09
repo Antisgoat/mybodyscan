@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/authFacade";
+import { useAuthUser } from "@/auth/facade";
 import {
   applyDeloadToDay,
   computeNextTargets,

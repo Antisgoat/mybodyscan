@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { toDateOrNull } from "@/lib/time";
 
 export type TodayNutritionTotals = {

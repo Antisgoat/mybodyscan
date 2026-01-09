@@ -47,7 +47,7 @@ import { canStartPrograms } from "@/lib/entitlements";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { isNative } from "@/lib/platform";
-import { useAuthUser } from "@/lib/authFacade";
+import { useAuthUser } from "@/auth/facade";
 
 const equipmentLabels: Record<ProgramEquipment, string> = {
   none: "Bodyweight",

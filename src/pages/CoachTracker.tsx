@@ -26,7 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { ChevronLeft, ChevronRight, Plus, Flame, Target } from "lucide-react";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { useAuthUser } from "@/lib/auth";
+import { useAuthUser } from "@/auth/facade";
 import { toast } from "@/hooks/use-toast";
 import {
   addMeal as logMeal,

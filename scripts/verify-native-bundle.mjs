@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const FORBIDDEN_STRINGS = [
+const FORBIDDEN_TOKENS = [
   "@firebase/auth",
   "firebase/auth",
   "@capacitor-firebase/authentication",
-  "INTERNAL ASSERTION FAILED: Expected a class definition",
+  "capacitor-firebase-auth",
 ];
 
 async function statDir(dir) {
@@ -36,6 +36,11 @@ async function readUtf8BestEffort(filePath) {
   }
 }
 
+function isForbiddenFilename(filePath) {
+  // Non-negotiable: fail if ANY emitted filename matches this pattern.
+  return /capacitor-firebase-auth.*\.js/.test(path.basename(filePath));
+}
+
 async function scanDir(label, dirPath, { required }) {
   const st = await statDir(dirPath);
   if (!st) {
@@ -53,15 +58,16 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
-    // Requirement: scan dist/assets/**/*.js (and ios/.../assets/**/*.js if present)
-    if (!file.endsWith(".js")) continue;
+    if (isForbiddenFilename(file)) {
+      hits.push({ label, file, forbidden: "filename:/capacitor-firebase-auth.*\\.js/" });
+    }
 
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 
-    for (const needle of FORBIDDEN_STRINGS) {
-      if (text.includes(needle)) {
-        hits.push({ label, file, forbidden: needle });
+    for (const token of FORBIDDEN_TOKENS) {
+      if (text.includes(token)) {
+        hits.push({ label, file, forbidden: `token:${token}` });
       }
     }
   }

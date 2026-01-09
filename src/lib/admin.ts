@@ -1,4 +1,4 @@
-import { getIdToken } from "@/lib/authFacade";
+import { getIdToken } from "@/auth/facade";
 
 const BASE = "/admin";
 

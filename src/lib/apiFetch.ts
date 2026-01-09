@@ -1,5 +1,5 @@
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
-import { getIdToken } from "@/lib/authFacade";
+import { getIdToken } from "@/auth/facade";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {

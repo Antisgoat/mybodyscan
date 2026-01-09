@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/authFacade";
+import { useAuthUser } from "@/auth/facade";
 
 type InternalState = {
   authResolved: boolean;

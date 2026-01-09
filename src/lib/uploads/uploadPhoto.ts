@@ -1,5 +1,5 @@
 import type { FirebaseStorage, UploadTask } from "firebase/storage";
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 import { getScanPhotoPath, type ScanPose } from "@/lib/uploads/storagePaths";
 import { uploadViaStorage } from "@/lib/uploads/uploadViaStorage";
 

@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { getCachedUser } from "@/lib/authFacade";
+import { getCachedUser } from "@/auth/facade";
 import {
   collection,
   doc,

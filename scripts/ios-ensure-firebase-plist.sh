@@ -19,11 +19,22 @@ cleanup_dest_dir() {
   shopt -u nullglob
 }
 
-# If the plist already exists in the iOS app folder, we're done.
-# This keeps local rebuilds deterministic even if ./secrets is not present.
+# If we have a source-of-truth secrets plist, ALWAYS copy it into the iOS app folder.
+# This ensures CI / local setups can inject the real plist even if the repo contains
+# a template file at the destination path.
+if [[ -f "$src" ]]; then
+  mkdir -p "$dest_dir"
+  cp -f "$src" "$dest"
+  cleanup_dest_dir
+  echo "OK: ensured ios/App/App/GoogleService-Info.plist (from ./secrets)"
+  exit 0
+fi
+
+# If we don't have ./secrets, allow using an existing plist in the iOS app folder.
+# (Common for local/dev setups where the plist is placed directly in Xcode.)
 if [[ -f "$dest" ]]; then
   cleanup_dest_dir
-  echo "OK: ensured ios/App/App/GoogleService-Info.plist"
+  echo "OK: ensured ios/App/App/GoogleService-Info.plist (existing file)"
   exit 0
 fi
 

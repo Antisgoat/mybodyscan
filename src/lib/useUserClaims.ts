@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getIdToken, onIdTokenChanged } from "@/lib/authFacade";
+import { getIdToken, onIdTokenChanged } from "@/auth/facade";
 
 function decodeJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split(".");

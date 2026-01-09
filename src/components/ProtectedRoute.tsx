@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuthPhase, useAuthUser } from "@/lib/auth";
+import { useAuthPhase, useAuthUser } from "@/auth/facade";
 import { isDemoActive } from "@/lib/demo";
 import { isPathAllowedInDemo } from "@/lib/demoFlag";
 import { useDemoMode } from "./DemoModeProvider";

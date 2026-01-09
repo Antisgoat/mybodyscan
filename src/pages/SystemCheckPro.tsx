@@ -4,7 +4,7 @@ import { appCheck } from "@/lib/appCheck";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
-import { useAuthUser } from "@/lib/authFacade";
+import { useAuthUser } from "@/auth/facade";
 
 type Check = {
   name: string;

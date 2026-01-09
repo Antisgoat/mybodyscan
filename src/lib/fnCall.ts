@@ -1,6 +1,6 @@
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { fnUrl } from "@/lib/env";
-import { requireIdToken } from "@/lib/authFacade";
+import { requireIdToken } from "@/auth/facade";
 
 export type FnCallError = Error & {
   status?: number;

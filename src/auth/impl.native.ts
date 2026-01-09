@@ -1,7 +1,9 @@
 import type { AuthImpl } from "./facade";
 import type { Unsubscribe, UserLike } from "./types";
 
-import { FirebaseAuthentication } from "@/native/firebaseAuthentication";
+import { registerPlugin } from "@capacitor/core";
+
+const FirebaseAuthentication = registerPlugin<any>("FirebaseAuthentication");
 
 let cachedUser: UserLike | null = null;
 let listenerAttached = false;
