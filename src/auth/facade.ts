@@ -45,12 +45,11 @@ function loadImpl(): Promise<AuthImpl> {
     // - Use Vite build mode (`vite build --mode native`) so the web impl
     //   (and firebase/auth) is excluded from native output.
     //
-    // We keep `isNative()` as a runtime safety check for dev/preview, but
-    // native builds should always use `MODE === "native"`.
-    const mode = import.meta.env.MODE;
-    if (mode === "native") {
-      implPromise = import("./impl.native").then((m) => m.impl);
-    } else if (isNative()) {
+    // Facade selection:
+    // - Native build mode is a compile-time guarantee (prevents bundling firebase/auth).
+    // - isNative() is a runtime guarantee for dev/preview and defensive checks.
+    const native = import.meta.env.MODE === "native" || isNative();
+    if (native) {
       implPromise = import("./impl.native").then((m) => m.impl);
     } else {
       implPromise = import("./impl.web").then((m) => m.impl);
