@@ -7,11 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    override init() {
-        super.init()
-        configureFirebaseIfPresent(context: "init")
-    }
-
     private func configureFirebaseIfPresent(context: String) {
         // Configure as early as possible to ensure any Firebase-using plugin
         // sees a configured default app.
@@ -28,6 +23,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Non-negotiable: configure the DEFAULT Firebase app exactly once,
+        // during didFinishLaunchingWithOptions.
         configureFirebaseIfPresent(context: "didFinishLaunching")
 
         let resourcesURL = Bundle.main.resourceURL

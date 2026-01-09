@@ -4,11 +4,14 @@ import path from "node:path";
 const FORBIDDEN_STRINGS = [
   "@firebase/auth",
   "firebase/auth",
+  "firebase/compat/auth",
   "@capacitor-firebase/authentication",
+  "auth-compat",
+  "app-compat",
 ];
 
-// Native builds must never emit or copy this web-wrapper chunk.
-const FORBIDDEN_FILENAME_RE = /capacitor-firebase-auth.*\.js$/i;
+// Native builds must never emit or copy these web-auth chunks.
+const FORBIDDEN_FILENAME_RE = /(firebase|capacitor-firebase-auth).*\.js$/i;
 
 async function statDir(dir) {
   try {
@@ -42,7 +45,12 @@ async function scanDir(label, dirPath, { required }) {
   const st = await statDir(dirPath);
   if (!st) {
     if (required) {
-      throw new Error(`[verify:native] Missing directory: ${label} (${dirPath})`);
+      const err = new Error(
+        `[verify:native] Missing directory: ${label} (${dirPath})`
+      );
+      // Ensure a build/CI failure (non-negotiable).
+      err.code = "verify/missing-dist";
+      throw err;
     }
     return [];
   }
@@ -86,7 +94,6 @@ async function main() {
       console.error(`- ${h.label}: ${h.file}\n  -> ${h.forbidden}`);
     }
     process.exit(1);
-    return;
   }
 
   // eslint-disable-next-line no-console
@@ -96,5 +103,5 @@ async function main() {
 main().catch((err) => {
   // eslint-disable-next-line no-console
   console.error(String(err?.message || err));
-  process.exit(2);
+  process.exit(1);
 });
