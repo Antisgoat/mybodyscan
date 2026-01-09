@@ -62,9 +62,6 @@ async function scanDir(label, dirPath, { required }) {
       hits.push({ label, file, forbidden: "filename:/capacitor-firebase-auth.*\\.js/" });
     }
 
-    // Requirement: scan dist/assets/**/*.js (and ios/.../assets/**/*.js if present)
-    if (!file.endsWith(".js")) continue;
-
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 
