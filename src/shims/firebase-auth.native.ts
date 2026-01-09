@@ -1,81 +1,93 @@
 /**
  * Native-build Firebase Auth shim.
  *
- * This module must be used ONLY for Vite `--mode native` via `resolve.alias`.
- * If it is imported at runtime, it will throw a clear error instead of
- * letting Firebase JS Auth crash WKWebView at boot.
+ * Hard requirements:
+ * - Must NOT throw at import-time (boot safety).
+ * - Must NOT import Firebase.
+ * - When invoked, must fail clearly and safely.
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled on native builds. Use src/auth/facade (native plugin).";
+  "Firebase JS Auth is disabled on native builds. Use the native auth facade.";
 
-function disabled(): never {
-  throw new Error(DISABLED_MESSAGE);
+function disabledError() {
+  const err = new Error(DISABLED_MESSAGE);
+  (err as any).code = "auth/firebase-js-disabled";
+  return err;
+}
+
+function rejectDisabled<T = never>(): Promise<T> {
+  return Promise.reject(disabledError());
+}
+
+function throwDisabled(): never {
+  throw disabledError();
 }
 
 // ---- Common functions ----
+// Many of these are awaited in call-sites; prefer returning rejected Promises.
 export function getAuth(): never {
-  return disabled();
+  return throwDisabled();
 }
 
 export function initializeAuth(): never {
-  return disabled();
+  return throwDisabled();
 }
 
 export function onAuthStateChanged(): never {
-  return disabled();
-}
-
-export function signInWithEmailAndPassword(): never {
-  return disabled();
-}
-
-export function createUserWithEmailAndPassword(): never {
-  return disabled();
-}
-
-export function signOut(): never {
-  return disabled();
-}
-
-export function getIdToken(): never {
-  return disabled();
-}
-
-export function signInWithPopup(): never {
-  return disabled();
-}
-
-export function signInWithRedirect(): never {
-  return disabled();
-}
-
-export function getRedirectResult(): never {
-  return disabled();
-}
-
-export function getAdditionalUserInfo(): never {
-  return disabled();
-}
-
-export function linkWithCredential(): never {
-  return disabled();
+  return throwDisabled();
 }
 
 export function onIdTokenChanged(): never {
-  return disabled();
+  return throwDisabled();
 }
 
-export function sendPasswordResetEmail(): never {
-  return disabled();
+export function signInWithEmailAndPassword(): Promise<never> {
+  return rejectDisabled();
 }
 
-export function updateProfile(): never {
-  return disabled();
+export function createUserWithEmailAndPassword(): Promise<never> {
+  return rejectDisabled();
 }
 
-export function setPersistence(): never {
-  return disabled();
+export function signOut(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function getIdToken(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function signInWithPopup(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function signInWithRedirect(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function getRedirectResult(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function getAdditionalUserInfo(): never {
+  return throwDisabled();
+}
+
+export function linkWithCredential(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function sendPasswordResetEmail(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function updateProfile(): Promise<never> {
+  return rejectDisabled();
+}
+
+export function setPersistence(): Promise<never> {
+  return rejectDisabled();
 }
 
 // ---- Persistence placeholders ----
@@ -103,10 +115,10 @@ export class GoogleAuthProvider {
     // but fail on any actual usage.
   }
   addScope(): never {
-    return disabled();
+    return throwDisabled();
   }
   setCustomParameters(): never {
-    return disabled();
+    return throwDisabled();
   }
 }
 
@@ -115,17 +127,17 @@ export class OAuthProvider {
     // see GoogleAuthProvider comment
   }
   addScope(): never {
-    return disabled();
+    return throwDisabled();
   }
   setCustomParameters(): never {
-    return disabled();
+    return throwDisabled();
   }
 }
 
 // Some codebases reference `EmailAuthProvider` directly; keep a stub to fail loudly.
 export class EmailAuthProvider {
   static credential(): never {
-    return disabled();
+    return throwDisabled();
   }
 }
 
