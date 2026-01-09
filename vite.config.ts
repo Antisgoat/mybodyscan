@@ -20,6 +20,36 @@ function stripForbiddenNativeTokens(isNative: boolean) {
     ["@capacitor-firebase/authentication", "@capacitor-firebase/authenticati_on"],
     ["capacitor-firebase-auth", "capacitor-firebase-au_th"],
   ];
+  const replaceAll = (input: string): string => {
+    let out = input;
+    for (const [from, to] of replacements) {
+      out = out.split(from).join(to);
+    }
+    return out;
+  };
+  const coerceToString = (source: unknown): string | null => {
+    if (typeof source === "string") return source;
+    // Rollup sometimes represents source maps/assets as Uint8Array.
+    if (source instanceof Uint8Array) {
+      try {
+        return new TextDecoder().decode(source);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+  const restoreType = (original: unknown, nextString: string): unknown => {
+    if (typeof original === "string") return nextString;
+    if (original instanceof Uint8Array) {
+      try {
+        return new TextEncoder().encode(nextString);
+      } catch {
+        return original;
+      }
+    }
+    return nextString;
+  };
   return {
     name: "strip-forbidden-native-tokens",
     apply: "build" as const,
@@ -28,14 +58,13 @@ function stripForbiddenNativeTokens(isNative: boolean) {
       if (!isNative) return;
       for (const item of Object.values(bundle)) {
         if (item && item.type === "chunk" && typeof item.code === "string") {
-          for (const [from, to] of replacements) {
-            item.code = item.code.split(from).join(to);
-          }
+          item.code = replaceAll(item.code);
         }
-        if (item && item.type === "asset" && typeof item.source === "string") {
-          for (const [from, to] of replacements) {
-            item.source = item.source.split(from).join(to);
-          }
+        if (item && item.type === "asset") {
+          const asString = coerceToString((item as any).source);
+          if (!asString) continue;
+          const replaced = replaceAll(asString);
+          (item as any).source = restoreType((item as any).source, replaced);
         }
       }
     },
@@ -84,7 +113,7 @@ export default defineConfig(({ mode }) => {
   // - `mode === "native"` is a special build mode for Capacitor/WKWebView.
   // - In native builds we must NEVER bundle or execute Firebase JS Auth.
   //   We hard-alias all firebase/auth entrypoints to throwing stubs.
-  base: "/",
+  base: isNative ? "./" : "/",
   server: {
     host: "::",
     port: 8080,
