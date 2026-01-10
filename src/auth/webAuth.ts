@@ -2,43 +2,16 @@ import { getFirebaseApp, getFirebaseConfig, hasFirebaseConfig } from "@/lib/fire
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { popupThenRedirect } from "@/lib/popupThenRedirect";
 import { reportError } from "@/lib/telemetry";
-
-export type UserLike = {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  photoUrl?: string | null;
-  phoneNumber?: string | null;
-  emailVerified?: boolean;
-  isAnonymous?: boolean;
-  providerId?: string | null;
-};
-
-export type Unsubscribe = () => void;
+import type { AuthImpl } from "./facade";
+import type { Unsubscribe, UserLike } from "./types";
 
 type PersistenceMode = "indexeddb" | "local" | "session" | "unknown";
 
-type NativeAuthUser = {
-  uid?: string;
-  email?: string | null;
-  displayName?: string | null;
-  photoUrl?: string | null;
-  phoneNumber?: string | null;
-  emailVerified?: boolean;
-  isAnonymous?: boolean;
-  providerId?: string | null;
-};
-
-type NativeAuthResult = { user?: NativeAuthUser | null };
-
 type OAuthProviderId = "google.com" | "apple.com";
-
-const isNativeBuild = __MBS_NATIVE__;
 
 const PENDING_OAUTH_KEY = "mybodyscan:auth:oauth:pending";
 const MAX_AUTH_WAIT_MS = 15_000;
 const APPLE_PROVIDER_ID = "apple.com";
-const NATIVE_POLL_INTERVAL_MS = 3_000;
 
 function toWebUserLike(user: any): UserLike | null {
   if (!user) return null;
@@ -47,20 +20,6 @@ function toWebUserLike(user: any): UserLike | null {
     email: typeof user.email === "string" ? user.email : null,
     displayName: typeof user.displayName === "string" ? user.displayName : null,
     photoUrl: typeof user.photoURL === "string" ? user.photoURL : null,
-    phoneNumber: typeof user.phoneNumber === "string" ? user.phoneNumber : null,
-    emailVerified: Boolean(user.emailVerified),
-    isAnonymous: Boolean(user.isAnonymous),
-    providerId: typeof user.providerId === "string" ? user.providerId : null,
-  };
-}
-
-function toNativeUserLike(user: NativeAuthUser | null | undefined): UserLike | null {
-  if (!user) return null;
-  return {
-    uid: String(user.uid ?? ""),
-    email: typeof user.email === "string" ? user.email : null,
-    displayName: typeof user.displayName === "string" ? user.displayName : null,
-    photoUrl: typeof user.photoUrl === "string" ? user.photoUrl : null,
     phoneNumber: typeof user.phoneNumber === "string" ? user.phoneNumber : null,
     emailVerified: Boolean(user.emailVerified),
     isAnonymous: Boolean(user.isAnonymous),
@@ -157,18 +116,11 @@ async function getWebAuth() {
   return authPromise;
 }
 
-async function getNativeAuthPlugin() {
-  const mod = await import("@/lib/native/firebaseAuthentication");
-  return mod.FirebaseAuthentication;
-}
-
 export async function webRequireAuth(): Promise<any> {
-  if (isNativeBuild) return null;
   return getWebAuth();
 }
 
 export async function ensureWebAuthPersistence(): Promise<PersistenceMode> {
-  if (isNativeBuild) return "unknown";
   if (persistencePromise) return persistencePromise;
   persistencePromise = (async () => {
     const auth = await getWebAuth();
@@ -196,7 +148,6 @@ export async function ensureWebAuthPersistence(): Promise<PersistenceMode> {
 }
 
 export async function finalizeRedirectResult(): Promise<any | null> {
-  if (isNativeBuild) return null;
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   try {
@@ -320,69 +271,7 @@ async function signInWithOAuthProvider(options: {
   }
 }
 
-let nativeCachedUser: UserLike | null = null;
-let nativeListenerAttached = false;
-
-async function refreshNativeCurrentUser(): Promise<UserLike | null> {
-  try {
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    const res: NativeAuthResult = await FirebaseAuthentication.getCurrentUser();
-    nativeCachedUser = toNativeUserLike(res?.user ?? null);
-    return nativeCachedUser;
-  } catch {
-    nativeCachedUser = null;
-    return null;
-  }
-}
-
-async function attachNativeListenerIfAvailable(): Promise<void> {
-  if (nativeListenerAttached) return;
-  nativeListenerAttached = true;
-  try {
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication?.addListener !== "function") return;
-    await FirebaseAuthentication.addListener("authStateChange", (change: any) => {
-      nativeCachedUser = toNativeUserLike(change?.user);
-    });
-  } catch {
-    // ignore
-  }
-}
-
-function createNativePolling<T>(
-  poll: () => Promise<T | null>,
-  onChange: (value: T | null) => void,
-  intervalMs: number
-): Unsubscribe {
-  let stopped = false;
-  let lastSerialized = "";
-  const tick = async () => {
-    if (stopped) return;
-    try {
-      const value = await poll();
-      const serialized = JSON.stringify(value ?? null);
-      if (serialized !== lastSerialized) {
-        lastSerialized = serialized;
-        onChange(value ?? null);
-      }
-    } catch {
-      // ignore
-    }
-  };
-  void tick();
-  const handle = setInterval(() => void tick(), intervalMs);
-  return () => {
-    stopped = true;
-    clearInterval(handle);
-  };
-}
-
 export async function getCurrentUser(): Promise<UserLike | null> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    if (nativeCachedUser) return nativeCachedUser;
-    return refreshNativeCurrentUser();
-  }
   try {
     const auth = await getWebAuth();
     return toWebUserLike(auth.currentUser);
@@ -392,26 +281,6 @@ export async function getCurrentUser(): Promise<UserLike | null> {
 }
 
 export async function getIdToken(forceRefresh?: boolean): Promise<string | null> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    try {
-      const FirebaseAuthentication = await getNativeAuthPlugin();
-      if (forceRefresh != null) {
-        try {
-          const res = await FirebaseAuthentication.getIdToken({
-            forceRefresh: Boolean(forceRefresh),
-          });
-          return typeof res?.token === "string" ? res.token : null;
-        } catch {
-          // fall through to no-args variant
-        }
-      }
-      const res = await FirebaseAuthentication.getIdToken();
-      return typeof res?.token === "string" ? res.token : null;
-    } catch {
-      return null;
-    }
-  }
   try {
     const auth = await getWebAuth();
     const user = auth.currentUser;
@@ -425,45 +294,6 @@ export async function getIdToken(forceRefresh?: boolean): Promise<string | null>
 export async function onAuthStateChanged(
   cb: (u: UserLike | null) => void
 ): Promise<Unsubscribe> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    void refreshNativeCurrentUser().then((u) => {
-      try {
-        cb(u);
-      } catch {
-        // ignore
-      }
-    });
-
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication?.addListener !== "function") {
-      return createNativePolling(refreshNativeCurrentUser, cb, NATIVE_POLL_INTERVAL_MS);
-    }
-
-    try {
-      const handle = await FirebaseAuthentication.addListener(
-        "authStateChange",
-        (change: any) => {
-          nativeCachedUser = toNativeUserLike(change?.user);
-          try {
-            cb(nativeCachedUser);
-          } catch {
-            // ignore
-          }
-        }
-      );
-      return () => {
-        try {
-          void handle?.remove?.();
-        } catch {
-          // ignore
-        }
-      };
-    } catch {
-      return () => undefined;
-    }
-  }
-
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   const unsub = mod.onAuthStateChanged(auth, (u: any) => cb(toWebUserLike(u)));
@@ -473,40 +303,6 @@ export async function onAuthStateChanged(
 export async function onIdTokenChanged(
   cb: (token: string | null) => void
 ): Promise<Unsubscribe> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication?.addListener !== "function") {
-      return createNativePolling(
-        async () => await getIdToken(),
-        (token) => cb(typeof token === "string" ? token : null),
-        NATIVE_POLL_INTERVAL_MS
-      );
-    }
-    try {
-      const handle = await FirebaseAuthentication.addListener(
-        "idTokenChange",
-        (change: any) => {
-          const token = typeof change?.token === "string" ? change.token : null;
-          try {
-            cb(token);
-          } catch {
-            // ignore
-          }
-        }
-      );
-      return () => {
-        try {
-          void handle?.remove?.();
-        } catch {
-          // ignore
-        }
-      };
-    } catch {
-      return () => undefined;
-    }
-  }
-
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   const unsub = mod.onIdTokenChanged(auth, async (u: any) => {
@@ -521,13 +317,6 @@ export async function onIdTokenChanged(
 }
 
 export async function signOut(): Promise<void> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    await FirebaseAuthentication.signOut();
-    nativeCachedUser = null;
-    return;
-  }
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   await mod.signOut(auth);
@@ -537,27 +326,6 @@ export async function signInWithEmailAndPassword(
   email: string,
   password: string
 ): Promise<UserLike> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication.signInWithEmailAndPassword !== "function") {
-      const err: any = new Error("Email/password sign-in not supported");
-      err.code = "auth/unsupported";
-      throw err;
-    }
-    const res: NativeAuthResult = await FirebaseAuthentication.signInWithEmailAndPassword({
-      email,
-      password,
-    });
-    nativeCachedUser = toNativeUserLike(res?.user ?? null);
-    const u = nativeCachedUser ?? (await refreshNativeCurrentUser());
-    if (!u || !u.uid) {
-      const err: any = new Error("Native sign-in did not return a user");
-      err.code = "auth/native-no-user";
-      throw err;
-    }
-    return u;
-  }
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   const res = await mod.signInWithEmailAndPassword(auth, email, password);
@@ -568,27 +336,6 @@ export async function createUserWithEmailAndPassword(
   email: string,
   password: string
 ): Promise<UserLike> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication.createUserWithEmailAndPassword !== "function") {
-      const err: any = new Error("Create user not supported");
-      err.code = "auth/unsupported";
-      throw err;
-    }
-    const res: NativeAuthResult = await FirebaseAuthentication.createUserWithEmailAndPassword({
-      email,
-      password,
-    });
-    nativeCachedUser = toNativeUserLike(res?.user ?? null);
-    const u = nativeCachedUser ?? (await refreshNativeCurrentUser());
-    if (!u || !u.uid) {
-      const err: any = new Error("Native sign-up did not return a user");
-      err.code = "auth/native-no-user";
-      throw err;
-    }
-    return u;
-  }
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   const res = await mod.createUserWithEmailAndPassword(auth, email, password);
@@ -600,9 +347,6 @@ export async function createAccountEmail(
   password: string,
   displayName?: string
 ): Promise<UserLike> {
-  if (isNativeBuild) {
-    return createUserWithEmailAndPassword(email, password);
-  }
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   const existing = auth.currentUser;
@@ -618,34 +362,12 @@ export async function createAccountEmail(
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<void> {
-  if (isNativeBuild) {
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication.sendPasswordResetEmail !== "function") {
-      const err: any = new Error("sendPasswordResetEmail not supported");
-      err.code = "auth/unsupported";
-      throw err;
-    }
-    await FirebaseAuthentication.sendPasswordResetEmail({ email });
-    return;
-  }
   const auth = await getWebAuth();
   const mod = await loadWebAuthModule();
   await mod.sendPasswordResetEmail(auth, email);
 }
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication.signInWithGoogle !== "function") {
-      const err: any = new Error("Google sign-in not supported");
-      err.code = "auth/unsupported";
-      throw err;
-    }
-    const res: NativeAuthResult = await FirebaseAuthentication.signInWithGoogle();
-    nativeCachedUser = toNativeUserLike(res?.user ?? null);
-    return;
-  }
   const mod = await loadWebAuthModule();
   const provider = new mod.GoogleAuthProvider();
   provider.addScope("email");
@@ -654,21 +376,23 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
-  if (isNativeBuild) {
-    await attachNativeListenerIfAvailable();
-    const FirebaseAuthentication = await getNativeAuthPlugin();
-    if (typeof FirebaseAuthentication.signInWithApple !== "function") {
-      const err: any = new Error("Apple sign-in not supported");
-      err.code = "auth/unsupported";
-      throw err;
-    }
-    const res: NativeAuthResult = await FirebaseAuthentication.signInWithApple();
-    nativeCachedUser = toNativeUserLike(res?.user ?? null);
-    return;
-  }
   const mod = await loadWebAuthModule();
   const provider = new mod.OAuthProvider("apple.com");
   provider.addScope("email");
   provider.addScope("name");
   await signInWithOAuthProvider({ providerId: "apple.com", provider, next });
 }
+
+export const impl: AuthImpl = {
+  getCurrentUser,
+  getIdToken,
+  onAuthStateChanged,
+  onIdTokenChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  createAccountEmail,
+  sendPasswordResetEmail,
+  signInWithGoogle,
+  signInWithApple,
+};

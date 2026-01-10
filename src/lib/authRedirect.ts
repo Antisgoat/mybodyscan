@@ -57,7 +57,7 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
   }
   let auth: any | null = null;
   try {
-    const { finalizeRedirectResult, webRequireAuth } = await import("@/auth/impl.web");
+    const { finalizeRedirectResult, webRequireAuth } = await import("@/auth/webAuth");
     auth = await webRequireAuth();
     const result = await finalizeRedirectResult().catch(() => null);
     const outcome: AuthRedirectOutcome = {
@@ -95,7 +95,7 @@ async function resolveRedirect(): Promise<AuthRedirectOutcome> {
     let normalized: NormalizedAuthError | null = null;
     if (fbError) {
       try {
-        const { webRequireAuth } = await import("@/auth/impl.web");
+        const { webRequireAuth } = await import("@/auth/webAuth");
         auth ??= await webRequireAuth();
         normalized = await describeAuthErrorAsync(auth, fbError);
       } catch (normalizeError) {
@@ -163,5 +163,5 @@ export async function consumeAuthRedirectError(): Promise<FriendlyFirebaseError 
 export function peekAuthRedirectOutcome(): AuthRedirectOutcome | null {
   return cachedOutcome;
 }
-// Apple display name population lives in `src/auth/impl.web.ts` so
+// Apple display name population lives in `src/auth/webAuth.ts` so
 // `firebase/auth` is only imported in a single web-only module.
