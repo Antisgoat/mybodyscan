@@ -47,7 +47,7 @@ export async function initAuth(): Promise<void> {
     // IMPORTANT: The `__MBS_NATIVE__` check is compile-time, so native builds
     // do not even bundle the web impl (and thus never bundle firebase/auth).
     if (!isNativeBuild && !isNative()) {
-      const { ensureWebAuthPersistence } = await import("@/auth/impl.web");
+      const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
       state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
     } else {
       state.persistence = "memory";
@@ -58,7 +58,7 @@ export async function initAuth(): Promise<void> {
       // This is critical for iOS Safari and also covers edge cases where a WebView
       // ends up using web-based redirects (or reauth redirects) instead of native auth.
       try {
-        const { finalizeRedirectResult } = await import("@/auth/impl.web");
+        const { finalizeRedirectResult } = await import("@/auth/webAuth");
         await finalizeRedirectResult();
         state.redirectError = null;
       } catch (err: any) {

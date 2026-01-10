@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ensureAuthPersistence = vi.fn().mockResolvedValue("indexeddb");
-vi.mock("@/auth/impl.web", () => {
+vi.mock("@/auth/webAuth", () => {
   return {
     ensureWebAuthPersistence: (...args: any[]) => ensureAuthPersistence(...args),
     finalizeRedirectResult: vi.fn().mockResolvedValue(null),
@@ -32,7 +32,7 @@ describe("initAuth", () => {
   });
 
   it("swallows redirect finalization errors (doesn't crash boot)", async () => {
-    const { finalizeRedirectResult } = await import("@/auth/impl.web");
+    const { finalizeRedirectResult } = await import("@/auth/webAuth");
     (finalizeRedirectResult as any).mockRejectedValueOnce(
       new Error("redirect_failed")
     );
@@ -43,4 +43,3 @@ describe("initAuth", () => {
     expect(state.redirectError).toContain("redirect_failed");
   });
 });
-

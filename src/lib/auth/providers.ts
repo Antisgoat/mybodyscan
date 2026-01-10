@@ -25,7 +25,7 @@ export async function handleAuthRedirectResult(): Promise<any | null> {
   if (__MBS_NATIVE__) return null;
   if (isNative()) return null;
   try {
-    const { finalizeRedirectResult } = await import("@/auth/impl.web");
+    const { finalizeRedirectResult } = await import("@/auth/webAuth");
     return await finalizeRedirectResult();
   } catch (e) {
     // Swallow popup blockers/redirect oddities; caller can show a toast if needed.

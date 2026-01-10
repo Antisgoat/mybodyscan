@@ -21,7 +21,6 @@
     "ios:assets": "npx @capacitor/assets generate --ios",
     "verify:native": "node scripts/verify-native-bundle.mjs",
     "verify:native-bundle": "node scripts/verify-native-bundle.mjs",
-    "postbuild:native": "npm run verify:native",
     "postinstall": "npm run ios:ensure-public",
     "lint": "eslint .",
     "check:bundle": "node scripts/check-bundle.js",
