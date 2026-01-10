@@ -22,7 +22,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
 // Handle a completed redirect (Apple/Google).
 export async function handleAuthRedirectResult(): Promise<any | null> {
   // Compile-time guard: in `--mode native` we must not even bundle the web impl.
-  if (import.meta.env.MODE === "native") return null;
+  if (__MBS_NATIVE__) return null;
   if (isNative()) return null;
   try {
     const { finalizeRedirectResult } = await import("@/auth/impl.web");

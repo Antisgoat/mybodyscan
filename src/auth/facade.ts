@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { isNative } from "@/lib/platform";
 import type { AuthUser, Unsubscribe as AppUnsubscribe } from "@/lib/auth/types";
 import type { Unsubscribe as CoreUnsubscribe, UserLike } from "./types";
+import { loadAuthImpl } from "./index";
 
 function toAuthUser(u: UserLike | null): AuthUser | null {
   if (!u) return null;
@@ -42,18 +43,8 @@ function loadImpl(): Promise<AuthImpl> {
   if (!implPromise) {
     // CRITICAL:
     // - Native builds must NEVER bundle or execute Firebase JS Auth.
-    // - Use Vite build mode (`vite build --mode native`) so the web impl
-    //   (and firebase/auth) is excluded from native output.
-    //
-    // Facade selection:
-    // - Native build mode is a compile-time guarantee (prevents bundling firebase/auth).
-    // - isNative() is a runtime guarantee for dev/preview and defensive checks.
-    const native = import.meta.env.MODE === "native" || isNative();
-    if (native) {
-      implPromise = import("./impl.native").then((m) => m.impl);
-    } else {
-      implPromise = import("./impl.web").then((m) => m.impl);
-    }
+    // - `__MBS_NATIVE__` is a compile-time constant used for tree-shaking.
+    implPromise = loadAuthImpl();
   }
   return implPromise;
 }
@@ -400,4 +391,3 @@ export const __authTestInternals = {
     return { ...cachedSnapshot };
   },
 };
-

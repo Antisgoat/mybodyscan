@@ -123,6 +123,9 @@ export default defineConfig(({ mode }) => {
     mode === "development" && componentTagger(),
     stripForbiddenNativeTokens(isNative),
   ].filter(Boolean),
+  define: {
+    __MBS_NATIVE__: JSON.stringify(isNative),
+  },
   resolve: {
     alias: [
       { find: "@", replacement: path.resolve(__dirname, "./src") },
