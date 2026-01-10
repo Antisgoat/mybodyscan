@@ -194,6 +194,7 @@ export default defineConfig(({ mode }) => {
   build: {
     // Native builds: disable modulepreload tags in HTML to avoid eager preloads.
     ...(isNative ? { modulePreload: false } : {}),
+    ...(isNative ? { sourcemap: false } : {}),
     // Native/web builds share `dist/`. Ensure we always clean it so stale chunks
     // (e.g. web-auth / firebase auth code) cannot linger between builds.
     emptyOutDir: true,
