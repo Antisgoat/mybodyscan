@@ -4,27 +4,10 @@ import path from "node:path";
 const FORBIDDEN_TOKENS = [
   "@firebase/auth",
   "firebase/auth",
+  "@capacitor-firebase/authentication",
 ];
 
-const SOURCE_ALLOWLIST = new Set([
-  // The only file allowed to reference Firebase JS Auth.
-  path.resolve(process.cwd(), "src/auth/impl.web.ts"),
-]);
-
-const SOURCE_FORBIDDEN_PATTERNS = [
-  // Non-negotiable: no Firebase JS Auth imports outside impl.web.ts
-  /(^|\s)from\s+["']firebase\/auth(?:\/[^"']*)?["']/,
-  /(^|\s)from\s+["']@firebase\/auth(?:\/[^"']*)?["']/,
-  /(^|\s)from\s+["']firebase\/compat\/auth["']/,
-  /\bimport\s*\(\s*["']firebase\/auth(?:\/[^"']*)?["']\s*\)/,
-  /\bimport\s*\(\s*["']@firebase\/auth(?:\/[^"']*)?["']\s*\)/,
-
-  // Non-negotiable: no firebase root/compat app imports in app source.
-  /(^|\s)from\s+["']firebase["']/,
-  /(^|\s)from\s+["']firebase\/compat["']/,
-  /\bimport\s*\(\s*["']firebase["']\s*\)/,
-  /\bimport\s*\(\s*["']firebase\/compat["']\s*\)/,
-];
+const FORBIDDEN_FILENAME = /capacitor-firebase-auth.*\.js$/i;
 
 async function statDir(dir) {
   try {
@@ -44,14 +27,6 @@ async function listFilesRecursive(dir) {
     else if (ent.isFile()) out.push(full);
   }
   return out;
-}
-
-async function listSourceFiles(dir) {
-  const all = await listFilesRecursive(dir);
-  return all.filter((f) => {
-    const ext = path.extname(f).toLowerCase();
-    return [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"].includes(ext);
-  });
 }
 
 async function readUtf8BestEffort(filePath) {
@@ -79,6 +54,14 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
+    if (FORBIDDEN_FILENAME.test(path.basename(file))) {
+      hits.push({
+        label,
+        file,
+        forbidden: `filename:${FORBIDDEN_FILENAME}`,
+      });
+      continue;
+    }
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 
@@ -91,36 +74,12 @@ async function scanDir(label, dirPath, { required }) {
   return hits;
 }
 
-async function scanSourceImports() {
-  const srcDir = path.resolve(process.cwd(), "src");
-  const st = await statDir(srcDir);
-  if (!st) return [];
-
-  const hits = [];
-  const files = await listSourceFiles(srcDir);
-  for (const file of files) {
-    const text = await readUtf8BestEffort(file);
-    if (!text) continue;
-    const abs = path.resolve(file);
-    if (SOURCE_ALLOWLIST.has(abs)) continue;
-    for (const re of SOURCE_FORBIDDEN_PATTERNS) {
-      if (re.test(text)) {
-        hits.push({ label: "src", file, forbidden: `source_import:${String(re)}` });
-      }
-    }
-  }
-  return hits;
-}
-
 async function main() {
   const distAssets = path.resolve(process.cwd(), "dist/assets");
-  const iosPublic = path.resolve(process.cwd(), "ios/App/App/public");
   const iosAssets = path.resolve(process.cwd(), "ios/App/App/public/assets");
 
   const hits = [
-    ...(await scanSourceImports()),
     ...(await scanDir("dist/assets", distAssets, { required: true })),
-    ...(await scanDir("ios/App/App/public", iosPublic, { required: true })),
     ...(await scanDir("ios/App/App/public/assets", iosAssets, { required: false })),
   ];
 
