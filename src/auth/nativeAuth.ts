@@ -1,5 +1,4 @@
-import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
-
+import { FirebaseAuthentication } from "@/lib/native/firebaseAuthentication";
 import type { AuthImpl } from "./facade";
 import type { Unsubscribe, UserLike } from "./types";
 
@@ -16,30 +15,6 @@ type NativeAuthUser = {
 
 type NativeAuthResult = { user?: NativeAuthUser | null };
 type IdTokenResult = { token?: string | null };
-
-type FirebaseAuthenticationPlugin = {
-  getCurrentUser(): Promise<NativeAuthResult>;
-  getIdToken(options?: { forceRefresh?: boolean }): Promise<IdTokenResult>;
-  signOut(): Promise<void>;
-  signInWithEmailAndPassword(options: {
-    email: string;
-    password: string;
-  }): Promise<NativeAuthResult>;
-  createUserWithEmailAndPassword(options: {
-    email: string;
-    password: string;
-  }): Promise<NativeAuthResult>;
-  sendPasswordResetEmail?(options: { email: string }): Promise<void>;
-  signInWithGoogle?(): Promise<NativeAuthResult>;
-  signInWithApple?(): Promise<NativeAuthResult>;
-  addListener?(
-    eventName: "authStateChange" | "idTokenChange",
-    listenerFunc: (event: any) => void
-  ): Promise<PluginListenerHandle>;
-};
-
-const FirebaseAuthentication =
-  registerPlugin<FirebaseAuthenticationPlugin>("FirebaseAuthentication");
 
 const NATIVE_POLL_INTERVAL_MS = 3_000;
 
