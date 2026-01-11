@@ -2,6 +2,7 @@ import { getFirebaseApp, getFirebaseConfig, hasFirebaseConfig } from "@/lib/fire
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { popupThenRedirect } from "@/lib/popupThenRedirect";
 import { reportError } from "@/lib/telemetry";
+import { getFirebaseAuthModule } from "@/lib/web/firebaseWebAuth";
 import type { AuthImpl } from "./facade";
 import type { Unsubscribe, UserLike } from "./types";
 
@@ -92,14 +93,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, code: string): Promise<
 }
 
 let authPromise: Promise<any> | null = null;
-let webAuthModulePromise: Promise<any> | null = null;
 let persistencePromise: Promise<PersistenceMode> | null = null;
 
 async function loadWebAuthModule() {
-  if (!webAuthModulePromise) {
-    webAuthModulePromise = import("firebase/auth");
-  }
-  return webAuthModulePromise;
+  return getFirebaseAuthModule();
 }
 
 async function getWebAuth() {

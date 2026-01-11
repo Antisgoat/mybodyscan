@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => {
   );
   const nativeCapShim = path.resolve(
     __dirname,
-    "./src/shims/cap-firebase-auth.native.ts"
+    "./src/shims/cap-firebase-authentication.native.ts"
   );
 
   return {
@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => {
     stripForbiddenNativeTokens(isNative),
   ].filter(Boolean),
   define: {
-    __MBS_NATIVE__: JSON.stringify(isNative),
+    __NATIVE__: JSON.stringify(isNative),
   },
   resolve: {
     alias: [

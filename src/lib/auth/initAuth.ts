@@ -36,7 +36,7 @@ export function getInitAuthState(): InitAuthState {
 export async function initAuth(): Promise<void> {
   if (initPromise) return initPromise;
   state.started = true;
-  const isNativeBuild = __MBS_NATIVE__;
+  const isNativeBuild = __NATIVE__;
   initPromise = (async () => {
     void reportError({
       kind: "auth.init",
@@ -44,7 +44,7 @@ export async function initAuth(): Promise<void> {
       extra: { phase: "start" },
     });
     // Web-only: set Firebase JS SDK persistence early.
-    // IMPORTANT: The `__MBS_NATIVE__` check is compile-time, so native builds
+    // IMPORTANT: The `__NATIVE__` check is compile-time, so native builds
     // do not even bundle the web impl (and thus never bundle firebase/auth).
     if (!isNativeBuild && !isNative()) {
       const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
