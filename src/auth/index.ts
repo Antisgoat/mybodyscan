@@ -1,7 +1,7 @@
 import type { AuthImpl } from "./facade";
 import type { Unsubscribe, UserLike } from "./types";
 
-const authPromise: Promise<AuthImpl> = __MBS_NATIVE__
+const authPromise: Promise<AuthImpl> = __NATIVE__
   ? import("./nativeAuth").then((m) => m.impl)
   : import("./webAuth").then((m) => m.impl);
 

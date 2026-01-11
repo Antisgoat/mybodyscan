@@ -4,4 +4,4 @@ interface ImportMeta {
   readonly vitest?: boolean;
 }
 
-declare const __MBS_NATIVE__: boolean;
+declare const __NATIVE__: boolean;

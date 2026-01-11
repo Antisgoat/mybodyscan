@@ -10,6 +10,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func configureFirebase(context: String) {
         // Non-negotiable: configure the DEFAULT Firebase app exactly once,
         // as early as possible during app startup.
+        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+        if plistPath == nil {
+            NSLog("[MBS] GoogleService-Info.plist missing from bundle (\(context)). Firebase disabled.")
+            return
+        }
         if FirebaseApp.app() != nil { return }
         FirebaseApp.configure()
         NSLog("[MBS] FirebaseApp.configure() ok (\(context))")

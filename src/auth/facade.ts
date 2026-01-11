@@ -43,7 +43,7 @@ function loadImpl(): Promise<AuthImpl> {
   if (!implPromise) {
     // CRITICAL:
     // - Native builds must NEVER bundle or execute Firebase JS Auth.
-    // - `__MBS_NATIVE__` is a compile-time constant used for tree-shaking.
+    // - `__NATIVE__` is a compile-time constant used for tree-shaking.
     implPromise = loadAuthImpl();
   }
   return implPromise;

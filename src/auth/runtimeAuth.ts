@@ -9,7 +9,7 @@ type Listener = (user: any | null) => void;
  * Runtime-safe auth access.
  *
  * Goals:
- * - Web: dynamically import `firebase/auth` only when needed.
+ * - Web: load the Firebase Auth module only when needed.
  * - Native (Capacitor/WKWebView): NEVER import/execute `firebase/auth` at runtime.
  *   Return safe fallbacks so UI can boot and remain stable.
  */
@@ -56,4 +56,3 @@ export async function getIdTokenSafe(
     return null;
   }
 }
-
