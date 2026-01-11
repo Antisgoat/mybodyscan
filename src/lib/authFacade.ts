@@ -5,5 +5,5 @@
  * This file exists only so older imports continue to work without pulling
  * web-only Firebase Auth into the native boot graph.
  */
-export * from "@/auth/facade";
+export * from "@/auth/client";
 

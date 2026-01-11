@@ -7,7 +7,7 @@ import { openExternalUrl } from "@/lib/platform";
 import { db } from "@/lib/firebase";
 import { isNative } from "@/lib/platform";
 import { Navigate } from "react-router-dom";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 
 const PRICE_IDS = {
   one: (import.meta.env.VITE_PRICE_ONE ?? "").trim(),

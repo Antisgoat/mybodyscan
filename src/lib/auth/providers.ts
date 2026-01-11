@@ -1,5 +1,5 @@
 import { isNative } from "@/lib/platform";
-import { signInWithApple, signInWithGoogle } from "@/auth/facade";
+import { signInApple, signInGoogle } from "@/auth/client";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   if (isNative()) {
@@ -7,7 +7,7 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
       "Google sign-in is not available on iOS. Use email/password for now."
     );
   }
-  await signInWithGoogle(next);
+  await signInGoogle(next);
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
@@ -16,7 +16,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
       "Apple sign-in is not available on iOS. Use email/password for now."
     );
   }
-  await signInWithApple(next);
+  await signInApple(next);
 }
 
 // Handle a completed redirect (Apple/Google).

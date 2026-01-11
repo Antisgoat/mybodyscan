@@ -1,5 +1,5 @@
 import { isNative } from "@/lib/platform";
-import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/facade";
+import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/client";
 
 import type { Unsubscribe } from "@/lib/auth/types";
 

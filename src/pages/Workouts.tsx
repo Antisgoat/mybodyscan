@@ -19,7 +19,7 @@ import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { authedFetch } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

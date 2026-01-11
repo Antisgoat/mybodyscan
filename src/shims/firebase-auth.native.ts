@@ -1,14 +1,13 @@
 /**
- * Native-build Firebase Auth shim.
+ * Native-build web auth shim.
  *
  * Hard requirements:
- * - MUST throw at import-time (prevent accidental bundling/usage on native).
- * - Must NOT import Firebase.
+ * - Must NOT import web auth modules.
  * - When invoked, must fail clearly and safely.
  */
 
 const DISABLED_MESSAGE =
-  "Firebase JS Auth is disabled on native builds. Use the native auth facade.";
+  "Web Auth is disabled on native builds. Use the native auth facade.";
 
 function disabledError() {
   const err = new Error(DISABLED_MESSAGE);
@@ -23,9 +22,6 @@ function rejectDisabled<T = never>(): Promise<T> {
 function throwDisabled(): never {
   throw disabledError();
 }
-
-// Non-negotiable: fail fast if anything tries to import this.
-throw disabledError();
 
 // ---- Common functions ----
 // Many of these are awaited in call-sites; prefer returning rejected Promises.

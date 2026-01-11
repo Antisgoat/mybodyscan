@@ -10,7 +10,7 @@ import { Seo } from "@/components/Seo";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useCredits } from "@/hooks/useCredits";
 import { useSubscription } from "@/hooks/useSubscription";

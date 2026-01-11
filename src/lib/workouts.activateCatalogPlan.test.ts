@@ -33,7 +33,7 @@ vi.mock("./firebase", () => ({
   db: {},
 }));
 
-vi.mock("@/auth/facade", () => ({
+vi.mock("@/auth/client", () => ({
   getCachedUser: () => ({ uid: "u1" }),
 }));
 

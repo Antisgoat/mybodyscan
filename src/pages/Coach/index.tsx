@@ -32,7 +32,7 @@ import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
 import { disabledIfDemo } from "@/lib/demoGuard";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";

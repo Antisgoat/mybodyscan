@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bootstrapSystem } from "@/lib/system";
 import { call } from "./callable";
-import { getCurrentUser, getIdToken, useAuthUser } from "@/auth/facade";
+import { getCurrentUser, getIdToken, useAuthUser } from "@/auth/client";
 import { isNative } from "@/lib/platform";
 import type { AuthUser } from "@/lib/auth/types";
 

@@ -22,7 +22,7 @@ import HeightInputUS from "@/components/HeightInputUS";
 import { kgToLb, lbToKg } from "@/lib/units";
 import { useUnits } from "@/hooks/useUnits";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 
 interface OnboardingData {
   sex?: "male" | "female";

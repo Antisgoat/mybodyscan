@@ -34,7 +34,7 @@ import { format } from "date-fns";
 import { Seo } from "@/components/Seo";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { addMeal as logMeal, type MealEntry } from "@/lib/nutritionBackend";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 
 interface NutritionLog {
   calories: number;

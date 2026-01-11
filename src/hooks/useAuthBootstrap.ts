@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { disableDemoEverywhere } from "@/lib/demoState";
 import { bootstrapSystem } from "@/lib/system";
-import { getIdToken, useAuthUser } from "@/auth/facade";
+import { getIdToken, useAuthUser } from "@/auth/client";
 import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
 import { initPurchases } from "@/lib/billing/iapProvider";
 import { syncEntitlements } from "@/lib/entitlements/syncEntitlements";

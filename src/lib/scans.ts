@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { getCachedUser } from "@/auth/facade";
+import { getCachedUser } from "@/auth/client";
 import { doc } from "firebase/firestore";
 import { kgToLb, lbToKg } from "@/lib/units";
 

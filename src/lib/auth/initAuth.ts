@@ -70,7 +70,7 @@ export async function initAuth(): Promise<void> {
 
     // On native boot, auth is intentionally not initialized.
     if (!isNativeBuild && !isNative()) {
-      const { startAuthListener } = await import("@/auth/facade");
+      const { startAuthListener } = await import("@/auth/client");
       await startAuthListener().catch(() => undefined);
     }
     state.completed = true;

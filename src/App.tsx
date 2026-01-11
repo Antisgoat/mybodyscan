@@ -89,7 +89,7 @@ import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
 import { initBackHandler } from "./lib/back";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { refreshClaimsAndAdminBoost } from "@/lib/claims";
 import UATPage from "./pages/UAT";
 import Billing from "./pages/Billing";
