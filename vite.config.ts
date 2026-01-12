@@ -71,6 +71,40 @@ function stripForbiddenNativeTokens(isNative: boolean) {
   };
 }
 
+function forbidNativeImports(isNative: boolean) {
+  const forbiddenMatchers: Array<{ pattern: RegExp; label: string }> = [
+    {
+      pattern: /^@capacitor-firebase\/authentication(\/.*)?$/,
+      label: "@capacitor-firebase/authentication",
+    },
+    { pattern: /^firebase\/auth(\/.*)?$/, label: "firebase/auth" },
+    { pattern: /^@firebase\/auth(\/.*)?$/, label: "@firebase/auth" },
+    { pattern: /^firebase\/app-compat$/, label: "firebase/app-compat" },
+    { pattern: /^firebase\/compat\//, label: "firebase/compat/*" },
+    { pattern: /^firebase$/, label: "firebase" },
+  ];
+
+  return {
+    name: "forbid-native-imports",
+    apply: "build" as const,
+    async resolveId(source: string, importer?: string) {
+      if (!isNative) return null;
+      const match = forbiddenMatchers.find((entry) => entry.pattern.test(source));
+      if (!match) return null;
+      const resolved = await this.resolve(source, importer, { skipSelf: true });
+      const resolvedId = resolved?.id ?? source;
+      const importerLabel = importer ?? "(unknown importer)";
+      this.error(
+        `FORBIDDEN in native build: ${match.label}\n` +
+          `Importer: ${importerLabel}\n` +
+          `Resolved: ${resolvedId}\n` +
+          "Web Firebase Auth and compat/namespace bundles must not ship to iOS."
+      );
+      return null;
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const isNative = mode === "native";
@@ -81,6 +115,18 @@ export default defineConfig(({ mode }) => {
   );
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
   const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
+  const nativeWebAuthImpl = path.resolve(
+    __dirname,
+    "./src/auth/webAuth.native.ts"
+  );
+  const webFirebaseImpl = path.resolve(
+    __dirname,
+    "./src/lib/firebase/firebase.web.ts"
+  );
+  const nativeFirebaseImpl = path.resolve(
+    __dirname,
+    "./src/lib/firebase/firebase.native.ts"
+  );
   const nativeFirebaseAppShim = path.resolve(
     __dirname,
     "./src/shims/firebase-app.native.ts"
@@ -101,13 +147,17 @@ export default defineConfig(({ mode }) => {
     __dirname,
     "./src/shims/firebase-analytics.native.ts"
   );
-  const nativeFirebaseCompatAppShim = path.resolve(
-    __dirname,
-    "./src/shims/firebase-compat-app.native.ts"
-  );
   const nativeCapShim = path.resolve(
     __dirname,
     "./src/shims/forbiddenCapFirebaseAuth.ts"
+  );
+  const forbiddenFirebaseCompatShim = path.resolve(
+    __dirname,
+    "./src/shims/forbiddenFirebaseCompat.ts"
+  );
+  const forbiddenFirebaseNamespaceShim = path.resolve(
+    __dirname,
+    "./src/shims/forbiddenFirebaseNamespace.ts"
   );
 
   return {
@@ -123,6 +173,7 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     mode === "development" && componentTagger(),
+    forbidNativeImports(isNative),
     stripForbiddenNativeTokens(isNative),
   ].filter(Boolean),
   define: {
@@ -135,8 +186,13 @@ export default defineConfig(({ mode }) => {
         find: "@mbs-auth-impl",
         replacement: isNative ? nativeAuthImpl : webAuthImpl,
       },
+      {
+        find: "@mbs-firebase-impl",
+        replacement: isNative ? nativeFirebaseImpl : webFirebaseImpl,
+      },
       ...(isNative
         ? [
+            { find: /^@\/auth\/webAuth$/, replacement: nativeWebAuthImpl },
             // Native build: route firebase/* wrappers through shims to avoid
             // bundling the firebase wrapper registry (which includes *-compat tokens).
             { find: /^firebase\/app$/, replacement: nativeFirebaseAppShim },
@@ -152,14 +208,9 @@ export default defineConfig(({ mode }) => {
             { find: /^firebase\/auth\/cordova(\/.*)?$/, replacement: nativeAuthShim },
 
             // Extra hardening for compat/app variants (forbidden).
-            {
-              find: /^firebase\/compat\/app$/,
-              replacement: nativeFirebaseCompatAppShim,
-            },
-            {
-              find: /^@firebase\/app-compat$/,
-              replacement: nativeFirebaseCompatAppShim,
-            },
+            { find: /^firebase$/, replacement: forbiddenFirebaseNamespaceShim },
+            { find: /^firebase\/app-compat$/, replacement: forbiddenFirebaseCompatShim },
+            { find: /^firebase\/compat\/.*$/, replacement: forbiddenFirebaseCompatShim },
 
             // REQUIRED (native builds): prevent bundling capacitor-firebase-auth web wrappers.
             { find: /^@capacitor-firebase\/authentication(\/.*)?$/, replacement: nativeCapShim },

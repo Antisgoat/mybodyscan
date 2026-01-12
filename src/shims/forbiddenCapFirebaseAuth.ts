@@ -6,7 +6,7 @@
  */
 
 const MESSAGE =
-  "Forbidden import: Capacitor Firebase Auth runtime import is not allowed in native builds. Use the native wrapper.";
+  "FORBIDDEN in native build: @capacitor-firebase/authentication (web auth must not ship to iOS).";
 
 throw new Error(MESSAGE);
 

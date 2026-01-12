@@ -15,7 +15,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@mbs-auth-impl": ["./src/auth/mbs-auth.web.ts"]
+      "@mbs-auth-impl": ["./src/auth/mbs-auth.web.ts"],
+      "@mbs-firebase-impl": ["./src/lib/firebase/firebase.web.ts"]
     },
     "skipLibCheck": true,
     "allowJs": true

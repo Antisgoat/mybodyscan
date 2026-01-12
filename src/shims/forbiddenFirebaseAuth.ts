@@ -6,7 +6,7 @@
  */
 
 const MESSAGE =
-  "Forbidden import: Firebase JS Auth is not allowed in native builds. Use the native auth facade.";
+  "FORBIDDEN in native build: firebase/auth (web auth must not ship to iOS).";
 
 throw new Error(MESSAGE);
 
