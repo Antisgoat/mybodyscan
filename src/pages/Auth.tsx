@@ -18,12 +18,12 @@ import {
   sendReset,
   startAuthListener,
   useAuthUser,
-} from "@/auth/client";
+} from "@/auth/mbs-auth";
 import {
   signInApple as startAppleSignIn,
   signInEmailPassword,
   signInGoogle as startGoogleSignIn,
-} from "@/auth/client";
+} from "@/auth/mbs-auth";
 import {
   firebaseConfigMissingKeys,
   firebaseConfigWarningKeys,

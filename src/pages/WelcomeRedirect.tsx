@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 const WelcomeRedirect = () => {
   const [countdown, setCountdown] = useState(1.5);

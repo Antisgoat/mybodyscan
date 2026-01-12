@@ -1,5 +1,5 @@
 import { apiFetchJson } from "@/lib/apiFetch";
-import { requireIdToken } from "@/auth/client";
+import { requireIdToken } from "@/auth/mbs-auth";
 
 export type AuthedJsonOptions = {
   signal?: AbortSignal;

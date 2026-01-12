@@ -79,6 +79,8 @@ export default defineConfig(({ mode }) => {
     __dirname,
     "./src/shims/firebase-auth.native.ts"
   );
+  const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
+  const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
   const nativeFirebaseAppShim = path.resolve(
     __dirname,
     "./src/shims/firebase-app.native.ts"
@@ -129,6 +131,10 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: [
       { find: "@", replacement: path.resolve(__dirname, "./src") },
+      {
+        find: "@mbs-auth-impl",
+        replacement: isNative ? nativeAuthImpl : webAuthImpl,
+      },
       ...(isNative
         ? [
             // Native build: route firebase/* wrappers through shims to avoid

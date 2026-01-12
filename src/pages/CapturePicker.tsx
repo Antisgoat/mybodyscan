@@ -9,7 +9,7 @@ import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 const CapturePicker = () => {
   const navigate = useNavigate();

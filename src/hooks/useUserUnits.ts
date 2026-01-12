@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, onSnapshot } from "firebase/firestore";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 export type UnitSystem = "US" | "metric";
 

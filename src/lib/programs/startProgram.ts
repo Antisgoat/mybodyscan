@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { getCurrentUser } from "@/auth/client";
+import { getCurrentUser } from "@/auth/mbs-auth";
 import { doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
 import { toast } from "@/hooks/use-toast";

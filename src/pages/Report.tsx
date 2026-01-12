@@ -11,7 +11,7 @@ import {
   query,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import {
   Card,
   CardContent,

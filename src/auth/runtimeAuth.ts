@@ -1,5 +1,5 @@
 import { isNative } from "@/lib/platform";
-import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/client";
+import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/mbs-auth";
 
 import type { Unsubscribe } from "@/lib/auth/types";
 
@@ -10,7 +10,7 @@ type Listener = (user: any | null) => void;
  *
  * Goals:
  * - Web: load the Firebase Auth module only when needed.
- * - Native (Capacitor/WKWebView): NEVER import/execute `firebase/auth` at runtime.
+ * - Native (Capacitor/WKWebView): NEVER import/execute Firebase Auth at runtime.
  *   Return safe fallbacks so UI can boot and remain stable.
  */
 export async function onAuthStateChangedSafe(

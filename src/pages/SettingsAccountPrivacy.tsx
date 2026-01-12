@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { signOutToAuth, useAuthUser } from "@/auth/client";
+import { signOutToAuth, useAuthUser } from "@/auth/mbs-auth";
 import { useNavigate } from "react-router-dom";
 import { apiFetchWithFallback } from "@/lib/http";
 import { preferRewriteUrl } from "@/lib/api/urls";

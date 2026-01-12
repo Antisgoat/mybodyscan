@@ -24,7 +24,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@mbs-auth-impl": ["./src/auth/mbs-auth.web.ts"]
     }
   },
   "include": ["src"]

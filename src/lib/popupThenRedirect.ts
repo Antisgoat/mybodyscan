@@ -1,4 +1,4 @@
-// Keep this file free of runtime firebase/auth imports (WKWebView stability).
+// Keep this file free of runtime Firebase Auth imports (WKWebView stability).
 import { isIOSWebKit } from "./ua";
 import { isNative } from "@/lib/platform";
 

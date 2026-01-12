@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import {
   disableDemo,
   disableDemoEverywhere,

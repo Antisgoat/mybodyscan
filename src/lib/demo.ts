@@ -1,4 +1,4 @@
-import { getCachedUser } from "@/auth/client";
+import { getCachedUser } from "@/auth/mbs-auth";
 import { get as getDemoState } from "@/state/demo";
 
 export function isDemoActive(): boolean {

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { doc, onSnapshot, type Unsubscribe, Timestamp } from "firebase/firestore";
 import { db as firebaseDb } from "@/lib/firebase";
-import { onAuthStateChanged } from "@/auth/client";
+import { onAuthStateChanged } from "@/auth/mbs-auth";
 import type { Entitlements } from "@/lib/entitlements/pro";
 
 type Snapshot = {

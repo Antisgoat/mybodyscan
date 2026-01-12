@@ -3,7 +3,7 @@ import {
   envFlags,
   getFirebaseConfig,
 } from "../lib/firebase";
-import { getIdToken, useAuthUser } from "@/auth/client";
+import { getIdToken, useAuthUser } from "@/auth/mbs-auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";

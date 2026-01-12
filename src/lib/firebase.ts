@@ -325,7 +325,7 @@ export function logFirebaseConfigSummary(): void {
 }
 
 export async function firebaseReady(): Promise<void> {
-  // Intentionally no-op: auth is managed by `authFacade` (web vs native split).
+  // Intentionally no-op: auth is managed by the auth facade (web vs native split).
   return;
 }
 
@@ -390,7 +390,7 @@ export const providerFlags = {
 export const envFlags = providerFlags;
 
 export async function signInWithEmail(email: string, password: string) {
-  throw new Error("signInWithEmail moved to authFacade");
+  throw new Error("signInWithEmail moved to the auth facade");
 }
 
 export function initFirebase() {

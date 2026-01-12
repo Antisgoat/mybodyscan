@@ -163,5 +163,5 @@ export async function consumeAuthRedirectError(): Promise<FriendlyFirebaseError 
 export function peekAuthRedirectOutcome(): AuthRedirectOutcome | null {
   return cachedOutcome;
 }
-// Apple display name population lives in `src/auth/webAuth.ts` so
-// `firebase/auth` is only imported in a single web-only module.
+// Apple display name population lives in the web auth facade so
+// Firebase Auth is only imported in a single web-only module.

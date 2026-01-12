@@ -1,8 +1,8 @@
 /**
- * DEPRECATED: `src/auth/client.ts` is the only supported app auth entrypoint.
+ * DEPRECATED: `src/auth/mbs-auth.ts` is the only supported app auth entrypoint.
  *
  * This file is kept as a thin compatibility shim so older imports don't
- * accidentally pull `firebase/auth` into the native (WKWebView) boot graph.
+ * accidentally pull Firebase Auth into the native (WKWebView) boot graph.
  */
 export {
   useAuthUser,
@@ -12,4 +12,4 @@ export {
   createAccountEmail,
   sendReset,
   __authTestInternals,
-} from "@/auth/client";
+} from "@/auth/mbs-auth";

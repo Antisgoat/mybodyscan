@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { retryScanProcessingClient, type ScanDocument } from "@/lib/api/scan";
 import { db } from "@/lib/firebase";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { deserializeScanDocument } from "@/lib/api/scan";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";

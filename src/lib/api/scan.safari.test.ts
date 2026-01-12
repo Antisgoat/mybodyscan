@@ -36,7 +36,7 @@ vi.mock("@/lib/firebase", () => {
   };
 });
 
-vi.mock("@/auth/client", () => {
+vi.mock("@/auth/mbs-auth", () => {
   return {
     getCurrentUser: vi.fn(async () => ({ uid: "user-123" })),
     getIdToken: vi.fn(async () => "token"),

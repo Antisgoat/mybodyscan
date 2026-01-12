@@ -1,4 +1,4 @@
-import { getIdToken } from "@/auth/client";
+import { getIdToken } from "@/auth/mbs-auth";
 import { appCheck } from "@/lib/appCheck";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import {

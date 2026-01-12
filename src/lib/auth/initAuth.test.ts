@@ -11,7 +11,7 @@ vi.mock("@/auth/webAuth", () => {
 });
 
 const startAuthListener = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/auth/client", () => {
+vi.mock("@/auth/mbs-auth", () => {
   return { startAuthListener: (...args: any[]) => startAuthListener(...args) };
 });
 
