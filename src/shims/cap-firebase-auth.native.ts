@@ -15,8 +15,8 @@ const DISABLED_MESSAGE =
   "Use the native auth facade.";
 
 function disabledError() {
-  const err = new Error(DISABLED_MESSAGE);
-  (err as any).code = "auth/capacitor-firebase-web-disabled";
+  const err: Error & { code?: string } = new Error(DISABLED_MESSAGE);
+  err.code = "auth/capacitor-firebase-web-disabled";
   return err;
 }
 
@@ -33,4 +33,3 @@ export function __disabled(): Promise<never> {
 }
 
 export default __disabled;
-

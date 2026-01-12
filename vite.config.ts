@@ -115,6 +115,10 @@ export default defineConfig(({ mode }) => {
   );
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
   const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
+  const nativeWebAuthImpl = path.resolve(
+    __dirname,
+    "./src/auth/webAuth.native.ts"
+  );
   const webFirebaseImpl = path.resolve(
     __dirname,
     "./src/lib/firebase/firebase.web.ts"
@@ -188,6 +192,7 @@ export default defineConfig(({ mode }) => {
       },
       ...(isNative
         ? [
+            { find: /^@\/auth\/webAuth$/, replacement: nativeWebAuthImpl },
             // Native build: route firebase/* wrappers through shims to avoid
             // bundling the firebase wrapper registry (which includes *-compat tokens).
             { find: /^firebase\/app$/, replacement: nativeFirebaseAppShim },

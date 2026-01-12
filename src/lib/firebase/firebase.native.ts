@@ -187,7 +187,7 @@ export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
 export const hasFirebaseConfig: boolean =
   firebaseConfigMissingKeys.length === 0;
 
-let firebaseInitError: string | null = null;
+const firebaseInitError: string | null = null;
 
 export function getFirebaseInitError(): string | null {
   return (
