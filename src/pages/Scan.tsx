@@ -27,7 +27,7 @@ import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
 import { db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
-import { getIdToken } from "@/auth/facade";
+import { getIdToken } from "@/auth/client";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";

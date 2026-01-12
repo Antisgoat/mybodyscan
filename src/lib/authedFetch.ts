@@ -1,5 +1,5 @@
 import { apiFetchJson } from "@/lib/apiFetch";
-import { requireIdToken } from "@/auth/facade";
+import { requireIdToken } from "@/auth/client";
 
 export type AuthedJsonOptions = {
   signal?: AbortSignal;

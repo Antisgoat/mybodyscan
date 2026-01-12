@@ -1,4 +1,4 @@
-import { getCachedUser } from "@/auth/facade";
+import { getCachedUser } from "@/auth/client";
 
 export function supportMailto(extra?: Record<string, string>) {
   const lines: string[] = [];

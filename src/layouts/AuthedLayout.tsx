@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, User } from "lucide-react";
-import { signOutToAuth, useAuthUser } from "@/auth/facade";
+import { signOutToAuth, useAuthUser } from "@/auth/client";
 import CreditBadge from "@/components/CreditBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";

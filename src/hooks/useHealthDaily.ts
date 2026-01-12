@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { useMemo } from "react";
 import { db } from "@/lib/firebase";
-import { getCurrentUser } from "@/auth/facade";
+import { getCurrentUser } from "@/auth/client";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, serverTimestamp } from "firebase/firestore";
 import type {

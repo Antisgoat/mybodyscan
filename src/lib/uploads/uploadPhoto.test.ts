@@ -6,7 +6,7 @@ vi.mock("@/lib/uploads/uploadViaStorage", () => ({
   uploadViaStorage: vi.fn(),
 }));
 
-vi.mock("@/auth/facade", () => ({
+vi.mock("@/auth/client", () => ({
   getCachedUser: () => ({ uid: "user" }),
 }));
 

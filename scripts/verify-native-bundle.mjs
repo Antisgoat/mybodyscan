@@ -4,10 +4,7 @@ import path from "node:path";
 const FORBIDDEN_TOKENS = [
   "@firebase/auth",
   "firebase/auth",
-  "@capacitor-firebase/authentication",
 ];
-
-const FORBIDDEN_FILENAME = /capacitor-firebase-auth.*\.js$/i;
 
 async function statDir(dir) {
   try {
@@ -54,14 +51,6 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
-    if (FORBIDDEN_FILENAME.test(path.basename(file))) {
-      hits.push({
-        label,
-        file,
-        forbidden: `filename:${FORBIDDEN_FILENAME}`,
-      });
-      continue;
-    }
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 

@@ -15,7 +15,7 @@ import { DEMO_NUTRITION_LOG, DEMO_WORKOUT_PROGRESS } from "@/lib/demoContent";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 
 export default function Today() {
   const navigate = useNavigate();

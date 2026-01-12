@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { db } from "@/lib/firebase";
-import { requireIdToken, useAuthUser } from "@/auth/facade";
+import { requireIdToken, useAuthUser } from "@/auth/client";
 import { useClaims } from "@/lib/claims";
 import { ensureAppCheck, getAppCheckHeader, hasAppCheck } from "@/lib/appCheck";
 import {

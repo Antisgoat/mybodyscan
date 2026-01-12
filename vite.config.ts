@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => {
   );
   const nativeCapShim = path.resolve(
     __dirname,
-    "./src/shims/cap-firebase-authentication.native.ts"
+    "./src/shims/capacitor-firebase-authentication.native.ts"
   );
 
   return {

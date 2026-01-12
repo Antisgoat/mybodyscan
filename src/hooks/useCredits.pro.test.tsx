@@ -28,7 +28,7 @@ function buildJwtFromClaims(claims: Record<string, unknown>): string {
   return `${header}.${payload}.`;
 }
 
-vi.mock("@/auth/facade", () => {
+vi.mock("@/auth/client", () => {
   return {
     useAuthUser: () => ({ user: { uid: "u1" }, authReady: true }),
     getIdToken: vi.fn(async () => buildJwtFromClaims(mockClaims)),

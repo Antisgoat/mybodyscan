@@ -6,7 +6,7 @@
  */
 import { apiFetch, ApiError } from "@/lib/http";
 import { db } from "@/lib/firebase";
-import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/facade";
+import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/client";
 import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,

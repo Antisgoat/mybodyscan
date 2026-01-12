@@ -1,1 +1,1 @@
-export * from "./facade";
+export * from "./client";

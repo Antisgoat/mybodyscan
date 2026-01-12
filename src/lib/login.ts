@@ -1,4 +1,4 @@
-import { signInApple, signInEmailPassword, signInGoogle } from "@/auth/facade";
+import { signInApple, signInEmailPassword, signInGoogle } from "@/auth/client";
 import { isNative } from "@/lib/platform";
 
 export type NormalizedAuthError = { code?: string; message: string };

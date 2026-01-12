@@ -1,4 +1,4 @@
-import { getIdToken } from "@/auth/facade";
+import { getIdToken } from "@/auth/client";
 import { appCheck } from "@/lib/appCheck";
 import { getToken as getAppCheckToken } from "firebase/app-check";
 import {

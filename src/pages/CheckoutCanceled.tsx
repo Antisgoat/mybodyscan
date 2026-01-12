@@ -2,7 +2,7 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCachedUser } from "@/auth/facade";
+import { getCachedUser } from "@/auth/client";
 import { useBackNavigationGuard } from "@/lib/back";
 
 export default function CheckoutCanceled() {

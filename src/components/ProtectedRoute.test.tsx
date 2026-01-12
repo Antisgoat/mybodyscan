@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router-dom";
 let mockUser: any = null;
 let mockAuthReady = false;
 
-vi.mock("@/auth/facade", () => {
+vi.mock("@/auth/client", () => {
   return {
     useAuthUser: () => ({ user: mockUser, authReady: mockAuthReady }),
     useAuthPhase: () =>

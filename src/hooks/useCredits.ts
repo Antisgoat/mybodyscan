@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db, getFirebaseConfig } from "@/lib/firebase";
 import { call } from "@/lib/callable";
-import { getIdToken, useAuthUser } from "@/auth/facade";
+import { getIdToken, useAuthUser } from "@/auth/client";
 
 function decodeJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split(".");

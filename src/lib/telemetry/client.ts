@@ -1,4 +1,4 @@
-import { getCachedUser, getIdToken } from "@/auth/facade";
+import { getCachedUser, getIdToken } from "@/auth/client";
 import { getAppCheckHeader } from "@/lib/appCheck";
 
 export type TelemetryClientEvent = {

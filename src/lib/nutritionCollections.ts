@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
-import { getCachedUser } from "@/auth/facade";
+import { getCachedUser } from "@/auth/client";
 
 export interface FavoriteDoc {
   name: string;

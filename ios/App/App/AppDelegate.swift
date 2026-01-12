@@ -7,22 +7,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    private func configureFirebase(context: String) {
-        // Non-negotiable: configure the DEFAULT Firebase app exactly once,
-        // as early as possible during app startup.
-        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-        if plistPath == nil {
-            NSLog("[MBS] GoogleService-Info.plist missing from bundle (\(context)). Firebase disabled.")
-            return
-        }
-        if FirebaseApp.app() != nil { return }
-        FirebaseApp.configure()
-        NSLog("[MBS] FirebaseApp.configure() ok (\(context))")
-    }
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // MUST occur before any Capacitor bridge init / plugin access.
-        configureFirebase(context: "didFinishLaunching")
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+            NSLog("[MBS] FirebaseApp configured")
+        }
 
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")

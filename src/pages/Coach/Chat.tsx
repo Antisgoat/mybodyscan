@@ -23,7 +23,7 @@ import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
 import { coachChatApi, type CoachChatRequest } from "@/lib/api/coach";
 import { call } from "@/lib/callable";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";

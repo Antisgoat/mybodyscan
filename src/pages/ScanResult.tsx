@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useUnits } from "@/hooks/useUnits";
 import { formatHeightFromCm, formatWeight, formatWeightFromKg, kgToLb } from "@/lib/units";
-import { useAuthUser } from "@/auth/facade";
+import { useAuthUser } from "@/auth/client";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
