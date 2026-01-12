@@ -18,13 +18,9 @@ final class MBSBridgeViewController: CAPBridgeViewController {
         NSLog("[MBS] Capacitor appStartServerURL=%@", config.appStartServerURL.absoluteString)
         NSLog("[MBS] Capacitor serverURL=%@", config.serverURL.absoluteString)
 
-        if let localURL = config.localURL {
-            NSLog("[MBS] Capacitor localURL=%@", localURL.absoluteString)
-        } else {
-            NSLog("[MBS] Capacitor localURL=nil")
-        }
+        let localURL = config.localURL
+        NSLog("[MBS] Capacitor localURL=%@", localURL.absoluteString)
 
         NSLog("[MBS] Capacitor appLocation=%@", config.appLocation.absoluteString)
     }
 }
-
