@@ -17,7 +17,7 @@ vi.mock("@/lib/firebase", () => {
   };
 });
 
-vi.mock("@/auth/client", () => ({
+vi.mock("@/auth/mbs-auth", () => ({
   signInApple: vi.fn(),
   signInGoogle: vi.fn(),
   signInEmailPassword: vi.fn(),

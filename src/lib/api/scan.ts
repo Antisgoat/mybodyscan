@@ -6,7 +6,7 @@
  */
 import { apiFetch, ApiError } from "@/lib/http";
 import { db } from "@/lib/firebase";
-import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/client";
+import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/mbs-auth";
 import { doc, getDoc } from "firebase/firestore";
 import {
   prepareScanPhoto,

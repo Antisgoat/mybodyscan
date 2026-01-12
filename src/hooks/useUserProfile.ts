@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { coachPlanDoc } from "@/lib/db/coachPaths";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { DEMO_COACH_PLAN, DEMO_COACH_PROFILE } from "@/lib/demoContent";
 import { setDoc } from "@/lib/dbWrite";

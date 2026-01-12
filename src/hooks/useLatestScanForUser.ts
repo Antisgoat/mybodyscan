@@ -9,7 +9,7 @@ import {
 import { db } from "@/lib/firebase";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 type ScanData = {
   id: string;

@@ -6,7 +6,7 @@ export type Unsubscribe = () => void;
  * - Native: derived from the native Firebase auth plugin user payload
  *
  * IMPORTANT: This intentionally does NOT expose Firebase JS SDK methods like `getIdToken()`
- * so native code never needs to import/execute `firebase/auth`.
+ * so native code never needs to import/execute Firebase Auth.
  */
 export type AuthUser = {
   uid: string;
@@ -22,4 +22,3 @@ export type AuthUser = {
 export type AuthState = {
   user: AuthUser | null;
 };
-

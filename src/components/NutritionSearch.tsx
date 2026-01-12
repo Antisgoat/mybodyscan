@@ -15,7 +15,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { withTimeout } from "@/lib/request";
 import { getCache, setCache } from "@/lib/cache";
 import { isDemoEffective } from "@/lib/demoState";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 type Props = {
   className?: string;

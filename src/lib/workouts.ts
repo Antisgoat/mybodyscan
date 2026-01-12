@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { getCachedUser } from "@/auth/client";
+import { getCachedUser } from "@/auth/mbs-auth";
 import {
   collection,
   doc,

@@ -1,7 +1,7 @@
 import { toast } from "@/hooks/use-toast";
 import { fnUrl } from "@/lib/env";
 import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
-import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/client";
+import { getCurrentUser, getIdToken, requireIdToken } from "@/auth/mbs-auth";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { sanitizeFoodItem } from "@/features/nutrition/sanitize";
 import { nutritionSearch as nutritionSearchCallable } from "@/lib/api/nutrition";

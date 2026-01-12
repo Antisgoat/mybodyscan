@@ -5,7 +5,7 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { useBackNavigationGuard } from "@/lib/back";
 import { retryScanProcessingClient } from "@/lib/api/scan";
 

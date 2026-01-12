@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { providerFlags } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
-import { signInApple, signInEmailPassword, signInGoogle, useAuthUser } from "@/auth/client";
+import { signInApple, signInEmailPassword, signInGoogle, useAuthUser } from "@/auth/mbs-auth";
 import { reportError } from "@/lib/telemetry";
 import { isNativeCapacitor } from "@/lib/platform";
 

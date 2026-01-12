@@ -1,5 +1,5 @@
 import { isNative } from "@/lib/platform";
-import { signInApple, signInGoogle } from "@/auth/client";
+import { signInApple, signInGoogle } from "@/auth/mbs-auth";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
   if (isNative()) {

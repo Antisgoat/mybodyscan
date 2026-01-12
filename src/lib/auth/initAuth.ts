@@ -45,7 +45,7 @@ export async function initAuth(): Promise<void> {
     });
     // Web-only: set Firebase JS SDK persistence early.
     // IMPORTANT: The `__NATIVE__` check is compile-time, so native builds
-    // do not even bundle the web impl (and thus never bundle firebase/auth).
+    // do not even bundle the web impl (and thus never bundle Firebase Auth).
     if (!isNativeBuild && !isNative()) {
       const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
       state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
@@ -70,7 +70,7 @@ export async function initAuth(): Promise<void> {
 
     // On native boot, auth is intentionally not initialized.
     if (!isNativeBuild && !isNative()) {
-      const { startAuthListener } = await import("@/auth/client");
+      const { startAuthListener } = await import("@/auth/mbs-auth");
       await startAuthListener().catch(() => undefined);
     }
     state.completed = true;

@@ -3,7 +3,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { format } from "date-fns";
 import { useHealthDaily } from "@/hooks/useHealthDaily";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 const DebugHealth = () => {
   const { platform, connect } = useHealthDaily();

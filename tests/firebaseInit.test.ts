@@ -4,7 +4,7 @@ import {
   getFirebaseInitError,
   hasFirebaseConfig,
 } from "@/lib/firebase";
-import { getCurrentUser } from "@/auth/client";
+import { getCurrentUser } from "@/auth/mbs-auth";
 
 // Sanity check: our Firebase bootstrap should always produce an app/auth instance so that
 // downstream hooks do not attach listeners to a null object. If configuration is partial,

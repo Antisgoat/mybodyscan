@@ -1,7 +1,5 @@
-import * as firebaseAuth from "firebase/auth";
-
-export type FirebaseAuthModule = typeof firebaseAuth;
+export type FirebaseAuthModule = never;
 
 export function getFirebaseAuthModule(): FirebaseAuthModule {
-  return firebaseAuth;
+  throw new Error("getFirebaseAuthModule moved to the web auth facade");
 }

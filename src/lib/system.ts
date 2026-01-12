@@ -1,5 +1,5 @@
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
-import { getCurrentUser } from "@/auth/client";
+import { getCurrentUser } from "@/auth/mbs-auth";
 
 type BootstrapResponse = {
   ok: boolean;

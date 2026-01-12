@@ -17,7 +17,7 @@ import {
 } from "@/lib/userState";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { useUnits } from "@/hooks/useUnits";
 import { kgToLb, lbToKg } from "@/lib/units";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

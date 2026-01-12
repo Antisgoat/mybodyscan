@@ -29,7 +29,7 @@ import {
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
-import { signOut } from "@/auth/client";
+import { signOut } from "@/auth/mbs-auth";
 import { toast } from "@/hooks/use-toast";
 import { supportMailto } from "@/lib/support";
 import { Link, useNavigate } from "react-router-dom";
@@ -68,7 +68,7 @@ import { openExternal } from "@/lib/links";
 import { useClaims } from "@/lib/claims";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { call } from "@/lib/callable";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useUnits } from "@/hooks/useUnits";
 import { computeFeatureStatuses } from "@/lib/envStatus";

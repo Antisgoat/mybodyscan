@@ -14,7 +14,8 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@mbs-auth-impl": ["./src/auth/mbs-auth.web.ts"]
     },
     "skipLibCheck": true,
     "allowJs": true

@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-import { getCachedUser } from "@/auth/client";
+import { getCachedUser } from "@/auth/mbs-auth";
 import { reportError } from "@/lib/telemetry";
 import { isDemoAllowed } from "@/state/demo";
 import { isNative } from "@/lib/platform";

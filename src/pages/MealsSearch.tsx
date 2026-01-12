@@ -26,7 +26,7 @@ import {
 } from "@/lib/nutritionCollections";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { addMeal } from "@/lib/nutritionBackend";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";

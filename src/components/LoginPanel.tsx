@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { signInApple, signInGoogle, signInEmailPassword } from "@/auth/client";
+import { signInApple, signInGoogle, signInEmailPassword } from "@/auth/mbs-auth";
 import { enableDemo } from "@/state/demo";
 import { isNativeCapacitor } from "@/lib/platform";
 

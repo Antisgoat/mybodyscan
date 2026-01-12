@@ -1,4 +1,4 @@
-import { getIdToken } from "@/auth/client";
+import { getIdToken } from "@/auth/mbs-auth";
 
 const BASE = "/admin";
 

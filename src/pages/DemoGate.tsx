@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import AuthedLayout from "@/layouts/AuthedLayout";
 import Home from "@/pages/Home";
 import { enableDemo } from "@/state/demo";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 export default function DemoGate() {
   const { user, authReady } = useAuthUser();

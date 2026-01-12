@@ -1,1 +1,1 @@
-export { useAuthUser } from "@/auth/client";
+export { useAuthUser } from "@/auth/mbs-auth";

@@ -3,7 +3,7 @@
 import React from "react";
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { __authTestInternals } from "@/auth/client";
+import { __authTestInternals } from "@/auth/mbs-auth";
 
 vi.mock("@/lib/system", () => {
   return { bootstrapSystem: vi.fn().mockResolvedValue(undefined) };

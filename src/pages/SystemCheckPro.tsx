@@ -4,7 +4,7 @@ import { appCheck } from "@/lib/appCheck";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
-import { useAuthUser } from "@/auth/client";
+import { useAuthUser } from "@/auth/mbs-auth";
 
 type Check = {
   name: string;

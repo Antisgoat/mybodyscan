@@ -1,4 +1,4 @@
-import { getCachedUser } from "@/auth/client";
+import { getCachedUser } from "@/auth/mbs-auth";
 import { isDemoActive } from "./demo";
 
 function isReadOnlyDemo(): boolean {

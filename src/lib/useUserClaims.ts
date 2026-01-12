@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getIdToken, onIdTokenChanged } from "@/auth/client";
+import { getIdToken, onIdTokenChanged } from "@/auth/mbs-auth";
 
 function decodeJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
