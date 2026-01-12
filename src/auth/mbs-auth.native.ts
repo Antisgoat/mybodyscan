@@ -1,7 +1,7 @@
-import {
-  FirebaseAuthenticationNative,
-  type NativeAuthResult,
-  type NativeAuthUser,
+import { FirebaseAuthenticationNative } from "@/native/plugins/firebaseAuthenticationNative";
+import type {
+  NativeAuthResult,
+  NativeAuthUser,
 } from "@/native/plugins/firebaseAuthentication";
 import type { MbsUser, MbsUserCredential, Unsubscribe } from "./mbs-auth.types";
 

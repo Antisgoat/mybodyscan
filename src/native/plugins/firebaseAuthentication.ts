@@ -1,5 +1,3 @@
-import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
-
 export type NativeAuthUser = {
   uid?: string;
   email?: string | null;
@@ -37,9 +35,5 @@ export type FirebaseAuthenticationNativePlugin = {
   addListener(
     eventName: "authStateChange" | "idTokenChange",
     listenerFunc: (event: any) => void
-  ): Promise<PluginListenerHandle>;
+  ): Promise<{ remove: () => Promise<void> | void }>;
 };
-
-export const FirebaseAuthenticationNative = registerPlugin<FirebaseAuthenticationNativePlugin>(
-  "FirebaseAuthentication"
-);

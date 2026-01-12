@@ -12,7 +12,7 @@ const config = {
     // This does NOT affect web builds.
     FirebaseAuthentication: {
       skipNativeAuth: false,
-      providers: ["google.com", "apple.com"],
+      providers: ["google.com", "apple.com", "phone"],
     },
   },
   ios: {
