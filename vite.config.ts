@@ -77,7 +77,7 @@ export default defineConfig(({ mode }) => {
 
   const nativeAuthShim = path.resolve(
     __dirname,
-    "./src/shims/firebase-auth.native.ts"
+    "./src/shims/forbiddenFirebaseAuth.ts"
   );
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
   const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
@@ -107,7 +107,7 @@ export default defineConfig(({ mode }) => {
   );
   const nativeCapShim = path.resolve(
     __dirname,
-    "./src/shims/capacitor-firebase-authentication.native.ts"
+    "./src/shims/forbiddenCapFirebaseAuth.ts"
   );
 
   return {
