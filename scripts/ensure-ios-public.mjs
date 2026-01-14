@@ -3,6 +3,29 @@ import path from "node:path";
 
 const PUBLIC_DIR = path.resolve(process.cwd(), "ios/App/App/public");
 const INDEX_HTML = path.join(PUBLIC_DIR, "index.html");
+const CAP_CONFIG_PATH = path.resolve(
+  process.cwd(),
+  "ios/App/App/capacitor.config.json"
+);
+
+const CAP_CONFIG = {
+  appId: "com.mybodyscan.app",
+  appName: "MyBodyScan",
+  webDir: "public",
+  bundledWebRuntime: false,
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ["google.com", "apple.com", "phone"],
+    },
+  },
+  ios: {
+    contentInset: "automatic",
+  },
+  android: {
+    allowMixedContent: false,
+  },
+};
 
 async function ensureDir(dir) {
   await fs.mkdir(dir, { recursive: true });
@@ -40,6 +63,14 @@ async function main() {
   if (!(await exists(INDEX_HTML))) {
     await fs.writeFile(INDEX_HTML, placeholderHtml(), "utf8");
   }
+
+  if (!(await exists(CAP_CONFIG_PATH))) {
+    await fs.writeFile(
+      CAP_CONFIG_PATH,
+      `${JSON.stringify(CAP_CONFIG, null, 2)}\n`,
+      "utf8"
+    );
+  }
 }
 
 main().catch((err) => {
@@ -47,4 +78,3 @@ main().catch((err) => {
   console.error(String(err?.stack || err?.message || err));
   process.exit(1);
 });
-
