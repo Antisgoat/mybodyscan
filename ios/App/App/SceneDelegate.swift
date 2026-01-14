@@ -3,11 +3,17 @@ import UIKit
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
 
+  private func debugLog(_ message: String) {
+    #if DEBUG
+    print(message)
+    #endif
+  }
+
   func scene(_ scene: UIScene,
              willConnectTo session: UISceneSession,
              options connectionOptions: UIScene.ConnectionOptions) {
 
-    print("✅ SceneDelegate willConnect called")
+    debugLog("✅ SceneDelegate willConnect called")
 
     guard let windowScene = scene as? UIWindowScene else { return }
 

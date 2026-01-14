@@ -4,13 +4,19 @@ import WebKit
 
 /// Adds minimal diagnostics to show exactly what the WKWebView is attempting to load.
 final class MBSBridgeViewController: CAPBridgeViewController, WKNavigationDelegate {
+    private func debugLog(_ message: String, _ args: CVarArg...) {
+        #if DEBUG
+        withVaList(args) { NSLogv(message, $0) }
+        #endif
+    }
+
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
 
         logBundleResources()
 
         guard let config = bridge?.config else {
-            NSLog("[MBS] Capacitor bridge/config not ready yet")
+            debugLog("[MBS] Capacitor bridge/config not ready yet")
             return
         }
 
@@ -19,14 +25,18 @@ final class MBSBridgeViewController: CAPBridgeViewController, WKNavigationDelega
         let startFileURL = config.appStartFileURL
         let startFileExists = FileManager.default.fileExists(atPath: startFileURL.path)
 
-        NSLog("[MBS] Capacitor appStartFileURL=%@ exists=%d", startFileURL.absoluteString, startFileExists ? 1 : 0)
-        NSLog("[MBS] Capacitor appStartServerURL=%@", config.appStartServerURL.absoluteString)
-        NSLog("[MBS] Capacitor serverURL=%@", config.serverURL.absoluteString)
+        debugLog(
+            "[MBS] Capacitor appStartFileURL=%@ exists=%d",
+            startFileURL.absoluteString,
+            startFileExists ? 1 : 0
+        )
+        debugLog("[MBS] Capacitor appStartServerURL=%@", config.appStartServerURL.absoluteString)
+        debugLog("[MBS] Capacitor serverURL=%@", config.serverURL.absoluteString)
 
         let localURL = config.localURL
-        NSLog("[MBS] Capacitor localURL=%@", localURL.absoluteString)
+        debugLog("[MBS] Capacitor localURL=%@", localURL.absoluteString)
 
-        NSLog("[MBS] Capacitor appLocation=%@", config.appLocation.absoluteString)
+        debugLog("[MBS] Capacitor appLocation=%@", config.appLocation.absoluteString)
     }
 
     private func logBundleResources() {
@@ -36,9 +46,9 @@ final class MBSBridgeViewController: CAPBridgeViewController, WKNavigationDelega
         let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         let configExists = configURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
-        NSLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        NSLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
-        NSLog("[MBS] Bundled capacitor.config.json=%@ exists=%d", configURL?.path ?? "nil", configExists ? 1 : 0)
+        debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
+        debugLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
+        debugLog("[MBS] Bundled capacitor.config.json=%@ exists=%d", configURL?.path ?? "nil", configExists ? 1 : 0)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -50,12 +60,12 @@ final class MBSBridgeViewController: CAPBridgeViewController, WKNavigationDelega
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        NSLog("[MBS] WebView content process terminated url=%@", webView.url?.absoluteString ?? "nil")
+        debugLog("[MBS] WebView content process terminated url=%@", webView.url?.absoluteString ?? "nil")
     }
 
     private func logWebViewError(_ label: String, error: Error, webView: WKWebView) {
         let nsError = error as NSError
-        NSLog(
+        debugLog(
             "[MBS] WebView %@ error=%@ code=%d url=%@ userInfo=%@",
             label,
             nsError.localizedDescription,

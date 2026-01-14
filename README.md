@@ -72,6 +72,35 @@ Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets
 
 The web app now includes WebView guardrails so it can be wrapped with Capacitor. See [mobile/WRAP.md](mobile/WRAP.md) for the complete step-by-step plan covering Capacitor setup, platform provisioning, and build handoff.
 
+### Mobile quickstart (local builds)
+
+Use these commands to build and sync native assets from a clean machine state:
+
+```sh
+npm ci
+npm run build:web
+npm run sync:ios
+npm run sync:android
+```
+
+Diagnostics / guardrails:
+
+```sh
+npm run doctor
+```
+
+One-command clean rebuild:
+
+```sh
+npm run clean:all
+npm ci
+npm run build:web
+npm run sync:ios
+npm run sync:android
+```
+
+Release checklist reference: see [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
 ### iOS Firebase setup
 
 `FirebaseApp.configure()` requires `GoogleService-Info.plist` to be present in the iOS app bundle. This repo expects the source-of-truth plist to live in `./secrets/` and be copied into `ios/App/App/GoogleService-Info.plist` (exact filename) before building.

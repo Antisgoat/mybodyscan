@@ -55,3 +55,11 @@ prod-*.js
 # Capacitor sync output (keep placeholder index tracked)
 ios/App/App/public/**
 !ios/App/App/public/index.html
+
+# Native build artifacts
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+android/.gradle/
+android/build/
+android/app/build/

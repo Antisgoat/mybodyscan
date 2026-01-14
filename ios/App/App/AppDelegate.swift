@@ -7,20 +7,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    private func debugLog(_ message: String, _ args: CVarArg...) {
+        #if DEBUG
+        withVaList(args) { NSLogv(message, $0) }
+        #endif
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // MUST occur before any Capacitor bridge init / plugin access.
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
-            NSLog("[MBS] FirebaseApp configured")
+            debugLog("[MBS] FirebaseApp configured")
         }
 
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
         let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
-        NSLog("[MBS] didFinishLaunching")
-        NSLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        NSLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
+        debugLog("[MBS] didFinishLaunching")
+        debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
+        debugLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
 
         return true
     }
