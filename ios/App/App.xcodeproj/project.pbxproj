@@ -122,6 +122,7 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
+				C0FFEE000000000000000099 /* Assert App Bundle Executable */,
 			);
 			buildRules = (
 			);
@@ -187,6 +188,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		C0FFEE000000000000000099 /* Assert App Bundle Executable */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Assert App Bundle Executable";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\nEXECUTABLE_PATH_FULL=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"${EXECUTABLE_PATH_FULL}\" ]; then\n  echo \"error: Missing built executable at ${EXECUTABLE_PATH_FULL}. Ensure the target builds an executable and the build settings are correct.\" >&2\n  exit 1\nfi\n\nif [ ! -f \"${PLIST_PATH}\" ]; then\n  echo \"error: Missing built Info.plist at ${PLIST_PATH}. Ensure INFOPLIST_FILE points to App/Info.plist and GENERATE_INFOPLIST_FILE is NO.\" >&2\n  exit 1\nfi\n\nBUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c \"Print CFBundleExecutable\" \"${PLIST_PATH}\" 2>/dev/null || true)\nif [ -z \"${BUNDLE_EXECUTABLE}\" ]; then\n  echo \"error: CFBundleExecutable is missing in the built Info.plist. Ensure CFBundleExecutable is set to \\\"$(EXECUTABLE_NAME)\\\" and INFOPLIST_KEY_CFBundleExecutable is configured.\" >&2\n  exit 1\nfi\n\nif [ \"${BUNDLE_EXECUTABLE}\" != \"${EXECUTABLE_NAME}\" ]; then\n  echo \"error: CFBundleExecutable '${BUNDLE_EXECUTABLE}' does not match EXECUTABLE_NAME '${EXECUTABLE_NAME}'. Fix Info.plist or build settings.\" >&2\n  exit 1\nfi\n\necho \"Validated CFBundleExecutable=${BUNDLE_EXECUTABLE}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
