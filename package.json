@@ -16,6 +16,8 @@
     "build:dev": "vite build --mode development",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "doctor": "bash scripts/doctor.sh",
+    "ios:doctor": "bash scripts/ios-doctor.sh",
+    "ios:open": "open ios/App/App.xcworkspace",
     "ios:ensure-public": "node scripts/ensure-ios-public.mjs",
     "preios:sync": "node scripts/ensure-ios-public.mjs",
     "ios:sync": "npm run build:native && npx cap sync ios",
