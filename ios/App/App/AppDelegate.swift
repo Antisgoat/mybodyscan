@@ -13,12 +13,47 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
     }
 
+    private func log(_ message: String, _ args: CVarArg...) {
+        withVaList(args) { NSLogv(message, $0) }
+    }
+
+    private func configureFirebaseIfPossible() {
+        if FirebaseApp.app() != nil {
+            debugLog("[MBS] FirebaseApp already configured")
+            return
+        }
+
+        guard let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") else {
+            log("[MBS] Firebase config missing: GoogleService-Info.plist not found in bundle. Skipping FirebaseApp.configure().")
+            return
+        }
+
+        guard let options = FirebaseOptions(contentsOfFile: plistPath) else {
+            log("[MBS] Firebase config invalid: unable to parse GoogleService-Info.plist. Skipping FirebaseApp.configure().")
+            return
+        }
+
+        let googleAppId = options.googleAppID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if googleAppId.isEmpty || googleAppId.contains("REPLACE_ME") {
+            log("[MBS] Firebase config invalid: GOOGLE_APP_ID is missing/placeholder. Skipping FirebaseApp.configure().")
+            return
+        }
+
+        if let plist = NSDictionary(contentsOfFile: plistPath),
+           let bundleIdFromPlist = plist["BUNDLE_ID"] as? String,
+           let bundleId = Bundle.main.bundleIdentifier,
+           bundleIdFromPlist != bundleId {
+            log("[MBS] Firebase config invalid: BUNDLE_ID '%@' does not match app bundle '%@'. Skipping FirebaseApp.configure().", bundleIdFromPlist, bundleId)
+            return
+        }
+
+        FirebaseApp.configure(options: options)
+        debugLog("[MBS] FirebaseApp configured")
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // MUST occur before any Capacitor bridge init / plugin access.
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-            debugLog("[MBS] FirebaseApp configured")
-        }
+        configureFirebaseIfPossible()
 
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")

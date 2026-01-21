@@ -17,7 +17,6 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-		B0D7A9A2C0B74B6AA1A1A1A1 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = B0D7A9A1C0B74B6AA1A1A1A1 /* GoogleService-Info.plist */; };
 		C0FFEE000000000000000011 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000010 /* PrivacyInfo.xcprivacy */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 /* End PBXBuildFile section */
@@ -36,7 +35,6 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C0FFEE000000000000000010 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
-		B0D7A9A1C0B74B6AA1A1A1A1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
@@ -84,7 +82,6 @@
 			isa = PBXGroup;
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
-				B0D7A9A1C0B74B6AA1A1A1A1 /* GoogleService-Info.plist */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				C0FFEE000000000000000006 /* SceneDelegate.swift */,
 				C0FFEE000000000000000003 /* MBSBridgeViewController.swift */,
@@ -118,6 +115,8 @@
 			buildPhases = (
 				6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */,
 				B0D7A9A3C0B74B6AA1A1A1A1 /* Ensure Firebase plist */,
+				C0FFEE000000000000000066 /* Validate Firebase plist */,
+				C0FFEE000000000000000088 /* Copy Firebase plist (optional) */,
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
@@ -177,7 +176,6 @@
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
-				B0D7A9A2C0B74B6AA1A1A1A1 /* GoogleService-Info.plist in Resources */,
 				C0FFEE000000000000000011 /* PrivacyInfo.xcprivacy in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
@@ -200,7 +198,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\n\nEXECUTABLE_PATH_FULL=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"${EXECUTABLE_PATH_FULL}\" ]; then\n  echo \"error: Missing built executable at ${EXECUTABLE_PATH_FULL}. Ensure the target builds an executable and the build settings are correct.\" >&2\n  exit 1\nfi\n\nif [ ! -f \"${PLIST_PATH}\" ]; then\n  echo \"error: Missing built Info.plist at ${PLIST_PATH}. Ensure INFOPLIST_FILE points to App/Info.plist and GENERATE_INFOPLIST_FILE is NO.\" >&2\n  exit 1\nfi\n\nBUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c \"Print CFBundleExecutable\" \"${PLIST_PATH}\" 2>/dev/null || true)\nif [ -z \"${BUNDLE_EXECUTABLE}\" ]; then\n  echo \"error: CFBundleExecutable is missing in the built Info.plist. Ensure CFBundleExecutable is set to \\\"$(EXECUTABLE_NAME)\\\" and INFOPLIST_KEY_CFBundleExecutable is configured.\" >&2\n  exit 1\nfi\n\nif [ \"${BUNDLE_EXECUTABLE}\" != \"${EXECUTABLE_NAME}\" ]; then\n  echo \"error: CFBundleExecutable '${BUNDLE_EXECUTABLE}' does not match EXECUTABLE_NAME '${EXECUTABLE_NAME}'. Fix Info.plist or build settings.\" >&2\n  exit 1\nfi\n\necho \"Validated CFBundleExecutable=${BUNDLE_EXECUTABLE}\"\n";
+			shellScript = "set -euo pipefail\n\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  exit 0\nfi\n\nEXECUTABLE_PATH_FULL=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"${EXECUTABLE_PATH_FULL}\" ]; then\n  echo \"error: Missing built executable at ${EXECUTABLE_PATH_FULL}. Ensure the target builds an executable and the build settings are correct.\" >&2\n  exit 1\nfi\n\nif [ ! -f \"${PLIST_PATH}\" ]; then\n  echo \"error: Missing built Info.plist at ${PLIST_PATH}. Ensure INFOPLIST_FILE points to App/Info.plist and GENERATE_INFOPLIST_FILE is NO.\" >&2\n  exit 1\nfi\n\nBUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c \"Print CFBundleExecutable\" \"${PLIST_PATH}\" 2>/dev/null || true)\nif [ -z \"${BUNDLE_EXECUTABLE}\" ]; then\n  echo \"error: CFBundleExecutable is missing in the built Info.plist. Ensure CFBundleExecutable is set to \\\"$(EXECUTABLE_NAME)\\\" and INFOPLIST_KEY_CFBundleExecutable is configured.\" >&2\n  exit 1\nfi\n\nif [ \"${BUNDLE_EXECUTABLE}\" != \"${EXECUTABLE_NAME}\" ]; then\n  echo \"error: CFBundleExecutable '${BUNDLE_EXECUTABLE}' does not match EXECUTABLE_NAME '${EXECUTABLE_NAME}'. Fix Info.plist or build settings.\" >&2\n  exit 1\nfi\n\necho \"Validated CFBundleExecutable=${BUNDLE_EXECUTABLE}\"\n";
 			showEnvVarsInLog = 0;
 		};
 		6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */ = {
@@ -217,7 +215,7 @@
 				"$(DERIVED_FILE_DIR)/Pods-App-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
+			shellPath = /bin/bash;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
@@ -233,8 +231,38 @@
 				"$(SRCROOT)/App/GoogleService-Info.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
+			shellPath = /bin/bash;
 			shellScript = "bash \"${SRCROOT}/../../scripts/ios-ensure-firebase-plist.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		C0FFEE000000000000000066 /* Validate Firebase plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Validate Firebase plist";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bash \"${SRCROOT}/../scripts/validate_firebase_plist.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		C0FFEE000000000000000088 /* Copy Firebase plist (optional) */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Firebase plist (optional)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\nPLIST_SOURCE=\"${SRCROOT}/App/GoogleService-Info.plist\"\nRESOURCES_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n\nif [ -f \"${PLIST_SOURCE}\" ]; then\n  mkdir -p \"${RESOURCES_DIR}\"\n  cp -f \"${PLIST_SOURCE}\" \"${RESOURCES_DIR}/GoogleService-Info.plist\"\n  echo \"Copied GoogleService-Info.plist into app bundle resources.\"\nelse\n  echo \"Firebase plist not present; continuing without Firebase config.\"\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 		9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */ = {
