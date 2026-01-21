@@ -11,7 +11,7 @@ cleanup_dest_dir() {
   # Remove any misnamed variants so only one exists in the Xcode project folder.
   shopt -s nullglob
   for f in "$dest_dir"/GoogleService-Info*; do
-    [[ "$f" == "$dest" ]] && continue
+    [[ "$f" == "$dest" || "$f" == "${dest}.example" ]] && continue
     if [[ -f "$f" ]]; then
       rm -f "$f"
     fi
@@ -52,18 +52,14 @@ if [[ ! -f "$src" ]]; then
     cp -f "${candidates[0]}" "$src"
   else
     cat >&2 <<'EOF'
-error: Missing secrets/GoogleService-Info.plist
+warn: Missing secrets/GoogleService-Info.plist
 
-FirebaseApp.configure() requires an iOS Firebase config plist named exactly:
-  GoogleService-Info.plist
+Firebase config is optional in DEBUG builds. If you need Firebase features,
+download the iOS config from Firebase Console and save it to:
+  ./secrets/GoogleService-Info.plist
 
-Fix:
-  1) Firebase Console -> Project settings -> Your apps -> iOS
-  2) Download GoogleService-Info.plist
-  3) Save it to:
-       ./secrets/GoogleService-Info.plist
-  4) Re-run:
-       bash scripts/ios-ensure-firebase-plist.sh
+Then re-run:
+  bash scripts/ios-ensure-firebase-plist.sh
 EOF
     if [[ ${#candidates[@]} -gt 1 ]]; then
       echo >&2
@@ -72,7 +68,7 @@ EOF
         echo "  - $c" >&2
       done
     fi
-    exit 1
+    exit 0
   fi
 fi
 

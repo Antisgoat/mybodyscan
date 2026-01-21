@@ -56,6 +56,10 @@ prod-*.js
 ios/App/App/public/**
 !ios/App/App/public/index.html
 
+# Firebase iOS config (keep example template tracked)
+secrets/GoogleService-Info.plist
+ios/App/App/GoogleService-Info.plist
+
 # Native build artifacts
 ios/App/Pods/
 ios/App/build/
