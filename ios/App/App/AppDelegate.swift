@@ -19,9 +19,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func configureFirebaseIfNeeded() {
+        let gsPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+        print("[MBS] GoogleService-Info.plist path=\(gsPath ?? "nil")")
+        print("[MBS] Firebase default app BEFORE=\(FirebaseApp.app() != nil)")
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
-            print("[MBS] Firebase default app exists=\(FirebaseApp.app() != nil)")
+            print("[MBS] Firebase default app AFTER=\(FirebaseApp.app() != nil)")
             debugLog("[MBS] FirebaseApp configured")
         } else {
             debugLog("[MBS] FirebaseApp already configured")
