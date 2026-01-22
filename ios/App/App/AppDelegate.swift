@@ -7,6 +7,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    override init() {
+        super.init()
+        configureFirebaseIfNeeded()
+    }
+
     private func debugLog(_ message: String, _ args: CVarArg...) {
         #if DEBUG
         withVaList(args) { NSLogv(message, $0) }
@@ -20,13 +25,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         FirebaseApp.configure()
+        print("[MBS] Firebase default app exists=\(FirebaseApp.app() != nil)")
         debugLog("[MBS] FirebaseApp configured")
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // MUST occur before any Capacitor bridge init / plugin access.
-        configureFirebaseIfNeeded()
-
         let resourcesURL = Bundle.main.resourceURL
         let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
         let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
