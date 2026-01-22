@@ -19,14 +19,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func configureFirebaseIfNeeded() {
-        if FirebaseApp.app() != nil {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+            print("[MBS] Firebase default app exists=\(FirebaseApp.app() != nil)")
+            debugLog("[MBS] FirebaseApp configured")
+        } else {
             debugLog("[MBS] FirebaseApp already configured")
-            return
         }
-
-        FirebaseApp.configure()
-        print("[MBS] Firebase default app exists=\(FirebaseApp.app() != nil)")
-        debugLog("[MBS] FirebaseApp configured")
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
