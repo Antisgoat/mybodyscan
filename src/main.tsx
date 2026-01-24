@@ -8,12 +8,60 @@ import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
-import { isNative } from "@/lib/platform";
+import { isIOSWebView, isNative } from "@/lib/platform";
 
 // Legacy shim: some older code may still reference global sanitizeFoodItem.
 // This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
 (globalThis as any).sanitizeFoodItem =
   (globalThis as any).sanitizeFoodItem || sanitizeFoodItem;
+
+function enableIOSPointerCaptureGuard() {
+  if (typeof window === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsPointerCaptureGuardEnabled) return;
+
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  const platform =
+    typeof navigator !== "undefined" ? (navigator as any).platform ?? "" : "";
+  const maxTouchPoints =
+    typeof navigator !== "undefined" ? Number((navigator as any).maxTouchPoints ?? 0) : 0;
+  const isIOSDevice =
+    /iPhone|iPad|iPod/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+  const isIOSRuntime = isIOSDevice && (isNative() || isIOSWebView());
+  if (!isIOSRuntime) return;
+
+  const proto = Element.prototype as unknown as {
+    setPointerCapture?: (pointerId: number) => void;
+    releasePointerCapture?: (pointerId: number) => void;
+  };
+
+  const wrap = (method: "setPointerCapture" | "releasePointerCapture") => {
+    const original = proto[method];
+    if (typeof original !== "function") return;
+    proto[method] = function (pointerId: number) {
+      try {
+        return original.call(this, pointerId);
+      } catch (error) {
+        const err = error as { name?: string; message?: string } | null;
+        const name = err?.name || "";
+        const message = err?.message || "";
+        if (
+          name === "NotFoundError" ||
+          message.includes("The object can not be found here")
+        ) {
+          return;
+        }
+        throw error;
+      }
+    };
+  };
+
+  wrap("setPointerCapture");
+  wrap("releasePointerCapture");
+  anyWin.__mbsPointerCaptureGuardEnabled = true;
+}
+
+enableIOSPointerCaptureGuard();
 
 type BootFailure = {
   code: string;

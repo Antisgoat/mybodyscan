@@ -58,12 +58,12 @@ ios/App/App/public/**
 
 # Firebase iOS config (keep example template tracked)
 secrets/GoogleService-Info.plist
-ios/App/App/GoogleService-Info.plist
 
 # Native build artifacts
 ios/App/Pods/
 ios/App/build/
 ios/App/DerivedData/
+ios/App/App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 android/.gradle/
 android/build/
 android/app/build/

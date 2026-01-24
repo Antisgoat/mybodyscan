@@ -31,8 +31,8 @@ final class InspectingBridgeViewController: CAPBridgeViewController, WKNavigatio
 
   private func logBundleResources() {
     let resourcesURL = Bundle.main.resourceURL
-    let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
-    let configURL = resourcesURL?.appendingPathComponent("capacitor.config.json")
+    let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
+    let configURL = Bundle.main.url(forResource: "capacitor", withExtension: "config.json")
     let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     let configExists = configURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
