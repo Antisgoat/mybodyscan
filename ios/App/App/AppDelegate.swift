@@ -7,11 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
-    override init() {
-        super.init()
-        configureFirebaseIfNeeded()
-    }
-
     private func debugLog(_ message: String, _ args: CVarArg...) {
         #if DEBUG
         withVaList(args) { NSLogv(message, $0) }
@@ -22,8 +17,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let gsPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
         print("[MBS] GoogleService-Info.plist path=\(gsPath ?? "nil")")
         print("[MBS] Firebase default app BEFORE=\(FirebaseApp.app() != nil)")
+
+        guard let gsPath else {
+            debugLog("[MBS] Firebase plist missing; skipping FirebaseApp.configure()")
+            return
+        }
+
+        guard let options = FirebaseOptions(contentsOfFile: gsPath) else {
+            debugLog("[MBS] Firebase plist invalid; skipping FirebaseApp.configure()")
+            return
+        }
+
+        let googleAppId = options.googleAppID ?? ""
+        if googleAppId.isEmpty || googleAppId.contains("REPLACE_ME") {
+            debugLog("[MBS] Firebase plist contains placeholder values; skipping FirebaseApp.configure()")
+            return
+        }
+
         if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
+            FirebaseApp.configure(options: options)
             print("[MBS] Firebase default app AFTER=\(FirebaseApp.app() != nil)")
             debugLog("[MBS] FirebaseApp configured")
         } else {
@@ -31,9 +43,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
+    func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        configureFirebaseIfNeeded()
+        return true
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let resourcesURL = Bundle.main.resourceURL
-        let indexURL = resourcesURL?.appendingPathComponent("public/index.html")
+        let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
         let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         debugLog("[MBS] didFinishLaunching")
