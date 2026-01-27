@@ -1,5 +1,8 @@
-import { isNative } from "@/lib/platform";
-import { getCurrentUser, getIdToken, onAuthStateChanged } from "@/auth/mbs-auth";
+import {
+  getCurrentUser,
+  getIdTokenSafe as authGetIdTokenSafe,
+  onAuthStateChangedSafe as authOnAuthStateChangedSafe,
+} from "@/lib/auth/authService";
 
 import type { Unsubscribe } from "@/lib/auth/types";
 
@@ -9,23 +12,14 @@ type Listener = (user: any | null) => void;
  * Runtime-safe auth access.
  *
  * Goals:
- * - Web: load the Firebase Auth module only when needed.
- * - Native (Capacitor/WKWebView): NEVER import/execute Firebase Auth at runtime.
- *   Return safe fallbacks so UI can boot and remain stable.
+ * - Web + Native: share a single auth facade so routing stays consistent.
+ * - Ensure token fetches are guarded when no user is signed in.
  */
 export async function onAuthStateChangedSafe(
   listener: Listener
 ): Promise<Unsubscribe> {
-  if (isNative()) {
-    try {
-      queueMicrotask(() => listener(null));
-    } catch {
-      // ignore
-    }
-    return () => undefined;
-  }
   try {
-    const unsub = await onAuthStateChanged((u) => listener(u ?? null));
+    const unsub = await authOnAuthStateChangedSafe((u) => listener(u ?? null));
     return () => unsub();
   } catch {
     try {
@@ -38,7 +32,6 @@ export async function onAuthStateChangedSafe(
 }
 
 export async function getCurrentUserSafe(): Promise<any | null> {
-  if (isNative()) return null;
   try {
     return (await getCurrentUser()) ?? null;
   } catch {
@@ -49,9 +42,8 @@ export async function getCurrentUserSafe(): Promise<any | null> {
 export async function getIdTokenSafe(
   forceRefresh?: boolean
 ): Promise<string | null> {
-  if (isNative()) return null;
   try {
-    return await getIdToken(forceRefresh);
+    return await authGetIdTokenSafe({ forceRefresh });
   } catch {
     return null;
   }

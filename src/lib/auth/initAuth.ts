@@ -1,5 +1,4 @@
 import { reportError } from "@/lib/telemetry";
-import { isNative } from "@/lib/platform";
 
 type AuthPersistenceMode =
   | "indexeddb"
@@ -36,43 +35,31 @@ export function getInitAuthState(): InitAuthState {
 export async function initAuth(): Promise<void> {
   if (initPromise) return initPromise;
   state.started = true;
-  const isNativeBuild = __NATIVE__;
   initPromise = (async () => {
     void reportError({
       kind: "auth.init",
       message: "auth.init",
       extra: { phase: "start" },
     });
-    // Web-only: set Firebase JS SDK persistence early.
-    // IMPORTANT: The `__NATIVE__` check is compile-time, so native builds
-    // do not even bundle the web impl (and thus never bundle Firebase Auth).
-    if (!isNativeBuild && !isNative()) {
-      const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
-      state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
-    } else {
-      state.persistence = "memory";
+    // Set Firebase JS SDK persistence early.
+    const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
+    state.persistence = await ensureWebAuthPersistence().catch(() => "unknown");
+
+    // Always attempt redirect finalization (safe if no redirect is pending).
+    // This is critical for iOS Safari and also covers edge cases where a WebView
+    // ends up using web-based redirects (or reauth redirects) instead of native auth.
+    try {
+      const { finalizeRedirectResult } = await import("@/auth/webAuth");
+      await finalizeRedirectResult();
+      state.redirectError = null;
+    } catch (err: any) {
+      // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
+      state.redirectError =
+        typeof err?.message === "string" ? err.message : String(err);
     }
 
-    if (!isNativeBuild && !isNative()) {
-      // Always attempt redirect finalization (safe if no redirect is pending).
-      // This is critical for iOS Safari and also covers edge cases where a WebView
-      // ends up using web-based redirects (or reauth redirects) instead of native auth.
-      try {
-        const { finalizeRedirectResult } = await import("@/auth/webAuth");
-        await finalizeRedirectResult();
-        state.redirectError = null;
-      } catch (err: any) {
-        // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
-        state.redirectError =
-          typeof err?.message === "string" ? err.message : String(err);
-      }
-    }
-
-    // On native boot, auth is intentionally not initialized.
-    if (!isNativeBuild && !isNative()) {
-      const { startAuthListener } = await import("@/auth/mbs-auth");
-      await startAuthListener().catch(() => undefined);
-    }
+    const { startAuthListener } = await import("@/auth/mbs-auth");
+    await startAuthListener().catch(() => undefined);
     state.completed = true;
     void reportError({
       kind: "auth.init",

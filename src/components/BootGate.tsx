@@ -50,14 +50,12 @@ export function BootGate({
       logFirebaseConfigSummary();
       logFirebaseRuntimeInfo();
 
-      // CRITICAL: On native (WKWebView) boot, do not load or execute any web auth/OAuth code.
-      // This prevents known Firebase Auth SDK crashes in WKWebView from taking down the app.
+      const [{ initAuth }, { probeFirebaseRuntime }] = await Promise.all([
+        import("@/lib/auth/initAuth"),
+        import("@/lib/firebase/runtimeConfig"),
+      ]);
+      await initAuth();
       if (!isNative()) {
-        const [{ initAuth }, { probeFirebaseRuntime }] = await Promise.all([
-          import("@/lib/auth/initAuth"),
-          import("@/lib/firebase/runtimeConfig"),
-        ]);
-        await initAuth();
         void probeFirebaseRuntime();
       }
       if (!cancelled) {
@@ -118,4 +116,3 @@ export function BootGate({
     </Suspense>
   );
 }
-

@@ -14,12 +14,7 @@ import { componentTagger } from "lovable-tagger";
  * This does NOT enable auth: native builds hard-alias auth entrypoints to shims.
  */
 function stripForbiddenNativeTokens(isNative: boolean) {
-  const replacements: Array<[string, string]> = [
-    ["@firebase/auth", "@firebase/au_th"],
-    ["firebase/auth", "firebase/au_th"],
-    ["@capacitor-firebase/authentication", "@capacitor-firebase/authenticati_on"],
-    ["capacitor-firebase-auth", "capacitor-firebase-au_th"],
-  ];
+  const replacements: Array<[string, string]> = [];
   const replaceAll = (input: string): string => {
     let out = input;
     for (const [from, to] of replacements) {
@@ -73,12 +68,6 @@ function stripForbiddenNativeTokens(isNative: boolean) {
 
 function forbidNativeImports(isNative: boolean) {
   const forbiddenMatchers: Array<{ pattern: RegExp; label: string }> = [
-    {
-      pattern: /^@capacitor-firebase\/authentication(\/.*)?$/,
-      label: "@capacitor-firebase/authentication",
-    },
-    { pattern: /^firebase\/auth(\/.*)?$/, label: "firebase/auth" },
-    { pattern: /^@firebase\/auth(\/.*)?$/, label: "@firebase/auth" },
     { pattern: /^firebase\/app-compat$/, label: "firebase/app-compat" },
     { pattern: /^firebase\/compat\//, label: "firebase/compat/*" },
     { pattern: /^firebase$/, label: "firebase" },
@@ -110,16 +99,8 @@ export default defineConfig(({ mode }) => {
   const isNative = mode === "native";
   const enableNativeSourcemaps = isNative && process.env.MBS_NATIVE_RELEASE !== "1";
 
-  const nativeAuthShim = path.resolve(
-    __dirname,
-    "./src/shims/forbiddenFirebaseAuth.ts"
-  );
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
   const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
-  const nativeWebAuthImpl = path.resolve(
-    __dirname,
-    "./src/auth/webAuth.native.ts"
-  );
   const webFirebaseImpl = path.resolve(
     __dirname,
     "./src/lib/firebase/firebase.web.ts"
@@ -148,10 +129,6 @@ export default defineConfig(({ mode }) => {
     __dirname,
     "./src/shims/firebase-analytics.native.ts"
   );
-  const nativeCapShim = path.resolve(
-    __dirname,
-    "./src/shims/forbiddenCapFirebaseAuth.ts"
-  );
   const forbiddenFirebaseCompatShim = path.resolve(
     __dirname,
     "./src/shims/forbiddenFirebaseCompat.ts"
@@ -164,8 +141,8 @@ export default defineConfig(({ mode }) => {
   return {
   // NOTE:
   // - `mode === "native"` is a special build mode for Capacitor/WKWebView.
-  // - In native builds we must NEVER bundle or execute Firebase JS Auth.
-  //   We hard-alias all firebase/auth entrypoints to throwing stubs.
+  // - Native builds still use firebase/* shims to avoid compat bundles, but
+  //   Firebase JS Auth is now allowed for email/password in WKWebView.
   base: isNative ? "./" : "/",
   server: {
     host: "::",
@@ -194,7 +171,6 @@ export default defineConfig(({ mode }) => {
       },
       ...(isNative
         ? [
-            { find: /^@\/auth\/webAuth$/, replacement: nativeWebAuthImpl },
             // Native build: route firebase/* wrappers through shims to avoid
             // bundling the firebase wrapper registry (which includes *-compat tokens).
             { find: /^firebase\/app$/, replacement: nativeFirebaseAppShim },
@@ -203,20 +179,10 @@ export default defineConfig(({ mode }) => {
             { find: /^firebase\/storage$/, replacement: nativeStorageShim },
             { find: /^firebase\/analytics$/, replacement: nativeAnalyticsShim },
 
-            // REQUIRED (native builds): hard-alias auth entrypoints to shims.
-            // IMPORTANT: keep aliases OFF for web builds.
-            { find: /^firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
-            { find: /^@firebase\/auth(\/.*)?$/, replacement: nativeAuthShim },
-            { find: /^firebase\/auth\/cordova(\/.*)?$/, replacement: nativeAuthShim },
-
             // Extra hardening for compat/app variants (forbidden).
             { find: /^firebase$/, replacement: forbiddenFirebaseNamespaceShim },
             { find: /^firebase\/app-compat$/, replacement: forbiddenFirebaseCompatShim },
             { find: /^firebase\/compat\/.*$/, replacement: forbiddenFirebaseCompatShim },
-
-            // REQUIRED (native builds): prevent bundling capacitor-firebase-auth web wrappers.
-            { find: /^@capacitor-firebase\/authentication(\/.*)?$/, replacement: nativeCapShim },
-            { find: /^capacitor-firebase-auth(\/.*)?$/, replacement: nativeCapShim },
           ]
         : []),
     ],

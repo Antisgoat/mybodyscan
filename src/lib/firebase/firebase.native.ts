@@ -1,282 +1,60 @@
 import { env } from "@/env";
+import { getFunctions, type Functions } from "firebase/functions";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
-type FirebaseRuntimeConfig = {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-  appId?: string;
-  measurementId?: string;
-};
+import {
+  firebaseApiKey,
+  firebaseConfigMissingKeys,
+  firebaseConfigWarningKeys,
+  getFirebaseConfig,
+  getFirebaseInitError,
+  hasFirebaseConfig,
+  logFirebaseConfigSummary,
+  logFirebaseRuntimeInfo,
+} from "./config";
+import { app, auth, db } from "./client";
 
-type FirebaseApp = {
-  options: FirebaseRuntimeConfig;
-};
+export { auth };
 
-type Firestore = Record<string, never>;
+export const firebaseApp = app;
 
-type Functions = Record<string, never>;
+export { app, db };
 
-type FirebaseStorage = {
-  app?: FirebaseApp;
-};
+const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
+export const functions: Functions = getFunctions(app, functionsRegion);
+export const storage: FirebaseStorage = getStorage(app);
 
-type Analytics = Record<string, never>;
-
-const FALLBACK_FIREBASE_CONFIG: FirebaseRuntimeConfig = {
-  apiKey: "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
-  authDomain: "mybodyscan-f3daf.firebaseapp.com",
-  projectId: "mybodyscan-f3daf",
-  storageBucket: "mybodyscan-f3daf.appspot.com",
-  messagingSenderId: "157018993008",
-  appId: "1:157018993008:web:8bed67e098ca04dc4b1fb5",
-  measurementId: "G-TV8M3PY1X3",
-};
-
-const pickConfigValue = (
-  ...candidates: Array<string | undefined | null | number | boolean>
-): string | undefined => {
-  for (const candidate of candidates) {
-    if (candidate === undefined || candidate === null) continue;
-    const asString = String(candidate).trim();
-    if (asString) return asString;
-  }
-  return undefined;
-};
-
-const normalizeStorageBucket = (value?: string): string | undefined => {
-  if (value == null) return value;
-  let bucket = String(value).trim();
-  if (!bucket) return undefined;
-  if (bucket.startsWith("gs://")) bucket = bucket.slice(5);
-  if (bucket.includes("://")) {
-    try {
-      const url = new URL(bucket);
-      const path = url.pathname || "";
-      const match =
-        path.match(/\/v0\/b\/([^/]+)/) ||
-        path.match(/\/upload\/storage\/v1\/b\/([^/]+)/) ||
-        path.match(/\/b\/([^/]+)/);
-      if (match?.[1]) {
-        bucket = decodeURIComponent(match[1]);
-      } else if (url.hostname) {
-        bucket = url.hostname;
-      }
-    } catch {
-      // ignore malformed URL
-    }
-  }
-  if (bucket.endsWith(".firebasestorage.app")) {
-    bucket = bucket.replace(/\.firebasestorage\.app$/, ".appspot.com");
-  }
-  return bucket;
-};
-
-const envConfig: Partial<FirebaseRuntimeConfig> = {
-  apiKey: pickConfigValue(
-    env.VITE_FIREBASE_API_KEY,
-    import.meta.env.VITE_FIREBASE_API_KEY
-  ),
-  authDomain: pickConfigValue(
-    env.VITE_FIREBASE_AUTH_DOMAIN,
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
-  ),
-  projectId: pickConfigValue(
-    env.VITE_FIREBASE_PROJECT_ID,
-    import.meta.env.VITE_FIREBASE_PROJECT_ID
-  ),
-  storageBucket: pickConfigValue(
-    env.VITE_FIREBASE_STORAGE_BUCKET,
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET
-  ),
-  messagingSenderId: pickConfigValue(
-    env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID
-  ),
-  appId: pickConfigValue(
-    env.VITE_FIREBASE_APP_ID,
-    import.meta.env.VITE_FIREBASE_APP_ID
-  ),
-  measurementId: pickConfigValue(
-    env.VITE_FIREBASE_MEASUREMENT_ID,
-    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-  ),
-};
-
-const injectedConfig: Partial<FirebaseRuntimeConfig> | undefined =
-  typeof globalThis !== "undefined"
-    ? (((globalThis as any).__FIREBASE_CONFIG__ ||
-        (globalThis as any).__FIREBASE_RUNTIME_CONFIG__) as
-        | Partial<FirebaseRuntimeConfig>
-        | undefined)
-    : undefined;
-
-function resolveRuntimeAuthDomain(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  const host = window.location.hostname?.trim();
-  if (!host) return undefined;
-  const lower = host.toLowerCase();
-  if (lower === "localhost" || lower === "127.0.0.1") return undefined;
-  if (lower.endsWith(".local")) return undefined;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return undefined;
-  return host;
-}
-
-const runtimeAuthDomain = resolveRuntimeAuthDomain();
-const configuredAuthDomain = pickConfigValue(
-  envConfig.authDomain,
-  injectedConfig?.authDomain
-);
-
-const firebaseConfig: FirebaseRuntimeConfig = {
-  ...(FALLBACK_FIREBASE_CONFIG as FirebaseRuntimeConfig),
-  ...envConfig,
-  ...(injectedConfig ?? {}),
-};
-
-if (runtimeAuthDomain) {
-  if (
-    configuredAuthDomain &&
-    configuredAuthDomain.toLowerCase() !== runtimeAuthDomain.toLowerCase() &&
-    typeof console !== "undefined"
-  ) {
-    console.warn("[firebase] authDomain overridden to same-origin", {
-      configured: configuredAuthDomain,
-      runtime: runtimeAuthDomain,
-    });
-  }
-  firebaseConfig.authDomain = runtimeAuthDomain;
-}
-
-const normalizedStorageBucket = normalizeStorageBucket(firebaseConfig.storageBucket);
-if (normalizedStorageBucket) {
-  firebaseConfig.storageBucket = normalizedStorageBucket;
-}
-
-function isMissing(value: unknown): boolean {
-  if (value === undefined || value === null) return true;
-  return String(value).trim() === "";
-}
-
-for (const [key, fallbackValue] of Object.entries(FALLBACK_FIREBASE_CONFIG)) {
-  const currentValue = (firebaseConfig as any)[key];
-  if (isMissing(currentValue) && !isMissing(fallbackValue)) {
-    (firebaseConfig as any)[key] = fallbackValue;
-  }
-}
-
-const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
-const warningKeys = [
-  "storageBucket",
-  "messagingSenderId",
-  "appId",
-  "measurementId",
-] as const;
-
-export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
-  const value = (firebaseConfig as any)?.[key];
-  return isMissing(value);
-});
-
-export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
-  const value = (firebaseConfig as any)?.[key];
-  return isMissing(value);
-});
-
-export const hasFirebaseConfig: boolean =
-  firebaseConfigMissingKeys.length === 0;
-
-const firebaseInitError: string | null = null;
-
-export function getFirebaseInitError(): string | null {
-  return (
-    firebaseInitError ||
-    (hasFirebaseConfig
-      ? null
-      : `Missing Firebase config keys: ${firebaseConfigMissingKeys.join(", ")}`)
-  );
-}
-
-export const app: FirebaseApp = { options: firebaseConfig };
-export const firebaseApp: FirebaseApp = app;
-
-export const db: Firestore = {} as Firestore;
-export const functions: Functions = {} as Functions;
-export const storage: FirebaseStorage = { app } as FirebaseStorage;
-
-export async function getAnalyticsInstance(): Promise<Analytics | null> {
+export async function getAnalyticsInstance(): Promise<null> {
   return null;
-}
-
-let loggedConfigSummary = false;
-function buildFirebaseConfigSummary(): Record<string, string> {
-  const summary: Record<string, string> = {
-    projectId: String(firebaseConfig.projectId || "").trim(),
-    authDomain: String(firebaseConfig.authDomain || "").trim(),
-  };
-  const optional: Array<keyof FirebaseRuntimeConfig> = [
-    "storageBucket",
-    "messagingSenderId",
-    "appId",
-    "measurementId",
-  ];
-  for (const key of optional) {
-    const value = String((firebaseConfig as any)?.[key] || "").trim();
-    if (value) summary[key] = value;
-  }
-  return summary;
-}
-
-export function logFirebaseConfigSummary(): void {
-  if (loggedConfigSummary) return;
-  loggedConfigSummary = true;
-  try {
-    console.info("[firebase] config", buildFirebaseConfigSummary());
-    if (firebaseConfigWarningKeys.length) {
-      console.warn(
-        "[firebase] Optional config keys missing; some features may be unavailable",
-        firebaseConfigWarningKeys
-      );
-    }
-  } catch {
-    // ignore
-  }
 }
 
 export async function firebaseReady(): Promise<void> {
   return;
 }
 
-export function getFirebaseApp(): FirebaseApp {
+export function getFirebaseApp() {
   return app;
 }
 
-export function getFirebaseFirestore(): Firestore {
+export function getFirebaseFirestore() {
   return db;
 }
 
-export function getFirebaseFunctions(): Functions {
+export function getFirebaseFunctions() {
   return functions;
 }
 
-export function getFirebaseStorage(): FirebaseStorage {
+export function getFirebaseStorage() {
   return storage;
 }
 
-export function getFirebaseConfig() {
-  return firebaseConfig;
-}
+export { getFirebaseConfig };
 
-export const firebaseApiKey = firebaseConfig.apiKey;
+export { firebaseApiKey };
 
-let loggedInfo = false;
-export function logFirebaseRuntimeInfo(): void {
-  if (!import.meta.env?.DEV || loggedInfo) return;
-  const { projectId: pid, authDomain } = firebaseConfig;
-  console.info(`[firebase] project=${pid} authDomain=${authDomain}`);
-  loggedInfo = true;
-}
+export { logFirebaseConfigSummary, logFirebaseRuntimeInfo };
+
+export { firebaseConfigMissingKeys, firebaseConfigWarningKeys, hasFirebaseConfig, getFirebaseInitError };
 
 const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
   if (value == null) return fallback;
