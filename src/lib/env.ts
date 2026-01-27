@@ -1,3 +1,5 @@
+import { APP_CONFIG } from "@/generated/appConfig";
+
 export type Env = {
   VITE_FIREBASE_API_KEY: string;
   VITE_FIREBASE_AUTH_DOMAIN: string;
@@ -44,12 +46,16 @@ export function assertEnv(): void {
   // Keep this list minimal: the app can still boot using the baked-in fallback
   // Firebase web config (or injected runtime config). These checks are for
   // catching misconfigured deployments, not blocking optional features.
-  const required = [
-    "VITE_FIREBASE_API_KEY",
-    "VITE_FIREBASE_AUTH_DOMAIN",
-    "VITE_FIREBASE_PROJECT_ID",
-  ];
-  const missing = required.filter((key) => !readEnv(key).trim());
+  const missing: string[] = [];
+  if (!String(APP_CONFIG.firebase.apiKey || "").trim()) {
+    missing.push("VITE_FIREBASE_API_KEY");
+  }
+  if (!String(APP_CONFIG.firebase.authDomain || "").trim()) {
+    missing.push("VITE_FIREBASE_AUTH_DOMAIN");
+  }
+  if (!String(APP_CONFIG.firebase.projectId || "").trim()) {
+    missing.push("VITE_FIREBASE_PROJECT_ID");
+  }
   const isProd = Boolean((import.meta as any)?.env?.PROD);
   if (missing.length && isProd) {
     console.error("Missing required env:", missing.join(", "));

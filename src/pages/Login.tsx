@@ -3,7 +3,8 @@ import { Link, useLocation } from "react-router-dom";
 import { providerFlags } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
-import { signInApple, signInEmailPassword, signInGoogle, useAuthUser } from "@/auth/mbs-auth";
+import { signInApple, signInGoogle, useAuthUser } from "@/auth/mbs-auth";
+import { signInWithEmailPassword } from "@/lib/auth/authService";
 import { reportError } from "@/lib/telemetry";
 import { isNativeCapacitor } from "@/lib/platform";
 
@@ -150,7 +151,7 @@ export default function Login() {
           <button
             className="w-full rounded border p-2"
             disabled={busy}
-            onClick={() => wrap(() => signInEmailPassword(email, pass))}
+            onClick={() => wrap(() => signInWithEmailPassword(email, pass))}
           >
             Continue with Email
           </button>

@@ -1,3 +1,4 @@
+import { getFirebaseConfig } from "@/lib/firebase";
 import { isIdentityToolkitProbeEnabled } from "@/lib/firebase/identityToolkitProbe";
 
 export type IdentityToolkitProbeStatus = {
@@ -52,7 +53,7 @@ export async function probeFirebaseRuntime(): Promise<{
         authDomain,
         apiKeyPresent: Boolean(apiKey),
       });
-      const expected = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+      const expected = getFirebaseConfig()?.projectId;
       if (expected && projectId && expected !== projectId) {
         console.warn(
           "[probe] build/runtime projectId mismatch:",
@@ -91,8 +92,7 @@ export async function probeFirebaseRuntime(): Promise<{
       }
 
       const normalizedProjectId =
-        projectId ||
-        (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined);
+        projectId || getFirebaseConfig()?.projectId;
       if (!normalizedProjectId) {
         return recordIdentityToolkitProbe({
           status: "warning",

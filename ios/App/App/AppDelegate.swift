@@ -41,12 +41,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let resourcesURL = Bundle.main.resourceURL
-        let indexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
-        let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let bundledIndexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
+        let rootIndexURL = Bundle.main.url(forResource: "index", withExtension: "html")
+        let resolvedIndexURL = bundledIndexURL ?? rootIndexURL
+        let indexExists = resolvedIndexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         debugLog("[MBS] didFinishLaunching")
         debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        debugLog("[MBS] Bundled public/index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
+        debugLog("[MBS] Bundled index.html=%@ exists=%d", resolvedIndexURL?.path ?? "nil", indexExists ? 1 : 0)
 
         return true
     }
