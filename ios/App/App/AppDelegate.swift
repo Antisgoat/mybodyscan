@@ -17,30 +17,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let gsPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
         print("[MBS] GoogleService-Info.plist path=\(gsPath ?? "nil")")
         print("[MBS] Firebase default app BEFORE=\(FirebaseApp.app() != nil)")
-
-        guard let gsPath else {
-            debugLog("[MBS] Firebase plist missing; skipping FirebaseApp.configure()")
-            return
-        }
-
-        guard let options = FirebaseOptions(contentsOfFile: gsPath) else {
-            debugLog("[MBS] Firebase plist invalid; skipping FirebaseApp.configure()")
-            return
-        }
-
-        let googleAppId = options.googleAppID ?? ""
-        if googleAppId.isEmpty || googleAppId.contains("REPLACE_ME") {
-            debugLog("[MBS] Firebase plist contains placeholder values; skipping FirebaseApp.configure()")
-            return
-        }
-
         if FirebaseApp.app() == nil {
-            FirebaseApp.configure(options: options)
-            print("[MBS] Firebase default app AFTER=\(FirebaseApp.app() != nil)")
-            debugLog("[MBS] FirebaseApp configured")
-        } else {
-            debugLog("[MBS] FirebaseApp already configured")
+            FirebaseApp.configure()
         }
+        print("[MBS] Firebase default app AFTER=\(FirebaseApp.app() != nil)")
     }
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {

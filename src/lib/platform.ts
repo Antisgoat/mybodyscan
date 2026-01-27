@@ -74,6 +74,11 @@ function hasIOSIndicators(): boolean {
   return platform === "MacIntel" && maxTouchPoints > 1;
 }
 
+export function isIOSNativeRuntime(): boolean {
+  if (!hasIOSIndicators()) return false;
+  return isNative();
+}
+
 export function isIOSWebView(): boolean {
   if (!isWeb()) return false;
   if (!hasIOSIndicators()) return false;

@@ -108,6 +108,7 @@ function forbidNativeImports(isNative: boolean) {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const isNative = mode === "native";
+  const enableNativeSourcemaps = isNative && process.env.MBS_NATIVE_RELEASE !== "1";
 
   const nativeAuthShim = path.resolve(
     __dirname,
@@ -251,7 +252,7 @@ export default defineConfig(({ mode }) => {
   build: {
     // Native builds: disable modulepreload tags in HTML to avoid eager preloads.
     ...(isNative ? { modulePreload: false } : {}),
-    ...(isNative ? { sourcemap: false } : {}),
+    ...(isNative ? { sourcemap: enableNativeSourcemaps } : {}),
     // Native/web builds share `dist/`. Ensure we always clean it so stale chunks
     // (e.g. web-auth / firebase auth code) cannot linger between builds.
     emptyOutDir: true,
