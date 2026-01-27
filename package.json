@@ -21,7 +21,7 @@
     "ios:open": "open ios/App/App.xcworkspace",
     "ios:ensure-public": "node scripts/ensure-ios-public.mjs",
     "preios:sync": "node scripts/ensure-ios-public.mjs && bash scripts/ios-ensure-firebase-plist.sh",
-    "ios:sync": "npm run build:native && npx cap sync ios && (cd ios/App && pod install)",
+    "ios:sync": "npm run build && npx cap sync ios && (cd ios/App && pod install)",
     "ios:run": "npm run ios:sync && npm run ios:open",
     "ios:clean": "rm -rf ios/App/build ios/App/DerivedData && echo \"If Xcode issues persist, remove ~/Library/Developer/Xcode/DerivedData\"",
     "ios:assets": "npx @capacitor/assets generate --ios",

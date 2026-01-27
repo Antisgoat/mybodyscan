@@ -2,27 +2,6 @@ import { isIOSNativeRuntime } from "./platform";
 
 type UnknownError = { name?: string; message?: string; stack?: string } | null;
 
-function logWindowError(event: ErrorEvent): void {
-  const err = event.error as UnknownError;
-  const payload = {
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-    stack: err?.stack,
-  };
-  console.error("[boot] window error:", payload);
-}
-
-function logUnhandledRejection(event: PromiseRejectionEvent): void {
-  const reason = event.reason as UnknownError | string | undefined;
-  const payload = {
-    reason,
-    stack: reason instanceof Error ? reason.stack : (reason as any)?.stack,
-  };
-  console.error("[boot] unhandledrejection:", payload);
-}
-
 function shouldSwallowDomError(error: unknown): boolean {
   const err = error as UnknownError;
   const name = err?.name ?? "";
@@ -30,15 +9,6 @@ function shouldSwallowDomError(error: unknown): boolean {
   return name === "NotFoundError" || message.includes("The object can not be found here");
 }
 
-function installEarlyErrorHandlers(): void {
-  if (typeof window === "undefined") return;
-  const anyWin = window as any;
-  if (anyWin.__mbsEarlyErrorHandlersInstalled) return;
-  anyWin.__mbsEarlyErrorHandlersInstalled = true;
-
-  window.addEventListener("error", logWindowError, true);
-  window.addEventListener("unhandledrejection", logUnhandledRejection, true);
-}
 
 function installIOSDomGuards(): void {
   if (!isIOSNativeRuntime()) return;
@@ -98,5 +68,4 @@ function installIOSDomGuards(): void {
   wrapNodeMethod("insertBefore");
 }
 
-installEarlyErrorHandlers();
 installIOSDomGuards();

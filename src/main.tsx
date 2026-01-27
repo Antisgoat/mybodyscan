@@ -11,6 +11,46 @@ import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isNative } from "@/lib/platform";
 
+const showBootDetails = !__MBS_NATIVE_RELEASE__;
+
+function installBootErrorListeners() {
+  if (typeof window === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsBootErrorListenersInstalled) return;
+  anyWin.__mbsBootErrorListenersInstalled = true;
+
+  window.addEventListener(
+    "error",
+    (event: ErrorEvent) => {
+      const err = event.error as Error | undefined;
+      // eslint-disable-next-line no-console
+      console.error("[boot] window error:", {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: err?.stack,
+      });
+    },
+    true
+  );
+
+  window.addEventListener(
+    "unhandledrejection",
+    (event: PromiseRejectionEvent) => {
+      const reason = event.reason as Error | undefined;
+      // eslint-disable-next-line no-console
+      console.error("[boot] unhandledrejection:", {
+        reason,
+        stack: reason?.stack,
+      });
+    },
+    true
+  );
+}
+
+installBootErrorListeners();
+
 // Legacy shim: some older code may still reference global sanitizeFoodItem.
 // This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
 (globalThis as any).sanitizeFoodItem =
@@ -109,8 +149,12 @@ function BootFailureScreen({ failure }: { failure: BootFailure }) {
         <div style={muted}>
           Error code: <code>{failure.code}</code>
         </div>
-        <div style={muted}>{failure.message}</div>
-        {failure.stack ? <pre style={pre}>{failure.stack}</pre> : null}
+        {showBootDetails ? (
+          <>
+            <div style={muted}>{failure.message}</div>
+            {failure.stack ? <pre style={pre}>{failure.stack}</pre> : null}
+          </>
+        ) : null}
         <button
           type="button"
           style={btn}
@@ -156,7 +200,9 @@ function renderBootFailure(error: unknown, code?: string) {
       const pre = document.createElement("pre");
       pre.style.whiteSpace = "pre-wrap";
       pre.style.wordBreak = "break-word";
-      pre.textContent = `App failed to start (${failure.code})\n\n${failure.message}\n\n${failure.stack || ""}`;
+      pre.textContent = showBootDetails
+        ? `App failed to start (${failure.code})\n\n${failure.message}\n\n${failure.stack || ""}`
+        : "App failed to start.";
       root.appendChild(pre);
     } catch {
       // ignore
@@ -182,46 +228,46 @@ if (typeof window !== "undefined") {
 // Boot error trap to capture first thrown error before any UI swallows it.
 // Native-only (per crash-shield spec) to prevent WKWebView blank screens.
 if (typeof window !== "undefined" && isNative()) {
-  // Spec requirement: use window.onerror + window.onunhandledrejection (native only).
-  // Keep handlers idempotent and do not throw from within them.
-  window.onerror = (
-    message,
-    source,
-    lineno,
-    colno,
-    error
-  ): boolean => {
-    try {
-      if (!(window as any).__firstBootError) {
-        (window as any).__firstBootError = true;
-        console.error(
-          "[boot] first error:",
-          error || message,
-          source,
-          lineno,
-          colno,
-          (error as any)?.stack
-        );
-      }
-      renderBootFailure(error || message, "window_error");
-    } catch {
-      // ignore
-    }
-    // Returning false allows the default browser logging behavior.
-    return false;
-  };
+  installBootErrorListeners();
 
-  window.onunhandledrejection = (e: PromiseRejectionEvent): void => {
-    try {
-      if (!(window as any).__firstBootError) {
-        (window as any).__firstBootError = true;
-        console.error("[boot] first unhandledrejection:", e?.reason);
+  window.addEventListener(
+    "error",
+    (event: ErrorEvent) => {
+      try {
+        if (!(window as any).__firstBootError) {
+          (window as any).__firstBootError = true;
+          console.error(
+            "[boot] first error:",
+            event.error || event.message,
+            event.filename,
+            event.lineno,
+            event.colno,
+            (event.error as any)?.stack
+          );
+        }
+        renderBootFailure(event.error || event.message, "window_error");
+      } catch {
+        // ignore
       }
-      renderBootFailure(e?.reason || e, "unhandled_rejection");
-    } catch {
-      // ignore
-    }
-  };
+    },
+    true
+  );
+
+  window.addEventListener(
+    "unhandledrejection",
+    (event: PromiseRejectionEvent) => {
+      try {
+        if (!(window as any).__firstBootError) {
+          (window as any).__firstBootError = true;
+          console.error("[boot] first unhandledrejection:", event?.reason);
+        }
+        renderBootFailure(event?.reason || event, "unhandled_rejection");
+      } catch {
+        // ignore
+      }
+    },
+    true
+  );
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
