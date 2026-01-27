@@ -2,10 +2,21 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
+import { isIOSNativeRuntime } from "@/lib/platform";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 
-const Tooltip = TooltipPrimitive.Root;
+const Tooltip = ({
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) => {
+  const disabled = isIOSNativeRuntime();
+  return (
+    <TooltipPrimitive.Root disabled={disabled} {...props}>
+      {children}
+    </TooltipPrimitive.Root>
+  );
+};
 
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
