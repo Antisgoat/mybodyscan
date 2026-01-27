@@ -6,6 +6,7 @@ import FirebaseCore
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    private var hasConfiguredFirebase = false
 
     private func debugLog(_ message: String, _ args: CVarArg...) {
         #if DEBUG
@@ -14,6 +15,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func configureFirebaseIfNeeded() {
+        if hasConfiguredFirebase {
+            return
+        }
+        hasConfiguredFirebase = true
+
         let gsPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
         print("[MBS] GoogleService-Info.plist path=\(gsPath ?? "nil")")
         print("[MBS] Firebase default app BEFORE=\(FirebaseApp.app() != nil)")
@@ -21,6 +27,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             FirebaseApp.configure()
         }
         print("[MBS] Firebase default app AFTER=\(FirebaseApp.app() != nil)")
+    }
+
+    override init() {
+        super.init()
+        configureFirebaseIfNeeded()
     }
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {

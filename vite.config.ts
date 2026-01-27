@@ -179,6 +179,7 @@ export default defineConfig(({ mode }) => {
   ].filter(Boolean),
   define: {
     __NATIVE__: JSON.stringify(isNative),
+    __MBS_NATIVE_RELEASE__: JSON.stringify(process.env.MBS_NATIVE_RELEASE === "1"),
   },
   resolve: {
     alias: [
