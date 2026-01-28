@@ -12,6 +12,11 @@ const pluginPatterns = [
   "@capacitor-firebase/authentication",
   "capacitor-firebase/authentication",
 ];
+const allowedPlugins = new Set([
+  "@capacitor/app",
+  "@capacitor/browser",
+  "@revenuecat/purchases-capacitor",
+]);
 
 function fail(message) {
   console.error(`[smoke:native] FAIL: ${message}`);
@@ -53,6 +58,26 @@ function assertCapPlugins() {
     fail(`npx cap ls ios failed: ${errText || "unknown error"}`);
   }
   const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+  const detectedPlugins = new Set();
+  for (const line of output.split("\n")) {
+    const match = line.trim().match(/^(@[^@\s]+\/[^@\s]+)@/);
+    if (match) {
+      detectedPlugins.add(match[1]);
+    }
+  }
+  if (!detectedPlugins.size) {
+    fail("Unable to parse plugins from npx cap ls ios output.");
+  }
+  for (const plugin of detectedPlugins) {
+    if (!allowedPlugins.has(plugin)) {
+      fail(`npx cap ls ios reports unexpected plugin: ${plugin}.`);
+    }
+  }
+  for (const plugin of allowedPlugins) {
+    if (!detectedPlugins.has(plugin)) {
+      fail(`npx cap ls ios missing required plugin: ${plugin}.`);
+    }
+  }
   for (const pattern of pluginPatterns) {
     if (output.includes(pattern)) {
       fail(`npx cap ls ios reports disallowed plugin: ${pattern}.`);
@@ -86,12 +111,49 @@ async function assertNoSwiftFirebaseImports() {
   }
 }
 
+function assertNoCapFirebaseAuthPackage() {
+  const result = spawnSync(
+    "npm",
+    ["ls", "@capacitor-firebase/authentication", "--depth=0", "--json"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }
+  );
+  const output = result.stdout || "{}";
+  let data;
+  try {
+    data = JSON.parse(output);
+  } catch {
+    data = {};
+  }
+  if (data.dependencies && data.dependencies["@capacitor-firebase/authentication"]) {
+    fail("npm ls reports @capacitor-firebase/authentication is installed.");
+  }
+}
+
+function assertNoFirebaseStringsInIos() {
+  const result = spawnSync(
+    "rg",
+    ["-n", "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions", iosAppDir],
+    { cwd: repoRoot, encoding: "utf8" }
+  );
+  if (result.status === 0) {
+    fail("Firebase strings found in ios/App/App. Remove all native Firebase references.");
+  }
+  if (result.status !== 1) {
+    fail(`rg failed while scanning ios/App/App: ${(result.stderr || "").trim()}`);
+  }
+}
+
 async function main() {
   await assertRepoRoot();
   await assertPublicIndex();
   assertCapPlugins();
   await assertNoServerUrl();
   await assertNoSwiftFirebaseImports();
+  assertNoCapFirebaseAuthPackage();
+  assertNoFirebaseStringsInIos();
   console.log("[smoke:native] PASS");
 }
 
