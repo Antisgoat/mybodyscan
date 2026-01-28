@@ -13,7 +13,7 @@ import { isNative } from "@/lib/platform";
 import { loadWebAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
-const allowBootOverlay = !__MBS_NATIVE_RELEASE__;
+const allowBootOverlay = true;
 const isNativeBuild = __IS_NATIVE__ || isNative();
 
 function installBootErrorListeners() {
