@@ -4,7 +4,11 @@ enum MBSBundleDiagnostics {
   struct PublicIndexStatus {
     let url: URL?
     let exists: Bool
+    let sizeBytes: Int
+    let isValid: Bool
   }
+
+  private static let minimumIndexBytes = 1500
 
   static func indexURL() -> URL? {
     let url = Bundle.main.url(
@@ -18,27 +22,40 @@ enum MBSBundleDiagnostics {
 
   static func publicIndexStatus() -> PublicIndexStatus {
     let url = indexURL()
-    let exists = url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-    return PublicIndexStatus(url: url, exists: exists)
+    let path = url?.path ?? ""
+    let exists = !path.isEmpty && FileManager.default.fileExists(atPath: path)
+    let sizeBytes: Int
+    if exists, let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+       let size = attrs[.size] as? NSNumber {
+      sizeBytes = size.intValue
+    } else {
+      sizeBytes = 0
+    }
+    let isValid = exists && sizeBytes >= minimumIndexBytes
+    return PublicIndexStatus(url: url, exists: exists, sizeBytes: sizeBytes, isValid: isValid)
   }
 
   static func logPublicIndex(context: String? = nil) {
     let status = publicIndexStatus()
     if let context = context {
       NSLog(
-        "[MBS] public/index.html path=%@ exists=%d context=%@",
+        "[MBS] public/index.html path=%@ exists=%d bytes=%d valid=%d context=%@",
         status.url?.path ?? "nil",
         status.exists ? 1 : 0,
+        status.sizeBytes,
+        status.isValid ? 1 : 0,
         context
       )
     } else {
       NSLog(
-        "[MBS] public/index.html path=%@ exists=%d",
+        "[MBS] public/index.html path=%@ exists=%d bytes=%d valid=%d",
         status.url?.path ?? "nil",
-        status.exists ? 1 : 0
+        status.exists ? 1 : 0,
+        status.sizeBytes,
+        status.isValid ? 1 : 0
       )
     }
-    if !status.exists {
+    if !status.exists || !status.isValid {
       logPublicDirectoryContents()
     }
   }

@@ -115,7 +115,9 @@ const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
 
 const queryClient = new QueryClient();
-const allowInternalTools = import.meta.env.DEV || !__MBS_NATIVE_RELEASE__;
+const allowInternalTools =
+  import.meta.env.DEV ||
+  ((import.meta as any)?.env?.VITE_INTERNAL_TOOLS === "1" && !__MBS_NATIVE_RELEASE__);
 
 const PageSuspense = ({
   children,

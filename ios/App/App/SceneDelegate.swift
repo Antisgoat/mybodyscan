@@ -9,7 +9,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     #endif
   }
 
-  private func buildBlockingErrorView(title: String, message: String) -> UIViewController {
+  private func buildBlockingErrorView(title: String, message: String, showMessageInRelease: Bool = false) -> UIViewController {
     let controller = UIViewController()
     controller.view.backgroundColor = .systemBackground
 
@@ -26,7 +26,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     #if DEBUG
     messageLabel.text = message
     #else
-    messageLabel.text = "Please reinstall the app or contact support."
+    messageLabel.text = showMessageInRelease ? message : "Please reinstall the app or contact support."
     #endif
 
     controller.view.addSubview(titleLabel)
@@ -46,13 +46,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   }
 
   private func blockingErrorScreen(forMissingAssets status: MBSBundleDiagnostics.PublicIndexStatus) -> UIViewController? {
-    if status.exists {
+    if status.isValid {
       return nil
     }
-    let detail = "Missing bundled web assets at \(status.url?.path ?? "unknown")."
+    let detail = "Missing assets – run npm run ios:reset."
+    #if DEBUG
+    let extra = "Expected public/index.html at \(status.url?.path ?? "unknown") (size: \(status.sizeBytes) bytes)."
+    #else
+    let extra = ""
+    #endif
+    let message = extra.isEmpty ? detail : "\(detail)\n\n\(extra)"
     return buildBlockingErrorView(
       title: "App assets missing",
-      message: detail
+      message: message,
+      showMessageInRelease: true
     )
   }
 
