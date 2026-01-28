@@ -58,7 +58,19 @@ async function main() {
     await fs.writeFile(INDEX_HTML, placeholderHtml(), "utf8");
   }
 
-  if (!(await exists(CAP_CONFIG_PATH))) {
+  let needsConfigWrite = !(await exists(CAP_CONFIG_PATH));
+  if (!needsConfigWrite) {
+    try {
+      const current = JSON.parse(await fs.readFile(CAP_CONFIG_PATH, "utf8"));
+      if (current?.plugins?.FirebaseAuthentication) {
+        needsConfigWrite = true;
+      }
+    } catch {
+      needsConfigWrite = true;
+    }
+  }
+
+  if (needsConfigWrite) {
     await fs.writeFile(
       CAP_CONFIG_PATH,
       `${JSON.stringify(CAP_CONFIG, null, 2)}\n`,

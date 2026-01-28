@@ -496,4 +496,11 @@ firebase deploy --only hosting --project mybodyscan-f3daf
 
 ## iOS rebuild (from scratch)
 
-To rebuild iOS from scratch: `npm run ios:reset` then `npm run ios:open`.
+From the repo root (`/workspace/mybodyscan`), run:
+
+1. `npm run ios:reset`
+2. `npm run ios:open`
+
+Notes:
+- `ios:reset` enforces the repo-root guard, validates that native Firebase Auth is absent, rebuilds the web bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
+- If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.

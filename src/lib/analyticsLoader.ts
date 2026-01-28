@@ -1,3 +1,5 @@
+import { isNative } from "@/lib/platform";
+
 const ENV = (import.meta as any)?.env || {};
 
 function parseScriptList(value: string | undefined): string[] {
@@ -10,6 +12,7 @@ function parseScriptList(value: string | undefined): string[] {
 
 export function loadWebAnalyticsScripts(): void {
   if (typeof document === "undefined") return;
+  if (isNative()) return;
   const scripts = parseScriptList(ENV.VITE_WEB_ANALYTICS_SCRIPTS as string | undefined);
   if (!scripts.length) return;
 
