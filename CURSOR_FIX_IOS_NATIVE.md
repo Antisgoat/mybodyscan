@@ -6,7 +6,7 @@ GOAL:
 3) Capacitor iOS always has a valid web assets folder at build time (no lstat public missing, no “index.html couldn’t be opened”).
 4) Native build must NOT ship Firebase JS Auth (no "firebase/auth" or "@firebase/auth" in dist or ios/App/App/public/assets).
 5) Native verifier must PASS: npm run build:native && npm run verify:native && npm run ios:sync && npm run verify:native.
-6) Firebase iOS is configured exactly once and early enough (no FirebaseCore “default app not yet configured” at startup).
+6) Native Firebase is fully removed; Firebase runs via the Web SDK inside the WebView only.
 7) Remove only what’s necessary; don’t break the web build.
 
 READ THIS CONTEXT (CURRENT FAILURES):
@@ -25,41 +25,14 @@ A) Make ios/App/App/public ALWAYS exist
 - If any build phase references public, it must never break even if cap sync hasn’t run yet.
 - If there is any script or code deleting ios/App/App/public, change it to delete only contents, not the folder.
 
-B) Fix Firebase iOS configuration (native)
-- Ensure GoogleService-Info.plist exists at ios/App/App/GoogleService-Info.plist and is added to the “App” target.
-- In AppDelegate (ios/App/App/AppDelegate.swift), import FirebaseCore and call FirebaseApp.configure() inside application(_:didFinishLaunchingWithOptions:) before Capacitor loads the webview/plugins.
-- Ensure it only runs once (guard with FirebaseApp.app() == nil).
-- Remove any late or duplicated configure call that causes the “not yet configured” message first and “configured” later.
+B) Remove native Firebase configuration
+- No native Firebase pods or Swift helpers should exist.
+- `FirebaseCore` must not be imported anywhere in `ios/App/App/*.swift`.
+- There should be no `GoogleService-Info.plist` in the app bundle.
 
-C) Stop bundling Firebase JS Auth into native web assets
-The native verifier is correct: Firebase JS Auth is being bundled. Fix root cause.
-
-1) Find and remove any compat/root firebase imports:
-   - Replace any firebase/compat imports with modular SDK imports.
-   - Replace any import from "firebase" (root) with explicit modular imports:
-     firebase/app, firebase/firestore, firebase/functions, firebase/storage (ONLY what is actually used).
-   - The bundle currently looks like compat/all-in-one (it includes many modules). That must be fixed.
-
-2) Ensure NO file that is included in native build statically imports firebase/auth.
-   - Create a strict separation:
-     - Web-only auth implementation file imports firebase/auth.
-     - Native build must not even contain the firebase/auth module in dist.
-   - Use build-time dead-code elimination OR Vite resolve.alias in native mode so firebase/auth cannot be bundled.
-   - Acceptance: dist/assets should NOT contain tokens “firebase/auth” or “@firebase/auth”.
-
-3) Vite configuration (native mode)
-   - In vite.config.ts, when mode === "native":
-     - Add resolve.alias mapping for "firebase/auth" and "@firebase/auth" to a local shim module that does NOT include those strings and does NOT import firebase/auth.
-     - This prevents accidental imports from ever pulling auth into native bundles.
-   - Keep web mode untouched.
-
-4) Update the verifier if it’s incorrectly flagging native plugin JS
-   - If the project uses @capacitor-firebase/authentication on native, it will emit a JS chunk. That is OK.
-   - The verifier must enforce: no Firebase JS Auth, but should not forbid the native plugin wrapper unless the app explicitly doesn’t use it.
-   - Adjust scripts/verify-native-bundle.mjs accordingly:
-     - FAIL on tokens: "firebase/auth" and "@firebase/auth"
-     - DO NOT fail just because a chunk name contains "capacitor-firebase-auth" unless we are explicitly banning the plugin.
-   - The final criterion is “no Firebase JS Auth in native assets”; plugin wrapper is allowed if used.
+C) Firebase auth stays web-only in the WebView
+- Native Firebase auth plugins are intentionally **not** used.
+- Use the Web SDK for auth inside the WebView.
 
 D) Fix the white screen
 - Add an early boot error boundary so if startup crashes, we show a visible error screen and log the stack to console.
@@ -77,12 +50,12 @@ E) Xcode warnings (do not block build)
 
 OUTPUT REQUIRED FROM YOU (Cursor):
 1) A list of exact files you changed.
-2) The exact reasoning why Firebase JS Auth was being bundled and how you removed it.
+2) The exact reasoning why FirebaseCore build errors happened and how you removed native Firebase.
 3) Confirmation commands and expected outputs:
    - npm run build:native (should succeed)
-   - npm run verify:native (PASSED)
+   - npm run smoke:native (PASSED)
    - npm run ios:sync (succeeds, public populated)
-   - npm run verify:native (PASSED)
+   - npm run smoke:native (PASSED)
 4) Notes for iOS release readiness: any remaining warnings, missing icons/splash, entitlements, privacy strings, bundle id, versioning.
 
 DO NOT:
@@ -91,8 +64,6 @@ DO NOT:
 - Do not leave ios/App/App/public missing at build time ever again.
 
 START NOW:
-- First, scan the repo for any firebase/compat or root firebase imports and replace them.
-- Then enforce auth separation so native build excludes firebase/auth.
-- Then fix AppDelegate FirebaseApp.configure timing.
-- Then fix the boot crash/white screen.
-
+- First, scan the repo for native Firebase imports and remove them.
+- Then ensure boot diagnostics prevent masked script errors from blocking startup.
+- Then fix any boot crash/white screen issues.

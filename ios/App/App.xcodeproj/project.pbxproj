@@ -9,12 +9,10 @@
 /* Begin PBXBuildFile section */
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
-		C0FFEE000000000000000012 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000013 /* GoogleService-Info.plist */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		C0FFEE000000000000000002 /* MBSBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000003 /* MBSBridgeViewController.swift */; };
 		C0FFEE000000000000000005 /* InspectingBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000004 /* InspectingBridgeViewController.swift */; };
 		C0FFEE000000000000000007 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000006 /* SceneDelegate.swift */; };
-		C0FFEE000000000000000015 /* MBSFirebase.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000014 /* MBSFirebase.swift */; };
 		C0FFEE000000000000000017 /* MBSBundleDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000016 /* MBSBundleDiagnostics.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
@@ -32,13 +30,11 @@
 		C0FFEE000000000000000003 /* MBSBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MBSBridgeViewController.swift; sourceTree = "<group>"; };
 		C0FFEE000000000000000004 /* InspectingBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectingBridgeViewController.swift; sourceTree = "<group>"; };
 		C0FFEE000000000000000006 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		C0FFEE000000000000000014 /* MBSFirebase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MBSFirebase.swift; sourceTree = "<group>"; };
 		C0FFEE000000000000000016 /* MBSBundleDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MBSBundleDiagnostics.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C0FFEE000000000000000013 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = GoogleService-Info.plist; sourceTree = "<group>"; };
 		C0FFEE000000000000000010 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -89,7 +85,6 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
-				C0FFEE000000000000000014 /* MBSFirebase.swift */,
 				C0FFEE000000000000000016 /* MBSBundleDiagnostics.swift */,
 				C0FFEE000000000000000006 /* SceneDelegate.swift */,
 				C0FFEE000000000000000003 /* MBSBridgeViewController.swift */,
@@ -97,7 +92,6 @@
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
-				C0FFEE000000000000000013 /* GoogleService-Info.plist */,
 				504EC3131FED79650016851F /* Info.plist */,
 				C0FFEE000000000000000010 /* PrivacyInfo.xcprivacy */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
@@ -123,9 +117,6 @@
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
 			buildPhases = (
 				6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */,
-				B0D7A9A3C0B74B6AA1A1A1A1 /* Ensure Firebase plist */,
-				C0FFEE000000000000000066 /* Validate Firebase plist */,
-				C0FFEE000000000000000088 /* Copy Firebase plist (optional) */,
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
@@ -187,7 +178,6 @@
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				C0FFEE000000000000000011 /* PrivacyInfo.xcprivacy in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
-				C0FFEE000000000000000012 /* GoogleService-Info.plist in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 			);
@@ -229,52 +219,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		B0D7A9A3C0B74B6AA1A1A1A1 /* Ensure Firebase plist */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Ensure Firebase plist";
-			outputPaths = (
-				"$(SRCROOT)/App/GoogleService-Info.plist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "bash \"${SRCROOT}/../../scripts/ios-ensure-firebase-plist.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		C0FFEE000000000000000066 /* Validate Firebase plist */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Validate Firebase plist";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "bash \"${SRCROOT}/../scripts/validate_firebase_plist.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		C0FFEE000000000000000088 /* Copy Firebase plist (optional) */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Copy Firebase plist (optional)";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\n\nPLIST_SOURCE=\"${SRCROOT}/App/GoogleService-Info.plist\"\nRESOURCES_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\n\nif [ -f \"${PLIST_SOURCE}\" ]; then\n  mkdir -p \"${RESOURCES_DIR}\"\n  cp -f \"${PLIST_SOURCE}\" \"${RESOURCES_DIR}/GoogleService-Info.plist\"\n  echo \"Copied GoogleService-Info.plist into app bundle resources.\"\nelse\n  echo \"Firebase plist not present; continuing without Firebase config.\"\nfi\n";
-			showEnvVarsInLog = 0;
-		};
 		9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -298,7 +242,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
-				C0FFEE000000000000000015 /* MBSFirebase.swift in Sources */,
 				C0FFEE000000000000000017 /* MBSBundleDiagnostics.swift in Sources */,
 				C0FFEE000000000000000002 /* MBSBridgeViewController.swift in Sources */,
 				C0FFEE000000000000000005 /* InspectingBridgeViewController.swift in Sources */,

@@ -1,78 +1,74 @@
-import fs from "fs";
-import path from "path";
-import { spawnSync } from "child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 
-const REQUIRED_FILES = ["package.json", "capacitor.config.ts"];
+const repoRoot = process.cwd();
+const packageJsonPath = path.join(repoRoot, "package.json");
+const distDir = path.join(repoRoot, "dist");
+const iosPublicDir = path.join(repoRoot, "ios/App/App/public");
+const iosAppDir = path.join(repoRoot, "ios/App");
+const workspacePath = path.join(repoRoot, "ios/App/App.xcworkspace");
 
-function fileExists(filePath) {
+function fail(message) {
+  console.error(`[ios:reset] FAIL: ${message}`);
+  process.exit(1);
+}
+
+async function ensureRepoRoot() {
   try {
-    return fs.existsSync(filePath);
+    await fs.stat(packageJsonPath);
   } catch {
-    return false;
+    fail(`Missing ${packageJsonPath}. Run from the repo root.`);
   }
 }
 
-function findRepoRoot(startDir) {
-  let current = path.resolve(startDir);
-  while (true) {
-    const matches = REQUIRED_FILES.every((file) => fileExists(path.join(current, file)));
-    if (matches) return current;
-    const parent = path.dirname(current);
-    if (parent === current) return null;
-    current = parent;
-  }
-}
-
-function runCommand(label, command, args, options = {}) {
-  console.log(`\n[ios-reset] ${label}`);
-  console.log(`[ios-reset] $ ${command} ${args.join(" ")}`);
-  const result = spawnSync(command, args, { stdio: "inherit", ...options });
+function run(cmd, args, options = {}) {
+  const result = spawnSync(cmd, args, {
+    cwd: repoRoot,
+    stdio: "inherit",
+    ...options,
+  });
   if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+    fail(`${cmd} ${args.join(" ")} failed with status ${result.status}`);
   }
 }
 
-function removePath(targetPath) {
-  try {
-    fs.rmSync(targetPath, { recursive: true, force: true });
-  } catch {
-    // ignore
+async function resetDirectories() {
+  await fs.rm(distDir, { recursive: true, force: true });
+  await fs.rm(iosPublicDir, { recursive: true, force: true });
+}
+
+function ensureCommand(command) {
+  const result = spawnSync(command, ["--version"], {
+    stdio: "ignore",
+  });
+  if (result.status !== 0) {
+    fail(`Missing required command: ${command}`);
   }
 }
 
-const repoRoot = findRepoRoot(process.cwd());
-if (!repoRoot) {
-  console.error(
-    "Not inside the mybodyscan repo. cd ~/Documents/GitHub/mybodyscan then re-run."
-  );
-  process.exit(1);
+async function main() {
+  await ensureRepoRoot();
+  await resetDirectories();
+
+  run("node", ["scripts/assert-repo-root.mjs"]);
+  run("npm", ["run", "build:native"]);
+  run("npx", ["cap", "sync", "ios"]);
+  run("node", ["scripts/assert-ios-public-bundle.mjs"]);
+
+  ensureCommand("pod");
+  run("pod", ["install"], { cwd: iosAppDir });
+
+  const openResult = spawnSync("open", [workspacePath], { stdio: "ignore" });
+  if (openResult.status !== 0) {
+    console.warn(
+      "[ios:reset] warn: 'open' unavailable. Open ios/App/App.xcworkspace manually."
+    );
+  }
+
+  console.log("[ios:reset] OK");
 }
 
-const podCheck = spawnSync("pod", ["--version"], { stdio: "ignore" });
-if (podCheck.status !== 0) {
-  console.error("CocoaPods not installed. Run: sudo gem install cocoapods");
-  process.exit(1);
-}
-
-console.log(`[ios-reset] Repo root: ${repoRoot}`);
-
-const iosAppDir = path.join(repoRoot, "ios", "App");
-const iosAppBuildDir = path.join(iosAppDir, "App", "build");
-
-console.log("\n[ios-reset] Cleaning iOS artifacts...");
-removePath(path.join(iosAppDir, "Pods"));
-removePath(path.join(iosAppDir, "Podfile.lock"));
-removePath(path.join(iosAppDir, "App.xcworkspace"));
-removePath(iosAppBuildDir);
-
-runCommand("Building web bundle", "npm", ["run", "build"], { cwd: repoRoot });
-runCommand("Syncing Capacitor iOS", "npx", ["cap", "sync", "ios"], { cwd: repoRoot });
-runCommand(
-  "Verifying native Firebase Auth plugin is absent",
-  "node",
-  ["scripts/assert-no-native-firebase-auth.mjs"],
-  { cwd: repoRoot }
-);
-runCommand("Installing CocoaPods", "pod", ["install"], { cwd: iosAppDir });
-
-console.log("\n[ios-reset] ✅ iOS reset complete.");
+main().catch((error) => {
+  fail(String(error?.stack || error?.message || error));
+});

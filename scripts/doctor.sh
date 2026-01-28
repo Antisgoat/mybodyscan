@@ -49,13 +49,6 @@ fi
 
 echo "Android project: OK"
 
-if [ ! -f ios/App/App/GoogleService-Info.plist ]; then
-  echo "ERROR: ios/App/App/GoogleService-Info.plist missing (see README iOS Firebase setup)." >&2
-  exit 2
-fi
-
-echo "iOS Firebase plist: OK"
-
 if [ -d android ] && [ ! -f android/app/google-services.json ]; then
   echo "ERROR: android/app/google-services.json missing." >&2
   exit 2

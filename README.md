@@ -101,19 +101,22 @@ npm run sync:android
 
 Release checklist reference: see [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 
-### iOS Firebase setup
+### iOS Runbook (web-only Firebase)
 
-`FirebaseApp.configure()` requires `GoogleService-Info.plist` to be present in the iOS app bundle. This repo expects the source-of-truth plist to live in `./secrets/` and be copied into `ios/App/App/GoogleService-Info.plist` (exact filename) before building.
+MyBodyScan uses Firebase via the Web SDK inside the WebView. Native Firebase
+pods and plists are intentionally unused to keep the iOS shell stable and
+App Store–ready.
 
-1. Download `GoogleService-Info.plist` from Firebase Console → **Project settings** → **Your apps** → **iOS**.
-2. Save it to `./secrets/GoogleService-Info.plist`.
-3. Run (or just build in Xcode; the iOS target runs this automatically and fails fast if the secrets file is missing):
+Repo-root commands:
 
 ```sh
-bash scripts/ios-ensure-firebase-plist.sh
+npm run ios:reset
+npm run smoke:native
+npm run ios:open
 ```
 
-4. Open `ios/App/App.xcworkspace` in Xcode and build/run the `App` scheme.
+`ios:reset` cleans `dist/` and `ios/App/App/public`, rebuilds the native web
+bundle, syncs Capacitor, runs `pod install`, and opens the Xcode workspace.
 
 Highlights:
 
@@ -151,6 +154,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check (soft enforcement when unset).
 - `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
 - `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
+- `VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS` – Comma-separated origins allowed to load external scripts in native iOS builds.
 
 ### Cloud Functions secrets (attach via `firebase functions:secrets:set`)
 
@@ -499,7 +503,7 @@ firebase deploy --only hosting --project mybodyscan-f3daf
 From the repo root (`/workspace/mybodyscan`), run:
 
 1. `npm install`
-2. `npm run build`
+2. `npm run build:native`
 3. `npx cap sync ios`
 4. `npm run smoke:native`
 5. `open ios/App/App.xcworkspace`
@@ -510,5 +514,5 @@ If you want the full reset flow instead:
 2. `npm run ios:open`
 
 Notes:
-- `ios:reset` enforces the repo-root guard, validates that native Firebase Auth is absent, rebuilds the web bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
+- `ios:reset` cleans native/web artifacts, rebuilds the native bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
 - If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.
