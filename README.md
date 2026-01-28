@@ -118,6 +118,22 @@ npm run ios:open
 `ios:reset` cleans `dist/` and `ios/App/App/public`, rebuilds the native web
 bundle, syncs Capacitor, runs `pod install`, and opens the Xcode workspace.
 
+What good looks like:
+
+```text
+info: cleaning native build artifacts
+info: building native web bundle
+info: syncing Capacitor iOS
+info: validating bundled iOS web assets
+info: installing CocoaPods
+info: opening Xcode workspace
+info: ios reset complete
+```
+
+```text
+[smoke:native] PASS
+```
+
 Highlights:
 
 - Google sign-in auto-detects iOS/Android WebViews and uses redirect flows (no popup requirements)

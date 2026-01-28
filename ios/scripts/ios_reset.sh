@@ -5,5 +5,37 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${REPO_ROOT}"
-echo "info: ios/scripts/ios_reset.sh is deprecated. Use npm run ios:reset."
-node scripts/ios-reset.mjs
+
+if [[ ! -f "${REPO_ROOT}/package.json" ]]; then
+  echo "error: package.json not found. Run this script from the repo root." >&2
+  exit 1
+fi
+
+echo "info: cleaning native build artifacts"
+rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public"
+
+echo "info: building native web bundle"
+npm run build:native
+
+echo "info: syncing Capacitor iOS"
+npx cap sync ios
+
+echo "info: validating bundled iOS web assets"
+node scripts/assert-ios-public-bundle.mjs
+
+if ! command -v pod >/dev/null 2>&1; then
+  echo "error: CocoaPods (pod) not found. Install CocoaPods and re-run." >&2
+  exit 1
+fi
+
+echo "info: installing CocoaPods"
+(cd "${REPO_ROOT}/ios/App" && pod install)
+
+if command -v open >/dev/null 2>&1; then
+  echo "info: opening Xcode workspace"
+  open "${REPO_ROOT}/ios/App/App.xcworkspace"
+else
+  echo "warn: 'open' not available. Open ios/App/App.xcworkspace manually."
+fi
+
+echo "info: ios reset complete"
