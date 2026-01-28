@@ -10,9 +10,6 @@ enum MBSFirebase {
   private static func handleFailure(_ message: String) {
     NSLog("[MBS] Firebase configuration error: %@", message)
     configErrorMessage = message
-    #if DEBUG
-    fatalError(message)
-    #endif
   }
 
   static func configureIfNeeded(origin: String) {
@@ -44,5 +41,15 @@ enum MBSFirebase {
     if after == nil {
       handleFailure("Firebase default app still nil after configure (origin=\(origin))")
     }
+  }
+
+  static func assertConfiguredForScene(origin: String) -> String? {
+    if isConfigured {
+      return nil
+    }
+    let message = configErrorMessage ?? "Firebase default app missing before scene (origin=\(origin))"
+    NSLog("[MBS] Firebase configuration missing for scene: %@", message)
+    configErrorMessage = message
+    return message
   }
 }
