@@ -498,6 +498,14 @@ firebase deploy --only hosting --project mybodyscan-f3daf
 
 From the repo root (`/workspace/mybodyscan`), run:
 
+1. `npm install`
+2. `npm run build`
+3. `npx cap sync ios`
+4. `npm run smoke:native`
+5. `open ios/App/App.xcworkspace`
+
+If you want the full reset flow instead:
+
 1. `npm run ios:reset`
 2. `npm run ios:open`
 
