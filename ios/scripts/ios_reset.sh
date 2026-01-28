@@ -11,6 +11,11 @@ if [[ ! -f "${REPO_ROOT}/package.json" ]]; then
   exit 1
 fi
 
+if [[ ! -d "${REPO_ROOT}/node_modules" ]]; then
+  echo "info: node_modules missing, running npm install"
+  npm install
+fi
+
 echo "info: cleaning native build artifacts"
 rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public"
 
@@ -30,6 +35,11 @@ fi
 
 echo "info: installing CocoaPods"
 (cd "${REPO_ROOT}/ios/App" && pod install)
+
+if [[ ! -d "${REPO_ROOT}/ios/App/App.xcworkspace" ]]; then
+  echo "error: ios/App/App.xcworkspace missing. Run npm run ios:reset again." >&2
+  exit 1
+fi
 
 if command -v open >/dev/null 2>&1; then
   echo "info: opening Xcode workspace"

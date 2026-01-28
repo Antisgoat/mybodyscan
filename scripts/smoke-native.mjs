@@ -7,6 +7,7 @@ const packageJsonPath = path.join(repoRoot, "package.json");
 const publicIndex = path.join(repoRoot, "ios/App/App/public/index.html");
 const capacitorConfigPath = path.join(repoRoot, "capacitor.config.ts");
 const iosAppDir = path.join(repoRoot, "ios/App/App");
+const iosWorkspace = path.join(repoRoot, "ios/App/App.xcworkspace");
 
 const pluginPatterns = [
   "@capacitor-firebase/authentication",
@@ -48,6 +49,12 @@ async function assertPublicIndex() {
   }
 }
 
+async function assertWorkspace() {
+  if (!(await fileExists(iosWorkspace))) {
+    fail(`Missing ${iosWorkspace}. Run npm run ios:reset.`);
+  }
+}
+
 function assertCapPlugins() {
   const result = spawnSync("npx", ["cap", "ls", "ios"], {
     cwd: repoRoot,
@@ -77,6 +84,9 @@ function assertCapPlugins() {
     if (!detectedPlugins.has(plugin)) {
       fail(`npx cap ls ios missing required plugin: ${plugin}.`);
     }
+  }
+  if (/capacitor-firebase/i.test(output)) {
+    fail("npx cap ls ios reports a capacitor-firebase plugin. Remove native Firebase plugins.");
   }
   for (const pattern of pluginPatterns) {
     if (output.includes(pattern)) {
@@ -148,6 +158,7 @@ function assertNoFirebaseStringsInIos() {
 
 async function main() {
   await assertRepoRoot();
+  await assertWorkspace();
   await assertPublicIndex();
   assertCapPlugins();
   await assertNoServerUrl();

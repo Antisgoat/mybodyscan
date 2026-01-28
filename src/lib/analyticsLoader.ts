@@ -36,12 +36,13 @@ function resolveAnalyticsScripts(isNativeBuild: boolean): string[] {
     ENV.VITE_NATIVE_ANALYTICS_ENABLED === "true";
   if (!nativeEnabled) {
     if (webScripts.length) {
-      debugLog("native scripts disabled", { count: webScripts.length });
+      debugLog("analytics disabled for native build", { count: webScripts.length });
     } else {
-      debugLog("native scripts disabled (no scripts configured)");
+      debugLog("analytics disabled for native build (no scripts configured)");
     }
     return [];
   }
+  debugLog("analytics enabled via flag");
 
   const nativeScripts = parseScriptList(
     ENV.VITE_NATIVE_ANALYTICS_SCRIPTS as string | undefined
