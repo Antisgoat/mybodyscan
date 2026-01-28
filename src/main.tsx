@@ -12,6 +12,7 @@ import { BootGate } from "@/components/BootGate";
 import { isNative } from "@/lib/platform";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
+const allowBootOverlay = !__MBS_NATIVE_RELEASE__;
 
 function installBootErrorListeners() {
   if (typeof window === "undefined") return;
@@ -22,6 +23,11 @@ function installBootErrorListeners() {
   window.addEventListener(
     "error",
     (event: ErrorEvent) => {
+      if (__MBS_NATIVE_RELEASE__) {
+        // eslint-disable-next-line no-console
+        console.error("[boot] window error (release):", event.message);
+        return;
+      }
       const err = event.error as Error | undefined;
       // eslint-disable-next-line no-console
       console.error("[boot] window error:", {
@@ -38,6 +44,11 @@ function installBootErrorListeners() {
   window.addEventListener(
     "unhandledrejection",
     (event: PromiseRejectionEvent) => {
+      if (__MBS_NATIVE_RELEASE__) {
+        // eslint-disable-next-line no-console
+        console.error("[boot] unhandledrejection (release)");
+        return;
+      }
       const reason = event.reason as Error | undefined;
       // eslint-disable-next-line no-console
       console.error("[boot] unhandledrejection:", {
@@ -177,6 +188,12 @@ function renderBootFailure(error: unknown, code?: string) {
   // Crash shield is native-only to prevent blank white screens in WKWebView.
   if (!isNative()) return;
   if (typeof window === "undefined") return;
+  if (!allowBootOverlay) {
+    const failure = normalizeBootFailure(error, code);
+    // eslint-disable-next-line no-console
+    console.error("[boot] fatal (suppressed in release):", failure.code);
+    return;
+  }
   const anyWin = window as any;
   if (anyWin.__mbsBootFailureRendered) return;
   anyWin.__mbsBootFailureRendered = true;
@@ -210,6 +227,42 @@ function renderBootFailure(error: unknown, code?: string) {
   }
 }
 
+function isGenericScriptError(event: ErrorEvent) {
+  return (
+    event.message === "Script error." &&
+    event.lineno === 0 &&
+    event.colno === 0 &&
+    (!event.filename || event.filename === "")
+  );
+}
+
+function isSameOriginFilename(filename?: string) {
+  if (!filename || typeof window === "undefined") return false;
+  try {
+    const url = new URL(filename, window.location.href);
+    return url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function shouldRenderBootOverlayFromError(event: ErrorEvent) {
+  if (!allowBootOverlay) return false;
+  const err = event.error as Error | undefined;
+  const hasStack = Boolean((err as any)?.stack);
+  const hasError = Boolean(err);
+  const sameOrigin = isSameOriginFilename(event.filename);
+  return hasError || sameOrigin || hasStack;
+}
+
+function shouldRenderBootOverlayFromRejection(event: PromiseRejectionEvent) {
+  if (!allowBootOverlay) return false;
+  const reason = event.reason as any;
+  const hasStack = Boolean(reason?.stack);
+  const isError = reason instanceof Error;
+  return isError || hasStack;
+}
+
 try {
   assertEnv();
 } catch (e) {
@@ -236,14 +289,44 @@ if (typeof window !== "undefined" && isNative()) {
       try {
         if (!(window as any).__firstBootError) {
           (window as any).__firstBootError = true;
-          console.error(
-            "[boot] first error:",
-            event.error || event.message,
-            event.filename,
-            event.lineno,
-            event.colno,
-            (event.error as any)?.stack
-          );
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.error(
+              "[boot] first error:",
+              event.error || event.message,
+              event.filename,
+              event.lineno,
+              event.colno,
+              (event.error as any)?.stack
+            );
+          } else {
+            console.error("[boot] first error (release):", event.message);
+          }
+        }
+        if (isGenericScriptError(event)) {
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] window_error_ignored", {
+              reason: "generic_script_error",
+              message: event.message,
+              filename: event.filename,
+              lineno: event.lineno,
+              colno: event.colno,
+            });
+          }
+          return;
+        }
+        if (!shouldRenderBootOverlayFromError(event)) {
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] window_error_suppressed", {
+              message: event.message,
+              filename: event.filename,
+              lineno: event.lineno,
+              colno: event.colno,
+              hasError: Boolean(event.error),
+              hasStack: Boolean((event.error as any)?.stack),
+              sameOrigin: isSameOriginFilename(event.filename),
+            });
+          }
+          return;
         }
         renderBootFailure(event.error || event.message, "window_error");
       } catch {
@@ -259,7 +342,19 @@ if (typeof window !== "undefined" && isNative()) {
       try {
         if (!(window as any).__firstBootError) {
           (window as any).__firstBootError = true;
-          console.error("[boot] first unhandledrejection:", event?.reason);
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.error("[boot] first unhandledrejection:", event?.reason);
+          } else {
+            console.error("[boot] first unhandledrejection (release)");
+          }
+        }
+        if (!shouldRenderBootOverlayFromRejection(event)) {
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] unhandledrejection_suppressed", {
+              reason: event?.reason,
+            });
+          }
+          return;
         }
         renderBootFailure(event?.reason || event, "unhandled_rejection");
       } catch {

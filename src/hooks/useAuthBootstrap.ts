@@ -6,10 +6,13 @@ import { getIdToken, useAuthUser } from "@/auth/mbs-auth";
 import { upsertUserRootProfile } from "@/lib/auth/userProfileUpsert";
 import { initPurchases } from "@/lib/billing/iapProvider";
 import { syncEntitlements } from "@/lib/entitlements/syncEntitlements";
+import { collection, getDocs, limit, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export function useAuthBootstrap() {
   const { user } = useAuthUser();
   const ranForUid = useRef<string | null>(null);
+  const smokeCheckedUid = useRef<string | null>(null);
   const failureCountRef = useRef(0);
   const lastToastAtRef = useRef<number>(0);
   const { toast } = useToast();
@@ -48,6 +51,27 @@ export function useAuthBootstrap() {
           if (res?.ok) break;
           if (attempt < 2) {
             await sleep(250 * (attempt + 1));
+          }
+        }
+
+        if (smokeCheckedUid.current !== user.uid) {
+          smokeCheckedUid.current = user.uid;
+          try {
+            const scansRef = collection(db, "users", user.uid, "scans");
+            const snap = await getDocs(query(scansRef, limit(1)));
+            if (snap.empty) {
+              toast({
+                title: "No scans yet",
+                description:
+                  "You’re all set. Start a scan to see your first result.",
+              });
+            }
+          } catch (error) {
+            console.warn("firestore_smoke_failed", error);
+            toast({
+              title: "We couldn’t load your scans yet",
+              description: "Check your connection and try again.",
+            });
           }
         }
 
