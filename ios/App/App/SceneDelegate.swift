@@ -53,7 +53,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     guard let windowScene = scene as? UIWindowScene else { return }
 
-    MBSFirebase.configureIfNeeded(origin: "scene_willConnect")
+    if !MBSFirebase.isConfigured && MBSFirebase.configErrorMessage == nil {
+      MBSFirebase.configureIfNeeded(origin: "scene_willConnect_fallback")
+    }
 
     let window = UIWindow(windowScene: windowScene)
     if let errorMessage = MBSFirebase.configErrorMessage {

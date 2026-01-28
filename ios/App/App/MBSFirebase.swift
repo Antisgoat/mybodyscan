@@ -3,6 +3,9 @@ import Foundation
 
 enum MBSFirebase {
   static var configErrorMessage: String?
+  static var isConfigured: Bool {
+    return FirebaseApp.app() != nil
+  }
 
   private static func handleFailure(_ message: String) {
     NSLog("[MBS] Firebase configuration error: %@", message)
