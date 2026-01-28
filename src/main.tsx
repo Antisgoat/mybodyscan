@@ -10,9 +10,11 @@ import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isNative } from "@/lib/platform";
+import { loadWebAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
 const allowBootOverlay = !__MBS_NATIVE_RELEASE__;
+const isNativeBuild = __IS_NATIVE__ || isNative();
 
 function installBootErrorListeners() {
   if (typeof window === "undefined") return;
@@ -23,6 +25,16 @@ function installBootErrorListeners() {
   window.addEventListener(
     "error",
     (event: ErrorEvent) => {
+      if (isGenericScriptError(event)) {
+        if (!__MBS_NATIVE_RELEASE__) {
+          console.warn("[boot] window_error_ignored generic_script_error", {
+            message: event.message,
+            line: event.lineno,
+            col: event.colno,
+          });
+        }
+        return;
+      }
       if (__MBS_NATIVE_RELEASE__) {
         // eslint-disable-next-line no-console
         console.error("[boot] window error (release):", event.message);
@@ -44,12 +56,12 @@ function installBootErrorListeners() {
   window.addEventListener(
     "unhandledrejection",
     (event: PromiseRejectionEvent) => {
+      const reason = event.reason as Error | undefined;
       if (__MBS_NATIVE_RELEASE__) {
         // eslint-disable-next-line no-console
         console.error("[boot] unhandledrejection (release)");
         return;
       }
-      const reason = event.reason as Error | undefined;
       // eslint-disable-next-line no-console
       console.error("[boot] unhandledrejection:", {
         reason,
@@ -61,6 +73,30 @@ function installBootErrorListeners() {
 }
 
 installBootErrorListeners();
+
+function logExternalScriptOriginsOnce() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsExternalScriptOriginsLogged) return;
+  anyWin.__mbsExternalScriptOriginsLogged = true;
+
+  const origins = new Set<string>();
+  for (const script of Array.from(document.scripts || [])) {
+    if (!script.src) continue;
+    try {
+      const url = new URL(script.src, window.location.href);
+      if (url.origin !== window.location.origin) {
+        origins.add(url.origin);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  const list = Array.from(origins).slice(0, 10);
+  if (!__MBS_NATIVE_RELEASE__ || list.length) {
+    console.warn("[boot] external_script_origins", list);
+  }
+}
 
 // Legacy shim: some older code may still reference global sanitizeFoodItem.
 // This avoids runtime errors like "Can't find variable: sanitizeFoodItem".
@@ -289,6 +325,17 @@ if (typeof window !== "undefined") {
   }
 }
 
+if (typeof window !== "undefined") {
+  if (!isNativeBuild) {
+    loadWebAnalyticsScripts();
+  }
+  try {
+    logExternalScriptOriginsOnce();
+  } catch {
+    // ignore
+  }
+}
+
 // Boot error trap to capture first thrown error before any UI swallows it.
 // Native-only (per crash-shield spec) to prevent WKWebView blank screens.
 if (typeof window !== "undefined" && isNative()) {
@@ -314,18 +361,13 @@ if (typeof window !== "undefined" && isNative()) {
           }
         }
         if (isGenericScriptError(event)) {
-          const basePayload = {
-            reason: "generic_script_error",
-            message: event.message,
-            filename: event.filename,
-            lineno: event.lineno,
-            colno: event.colno,
-          };
-          if (__MBS_NATIVE_RELEASE__) {
-            console.warn("[boot] window_error_ignored (release)", basePayload);
-          } else {
-            console.warn("[boot] window_error_ignored", {
-              ...basePayload,
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] window_error_ignored generic_script_error", {
+              reason: "generic_script_error",
+              message: event.message,
+              filename: event.filename,
+              lineno: event.lineno,
+              colno: event.colno,
               userAgent:
                 typeof navigator !== "undefined" ? navigator.userAgent : "n/a",
               location:

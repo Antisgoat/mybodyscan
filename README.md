@@ -493,3 +493,7 @@ firebase deploy --only hosting --project mybodyscan-f3daf
 ```
 
 - `firebase.json` serves `index.html` with `Cache-Control: no-store` to prevent stale bundles.
+
+## iOS rebuild (from scratch)
+
+To rebuild iOS from scratch: `npm run ios:reset` then `npm run ios:open`.

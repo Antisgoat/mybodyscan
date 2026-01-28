@@ -53,10 +53,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     guard let windowScene = scene as? UIWindowScene else { return }
 
-    AppDelegate.configureFirebaseIfNeeded(origin: "scene_willConnect")
+    MBSFirebase.configureIfNeeded(origin: "scene_willConnect")
 
     let window = UIWindow(windowScene: windowScene)
-    if let errorMessage = AppDelegate.firebaseConfigErrorMessage {
+    if let errorMessage = MBSFirebase.configErrorMessage {
       window.rootViewController = buildFirebaseConfigErrorView(message: errorMessage)
       self.window = window
       window.makeKeyAndVisible()

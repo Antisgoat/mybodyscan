@@ -31,13 +31,11 @@ final class InspectingBridgeViewController: CAPBridgeViewController, WKNavigatio
 
   private func logBundleResources() {
     let resourcesURL = Bundle.main.resourceURL
-    let bundledIndexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
     let configURL = Bundle.main.url(forResource: "capacitor", withExtension: "config.json")
-    let indexExists = bundledIndexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     let configExists = configURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
     debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-    debugLog("[MBS] Bundled index.html=%@ exists=%d", bundledIndexURL?.path ?? "nil", indexExists ? 1 : 0)
+    MBSBundleDiagnostics.logPublicIndexOnce()
     debugLog("[MBS] Bundled capacitor.config.json=%@ exists=%d", configURL?.path ?? "nil", configExists ? 1 : 0)
   }
 

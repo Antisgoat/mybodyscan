@@ -1,13 +1,10 @@
 import UIKit
 import Capacitor
-import FirebaseCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
-    private static var didConfigureFirebase = false
-    static var firebaseConfigErrorMessage: String?
 
     private func debugLog(_ message: String, _ args: CVarArg...) {
         #if DEBUG
@@ -15,65 +12,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
     }
 
-    private static func handleFirebaseConfigFailure(_ message: String) {
-        NSLog("[MBS] Firebase configuration error: %@", message)
-        #if DEBUG
-        fatalError(message)
-        #else
-        AppDelegate.firebaseConfigErrorMessage = message
-        #endif
-    }
-
-    static func configureFirebaseIfNeeded(origin: String) {
-        if AppDelegate.didConfigureFirebase {
-            return
-        }
-        AppDelegate.didConfigureFirebase = true
-
-        let gsPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-        NSLog("[MBS] GoogleService-Info.plist path=%@", gsPath ?? "nil")
-        let before = FirebaseApp.app()
-        NSLog("[MBS] Firebase default app BEFORE=%@", before == nil ? "nil" : "non-nil")
-
-        guard let gsPath = gsPath else {
-            handleFirebaseConfigFailure("Missing GoogleService-Info.plist (origin=\(origin))")
-            return
-        }
-        guard let options = FirebaseOptions(contentsOfFile: gsPath) else {
-            handleFirebaseConfigFailure("Failed to load FirebaseOptions (origin=\(origin))")
-            return
-        }
-
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure(options: options)
-        }
-
-        let after = FirebaseApp.app()
-        NSLog("[MBS] Firebase default app AFTER=%@", after == nil ? "nil" : "non-nil")
-        if after == nil {
-            handleFirebaseConfigFailure("Firebase default app still nil after configure (origin=\(origin))")
-        }
-    }
-
-    override init() {
-        super.init()
-        AppDelegate.configureFirebaseIfNeeded(origin: "init")
-    }
-
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        AppDelegate.configureFirebaseIfNeeded(origin: "willFinishLaunching")
+        MBSFirebase.configureIfNeeded(origin: "willFinishLaunching")
         return true
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        AppDelegate.configureFirebaseIfNeeded(origin: "didFinishLaunching")
+        MBSFirebase.configureIfNeeded(origin: "didFinishLaunching")
         let resourcesURL = Bundle.main.resourceURL
-        let bundledIndexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
-        let indexExists = bundledIndexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         debugLog("[MBS] didFinishLaunching")
         debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        debugLog("[MBS] Bundled index.html=%@ exists=%d", bundledIndexURL?.path ?? "nil", indexExists ? 1 : 0)
+        MBSBundleDiagnostics.logPublicIndexOnce()
 
         return true
     }
