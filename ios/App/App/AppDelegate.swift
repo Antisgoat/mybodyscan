@@ -22,7 +22,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         debugLog("[MBS] didFinishLaunching")
         debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        MBSBundleDiagnostics.logPublicIndexOnce()
+        MBSBundleDiagnostics.logPublicIndex(context: "AppDelegate")
 
         return true
     }
