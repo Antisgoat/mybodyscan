@@ -15,7 +15,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
     }
 
-    private func handleFirebaseConfigFailure(_ message: String) {
+    private static func handleFirebaseConfigFailure(_ message: String) {
         NSLog("[MBS] Firebase configuration error: %@", message)
         #if DEBUG
         fatalError(message)
@@ -24,7 +24,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         #endif
     }
 
-    private func configureFirebaseIfNeeded(origin: String) {
+    static func configureFirebaseIfNeeded(origin: String) {
         if AppDelegate.didConfigureFirebase {
             return
         }
@@ -57,16 +57,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     override init() {
         super.init()
-        configureFirebaseIfNeeded(origin: "init")
+        AppDelegate.configureFirebaseIfNeeded(origin: "init")
     }
 
     func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        configureFirebaseIfNeeded(origin: "willFinishLaunching")
+        AppDelegate.configureFirebaseIfNeeded(origin: "willFinishLaunching")
         return true
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        configureFirebaseIfNeeded(origin: "didFinishLaunching")
+        AppDelegate.configureFirebaseIfNeeded(origin: "didFinishLaunching")
         let resourcesURL = Bundle.main.resourceURL
         let bundledIndexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
         let indexExists = bundledIndexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false

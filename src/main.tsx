@@ -236,6 +236,17 @@ function isGenericScriptError(event: ErrorEvent) {
   );
 }
 
+function getLoadedScriptSources(): string[] {
+  if (typeof document === "undefined") return [];
+  try {
+    return Array.from(document.scripts || [])
+      .map((script) => script.src || "[inline]")
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function isSameOriginFilename(filename?: string) {
   if (!filename || typeof window === "undefined") return false;
   try {
@@ -303,13 +314,23 @@ if (typeof window !== "undefined" && isNative()) {
           }
         }
         if (isGenericScriptError(event)) {
-          if (!__MBS_NATIVE_RELEASE__) {
+          const basePayload = {
+            reason: "generic_script_error",
+            message: event.message,
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+          };
+          if (__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] window_error_ignored (release)", basePayload);
+          } else {
             console.warn("[boot] window_error_ignored", {
-              reason: "generic_script_error",
-              message: event.message,
-              filename: event.filename,
-              lineno: event.lineno,
-              colno: event.colno,
+              ...basePayload,
+              userAgent:
+                typeof navigator !== "undefined" ? navigator.userAgent : "n/a",
+              location:
+                typeof window !== "undefined" ? window.location.href : "n/a",
+              scripts: getLoadedScriptSources(),
             });
           }
           return;

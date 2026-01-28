@@ -10,53 +10,35 @@ import {
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
-import { FirebaseAuthenticationNative } from "@/native/plugins/firebaseAuthenticationNative";
-import type {
-  NativeAuthResult,
-  NativeAuthUser,
-} from "@/native/plugins/firebaseAuthentication";
+import {
+  signInWithApple as webSignInWithApple,
+  signInWithGoogle as webSignInWithGoogle,
+} from "./mbs-auth.web";
 import type { MbsUser, MbsUserCredential, Unsubscribe } from "./mbs-auth.types";
 
-function toMbsUser(user?: NativeAuthUser | User | null): MbsUser | null {
+function toMbsUser(user?: User | null): MbsUser | null {
   if (!user) return null;
-  const anyUser = user as NativeAuthUser;
-  const photo =
-    typeof (user as User).photoURL === "string"
-      ? (user as User).photoURL
-      : typeof anyUser.photoURL === "string"
-        ? anyUser.photoURL
-        : typeof anyUser.photoUrl === "string"
-          ? anyUser.photoUrl
-          : null;
   return {
-    uid: String((user as User).uid ?? anyUser.uid ?? ""),
+    uid: String(user.uid ?? ""),
     email:
-      typeof (user as User).email === "string"
-        ? (user as User).email
-        : typeof anyUser.email === "string"
-          ? anyUser.email
-          : null,
+      typeof user.email === "string"
+        ? user.email
+        : null,
     displayName:
-      typeof (user as User).displayName === "string"
-        ? (user as User).displayName
-        : typeof anyUser.displayName === "string"
-          ? anyUser.displayName
-          : null,
-    photoURL: photo,
+      typeof user.displayName === "string"
+        ? user.displayName
+        : null,
+    photoURL: typeof user.photoURL === "string" ? user.photoURL : null,
     phoneNumber:
-      typeof (user as User).phoneNumber === "string"
-        ? (user as User).phoneNumber
-        : typeof anyUser.phoneNumber === "string"
-          ? anyUser.phoneNumber
-          : null,
-    emailVerified: Boolean((user as User).emailVerified ?? anyUser.emailVerified),
-    isAnonymous: Boolean((user as User).isAnonymous ?? anyUser.isAnonymous),
+      typeof user.phoneNumber === "string"
+        ? user.phoneNumber
+        : null,
+    emailVerified: Boolean(user.emailVerified),
+    isAnonymous: Boolean(user.isAnonymous),
     providerId:
-      typeof (user as User).providerId === "string"
-        ? (user as User).providerId
-        : typeof anyUser.providerId === "string"
-          ? anyUser.providerId
-          : null,
+      typeof user.providerId === "string"
+        ? user.providerId
+        : null,
   };
 }
 
@@ -152,33 +134,11 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<void> {
-  if (typeof FirebaseAuthenticationNative.signInWithGoogle !== "function") {
-    const err: any = new Error("Google sign-in not supported");
-    err.code = "auth/unsupported";
-    throw err;
-  }
-  const res: NativeAuthResult = await FirebaseAuthenticationNative.signInWithGoogle();
-  const user = toMbsUser(res?.user ?? null);
-  if (!user) {
-    const err: any = new Error("Native Google sign-in did not return a user");
-    err.code = "auth/native-no-user";
-    throw err;
-  }
+  await webSignInWithGoogle(null);
 }
 
 export async function signInWithApple(): Promise<void> {
-  if (typeof FirebaseAuthenticationNative.signInWithApple !== "function") {
-    const err: any = new Error("Apple sign-in not supported");
-    err.code = "auth/unsupported";
-    throw err;
-  }
-  const res: NativeAuthResult = await FirebaseAuthenticationNative.signInWithApple();
-  const user = toMbsUser(res?.user ?? null);
-  if (!user) {
-    const err: any = new Error("Native Apple sign-in did not return a user");
-    err.code = "auth/native-no-user";
-    throw err;
-  }
+  await webSignInWithApple(null);
 }
 
 export async function webRequireAuth(): Promise<null> {
