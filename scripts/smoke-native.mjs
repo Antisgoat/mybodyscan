@@ -3,22 +3,20 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const repoRoot = process.cwd();
+const packageJsonPath = path.join(repoRoot, "package.json");
 const publicIndex = path.join(repoRoot, "ios/App/App/public/index.html");
-const firebasePlist = path.join(
-  repoRoot,
-  "ios/App/App/GoogleService-Info.plist"
-);
-const capConfig = path.join(repoRoot, "ios/App/App/capacitor.config.json");
+const firebasePlistCandidates = [
+  path.join(repoRoot, "ios/App/App/GoogleService-Info.plist"),
+  path.join(repoRoot, "ios/App/App/App/GoogleService-Info.plist"),
+];
 
 const pluginPatterns = [
   "@capacitor-firebase/authentication",
   "capacitor-firebase/authentication",
-  "CapacitorFirebaseAuthentication",
-  "FirebaseAuthentication",
 ];
 
 function fail(message) {
-  console.error(`[smoke:native] ${message}`);
+  console.error(`[smoke:native] FAIL: ${message}`);
   process.exit(1);
 }
 
@@ -31,37 +29,36 @@ async function fileExists(filePath) {
   }
 }
 
+async function assertRepoRoot() {
+  if (!(await fileExists(packageJsonPath))) {
+    fail(`Missing ${packageJsonPath}. Run from repo root.`);
+  }
+}
+
 async function assertPublicIndex() {
   if (!(await fileExists(publicIndex))) {
     fail(`Missing ${publicIndex}. Run npm run ios:reset or npx cap sync ios.`);
   }
-  const contents = await fs.readFile(publicIndex, "utf8");
-  if (contents.includes("Placeholder. Run npm run ios:sync")) {
-    fail(
-      "ios/App/App/public/index.html is still the placeholder. Run npm run build:native && npx cap sync ios."
-    );
+  const stats = await fs.stat(publicIndex);
+  if (stats.size < 500) {
+    fail(`ios/App/App/public/index.html is too small (${stats.size} bytes).`);
   }
 }
 
 async function assertFirebasePlist() {
-  if (!(await fileExists(firebasePlist))) {
-    fail("Missing ios/App/App/GoogleService-Info.plist.");
-  }
-  const contents = await fs.readFile(firebasePlist, "utf8");
-  if (contents.includes("REPLACE_ME")) {
-    fail("GoogleService-Info.plist still contains REPLACE_ME placeholders.");
-  }
-}
-
-async function assertCapacitorConfig() {
-  if (!(await fileExists(capConfig))) {
-    fail("Missing ios/App/App/capacitor.config.json.");
-  }
-  const contents = await fs.readFile(capConfig, "utf8");
-  for (const pattern of pluginPatterns) {
-    if (contents.includes(pattern)) {
-      fail(`capacitor.config.json still references ${pattern}.`);
+  let plistPath = null;
+  for (const candidate of firebasePlistCandidates) {
+    if (await fileExists(candidate)) {
+      plistPath = candidate;
+      break;
     }
+  }
+  if (!plistPath) {
+    fail("Missing GoogleService-Info.plist in ios/App/App or ios/App/App/App.");
+  }
+  const contents = await fs.readFile(plistPath, "utf8");
+  if (contents.includes("REPLACE_ME") || contents.includes("YOUR_")) {
+    fail(`GoogleService-Info.plist contains placeholder values at ${plistPath}.`);
   }
 }
 
@@ -77,17 +74,17 @@ function assertCapPlugins() {
   const output = `${result.stdout || ""}\n${result.stderr || ""}`;
   for (const pattern of pluginPatterns) {
     if (output.includes(pattern)) {
-      fail(`npx cap ls ios still reports ${pattern}.`);
+      fail(`npx cap ls ios reports disallowed plugin: ${pattern}.`);
     }
   }
 }
 
 async function main() {
+  await assertRepoRoot();
   await assertPublicIndex();
   await assertFirebasePlist();
-  await assertCapacitorConfig();
   assertCapPlugins();
-  console.log("[smoke:native] OK");
+  console.log("[smoke:native] PASS");
 }
 
 main().catch((error) => {

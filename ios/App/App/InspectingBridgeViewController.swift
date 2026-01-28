@@ -35,7 +35,7 @@ final class InspectingBridgeViewController: CAPBridgeViewController, WKNavigatio
     let configExists = configURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
     debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-    MBSBundleDiagnostics.logPublicIndexOnce()
+    MBSBundleDiagnostics.logPublicIndex(context: "InspectingBridgeViewController")
     debugLog("[MBS] Bundled capacitor.config.json=%@ exists=%d", configURL?.path ?? "nil", configExists ? 1 : 0)
   }
 
