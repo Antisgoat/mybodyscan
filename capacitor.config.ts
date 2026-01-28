@@ -7,14 +7,6 @@ const config = {
   appId: "com.mybodyscan.app",
   appName: "MyBodyScan",
   webDir: "dist",
-  plugins: {
-    // Native auth providers for future Capacitor builds (WKWebView-safe).
-    // This does NOT affect web builds.
-    FirebaseAuthentication: {
-      skipNativeAuth: false,
-      providers: ["google.com", "apple.com", "phone"],
-    },
-  },
   ios: {
     contentInset: "automatic",
   },

@@ -13,12 +13,6 @@ const CAP_CONFIG = {
   appName: "MyBodyScan",
   webDir: "public",
   bundledWebRuntime: false,
-  plugins: {
-    FirebaseAuthentication: {
-      skipNativeAuth: false,
-      providers: ["google.com", "apple.com", "phone"],
-    },
-  },
   ios: {
     contentInset: "automatic",
   },
