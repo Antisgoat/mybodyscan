@@ -12,7 +12,7 @@ This guide documents the terminal build steps and release checks for the Capacit
 Run these commands from the repository root to validate the build and archive flow:
 
 ```sh
-./ios/scripts/ios_reset.sh
+npm run ios:reset
 ./ios/scripts/ios_run_sim.sh
 ./ios/scripts/ios_archive.sh
 ```
@@ -33,7 +33,7 @@ xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk ip
 - **Versioning**: `MARKETING_VERSION = 1.0.0` and `CURRENT_PROJECT_VERSION` incremented as needed.
 - **Signing**: Automatic signing is enabled (no personal Team ID committed).
 - **Usage strings**: Camera and photo library usage descriptions are present with non-placeholder text.
-- **Firebase**: Debug builds may skip Firebase if the plist is missing/invalid; Release archives will fail if invalid.
+- **Firebase**: Web-only via the Web SDK inside the WebView (no native plist required).
 
 ## Release checklist (Xcode Organizer)
 

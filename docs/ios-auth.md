@@ -4,7 +4,8 @@ Capacitor iOS uses **WKWebView**. Running Firebase **Web** Auth (`firebase/auth`
 
 - `@firebase/auth: INTERNAL ASSERTION FAILED: Expected a class definition`
 
-This repo enforces a strict split:
+This repo enforces a strict split and uses **web-only** Firebase auth inside the
+WebView:
 
 ## What runs where
 
@@ -12,9 +13,8 @@ This repo enforces a strict split:
   - There are **no top-level** `firebase/auth` imports in this module.
   - All `firebase/auth` usage is behind `await import("firebase/auth")` inside functions.
 
-- **Native (Capacitor iOS/Android)**: Native auth lives in `src/lib/auth/nativeAuth.ts`.
-  - Uses `@capacitor-firebase/authentication`.
-  - Must **never** import `firebase/auth`.
+- **Native (Capacitor iOS/Android)**: Auth still runs through the Web SDK in the WebView.
+  - Native Firebase auth plugins are intentionally **not** used.
 
 - **Single entrypoint**: `src/lib/authFacade.ts`
   - The rest of the app imports auth only from here (or via the `src/lib/auth.ts` shim).
@@ -45,10 +45,5 @@ After changes, verify:
 
 ## iOS Firebase initialization
 
-`ios/App/App/AppDelegate.swift` configures Firebase **as early as possible**:
-
-- `override init()` calls `FirebaseApp.configure()` (guarded by presence of `GoogleService-Info.plist`)
-- `didFinishLaunchingWithOptions` also calls the same helper
-
-`GoogleService-Info.plist` must be included in the Xcode target (Copy Bundle Resources). Do **not** commit secrets into Swift.
-
+There is **no** native Firebase initialization on iOS. All Firebase usage
+happens inside the WebView via the Web SDK.

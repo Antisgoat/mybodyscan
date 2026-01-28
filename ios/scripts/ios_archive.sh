@@ -24,9 +24,6 @@ if [ ! -f "Pods/Manifest.lock" ] || [ ! -f "App.xcworkspace" ] || [ "Podfile.loc
   pod install
 fi
 
-echo "Validating Firebase plist for Release..."
-CONFIGURATION=Release bash "${REPO_ROOT}/ios/scripts/validate_firebase_plist.sh"
-
 mkdir -p "${ARCHIVE_DIR}"
 
 echo "Archiving for App Store..."

@@ -27,7 +27,7 @@
 			<string>com.mybodyscan.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.REPLACE_ME</string>
+				<string>mybodyscan</string>
 			</array>
 		</dict>
 	</array>

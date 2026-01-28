@@ -5,10 +5,8 @@ import { spawnSync } from "node:child_process";
 const repoRoot = process.cwd();
 const packageJsonPath = path.join(repoRoot, "package.json");
 const publicIndex = path.join(repoRoot, "ios/App/App/public/index.html");
-const firebasePlistCandidates = [
-  path.join(repoRoot, "ios/App/App/GoogleService-Info.plist"),
-  path.join(repoRoot, "ios/App/App/App/GoogleService-Info.plist"),
-];
+const capacitorConfigPath = path.join(repoRoot, "capacitor.config.ts");
+const iosAppDir = path.join(repoRoot, "ios/App/App");
 
 const pluginPatterns = [
   "@capacitor-firebase/authentication",
@@ -40,25 +38,8 @@ async function assertPublicIndex() {
     fail(`Missing ${publicIndex}. Run npm run ios:reset or npx cap sync ios.`);
   }
   const stats = await fs.stat(publicIndex);
-  if (stats.size < 500) {
+  if (stats.size < 1500) {
     fail(`ios/App/App/public/index.html is too small (${stats.size} bytes).`);
-  }
-}
-
-async function assertFirebasePlist() {
-  let plistPath = null;
-  for (const candidate of firebasePlistCandidates) {
-    if (await fileExists(candidate)) {
-      plistPath = candidate;
-      break;
-    }
-  }
-  if (!plistPath) {
-    fail("Missing GoogleService-Info.plist in ios/App/App or ios/App/App/App.");
-  }
-  const contents = await fs.readFile(plistPath, "utf8");
-  if (contents.includes("REPLACE_ME") || contents.includes("YOUR_")) {
-    fail(`GoogleService-Info.plist contains placeholder values at ${plistPath}.`);
   }
 }
 
@@ -79,11 +60,38 @@ function assertCapPlugins() {
   }
 }
 
+async function assertNoServerUrl() {
+  if (!(await fileExists(capacitorConfigPath))) {
+    fail(`Missing ${capacitorConfigPath}. Run from repo root.`);
+  }
+  const contents = await fs.readFile(capacitorConfigPath, "utf8");
+  const hasServerUrl =
+    /server\s*:\s*\{[\s\S]*?url\s*:/m.test(contents) ||
+    /server\.url/.test(contents);
+  if (hasServerUrl) {
+    fail("capacitor.config.ts contains server.url; remove dev server config.");
+  }
+}
+
+async function assertNoSwiftFirebaseImports() {
+  const entries = await fs.readdir(iosAppDir, { withFileTypes: true });
+  const swiftFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".swift"))
+    .map((entry) => path.join(iosAppDir, entry.name));
+  for (const file of swiftFiles) {
+    const contents = await fs.readFile(file, "utf8");
+    if (contents.includes("import FirebaseCore")) {
+      fail(`Swift FirebaseCore import detected: ${path.relative(repoRoot, file)}`);
+    }
+  }
+}
+
 async function main() {
   await assertRepoRoot();
   await assertPublicIndex();
-  await assertFirebasePlist();
   assertCapPlugins();
+  await assertNoServerUrl();
+  await assertNoSwiftFirebaseImports();
   console.log("[smoke:native] PASS");
 }
 

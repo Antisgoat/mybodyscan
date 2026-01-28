@@ -13,8 +13,31 @@ import { isNative } from "@/lib/platform";
 import { loadWebAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
-const allowBootOverlay = !__MBS_NATIVE_RELEASE__;
+const allowBootOverlay = true;
 const isNativeBuild = __IS_NATIVE__ || isNative();
+const ENV = (import.meta as any)?.env || {};
+const NATIVE_ALLOWED_SCRIPT_ORIGINS = new Set<string>(
+  (ENV.VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS as string | undefined)
+    ?.split(",")
+    .map((entry: string) => entry.trim())
+    .filter(Boolean)
+);
+
+if (typeof window !== "undefined") {
+  NATIVE_ALLOWED_SCRIPT_ORIGINS.add(window.location.origin);
+}
+
+function isAllowedNativeScriptSrc(value: string) {
+  if (!isNativeBuild) return true;
+  if (!value) return true;
+  try {
+    const url = new URL(value, window.location.href);
+    if (url.origin === window.location.origin) return true;
+    return NATIVE_ALLOWED_SCRIPT_ORIGINS.has(url.origin);
+  } catch {
+    return true;
+  }
+}
 
 function installBootErrorListeners() {
   if (typeof window === "undefined") return;
@@ -99,6 +122,65 @@ function installBootErrorListeners() {
 
 installBootErrorListeners();
 
+function installScriptCreationDiagnostics() {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsScriptGuardInstalled) return;
+  anyWin.__mbsScriptGuardInstalled = true;
+
+  const originalCreateElement = document.createElement.bind(document);
+  document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
+    const element = originalCreateElement(tagName, options);
+    if (typeof tagName === "string" && tagName.toLowerCase() === "script") {
+      const scriptEl = element as HTMLScriptElement;
+      const originalSetAttribute = scriptEl.setAttribute.bind(scriptEl);
+
+      const applySrc = (value: string, assign: (val: string) => void) => {
+        if (!isAllowedNativeScriptSrc(value)) {
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.warn("[boot] blocked_external_script", { src: value });
+          }
+          return;
+        }
+        if (!__MBS_NATIVE_RELEASE__) {
+          console.warn("[boot] script_create", { src: value });
+        }
+        assign(value);
+      };
+
+      scriptEl.setAttribute = (name: string, value: string) => {
+        if (name.toLowerCase() === "src") {
+          applySrc(value, (val) => originalSetAttribute(name, val));
+          return;
+        }
+        originalSetAttribute(name, value);
+      };
+
+      const proto = Object.getPrototypeOf(scriptEl);
+      const descriptor = Object.getOwnPropertyDescriptor(proto, "src");
+      if (descriptor?.set && descriptor?.get) {
+        Object.defineProperty(scriptEl, "src", {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return descriptor.get?.call(scriptEl);
+          },
+          set(value) {
+            applySrc(String(value ?? ""), (val) => {
+              descriptor.set?.call(scriptEl, val);
+            });
+          },
+        });
+      }
+    }
+    return element;
+  }) as typeof document.createElement;
+}
+
+if (isNativeBuild || import.meta.env.DEV) {
+  installScriptCreationDiagnostics();
+}
+
 function logExternalScriptOriginsOnce() {
   if (typeof window === "undefined" || typeof document === "undefined") return;
   const anyWin = window as any;
@@ -118,7 +200,7 @@ function logExternalScriptOriginsOnce() {
     }
   }
   const list = Array.from(origins).slice(0, 10);
-  if (!__MBS_NATIVE_RELEASE__ || list.length) {
+  if (!__MBS_NATIVE_RELEASE__) {
     console.warn("[boot] external_script_origins", list);
   }
 }
@@ -245,7 +327,11 @@ function BootFailureScreen({ failure }: { failure: BootFailure }) {
   );
 }
 
-function renderBootFailure(error: unknown, code?: string) {
+function renderBootFailure(
+  error: unknown,
+  code?: string,
+  options?: { allowInRelease?: boolean }
+) {
   // Crash shield is native-only to prevent blank white screens in WKWebView.
   if (!isNative()) return;
   if (typeof window === "undefined") return;
@@ -253,6 +339,12 @@ function renderBootFailure(error: unknown, code?: string) {
     const failure = normalizeBootFailure(error, code);
     // eslint-disable-next-line no-console
     console.error("[boot] fatal (suppressed in release):", failure.code);
+    return;
+  }
+  if (__MBS_NATIVE_RELEASE__ && !options?.allowInRelease) {
+    const failure = normalizeBootFailure(error, code);
+    // eslint-disable-next-line no-console
+    console.error("[boot] fatal (release suppressed):", failure.code);
     return;
   }
   const anyWin = window as any;
@@ -351,7 +443,7 @@ function shouldRenderBootOverlayFromRejection(event: PromiseRejectionEvent) {
 try {
   assertEnv();
 } catch (e) {
-  renderBootFailure(e, "env_assert_failed");
+  renderBootFailure(e, "env_assert_failed", { allowInRelease: true });
 }
 
 // Telemetry should initialize on both web and native.
@@ -359,7 +451,7 @@ if (typeof window !== "undefined") {
   try {
     initTelemetry();
   } catch (e) {
-    renderBootFailure(e, "telemetry_init_failed");
+    renderBootFailure(e, "telemetry_init_failed", { allowInRelease: true });
   }
 }
 
@@ -483,6 +575,6 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
       </StrictMode>
     );
   } catch (e) {
-    renderBootFailure(e, "react_mount_failed");
+    renderBootFailure(e, "react_mount_failed", { allowInRelease: true });
   }
 }

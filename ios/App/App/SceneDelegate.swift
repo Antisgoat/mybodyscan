@@ -9,13 +9,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     #endif
   }
 
-  private func buildFirebaseConfigErrorView(message: String) -> UIViewController {
+  private func buildBlockingErrorView(title: String, message: String) -> UIViewController {
     let controller = UIViewController()
     controller.view.backgroundColor = .systemBackground
 
     let titleLabel = UILabel()
     titleLabel.translatesAutoresizingMaskIntoConstraints = false
-    titleLabel.text = "App configuration error"
+    titleLabel.text = title
     titleLabel.font = UIFont.preferredFont(forTextStyle: .headline)
     titleLabel.textAlignment = .center
 
@@ -45,6 +45,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     return controller
   }
 
+  private func blockingErrorScreen(forMissingAssets status: MBSBundleDiagnostics.PublicIndexStatus) -> UIViewController? {
+    if status.exists {
+      return nil
+    }
+    let detail = "Missing bundled web assets at \(status.url?.path ?? "unknown")."
+    return buildBlockingErrorView(
+      title: "App assets missing",
+      message: detail
+    )
+  }
+
   func scene(_ scene: UIScene,
              willConnectTo session: UISceneSession,
              options connectionOptions: UIScene.ConnectionOptions) {
@@ -54,9 +65,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     guard let windowScene = scene as? UIWindowScene else { return }
 
     let window = UIWindow(windowScene: windowScene)
-    let errorMessage = MBSFirebase.assertConfiguredForScene(origin: "scene_willConnect")
-    if let errorMessage {
-      window.rootViewController = buildFirebaseConfigErrorView(message: errorMessage)
+    let publicStatus = MBSBundleDiagnostics.publicIndexStatus()
+    if let errorVC = blockingErrorScreen(forMissingAssets: publicStatus) {
+      window.rootViewController = errorVC
       self.window = window
       window.makeKeyAndVisible()
       return

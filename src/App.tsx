@@ -115,6 +115,7 @@ const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
 
 const queryClient = new QueryClient();
+const allowInternalTools = import.meta.env.DEV || !__MBS_NATIVE_RELEASE__;
 
 const PageSuspense = ({
   children,
@@ -1161,30 +1162,36 @@ const App = () => (
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/dev/audit"
-          element={
-            <PageSuspense>
-              <DevAudit />
-            </PageSuspense>
-          }
-        />
-        <Route
-          path="/diagnostics"
-          element={
-            <PageSuspense>
-              <Diagnostics />
-            </PageSuspense>
-          }
-        />
-        <Route
-          path="/__diag"
-          element={
-            <PageSuspense>
-              <Diagnostics />
-            </PageSuspense>
-          }
-        />
+        {allowInternalTools && (
+          <Route
+            path="/dev/audit"
+            element={
+              <PageSuspense>
+                <DevAudit />
+              </PageSuspense>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/diagnostics"
+            element={
+              <PageSuspense>
+                <Diagnostics />
+              </PageSuspense>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/__diag"
+            element={
+              <PageSuspense>
+                <Diagnostics />
+              </PageSuspense>
+            }
+          />
+        )}
         <Route
           path="/__admin"
           element={
@@ -1207,24 +1214,26 @@ const App = () => (
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/__smoke"
-          element={
-            <ProtectedRoute>
-              <AuthedLayout>
-                <RouteBoundary>
-                  <PageSuspense>
-                    <SmokeKit />
-                  </PageSuspense>
-                </RouteBoundary>
-              </AuthedLayout>
-            </ProtectedRoute>
-          }
-        />
+        {allowInternalTools && (
+          <Route
+            path="/__smoke"
+            element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <PageSuspense>
+                      <SmokeKit />
+                    </PageSuspense>
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            }
+          />
+        )}
         {import.meta.env.DEV && <Route path="/__uat" element={<UATPage />} />}
-        <Route path="/debug/credits" element={<DebugCredits />} />
-        <Route path="/debug/plan" element={<DebugPlan />} />
-        <Route path="/debug/health" element={<DebugHealth />} />
+        {allowInternalTools && <Route path="/debug/credits" element={<DebugCredits />} />}
+        {allowInternalTools && <Route path="/debug/plan" element={<DebugPlan />} />}
+        {allowInternalTools && <Route path="/debug/health" element={<DebugHealth />} />}
         {/* MBS Onboarding */}
         <Route
           path="/onboarding-mbs"

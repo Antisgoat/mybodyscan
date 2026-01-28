@@ -50,29 +50,17 @@ In **Apple Developer → Certificates, Identifiers & Profiles**:
   - waits for the first `onAuthStateChanged` event (`authReady`)
 - **Diagnostics**: Settings → Diagnostics shows origin/authDomain/iOS Safari detection/persistence mode and warns in red if misconfigured.
 
-### Phase 2 (Capacitor): native auth (WKWebView-safe)
+### Phase 2 (Capacitor): web-only auth inside WKWebView
 
-For Capacitor iOS/Android builds, **do not use Firebase popup/redirect inside WKWebView**. Use native auth and exchange tokens for Firebase credentials.
-
-Recommended approach:
-
-- Use a maintained plugin (this repo is wired for): `@capacitor-firebase/authentication@6.x` (compatible with `@capacitor/core@6` + `firebase@11`)
-- Use **native Google Sign-In** and **Sign in with Apple**
-- Convert to Firebase credentials and sign in with Firebase Auth
-- Handle deep links / resume with the Capacitor App plugin
+For Capacitor iOS/Android builds, MyBodyScan keeps Firebase auth **web-only** inside the WebView.
+Native Firebase auth plugins are intentionally disabled to avoid build-time and runtime issues.
 
 #### Capacitor iOS checklist (high-level)
 
-- **Bundle ID** matches Firebase iOS app
-- **Google reversed client ID** configured (from `GoogleService-Info.plist`)
-- **URL schemes** set:
-  - `REVERSED_CLIENT_ID` for Google
-  - any additional schemes required by your auth providers
-- **AppDelegate URL handling** is present (required by the plugin):
-  - `ApplicationDelegateProxy.shared.application(app, open: url, options: options)`
-  - if you also use messaging, ensure `Auth.auth().canHandle(url)` is checked first (see plugin README)
-- **Sign in with Apple** capability enabled
-- **Associated Domains** (only if you use Universal Links / dynamic links)
+- **Bundle ID** matches App Store config
+- **URL schemes** set only for deep links you control
+- **Sign in with Apple** is required if third-party sign-in is enabled (otherwise hide third-party providers)
+- **Associated Domains** only if you use Universal Links / dynamic links
 
 #### Capacitor Android checklist (high-level)
 
@@ -87,5 +75,4 @@ Recommended approach:
 - Firebase runtime config: `src/lib/firebase.ts`
 - Provider flows: `src/lib/auth/oauth.ts`, `src/lib/auth/providers.ts`
 - Diagnostics: `src/pages/Settings.tsx` (Settings → Diagnostics), `src/pages/Diagnostics.tsx`
-- Capacitor auth facade (web + native): `src/lib/authFacade.ts`
-
+- Auth facade (web-only): `src/lib/authFacade.ts`
