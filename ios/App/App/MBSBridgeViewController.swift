@@ -42,14 +42,12 @@ final class MBSBridgeViewController: CAPBridgeViewController, WKNavigationDelega
     private func logBundleResources() {
         let resourcesURL = Bundle.main.resourceURL
         let bundledIndexURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "public")
-        let rootIndexURL = Bundle.main.url(forResource: "index", withExtension: "html")
-        let indexURL = bundledIndexURL ?? rootIndexURL
         let configURL = Bundle.main.url(forResource: "capacitor", withExtension: "config.json")
-        let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        let indexExists = bundledIndexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         let configExists = configURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         debugLog("[MBS] Bundle resources=%@", resourcesURL?.path ?? "nil")
-        debugLog("[MBS] Bundled index.html=%@ exists=%d", indexURL?.path ?? "nil", indexExists ? 1 : 0)
+        debugLog("[MBS] Bundled index.html=%@ exists=%d", bundledIndexURL?.path ?? "nil", indexExists ? 1 : 0)
         debugLog("[MBS] Bundled capacitor.config.json=%@ exists=%d", configURL?.path ?? "nil", configExists ? 1 : 0)
     }
 
