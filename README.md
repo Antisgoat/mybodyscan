@@ -113,16 +113,18 @@ Repo-root commands:
 npm run ios:reset
 npm run smoke:native
 npm run ios:open
+# Or archive from CLI (Release):
+xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -archivePath build/MyBodyScan.xcarchive archive
 ```
 
-`ios:reset` cleans `dist/` and `ios/App/App/public`, rebuilds the native web
+`ios:reset` cleans `dist/` and `ios/App/App/public`, rebuilds the web
 bundle, syncs Capacitor, runs `pod install`, and opens the Xcode workspace.
 
 What good looks like:
 
 ```text
 info: cleaning native build artifacts
-info: building native web bundle
+info: building web bundle
 info: syncing Capacitor iOS
 info: validating bundled iOS web assets
 info: installing CocoaPods
@@ -171,6 +173,8 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
 - `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
 - `VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS` – Comma-separated origins allowed to load external scripts in native iOS builds.
+- `VITE_NATIVE_ANALYTICS_ENABLED` – Set to `true`/`1` to allow analytics scripts in native builds (default: disabled).
+- `VITE_NATIVE_ANALYTICS_SCRIPTS` – Comma-separated analytics scripts to load in native builds (falls back to `VITE_WEB_ANALYTICS_SCRIPTS` when empty).
 
 ### Cloud Functions secrets (attach via `firebase functions:secrets:set`)
 

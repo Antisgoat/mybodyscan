@@ -14,8 +14,8 @@ fi
 echo "info: cleaning native build artifacts"
 rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public"
 
-echo "info: building native web bundle"
-npm run build:native
+echo "info: building web bundle"
+npm run build
 
 echo "info: syncing Capacitor iOS"
 npx cap sync ios

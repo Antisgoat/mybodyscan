@@ -10,7 +10,7 @@ import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isNative } from "@/lib/platform";
-import { loadWebAnalyticsScripts } from "@/lib/analyticsLoader";
+import { loadAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
 const allowBootOverlay = true;
@@ -456,9 +456,7 @@ if (typeof window !== "undefined") {
 }
 
 if (typeof window !== "undefined") {
-  if (!isNativeBuild) {
-    loadWebAnalyticsScripts();
-  }
+  loadAnalyticsScripts({ isNativeBuild });
   try {
     logBootScriptSourcesOnce();
     logExternalScriptOriginsOnce();
