@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { isNative } from "@/lib/platform";
+import { smokeFirestoreRead } from "@/lib/firebase/smokeRead";
 import * as impl from "@mbs-auth-impl";
 import type { MbsUser, Unsubscribe } from "./mbs-auth.types";
 
@@ -89,6 +90,9 @@ function emit(nextUser: MbsUser | null) {
   cachedUser = nextUser;
   authReadyFlag = true;
   cachedSnapshot = { user: cachedUser, authReady: authReadyFlag };
+  if (nextUser?.uid) {
+    void smokeFirestoreRead(nextUser.uid);
+  }
   for (const l of listeners) {
     try {
       l();

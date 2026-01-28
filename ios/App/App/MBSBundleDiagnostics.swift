@@ -9,12 +9,16 @@ enum MBSBundleDiagnostics {
     }
     didLogPublicIndex = true
 
-    let indexPath = Bundle.main.path(forResource: "index", ofType: "html", inDirectory: "public")
-    let indexExists = indexPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+    let indexURL = Bundle.main.url(
+      forResource: "index",
+      withExtension: "html",
+      subdirectory: "public"
+    )
+    let indexExists = indexURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
     NSLog(
       "[MBS] public/index.html exists=%d path=%@",
       indexExists ? 1 : 0,
-      indexPath ?? "nil"
+      indexURL?.path ?? "nil"
     )
   }
 }

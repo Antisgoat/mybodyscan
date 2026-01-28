@@ -54,12 +54,37 @@ function scanTargets() {
   return matches;
 }
 
+function scanCapacitorPlugins() {
+  const result = spawnSync("npx", ["cap", "ls", "ios"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    const errText = (result.stderr || result.stdout || "").trim();
+    throw new Error(`npx cap ls ios failed: ${errText || "unknown error"}`);
+  }
+  const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+  const matches = [];
+  for (const pattern of patterns) {
+    if (output.includes(pattern)) {
+      const lines = output
+        .split("\n")
+        .filter((line) => line.includes(pattern))
+        .slice(0, 10)
+        .join("\n");
+      matches.push({ pattern, target: "npx cap ls ios", output: lines });
+    }
+  }
+  return matches;
+}
+
 let matches = [];
 try {
   spawnSync("rg", ["--version"], { stdio: "ignore" });
   matches = scanTargets();
+  matches = matches.concat(scanCapacitorPlugins());
 } catch (error) {
-  console.error("Failed to run rg for native Firebase Auth guard.");
+  console.error("Failed to run native Firebase Auth guard.");
   console.error(String(error));
   process.exit(1);
 }

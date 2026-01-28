@@ -13,7 +13,7 @@ import { isNative } from "@/lib/platform";
 import { loadWebAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
-const allowBootOverlay = true;
+const allowBootOverlay = !__MBS_NATIVE_RELEASE__;
 const isNativeBuild = __IS_NATIVE__ || isNative();
 
 function installBootErrorListeners() {
@@ -21,6 +21,31 @@ function installBootErrorListeners() {
   const anyWin = window as any;
   if (anyWin.__mbsBootErrorListenersInstalled) return;
   anyWin.__mbsBootErrorListenersInstalled = true;
+
+  window.addEventListener(
+    "error",
+    (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || target === window) return;
+      const src = (target as HTMLScriptElement).src;
+      const href = (target as HTMLLinkElement).href;
+      if (!src && !href) return;
+      if (__MBS_NATIVE_RELEASE__) {
+        // eslint-disable-next-line no-console
+        console.error("[boot] resource_error (release)", {
+          tagName: target.tagName,
+        });
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error("[boot] resource_error", {
+        tagName: target.tagName,
+        src,
+        href,
+      });
+    },
+    true
+  );
 
   window.addEventListener(
     "error",
@@ -283,6 +308,19 @@ function getLoadedScriptSources(): string[] {
   }
 }
 
+function logBootScriptSourcesOnce() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsBootScriptSourcesLogged) return;
+  anyWin.__mbsBootScriptSourcesLogged = true;
+
+  const scripts = getLoadedScriptSources();
+  if (!scripts.length) return;
+  if (!__MBS_NATIVE_RELEASE__) {
+    console.warn("[boot] script_sources", scripts);
+  }
+}
+
 function isSameOriginFilename(filename?: string) {
   if (!filename || typeof window === "undefined") return false;
   try {
@@ -330,6 +368,7 @@ if (typeof window !== "undefined") {
     loadWebAnalyticsScripts();
   }
   try {
+    logBootScriptSourcesOnce();
     logExternalScriptOriginsOnce();
   } catch {
     // ignore
