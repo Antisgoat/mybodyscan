@@ -526,7 +526,7 @@ From the repo root (`/workspace/mybodyscan`), run:
 2. `npm run build:native`
 3. `npx cap sync ios`
 4. `npm run smoke:native`
-5. `open ios/App/App.xcworkspace`
+5. `open ios/App/App.xcworkspace` (always open the workspace, never the .xcodeproj)
 
 If you want the full reset flow instead:
 
@@ -536,3 +536,4 @@ If you want the full reset flow instead:
 Notes:
 - `ios:reset` cleans native/web artifacts, rebuilds the native bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
 - If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.
+- Use `npm run ios:clean` to wipe iOS build artifacts and DerivedData before re-running the reset flow.
