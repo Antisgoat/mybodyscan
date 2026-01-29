@@ -24,7 +24,7 @@
     "ios:sync": "node scripts/assert-repo-root.mjs && node scripts/assert-no-native-firebase-auth.mjs && npm run build:native && npx cap sync ios && node scripts/assert-no-native-firebase-auth.mjs && node scripts/assert-ios-public-bundle.mjs && (cd ios/App && pod install)",
     "ios:reset": "bash ios/scripts/ios_reset.sh",
     "ios:run": "npm run ios:sync && npm run ios:open",
-    "ios:clean": "rm -rf ios/App/build ios/App/DerivedData && echo \"If Xcode issues persist, remove ~/Library/Developer/Xcode/DerivedData\"",
+    "ios:clean": "node scripts/ios-clean.mjs",
     "ios:assets": "npx @capacitor/assets generate --ios",
     "verify:native": "node scripts/verify-native-bundle.mjs",
     "verify:native-bundle": "node scripts/verify-native-bundle.mjs",
