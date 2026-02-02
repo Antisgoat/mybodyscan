@@ -134,31 +134,13 @@ async function assertNoServerUrl() {
   pass("No dev server.url in capacitor.config.ts.");
 }
 
-async function assertNoSwiftFirebaseImports() {
-  const entries = await fs.readdir(iosAppDir, { withFileTypes: true });
-  const swiftFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".swift"))
-    .map((entry) => path.join(iosAppDir, entry.name));
-  const forbiddenSnippets = [
-    "import Firebase",
-    "import FirebaseCore",
-    "FirebaseApp.configure",
-    "FirebaseOptions",
-  ];
-  for (const file of swiftFiles) {
-    const contents = await fs.readFile(file, "utf8");
-    for (const snippet of forbiddenSnippets) {
-      if (contents.includes(snippet)) {
-        fail(
-          `Swift Firebase usage detected (${snippet}): ${path.relative(
-            repoRoot,
-            file
-          )}`
-        );
-      }
-    }
-  }
-  pass("No Firebase imports/config detected in iOS Swift sources.");
+function assertNoSwiftFirebaseImports() {
+  const pattern = "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|import Firebase";
+  assertRgClean("ios/App/App Swift files", pattern, [
+    "--glob",
+    "**/*.swift",
+    path.join(repoRoot, "ios/App/App"),
+  ]);
 }
 
 async function assertNoFirebaseInPbxproj() {
@@ -226,10 +208,11 @@ function assertRgClean(label, pattern, paths) {
 }
 
 function assertNoFirebaseStringsInIos() {
-  const pattern = "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist";
+  const pattern =
+    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist";
   assertRgClean("ios/App/App Swift files", pattern, [
     "--glob",
-    "*.swift",
+    "**/*.swift",
     path.join(repoRoot, "ios/App/App"),
   ]);
   assertRgClean("ios/App/App.xcodeproj/project.pbxproj", pattern, [iosPbxproj]);
@@ -260,7 +243,7 @@ async function main() {
   await assertPublicIndex();
   assertCapPlugins();
   await assertNoServerUrl();
-  await assertNoSwiftFirebaseImports();
+  assertNoSwiftFirebaseImports();
   await assertNoFirebaseInPbxproj();
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
