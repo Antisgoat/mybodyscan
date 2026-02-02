@@ -112,7 +112,7 @@ Repo-root commands:
 ```sh
 npm run ios:reset
 npm run smoke:native
-npm run ios:open
+open ios/App/App.xcworkspace
 # Or archive from CLI (Release):
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -archivePath build/MyBodyScan.xcarchive archive
 ```
