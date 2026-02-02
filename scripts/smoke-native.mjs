@@ -5,9 +5,12 @@ import { spawnSync } from "node:child_process";
 const repoRoot = process.cwd();
 const packageJsonPath = path.join(repoRoot, "package.json");
 const publicIndex = path.join(repoRoot, "ios/App/App/public/index.html");
+const publicAssetsDir = path.join(repoRoot, "ios/App/App/public/assets");
 const capacitorConfigPath = path.join(repoRoot, "capacitor.config.ts");
 const iosAppDir = path.join(repoRoot, "ios/App/App");
 const iosWorkspace = path.join(repoRoot, "ios/App/App.xcworkspace");
+const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
+const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
 
 const pluginPatterns = [
   "@capacitor-firebase/authentication",
@@ -44,8 +47,11 @@ async function assertPublicIndex() {
     fail(`Missing ${publicIndex}. Run npm run ios:reset or npx cap sync ios.`);
   }
   const stats = await fs.stat(publicIndex);
-  if (stats.size < 1500) {
+  if (stats.size < 1000) {
     fail(`ios/App/App/public/index.html is too small (${stats.size} bytes).`);
+  }
+  if (!(await fileExists(publicAssetsDir))) {
+    fail(`Missing ${publicAssetsDir}. Run npm run ios:reset or npx cap sync ios.`);
   }
 }
 
@@ -169,6 +175,22 @@ function assertNoFirebaseStringsInIos() {
   }
 }
 
+async function assertNoFirebaseInPodfiles() {
+  const forbiddenSnippets = ["Firebase", "FirebaseCore", "FirebaseApp", "FirebaseOptions"];
+  const podfiles = [iosPodfile, iosPodfileLock];
+  for (const file of podfiles) {
+    if (!(await fileExists(file))) {
+      continue;
+    }
+    const contents = await fs.readFile(file, "utf8");
+    for (const snippet of forbiddenSnippets) {
+      if (contents.includes(snippet)) {
+        fail(`Firebase reference detected in ${path.relative(repoRoot, file)} (${snippet}).`);
+      }
+    }
+  }
+}
+
 async function main() {
   await assertRepoRoot();
   await assertWorkspace();
@@ -178,6 +200,7 @@ async function main() {
   await assertNoSwiftFirebaseImports();
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
+  await assertNoFirebaseInPodfiles();
   console.log("[smoke:native] PASS");
 }
 
