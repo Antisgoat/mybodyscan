@@ -7,6 +7,18 @@ Use this checklist before submitting a build to App Store Connect. It focuses on
 - Build with the current Xcode/iOS SDK required by Apple (see App Store Connect “Upload requirements” guidance).
 - Confirm the deployment target still matches the supported minimum (currently iOS 14.0 per `ios/App/Podfile`).
 
+## Clean Build Steps (before Release)
+
+- From repo root: `npm run ios:reset` (rebuilds web bundle, syncs Capacitor, installs pods).
+- Confirm `ios/App/App/public/index.html` is present and non-placeholder.
+- Run `npm run smoke:native` to ensure no native Firebase usage/plugins.
+
+## Archive Steps (Release)
+
+- Open `ios/App/App.xcworkspace` (never `.xcodeproj`).
+- Select scheme `App`, configuration Release.
+- Product → Archive, then validate and upload to App Store Connect.
+
 ## Privacy Manifest (PrivacyInfo.xcprivacy)
 
 - Verify `ios/App/App/PrivacyInfo.xcprivacy` exists and reflects any required reason API declarations.
@@ -38,3 +50,9 @@ Use this checklist before submitting a build to App Store Connect. It focuses on
 - Fresh install on a device (no previous data): login, core scans, subscription purchase/restore, and logout.
 - Airplane/offline mode: verify the app fails gracefully and recovers when online.
 - Confirm the home screen, scan flow, and purchase restore paths work end-to-end.
+
+## Common Rejection Pitfalls (avoid)
+
+- Missing or inaccurate `NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription` strings.
+- Blank screen on launch (missing `ios/App/App/public` assets or broken Capacitor sync).
+- Shipping debug-only routes/tools or dev server configuration in Release builds.

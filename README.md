@@ -144,6 +144,34 @@ Highlights:
 - `/oauth/return` handles OAuth and deep-link callbacks as a stable fallback route for native shells
 - Android back navigation prompts before leaving critical flows (scan upload/processing, Stripe return pages)
 
+### iOS build/run (Debug/Release) — single source of truth
+
+Use these steps for all local iOS builds (simulator/device) and App Store archives.
+Always open the workspace (`ios/App/App.xcworkspace`), never the `.xcodeproj`.
+
+**Debug (Simulator/device)**
+
+```sh
+npm run ios:reset
+npm run smoke:native
+open ios/App/App.xcworkspace
+```
+
+- In Xcode: select the `App` scheme and a Simulator/device, then Run.
+- `ios:reset` builds the native web bundle, syncs Capacitor, installs pods, and ensures `ios/App/App/public/index.html` is present.
+
+**Release (archive-ready)**
+
+```sh
+MODE=native MBS_NATIVE_RELEASE=1 npm run build:native
+npx cap sync ios
+npm run smoke:native
+xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' build
+```
+
+- `MBS_NATIVE_RELEASE=1` disables internal tools/debug routes gated by `__MBS_NATIVE_RELEASE__`.
+- Archive from Xcode: Product → Archive (scheme `App`, configuration Release).
+
 ## Can I connect a custom domain to my Lovable project?
 
 Yes, you can!
