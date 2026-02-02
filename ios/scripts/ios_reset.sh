@@ -35,6 +35,9 @@ npm run build:native
 echo "info: syncing Capacitor iOS"
 npx cap sync ios
 
+echo "info: verifying no native Firebase plugins"
+node scripts/assert-no-native-firebase-auth.mjs
+
 echo "info: validating bundled iOS web assets"
 node scripts/assert-ios-public-bundle.mjs
 

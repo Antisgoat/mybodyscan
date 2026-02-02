@@ -113,10 +113,23 @@ async function assertNoSwiftFirebaseImports() {
   const swiftFiles = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".swift"))
     .map((entry) => path.join(iosAppDir, entry.name));
+  const forbiddenSnippets = [
+    "import Firebase",
+    "import FirebaseCore",
+    "FirebaseApp.configure",
+    "FirebaseOptions",
+  ];
   for (const file of swiftFiles) {
     const contents = await fs.readFile(file, "utf8");
-    if (contents.includes("import FirebaseCore")) {
-      fail(`Swift FirebaseCore import detected: ${path.relative(repoRoot, file)}`);
+    for (const snippet of forbiddenSnippets) {
+      if (contents.includes(snippet)) {
+        fail(
+          `Swift Firebase usage detected (${snippet}): ${path.relative(
+            repoRoot,
+            file
+          )}`
+        );
+      }
     }
   }
 }
