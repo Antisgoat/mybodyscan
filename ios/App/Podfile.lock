@@ -6,28 +6,6 @@ PODS:
   - CapacitorBrowser (6.0.6):
     - Capacitor
   - CapacitorCordova (6.2.1)
-  - GoogleUtilities/AppDelegateSwizzler (8.1.0):
-    - GoogleUtilities/Environment
-    - GoogleUtilities/Logger
-    - GoogleUtilities/Network
-    - GoogleUtilities/Privacy
-  - GoogleUtilities/Environment (8.1.0):
-    - GoogleUtilities/Privacy
-  - GoogleUtilities/Logger (8.1.0):
-    - GoogleUtilities/Environment
-    - GoogleUtilities/Privacy
-  - GoogleUtilities/Network (8.1.0):
-    - GoogleUtilities/Logger
-    - "GoogleUtilities/NSData+zlib"
-    - GoogleUtilities/Privacy
-    - GoogleUtilities/Reachability
-  - "GoogleUtilities/NSData+zlib (8.1.0)":
-    - GoogleUtilities/Privacy
-  - GoogleUtilities/Privacy (8.1.0)
-  - GoogleUtilities/Reachability (8.1.0):
-    - GoogleUtilities/Logger
-    - GoogleUtilities/Privacy
-  - GTMSessionFetcher/Core (4.5.0)
   - PurchasesHybridCommon (13.26.0):
     - RevenueCat (= 5.20.0)
   - RevenueCat (5.20.0)
@@ -44,7 +22,6 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
-    - GoogleUtilities
     - PurchasesHybridCommon
     - RevenueCat
 
@@ -65,7 +42,6 @@ SPEC CHECKSUMS:
   CapacitorApp: 22c94146dfaae1159ab7059cbd51e76d9f2d45ec
   CapacitorBrowser: 9e9a268445f9472b04b68320930c59bdc4d360fa
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
-  GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   PurchasesHybridCommon: fa166fc8b385cf80f581f923c91d8ccffe5dd7f8
   RevenueCat: e47ff90dfd271fde155a4befe48e8fc02e8281e4
   RevenuecatPurchasesCapacitor: 05a6dc8ba13e6cc072202c2dddcb4556abf45259

@@ -34,6 +34,10 @@ xcodebuild \
   -sdk iphoneos \
   -destination 'generic/platform=iOS' \
   -archivePath "${ARCHIVE_PATH}" \
-  archive
+  archive | tee /tmp/mbs-archive.log
+
+if grep -n "error:" /tmp/mbs-archive.log | head -n 40; then
+  exit 1
+fi
 
 echo "Archive created at: ${ARCHIVE_PATH}"
