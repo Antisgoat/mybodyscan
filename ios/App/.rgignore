@@ -1,0 +1,2 @@
+# Ignore bundled web assets when scanning native iOS sources for Firebase.
+App/public/**
