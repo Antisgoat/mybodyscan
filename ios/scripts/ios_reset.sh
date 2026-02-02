@@ -29,8 +29,8 @@ if [[ -d "${DERIVED_DATA_ROOT}" ]]; then
   shopt -u nullglob
 fi
 
-echo "info: building native web bundle"
-npm run build:native
+echo "info: building web bundle"
+npm run build
 
 echo "info: syncing Capacitor iOS"
 npx cap sync ios
@@ -47,7 +47,7 @@ if ! command -v pod >/dev/null 2>&1; then
 fi
 
 echo "info: installing CocoaPods"
-(cd "${REPO_ROOT}/ios/App" && pod install)
+(cd "${REPO_ROOT}/ios/App" && pod install --repo-update)
 
 if [[ ! -d "${REPO_ROOT}/ios/App/App.xcworkspace" ]]; then
   echo "error: ios/App/App.xcworkspace missing. Run npm run ios:reset again." >&2

@@ -9,6 +9,8 @@ const publicAssetsDir = path.join(repoRoot, "ios/App/App/public/assets");
 const capacitorConfigPath = path.join(repoRoot, "capacitor.config.ts");
 const iosAppDir = path.join(repoRoot, "ios/App/App");
 const iosWorkspace = path.join(repoRoot, "ios/App/App.xcworkspace");
+const iosProject = path.join(repoRoot, "ios/App/App.xcodeproj");
+const iosPbxproj = path.join(repoRoot, "ios/App/App.xcodeproj/project.pbxproj");
 const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
 const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
 
@@ -58,6 +60,15 @@ async function assertPublicIndex() {
 async function assertWorkspace() {
   if (!(await fileExists(iosWorkspace))) {
     fail(`Missing ${iosWorkspace}. Run npm run ios:reset.`);
+  }
+  if (await fileExists(iosProject)) {
+    console.warn(
+      "[smoke:native] WARN: Open ios/App/App.xcworkspace (not ios/App/App.xcodeproj)."
+    );
+  }
+  const openedContainer = process.env.XCODE_CONTAINER || process.env.MBS_XCODE_CONTAINER;
+  if (openedContainer && openedContainer.includes(".xcodeproj")) {
+    fail(`Xcode container is ${openedContainer}. Use ios/App/App.xcworkspace.`);
   }
 }
 
@@ -140,6 +151,32 @@ async function assertNoSwiftFirebaseImports() {
   }
 }
 
+async function assertNoFirebaseInPbxproj() {
+  if (!(await fileExists(iosPbxproj))) {
+    return;
+  }
+  const contents = await fs.readFile(iosPbxproj, "utf8");
+  const forbiddenSnippets = [
+    "Firebase",
+    "FirebaseCore",
+    "FirebaseApp",
+    "FirebaseOptions",
+    "GoogleService-Info.plist",
+  ];
+  for (const snippet of forbiddenSnippets) {
+    if (contents.includes(snippet)) {
+      fail(
+        `Firebase reference detected in ios/App/App.xcodeproj/project.pbxproj (${snippet}).`
+      );
+    }
+  }
+  if (contents.includes("DerivedData") || contents.includes("/Users/")) {
+    fail(
+      "project.pbxproj contains DerivedData or absolute user paths. Remove those build settings."
+    );
+  }
+}
+
 function assertNoCapFirebaseAuthPackage() {
   const result = spawnSync(
     "npm",
@@ -164,14 +201,14 @@ function assertNoCapFirebaseAuthPackage() {
 function assertNoFirebaseStringsInIos() {
   const result = spawnSync(
     "rg",
-    ["-n", "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions", iosAppDir],
+    ["-n", "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist", path.join(repoRoot, "ios/App")],
     { cwd: repoRoot, encoding: "utf8" }
   );
   if (result.status === 0) {
-    fail("Firebase strings found in ios/App/App. Remove all native Firebase references.");
+    fail("Firebase strings found in ios/App. Remove all native Firebase references.");
   }
   if (result.status !== 1) {
-    fail(`rg failed while scanning ios/App/App: ${(result.stderr || "").trim()}`);
+    fail(`rg failed while scanning ios/App: ${(result.stderr || "").trim()}`);
   }
 }
 
@@ -198,6 +235,7 @@ async function main() {
   assertCapPlugins();
   await assertNoServerUrl();
   await assertNoSwiftFirebaseImports();
+  await assertNoFirebaseInPbxproj();
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
   await assertNoFirebaseInPodfiles();
