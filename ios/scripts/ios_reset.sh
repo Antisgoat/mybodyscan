@@ -16,15 +16,10 @@ if [[ ! -d "${REPO_ROOT}/node_modules" ]]; then
   npm install
 fi
 
-BUILD_CMD="build"
-if node -e "const scripts=require('./package.json').scripts||{}; process.exit(scripts['build:web'] ? 0 : 1)"; then
-  BUILD_CMD="build:web"
-fi
+echo "info: building web bundle (npm run build)"
+npm run build
 
-echo "info: building web bundle (npm run ${BUILD_CMD})"
-npm run "${BUILD_CMD}"
-
-echo "info: syncing Capacitor iOS"
+echo "info: syncing Capacitor iOS (npx cap sync ios)"
 npx cap sync ios
 
 if ! command -v pod >/dev/null 2>&1; then
@@ -32,7 +27,7 @@ if ! command -v pod >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "info: installing CocoaPods"
+echo "info: installing CocoaPods (pod install --repo-update)"
 (cd "${REPO_ROOT}/ios/App" && pod install --repo-update)
 
 if [[ ! -d "${REPO_ROOT}/ios/App/App.xcworkspace" ]]; then
@@ -47,4 +42,9 @@ else
   echo "warn: 'open' not available. Open ios/App/App.xcworkspace manually."
 fi
 
-echo "info: ios reset complete"
+cat <<EOF
+success: ios reset complete
+success: open ios/App/App.xcworkspace (not the .xcodeproj)
+success: run npm run smoke:native
+success: run npm run ios:build:debug and npm run ios:build:release
+EOF
