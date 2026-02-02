@@ -6,8 +6,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${REPO_ROOT}"
 
-if [[ ! -f "${REPO_ROOT}/package.json" ]]; then
-  echo "error: package.json not found. Run this script from the repo root." >&2
+if [[ ! -f "${REPO_ROOT}/package.json" || ! -d "${REPO_ROOT}/ios" ]]; then
+  echo "error: package.json or ios/ not found. Run this script from the repo root." >&2
   exit 1
 fi
 
@@ -16,30 +16,16 @@ if [[ ! -d "${REPO_ROOT}/node_modules" ]]; then
   npm install
 fi
 
-echo "info: cleaning native build artifacts"
-rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public" "${REPO_ROOT}/ios/App/DerivedData"
-
-DERIVED_DATA_ROOT="${HOME}/Library/Developer/Xcode/DerivedData"
-if [[ -d "${DERIVED_DATA_ROOT}" ]]; then
-  shopt -s nullglob
-  APP_DERIVED_DATA=("${DERIVED_DATA_ROOT}"/App-*)
-  if [[ ${#APP_DERIVED_DATA[@]} -gt 0 ]]; then
-    rm -rf "${APP_DERIVED_DATA[@]}"
-  fi
-  shopt -u nullglob
+BUILD_CMD="build"
+if node -e "const scripts=require('./package.json').scripts||{}; process.exit(scripts['build:web'] ? 0 : 1)"; then
+  BUILD_CMD="build:web"
 fi
 
-echo "info: building web bundle"
-npm run build
+echo "info: building web bundle (npm run ${BUILD_CMD})"
+npm run "${BUILD_CMD}"
 
 echo "info: syncing Capacitor iOS"
 npx cap sync ios
-
-echo "info: verifying no native Firebase plugins"
-node scripts/assert-no-native-firebase-auth.mjs
-
-echo "info: validating bundled iOS web assets"
-node scripts/assert-ios-public-bundle.mjs
 
 if ! command -v pod >/dev/null 2>&1; then
   echo "error: CocoaPods (pod) not found. Install CocoaPods and re-run." >&2

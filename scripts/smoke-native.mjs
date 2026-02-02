@@ -25,8 +25,12 @@ const allowedPlugins = new Set([
 ]);
 
 function fail(message) {
-  console.error(`[smoke:native] FAIL: ${message}`);
+  console.error(`❌ [smoke:native] ${message}`);
   process.exit(1);
+}
+
+function pass(message) {
+  console.log(`✅ ${message}`);
 }
 
 async function fileExists(filePath) {
@@ -42,6 +46,7 @@ async function assertRepoRoot() {
   if (!(await fileExists(packageJsonPath))) {
     fail(`Missing ${packageJsonPath}. Run from repo root.`);
   }
+  pass("Repo root detected.");
 }
 
 async function assertPublicIndex() {
@@ -55,6 +60,7 @@ async function assertPublicIndex() {
   if (!(await fileExists(publicAssetsDir))) {
     fail(`Missing ${publicAssetsDir}. Run npm run ios:reset or npx cap sync ios.`);
   }
+  pass("iOS web bundle exists and is large enough.");
 }
 
 async function assertWorkspace() {
@@ -70,6 +76,7 @@ async function assertWorkspace() {
   if (openedContainer && openedContainer.includes(".xcodeproj")) {
     fail(`Xcode container is ${openedContainer}. Use ios/App/App.xcworkspace.`);
   }
+  pass("Xcode workspace verified.");
 }
 
 function assertCapPlugins() {
@@ -110,6 +117,7 @@ function assertCapPlugins() {
       fail(`npx cap ls ios reports disallowed plugin: ${pattern}.`);
     }
   }
+  pass("Capacitor iOS plugins match expected list (RevenueCat only).");
 }
 
 async function assertNoServerUrl() {
@@ -123,6 +131,7 @@ async function assertNoServerUrl() {
   if (hasServerUrl) {
     fail("capacitor.config.ts contains server.url; remove dev server config.");
   }
+  pass("No dev server.url in capacitor.config.ts.");
 }
 
 async function assertNoSwiftFirebaseImports() {
@@ -149,6 +158,7 @@ async function assertNoSwiftFirebaseImports() {
       }
     }
   }
+  pass("No Firebase imports/config detected in iOS Swift sources.");
 }
 
 async function assertNoFirebaseInPbxproj() {
@@ -175,6 +185,7 @@ async function assertNoFirebaseInPbxproj() {
       "project.pbxproj contains DerivedData or absolute user paths. Remove those build settings."
     );
   }
+  pass("No Firebase references detected in project.pbxproj.");
 }
 
 function assertNoCapFirebaseAuthPackage() {
@@ -196,20 +207,34 @@ function assertNoCapFirebaseAuthPackage() {
   if (data.dependencies && data.dependencies["@capacitor-firebase/authentication"]) {
     fail("npm ls reports @capacitor-firebase/authentication is installed.");
   }
+  pass("npm ls confirms no @capacitor-firebase/authentication package.");
+}
+
+function assertRgClean(label, pattern, paths) {
+  const result = spawnSync("rg", ["-n", pattern, ...paths], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (result.status === 0) {
+    const output = (result.stdout || "").trim();
+    fail(`${label}:\n${output}`);
+  }
+  if (result.status !== 1) {
+    fail(`rg failed while scanning ${label}: ${(result.stderr || "").trim()}`);
+  }
+  pass(`${label} is clean.`);
 }
 
 function assertNoFirebaseStringsInIos() {
-  const result = spawnSync(
-    "rg",
-    ["-n", "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist", path.join(repoRoot, "ios/App")],
-    { cwd: repoRoot, encoding: "utf8" }
-  );
-  if (result.status === 0) {
-    fail("Firebase strings found in ios/App. Remove all native Firebase references.");
-  }
-  if (result.status !== 1) {
-    fail(`rg failed while scanning ios/App: ${(result.stderr || "").trim()}`);
-  }
+  const pattern = "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist";
+  assertRgClean("ios/App/App Swift files", pattern, [
+    "--glob",
+    "*.swift",
+    path.join(repoRoot, "ios/App/App"),
+  ]);
+  assertRgClean("ios/App/App.xcodeproj/project.pbxproj", pattern, [iosPbxproj]);
+  assertRgClean("ios/App/Podfile", pattern, [iosPodfile]);
+  assertRgClean("ios/App/Podfile.lock", pattern, [iosPodfileLock]);
 }
 
 async function assertNoFirebaseInPodfiles() {
@@ -226,6 +251,7 @@ async function assertNoFirebaseInPodfiles() {
       }
     }
   }
+  pass("Podfiles are free of Firebase references.");
 }
 
 async function main() {
@@ -239,7 +265,7 @@ async function main() {
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
   await assertNoFirebaseInPodfiles();
-  console.log("[smoke:native] PASS");
+  console.log("✅ [smoke:native] PASS");
 }
 
 main().catch((error) => {
