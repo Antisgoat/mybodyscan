@@ -474,21 +474,6 @@ if (typeof window !== "undefined" && isNative()) {
     "error",
     (event: ErrorEvent) => {
       try {
-        if (!(window as any).__firstBootError) {
-          (window as any).__firstBootError = true;
-          if (!__MBS_NATIVE_RELEASE__) {
-            console.error(
-              "[boot] first error:",
-              event.error || event.message,
-              event.filename,
-              event.lineno,
-              event.colno,
-              (event.error as any)?.stack
-            );
-          } else {
-            console.error("[boot] first error (release):", event.message);
-          }
-        }
         if (isGenericScriptError(event)) {
           if (!__MBS_NATIVE_RELEASE__) {
             console.warn("[boot] window_error_ignored generic_script_error", {
@@ -505,6 +490,21 @@ if (typeof window !== "undefined" && isNative()) {
             });
           }
           return;
+        }
+        if (!(window as any).__firstBootError) {
+          (window as any).__firstBootError = true;
+          if (!__MBS_NATIVE_RELEASE__) {
+            console.error(
+              "[boot] first error:",
+              event.error || event.message,
+              event.filename,
+              event.lineno,
+              event.colno,
+              (event.error as any)?.stack
+            );
+          } else {
+            console.error("[boot] first error (release):", event.message);
+          }
         }
         if (!shouldRenderBootOverlayFromError(event)) {
           if (!__MBS_NATIVE_RELEASE__) {

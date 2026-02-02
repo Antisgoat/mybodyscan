@@ -17,10 +17,20 @@ if [[ ! -d "${REPO_ROOT}/node_modules" ]]; then
 fi
 
 echo "info: cleaning native build artifacts"
-rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public"
+rm -rf "${REPO_ROOT}/dist" "${REPO_ROOT}/ios/App/App/public" "${REPO_ROOT}/ios/App/DerivedData"
 
-echo "info: building web bundle"
-npm run build
+DERIVED_DATA_ROOT="${HOME}/Library/Developer/Xcode/DerivedData"
+if [[ -d "${DERIVED_DATA_ROOT}" ]]; then
+  shopt -s nullglob
+  APP_DERIVED_DATA=("${DERIVED_DATA_ROOT}"/App-*)
+  if [[ ${#APP_DERIVED_DATA[@]} -gt 0 ]]; then
+    rm -rf "${APP_DERIVED_DATA[@]}"
+  fi
+  shopt -u nullglob
+fi
+
+echo "info: building native web bundle"
+npm run build:native
 
 echo "info: syncing Capacitor iOS"
 npx cap sync ios
