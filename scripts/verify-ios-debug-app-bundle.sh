@@ -9,8 +9,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [ ! -d "$ROOT_DIR/ios/App/App.xcworkspace" ]; then
+  echo "Missing App.xcworkspace. Run: npm run ios:sync" >&2
+  exit 1
+fi
+
 xcodebuild \
-  -project "$ROOT_DIR/ios/App/App.xcodeproj" \
+  -workspace "$ROOT_DIR/ios/App/App.xcworkspace" \
   -scheme App \
   -configuration Debug \
   -sdk iphonesimulator \
