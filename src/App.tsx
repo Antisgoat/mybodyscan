@@ -1085,22 +1085,24 @@ const App = () => (
             </FeatureGate>
           }
         />
-        <Route
-          path="/scan/diagnostics"
-          element={
-            <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
-              <ProtectedRoute>
-                <PersonalizationGate>
-                  <AuthedLayout>
-                    <PageSuspense>
-                      <ScanDiagnostics />
-                    </PageSuspense>
-                  </AuthedLayout>
-                </PersonalizationGate>
-              </ProtectedRoute>
-            </FeatureGate>
-          }
-        />
+        {allowInternalTools && (
+          <Route
+            path="/scan/diagnostics"
+            element={
+              <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+                <ProtectedRoute>
+                  <PersonalizationGate>
+                    <AuthedLayout>
+                      <PageSuspense>
+                        <ScanDiagnostics />
+                      </PageSuspense>
+                    </AuthedLayout>
+                  </PersonalizationGate>
+                </ProtectedRoute>
+              </FeatureGate>
+            }
+          />
+        )}
         <Route
           path="/scan/new"
           element={

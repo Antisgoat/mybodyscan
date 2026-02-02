@@ -54,6 +54,7 @@ prod-*.js
 
 # Capacitor sync output (keep placeholder index tracked)
 ios/App/App/public/**
+!ios/App/App/public/
 !ios/App/App/public/index.html
 
 # Firebase iOS config (keep example template tracked)

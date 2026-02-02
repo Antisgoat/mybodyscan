@@ -9,6 +9,9 @@ type HealthSnapshot = {
 
 export default function SetupBanner() {
   const [message, setMessage] = useState<string | null>(null);
+  const allowInternalTools =
+    import.meta.env.DEV ||
+    (import.meta.env.VITE_INTERNAL_TOOLS === "1" && !__MBS_NATIVE_RELEASE__);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,11 +52,13 @@ export default function SetupBanner() {
   return (
     <div style={bar} role="status" aria-live="polite">
       <span>{message}</span>
-      <span style={{ marginLeft: 8 }}>
-        <a href="/diagnostics" style={link}>
-          Diagnostics
-        </a>
-      </span>
+      {allowInternalTools && (
+        <span style={{ marginLeft: 8 }}>
+          <a href="/diagnostics" style={link}>
+            Diagnostics
+          </a>
+        </span>
+      )}
     </div>
   );
 }
