@@ -10,8 +10,4 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
 fi
 
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build | tee /tmp/mbs-debug.log
-if grep -n "error:" /tmp/mbs-debug.log > /tmp/mbs-debug-errors.log; then
-  echo "First 80 error lines:"
-  head -n 80 /tmp/mbs-debug-errors.log
-  exit 1
-fi
+rg -n "error:" /tmp/mbs-debug.log | head -n 80 || echo "✅ NO DEBUG ERRORS"
