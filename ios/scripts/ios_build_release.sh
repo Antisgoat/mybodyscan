@@ -10,4 +10,8 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
 fi
 
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' build | tee /tmp/mbs-release.log
-grep -n "error:" /tmp/mbs-release.log && exit 1 || true
+if grep -n "error:" /tmp/mbs-release.log > /tmp/mbs-release-errors.log; then
+  echo "First 80 error lines:"
+  head -n 80 /tmp/mbs-release-errors.log
+  exit 1
+fi
