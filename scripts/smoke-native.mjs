@@ -11,6 +11,7 @@ const iosAppDir = path.join(repoRoot, "ios/App/App");
 const iosWorkspace = path.join(repoRoot, "ios/App/App.xcworkspace");
 const iosProject = path.join(repoRoot, "ios/App/App.xcodeproj");
 const iosPbxproj = path.join(repoRoot, "ios/App/App.xcodeproj/project.pbxproj");
+const iosAppDelegate = path.join(repoRoot, "ios/App/App/AppDelegate.swift");
 const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
 const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
 
@@ -144,6 +145,17 @@ function assertNoSwiftFirebaseImports() {
   ]);
 }
 
+async function assertAppDelegateIsCapacitorOnly() {
+  if (!(await fileExists(iosAppDelegate))) {
+    fail(`Missing ${iosAppDelegate}. Run npm run ios:reset.`);
+  }
+  const contents = await fs.readFile(iosAppDelegate, "utf8");
+  if (/(FirebaseCore|FirebaseApp|import Firebase)/.test(contents)) {
+    fail("AppDelegate.swift contains Firebase imports. Remove native Firebase usage.");
+  }
+  pass("AppDelegate.swift contains no Firebase imports.");
+}
+
 async function assertNoFirebaseInPbxproj() {
   if (!(await fileExists(iosPbxproj))) {
     return;
@@ -261,6 +273,7 @@ async function assertNoFirebaseInPodfiles() {
 async function main() {
   await assertRepoRoot();
   await assertWorkspace();
+  await assertAppDelegateIsCapacitorOnly();
   await assertPublicIndex();
   assertCapPlugins();
   await assertNoServerUrl();
