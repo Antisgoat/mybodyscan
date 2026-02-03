@@ -25,6 +25,7 @@
     "ios:reset": "bash ios/scripts/ios_reset.sh",
     "ios:build:debug": "bash ios/scripts/ios_build_debug.sh",
     "ios:build:release": "bash ios/scripts/ios_build_release.sh",
+    "ios:archive": "bash ios/scripts/ios_archive.sh",
     "ios:run": "npm run ios:sync && npm run ios:open",
     "ios:clean": "node scripts/ios-clean.mjs",
     "ios:assets": "npx @capacitor/assets generate --ios",

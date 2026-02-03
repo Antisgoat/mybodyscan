@@ -135,7 +135,8 @@ async function assertNoServerUrl() {
 }
 
 function assertNoSwiftFirebaseImports() {
-  const pattern = "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|import Firebase";
+  const pattern =
+    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|import Firebase|GoogleUtilities";
   assertRgClean("ios/App/App Swift files", pattern, [
     "--glob",
     "**/*.swift",
@@ -154,12 +155,24 @@ async function assertNoFirebaseInPbxproj() {
     "FirebaseApp",
     "FirebaseOptions",
     "GoogleService-Info.plist",
+    "Ensure Firebase",
+    "GoogleUtilities",
   ];
   for (const snippet of forbiddenSnippets) {
     if (contents.includes(snippet)) {
       fail(
         `Firebase reference detected in ios/App/App.xcodeproj/project.pbxproj (${snippet}).`
       );
+    }
+  }
+  if (contents.includes("PBXShellScriptBuildPhase")) {
+    const shellScriptMatches = contents.match(/shellScript = "([^"]*)";/g) || [];
+    for (const match of shellScriptMatches) {
+      if (/(Firebase|GoogleService-Info\.plist|Ensure Firebase|GoogleUtilities)/.test(match)) {
+        fail(
+          "Run Script build phase contains Firebase-related references in project.pbxproj."
+        );
+      }
     }
   }
   if (contents.includes("DerivedData") || contents.includes("/Users/")) {
@@ -209,7 +222,7 @@ function assertRgClean(label, pattern, paths) {
 
 function assertNoFirebaseStringsInIos() {
   const pattern =
-    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist";
+    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist|Ensure Firebase|GoogleUtilities";
   assertRgClean("ios/App/App Swift files", pattern, [
     "--glob",
     "**/*.swift",
@@ -221,7 +234,15 @@ function assertNoFirebaseStringsInIos() {
 }
 
 async function assertNoFirebaseInPodfiles() {
-  const forbiddenSnippets = ["Firebase", "FirebaseCore", "FirebaseApp", "FirebaseOptions"];
+  const forbiddenSnippets = [
+    "Firebase",
+    "FirebaseCore",
+    "FirebaseApp",
+    "FirebaseOptions",
+    "GoogleUtilities",
+    "GoogleService-Info.plist",
+    "Ensure Firebase",
+  ];
   const podfiles = [iosPodfile, iosPodfileLock];
   for (const file of podfiles) {
     if (!(await fileExists(file))) {
