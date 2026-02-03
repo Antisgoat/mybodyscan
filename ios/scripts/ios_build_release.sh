@@ -9,5 +9,10 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ ! -d ios/App/App.xcworkspace ]]; then
+  echo "error: ios/App/App.xcworkspace not found. Run npm run ios:reset first." >&2
+  exit 1
+fi
+
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' build | tee /tmp/mbs-release.log
 rg -n "error:" /tmp/mbs-release.log | head -n 80 || echo "✅ NO RELEASE ERRORS"
