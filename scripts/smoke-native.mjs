@@ -301,7 +301,15 @@ function assertRgClean(label, pattern, paths) {
     cwd: repoRoot,
     encoding: "utf8",
   });
-  if (rgResult.error && rgResult.error.code === "ENOENT") {
+  if (rgResult.error) {
+    if (rgResult.error.code === "ENOENT") {
+      runGrepScan(label, pattern, existingPaths, grepIncludes);
+      return;
+    }
+    const errText = formatSearchOutput(rgResult.stderr || rgResult.stdout || "");
+    fail(`rg failed while scanning ${label}: ${errText || rgResult.error.message}`);
+  }
+  if (rgResult.status === null && rgResult.error) {
     runGrepScan(label, pattern, existingPaths, grepIncludes);
     return;
   }
@@ -328,6 +336,13 @@ function runGrepScan(label, pattern, existingPaths, includes) {
       encoding: "utf8",
     }
   );
+  if (result.error && result.error.code === "ENOENT") {
+    console.warn(
+      `[smoke:native] WARN: grep not available; skipping ${label} scan.`
+    );
+    pass(`${label} skipped (grep unavailable).`);
+    return;
+  }
   if (result.status === 0) {
     const output = formatSearchOutput(result.stdout);
     fail(`${label}:\n${output || "Matches found."}`);

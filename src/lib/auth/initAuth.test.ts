@@ -29,6 +29,9 @@ describe("initAuth", () => {
     expect(state.completed).toBe(true);
     expect(state.persistence).toBe("indexeddb");
     expect(state.redirectError).toBeNull();
+    expect(state.timedOut).toBe(false);
+    expect(state.lastError).toBeNull();
+    expect(state.step).toBe("done");
   });
 
   it("swallows redirect finalization errors (doesn't crash boot)", async () => {
@@ -41,5 +44,6 @@ describe("initAuth", () => {
     const state = getInitAuthState();
     expect(state.completed).toBe(true);
     expect(state.redirectError).toContain("redirect_failed");
+    expect(state.timedOut).toBe(false);
   });
 });
