@@ -14,6 +14,7 @@ const iosPbxproj = path.join(repoRoot, "ios/App/App.xcodeproj/project.pbxproj");
 const iosAppDelegate = path.join(repoRoot, "ios/App/App/AppDelegate.swift");
 const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
 const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
+const iosDuplicateDoctor = path.join(repoRoot, "scripts/doctor-ios-duplicates.mjs");
 
 const pluginPatterns = [
   "@capacitor-firebase/authentication",
@@ -251,6 +252,21 @@ function assertNoCapFirebaseAuthPackage() {
   pass("npm ls confirms no @capacitor-firebase/authentication package.");
 }
 
+function assertNoDuplicateBuildOutputs() {
+  const result = spawnSync("node", [iosDuplicateDoctor], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
+  if (output) {
+    console.log(output);
+  }
+  if (result.status !== 0) {
+    fail("Duplicate build outputs detected in project.pbxproj.");
+  }
+  pass("project.pbxproj does not contain duplicate build file entries.");
+}
+
 function assertRgClean(label, pattern, paths) {
   const result = spawnSync("rg", ["-n", pattern, ...paths], {
     cwd: repoRoot,
@@ -314,6 +330,7 @@ async function main() {
   assertNoSwiftFirebaseImports();
   await assertNoFirebaseInPbxproj();
   await assertNoAppFolderCopiedInPbxproj();
+  assertNoDuplicateBuildOutputs();
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
   await assertNoFirebaseInPodfiles();
