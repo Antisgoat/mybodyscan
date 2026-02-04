@@ -15,7 +15,7 @@ if [[ ! -d ios/App/App.xcworkspace ]]; then
 fi
 
 log_path="/tmp/mbs-release.log"
-if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' build | tee "$log_path"; then
+if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tee "$log_path"; then
   echo "error: xcodebuild Release failed. Showing context around the first error:" >&2
   if command -v rg >/dev/null 2>&1; then
     error_line=$(rg -n "error:" "$log_path" | head -n 1 | cut -d: -f1 || true)
