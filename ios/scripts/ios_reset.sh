@@ -6,7 +6,11 @@ cd "$repo_root"
 
 npm run build:web
 npx cap sync ios
-(cd ios/App && pod install --repo-update)
+if command -v pod >/dev/null 2>&1; then
+  (cd ios/App && pod install --repo-update)
+else
+  echo "warn: CocoaPods not installed; skipping pod install." >&2
+fi
 
 app_delegate_path="$repo_root/ios/App/App/AppDelegate.swift"
 pbxproj_path="$repo_root/ios/App/App.xcodeproj/project.pbxproj"
@@ -22,4 +26,8 @@ if rg -n "FirebaseCore|FirebaseApp|import Firebase|FirebaseOptions|GoogleService
   exit 1
 fi
 
-open ios/App/App.xcworkspace
+if command -v open >/dev/null 2>&1; then
+  open ios/App/App.xcworkspace
+else
+  echo "info: 'open' command not available; skipping workspace launch." >&2
+fi
