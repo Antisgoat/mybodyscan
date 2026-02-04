@@ -34,6 +34,9 @@ export async function signInEmailPassword(email: string, password: string) {
   if (!result?.user) {
     throw new Error("Auth sign-in did not return a user.");
   }
+  if (typeof console !== "undefined") {
+    console.info("[auth] login success", { method: "email" });
+  }
   return result.user;
 }
 

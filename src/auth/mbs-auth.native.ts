@@ -10,10 +10,6 @@ import {
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
-import {
-  signInWithApple as webSignInWithApple,
-  signInWithGoogle as webSignInWithGoogle,
-} from "./mbs-auth.web";
 import type { MbsUser, MbsUserCredential, Unsubscribe } from "./mbs-auth.types";
 
 function toMbsUser(user?: User | null): MbsUser | null {
@@ -134,11 +130,15 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<void> {
-  await webSignInWithGoogle(null);
+  const err: any = new Error("Google sign-in is web-only for now.");
+  err.code = "auth/native-unsupported";
+  throw err;
 }
 
 export async function signInWithApple(): Promise<void> {
-  await webSignInWithApple(null);
+  const err: any = new Error("Apple sign-in is web-only for now.");
+  err.code = "auth/native-unsupported";
+  throw err;
 }
 
 export async function webRequireAuth(): Promise<null> {

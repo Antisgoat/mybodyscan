@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { loadStripe } from "@stripe/stripe-js";
 import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
@@ -31,9 +30,11 @@ export default function Billing() {
   const [msg, setMsg] = useState<string | null>(null);
   const native = isNative();
   const stripePromise = useMemo(() => {
-    if (native) return null;
+    if (__IS_NATIVE__ || native) return null;
     const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
-    return key ? loadStripe(key) : null;
+    return key
+      ? import("@stripe/stripe-js").then(({ loadStripe }) => loadStripe(key))
+      : null;
   }, [native]);
 
   useEffect(() => {

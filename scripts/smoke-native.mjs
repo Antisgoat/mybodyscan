@@ -269,16 +269,21 @@ function assertNoDuplicateBuildOutputs() {
 }
 
 function assertRgClean(label, pattern, paths) {
-  const args = [];
+  const rgArgs = [];
+  const grepIncludes = [];
   const existingPaths = [];
   for (let i = 0; i < paths.length; i += 1) {
     const entry = paths[i];
     if (entry.startsWith("-")) {
-      args.push(entry);
+      rgArgs.push(entry);
       if (entry === "--glob") {
         const globValue = paths[i + 1];
         if (globValue) {
-          args.push(globValue);
+          rgArgs.push(globValue);
+          const normalizedGlob = normalizeGrepGlob(globValue);
+          if (normalizedGlob) {
+            grepIncludes.push(normalizedGlob);
+          }
           i += 1;
         }
       }
@@ -292,19 +297,72 @@ function assertRgClean(label, pattern, paths) {
     pass(`${label} skipped (no matching paths).`);
     return;
   }
-  const result = spawnSync("rg", ["-n", pattern, ...args, ...existingPaths], {
+  const rgResult = spawnSync("rg", ["-n", pattern, ...rgArgs, ...existingPaths], {
     cwd: repoRoot,
     encoding: "utf8",
   });
+  if (rgResult.error && rgResult.error.code === "ENOENT") {
+    runGrepScan(label, pattern, existingPaths, grepIncludes);
+    return;
+  }
+  if (rgResult.status === 0) {
+    const output = formatSearchOutput(rgResult.stdout);
+    fail(`${label}:\n${output || "Matches found."}`);
+  }
+  if (rgResult.status === 1) {
+    pass(`${label} is clean.`);
+    return;
+  }
+  const errText = formatSearchOutput(rgResult.stderr || rgResult.stdout || "");
+  fail(`rg failed while scanning ${label}: ${errText || "unknown error"}`);
+}
+
+function runGrepScan(label, pattern, existingPaths, includes) {
+  const grepPath = fsSync.existsSync("/usr/bin/grep") ? "/usr/bin/grep" : "grep";
+  const includeArgs = includes.map((glob) => `--include=${glob}`);
+  const result = spawnSync(
+    grepPath,
+    ["-R", "-n", ...includeArgs, pattern, ...existingPaths],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }
+  );
   if (result.status === 0) {
-    const output = (result.stdout || "").trim();
-    fail(`${label}:\n${output}`);
+    const output = formatSearchOutput(result.stdout);
+    fail(`${label}:\n${output || "Matches found."}`);
   }
   if (result.status === 1) {
     pass(`${label} is clean.`);
     return;
   }
-  fail(`rg failed while scanning ${label}: ${(result.stderr || "").trim()}`);
+  const errText = formatSearchOutput(result.stderr || result.stdout || "");
+  fail(`grep failed while scanning ${label}: ${errText || "unknown error"}`);
+}
+
+function normalizeGrepGlob(globValue) {
+  if (!globValue) return null;
+  const normalized = globValue.replace(/^\*\*\/+/, "");
+  if (!normalized) return null;
+  if (!normalized.includes("/")) return normalized;
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] || normalized;
+}
+
+function formatSearchOutput(text, maxLines = 20, maxChars = 2000) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+  const lines = trimmed.split("\n");
+  const limitedLines =
+    lines.length > maxLines ? lines.slice(0, maxLines) : lines;
+  let result = limitedLines.join("\n");
+  if (lines.length > maxLines) {
+    result = `${result}\n… (${lines.length - maxLines} more lines truncated)`;
+  }
+  if (result.length > maxChars) {
+    result = `${result.slice(0, maxChars)}… (truncated)`;
+  }
+  return result;
 }
 
 function assertNoFirebaseStringsInIos() {

@@ -195,10 +195,11 @@
 			);
 			name = "Assert App Bundle Executable";
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/App-assert-executable.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\n\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  exit 0\nfi\n\nEXECUTABLE_PATH_FULL=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"${EXECUTABLE_PATH_FULL}\" ]; then\n  echo \"error: Missing built executable at ${EXECUTABLE_PATH_FULL}. Ensure the target builds an executable and the build settings are correct.\" >&2\n  exit 1\nfi\n\nif [ ! -f \"${PLIST_PATH}\" ]; then\n  echo \"error: Missing built Info.plist at ${PLIST_PATH}. Ensure INFOPLIST_FILE points to App/Info.plist and GENERATE_INFOPLIST_FILE is NO.\" >&2\n  exit 1\nfi\n\nBUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c \"Print CFBundleExecutable\" \"${PLIST_PATH}\" 2>/dev/null || true)\nif [ -z \"${BUNDLE_EXECUTABLE}\" ]; then\n  echo \"error: CFBundleExecutable is missing in the built Info.plist. Ensure CFBundleExecutable is set to \\\"$(EXECUTABLE_NAME)\\\" and INFOPLIST_KEY_CFBundleExecutable is configured.\" >&2\n  exit 1\nfi\n\nif [ \"${BUNDLE_EXECUTABLE}\" != \"${EXECUTABLE_NAME}\" ]; then\n  echo \"error: CFBundleExecutable '${BUNDLE_EXECUTABLE}' does not match EXECUTABLE_NAME '${EXECUTABLE_NAME}'. Fix Info.plist or build settings.\" >&2\n  exit 1\nfi\n\necho \"Validated CFBundleExecutable=${BUNDLE_EXECUTABLE}\"\n";
+			shellScript = "set -euo pipefail\n\nif [ \"${CONFIGURATION}\" != \"Debug\" ]; then\n  exit 0\nfi\n\nEXECUTABLE_PATH_FULL=\"${TARGET_BUILD_DIR}/${EXECUTABLE_PATH}\"\nPLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"${EXECUTABLE_PATH_FULL}\" ]; then\n  echo \"error: Missing built executable at ${EXECUTABLE_PATH_FULL}. Ensure the target builds an executable and the build settings are correct.\" >&2\n  exit 1\nfi\n\nif [ ! -f \"${PLIST_PATH}\" ]; then\n  echo \"error: Missing built Info.plist at ${PLIST_PATH}. Ensure INFOPLIST_FILE points to App/Info.plist and GENERATE_INFOPLIST_FILE is NO.\" >&2\n  exit 1\nfi\n\nBUNDLE_EXECUTABLE=$(/usr/libexec/PlistBuddy -c \"Print CFBundleExecutable\" \"${PLIST_PATH}\" 2>/dev/null || true)\nif [ -z \"${BUNDLE_EXECUTABLE}\" ]; then\n  echo \"error: CFBundleExecutable is missing in the built Info.plist. Ensure CFBundleExecutable is set to \\\"$(EXECUTABLE_NAME)\\\" and INFOPLIST_KEY_CFBundleExecutable is configured.\" >&2\n  exit 1\nfi\n\nif [ \"${BUNDLE_EXECUTABLE}\" != \"${EXECUTABLE_NAME}\" ]; then\n  echo \"error: CFBundleExecutable '${BUNDLE_EXECUTABLE}' does not match EXECUTABLE_NAME '${EXECUTABLE_NAME}'. Fix Info.plist or build settings.\" >&2\n  exit 1\nfi\n\necho \"Validated CFBundleExecutable=${BUNDLE_EXECUTABLE}\"\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
 		6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */ = {
@@ -228,10 +229,11 @@
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-App-frameworks-embed.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-App/Pods-App-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-App/Pods-App-frameworks.sh\"\n\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
