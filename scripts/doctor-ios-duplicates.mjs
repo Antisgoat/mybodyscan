@@ -54,7 +54,7 @@ function findTargetBuildPhases(contents) {
 
 function findPhaseBlock(contents, phaseId) {
   const phaseRegex = new RegExp(
-    `${phaseId} \/\\*[^*]*\\*\/ = \\{isa = (PBX\\w+BuildPhase);[\\s\\S]*?files = \\(([\\s\\S]*?)\\);`,
+    `${phaseId} /\\*[^*]*\\*/ = \\{isa = (PBX\\w+BuildPhase);[\\s\\S]*?files = \\(([\\s\\S]*?)\\);`,
     "m"
   );
   const match = contents.match(phaseRegex);
