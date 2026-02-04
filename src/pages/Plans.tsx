@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,9 +30,6 @@ const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
 const STRIPE_PUBLISHABLE_KEY = (
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""
 ).trim();
-const stripePromise = STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(STRIPE_PUBLISHABLE_KEY)
-  : null;
 const BILLING_CONFIGURED = Boolean(STRIPE_PUBLISHABLE_KEY);
 
 type PlanConfig = {
@@ -57,6 +54,12 @@ export default function Plans() {
   const { user } = useAuthUser();
   const iosBuild = isIOSBuild();
   const native = isNative();
+  const stripePromise = useMemo(() => {
+    if (native) return null;
+    return STRIPE_PUBLISHABLE_KEY
+      ? loadStripe(STRIPE_PUBLISHABLE_KEY)
+      : null;
+  }, [native]);
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [billingActionError, setBillingActionError] = useState<{
     title: string;

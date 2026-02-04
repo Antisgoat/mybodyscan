@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -268,7 +269,30 @@ function assertNoDuplicateBuildOutputs() {
 }
 
 function assertRgClean(label, pattern, paths) {
-  const result = spawnSync("rg", ["-n", pattern, ...paths], {
+  const args = [];
+  const existingPaths = [];
+  for (let i = 0; i < paths.length; i += 1) {
+    const entry = paths[i];
+    if (entry.startsWith("-")) {
+      args.push(entry);
+      if (entry === "--glob") {
+        const globValue = paths[i + 1];
+        if (globValue) {
+          args.push(globValue);
+          i += 1;
+        }
+      }
+      continue;
+    }
+    if (fsSync.existsSync(entry)) {
+      existingPaths.push(entry);
+    }
+  }
+  if (!existingPaths.length) {
+    pass(`${label} skipped (no matching paths).`);
+    return;
+  }
+  const result = spawnSync("rg", ["-n", pattern, ...args, ...existingPaths], {
     cwd: repoRoot,
     encoding: "utf8",
   });

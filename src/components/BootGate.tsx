@@ -1,5 +1,6 @@
 import { ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { logFirebaseConfigSummary, logFirebaseRuntimeInfo } from "@/lib/firebase";
+import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNative } from "@/lib/platform";
 
 const BOOT_STYLE: Record<string, string | number> = {
@@ -42,8 +43,25 @@ export function BootGate({
 
   useEffect(() => {
     let cancelled = false;
+    const native = isNative();
+    const pendingOauth =
+      typeof window !== "undefined"
+        ? window.sessionStorage?.getItem(PENDING_OAUTH_KEY)
+        : null;
+    const logBoot = (phase: string, extra?: Record<string, unknown>) => {
+      console.info("[boot]", {
+        phase,
+        native,
+        pendingOauth: Boolean(pendingOauth),
+        ...extra,
+      });
+    };
+    logBoot("start");
     const timeout = window.setTimeout(() => {
-      if (!cancelled) setTimedOut(true);
+      if (!cancelled) {
+        logBoot("timeout", { initAuth: getInitAuthState() });
+        setTimedOut(true);
+      }
     }, AUTH_BOOT_TIMEOUT_MS);
     void (async () => {
       // Always safe to log config summary on both web + native.
@@ -54,13 +72,17 @@ export function BootGate({
         import("@/lib/auth/initAuth"),
         import("@/lib/firebase/runtimeConfig"),
       ]);
+      logBoot("auth:init:start");
       await initAuth();
-      if (!isNative()) {
+      logBoot("auth:init:done", { initAuth: getInitAuthState() });
+      if (!native) {
+        logBoot("firebase:probe:start");
         void probeFirebaseRuntime();
       }
       if (!cancelled) {
         setReady(true);
         setTimedOut(false);
+        logBoot("ready");
       }
     })();
     return () => {

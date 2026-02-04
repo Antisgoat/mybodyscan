@@ -29,10 +29,12 @@ export default function Billing() {
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const native = isNative();
   const stripePromise = useMemo(() => {
+    if (native) return null;
     const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
     return key ? loadStripe(key) : null;
-  }, []);
+  }, [native]);
 
   useEffect(() => {
     return () => {
@@ -64,7 +66,6 @@ export default function Billing() {
     }
   }
 
-  const native = isNative();
   if (native) {
     return <Navigate to="/paywall" replace />;
   }
