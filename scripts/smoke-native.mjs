@@ -195,6 +195,40 @@ async function assertNoFirebaseInPbxproj() {
   pass("No Firebase references detected in project.pbxproj.");
 }
 
+async function assertNoAppFolderCopiedInPbxproj() {
+  if (!(await fileExists(iosPbxproj))) {
+    return;
+  }
+  const contents = await fs.readFile(iosPbxproj, "utf8");
+  const disallowedMarkers = [
+    "/* App in Resources */",
+    "/* App in Copy Files */",
+    "/* App in Embed Frameworks */",
+  ];
+  for (const marker of disallowedMarkers) {
+    if (contents.includes(marker)) {
+      fail(
+        `project.pbxproj copies the App source folder into the bundle (${marker}). Remove it from Resources/Copy Files phases.`
+      );
+    }
+  }
+  const phaseBlocks = [
+    { label: "PBXResourcesBuildPhase", regex: /PBXResourcesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g },
+    { label: "PBXCopyFilesBuildPhase", regex: /PBXCopyFilesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g },
+  ];
+  for (const phase of phaseBlocks) {
+    let match;
+    while ((match = phase.regex.exec(contents))) {
+      if (match[1].includes("/* App") || match[1].includes(" App in ")) {
+        fail(
+          `${phase.label} includes a file named App. This would copy App into App.app/App and cause duplicate outputs.`
+        );
+      }
+    }
+  }
+  pass("project.pbxproj does not copy the App source folder into the bundle.");
+}
+
 function assertNoCapFirebaseAuthPackage() {
   const result = spawnSync(
     "npm",
@@ -279,6 +313,7 @@ async function main() {
   await assertNoServerUrl();
   assertNoSwiftFirebaseImports();
   await assertNoFirebaseInPbxproj();
+  await assertNoAppFolderCopiedInPbxproj();
   assertNoCapFirebaseAuthPackage();
   assertNoFirebaseStringsInIos();
   await assertNoFirebaseInPodfiles();
