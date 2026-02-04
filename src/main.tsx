@@ -39,6 +39,43 @@ function isAllowedNativeScriptSrc(value: string) {
   }
 }
 
+function installNativeDiagnosticsListeners() {
+  if (!isNativeBuild || typeof window === "undefined") return;
+  const anyWin = window as any;
+  if (anyWin.__mbsNativeDiagnosticsInstalled) return;
+  anyWin.__mbsNativeDiagnosticsInstalled = true;
+
+  window.addEventListener(
+    "error",
+    (event: Event) => {
+      if (!(event instanceof ErrorEvent)) return;
+      const err = event.error as Error | undefined;
+      // eslint-disable-next-line no-console
+      console.error("JS_ERROR", {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: err?.stack,
+      });
+    },
+    true
+  );
+
+  window.addEventListener(
+    "unhandledrejection",
+    (event: PromiseRejectionEvent) => {
+      const reason = event.reason as Error | undefined;
+      // eslint-disable-next-line no-console
+      console.error("JS_REJECTION", {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason?.stack,
+      });
+    },
+    true
+  );
+}
+
 function installBootErrorListeners() {
   if (typeof window === "undefined") return;
   const anyWin = window as any;
@@ -120,6 +157,7 @@ function installBootErrorListeners() {
   );
 }
 
+installNativeDiagnosticsListeners();
 installBootErrorListeners();
 
 function installScriptCreationDiagnostics() {
