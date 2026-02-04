@@ -15,7 +15,7 @@ fi
 app_delegate_path="$repo_root/ios/App/App/AppDelegate.swift"
 pbxproj_path="$repo_root/ios/App/App.xcodeproj/project.pbxproj"
 
-expected_app_delegate=$'import UIKit\nimport Capacitor\n\n@UIApplicationMain\nclass AppDelegate: CAPAppDelegate {}'
+expected_app_delegate=$'import UIKit\nimport Capacitor\n\n@UIApplicationMain\nclass AppDelegate: UIResponder, UIApplicationDelegate {\n  func application(\n    _ application: UIApplication,\n    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?\n  ) -> Bool {\n    return true\n  }\n\n  func application(\n    _ app: UIApplication,\n    open url: URL,\n    options: [UIApplication.OpenURLOptionsKey: Any] = [:]\n  ) -> Bool {\n    return CAPBridge.handleOpenUrl(url, options)\n  }\n\n  func application(\n    _ application: UIApplication,\n    continue userActivity: NSUserActivity,\n    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void\n  ) -> Bool {\n    return CAPBridge.handleContinueActivity(userActivity, restorationHandler)\n  }\n}'
 app_delegate_contents=$(cat "$app_delegate_path")
 app_delegate_contents="${app_delegate_contents%$'\n'}"
 if [[ "$app_delegate_contents" != "$expected_app_delegate" ]]; then
