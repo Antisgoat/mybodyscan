@@ -29,13 +29,7 @@ firebase_app="App"
 google_service_prefix="GoogleService-Info"
 google_service_suffix=".plist"
 firebase_pattern="Firebase${firebase_core}|Firebase${firebase_app}|import ${firebase_name}|${google_service_prefix}${google_service_suffix}"
-if rg -n "$firebase_pattern" "$app_delegate_path" "$pbxproj_path" >/dev/null; then
+if grep -nE "$firebase_pattern" "$app_delegate_path" "$pbxproj_path" >/dev/null; then
   echo "error: Native iOS shell contains Firebase references. Remove them before continuing." >&2
   exit 1
-fi
-
-if command -v open >/dev/null 2>&1; then
-  open ios/App/App.xcworkspace
-else
-  echo "info: 'open' command not available; skipping workspace launch." >&2
 fi

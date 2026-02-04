@@ -17,11 +17,7 @@ fi
 log_path="/tmp/mbs-debug.log"
 if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build | tee "$log_path"; then
   echo "error: xcodebuild Debug failed. Showing context around the first error:" >&2
-  if command -v rg >/dev/null 2>&1; then
-    error_line=$(rg -n "error:" "$log_path" | head -n 1 | cut -d: -f1 || true)
-  else
-    error_line=$(grep -n "error:" "$log_path" | head -n 1 | cut -d: -f1 || true)
-  fi
+  error_line=$(grep -n "error:" "$log_path" | head -n 1 | cut -d: -f1 || true)
   if [[ -n "$error_line" ]]; then
     start=$((error_line - 60))
     if [[ "$start" -lt 1 ]]; then
@@ -34,8 +30,4 @@ if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration De
   fi
   exit 1
 fi
-if command -v rg >/dev/null 2>&1; then
-  rg -n "error:" "$log_path" | head -n 80 || echo "✅ NO DEBUG ERRORS"
-else
-  grep -n "error:" "$log_path" | head -n 80 || echo "✅ NO DEBUG ERRORS"
-fi
+grep -n "error:" "$log_path" | head -n 80 || echo "✅ NO DEBUG ERRORS"
