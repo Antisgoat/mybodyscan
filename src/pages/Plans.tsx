@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -55,10 +54,11 @@ export default function Plans() {
   const iosBuild = isIOSBuild();
   const native = isNative();
   const stripePromise = useMemo(() => {
-    if (native) return null;
-    return STRIPE_PUBLISHABLE_KEY
-      ? loadStripe(STRIPE_PUBLISHABLE_KEY)
-      : null;
+    if (__IS_NATIVE__ || native) return null;
+    if (!STRIPE_PUBLISHABLE_KEY) return null;
+    return import("@stripe/stripe-js").then(({ loadStripe }) =>
+      loadStripe(STRIPE_PUBLISHABLE_KEY)
+    );
   }, [native]);
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [billingActionError, setBillingActionError] = useState<{

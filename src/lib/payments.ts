@@ -1,4 +1,3 @@
-import { loadStripe } from "@stripe/stripe-js";
 import { apiFetchJson } from "./apiFetch";
 import { isNative } from "@/lib/platform";
 
@@ -31,12 +30,17 @@ function ensureStripePublishableKey(): string {
 }
 
 function assertPaymentsAllowed(): void {
-  if (isNative()) {
+  if (__IS_NATIVE__ || isNative()) {
     throw {
       error: "payments_disabled",
       code: "payments_disabled",
     } satisfies ErrorPayload;
   }
+}
+
+async function loadStripeClient() {
+  const { loadStripe } = await import("@stripe/stripe-js");
+  return loadStripe(STRIPE_PUBLISHABLE_KEY);
 }
 
 const checkoutFunctionUrl = (
@@ -254,7 +258,7 @@ export async function startCheckout(
   }
 
   ensureStripePublishableKey();
-  const stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
+  const stripe = await loadStripeClient();
   if (!stripe) {
     throw {
       error: "stripe_not_loaded",

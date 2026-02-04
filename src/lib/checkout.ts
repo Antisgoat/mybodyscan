@@ -1,4 +1,3 @@
-import { loadStripe } from "@stripe/stripe-js";
 import { httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
@@ -10,7 +9,7 @@ export async function startCheckout(
   mode: "payment" | "subscription",
   promoCode?: string
 ) {
-  if (isNative()) {
+  if (__IS_NATIVE__ || isNative()) {
     toast({
       title: "Checkout unavailable",
       description: "Stripe checkout is not supported on iOS builds.",
@@ -27,6 +26,7 @@ export async function startCheckout(
     });
     throw new Error("Checkout unavailable — missing publishable key.");
   }
+  const { loadStripe } = await import("@stripe/stripe-js");
   const stripe = await loadStripe(publishableKey);
   if (!stripe) {
     toast({

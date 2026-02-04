@@ -64,6 +64,8 @@ secrets/GoogleService-Info.plist
 ios/App/Pods/
 ios/App/build/
 ios/App/DerivedData/
+ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/
+ios/App/App.xcworkspace/xcshareddata/
 ios/App/App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 android/.gradle/
 android/build/

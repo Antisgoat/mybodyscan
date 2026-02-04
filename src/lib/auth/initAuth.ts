@@ -36,6 +36,9 @@ export async function initAuth(): Promise<void> {
   if (initPromise) return initPromise;
   state.started = true;
   initPromise = (async () => {
+    if (typeof console !== "undefined") {
+      console.info("[auth] init start");
+    }
     void reportError({
       kind: "auth.init",
       message: "auth.init",
@@ -61,6 +64,12 @@ export async function initAuth(): Promise<void> {
     const { startAuthListener } = await import("@/auth/mbs-auth");
     await startAuthListener().catch(() => undefined);
     state.completed = true;
+    if (typeof console !== "undefined") {
+      console.info("[auth] init done", {
+        persistence: state.persistence,
+        redirectError: Boolean(state.redirectError),
+      });
+    }
     void reportError({
       kind: "auth.init",
       message: "auth.init",
