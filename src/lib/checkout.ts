@@ -3,12 +3,21 @@ import { httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import { apiFetch } from "@/lib/apiFetch";
+import { isNative } from "@/lib/platform";
 
 export async function startCheckout(
   priceId: string,
   mode: "payment" | "subscription",
   promoCode?: string
 ) {
+  if (isNative()) {
+    toast({
+      title: "Checkout unavailable",
+      description: "Stripe checkout is not supported on iOS builds.",
+      variant: "destructive",
+    });
+    throw new Error("Checkout unavailable — native build.");
+  }
   const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   if (!publishableKey) {
     toast({
