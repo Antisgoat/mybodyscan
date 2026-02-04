@@ -16,18 +16,8 @@ fi
 
 log_path="/tmp/mbs-release.log"
 if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tee "$log_path"; then
-  echo "error: xcodebuild Release failed. Showing context around the first error:" >&2
-  error_line=$(grep -n "error:" "$log_path" | head -n 1 | cut -d: -f1 || true)
-  if [[ -n "$error_line" ]]; then
-    start=$((error_line - 60))
-    if [[ "$start" -lt 1 ]]; then
-      start=1
-    fi
-    end=$((error_line + 60))
-    sed -n "${start},${end}p" "$log_path" >&2
-  else
-    tail -n 120 "$log_path" >&2
-  fi
+  echo "error: xcodebuild Release failed. Showing the first error lines:" >&2
+  grep -n "error:" "$log_path" | head -n 120 >&2 || true
   exit 1
 fi
 grep -n "error:" "$log_path" | head -n 80 || echo "✅ NO RELEASE ERRORS"
