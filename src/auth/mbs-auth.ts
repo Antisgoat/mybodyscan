@@ -85,6 +85,7 @@ const listeners = new Set<() => void>();
 let unsubscribe: Unsubscribe | null = null;
 let firstAuthEventResolve: (() => void) | null = null;
 let firstAuthEventPromise: Promise<void> | null = null;
+const NATIVE_AUTH_READY_TIMEOUT_MS = 3000;
 
 function emit(nextUser: MbsUser | null) {
   cachedUser = nextUser;
@@ -125,7 +126,24 @@ async function ensureListener(): Promise<void> {
 
 export async function startAuthListener(): Promise<void> {
   await ensureListener();
-  await (firstAuthEventPromise ?? Promise.resolve());
+  const waitForFirstEvent = firstAuthEventPromise ?? Promise.resolve();
+  if (!isNative()) {
+    await waitForFirstEvent;
+    return;
+  }
+  await Promise.race([
+    waitForFirstEvent,
+    new Promise<void>((resolve) => {
+      const schedule =
+        typeof window === "undefined" ? globalThis.setTimeout : window.setTimeout;
+      schedule(() => {
+        if (!authReadyFlag) {
+          emit(null);
+        }
+        resolve();
+      }, NATIVE_AUTH_READY_TIMEOUT_MS);
+    }),
+  ]);
 }
 
 function subscribe(listener: () => void) {

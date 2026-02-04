@@ -300,10 +300,11 @@ function assertRgClean(label, pattern, paths) {
     const output = (result.stdout || "").trim();
     fail(`${label}:\n${output}`);
   }
-  if (result.status !== 1) {
-    fail(`rg failed while scanning ${label}: ${(result.stderr || "").trim()}`);
+  if (result.status === 1) {
+    pass(`${label} is clean.`);
+    return;
   }
-  pass(`${label} is clean.`);
+  fail(`rg failed while scanning ${label}: ${(result.stderr || "").trim()}`);
 }
 
 function assertNoFirebaseStringsInIos() {
