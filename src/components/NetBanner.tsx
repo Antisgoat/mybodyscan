@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  subscribeOnlineStatus,
+  type OnlineStatus,
+} from "@/lib/network";
 
-type NetState = { offline: boolean; msg?: string; t?: number };
+type NetState = { status: OnlineStatus; msg?: string; t?: number };
 
 type NetEventDetail = { message?: string };
 
 export default function NetBanner() {
   const [state, setState] = useState<NetState>({
-    offline: typeof navigator !== "undefined" ? !navigator.onLine : false,
+    status:
+      typeof navigator !== "undefined" && navigator.onLine === false
+        ? "offline"
+        : "unknown",
   });
   const timerRef = useRef<number>();
+  const statusRef = useRef<OnlineStatus>(state.status);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -20,49 +28,38 @@ export default function NetBanner() {
       }
     }
 
-    function onOffline() {
-      clearTimer();
-      setState({ offline: true });
-    }
-
-    function onOnline() {
-      clearTimer();
-      setState({ offline: false });
-    }
-
     function onNet(event: Event) {
       const detail = (event as CustomEvent<NetEventDetail>)?.detail;
       const message = detail?.message || "Network request failed.";
-      const offline =
-        typeof navigator !== "undefined" ? !navigator.onLine : false;
       const timestamp = Date.now();
-      setState({ offline, msg: message, t: timestamp });
-      if (!offline) {
+      setState((prev) => ({ ...prev, msg: message, t: timestamp }));
+      if (statusRef.current !== "offline") {
         clearTimer();
         timerRef.current = window.setTimeout(() => {
           setState((prev) =>
-            prev.t === timestamp ? { offline: false } : prev
+            prev.t === timestamp ? { ...prev, msg: undefined } : prev
           );
         }, 4000);
       }
     }
 
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("online", onOnline);
+    const unsubscribe = subscribeOnlineStatus((status) => {
+      statusRef.current = status;
+      setState((prev) => ({ ...prev, status }));
+    });
     window.addEventListener("mbs:net:error", onNet as EventListener);
 
     return () => {
       clearTimer();
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("online", onOnline);
+      unsubscribe();
       window.removeEventListener("mbs:net:error", onNet as EventListener);
     };
   }, []);
 
-  const show = state.offline || Boolean(state.msg);
+  const show = state.status === "offline" || Boolean(state.msg);
   if (!show) return null;
 
-  const text = state.offline
+  const text = state.status === "offline"
     ? "You’re offline. Some features won’t work."
     : (state.msg ?? "");
 

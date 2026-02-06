@@ -43,6 +43,8 @@ import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
 import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
+import { checkOnline } from "@/lib/network";
+import { getInitAuthState } from "@/lib/auth/initAuth";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -198,9 +200,16 @@ const Auth = () => {
     e.preventDefault();
     // IMPORTANT: Firebase config warnings should never block sign-in attempts.
     // If Auth is misconfigured, the sign-in call will fail and we show a friendly error.
+    setAuthError(null);
+    const onlineStatus = await checkOnline();
+    if (onlineStatus === "offline") {
+      const message = "No internet connection. Please reconnect and try again.";
+      setAuthError(message);
+      toast(message, "error");
+      return;
+    }
     setLoading(true);
     try {
-      setAuthError(null);
       if (mode === "signin") {
         try {
           if (native) {
@@ -388,6 +397,7 @@ const Auth = () => {
 
     return { tone: "ok" as const, message: "Firebase configuration detected." };
   }, [firebaseConfigWarningKeys, firebaseInitError, identityProbe]);
+  const initAuthState = getInitAuthState();
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -676,6 +686,9 @@ const Auth = () => {
                 </div>
                 <div>
                   Last auth error: {authError || firebaseInitError || "none"}
+                </div>
+                <div>
+                  Auth init last error: {initAuthState.lastError || "none"}
                 </div>
               </div>
             )}
