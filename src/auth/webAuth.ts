@@ -1,4 +1,5 @@
 import * as nativeAuth from "./webAuth.native";
+import { isNative } from "@/lib/platform";
 
 let webAuthPromise:
   | Promise<typeof import("./mbs-auth.web")>
@@ -12,7 +13,7 @@ function loadWebAuth() {
 }
 
 export async function webRequireAuth() {
-  if (__IS_NATIVE__) {
+  if (__IS_NATIVE__ || isNative()) {
     return nativeAuth.webRequireAuth();
   }
   const mod = await loadWebAuth();
@@ -20,7 +21,7 @@ export async function webRequireAuth() {
 }
 
 export async function ensureWebAuthPersistence() {
-  if (__IS_NATIVE__) {
+  if (__IS_NATIVE__ || isNative()) {
     return nativeAuth.ensureWebAuthPersistence();
   }
   const mod = await loadWebAuth();
@@ -28,7 +29,7 @@ export async function ensureWebAuthPersistence() {
 }
 
 export async function finalizeRedirectResult() {
-  if (__IS_NATIVE__) {
+  if (__IS_NATIVE__ || isNative()) {
     return nativeAuth.finalizeRedirectResult();
   }
   const mod = await loadWebAuth();

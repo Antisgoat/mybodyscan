@@ -1,4 +1,5 @@
 import { APP_CONFIG, BUILD_META } from "@/generated/appConfig";
+import { ENV } from "@/lib/env";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -53,6 +54,28 @@ const firebaseConfig: FirebaseRuntimeConfig = {
   ...(APP_CONFIG.firebase as FirebaseRuntimeConfig),
 };
 
+function isMissing(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  return String(value).trim() === "";
+}
+
+const runtimeEnvConfig: FirebaseRuntimeConfig = {
+  apiKey: ENV.VITE_FIREBASE_API_KEY,
+  authDomain: ENV.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: ENV.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: ENV.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: ENV.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: ENV.VITE_FIREBASE_APP_ID,
+  measurementId: ENV.VITE_FIREBASE_MEASUREMENT_ID,
+};
+
+for (const [key, value] of Object.entries(runtimeEnvConfig)) {
+  const typedKey = key as keyof FirebaseRuntimeConfig;
+  if (isMissing(firebaseConfig[typedKey]) && !isMissing(value)) {
+    firebaseConfig[typedKey] = value;
+  }
+}
+
 const runtimeAuthDomain = resolveRuntimeAuthDomain();
 const configuredAuthDomain = firebaseConfig.authDomain;
 
@@ -70,16 +93,9 @@ if (runtimeAuthDomain) {
   firebaseConfig.authDomain = runtimeAuthDomain;
 }
 
-const normalizedStorageBucket = normalizeStorageBucket(
-  firebaseConfig.storageBucket
-);
+const normalizedStorageBucket = normalizeStorageBucket(firebaseConfig.storageBucket);
 if (normalizedStorageBucket) {
   firebaseConfig.storageBucket = normalizedStorageBucket;
-}
-
-function isMissing(value: unknown): boolean {
-  if (value === undefined || value === null) return true;
-  return String(value).trim() === "";
 }
 
 const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
@@ -142,6 +158,18 @@ export function logFirebaseConfigSummary(): void {
   loggedConfigSummary = true;
   try {
     console.info("[firebase] config", buildFirebaseConfigSummary());
+    const keys = [
+      "apiKey",
+      "authDomain",
+      "projectId",
+      "storageBucket",
+      "messagingSenderId",
+      "appId",
+      "measurementId",
+    ] as const;
+    const present = keys.filter((key) => !isMissing((firebaseConfig as any)?.[key]));
+    const missing = keys.filter((key) => isMissing((firebaseConfig as any)?.[key]));
+    console.info("[firebase] config keys", { present, missing });
     if (firebaseConfigWarningKeys.length) {
       console.warn(
         "[firebase] Optional config keys missing; some features may be unavailable",

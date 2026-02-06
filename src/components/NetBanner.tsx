@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { getOnlineStatus, subscribeOnlineStatus } from "@/lib/network";
 
 type NetState = { offline: boolean; msg?: string; t?: number };
 
@@ -6,9 +7,10 @@ type NetEventDetail = { message?: string };
 
 export default function NetBanner() {
   const [state, setState] = useState<NetState>({
-    offline: typeof navigator !== "undefined" ? !navigator.onLine : false,
+    offline: false,
   });
   const timerRef = useRef<number>();
+  const connectedRef = useRef(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -20,21 +22,16 @@ export default function NetBanner() {
       }
     }
 
-    function onOffline() {
+    function updateConnection(connected: boolean) {
+      connectedRef.current = connected;
       clearTimer();
-      setState({ offline: true });
-    }
-
-    function onOnline() {
-      clearTimer();
-      setState({ offline: false });
+      setState((prev) => ({ ...prev, offline: !connected }));
     }
 
     function onNet(event: Event) {
       const detail = (event as CustomEvent<NetEventDetail>)?.detail;
       const message = detail?.message || "Network request failed.";
-      const offline =
-        typeof navigator !== "undefined" ? !navigator.onLine : false;
+      const offline = !connectedRef.current;
       const timestamp = Date.now();
       setState({ offline, msg: message, t: timestamp });
       if (!offline) {
@@ -47,14 +44,20 @@ export default function NetBanner() {
       }
     }
 
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("online", onOnline);
+    let active = true;
+    void getOnlineStatus().then((status) => {
+      if (!active) return;
+      updateConnection(status.connected);
+    });
+    const unsubscribe = subscribeOnlineStatus((status) => {
+      updateConnection(status.connected);
+    });
     window.addEventListener("mbs:net:error", onNet as EventListener);
 
     return () => {
+      active = false;
       clearTimer();
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("online", onOnline);
+      unsubscribe();
       window.removeEventListener("mbs:net:error", onNet as EventListener);
     };
   }, []);

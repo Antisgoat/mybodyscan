@@ -43,6 +43,8 @@ import { disableDemoEverywhere } from "@/lib/demoState";
 import { enableDemo } from "@/state/demo";
 import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
+import { getOnlineStatus, subscribeOnlineStatus } from "@/lib/network";
+import { withTimeout } from "@/lib/request";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -72,9 +74,14 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [lastSignInError, setLastSignInError] = useState<string | null>(null);
   const [lastOAuthProvider, setLastOAuthProvider] =
     useState<("google.com" | "apple.com") | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState<{
+    connected: boolean;
+    source: string;
+  } | null>(null);
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
       getIdentityToolkitProbeStatus()
@@ -194,6 +201,21 @@ const Auth = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void getOnlineStatus().then((status) => {
+      if (!active) return;
+      setOnlineStatus(status);
+    });
+    const unsubscribe = subscribeOnlineStatus((status) => {
+      setOnlineStatus(status);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // IMPORTANT: Firebase config warnings should never block sign-in attempts.
@@ -201,6 +223,11 @@ const Auth = () => {
     setLoading(true);
     try {
       setAuthError(null);
+      setLastSignInError(null);
+      const net = await getOnlineStatus();
+      if (!net.connected) {
+        throw new Error("No internet connection. Please reconnect and try again.");
+      }
       if (mode === "signin") {
         try {
           if (native) {
@@ -208,7 +235,11 @@ const Auth = () => {
             // explicitly attempts to sign in (never at boot).
             await startAuthListener().catch(() => undefined);
           }
-          await signInEmailPassword(email, password);
+          await withTimeout(
+            signInEmailPassword(email, password),
+            15_000,
+            "signIn"
+          );
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & {
@@ -229,6 +260,10 @@ const Auth = () => {
           let uiMessage = "Sign-in failed. Please try again.";
 
           switch (code) {
+            case "timeout":
+              uiMessage =
+                "Request timed out. Check connection and try again.";
+              break;
             case "auth/network-request-failed":
               uiMessage =
                 "Network error contacting Auth. Please check your connection and try again.";
@@ -257,14 +292,16 @@ const Auth = () => {
           const isAdminDev = emailLower === "developer@adlrlabs.com";
           const debugSuffix = isAdminDev ? ` [debug: ${code}]` : "";
 
-          setAuthError(`${uiMessage}${debugSuffix}`);
+          const fullMessage = `${uiMessage}${debugSuffix}`;
+          setAuthError(fullMessage);
+          setLastSignInError(fullMessage);
           return;
         }
       } else {
         if (native) {
           await startAuthListener().catch(() => undefined);
         }
-        await createAccountEmail(email, password);
+        await withTimeout(createAccountEmail(email, password), 15_000, "signup");
       }
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
@@ -272,11 +309,17 @@ const Auth = () => {
         mode === "signin"
           ? "Email sign-in failed."
           : "Account creation failed.";
-      const message = formatError(
-        normalized.message ?? fallback,
-        normalized.code
-      );
+      const timedOut =
+        typeof (err as { code?: string })?.code === "string" &&
+        (err as { code?: string })?.code === "timeout";
+      const baseMessage = timedOut
+        ? "Request timed out. Check connection and try again."
+        : normalized.message ?? fallback;
+      const message = timedOut
+        ? baseMessage
+        : formatError(baseMessage, normalized.code);
       setAuthError(message);
+      setLastSignInError(message);
       toast(message, "error");
     } finally {
       setLoading(false);
@@ -388,6 +431,23 @@ const Auth = () => {
 
     return { tone: "ok" as const, message: "Firebase configuration detected." };
   }, [firebaseConfigWarningKeys, firebaseInitError, identityProbe]);
+  const firebaseKeyList = useMemo(() => {
+    const keys = [
+      "apiKey",
+      "authDomain",
+      "projectId",
+      "appId",
+      "storageBucket",
+      "messagingSenderId",
+      "measurementId",
+    ] as const;
+    const present = keys.filter((key) => {
+      const value = String((config as Record<string, unknown>)[key] ?? "").trim();
+      return Boolean(value);
+    });
+    const missing = keys.filter((key) => !present.includes(key));
+    return { present, missing };
+  }, [config]);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -451,6 +511,31 @@ const Auth = () => {
                   Probing runtime configuration…
                 </div>
               )}
+              <div className="mt-2 rounded border border-dashed border-slate-200 bg-white/70 p-2 text-[11px] text-slate-700">
+                <div className="font-semibold text-[11px] text-slate-800">
+                  Config / Network status
+                </div>
+                <div>Runtime: {native ? "native" : "web"}</div>
+                <div>
+                  Online:{" "}
+                  {onlineStatus
+                    ? `${onlineStatus.connected ? "true" : "false"} (${onlineStatus.source})`
+                    : "checking…"}
+                </div>
+                <div>
+                  Firebase keys present:{" "}
+                  {firebaseKeyList.present.length
+                    ? firebaseKeyList.present.join(", ")
+                    : "none"}
+                </div>
+                <div>
+                  Firebase keys missing:{" "}
+                  {firebaseKeyList.missing.length
+                    ? firebaseKeyList.missing.join(", ")
+                    : "none"}
+                </div>
+                <div>Last sign-in error: {lastSignInError || "none"}</div>
+              </div>
             </div>
           )}
           {firebaseInitError && (
