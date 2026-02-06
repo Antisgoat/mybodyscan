@@ -5,12 +5,13 @@ import { reportError } from "@/lib/telemetry";
 import * as firebaseAuth from "firebase/auth";
 import type { MbsUser, MbsUserCredential, Unsubscribe } from "./mbs-auth.types";
 
-type PersistenceMode = "indexeddb" | "local" | "session" | "unknown";
+type PersistenceMode = "indexeddb" | "local" | "memory" | "unknown";
 
 type OAuthProviderId = "google.com" | "apple.com";
 
 const PENDING_OAUTH_KEY = "mybodyscan:auth:oauth:pending";
 const MAX_AUTH_WAIT_MS = 15_000;
+const PERSISTENCE_TIMEOUT_MS = 4_000;
 const APPLE_PROVIDER_ID = "apple.com";
 
 function toMbsUser(user: any): MbsUser | null {
@@ -121,24 +122,31 @@ export async function ensureWebAuthPersistence(): Promise<PersistenceMode> {
   persistencePromise = (async () => {
     const auth = await getWebAuth();
     const mod = await loadWebAuthModule();
-    try {
-      await mod.setPersistence(auth, mod.indexedDBLocalPersistence);
-      return "indexeddb";
-    } catch {
-      // ignore
-    }
-    try {
-      await mod.setPersistence(auth, mod.browserLocalPersistence);
-      return "local";
-    } catch {
-      // ignore
-    }
-    try {
-      await mod.setPersistence(auth, mod.browserSessionPersistence);
-      return "session";
-    } catch {
-      return "unknown";
-    }
+    const tryPersistence = async (
+      persistence: firebaseAuth.Persistence,
+      label: PersistenceMode
+    ): Promise<PersistenceMode | null> => {
+      try {
+        await withTimeout(
+          mod.setPersistence(auth, persistence),
+          PERSISTENCE_TIMEOUT_MS,
+          `auth/persistence/${label}`
+        );
+        return label;
+      } catch {
+        return null;
+      }
+    };
+    const indexedDb = await tryPersistence(
+      mod.indexedDBLocalPersistence,
+      "indexeddb"
+    );
+    if (indexedDb) return indexedDb;
+    const local = await tryPersistence(mod.browserLocalPersistence, "local");
+    if (local) return local;
+    const memory = await tryPersistence(mod.inMemoryPersistence, "memory");
+    if (memory) return memory;
+    return "unknown";
   })();
   return persistencePromise;
 }
