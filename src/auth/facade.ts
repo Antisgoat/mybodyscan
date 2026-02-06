@@ -335,9 +335,7 @@ export function getCachedUser(): AuthUser | null {
 
 export async function signOutToAuth(): Promise<void> {
   await signOut().catch(() => undefined);
-  if (typeof window !== "undefined") {
-    window.location.href = "/auth";
-  }
+  navigateToAuthRoute();
 }
 
 // ---- Test helpers (not part of the public app API) ----
@@ -391,3 +389,22 @@ export const __authTestInternals = {
     return { ...cachedSnapshot };
   },
 };
+
+function navigateToAuthRoute() {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.location.pathname === "/auth") return;
+    window.history.replaceState(window.history.state, "", "/auth");
+    if (typeof window.dispatchEvent === "function") {
+      const event =
+        typeof PopStateEvent === "function"
+          ? new PopStateEvent("popstate")
+          : new Event("popstate");
+      window.dispatchEvent(event);
+    }
+  } catch {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] failed to soft-navigate to /auth");
+    }
+  }
+}

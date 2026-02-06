@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,7 @@ const Auth = () => {
     useState<IdentityToolkitProbeStatus | null>(() =>
       getIdentityToolkitProbeStatus()
     );
+  const mountedRef = useRef(true);
   const { user } = useAuthUser();
   const demoEnv = String(
     import.meta.env.VITE_DEMO_ENABLED ?? "true"
@@ -95,6 +96,34 @@ const Auth = () => {
   }, [navigate]);
   const canonical =
     typeof window !== "undefined" ? window.location.href : undefined;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const setAuthErrorSafe = useCallback((value: string | null) => {
+    if (mountedRef.current) {
+      setAuthError(value);
+    }
+  }, []);
+
+  const setLoadingSafe = useCallback((value: boolean) => {
+    if (mountedRef.current) {
+      setLoading(value);
+    }
+  }, []);
+
+  const setLastOAuthProviderSafe = useCallback(
+    (value: ("google.com" | "apple.com") | null) => {
+      if (mountedRef.current) {
+        setLastOAuthProvider(value);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -119,22 +148,22 @@ const Auth = () => {
       if (cancelled) return;
       const pending = peekPendingOAuth();
       if (!pending) return;
-      setLastOAuthProvider(pending.providerId);
+      setLastOAuthProviderSafe(pending.providerId);
       const elapsed = Date.now() - pending.startedAt;
       const remaining = Math.max(0, 15_000 - elapsed);
       if (remaining === 0) {
         clearPendingOAuth();
         const message = "Sign-in timed out. Please try again.";
-        setAuthError(message);
+        setAuthErrorSafe(message);
         toast(message, "error");
         return;
       }
-      setLoading(true);
+      setLoadingSafe(true);
       const timer = window.setTimeout(() => {
         clearPendingOAuth();
-        setLoading(false);
+        setLoadingSafe(false);
         const message = "Sign-in timed out. Please try again.";
-        setAuthError(message);
+        setAuthErrorSafe(message);
         toast(message, "error");
       }, remaining);
       return () => window.clearTimeout(timer);
@@ -159,7 +188,7 @@ const Auth = () => {
         "Sign-in failed.";
       const friendlyCode = redirectError.friendlyCode ?? redirectError.code;
       const message = formatError(fallbackMessage, friendlyCode);
-      setAuthError(message);
+      setAuthErrorSafe(message);
       toast(message, "error");
     })();
     return () => {
@@ -198,18 +227,19 @@ const Auth = () => {
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
+    // Regression prevention: avoid form submit + window.location reloads in WebView.
     e.preventDefault();
     // IMPORTANT: Firebase config warnings should never block sign-in attempts.
     // If Auth is misconfigured, the sign-in call will fail and we show a friendly error.
-    setAuthError(null);
+    setAuthErrorSafe(null);
     const onlineStatus = await checkOnline();
     if (onlineStatus === "offline") {
       const message = "No internet connection. Please reconnect and try again.";
-      setAuthError(message);
+      setAuthErrorSafe(message);
       toast(message, "error");
       return;
     }
-    setLoading(true);
+    setLoadingSafe(true);
     try {
       if (mode === "signin") {
         try {
@@ -273,7 +303,7 @@ const Auth = () => {
           const isAdminDev = emailLower === "developer@adlrlabs.com";
           const debugSuffix = isAdminDev ? ` [debug: ${code}]` : "";
 
-          setAuthError(`${uiMessage}${debugSuffix}`);
+          setAuthErrorSafe(`${uiMessage}${debugSuffix}`);
           return;
         }
       } else {
@@ -296,25 +326,25 @@ const Auth = () => {
         normalized.code === "auth/timeout"
           ? timeoutMessage
           : formatError(normalized.message ?? fallback, normalized.code);
-      setAuthError(message);
+      setAuthErrorSafe(message);
       toast(message, "error");
     } finally {
-      setLoading(false);
+      setLoadingSafe(false);
     }
   };
 
   const handleGoogleSignIn = useCallback(async () => {
     if (native) {
-      setAuthError(
+      setAuthErrorSafe(
         "Google sign-in is available on web. On iOS, please use email/password for now."
       );
       return;
     }
-    setAuthError(null);
-    setLoading(true);
-    setLastOAuthProvider("google.com");
+    setAuthErrorSafe(null);
+    setLoadingSafe(true);
+    setLastOAuthProviderSafe("google.com");
     try {
-      await startGoogleSignIn(defaultTarget);
+      await withTimeout(startGoogleSignIn(defaultTarget), LOGIN_TIMEOUT_MS);
     } catch (error: unknown) {
       const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
@@ -332,25 +362,31 @@ const Auth = () => {
           origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
-      setAuthError(message);
+      setAuthErrorSafe(message);
       toast(message, "error");
     } finally {
-      setLoading(false);
+      setLoadingSafe(false);
     }
-  }, [defaultTarget, native]);
+  }, [
+    defaultTarget,
+    native,
+    setAuthErrorSafe,
+    setLastOAuthProviderSafe,
+    setLoadingSafe,
+  ]);
 
   const handleAppleSignIn = useCallback(async () => {
     if (native) {
-      setAuthError(
+      setAuthErrorSafe(
         "Apple sign-in is available on web. On iOS, please use email/password for now."
       );
       return;
     }
-    setAuthError(null);
-    setLoading(true);
-    setLastOAuthProvider("apple.com");
+    setAuthErrorSafe(null);
+    setLoadingSafe(true);
+    setLastOAuthProviderSafe("apple.com");
     try {
-      await startAppleSignIn(defaultTarget);
+      await withTimeout(startAppleSignIn(defaultTarget), LOGIN_TIMEOUT_MS);
     } catch (error: unknown) {
       const { describeOAuthError } = await import("@/lib/auth/oauth");
       const mapped = describeOAuthError(error);
@@ -368,12 +404,18 @@ const Auth = () => {
           origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
-      setAuthError(message);
+      setAuthErrorSafe(message);
       toast(message, "error");
     } finally {
-      setLoading(false);
+      setLoadingSafe(false);
     }
-  }, [defaultTarget, native]);
+  }, [
+    defaultTarget,
+    native,
+    setAuthErrorSafe,
+    setLastOAuthProviderSafe,
+    setLoadingSafe,
+  ]);
 
   const origin =
     typeof window !== "undefined" ? window.location.origin : "(unknown)";

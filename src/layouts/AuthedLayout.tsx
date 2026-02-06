@@ -36,7 +36,26 @@ const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
 function exitDemo() {
   disableDemoEverywhere();
   // Exiting demo should never bounce through protected routes.
-  window.location.href = "/auth";
+  softNavigate("/auth");
+}
+
+function softNavigate(path: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.location.pathname === path) return;
+    window.history.replaceState(window.history.state, "", path);
+    if (typeof window.dispatchEvent === "function") {
+      const event =
+        typeof PopStateEvent === "function"
+          ? new PopStateEvent("popstate")
+          : new Event("popstate");
+      window.dispatchEvent(event);
+    }
+  } catch {
+    if (import.meta.env.DEV) {
+      console.warn("[nav] failed to soft-navigate", path);
+    }
+  }
 }
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {

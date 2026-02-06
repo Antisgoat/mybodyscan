@@ -69,9 +69,7 @@ export async function sendReset(email: string) {
 
 export async function signOutToAuth(): Promise<void> {
   await impl.signOut().catch(() => undefined);
-  if (typeof window !== "undefined") {
-    window.location.href = "/auth";
-  }
+  navigateToAuthRoute();
 }
 
 // ---- App auth store (single source of truth for user+boot gating) ----
@@ -141,12 +139,36 @@ export async function startAuthListener(): Promise<void> {
         typeof window === "undefined" ? globalThis.setTimeout : window.setTimeout;
       schedule(() => {
         if (!authReadyFlag) {
+          if (typeof console !== "undefined") {
+            console.warn(
+              "[auth] native auth state listener timed out; continuing without blocking"
+            );
+          }
           emit(null);
         }
         resolve();
       }, NATIVE_AUTH_READY_TIMEOUT_MS);
     }),
   ]);
+}
+
+function navigateToAuthRoute() {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.location.pathname === "/auth") return;
+    window.history.replaceState(window.history.state, "", "/auth");
+    if (typeof window.dispatchEvent === "function") {
+      const event =
+        typeof PopStateEvent === "function"
+          ? new PopStateEvent("popstate")
+          : new Event("popstate");
+      window.dispatchEvent(event);
+    }
+  } catch {
+    if (import.meta.env.DEV) {
+      console.warn("[auth] failed to soft-navigate to /auth");
+    }
+  }
 }
 
 function subscribe(listener: () => void) {
