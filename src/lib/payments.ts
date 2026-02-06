@@ -39,6 +39,9 @@ function assertPaymentsAllowed(): void {
 }
 
 async function loadStripeClient() {
+  if (__IS_NATIVE__ || isNative()) {
+    return null;
+  }
   const { loadStripe } = await import("@stripe/stripe-js");
   return loadStripe(STRIPE_PUBLISHABLE_KEY);
 }

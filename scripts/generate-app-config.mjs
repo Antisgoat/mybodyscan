@@ -70,8 +70,18 @@ const requiredFirebaseKeys = [
   "VITE_FIREBASE_PROJECT_ID",
 ];
 
+const readEnvValue = (key) => {
+  const fileValue = loadedEnv[key];
+  if (typeof fileValue === "string") return fileValue;
+  if (typeof process !== "undefined" && process.env) {
+    const runtimeValue = process.env[key];
+    if (typeof runtimeValue === "string") return runtimeValue;
+  }
+  return "";
+};
+
 const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
-  return !String(loadedEnv[key] ?? "").trim();
+  return !String(readEnvValue(key) ?? "").trim();
 });
 
 if (missingFirebaseKeys.length) {
@@ -83,13 +93,13 @@ if (missingFirebaseKeys.length) {
 }
 
 const firebaseConfig = {
-  apiKey: String(loadedEnv.VITE_FIREBASE_API_KEY ?? "").trim(),
-  authDomain: String(loadedEnv.VITE_FIREBASE_AUTH_DOMAIN ?? "").trim(),
-  projectId: String(loadedEnv.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
-  storageBucket: String(loadedEnv.VITE_FIREBASE_STORAGE_BUCKET ?? "").trim(),
-  messagingSenderId: String(loadedEnv.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "").trim(),
-  appId: String(loadedEnv.VITE_FIREBASE_APP_ID ?? "").trim(),
-  measurementId: String(loadedEnv.VITE_FIREBASE_MEASUREMENT_ID ?? "").trim(),
+  apiKey: String(readEnvValue("VITE_FIREBASE_API_KEY") ?? "").trim(),
+  authDomain: String(readEnvValue("VITE_FIREBASE_AUTH_DOMAIN") ?? "").trim(),
+  projectId: String(readEnvValue("VITE_FIREBASE_PROJECT_ID") ?? "").trim(),
+  storageBucket: String(readEnvValue("VITE_FIREBASE_STORAGE_BUCKET") ?? "").trim(),
+  messagingSenderId: String(readEnvValue("VITE_FIREBASE_MESSAGING_SENDER_ID") ?? "").trim(),
+  appId: String(readEnvValue("VITE_FIREBASE_APP_ID") ?? "").trim(),
+  measurementId: String(readEnvValue("VITE_FIREBASE_MEASUREMENT_ID") ?? "").trim(),
 };
 
 const mode =
