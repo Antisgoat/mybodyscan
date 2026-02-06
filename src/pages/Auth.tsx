@@ -48,6 +48,7 @@ import { getInitAuthState } from "@/lib/auth/initAuth";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
+const LOGIN_TIMEOUT_MS = 15_000;
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -99,9 +100,9 @@ const Auth = () => {
     if (!user) return;
     disableDemoEverywhere();
     if (location.pathname !== defaultTarget) {
-      window.location.replace(defaultTarget);
+      navigate(defaultTarget, { replace: true });
     }
-  }, [user, location.pathname, defaultTarget]);
+  }, [user, location.pathname, defaultTarget, navigate]);
 
   useEffect(() => {
     if (user) {
@@ -217,7 +218,10 @@ const Auth = () => {
             // explicitly attempts to sign in (never at boot).
             await startAuthListener().catch(() => undefined);
           }
-          await signInEmailPassword(email, password);
+          await withTimeout(
+            signInEmailPassword(email, password),
+            LOGIN_TIMEOUT_MS
+          );
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & {
@@ -253,6 +257,9 @@ const Auth = () => {
             case "auth/too-many-requests":
               uiMessage = "Too many attempts. Please wait a bit and try again.";
               break;
+            case "auth/timeout":
+              uiMessage = "Login timed out. Please try again.";
+              break;
             case "auth/operation-not-allowed":
               uiMessage =
                 "Sign-in is not enabled for this project. Contact support.";
@@ -273,7 +280,7 @@ const Auth = () => {
         if (native) {
           await startAuthListener().catch(() => undefined);
         }
-        await createAccountEmail(email, password);
+        await withTimeout(createAccountEmail(email, password), LOGIN_TIMEOUT_MS);
       }
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
@@ -281,10 +288,14 @@ const Auth = () => {
         mode === "signin"
           ? "Email sign-in failed."
           : "Account creation failed.";
-      const message = formatError(
-        normalized.message ?? fallback,
-        normalized.code
-      );
+      const timeoutMessage =
+        mode === "signin"
+          ? "Login timed out. Please try again."
+          : "Sign-up timed out. Please try again.";
+      const message =
+        normalized.code === "auth/timeout"
+          ? timeoutMessage
+          : formatError(normalized.message ?? fallback, normalized.code);
       setAuthError(message);
       toast(message, "error");
     } finally {
@@ -364,14 +375,23 @@ const Auth = () => {
     }
   }, [defaultTarget, native]);
 
-  const host = typeof window !== "undefined" ? window.location.hostname : "";
   const origin =
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
+  const debugStorageEnabled = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("mbs_debug") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+  const debugParamEnabled = useMemo(
+    () => searchParams.get("debug") === "1",
+    [searchParams]
+  );
   const showDebugPanel =
-    import.meta.env.DEV ||
-    host.startsWith("localhost") ||
-    user?.email === "developer@adlrlabs.com";
+    import.meta.env.DEV || debugStorageEnabled || debugParamEnabled;
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };
@@ -733,4 +753,19 @@ function formatError(message?: string, code?: string) {
     return `${cleaned} (${code})`;
   }
   return cleaned;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  if (ms <= 0) return promise;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      const err: any = new Error("Login timed out. Please try again.");
+      err.code = "auth/timeout";
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }

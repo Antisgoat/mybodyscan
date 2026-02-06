@@ -137,11 +137,6 @@ export async function ensureWebAuthPersistence(): Promise<PersistenceMode> {
         return null;
       }
     };
-    const indexedDb = await tryPersistence(
-      mod.indexedDBLocalPersistence,
-      "indexeddb"
-    );
-    if (indexedDb) return indexedDb;
     const local = await tryPersistence(mod.browserLocalPersistence, "local");
     if (local) return local;
     const memory = await tryPersistence(mod.inMemoryPersistence, "memory");
