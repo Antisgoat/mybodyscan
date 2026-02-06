@@ -100,7 +100,8 @@ const mode =
 const isNative =
   mode === "native" ||
   process.env.CAPACITOR_PLATFORM != null ||
-  process.env.MBS_NATIVE_RELEASE === "1";
+  process.env.MBS_NATIVE_RELEASE === "1" ||
+  process.env.MBS_NATIVE_BUILD === "1";
 
 const buildMeta = {
   mode,
