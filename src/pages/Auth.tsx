@@ -78,6 +78,10 @@ const Auth = () => {
   const [lastOAuthProvider, setLastOAuthProvider] =
     useState<("google.com" | "apple.com") | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
+  const [selfTestStatus, setSelfTestStatus] = useState<{
+    state: "idle" | "running" | "ok" | "error";
+    message?: string;
+  }>({ state: "idle" });
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
       getIdentityToolkitProbeStatus()
@@ -274,7 +278,9 @@ const Auth = () => {
           switch (code) {
             case "auth/network-request-failed":
               uiMessage =
-                "Network error contacting Auth. Please check your connection and try again.";
+                native
+                  ? "Network blocked in iOS. Please try again."
+                  : "Network error contacting Auth. Please check your connection and try again.";
               break;
             case "auth/invalid-email":
               uiMessage = "That email address looks invalid.";
@@ -420,20 +426,21 @@ const Auth = () => {
   const origin =
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
-  const debugStorageEnabled = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("mbs_debug") === "1";
-    } catch {
-      return false;
-    }
-  }, []);
+  const isDev = import.meta.env.DEV;
   const debugParamEnabled = useMemo(
     () => searchParams.get("debug") === "1",
     [searchParams]
   );
-  const showDebugPanel =
-    import.meta.env.DEV || debugStorageEnabled || debugParamEnabled;
+  const showDebugPanel = isDev || debugParamEnabled;
+  useEffect(() => {
+    if (isDev || debugParamEnabled) return;
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem("mbs_debug");
+    } catch {
+      // ignore storage errors
+    }
+  }, [debugParamEnabled, isDev]);
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };
@@ -460,6 +467,26 @@ const Auth = () => {
     return { tone: "ok" as const, message: "Firebase configuration detected." };
   }, [firebaseConfigWarningKeys, firebaseInitError, identityProbe]);
   const initAuthState = getInitAuthState();
+  const runNetworkSelfTest = useCallback(async () => {
+    setSelfTestStatus({ state: "running" });
+    try {
+      const response = await withTimeout(
+        fetch("https://identitytoolkit.googleapis.com", {
+          method: "GET",
+          cache: "no-store",
+        }),
+        LOGIN_TIMEOUT_MS
+      );
+      setSelfTestStatus({
+        state: "ok",
+        message: `status ${response.status}`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Network request failed.";
+      setSelfTestStatus({ state: "error", message });
+    }
+  }, []);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -751,6 +778,30 @@ const Auth = () => {
                 </div>
                 <div>
                   Auth init last error: {initAuthState.lastError || "none"}
+                </div>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={runNetworkSelfTest}
+                    disabled={selfTestStatus.state === "running"}
+                  >
+                    {selfTestStatus.state === "running"
+                      ? "Testing network..."
+                      : "Run network self-test"}
+                  </Button>
+                  <div className="mt-1 text-[11px]">
+                    Network test:{" "}
+                    {selfTestStatus.state === "idle"
+                      ? "not run"
+                      : selfTestStatus.state === "ok"
+                        ? `ok (${selfTestStatus.message ?? "success"})`
+                        : selfTestStatus.state === "running"
+                          ? "running"
+                          : `failed (${selfTestStatus.message ?? "error"})`}
+                  </div>
                 </div>
               </div>
             )}

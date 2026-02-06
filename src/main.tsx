@@ -1,3 +1,4 @@
+import "./native/installNativeFetch";
 import "./lib/iosSafetyShim";
 import "./lib/bootProbe";
 import { StrictMode } from "react";

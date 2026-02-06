@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build:web": "MODE=production node scripts/generate-app-config.mjs && vite build",
-    "build:native": "MODE=native node scripts/generate-app-config.mjs && vite build --mode native",
-    "build:native:release": "MODE=native MBS_NATIVE_RELEASE=1 node scripts/generate-app-config.mjs && vite build --mode native",
+    "build:native": "MODE=native MBS_NATIVE_BUILD=1 node scripts/generate-app-config.mjs && vite build --mode native",
+    "build:native:release": "MODE=native MBS_NATIVE_BUILD=1 MBS_NATIVE_RELEASE=1 node scripts/generate-app-config.mjs && vite build --mode native",
     "build": "MODE=production node scripts/generate-app-config.mjs && vite build",
     "build:strict": "MODE=production node scripts/generate-app-config.mjs && vite build",
     "build:prod": "MODE=production node scripts/generate-app-config.mjs && node scripts/validate-programs.mjs && vite build && npm run check:bundle && npm run check:storage-rest && node scripts/print-build-tag.js",
