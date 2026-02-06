@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { providerFlags } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
@@ -10,6 +10,7 @@ import { isNativeCapacitor } from "@/lib/platform";
 
 export default function Login() {
   const location = useLocation();
+  const navigate = useNavigate();
   const native = isNativeCapacitor();
   const from = (location.state as { from?: string } | null)?.from;
   const searchParams = useMemo(
@@ -25,7 +26,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const { user, authReady } = useAuthUser();
 
-  const finish = () => {
+  const finish = useCallback(() => {
     const stored = consumeAuthRedirect();
     const target = stored ?? defaultTarget;
     disableDemoEverywhere();
@@ -49,15 +50,15 @@ export default function Login() {
     ) {
       sanitized = "/home";
     }
-    window.location.replace(sanitized);
-  };
+    navigate(sanitized, { replace: true });
+  }, [defaultTarget, navigate]);
 
   useEffect(() => {
     if (authReady && user) {
       finish();
     }
     return undefined;
-  }, [authReady, user]);
+  }, [authReady, finish, user]);
 
   async function wrap<T>(
     fn: () => Promise<T>,

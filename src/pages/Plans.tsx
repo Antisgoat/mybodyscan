@@ -186,7 +186,7 @@ export default function Plans() {
       return;
     }
     if (!user) {
-      window.location.assign("/auth?next=/plans");
+      softNavigate("/auth?next=/plans");
       return;
     }
     if (!BILLING_CONFIGURED) {
@@ -262,6 +262,25 @@ export default function Plans() {
       setPendingPlan(null);
     }
   };
+
+  function softNavigate(path: string) {
+    if (typeof window === "undefined") return;
+    try {
+      if (window.location.pathname === path) return;
+      window.history.replaceState(window.history.state, "", path);
+      if (typeof window.dispatchEvent === "function") {
+        const event =
+          typeof PopStateEvent === "function"
+            ? new PopStateEvent("popstate")
+            : new Event("popstate");
+        window.dispatchEvent(event);
+      }
+    } catch {
+      if (import.meta.env.DEV) {
+        console.warn("[nav] failed to soft-navigate", path);
+      }
+    }
+  }
 
   const ENABLE_SCAN_PACKS = false;
 
