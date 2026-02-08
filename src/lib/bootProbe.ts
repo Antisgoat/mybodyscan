@@ -1,4 +1,5 @@
 import { isWeb } from "./platform";
+import { APP_CONFIG } from "@/generated/appConfig";
 import { BUILD } from "./buildInfo";
 import {
   DEMO_ENABLED,
@@ -9,7 +10,7 @@ import {
 
 if (isWeb()) {
   (async () => {
-    const key = (import.meta.env.VITE_FIREBASE_API_KEY || "").trim();
+    const key = String(APP_CONFIG.firebase.apiKey || "").trim();
     const apiKeyPresent = Boolean(key);
     let identityToolkitReachable: boolean | null = null;
     let identityToolkitReason: string | undefined;

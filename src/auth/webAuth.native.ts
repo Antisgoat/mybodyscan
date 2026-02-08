@@ -1,16 +1,18 @@
 import {
   browserLocalPersistence,
+  indexedDBLocalPersistence,
   inMemoryPersistence,
   setPersistence,
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
 
-type NativePersistenceMode = "local" | "memory" | "unknown";
+type NativePersistenceMode = "indexeddb" | "local" | "memory" | "unknown";
 
 let persistencePromise: Promise<NativePersistenceMode> | null = null;
-const LOCAL_PERSISTENCE_TIMEOUT_MS = 350;
-const MEMORY_PERSISTENCE_TIMEOUT_MS = 150;
+const INDEXEDDB_PERSISTENCE_TIMEOUT_MS = 900;
+const LOCAL_PERSISTENCE_TIMEOUT_MS = 700;
+const MEMORY_PERSISTENCE_TIMEOUT_MS = 400;
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   if (ms <= 0) return promise;
@@ -32,20 +34,34 @@ export async function ensureWebAuthPersistence(): Promise<NativePersistenceMode>
   persistencePromise = (async () => {
     try {
       await withTimeout(
+        setPersistence(auth, indexedDBLocalPersistence),
+        INDEXEDDB_PERSISTENCE_TIMEOUT_MS
+      );
+      return "indexeddb";
+    } catch (err) {
+      if (typeof console !== "undefined") {
+        console.warn("[auth] indexeddb persistence unavailable", err);
+      }
+    }
+    try {
+      await withTimeout(
         setPersistence(auth, browserLocalPersistence),
         LOCAL_PERSISTENCE_TIMEOUT_MS
       );
       return "local";
-    } catch {
-      try {
-        await withTimeout(
-          setPersistence(auth, inMemoryPersistence),
-          MEMORY_PERSISTENCE_TIMEOUT_MS
-        );
-        return "memory";
-      } catch {
-        return "unknown";
+    } catch (err) {
+      if (typeof console !== "undefined") {
+        console.warn("[auth] local persistence unavailable", err);
       }
+    }
+    try {
+      await withTimeout(
+        setPersistence(auth, inMemoryPersistence),
+        MEMORY_PERSISTENCE_TIMEOUT_MS
+      );
+      return "memory";
+    } catch {
+      return "unknown";
     }
   })();
   return persistencePromise;

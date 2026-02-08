@@ -85,6 +85,11 @@ const Auth = () => {
     [location.search]
   );
   const nextParam = searchParams.get("next");
+  const debugParam = searchParams.get("debug") === "1";
+  const allowDebugUi =
+    import.meta.env.DEV ||
+    (((import.meta as any)?.env?.VITE_DEBUG_UI === "1" && debugParam) &&
+      !__MBS_NATIVE_RELEASE__);
   const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -127,12 +132,16 @@ const Auth = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!allowDebugUi) {
+      setDebugEnabled(false);
+      return;
+    }
     try {
       setDebugEnabled(window.localStorage.getItem("mbs_debug") === "1");
     } catch {
       setDebugEnabled(false);
     }
-  }, []);
+  }, [allowDebugUi]);
 
   const setAuthErrorSafe = useCallback((value: string | null) => {
     if (mountedRef.current) {
@@ -183,7 +192,7 @@ const Auth = () => {
       const remaining = Math.max(0, 15_000 - elapsed);
       if (remaining === 0) {
         clearPendingOAuth();
-        const message = "Sign-in timed out. Please try again.";
+        const message = "Sign-in timed out. Check your connection and try again.";
         setAuthErrorSafe(message);
         toast(message, "error");
         return;
@@ -192,7 +201,7 @@ const Auth = () => {
       const timer = window.setTimeout(() => {
         clearPendingOAuth();
         setLoadingSafe(false);
-        const message = "Sign-in timed out. Please try again.";
+        const message = "Sign-in timed out. Check your connection and try again.";
         setAuthErrorSafe(message);
         toast(message, "error");
       }, remaining);
@@ -317,7 +326,8 @@ const Auth = () => {
               uiMessage = "Too many attempts. Please wait a bit and try again.";
               break;
             case "auth/timeout":
-              uiMessage = "Login timed out. Please try again.";
+              uiMessage =
+                "Sign-in timed out. Check your connection and try again.";
               break;
             case "auth/operation-not-allowed":
               uiMessage =
@@ -353,8 +363,8 @@ const Auth = () => {
           : "Account creation failed.";
       const timeoutMessage =
         mode === "signin"
-          ? "Login timed out. Please try again."
-          : "Sign-up timed out. Please try again.";
+          ? "Sign-in timed out. Check your connection and try again."
+          : "Sign-up timed out. Check your connection and try again.";
       const message =
         normalized.code === "auth/timeout"
           ? timeoutMessage
@@ -454,9 +464,10 @@ const Auth = () => {
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
   const isDev = import.meta.env.DEV;
-  const showDebugPanel = isDev || debugEnabled;
+  const showDebugPanel = isDev || (allowDebugUi && debugEnabled);
   const tapStateRef = useRef({ count: 0, lastTap: 0 });
   const handleDebugTap = useCallback(() => {
+    if (!allowDebugUi) return;
     if (typeof window === "undefined") return;
     const now = Date.now();
     const state = tapStateRef.current;
@@ -479,7 +490,7 @@ const Auth = () => {
         "info"
       );
     }
-  }, [debugEnabled]);
+  }, [allowDebugUi, debugEnabled]);
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };

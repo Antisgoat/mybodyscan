@@ -4,7 +4,15 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const initAuth = vi.fn().mockResolvedValue(undefined);
+const initAuth = vi.fn().mockResolvedValue({
+  started: true,
+  completed: true,
+  persistence: "unknown",
+  redirectError: null,
+  step: "done",
+  lastError: null,
+  timedOut: false,
+});
 vi.mock("@/lib/auth/initAuth", () => ({ initAuth: (...a: any[]) => initAuth(...a) }));
 
 const probeFirebaseRuntime = vi.fn().mockResolvedValue({ identityToolkit: null });
@@ -51,4 +59,3 @@ describe("BootGate", () => {
     expect(screen.getByText("Completing sign-in…")).toBeTruthy();
   });
 });
-

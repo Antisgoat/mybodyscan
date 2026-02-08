@@ -23,7 +23,11 @@ describe("initAuth", () => {
 
   it("does not throw on a clean boot", async () => {
     const { initAuth, getInitAuthState } = await import("./initAuth");
-    await expect(initAuth()).resolves.toBeUndefined();
+    await expect(initAuth()).resolves.toMatchObject({
+      completed: true,
+      persistence: "indexeddb",
+      timedOut: false,
+    });
     const state = getInitAuthState();
     expect(state.started).toBe(true);
     expect(state.completed).toBe(true);
@@ -40,7 +44,7 @@ describe("initAuth", () => {
       new Error("redirect_failed")
     );
     const { initAuth, getInitAuthState } = await import("./initAuth");
-    await expect(initAuth()).resolves.toBeUndefined();
+    await expect(initAuth()).resolves.toMatchObject({ completed: true });
     const state = getInitAuthState();
     expect(state.completed).toBe(true);
     expect(state.redirectError).toContain("redirect_failed");

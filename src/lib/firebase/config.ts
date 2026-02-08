@@ -84,6 +84,12 @@ function isMissing(value: unknown): boolean {
 }
 
 const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
+const nativeRequiredKeys = [
+  "apiKey",
+  "authDomain",
+  "projectId",
+  "appId",
+] as const;
 const warningKeys = [
   "storageBucket",
   "messagingSenderId",
@@ -121,16 +127,22 @@ export function getFirebaseInitError(): string | null {
 
 let loggedMissingApiKey = false;
 export function getBlockingFirebaseConfigError(): string | null {
-  const missingApiKey = firebaseConfigMissingKeys.includes("apiKey");
-  if (!missingApiKey) return null;
   if (!isCapacitorNative()) return null;
+  const missingNativeKeys = nativeRequiredKeys.filter((key) => {
+    const value = (firebaseConfig as any)?.[key];
+    return isMissing(value);
+  });
+  if (!missingNativeKeys.length) return null;
   if (!loggedMissingApiKey && typeof console !== "undefined") {
     console.error(
-      "[firebase] Missing apiKey in native build. Firebase Auth cannot start."
+      "[firebase] Missing Firebase config in native build.",
+      missingNativeKeys
     );
     loggedMissingApiKey = true;
   }
-  return "Firebase configuration is missing the apiKey required for native authentication. Please reinstall the app or contact support.";
+  return `Missing Firebase config: ${missingNativeKeys.join(
+    ", "
+  )}. Please reinstall the app or contact support.`;
 }
 
 let loggedConfigSummary = false;
