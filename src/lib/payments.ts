@@ -1,5 +1,5 @@
 import { apiFetchJson } from "./apiFetch";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type ErrorPayload = { error: string; code?: string };
 
@@ -30,7 +30,7 @@ function ensureStripePublishableKey(): string {
 }
 
 function assertPaymentsAllowed(): void {
-  if (__IS_NATIVE__ || isNative()) {
+  if (isCapacitorNative()) {
     throw {
       error: "payments_disabled",
       code: "payments_disabled",

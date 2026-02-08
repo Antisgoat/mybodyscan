@@ -2,14 +2,14 @@ import { httpsCallable } from "firebase/functions";
 import { toast } from "@/hooks/use-toast";
 import { functions } from "@/lib/firebase";
 import { apiFetch } from "@/lib/apiFetch";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 export async function startCheckout(
   priceId: string,
   mode: "payment" | "subscription",
   promoCode?: string
 ) {
-  if (__IS_NATIVE__ || isNative()) {
+  if (isCapacitorNative()) {
     toast({
       title: "Checkout unavailable",
       description: "Stripe checkout is not supported on iOS builds.",

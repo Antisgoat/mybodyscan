@@ -10,12 +10,12 @@ import { initTelemetry } from "./lib/telemetry";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 import { loadAnalyticsScripts } from "@/lib/analyticsLoader";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
 const allowBootOverlay = true;
-const isNativeBuild = __IS_NATIVE__ || isNative();
+const isNativeBuild = isCapacitorNative();
 const ENV = (import.meta as any)?.env || {};
 const NATIVE_ALLOWED_SCRIPT_ORIGINS = new Set<string>(
   (ENV.VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS as string | undefined)
@@ -26,6 +26,33 @@ const NATIVE_ALLOWED_SCRIPT_ORIGINS = new Set<string>(
 
 if (typeof window !== "undefined") {
   NATIVE_ALLOWED_SCRIPT_ORIGINS.add(window.location.origin);
+}
+
+function installNativeCspPolicy() {
+  if (typeof document === "undefined") return;
+  if (!isCapacitorNative()) return;
+  const meta =
+    document.querySelector<HTMLMetaElement>(
+      'meta[http-equiv="Content-Security-Policy"]'
+    ) ?? document.createElement("meta");
+  meta.setAttribute("http-equiv", "Content-Security-Policy");
+  const connectSrc = [
+    "'self'",
+    "capacitor://localhost",
+    "https://mybodyscanapp.com",
+    "https://*.mybodyscanapp.com",
+    "https://identitytoolkit.googleapis.com",
+    "https://securetoken.googleapis.com",
+    "https://www.googleapis.com",
+    "https://*.googleapis.com",
+  ].join(" ");
+  meta.setAttribute(
+    "content",
+    `script-src 'self'; connect-src ${connectSrc};`
+  );
+  if (!meta.parentNode) {
+    document.head.appendChild(meta);
+  }
 }
 
 function isAllowedNativeScriptSrc(value: string) {
@@ -160,6 +187,7 @@ function installBootErrorListeners() {
 
 installNativeDiagnosticsListeners();
 installBootErrorListeners();
+installNativeCspPolicy();
 
 function installScriptCreationDiagnostics() {
   if (typeof document === "undefined" || typeof window === "undefined") return;
@@ -372,7 +400,7 @@ function renderBootFailure(
   options?: { allowInRelease?: boolean }
 ) {
   // Crash shield is native-only to prevent blank white screens in WKWebView.
-  if (!isNative()) return;
+  if (!isCapacitorNative()) return;
   if (typeof window === "undefined") return;
   if (!allowBootOverlay) {
     const failure = normalizeBootFailure(error, code);
@@ -506,7 +534,7 @@ if (typeof window !== "undefined") {
 
 // Boot error trap to capture first thrown error before any UI swallows it.
 // Native-only (per crash-shield spec) to prevent WKWebView blank screens.
-if (typeof window !== "undefined" && isNative()) {
+if (typeof window !== "undefined" && isCapacitorNative()) {
   installBootErrorListeners();
 
   window.addEventListener(

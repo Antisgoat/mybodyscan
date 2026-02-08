@@ -2,6 +2,7 @@ import { getFirebaseApp, getFirebaseConfig, hasFirebaseConfig } from "@/lib/fire
 import { rememberAuthRedirect } from "@/lib/auth/redirectState";
 import { popupThenRedirect } from "@/lib/popupThenRedirect";
 import { reportError } from "@/lib/telemetry";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 import * as firebaseAuth from "firebase/auth";
 import type { MbsUser, MbsUserCredential, Unsubscribe } from "./mbs-auth.types";
 
@@ -65,7 +66,7 @@ function shouldPreferRedirect(): boolean {
   if (typeof window === "undefined") return true;
   if (isMobileLike()) return true;
   try {
-    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+    if (isCapacitorNative()) return true;
   } catch {
     // ignore
   }

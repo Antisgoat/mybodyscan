@@ -4,7 +4,7 @@ import { startCheckout } from "@/lib/api/billing";
 import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
 import { db } from "@/lib/firebase";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 import { Navigate } from "react-router-dom";
 import { useAuthUser } from "@/auth/mbs-auth";
 
@@ -28,9 +28,9 @@ export default function Billing() {
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const native = isNative();
+  const native = isCapacitorNative();
   const stripePromise = useMemo(() => {
-    if (__IS_NATIVE__ || native) return null;
+    if (native) return null;
     const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
     return key
       ? import("@stripe/stripe-js").then(({ loadStripe }) => loadStripe(key))

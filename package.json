@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build:web": "MODE=production node scripts/generate-app-config.mjs && vite build",
-    "build:native": "MODE=native MBS_NATIVE_BUILD=1 node scripts/generate-app-config.mjs && vite build --mode native",
-    "build:native:release": "MODE=native MBS_NATIVE_BUILD=1 MBS_NATIVE_RELEASE=1 node scripts/generate-app-config.mjs && vite build --mode native",
+    "build:native": "MBS_NATIVE=1 MODE=production node scripts/generate-app-config.mjs && vite build",
+    "build:native:release": "MBS_NATIVE=1 MODE=production MBS_NATIVE_RELEASE=1 node scripts/generate-app-config.mjs && vite build",
     "build": "MODE=production node scripts/generate-app-config.mjs && vite build",
     "build:strict": "MODE=production node scripts/generate-app-config.mjs && vite build",
     "build:prod": "MODE=production node scripts/generate-app-config.mjs && node scripts/validate-programs.mjs && vite build && npm run check:bundle && npm run check:storage-rest && node scripts/print-build-tag.js",
@@ -36,6 +36,7 @@
     "check:bundle": "node scripts/check-bundle.js",
     "check:storage-rest": "node scripts/check-storage-rest.js",
     "preview": "vite preview",
+    "cap:sync:ios": "npm run build:native && npx cap sync ios",
     "sync:ios": "npm run ios:sync",
     "sync:android": "npm run build:native && npx cap sync android",
     "build:ios": "bash scripts/build-ios.sh",

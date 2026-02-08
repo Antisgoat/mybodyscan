@@ -7,6 +7,12 @@ const config = {
   appId: "com.mybodyscan.app",
   appName: "MyBodyScan",
   webDir: "dist",
+  allowNavigation: [
+    "*.googleapis.com",
+    "*.gstatic.com",
+    "*.firebaseapp.com",
+    "*.google.com",
+  ],
   ios: {
     contentInset: "automatic",
   },

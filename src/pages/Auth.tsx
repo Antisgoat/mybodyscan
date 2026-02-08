@@ -277,10 +277,7 @@ const Auth = () => {
 
           switch (code) {
             case "auth/network-request-failed":
-              uiMessage =
-                native
-                  ? "Network blocked in iOS. Please try again."
-                  : "Network error contacting Auth. Please check your connection and try again.";
+              uiMessage = "Network error. Check your connection and try again.";
               break;
             case "auth/invalid-email":
               uiMessage = "That email address looks invalid.";
@@ -427,20 +424,21 @@ const Auth = () => {
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
   const isDev = import.meta.env.DEV;
+  const allowDebugParam = import.meta.env.VITE_ALLOW_DEBUG === "1";
   const debugParamEnabled = useMemo(
-    () => searchParams.get("debug") === "1",
-    [searchParams]
+    () => allowDebugParam && searchParams.get("debug") === "1",
+    [allowDebugParam, searchParams]
   );
   const showDebugPanel = isDev || debugParamEnabled;
   useEffect(() => {
-    if (isDev || debugParamEnabled) return;
+    if (showDebugPanel) return;
     if (typeof window === "undefined") return;
     try {
       window.localStorage.removeItem("mbs_debug");
     } catch {
       // ignore storage errors
     }
-  }, [debugParamEnabled, isDev]);
+  }, [showDebugPanel]);
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };

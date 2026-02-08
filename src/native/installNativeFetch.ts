@@ -1,4 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -87,7 +88,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 export function installNativeFetchPolyfill(options?: {
   timeoutMs?: number;
 }): void {
-  if (!Capacitor?.isNativePlatform?.()) return;
+  if (!isCapacitorNative()) return;
   if (typeof globalThis === "undefined") return;
   const anyGlobal = globalThis as typeof globalThis & {
     __mbsNativeFetchInstalled?: boolean;
