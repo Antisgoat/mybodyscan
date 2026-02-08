@@ -6,7 +6,7 @@ export const APP_CONFIG = {
     "apiKey": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8",
     "authDomain": "mybodyscan-f3daf.firebaseapp.com",
     "projectId": "mybodyscan-f3daf",
-    "storageBucket": "",
+    "storageBucket": "mybodyscan-f3daf.appspot.com",
     "messagingSenderId": "",
     "appId": "",
     "measurementId": ""
@@ -16,7 +16,7 @@ export const APP_CONFIG = {
 export const BUILD_META = {
   "mode": "production",
   "isNative": true,
-  "commit": "de3dd1c",
+  "commit": "edf4615",
   "branch": "work",
   "timestamp": null
 } as const;

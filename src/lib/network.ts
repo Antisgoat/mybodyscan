@@ -1,3 +1,5 @@
+import { isCapacitorNative } from "@/lib/platform/isNative";
+
 export type OnlineStatus = "unknown" | "online" | "offline";
 
 type Listener = (status: OnlineStatus) => void;
@@ -10,6 +12,8 @@ let currentStatus: OnlineStatus =
 let pollingTimer: number | null = null;
 let inFlightCheck: Promise<OnlineStatus> | null = null;
 let monitoring = false;
+let nativeListenerStop: (() => void) | null = null;
+let nativeListenerPromise: Promise<void> | null = null;
 
 const ONLINE_POLL_MS = 15_000;
 const OFFLINE_POLL_MS = 30_000;
@@ -59,6 +63,12 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return "offline";
   }
+  if (isCapacitorNative()) {
+    const nativeStatus = await getNativeNetworkStatus();
+    if (nativeStatus === "offline") {
+      return "offline";
+    }
+  }
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timeoutId =
     typeof window !== "undefined"
@@ -78,6 +88,45 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
       window.clearTimeout(timeoutId);
     }
   }
+}
+
+async function getNativeNetworkStatus(): Promise<OnlineStatus | null> {
+  if (!isCapacitorNative()) return null;
+  try {
+    const networkPlugin = (window as any)?.Capacitor?.Plugins?.Network;
+    if (!networkPlugin) return null;
+    const status = await networkPlugin.getStatus();
+    return status.connected ? "online" : "offline";
+  } catch {
+    return null;
+  }
+}
+
+function startNativeMonitoring() {
+  if (!isCapacitorNative() || nativeListenerPromise) return;
+  nativeListenerPromise = (async () => {
+    try {
+      const networkPlugin = (window as any)?.Capacitor?.Plugins?.Network;
+      if (!networkPlugin) {
+        nativeListenerPromise = null;
+        return;
+      }
+      const handle = await networkPlugin.addListener(
+        "networkStatusChange",
+        (status: { connected: boolean }) => {
+          emit(status.connected ? "online" : "offline");
+          if (status.connected) {
+            schedulePoll();
+          }
+        }
+      );
+      nativeListenerStop = () => {
+        handle.remove();
+      };
+    } catch {
+      nativeListenerPromise = null;
+    }
+  })();
 }
 
 export async function checkOnline(): Promise<"online" | "offline"> {
@@ -123,6 +172,15 @@ function startMonitoring() {
   if (monitoring || typeof window === "undefined") return;
   monitoring = true;
 
+  if (isCapacitorNative()) {
+    startNativeMonitoring();
+    void getNativeNetworkStatus().then((status) => {
+      if (status) {
+        emit(status);
+      }
+    });
+  }
+
   const onOffline = () => {
     emit("offline");
     schedulePoll();
@@ -150,6 +208,11 @@ function startMonitoring() {
     window.removeEventListener("online", onOnline);
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", onVisible);
+    }
+    if (nativeListenerStop) {
+      nativeListenerStop();
+      nativeListenerStop = null;
+      nativeListenerPromise = null;
     }
   };
 

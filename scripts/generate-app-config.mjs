@@ -107,10 +107,20 @@ const requiredFirebaseKeys = [
   "VITE_FIREBASE_AUTH_DOMAIN",
   "VITE_FIREBASE_PROJECT_ID",
 ];
+const nativeRequiredFirebaseKeys = [
+  "VITE_FIREBASE_APP_ID",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+];
 
 const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
   return !String(loadedEnv[key] ?? "").trim();
 });
+
+const missingNativeFirebaseKeys = isNative
+  ? nativeRequiredFirebaseKeys.filter((key) => {
+      return !String(loadedEnv[key] ?? "").trim();
+    })
+  : [];
 
 if (missingFirebaseKeys.length) {
   const sources = loadedFiles.length ? loadedFiles.join(", ") : "(no env files found)";
@@ -122,6 +132,15 @@ if (missingFirebaseKeys.length) {
   throw new Error(
     `Missing required Firebase env values: ${missingFirebaseKeys.join(", ")}. ` +
       `Checked: ${sources}.`
+  );
+}
+
+if (missingNativeFirebaseKeys.length) {
+  const sources = loadedFiles.length ? loadedFiles.join(", ") : "(no env files found)";
+  console.warn(
+    `[config] Native Firebase config is missing required keys: ${missingNativeFirebaseKeys.join(
+      ", "
+    )}. Checked: ${sources}. The native app will show a configuration error until these are set.`
   );
 }
 
