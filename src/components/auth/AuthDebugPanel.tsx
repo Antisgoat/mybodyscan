@@ -9,6 +9,14 @@ type ConfigStatus = {
 type SelfTestStatus = {
   state: "idle" | "running" | "ok" | "error";
   message?: string;
+  results?: Array<{
+    id: string;
+    label: string;
+    url: string;
+    ok: boolean;
+    status?: number;
+    error?: string;
+  }>;
 };
 
 type AuthDebugPanelProps = {
@@ -139,6 +147,18 @@ export function AuthDebugPanel({
                   ? "running"
                   : `failed (${selfTestStatus.message ?? "error"})`}
           </div>
+          {selfTestStatus.results?.length ? (
+            <ul className="mt-2 space-y-1">
+              {selfTestStatus.results.map((result) => (
+                <li key={result.id}>
+                  {result.label}:{" "}
+                  {result.ok
+                    ? `ok (${result.status ?? "status"})`
+                    : `failed (${result.error ?? "error"})`}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
     </>

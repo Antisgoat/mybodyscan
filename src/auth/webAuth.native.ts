@@ -1,16 +1,18 @@
 import {
   browserLocalPersistence,
+  indexedDBLocalPersistence,
   inMemoryPersistence,
   setPersistence,
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
 
-type NativePersistenceMode = "local" | "memory" | "unknown";
+type NativePersistenceMode = "indexeddb" | "local" | "memory";
 
 let persistencePromise: Promise<NativePersistenceMode> | null = null;
+const INDEXEDDB_PERSISTENCE_TIMEOUT_MS = 450;
 const LOCAL_PERSISTENCE_TIMEOUT_MS = 350;
-const MEMORY_PERSISTENCE_TIMEOUT_MS = 150;
+const MEMORY_PERSISTENCE_TIMEOUT_MS = 200;
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   if (ms <= 0) return promise;
@@ -30,23 +32,41 @@ export async function webRequireAuth(): Promise<null> {
 export async function ensureWebAuthPersistence(): Promise<NativePersistenceMode> {
   if (persistencePromise) return persistencePromise;
   persistencePromise = (async () => {
-    try {
-      await withTimeout(
-        setPersistence(auth, browserLocalPersistence),
-        LOCAL_PERSISTENCE_TIMEOUT_MS
-      );
-      return "local";
-    } catch {
+    const attempts: Array<{
+      label: NativePersistenceMode;
+      persistence: Parameters<typeof setPersistence>[1];
+      timeoutMs: number;
+    }> = [
+      {
+        label: "indexeddb",
+        persistence: indexedDBLocalPersistence,
+        timeoutMs: INDEXEDDB_PERSISTENCE_TIMEOUT_MS,
+      },
+      {
+        label: "local",
+        persistence: browserLocalPersistence,
+        timeoutMs: LOCAL_PERSISTENCE_TIMEOUT_MS,
+      },
+      {
+        label: "memory",
+        persistence: inMemoryPersistence,
+        timeoutMs: MEMORY_PERSISTENCE_TIMEOUT_MS,
+      },
+    ];
+
+    for (const attempt of attempts) {
       try {
         await withTimeout(
-          setPersistence(auth, inMemoryPersistence),
-          MEMORY_PERSISTENCE_TIMEOUT_MS
+          setPersistence(auth, attempt.persistence),
+          attempt.timeoutMs
         );
-        return "memory";
+        return attempt.label;
       } catch {
-        return "unknown";
+        // try next fallback
       }
     }
+
+    return "memory";
   })();
   return persistencePromise;
 }

@@ -12,6 +12,7 @@ import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isCapacitorNative } from "@/lib/platform/isNative";
 import { loadAnalyticsScripts } from "@/lib/analyticsLoader";
+import { APP_CONFIG } from "@/generated/appConfig";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
 const allowBootOverlay = true;
@@ -36,7 +37,7 @@ function installNativeCspPolicy() {
       'meta[http-equiv="Content-Security-Policy"]'
     ) ?? document.createElement("meta");
   meta.setAttribute("http-equiv", "Content-Security-Policy");
-  const connectSrc = [
+  const connectSrc = new Set<string>([
     "'self'",
     "capacitor://localhost",
     "https://mybodyscanapp.com",
@@ -44,12 +45,37 @@ function installNativeCspPolicy() {
     "https://identitytoolkit.googleapis.com",
     "https://firebaseinstallations.googleapis.com",
     "https://securetoken.googleapis.com",
+    "https://firestore.googleapis.com",
+    "https://firebasestorage.googleapis.com",
+    "https://firebase.googleapis.com",
     "https://www.googleapis.com",
     "https://*.googleapis.com",
-  ].join(" ");
+    "https://*.cloudfunctions.net",
+  ]);
+  const functionsCandidates = [
+    ENV.VITE_FUNCTIONS_URL as string | undefined,
+    ENV.VITE_FUNCTIONS_ORIGIN as string | undefined,
+    ENV.VITE_FUNCTIONS_BASE_URL as string | undefined,
+  ];
+  for (const candidate of functionsCandidates) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      connectSrc.add(url.origin);
+    } catch {
+      // ignore malformed config
+    }
+  }
+  const projectId = String(APP_CONFIG?.firebase?.projectId || "").trim();
+  const functionsRegion = String(
+    (ENV.VITE_FUNCTIONS_REGION as string | undefined) || "us-central1"
+  ).trim();
+  if (projectId) {
+    connectSrc.add(`https://${functionsRegion}-${projectId}.cloudfunctions.net`);
+  }
   meta.setAttribute(
     "content",
-    `script-src 'self'; connect-src ${connectSrc};`
+    `script-src 'self'; connect-src ${Array.from(connectSrc).join(" ")};`
   );
   if (!meta.parentNode) {
     document.head.appendChild(meta);

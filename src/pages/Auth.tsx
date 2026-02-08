@@ -53,6 +53,10 @@ import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
 import { checkOnline } from "@/lib/network";
 import { getInitAuthState } from "@/lib/auth/initAuth";
+import {
+  runNetworkProbe,
+  type NetworkProbeResult,
+} from "@/lib/diagnostics/nativeNetworkProbe";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -98,6 +102,7 @@ const Auth = () => {
   const [selfTestStatus, setSelfTestStatus] = useState<{
     state: "idle" | "running" | "ok" | "error";
     message?: string;
+    results?: NetworkProbeResult[];
   }>({ state: "idle" });
   const [identityProbe, setIdentityProbe] =
     useState<IdentityToolkitProbeStatus | null>(() =>
@@ -509,16 +514,15 @@ const Auth = () => {
   const runNetworkSelfTest = useCallback(async () => {
     setSelfTestStatus({ state: "running" });
     try {
-      const response = await withTimeout(
-        fetch("https://identitytoolkit.googleapis.com", {
-          method: "GET",
-          cache: "no-store",
-        }),
-        LOGIN_TIMEOUT_MS
-      );
+      const results = await withTimeout(runNetworkProbe(), LOGIN_TIMEOUT_MS);
+      const failures = results.filter((result) => !result.ok);
+      const summary = failures.length
+        ? `${failures.length} failing`
+        : "all reachable";
       setSelfTestStatus({
-        state: "ok",
-        message: `status ${response.status}`,
+        state: failures.length ? "error" : "ok",
+        message: summary,
+        results,
       });
     } catch (error) {
       const message =

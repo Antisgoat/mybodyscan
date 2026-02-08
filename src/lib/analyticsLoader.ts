@@ -1,6 +1,9 @@
 import { isNative } from "@/lib/platform";
 
 const ENV = (import.meta as any)?.env || {};
+const NATIVE_EXTERNAL_SCRIPTS_ENABLED =
+  ENV.VITE_NATIVE_EXTERNAL_SCRIPTS_ENABLED === "1" ||
+  ENV.VITE_NATIVE_EXTERNAL_SCRIPTS_ENABLED === "true";
 
 function parseScriptList(value: string | undefined): string[] {
   if (!value) return [];
@@ -47,7 +50,34 @@ function resolveAnalyticsScripts(isNativeBuild: boolean): string[] {
   const nativeScripts = parseScriptList(
     ENV.VITE_NATIVE_ANALYTICS_SCRIPTS as string | undefined
   );
-  return nativeScripts.length ? nativeScripts : webScripts;
+  const resolved = nativeScripts.length ? nativeScripts : webScripts;
+  if (NATIVE_EXTERNAL_SCRIPTS_ENABLED) {
+    return resolved;
+  }
+  const blocked = resolved.filter((src) => isBlockedNativeScript(src));
+  if (blocked.length) {
+    debugLog("blocked external scripts for native", { blocked });
+  }
+  return resolved.filter((src) => !isBlockedNativeScript(src));
+}
+
+function isBlockedNativeScript(src: string): boolean {
+  try {
+    const url = new URL(src);
+    const host = url.hostname.toLowerCase();
+    if (host.includes("stripe.com")) return true;
+    if (host.includes("google.com")) return true;
+    if (host.includes("googleapis.com")) return true;
+    if (host.includes("gstatic.com")) return true;
+    return false;
+  } catch {
+    const normalized = src.toLowerCase();
+    return (
+      normalized.includes("stripe") ||
+      normalized.includes("google") ||
+      normalized.includes("gstatic")
+    );
+  }
 }
 
 export function loadAnalyticsScripts(options?: { isNativeBuild?: boolean }): void {
