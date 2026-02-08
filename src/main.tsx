@@ -42,6 +42,7 @@ function installNativeCspPolicy() {
     "https://mybodyscanapp.com",
     "https://*.mybodyscanapp.com",
     "https://identitytoolkit.googleapis.com",
+    "https://firebaseinstallations.googleapis.com",
     "https://securetoken.googleapis.com",
     "https://www.googleapis.com",
     "https://*.googleapis.com",

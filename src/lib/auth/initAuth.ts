@@ -35,8 +35,8 @@ export function getInitAuthState(): InitAuthState {
 
 const INIT_AUTH_TIMEOUT_MS = 5_000;
 const STEP_TIMEOUT_MS = 2_000;
-const NATIVE_INIT_TIMEOUT_MS = 1_000;
-const NATIVE_STEP_TIMEOUT_MS = 800;
+const NATIVE_INIT_TIMEOUT_MS = 500;
+const NATIVE_STEP_TIMEOUT_MS = 350;
 const NATIVE_BOOT_FAIL_KEY = "mybodyscan:auth:bootFailCount";
 const NATIVE_BOOT_RECOVERY_KEY = "mybodyscan:auth:bootRecoveryAttempted";
 
@@ -197,7 +197,11 @@ export async function initAuth(): Promise<void> {
     const runStep = async <T,>(
       label: string,
       promise: Promise<T>,
-      options?: { swallowTimeout?: boolean; timeoutMs?: number }
+      options?: {
+        swallowTimeout?: boolean;
+        timeoutMs?: number;
+        suppressTimeoutLog?: boolean;
+      }
     ): Promise<T | null> => {
       try {
         return await withTimeout(
@@ -207,7 +211,9 @@ export async function initAuth(): Promise<void> {
         );
       } catch (err) {
         if (err instanceof AuthTimeoutError) {
-          logTimeout(label);
+          if (!options?.suppressTimeoutLog) {
+            logTimeout(label);
+          }
           if (options?.swallowTimeout) {
             return null;
           }
@@ -244,6 +250,7 @@ export async function initAuth(): Promise<void> {
       try {
         const result = await runStep("persistence", ensureWebAuthPersistence(), {
           swallowTimeout: native,
+          suppressTimeoutLog: native,
         });
         state.persistence = result ?? "unknown";
         debugLog("persistence:done", { mode: state.persistence });
@@ -279,9 +286,15 @@ export async function initAuth(): Promise<void> {
       log("auth:state:listener");
       const { startAuthListener } = await import("@/auth/mbs-auth");
       try {
-        await runStep("listener", startAuthListener(), {
-          swallowTimeout: native,
-        });
+        if (native) {
+          void startAuthListener().catch((err) => {
+            logFail("auth:state:listener:fail", err);
+          });
+        } else {
+          await runStep("listener", startAuthListener(), {
+            swallowTimeout: false,
+          });
+        }
       } catch (err) {
         logFail("auth:state:listener:fail", err);
       }

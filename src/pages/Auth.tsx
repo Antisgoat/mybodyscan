@@ -1,4 +1,12 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  Suspense,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  lazy,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -49,6 +57,14 @@ import { getInitAuthState } from "@/lib/auth/initAuth";
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
 const LOGIN_TIMEOUT_MS = 15_000;
+const DEBUG_TAP_COUNT = 7;
+const DEBUG_TAP_WINDOW_MS = 2_000;
+
+const LazyAuthDebugPanel = lazy(() =>
+  import("@/components/auth/AuthDebugPanel").then((mod) => ({
+    default: mod.AuthDebugPanel,
+  }))
+);
 
 const AppleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 14 17" width="16" height="16" aria-hidden="true" {...props}>
@@ -78,6 +94,7 @@ const Auth = () => {
   const [lastOAuthProvider, setLastOAuthProvider] =
     useState<("google.com" | "apple.com") | null>(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
+  const [debugEnabled, setDebugEnabled] = useState(false);
   const [selfTestStatus, setSelfTestStatus] = useState<{
     state: "idle" | "running" | "ok" | "error";
     message?: string;
@@ -106,6 +123,15 @@ const Auth = () => {
     return () => {
       mountedRef.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      setDebugEnabled(window.localStorage.getItem("mbs_debug") === "1");
+    } catch {
+      setDebugEnabled(false);
+    }
   }, []);
 
   const setAuthErrorSafe = useCallback((value: string | null) => {
@@ -297,6 +323,10 @@ const Auth = () => {
               uiMessage =
                 "Sign-in is not enabled for this project. Contact support.";
               break;
+            case "auth/invalid-api-key":
+              uiMessage =
+                "Authentication configuration is invalid. Please contact support.";
+              break;
             default:
               console.error("[Auth] Unhandled sign-in error", error);
               break;
@@ -424,21 +454,32 @@ const Auth = () => {
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
   const isDev = import.meta.env.DEV;
-  const allowDebugParam = import.meta.env.VITE_ALLOW_DEBUG === "1";
-  const debugParamEnabled = useMemo(
-    () => allowDebugParam && searchParams.get("debug") === "1",
-    [allowDebugParam, searchParams]
-  );
-  const showDebugPanel = isDev || debugParamEnabled;
-  useEffect(() => {
-    if (showDebugPanel) return;
+  const showDebugPanel = isDev || debugEnabled;
+  const tapStateRef = useRef({ count: 0, lastTap: 0 });
+  const handleDebugTap = useCallback(() => {
     if (typeof window === "undefined") return;
-    try {
-      window.localStorage.removeItem("mbs_debug");
-    } catch {
-      // ignore storage errors
+    const now = Date.now();
+    const state = tapStateRef.current;
+    if (now - state.lastTap > DEBUG_TAP_WINDOW_MS) {
+      state.count = 0;
     }
-  }, [showDebugPanel]);
+    state.count += 1;
+    state.lastTap = now;
+    if (state.count >= DEBUG_TAP_COUNT) {
+      state.count = 0;
+      const next = !debugEnabled;
+      setDebugEnabled(next);
+      try {
+        window.localStorage.setItem("mbs_debug", next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      toast(
+        next ? "Developer debug enabled." : "Developer debug disabled.",
+        "info"
+      );
+    }
+  }, [debugEnabled]);
   const configStatus = useMemo(() => {
     if (firebaseInitError) {
       return { tone: "error" as const, message: firebaseInitError };
@@ -496,7 +537,7 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-md">
         <CardHeader>
           <div className="text-center">
-            <CardTitle className="text-2xl mb-2">
+            <CardTitle className="text-2xl mb-2" onClick={handleDebugTap}>
               {mode === "signin" ? "Welcome back" : "Create your account"}
             </CardTitle>
             <CardDescription className="text-slate-600">
@@ -506,49 +547,28 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           {showDebugPanel && (
-            <div className="mb-2 flex justify-end">
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => setConfigDetailsOpen((open) => !open)}
-              >
-                {configDetailsOpen
-                  ? "Hide config status"
-                  : "Show config status"}
-              </Button>
-            </div>
-          )}
-          {configDetailsOpen && showDebugPanel && (
-            <div
-              className={`mb-3 rounded-md border p-3 text-xs ${
-                configStatus.tone === "warning"
-                  ? "border-amber-300 bg-amber-50 text-amber-900"
-                  : configStatus.tone === "ok"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                    : "border-muted bg-muted/30 text-muted-foreground"
-              }`}
-            >
-              <div className="font-semibold text-sm">
-                {configStatus.tone === "warning"
-                  ? "Config warning"
-                  : "Config status"}
-              </div>
-              <div className="mt-1">{configStatus.message}</div>
-              {identityProbe?.status === "warning" && (
-                <div className="mt-1 text-[11px] text-amber-800">
-                  IdentityToolkit clientConfig returned a warning (404/403).
-                  Login continues; add this origin to Firebase Auth authorized
-                  domains if needed.
-                </div>
-              )}
-              {identityProbe == null && (
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  Probing runtime configuration…
-                </div>
-              )}
-            </div>
+            <Suspense fallback={null}>
+              <LazyAuthDebugPanel
+                origin={origin}
+                config={config}
+                hasFirebaseConfig={hasFirebaseConfig}
+                firebaseConfigMissingKeys={firebaseConfigMissingKeys}
+                firebaseConfigWarningKeys={firebaseConfigWarningKeys}
+                firebaseInitError={firebaseInitError}
+                identityProbe={identityProbe}
+                authError={authError}
+                initAuthState={initAuthState}
+                userEmail={user?.email}
+                userUid={user?.uid}
+                configStatus={configStatus}
+                configDetailsOpen={configDetailsOpen}
+                onToggleConfigDetails={() =>
+                  setConfigDetailsOpen((open) => !open)
+                }
+                onRunNetworkSelfTest={runNetworkSelfTest}
+                selfTestStatus={selfTestStatus}
+              />
+            </Suspense>
           )}
           {firebaseInitError && (
             <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
@@ -735,74 +755,6 @@ const Auth = () => {
                 Terms
               </a>
             </div>
-            {showDebugPanel && (
-              <div className="mt-6 rounded-lg border bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground space-y-1">
-                <div className="font-semibold text-xs text-foreground">
-                  Debug info
-                </div>
-                <div>Origin: {origin}</div>
-                <div>
-                  Project ID: {(config.projectId as string) || "(unknown)"}
-                </div>
-                <div>
-                  Auth domain:{" "}
-                  {(config.authDomain as string) || "(unknown)"}
-                </div>
-                <div>Has config: {String(hasFirebaseConfig)}</div>
-                <div>
-                  Missing config:{" "}
-                  {firebaseConfigMissingKeys.length
-                    ? firebaseConfigMissingKeys.join(", ")
-                    : "none"}
-                </div>
-                <div>
-                  Optional missing:{" "}
-                  {firebaseConfigWarningKeys.length
-                    ? firebaseConfigWarningKeys.join(", ")
-                    : "none"}
-                </div>
-                <div>
-                  IdentityToolkit probe: {identityProbe?.status || "pending"}
-                  {identityProbe?.statusCode
-                    ? ` (${identityProbe.statusCode})`
-                    : ""}
-                </div>
-                <div>
-                  Current user: {user?.email || "(none)"} · UID:{" "}
-                  {user?.uid || "-"}
-                </div>
-                <div>
-                  Last auth error: {authError || firebaseInitError || "none"}
-                </div>
-                <div>
-                  Auth init last error: {initAuthState.lastError || "none"}
-                </div>
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    className="h-7 px-2 text-[11px]"
-                    onClick={runNetworkSelfTest}
-                    disabled={selfTestStatus.state === "running"}
-                  >
-                    {selfTestStatus.state === "running"
-                      ? "Testing network..."
-                      : "Run network self-test"}
-                  </Button>
-                  <div className="mt-1 text-[11px]">
-                    Network test:{" "}
-                    {selfTestStatus.state === "idle"
-                      ? "not run"
-                      : selfTestStatus.state === "ok"
-                        ? `ok (${selfTestStatus.message ?? "success"})`
-                        : selfTestStatus.state === "running"
-                          ? "running"
-                          : `failed (${selfTestStatus.message ?? "error"})`}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

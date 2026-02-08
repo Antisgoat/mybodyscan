@@ -86,7 +86,7 @@ const listeners = new Set<() => void>();
 let unsubscribe: Unsubscribe | null = null;
 let firstAuthEventResolve: (() => void) | null = null;
 let firstAuthEventPromise: Promise<void> | null = null;
-const NATIVE_AUTH_READY_TIMEOUT_MS = 3000;
+const NATIVE_AUTH_READY_TIMEOUT_MS = 1200;
 
 function emit(nextUser: MbsUser | null) {
   cachedUser = nextUser;

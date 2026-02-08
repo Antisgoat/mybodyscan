@@ -1,5 +1,9 @@
 import { ReactNode, Suspense, useEffect, useMemo, useState } from "react";
-import { logFirebaseConfigSummary, logFirebaseRuntimeInfo } from "@/lib/firebase";
+import {
+  getBlockingFirebaseConfigError,
+  logFirebaseConfigSummary,
+  logFirebaseRuntimeInfo,
+} from "@/lib/firebase";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNative } from "@/lib/platform";
 
@@ -30,6 +34,7 @@ export function BootGate({
 }) {
   const [ready, setReady] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const blockingConfigError = getBlockingFirebaseConfigError();
   const label = useMemo(() => {
     if (typeof window === "undefined") return "Loading…";
     try {
@@ -90,6 +95,19 @@ export function BootGate({
       window.clearTimeout(timeout);
     };
   }, []);
+
+  if (blockingConfigError) {
+    return (
+      <div style={BOOT_STYLE}>
+        <div style={{ maxWidth: 520 }}>
+          <div style={{ fontWeight: 700, color: "#111827" }}>
+            Configuration error
+          </div>
+          <div style={{ marginTop: 8 }}>{blockingConfigError}</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!ready) {
     if (timedOut) {
