@@ -102,26 +102,37 @@ if (forbiddenMatches.length) {
   );
 }
 
-const requiredFirebaseKeys = [
-  "VITE_FIREBASE_API_KEY",
-  "VITE_FIREBASE_AUTH_DOMAIN",
-  "VITE_FIREBASE_PROJECT_ID",
-];
+const requiredFirebaseKeys = isNative
+  ? [
+      "VITE_FIREBASE_API_KEY",
+      "VITE_FIREBASE_AUTH_DOMAIN",
+      "VITE_FIREBASE_PROJECT_ID",
+      "VITE_FIREBASE_APP_ID",
+    ]
+  : [];
 
 const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
   return !String(loadedEnv[key] ?? "").trim();
 });
 
 if (missingFirebaseKeys.length) {
-  const sources = loadedFiles.length ? loadedFiles.join(", ") : "(no env files found)";
-  if (isNative && missingFirebaseKeys.includes("VITE_FIREBASE_API_KEY")) {
+  const sources = loadedFiles.length
+    ? loadedFiles.join(", ")
+    : "(no env files found)";
+  if (isNative) {
     console.error(
-      "[config] Missing VITE_FIREBASE_API_KEY for native build. Ensure .env.native(.local) or .env.production(.local) supplies it."
+      "[config] Missing Firebase keys for native build. Ensure .env.native(.local) or .env.production(.local) supplies them.",
+      missingFirebaseKeys
+    );
+    throw new Error(
+      `Missing required Firebase env values: ${missingFirebaseKeys.join(", ")}. ` +
+        `Checked: ${sources}.`
     );
   }
-  throw new Error(
-    `Missing required Firebase env values: ${missingFirebaseKeys.join(", ")}. ` +
-      `Checked: ${sources}.`
+  console.warn(
+    `[config] Missing Firebase env values for web build: ${missingFirebaseKeys.join(
+      ", "
+    )}. Build will continue; runtime config may be required.`
   );
 }
 

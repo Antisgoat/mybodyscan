@@ -18,7 +18,7 @@ type InitAuthState = {
   timedOut: boolean;
 };
 
-let initPromise: Promise<void> | null = null;
+let initPromise: Promise<InitAuthState> | null = null;
 const state: InitAuthState = {
   started: false,
   completed: false,
@@ -35,8 +35,8 @@ export function getInitAuthState(): InitAuthState {
 
 const INIT_AUTH_TIMEOUT_MS = 5_000;
 const STEP_TIMEOUT_MS = 2_000;
-const NATIVE_INIT_TIMEOUT_MS = 500;
-const NATIVE_STEP_TIMEOUT_MS = 350;
+const NATIVE_INIT_TIMEOUT_MS = 1_200;
+const NATIVE_STEP_TIMEOUT_MS = 900;
 const NATIVE_BOOT_FAIL_KEY = "mybodyscan:auth:bootFailCount";
 const NATIVE_BOOT_RECOVERY_KEY = "mybodyscan:auth:bootRecoveryAttempted";
 
@@ -148,7 +148,7 @@ function withTimeout<T>(
  * b) Finalize any pending redirect result (must happen before routing decisions)
  * c) Attach onAuthStateChanged and wait for the first event (authReady)
  */
-export async function initAuth(): Promise<void> {
+export async function initAuth(): Promise<InitAuthState> {
   if (initPromise) return initPromise;
   state.started = true;
   state.step = "start";
@@ -341,6 +341,7 @@ export async function initAuth(): Promise<void> {
         },
       });
     }
+    return getInitAuthState();
   })();
 
   return initPromise;
