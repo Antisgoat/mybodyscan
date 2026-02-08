@@ -10,6 +10,10 @@
 2. Wait for boot to complete.
    - ✅ No `[auth] step timeout` or `[auth] init timeout` logs.
    - ✅ App renders without a blank screen.
+3. (Optional) Enable debug panel:
+   - Tap the “Welcome back” title 7 times within ~2 seconds.
+   - A toast confirms the debug panel is enabled (stored in `localStorage` as `mbs_debug=1`).
+   - Repeat the 7 taps to disable.
 
 ## Email/Password Sign-In
 1. Enter a valid email/password and submit.

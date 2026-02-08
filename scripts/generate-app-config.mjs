@@ -27,7 +27,39 @@ const dotenv = {
 
 const ROOT_DIR = process.cwd();
 const OUTPUT_PATH = path.join(ROOT_DIR, "src", "generated", "appConfig.ts");
-const ENV_FILES = [".env", ".env.production", ".env.local"];
+const mode =
+  process.env.MODE ||
+  process.env.VITE_MODE ||
+  process.env.NODE_ENV ||
+  "production";
+const isNative =
+  mode === "native" ||
+  process.env.MBS_NATIVE === "1" ||
+  process.env.CAPACITOR_NATIVE === "1" ||
+  process.env.CAPACITOR_PLATFORM != null ||
+  process.env.MBS_NATIVE_RELEASE === "1" ||
+  process.env.MBS_NATIVE_BUILD === "1";
+
+const resolveEnvMode = (envMode, nativeFlag) => {
+  if (nativeFlag) return "native";
+  return envMode;
+};
+
+const buildEnvList = (envMode) => {
+  const base = [".env", ".env.local"];
+  const modeFiles = [`.env.${envMode}`, `.env.${envMode}.local`];
+  if (envMode === "native") {
+    return [
+      ...base,
+      ".env.production",
+      ".env.production.local",
+      ...modeFiles,
+    ];
+  }
+  return [...base, ...modeFiles];
+};
+
+const ENV_FILES = buildEnvList(resolveEnvMode(mode, isNative));
 
 const loadedEnv = {};
 const loadedFiles = [];
@@ -39,6 +71,11 @@ for (const file of ENV_FILES) {
   const parsed = dotenv.parse(contents);
   Object.assign(loadedEnv, parsed);
   loadedFiles.push(file);
+}
+
+for (const [key, value] of Object.entries(process.env)) {
+  if (value == null) continue;
+  loadedEnv[key] = String(value);
 }
 
 const forbiddenKeys = [
@@ -77,6 +114,11 @@ const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
 
 if (missingFirebaseKeys.length) {
   const sources = loadedFiles.length ? loadedFiles.join(", ") : "(no env files found)";
+  if (isNative && missingFirebaseKeys.includes("VITE_FIREBASE_API_KEY")) {
+    console.error(
+      "[config] Missing VITE_FIREBASE_API_KEY for native build. Ensure .env.native(.local) or .env.production(.local) supplies it."
+    );
+  }
   throw new Error(
     `Missing required Firebase env values: ${missingFirebaseKeys.join(", ")}. ` +
       `Checked: ${sources}.`
@@ -92,19 +134,6 @@ const firebaseConfig = {
   appId: String(loadedEnv.VITE_FIREBASE_APP_ID ?? "").trim(),
   measurementId: String(loadedEnv.VITE_FIREBASE_MEASUREMENT_ID ?? "").trim(),
 };
-
-const mode =
-  process.env.MODE ||
-  process.env.VITE_MODE ||
-  process.env.NODE_ENV ||
-  "production";
-const isNative =
-  mode === "native" ||
-  process.env.MBS_NATIVE === "1" ||
-  process.env.CAPACITOR_NATIVE === "1" ||
-  process.env.CAPACITOR_PLATFORM != null ||
-  process.env.MBS_NATIVE_RELEASE === "1" ||
-  process.env.MBS_NATIVE_BUILD === "1";
 
 const readEnvString = (...keys) => {
   for (const key of keys) {

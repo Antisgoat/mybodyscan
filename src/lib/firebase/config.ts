@@ -119,12 +119,29 @@ export function getFirebaseInitError(): string | null {
   );
 }
 
+let loggedMissingApiKey = false;
+export function getBlockingFirebaseConfigError(): string | null {
+  const missingApiKey = firebaseConfigMissingKeys.includes("apiKey");
+  if (!missingApiKey) return null;
+  if (!isCapacitorNative()) return null;
+  if (!loggedMissingApiKey && typeof console !== "undefined") {
+    console.error(
+      "[firebase] Missing apiKey in native build. Firebase Auth cannot start."
+    );
+    loggedMissingApiKey = true;
+  }
+  return "Firebase configuration is missing the apiKey required for native authentication. Please reinstall the app or contact support.";
+}
+
 let loggedConfigSummary = false;
 function buildFirebaseConfigSummary(): Record<string, string> {
   const summary: Record<string, string> = {
     projectId: String(firebaseConfig.projectId || "").trim(),
     authDomain: String(firebaseConfig.authDomain || "").trim(),
   };
+  if (firebaseConfig.apiKey) {
+    summary.apiKey = "set";
+  }
   const optional: Array<keyof FirebaseRuntimeConfig> = [
     "storageBucket",
     "messagingSenderId",

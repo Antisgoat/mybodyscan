@@ -6,6 +6,7 @@ import {
   firebaseApiKey,
   firebaseConfigMissingKeys,
   firebaseConfigWarningKeys,
+  getBlockingFirebaseConfigError,
   getFirebaseConfig,
   getFirebaseInitError,
   hasFirebaseConfig,
@@ -54,7 +55,13 @@ export { firebaseApiKey };
 
 export { logFirebaseConfigSummary, logFirebaseRuntimeInfo };
 
-export { firebaseConfigMissingKeys, firebaseConfigWarningKeys, hasFirebaseConfig, getFirebaseInitError };
+export {
+  firebaseConfigMissingKeys,
+  firebaseConfigWarningKeys,
+  hasFirebaseConfig,
+  getFirebaseInitError,
+  getBlockingFirebaseConfigError,
+};
 
 const parseFlag = (value: string | undefined, fallback: boolean): boolean => {
   if (value == null) return fallback;
