@@ -1,5 +1,5 @@
 import { reportError } from "@/lib/telemetry";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type AuthPersistenceMode =
   | "indexeddb"
@@ -35,6 +35,8 @@ export function getInitAuthState(): InitAuthState {
 
 const INIT_AUTH_TIMEOUT_MS = 5_000;
 const STEP_TIMEOUT_MS = 2_000;
+const NATIVE_INIT_TIMEOUT_MS = 1_000;
+const NATIVE_STEP_TIMEOUT_MS = 800;
 const NATIVE_BOOT_FAIL_KEY = "mybodyscan:auth:bootFailCount";
 const NATIVE_BOOT_RECOVERY_KEY = "mybodyscan:auth:bootRecoveryAttempted";
 
@@ -103,37 +105,41 @@ async function clearIndexedDbAuthStorage(): Promise<void> {
   });
 }
 
-async function withTimeout<T>(
+class AuthTimeoutError extends Error {
+  code = "auth/timeout";
+  label: string;
+  timeoutMs: number;
+
+  constructor(label: string, timeoutMs: number) {
+    super(`Auth step "${label}" timed out after ${timeoutMs}ms`);
+    this.name = "AuthTimeoutError";
+    this.label = label;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   label: string
-): Promise<{ value?: T; timedOut: boolean }> {
+): Promise<T> {
+  if (timeoutMs <= 0) return promise;
   let timeoutId: number | null = null;
   const schedule =
     typeof window === "undefined" ? globalThis.setTimeout : window.setTimeout;
-  const timeoutPromise = new Promise<{ timedOut: boolean }>((resolve) => {
-    timeoutId = schedule(() => resolve({ timedOut: true }), timeoutMs) as unknown as number;
+  const clear =
+    typeof window === "undefined" ? globalThis.clearTimeout : window.clearTimeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = schedule(
+      () => reject(new AuthTimeoutError(label, timeoutMs)),
+      timeoutMs
+    ) as unknown as number;
   });
-  const guardedPromise = promise
-    .then((value) => ({ value, timedOut: false as const }))
-    .catch((error) => ({ error, timedOut: false as const }));
-  const result = await Promise.race([guardedPromise, timeoutPromise]);
-  if (timeoutId !== null) {
-    const clear =
-      typeof window === "undefined"
-        ? globalThis.clearTimeout
-        : window.clearTimeout;
-    clear(timeoutId);
-  }
-  if (result.timedOut) {
-    if (typeof console !== "undefined") {
-      console.warn("[auth] step timeout", { step: label });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId !== null) {
+      clear(timeoutId);
     }
-  }
-  if ("error" in result && result.error) {
-    throw result.error;
-  }
-  return result;
+  });
 }
 
 /**
@@ -149,7 +155,13 @@ export async function initAuth(): Promise<void> {
   state.lastError = null;
   state.timedOut = false;
   initPromise = (async () => {
-    const native = isNative();
+    const native = isCapacitorNative();
+    const stepTimeoutMs = native ? NATIVE_STEP_TIMEOUT_MS : STEP_TIMEOUT_MS;
+    const initTimeoutMs = native ? NATIVE_INIT_TIMEOUT_MS : INIT_AUTH_TIMEOUT_MS;
+    const diagnosticsEnabled =
+      import.meta.env.DEV &&
+      (import.meta.env.VITE_AUTH_DIAGNOSTICS === "1" ||
+        import.meta.env.VITE_NATIVE_AUTH_DIAGNOSTICS === "1");
     let timedOut = false;
     let hadFailure = false;
     const start = Date.now();
@@ -158,11 +170,20 @@ export async function initAuth(): Promise<void> {
         console.info(phase, extra);
       }
     };
+    const debugLog = (phase: string, extra?: Record<string, unknown>) => {
+      if (!diagnosticsEnabled || typeof console === "undefined") return;
+      console.info(`[auth:debug] ${phase}`, extra);
+    };
     const logFail = (phase: string, error: unknown) => {
       state.lastError =
         error instanceof Error ? error.message : String(error ?? "unknown");
       if (typeof console !== "undefined") {
         console.warn(phase, { error: state.lastError });
+      }
+    };
+    const logTimeout = (label: string) => {
+      if (typeof console !== "undefined") {
+        console.warn("[auth] step timeout", { step: label });
       }
     };
 
@@ -172,6 +193,28 @@ export async function initAuth(): Promise<void> {
       message: "auth.init",
       extra: { phase: "start" },
     });
+
+    const runStep = async <T,>(
+      label: string,
+      promise: Promise<T>,
+      options?: { swallowTimeout?: boolean; timeoutMs?: number }
+    ): Promise<T | null> => {
+      try {
+        return await withTimeout(
+          promise,
+          options?.timeoutMs ?? stepTimeoutMs,
+          label
+        );
+      } catch (err) {
+        if (err instanceof AuthTimeoutError) {
+          logTimeout(label);
+          if (options?.swallowTimeout) {
+            return null;
+          }
+        }
+        throw err;
+      }
+    };
 
     const initSequence = async () => {
       if (native && getBootFailCount() > 0 && !hasRecoveryAttempted()) {
@@ -184,14 +227,9 @@ export async function initAuth(): Promise<void> {
           clearAuthStorageKeyed(
             typeof window === "undefined" ? null : window.sessionStorage
           );
-          const clearResult = await withTimeout(
-            clearIndexedDbAuthStorage(),
-            STEP_TIMEOUT_MS,
-            "clear_indexeddb"
-          );
-          if (clearResult.timedOut) {
-            log("auth:init:recovery:timeout");
-          }
+          await runStep("clear_indexeddb", clearIndexedDbAuthStorage(), {
+            swallowTimeout: true,
+          });
           markRecoveryAttempted();
         } catch (err) {
           logFail("auth:init:recovery:fail", err);
@@ -202,81 +240,71 @@ export async function initAuth(): Promise<void> {
       state.step = "persistence";
       const { ensureWebAuthPersistence } = await import("@/auth/webAuth");
       log("auth:persistence:set");
+      debugLog("persistence:begin", { native });
       try {
-        const result = await withTimeout(
-          ensureWebAuthPersistence(),
-          STEP_TIMEOUT_MS,
-          "persistence"
-        );
-        state.persistence = result.value ?? "unknown";
-        if (result.timedOut) {
-          state.persistence = "unknown";
-        }
+        const result = await runStep("persistence", ensureWebAuthPersistence(), {
+          swallowTimeout: native,
+        });
+        state.persistence = result ?? "unknown";
+        debugLog("persistence:done", { mode: state.persistence });
       } catch (err) {
         state.persistence = "unknown";
         logFail("auth:persistence:fail", err);
       }
 
-      // Always attempt redirect finalization (safe if no redirect is pending).
-      // This is critical for iOS Safari and also covers edge cases where a WebView
-      // ends up using web-based redirects (or reauth redirects) instead of native auth.
-      state.step = "redirect";
-      try {
-        const { finalizeRedirectResult } = await import("@/auth/webAuth");
-        const result = await withTimeout(
-          finalizeRedirectResult(),
-          STEP_TIMEOUT_MS,
-          "redirect"
-        );
-        if (result.timedOut) {
-          state.redirectError = "redirect_timeout";
-        } else {
+      if (!native) {
+        // Web-only: finalize any pending OAuth redirects.
+        state.step = "redirect";
+        try {
+          const { finalizeRedirectResult } = await import("@/auth/webAuth");
+          await runStep("redirect", finalizeRedirectResult(), {
+            swallowTimeout: false,
+          });
           state.redirectError = null;
+        } catch (err: any) {
+          if (err instanceof AuthTimeoutError) {
+            state.redirectError = "redirect_timeout";
+          } else {
+            // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
+            state.redirectError =
+              typeof err?.message === "string" ? err.message : String(err);
+            logFail("auth:redirect:fail", err);
+          }
         }
-      } catch (err: any) {
-        // Never crash boot on redirect errors; they are surfaced via UI/telemetry.
-        state.redirectError =
-          typeof err?.message === "string" ? err.message : String(err);
-        logFail("auth:redirect:fail", err);
+      } else {
+        state.redirectError = null;
       }
 
       state.step = "listener";
       log("auth:state:listener");
       const { startAuthListener } = await import("@/auth/mbs-auth");
       try {
-        const result = await withTimeout(
-          startAuthListener(),
-          STEP_TIMEOUT_MS,
-          "listener"
-        );
-        if (result.timedOut) {
-          log("auth:state:listener:timeout");
-        }
+        await runStep("listener", startAuthListener(), {
+          swallowTimeout: native,
+        });
       } catch (err) {
         logFail("auth:state:listener:fail", err);
       }
     };
 
     try {
-      const overall = await withTimeout(
-        initSequence(),
-        INIT_AUTH_TIMEOUT_MS,
-        "init"
-      );
-      if (overall.timedOut) {
+      await withTimeout(initSequence(), initTimeoutMs, "init");
+    } catch (err) {
+      if (err instanceof AuthTimeoutError) {
         timedOut = true;
-        hadFailure = true;
         state.timedOut = true;
-        log("auth:init:timeout");
+        if (native) {
+          log("auth:init:timeout (native non-fatal)");
+        } else {
+          hadFailure = true;
+          log("auth:init:timeout");
+        }
+      } else {
+        hadFailure = true;
+        logFail("auth:init:fail", err);
         if (native) {
           markBootFailure();
         }
-      }
-    } catch (err) {
-      hadFailure = true;
-      logFail("auth:init:fail", err);
-      if (native) {
-        markBootFailure();
       }
     } finally {
       state.completed = true;

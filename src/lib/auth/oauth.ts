@@ -1,3 +1,5 @@
+import { isCapacitorNative } from "@/lib/platform/isNative";
+
 export type OAuthProviderId = "google.com" | "apple.com";
 
 const PENDING_KEY = "mybodyscan:auth:oauth:pending";
@@ -27,7 +29,7 @@ function shouldPreferRedirect(): boolean {
   if (isMobileLike()) return true;
   // WebView-ish environments: also prefer redirect.
   try {
-    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+    if (isCapacitorNative()) return true;
   } catch {
     // ignore
   }

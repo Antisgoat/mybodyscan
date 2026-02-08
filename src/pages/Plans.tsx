@@ -20,7 +20,7 @@ import { createCustomerPortalSession } from "@/lib/api/portal";
 import { openExternalUrl } from "@/lib/platform";
 import { reportError } from "@/lib/telemetry";
 import { isIOSBuild } from "@/lib/iosBuild";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
@@ -52,9 +52,9 @@ export default function Plans() {
   const { t } = useI18n();
   const { user } = useAuthUser();
   const iosBuild = isIOSBuild();
-  const native = isNative();
+  const native = isCapacitorNative();
   const stripePromise = useMemo(() => {
-    if (__IS_NATIVE__ || native) return null;
+    if (native) return null;
     if (!STRIPE_PUBLISHABLE_KEY) return null;
     return import("@stripe/stripe-js").then(({ loadStripe }) =>
       loadStripe(STRIPE_PUBLISHABLE_KEY)

@@ -1,5 +1,5 @@
 import { APP_CONFIG, BUILD_META } from "@/generated/appConfig";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type FirebaseRuntimeConfig = {
   apiKey: string;
@@ -173,9 +173,9 @@ export function logBuildMetaOnce(): void {
   if (loggedBuildInfo) return;
   loggedBuildInfo = true;
   try {
-    const runtimeNative = BUILD_META.isNative || isNative();
+    const runtimeNative = isCapacitorNative();
     console.info(
-      `[MBS] build mode=${BUILD_META.mode} native=${runtimeNative}`
+      `[MBS] build mode=${BUILD_META.mode} native=${runtimeNative} buildNative=${BUILD_META.isNative}`
     );
     console.info(
       `[MBS] firebase config apiKey=${Boolean(

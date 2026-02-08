@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 // Minimal dotenv-compatible parser (kept local to avoid runtime dependencies).
 const dotenv = {
   parse(src) {
@@ -99,14 +100,66 @@ const mode =
   "production";
 const isNative =
   mode === "native" ||
+  process.env.MBS_NATIVE === "1" ||
+  process.env.CAPACITOR_NATIVE === "1" ||
   process.env.CAPACITOR_PLATFORM != null ||
   process.env.MBS_NATIVE_RELEASE === "1" ||
   process.env.MBS_NATIVE_BUILD === "1";
 
+const readEnvString = (...keys) => {
+  for (const key of keys) {
+    const value = String(process.env[key] ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+};
+
+const tryGit = (command) => {
+  try {
+    return execSync(command, { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+};
+
+const commit =
+  readEnvString(
+    "GIT_COMMIT",
+    "GITHUB_SHA",
+    "VERCEL_GIT_COMMIT_SHA",
+    "CI_COMMIT_SHA"
+  ) || tryGit("git rev-parse --short HEAD");
+
+const branch =
+  readEnvString(
+    "GIT_BRANCH",
+    "GITHUB_REF_NAME",
+    "VERCEL_GIT_COMMIT_REF",
+    "CI_COMMIT_REF_NAME"
+  ) || tryGit("git rev-parse --abbrev-ref HEAD");
+
+const resolveBuildTimestamp = () => {
+  const epoch = readEnvString("SOURCE_DATE_EPOCH");
+  if (epoch) {
+    const asNumber = Number(epoch);
+    if (Number.isFinite(asNumber)) {
+      return new Date(asNumber * 1000).toISOString();
+    }
+  }
+  const explicit = readEnvString("MBS_BUILD_TIME", "BUILD_TIMESTAMP");
+  return explicit || "";
+};
+
+const timestamp = resolveBuildTimestamp();
+
 const buildMeta = {
   mode,
   isNative,
-  timestamp: new Date().toISOString(),
+  commit: commit || null,
+  branch: branch || null,
+  timestamp: timestamp || null,
 };
 
 const outputDir = path.dirname(OUTPUT_PATH);

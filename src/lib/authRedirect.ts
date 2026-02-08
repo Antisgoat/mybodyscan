@@ -1,7 +1,7 @@
 import type { FirebaseError } from "firebase/app";
 import { describeAuthErrorAsync, type NormalizedAuthError } from "./login";
 import { reportError } from "./telemetry";
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 const BENIGN_ERRORS = new Set([
   "auth/no-auth-event",
@@ -45,8 +45,7 @@ function authEvent(kind: string, extra?: Record<string, unknown>) {
 
 async function resolveRedirect(): Promise<AuthRedirectOutcome> {
   // Compile-time guard: in `--mode native` we must not even bundle the web impl.
-  const isNativeBuild = __NATIVE__;
-  if (isNativeBuild || isNative()) {
+  if (isCapacitorNative()) {
     const outcome: AuthRedirectOutcome = {
       result: null,
       error: null,

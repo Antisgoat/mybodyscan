@@ -1,8 +1,8 @@
-import { isNative } from "@/lib/platform";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 import { signInApple, signInGoogle } from "@/auth/mbs-auth";
 
 export async function signInWithGoogle(next?: string | null): Promise<void> {
-  if (isNative()) {
+  if (isCapacitorNative()) {
     throw new Error(
       "Google sign-in is not available on iOS. Use email/password for now."
     );
@@ -11,7 +11,7 @@ export async function signInWithGoogle(next?: string | null): Promise<void> {
 }
 
 export async function signInWithApple(next?: string | null): Promise<void> {
-  if (isNative()) {
+  if (isCapacitorNative()) {
     throw new Error(
       "Apple sign-in is not available on iOS. Use email/password for now."
     );
@@ -21,9 +21,7 @@ export async function signInWithApple(next?: string | null): Promise<void> {
 
 // Handle a completed redirect (Apple/Google).
 export async function handleAuthRedirectResult(): Promise<any | null> {
-  // Compile-time guard: in `--mode native` we must not even bundle the web impl.
-  if (__NATIVE__) return null;
-  if (isNative()) return null;
+  if (isCapacitorNative()) return null;
   try {
     const { finalizeRedirectResult } = await import("@/auth/webAuth");
     return await finalizeRedirectResult();

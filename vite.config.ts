@@ -96,7 +96,11 @@ function forbidNativeImports(isNative: boolean) {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const isNative = mode === "native" || process.env.MBS_NATIVE_BUILD === "1";
+  const isNative =
+    mode === "native" ||
+    process.env.MBS_NATIVE === "1" ||
+    process.env.CAPACITOR_NATIVE === "1" ||
+    process.env.MBS_NATIVE_BUILD === "1";
   const enableNativeSourcemaps = isNative && process.env.MBS_NATIVE_RELEASE !== "1";
 
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
