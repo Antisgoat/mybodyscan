@@ -61,18 +61,6 @@ const buildEnvList = (envMode) => {
 
 const ENV_FILES = buildEnvList(resolveEnvMode(mode, isNative));
 
-const fileEnv = {};
-const loadedFiles = [];
-
-for (const file of ENV_FILES) {
-  const fullPath = path.join(ROOT_DIR, file);
-  if (!fs.existsSync(fullPath)) continue;
-  const contents = fs.readFileSync(fullPath, "utf8");
-  const parsed = dotenv.parse(contents);
-  Object.assign(fileEnv, parsed);
-  loadedFiles.push(file);
-}
-
 const allowlistedClientKeys = new Set([
   "VITE_FIREBASE_API_KEY",
   "VITE_FIREBASE_AUTH_DOMAIN",
@@ -95,17 +83,41 @@ const forbiddenKeys = [
   "GOOGLE_APPLICATION_CREDENTIALS",
 ];
 
-const forbiddenMatches = forbiddenKeys.filter((key) => {
-  const value = String(fileEnv[key] ?? "").trim();
-  return Boolean(value);
-});
+const fileEnv = {};
+const loadedFiles = [];
+const forbiddenSources = new Map();
+
+for (const file of ENV_FILES) {
+  const fullPath = path.join(ROOT_DIR, file);
+  if (!fs.existsSync(fullPath)) continue;
+  const contents = fs.readFileSync(fullPath, "utf8");
+  const parsed = dotenv.parse(contents);
+  Object.assign(fileEnv, parsed);
+  loadedFiles.push(file);
+  for (const key of forbiddenKeys) {
+    const value = String(parsed[key] ?? "").trim();
+    if (!value) continue;
+    const existing = forbiddenSources.get(key) ?? new Set();
+    existing.add(file);
+    forbiddenSources.set(key, existing);
+  }
+}
+
+const forbiddenMatches = [...forbiddenSources.keys()].sort();
 
 if (forbiddenMatches.length) {
   const sources = loadedFiles.length
     ? loadedFiles.join(", ")
     : "(no env files found)";
+  const offending = forbiddenMatches
+    .map((key) => {
+      const files = [...(forbiddenSources.get(key) ?? [])].sort();
+      return `${key} in ${files.join(", ")}`;
+    })
+    .join("; ");
   throw new Error(
     `Refusing to build with server secrets in client env files: ${forbiddenMatches.join(", ")}. ` +
+      `Offending files: ${offending}. ` +
       `Checked: ${sources}. ` +
       "Move secrets to server-side config (functions/secrets) and remove them from .env files."
   );
