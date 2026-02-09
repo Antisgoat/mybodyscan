@@ -149,38 +149,103 @@ const readClientEnvValue = (key) => {
   return String(fileEnv[key] ?? "").trim();
 };
 
-const requiredFirebaseKeys = isNative
-  ? [
-      "VITE_FIREBASE_API_KEY",
-      "VITE_FIREBASE_AUTH_DOMAIN",
-      "VITE_FIREBASE_PROJECT_ID",
-    ]
-  : [];
+const decodeXmlValue = (value) =>
+  value
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 
-const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
-  return !readClientEnvValue(key);
-});
-
-if (missingFirebaseKeys.length) {
-  const sources = loadedFiles.length
-    ? loadedFiles.join(", ")
-    : "(no env files found)";
-  if (isNative) {
-    console.error(
-      "[config] Missing Firebase keys for native build. Ensure .env.native(.local) or .env.production(.local) supplies them.",
-      missingFirebaseKeys
-    );
-    throw new Error(
-      `Missing required Firebase env values: ${missingFirebaseKeys.join(", ")}. ` +
-        `Checked: ${sources}.`
-    );
+const parseSimplePlistDict = (contents) => {
+  const dictMatch = contents.match(/<dict>([\s\S]*?)<\/dict>/);
+  if (!dictMatch) return {};
+  const dictContent = dictMatch[1];
+  const entries = {};
+  const entryRegex =
+    /<key>([^<]+)<\/key>\s*(?:<string>([^<]*)<\/string>|<integer>([^<]*)<\/integer>|<(true|false)\s*\/>)/g;
+  let match = entryRegex.exec(dictContent);
+  while (match) {
+    const key = decodeXmlValue(match[1].trim());
+    const rawValue = match[2] ?? match[3] ?? match[4] ?? "";
+    entries[key] = decodeXmlValue(String(rawValue).trim());
+    match = entryRegex.exec(dictContent);
   }
-  console.warn(
-    `[config] Missing Firebase env values for web build: ${missingFirebaseKeys.join(
-      ", "
-    )}. Build will continue; runtime config may be required.`
+  return entries;
+};
+
+const readIosFirebaseConfig = () => {
+  const plistPath = path.join(
+    ROOT_DIR,
+    "ios",
+    "App",
+    "App",
+    "GoogleService-Info.plist"
   );
-}
+  if (!fs.existsSync(plistPath)) return null;
+  const contents = fs.readFileSync(plistPath, "utf8");
+  const dict = parseSimplePlistDict(contents);
+  return {
+    appId: dict.GOOGLE_APP_ID,
+    apiKey: dict.API_KEY,
+    projectId: dict.PROJECT_ID,
+    messagingSenderId: dict.GCM_SENDER_ID,
+    storageBucket: dict.STORAGE_BUCKET,
+    source: path.relative(ROOT_DIR, plistPath),
+  };
+};
+
+const readAndroidFirebaseConfig = () => {
+  const paths = [
+    path.join(ROOT_DIR, "android", "app", "google-services.json"),
+    path.join(ROOT_DIR, "android", "app", "src", "main", "google-services.json"),
+  ];
+  const jsonPath = paths.find((candidate) => fs.existsSync(candidate));
+  if (!jsonPath) return null;
+  const contents = fs.readFileSync(jsonPath, "utf8");
+  const parsed = JSON.parse(contents);
+  const projectInfo = parsed.project_info || {};
+  const client = Array.isArray(parsed.client) ? parsed.client[0] : null;
+  const clientInfo = client?.client_info || {};
+  const apiKey =
+    Array.isArray(client?.api_key) && client.api_key[0]
+      ? client.api_key[0].current_key
+      : undefined;
+  return {
+    appId: clientInfo.mobilesdk_app_id,
+    apiKey,
+    projectId: projectInfo.project_id,
+    messagingSenderId: projectInfo.project_number,
+    storageBucket: projectInfo.storage_bucket,
+    source: path.relative(ROOT_DIR, jsonPath),
+  };
+};
+
+const readNativeFirebaseConfig = () => {
+  const platform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+  const sources = [];
+  const config = {};
+  if (platform === "ios" || !platform) {
+    const iosConfig = readIosFirebaseConfig();
+    if (iosConfig) {
+      sources.push(iosConfig.source);
+      Object.assign(config, iosConfig);
+    }
+  }
+  if (platform === "android" || !platform) {
+    const androidConfig = readAndroidFirebaseConfig();
+    if (androidConfig) {
+      sources.push(androidConfig.source);
+      for (const [key, value] of Object.entries(androidConfig)) {
+        if (config[key] == null) {
+          config[key] = value;
+        }
+      }
+    }
+  }
+  if (!sources.length) return null;
+  return { ...config, sources };
+};
 
 const firebaseConfig = {
   apiKey: readClientEnvValue("VITE_FIREBASE_API_KEY"),
@@ -191,6 +256,67 @@ const firebaseConfig = {
   appId: readClientEnvValue("VITE_FIREBASE_APP_ID"),
   measurementId: readClientEnvValue("VITE_FIREBASE_MEASUREMENT_ID"),
 };
+
+const isMissingValue = (value) =>
+  value === undefined || value === null || String(value).trim() === "";
+
+const nativeConfig = isNative ? readNativeFirebaseConfig() : null;
+if (nativeConfig) {
+  const mergeMap = {
+    apiKey: nativeConfig.apiKey,
+    projectId: nativeConfig.projectId,
+    appId: nativeConfig.appId,
+    messagingSenderId: nativeConfig.messagingSenderId,
+    storageBucket: nativeConfig.storageBucket,
+  };
+  for (const [key, value] of Object.entries(mergeMap)) {
+    if (isMissingValue(firebaseConfig[key]) && !isMissingValue(value)) {
+      firebaseConfig[key] = value;
+    }
+  }
+}
+
+if (isNative && isMissingValue(firebaseConfig.authDomain)) {
+  const projectId = firebaseConfig.projectId;
+  if (!isMissingValue(projectId)) {
+    firebaseConfig.authDomain = `${projectId}.firebaseapp.com`;
+  }
+}
+
+const requiredFirebaseConfigKeys = isNative
+  ? ["apiKey", "projectId", "appId"]
+  : [];
+
+const missingFirebaseConfig = requiredFirebaseConfigKeys.filter((key) =>
+  isMissingValue(firebaseConfig[key])
+);
+
+if (missingFirebaseConfig.length) {
+  const sources = loadedFiles.length
+    ? loadedFiles.join(", ")
+    : "(no env files found)";
+  const nativeSources = nativeConfig?.sources?.length
+    ? nativeConfig.sources.join(", ")
+    : "(no native Firebase files found)";
+  if (isNative) {
+    console.error(
+      "[config] Missing Firebase keys for native build.",
+      missingFirebaseConfig
+    );
+    throw new Error(
+      `Missing required Firebase config values: ${missingFirebaseConfig.join(", ")}.\n` +
+        `Checked env files: ${sources}.\n` +
+        `Checked native files: ${nativeSources}.\n` +
+        `Provide VITE_FIREBASE_* values or add ios/App/App/GoogleService-Info.plist` +
+        ` or android/app/google-services.json with Firebase client config.`
+    );
+  }
+  console.warn(
+    `[config] Missing Firebase config values for web build: ${missingFirebaseConfig.join(
+      ", "
+    )}. Build will continue; runtime config may be required.`
+  );
+}
 
 const readEnvString = (...keys) => {
   for (const key of keys) {

@@ -133,12 +133,22 @@ export function getBlockingFirebaseConfigError(): string | null {
     return isMissing(value);
   });
   if (!missingNativeKeys.length) return null;
+  const isRelease =
+    typeof __MBS_NATIVE_RELEASE__ !== "undefined" && __MBS_NATIVE_RELEASE__;
+  const allowDiagnostics = import.meta.env?.DEV || !isRelease;
   if (!loggedMissingApiKey && typeof console !== "undefined") {
-    console.error(
-      "[firebase] Missing Firebase config in native build.",
-      missingNativeKeys
-    );
+    if (allowDiagnostics) {
+      console.error(
+        "[firebase] Missing Firebase config in native build.",
+        missingNativeKeys
+      );
+    } else {
+      console.error("[firebase] Missing Firebase config in native build.");
+    }
     loggedMissingApiKey = true;
+  }
+  if (!allowDiagnostics) {
+    return "Configuration error. Please reinstall the app or contact support.";
   }
   return `Missing Firebase config: ${missingNativeKeys.join(
     ", "
