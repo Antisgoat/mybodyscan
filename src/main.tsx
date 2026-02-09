@@ -1,4 +1,3 @@
-import "./native/installNativeFetch";
 import "./lib/iosSafetyShim";
 import "./lib/bootProbe";
 import { StrictMode } from "react";
@@ -46,6 +45,9 @@ function installNativeCspPolicy() {
     "https://securetoken.googleapis.com",
     "https://www.googleapis.com",
     "https://*.googleapis.com",
+    "https://*.firebaseapp.com",
+    "https://*.cloudfunctions.net",
+    "https://*.a.run.app",
   ].join(" ");
   meta.setAttribute(
     "content",

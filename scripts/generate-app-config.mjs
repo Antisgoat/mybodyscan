@@ -95,18 +95,49 @@ const forbiddenKeys = [
   "GOOGLE_APPLICATION_CREDENTIALS",
 ];
 
-const forbiddenMatches = forbiddenKeys.filter((key) => {
-  const value = String(fileEnv[key] ?? "").trim();
-  return Boolean(value);
-});
+const scanForbiddenEnvLines = (files) => {
+  const matches = [];
+  const keyPattern = forbiddenKeys.join("|");
+  const lineRegex = new RegExp(`^\\s*(?:export\\s+)?(${keyPattern})\\s*=`);
+  for (const file of files) {
+    const fullPath = path.join(ROOT_DIR, file);
+    if (!fs.existsSync(fullPath)) continue;
+    const contents = fs.readFileSync(fullPath, "utf8");
+    const lines = contents.split(/\r?\n/);
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) return;
+      const match = lineRegex.exec(trimmed);
+      if (!match) return;
+      matches.push({
+        file,
+        line: idx + 1,
+        key: match[1],
+        text: trimmed,
+      });
+    });
+  }
+  return matches;
+};
 
-if (forbiddenMatches.length) {
+const forbiddenLineMatches = scanForbiddenEnvLines(ENV_FILES);
+
+if (forbiddenLineMatches.length) {
   const sources = loadedFiles.length
     ? loadedFiles.join(", ")
     : "(no env files found)";
+  const details = forbiddenLineMatches
+    .map(
+      (match) => `- ${match.file}:${match.line} (${match.key})`
+    )
+    .join("\n");
+  const uniqueKeys = [
+    ...new Set(forbiddenLineMatches.map((match) => match.key)),
+  ];
   throw new Error(
-    `Refusing to build with server secrets in client env files: ${forbiddenMatches.join(", ")}. ` +
-      `Checked: ${sources}. ` +
+    `Refusing to build with server secrets in client env files: ${uniqueKeys.join(", ")}.\n` +
+      `Found in:\n${details}\n` +
+      `Checked: ${sources}.\n` +
       "Move secrets to server-side config (functions/secrets) and remove them from .env files."
   );
 }
