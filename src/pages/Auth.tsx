@@ -85,11 +85,10 @@ const Auth = () => {
     [location.search]
   );
   const nextParam = searchParams.get("next");
-  const debugParam = searchParams.get("debug") === "1";
+  const explicitDebug =
+    (import.meta as any)?.env?.VITE_SHOW_DEBUG === "true";
   const allowDebugUi =
-    import.meta.env.DEV ||
-    (((import.meta as any)?.env?.VITE_DEBUG_UI === "1" && debugParam) &&
-      !__MBS_NATIVE_RELEASE__);
+    (import.meta.env.DEV || explicitDebug) && !__MBS_NATIVE_RELEASE__;
   const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -265,13 +264,21 @@ const Auth = () => {
     };
   }, []);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    // Regression prevention: avoid form submit + window.location reloads in WebView.
-    e.preventDefault();
+  const logAuthDebug = useCallback(
+    (event: string, payload?: Record<string, unknown>) => {
+      if (!import.meta.env.DEV) return;
+      // eslint-disable-next-line no-console
+      console.info(`[Auth] ${event}`, payload ?? {});
+    },
+    []
+  );
+
+  const attemptEmailAuth = useCallback(async () => {
     // IMPORTANT: Firebase config warnings should never block sign-in attempts.
     // If Auth is misconfigured, the sign-in call will fail and we show a friendly error.
     setAuthErrorSafe(null);
     const onlineStatus = await checkOnline();
+    logAuthDebug("online_check", { status: onlineStatus, native });
     if (onlineStatus === "offline") {
       const message = "No internet connection. Please reconnect and try again.";
       setAuthErrorSafe(message);
@@ -279,6 +286,12 @@ const Auth = () => {
       return;
     }
     setLoadingSafe(true);
+    const startedAt = Date.now();
+    logAuthDebug("email_auth_start", {
+      mode,
+      native,
+      onlineStatus,
+    });
     try {
       if (mode === "signin") {
         try {
@@ -291,6 +304,9 @@ const Auth = () => {
             signInEmailPassword(email, password),
             LOGIN_TIMEOUT_MS
           );
+          logAuthDebug("email_auth_success", {
+            elapsedMs: Date.now() - startedAt,
+          });
           return;
         } catch (err: unknown) {
           const error = err as FirebaseError & {
@@ -307,6 +323,11 @@ const Auth = () => {
               origin: window.location.origin,
             });
           }
+          logAuthDebug("email_auth_failed", {
+            code,
+            message: rawMessage,
+            elapsedMs: Date.now() - startedAt,
+          });
 
           let uiMessage = "Sign-in failed. Please try again.";
 
@@ -354,6 +375,10 @@ const Auth = () => {
           await startAuthListener().catch(() => undefined);
         }
         await withTimeout(createAccountEmail(email, password), LOGIN_TIMEOUT_MS);
+        logAuthDebug("email_auth_success", {
+          mode,
+          elapsedMs: Date.now() - startedAt,
+        });
       }
     } catch (err: unknown) {
       const normalized = normalizeFirebaseError(err);
@@ -369,11 +394,37 @@ const Auth = () => {
         normalized.code === "auth/timeout"
           ? timeoutMessage
           : formatError(normalized.message ?? fallback, normalized.code);
+      logAuthDebug("email_auth_exception", {
+        code: normalized.code,
+        message: normalized.message,
+      });
       setAuthErrorSafe(message);
       toast(message, "error");
     } finally {
+      logAuthDebug("email_auth_done", {
+        elapsedMs: Date.now() - startedAt,
+      });
       setLoadingSafe(false);
     }
+  }, [
+    checkOnline,
+    createAccountEmail,
+    email,
+    mode,
+    native,
+    password,
+    logAuthDebug,
+    setAuthErrorSafe,
+    setLoadingSafe,
+    signInEmailPassword,
+    startAuthListener,
+    toast,
+  ]);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    // Regression prevention: avoid form submit + window.location reloads in WebView.
+    e.preventDefault();
+    await attemptEmailAuth();
   };
 
   const handleGoogleSignIn = useCallback(async () => {
@@ -464,7 +515,7 @@ const Auth = () => {
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
   const isDev = import.meta.env.DEV;
-  const showDebugPanel = isDev || (allowDebugUi && debugEnabled);
+  const showDebugPanel = allowDebugUi && (isDev || explicitDebug || debugEnabled);
   const tapStateRef = useRef({ count: 0, lastTap: 0 });
   const handleDebugTap = useCallback(() => {
     if (!allowDebugUi) return;
@@ -592,6 +643,22 @@ const Auth = () => {
               {authError}
             </div>
           )}
+          {authError && mode === "signin" && !lastOAuthProvider ? (
+            <div className="mb-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={loading}
+                onClick={() => void attemptEmailAuth()}
+              >
+                Retry sign in
+              </Button>
+              <p className="mt-2 text-xs text-muted-foreground text-center">
+                If this keeps failing, check your connection and try again.
+              </p>
+            </div>
+          ) : null}
           <div className="flex justify-center gap-2 mb-4">
             <Button
               size="sm"

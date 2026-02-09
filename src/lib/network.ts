@@ -59,7 +59,11 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return "offline";
   }
-  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  if (typeof fetch !== "function") {
+    return "unknown";
+  }
+  const controller =
+    typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId: number | null = null;
   try {
     const { url, init } = buildProbeRequest(getProbeUrl());
@@ -68,7 +72,7 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
         ? new Promise<OnlineStatus>((resolve) => {
             timeoutId = window.setTimeout(() => {
               controller?.abort();
-              resolve("offline");
+              resolve("unknown");
             }, CHECK_TIMEOUT_MS);
           })
         : null;
@@ -77,7 +81,7 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
       signal: controller?.signal,
     })
       .then(() => "online" as const)
-      .catch(() => "offline" as const);
+      .catch(() => "unknown" as const);
     return await Promise.race(
       timeoutPromise ? [fetchPromise, timeoutPromise] : [fetchPromise]
     );
@@ -88,7 +92,7 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
   }
 }
 
-export async function checkOnline(): Promise<"online" | "offline"> {
+export async function checkOnline(): Promise<OnlineStatus> {
   const status = await runReachabilityCheck();
   emit(status);
   return status;
