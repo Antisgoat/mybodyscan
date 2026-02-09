@@ -24,6 +24,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@mbs-auth-impl": path.resolve(
+        __dirname,
+        "./src/auth/mbs-auth.web.ts"
+      ),
+      "@mbs-firebase-impl": path.resolve(
+        __dirname,
+        "./src/lib/firebase/firebase.web.ts"
+      ),
     },
   },
 });

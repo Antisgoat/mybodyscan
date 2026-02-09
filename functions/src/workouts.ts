@@ -24,6 +24,7 @@ import {
   hasUnlimitedAccessFromClaims,
 } from "./lib/entitlements.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { structuredJsonChat } from "./openai/client.js";
 import { openAiSecretParam } from "./openai/keys.js";
 
@@ -45,6 +46,7 @@ const VALID_CATALOG_DAYS = [
   "Sun",
 ] as const;
 const VALID_CATALOG_DAY_SET = new Set<string>(VALID_CATALOG_DAYS);
+const MAX_WORKOUT_PREFS_SIZE = 20_000;
 
 type AdjustmentMods = {
   intensity: number;
@@ -112,6 +114,32 @@ function uniqStrings(values: unknown, maxItems: number, maxLen = 24): string[] {
     if (out.length >= maxItems) break;
   }
   return out;
+}
+
+function sanitizePlanPrefs(raw: any): PlanPrefs {
+  const prefs: PlanPrefs = {};
+  const focus = typeof raw?.focus === "string" ? raw.focus.trim() : "";
+  if (focus === "back" || focus === "legs" || focus === "core" || focus === "full") {
+    prefs.focus = focus as PlanPrefs["focus"];
+  }
+  const equipment = typeof raw?.equipment === "string" ? raw.equipment.trim() : "";
+  if (
+    equipment === "none" ||
+    equipment === "dumbbells" ||
+    equipment === "bands" ||
+    equipment === "gym"
+  ) {
+    prefs.equipment = equipment as PlanPrefs["equipment"];
+  }
+  const daysPerWeek = Number(raw?.daysPerWeek);
+  if (Number.isFinite(daysPerWeek)) {
+    prefs.daysPerWeek = Math.min(6, Math.max(2, Math.round(daysPerWeek)));
+  }
+  const injuries = uniqStrings(raw?.injuries, 8, 48);
+  if (injuries.length) {
+    prefs.injuries = injuries;
+  }
+  return prefs;
 }
 
 function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
@@ -996,7 +1024,17 @@ async function handleGenerate(req: Request, res: Response) {
     fn: "generateWorkoutPlan",
     uid,
   });
-  const prefs = (req.body?.prefs || {}) as PlanPrefs;
+  const bodySize = JSON.stringify(req.body ?? {}).length;
+  if (bodySize > MAX_WORKOUT_PREFS_SIZE) {
+    throw new HttpsError("invalid-argument", "Request payload too large.");
+  }
+  await enforceRateLimit({
+    uid,
+    key: "generateWorkoutPlan",
+    limit: 6,
+    windowMs: 60_000,
+  });
+  const prefs = sanitizePlanPrefs(req.body?.prefs);
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
 }
@@ -1566,6 +1604,17 @@ export const adjustWorkout = onRequest(
         fn: "adjustWorkout",
         uid,
         requestId,
+      });
+      const bodySize = JSON.stringify(req.body ?? {}).length;
+      if (bodySize > MAX_WORKOUT_PREFS_SIZE) {
+        res.status(400).json({ error: "payload_too_large", debugId: requestId });
+        return;
+      }
+      await enforceRateLimit({
+        uid,
+        key: "adjustWorkout",
+        limit: 12,
+        windowMs: 60_000,
       });
       const payload = (req.body as any) || {};
       const dayId =

@@ -13,7 +13,18 @@ const initAuth = vi.fn().mockResolvedValue({
   lastError: null,
   timedOut: false,
 });
-vi.mock("@/lib/auth/initAuth", () => ({ initAuth: (...a: any[]) => initAuth(...a) }));
+vi.mock("@/lib/auth/initAuth", () => ({
+  initAuth: (...a: any[]) => initAuth(...a),
+  getInitAuthState: () => ({
+    started: true,
+    completed: true,
+    persistence: "unknown",
+    redirectError: null,
+    step: "done",
+    lastError: null,
+    timedOut: false,
+  }),
+}));
 
 const probeFirebaseRuntime = vi.fn().mockResolvedValue({ identityToolkit: null });
 vi.mock("@/lib/firebase/runtimeConfig", () => ({
@@ -25,6 +36,7 @@ const logFirebaseRuntimeInfo = vi.fn();
 vi.mock("@/lib/firebase", () => ({
   logFirebaseConfigSummary: (...a: any[]) => logFirebaseConfigSummary(...a),
   logFirebaseRuntimeInfo: (...a: any[]) => logFirebaseRuntimeInfo(...a),
+  getBlockingFirebaseConfigError: () => null,
 }));
 
 import { BootGate } from "@/components/BootGate";

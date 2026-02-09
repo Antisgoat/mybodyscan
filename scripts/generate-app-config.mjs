@@ -61,7 +61,7 @@ const buildEnvList = (envMode) => {
 
 const ENV_FILES = buildEnvList(resolveEnvMode(mode, isNative));
 
-const loadedEnv = {};
+const fileEnv = {};
 const loadedFiles = [];
 
 for (const file of ENV_FILES) {
@@ -69,14 +69,19 @@ for (const file of ENV_FILES) {
   if (!fs.existsSync(fullPath)) continue;
   const contents = fs.readFileSync(fullPath, "utf8");
   const parsed = dotenv.parse(contents);
-  Object.assign(loadedEnv, parsed);
+  Object.assign(fileEnv, parsed);
   loadedFiles.push(file);
 }
 
-for (const [key, value] of Object.entries(process.env)) {
-  if (value == null) continue;
-  loadedEnv[key] = String(value);
-}
+const allowlistedClientKeys = new Set([
+  "VITE_FIREBASE_API_KEY",
+  "VITE_FIREBASE_AUTH_DOMAIN",
+  "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_STORAGE_BUCKET",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "VITE_FIREBASE_APP_ID",
+  "VITE_FIREBASE_MEASUREMENT_ID",
+]);
 
 const forbiddenKeys = [
   "OPENAI_API_KEY",
@@ -91,28 +96,38 @@ const forbiddenKeys = [
 ];
 
 const forbiddenMatches = forbiddenKeys.filter((key) => {
-  const value = String(loadedEnv[key] ?? "").trim();
+  const value = String(fileEnv[key] ?? "").trim();
   return Boolean(value);
 });
 
 if (forbiddenMatches.length) {
+  const sources = loadedFiles.length
+    ? loadedFiles.join(", ")
+    : "(no env files found)";
   throw new Error(
-    `Refusing to build with server secrets in env files: ${forbiddenMatches.join(", ")}. ` +
+    `Refusing to build with server secrets in client env files: ${forbiddenMatches.join(", ")}. ` +
+      `Checked: ${sources}. ` +
       "Move secrets to server-side config (functions/secrets) and remove them from .env files."
   );
 }
+
+const readClientEnvValue = (key) => {
+  if (!allowlistedClientKeys.has(key)) return "";
+  const fromProcess = String(process.env[key] ?? "").trim();
+  if (fromProcess) return fromProcess;
+  return String(fileEnv[key] ?? "").trim();
+};
 
 const requiredFirebaseKeys = isNative
   ? [
       "VITE_FIREBASE_API_KEY",
       "VITE_FIREBASE_AUTH_DOMAIN",
       "VITE_FIREBASE_PROJECT_ID",
-      "VITE_FIREBASE_APP_ID",
     ]
   : [];
 
 const missingFirebaseKeys = requiredFirebaseKeys.filter((key) => {
-  return !String(loadedEnv[key] ?? "").trim();
+  return !readClientEnvValue(key);
 });
 
 if (missingFirebaseKeys.length) {
@@ -137,13 +152,13 @@ if (missingFirebaseKeys.length) {
 }
 
 const firebaseConfig = {
-  apiKey: String(loadedEnv.VITE_FIREBASE_API_KEY ?? "").trim(),
-  authDomain: String(loadedEnv.VITE_FIREBASE_AUTH_DOMAIN ?? "").trim(),
-  projectId: String(loadedEnv.VITE_FIREBASE_PROJECT_ID ?? "").trim(),
-  storageBucket: String(loadedEnv.VITE_FIREBASE_STORAGE_BUCKET ?? "").trim(),
-  messagingSenderId: String(loadedEnv.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "").trim(),
-  appId: String(loadedEnv.VITE_FIREBASE_APP_ID ?? "").trim(),
-  measurementId: String(loadedEnv.VITE_FIREBASE_MEASUREMENT_ID ?? "").trim(),
+  apiKey: readClientEnvValue("VITE_FIREBASE_API_KEY"),
+  authDomain: readClientEnvValue("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: readClientEnvValue("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: readClientEnvValue("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: readClientEnvValue("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: readClientEnvValue("VITE_FIREBASE_APP_ID"),
+  measurementId: readClientEnvValue("VITE_FIREBASE_MEASUREMENT_ID"),
 };
 
 const readEnvString = (...keys) => {

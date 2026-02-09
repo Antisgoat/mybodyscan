@@ -21,6 +21,7 @@ import {
   hasUnlimitedAccessFromClaims,
 } from "./lib/entitlements.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -91,6 +92,7 @@ type ThreadMessage = {
 
 const db = getFirestore();
 const THREADS_COLLECTION = "coachThreads";
+const MAX_MESSAGE_LENGTH = 2000;
 
 function sanitizeMessage(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -837,6 +839,19 @@ export const coachChat = onCall<CoachChatRequest>(
         "Missing or invalid 'message' field for coach chat."
       );
     }
+    if (payload.message.length > MAX_MESSAGE_LENGTH) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Message is too long (max ${MAX_MESSAGE_LENGTH} characters).`
+      );
+    }
+
+    await enforceRateLimit({
+      uid,
+      key: "coachChat",
+      limit: 12,
+      windowMs: 60_000,
+    });
 
     const identifier = identifierFromRequest(request.rawRequest as Request);
     try {
@@ -894,6 +909,13 @@ export async function coachChatHandler(
     });
     return;
   }
+  if (payload.message.length > MAX_MESSAGE_LENGTH) {
+    res.status(400).json({
+      code: "invalid-argument",
+      message: `Message is too long (max ${MAX_MESSAGE_LENGTH} characters).`,
+    });
+    return;
+  }
 
   const requestId = req.get("x-request-id")?.trim() || randomUUID();
   const identifier = identifierFromRequest(req);
@@ -904,6 +926,12 @@ export async function coachChatHandler(
     if (!uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
     }
+    await enforceRateLimit({
+      uid,
+      key: "coachChat",
+      limit: 12,
+      windowMs: 60_000,
+    });
     payload.context = await buildServerContext({
       uid,
       requestId,
