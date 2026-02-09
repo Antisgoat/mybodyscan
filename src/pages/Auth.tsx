@@ -87,8 +87,11 @@ const Auth = () => {
   const nextParam = searchParams.get("next");
   const explicitDebug =
     (import.meta as any)?.env?.VITE_SHOW_DEBUG === "true";
+  const isProdBuild = import.meta.env.PROD;
   const allowDebugUi =
-    (import.meta.env.DEV || explicitDebug) && !__MBS_NATIVE_RELEASE__;
+    (import.meta.env.DEV || explicitDebug) &&
+    !isProdBuild &&
+    !__MBS_NATIVE_RELEASE__;
   const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -632,7 +635,7 @@ const Auth = () => {
               />
             </Suspense>
           )}
-          {firebaseInitError && (
+          {allowDebugUi && firebaseInitError && (
             <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900">
               <AlertTitle>Configuration warning</AlertTitle>
               <AlertDescription>{firebaseInitError}</AlertDescription>

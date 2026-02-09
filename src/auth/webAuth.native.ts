@@ -32,6 +32,7 @@ export async function webRequireAuth(): Promise<null> {
 export async function ensureWebAuthPersistence(): Promise<NativePersistenceMode> {
   if (persistencePromise) return persistencePromise;
   persistencePromise = (async () => {
+    const isDev = import.meta.env.DEV;
     try {
       await withTimeout(
         setPersistence(auth, indexedDBLocalPersistence),
@@ -39,7 +40,7 @@ export async function ensureWebAuthPersistence(): Promise<NativePersistenceMode>
       );
       return "indexeddb";
     } catch (err) {
-      if (typeof console !== "undefined") {
+      if (isDev && typeof console !== "undefined") {
         console.warn("[auth] indexeddb persistence unavailable", err);
       }
     }
@@ -50,7 +51,7 @@ export async function ensureWebAuthPersistence(): Promise<NativePersistenceMode>
       );
       return "local";
     } catch (err) {
-      if (typeof console !== "undefined") {
+      if (isDev && typeof console !== "undefined") {
         console.warn("[auth] local persistence unavailable", err);
       }
     }

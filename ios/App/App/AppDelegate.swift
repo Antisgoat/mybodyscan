@@ -15,11 +15,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    return ApplicationDelegateProxy.shared.application(
-      app,
-      open: url,
-      options: options
-    )
+    NotificationCenter.default.post(name: .capacitorOpenURL, object: [
+      "url": url,
+      "options": options,
+    ])
+    NotificationCenter.default.post(name: NSNotification.Name.CDVPluginHandleOpenURL, object: url)
+    return true
   }
 
   func application(
@@ -27,10 +28,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
-    return ApplicationDelegateProxy.shared.application(
-      application,
-      continue: userActivity,
-      restorationHandler: restorationHandler
-    )
+    _ = restorationHandler
+    guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+          userActivity.webpageURL != nil else {
+      return false
+    }
+    NotificationCenter.default.post(name: .capacitorOpenUniversalLink, object: [
+      "url": userActivity.webpageURL as Any,
+    ])
+    return true
   }
 }

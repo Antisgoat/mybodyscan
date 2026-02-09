@@ -191,6 +191,7 @@ const readIosFirebaseConfig = () => {
     projectId: dict.PROJECT_ID,
     messagingSenderId: dict.GCM_SENDER_ID,
     storageBucket: dict.STORAGE_BUCKET,
+    measurementId: dict.MEASUREMENT_ID,
     source: path.relative(ROOT_DIR, plistPath),
   };
 };
@@ -268,6 +269,7 @@ if (nativeConfig) {
     appId: nativeConfig.appId,
     messagingSenderId: nativeConfig.messagingSenderId,
     storageBucket: nativeConfig.storageBucket,
+    measurementId: nativeConfig.measurementId,
   };
   for (const [key, value] of Object.entries(mergeMap)) {
     if (isMissingValue(firebaseConfig[key]) && !isMissingValue(value)) {
@@ -284,7 +286,7 @@ if (isNative && isMissingValue(firebaseConfig.authDomain)) {
 }
 
 const requiredFirebaseConfigKeys = isNative
-  ? ["apiKey", "projectId", "appId"]
+  ? ["apiKey", "projectId", "authDomain", "appId"]
   : [];
 
 const missingFirebaseConfig = requiredFirebaseConfigKeys.filter((key) =>
@@ -298,6 +300,20 @@ if (missingFirebaseConfig.length) {
   const nativeSources = nativeConfig?.sources?.length
     ? nativeConfig.sources.join(", ")
     : "(no native Firebase files found)";
+  const nativeFileHint = (() => {
+    if (!isNative || nativeConfig?.sources?.length) return "";
+    const platform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+    if (platform === "ios") {
+      return "\nMissing iOS Firebase config file: ios/App/App/GoogleService-Info.plist.\n" +
+        "Download it from the Firebase console and place it at ios/App/App/GoogleService-Info.plist.";
+    }
+    if (platform === "android") {
+      return "\nMissing Android Firebase config file: android/app/google-services.json.\n" +
+        "Download it from the Firebase console and place it at android/app/google-services.json.";
+    }
+    return "\nMissing native Firebase config files: ios/App/App/GoogleService-Info.plist or android/app/google-services.json.\n" +
+      "Download the platform file(s) from the Firebase console and place them at the paths above.";
+  })();
   if (isNative) {
     console.error(
       "[config] Missing Firebase keys for native build.",
@@ -307,8 +323,8 @@ if (missingFirebaseConfig.length) {
       `Missing required Firebase config values: ${missingFirebaseConfig.join(", ")}.\n` +
         `Checked env files: ${sources}.\n` +
         `Checked native files: ${nativeSources}.\n` +
-        `Provide VITE_FIREBASE_* values or add ios/App/App/GoogleService-Info.plist` +
-        ` or android/app/google-services.json with Firebase client config.`
+        `Provide VITE_FIREBASE_* values or add Firebase native config files with client settings.` +
+        nativeFileHint
     );
   }
   console.warn(
