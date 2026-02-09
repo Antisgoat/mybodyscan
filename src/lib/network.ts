@@ -60,19 +60,27 @@ async function runReachabilityCheck(): Promise<OnlineStatus> {
     return "offline";
   }
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timeoutId =
-    typeof window !== "undefined"
-      ? window.setTimeout(() => controller?.abort(), CHECK_TIMEOUT_MS)
-      : null;
+  let timeoutId: number | null = null;
   try {
     const { url, init } = buildProbeRequest(getProbeUrl());
-    await fetch(url, {
+    const timeoutPromise =
+      typeof window !== "undefined"
+        ? new Promise<OnlineStatus>((resolve) => {
+            timeoutId = window.setTimeout(() => {
+              controller?.abort();
+              resolve("offline");
+            }, CHECK_TIMEOUT_MS);
+          })
+        : null;
+    const fetchPromise = fetch(url, {
       ...init,
       signal: controller?.signal,
-    });
-    return "online";
-  } catch {
-    return "offline";
+    })
+      .then(() => "online" as const)
+      .catch(() => "offline" as const);
+    return await Promise.race(
+      timeoutPromise ? [fetchPromise, timeoutPromise] : [fetchPromise]
+    );
   } finally {
     if (timeoutId != null) {
       window.clearTimeout(timeoutId);
