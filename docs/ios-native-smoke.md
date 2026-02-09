@@ -9,6 +9,11 @@ Use this checklist to confirm a clean checkout can build and run the native iOS 
 4. `npx cap sync ios`
 5. `npx cap open ios`
 
+> Note: native builds now pull Firebase appId/apiKey/projectId/etc from
+> `ios/App/App/GoogleService-Info.plist` (or `android/app/google-services.json`)
+> when env values are missing. Ensure the platform file exists before running
+> `npm run build:native`.
+
 ## Simulator checks
 1. Launch the app in the iOS Simulator.
 2. Sign in with `developer@adlerlabs.com` (email/password). Confirm the spinner clears within 15 seconds and you reach the authenticated UI.

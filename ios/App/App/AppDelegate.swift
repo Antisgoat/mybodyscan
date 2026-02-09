@@ -15,7 +15,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    return CAPBridge.handleOpenUrl(url, options)
+    return ApplicationDelegateProxy.shared.application(
+      app,
+      open: url,
+      options: options
+    )
   }
 
   func application(
@@ -23,6 +27,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
-    return CAPBridge.handleContinueActivity(userActivity, restorationHandler)
+    return ApplicationDelegateProxy.shared.application(
+      application,
+      continue: userActivity,
+      restorationHandler: restorationHandler
+    )
   }
 }
