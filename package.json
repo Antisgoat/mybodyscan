@@ -17,10 +17,10 @@
     "build:dev": "MODE=development node scripts/generate-app-config.mjs && vite build --mode development",
     "build:resilient": "npm run build || (npm cache clean --force && rm -rf node_modules && npm install --prefer-online && npm run build)",
     "doctor": "bash scripts/doctor.sh",
-    "ios:doctor": "bash scripts/ios-doctor.sh",
+    "ios:doctor": "node scripts/ios-doctor.mjs",
     "ios:open": "open ios/App/App.xcworkspace",
     "ios:ensure-public": "node scripts/ensure-ios-public.mjs",
-    "preios:sync": "node scripts/assert-repo-root.mjs && node scripts/ensure-ios-public.mjs",
+    "preios:sync": "node scripts/assert-repo-root.mjs && node scripts/ensure-native-firebase-config.mjs && node scripts/ensure-ios-public.mjs",
     "ios:sync": "node scripts/assert-repo-root.mjs && node scripts/assert-no-native-firebase-auth.mjs && npm run build:native && npx cap sync ios && node scripts/assert-no-native-firebase-auth.mjs && node scripts/assert-ios-public-bundle.mjs && (cd ios/App && pod install)",
     "ios:reset": "bash ios/scripts/ios_reset.sh",
     "ios:build:debug": "bash ios/scripts/ios_build_debug.sh",
@@ -82,7 +82,8 @@
     "audit:report": "node scripts/generate-audit-report.mjs",
     "audit:all": "npm run audit:report",
     "storage:cors:set": "bash scripts/storage-cors-set.sh",
-    "storage:cors:get": "bash scripts/storage-cors-get.sh"
+    "storage:cors:get": "bash scripts/storage-cors-get.sh",
+    "precap:sync:ios": "node scripts/ensure-native-firebase-config.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",

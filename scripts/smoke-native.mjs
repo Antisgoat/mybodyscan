@@ -158,44 +158,36 @@ async function assertAppDelegateIsCapacitorOnly() {
   pass("AppDelegate.swift contains no Firebase imports.");
 }
 
-async function assertNoFirebaseInPbxproj() {
+async function assertIosProjectFirebaseReferences() {
   if (!(await fileExists(iosPbxproj))) {
     return;
   }
   const contents = await fs.readFile(iosPbxproj, "utf8");
-  const forbiddenSnippets = [
-    "Firebase",
-    "FirebaseCore",
-    "FirebaseApp",
-    "FirebaseOptions",
-    "GoogleService-Info.plist",
-    "Ensure Firebase",
-    "GoogleUtilities",
+
+  if (!contents.includes("INFOPLIST_FILE = App/Info.plist;")) {
+    fail("project.pbxproj is missing INFOPLIST_FILE = App/Info.plist.");
+  }
+
+  const requiredGoogleSnippets = [
+    "GoogleService-Info.plist */ = {isa = PBXFileReference;",
+    "GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile;",
+    "GoogleService-Info.plist in Resources */,",
   ];
-  for (const snippet of forbiddenSnippets) {
-    if (contents.includes(snippet)) {
-      fail(
-        `Firebase reference detected in ios/App/App.xcodeproj/project.pbxproj (${snippet}).`
-      );
+
+  for (const snippet of requiredGoogleSnippets) {
+    if (!contents.includes(snippet)) {
+      fail(`project.pbxproj is missing expected GoogleService-Info.plist reference: ${snippet}`);
     }
   }
-  if (contents.includes("PBXShellScriptBuildPhase")) {
-    const shellScriptMatches = contents.match(/shellScript = "([^"]*)";/g) || [];
-    for (const match of shellScriptMatches) {
-      if (/(Firebase|GoogleService-Info\.plist|Ensure Firebase|GoogleUtilities)/.test(match)) {
-        fail(
-          "Run Script build phase contains Firebase-related references in project.pbxproj."
-        );
-      }
-    }
+
+  const absolutePathPattern = /(\/(Users|Applications|Volumes|private\/var|var\/folders|tmp|opt\/homebrew|usr\/local)\/)/;
+  if (absolutePathPattern.test(contents)) {
+    fail("project.pbxproj contains absolute paths. Use relative project references only.");
   }
-  if (contents.includes("DerivedData") || contents.includes("/Users/")) {
-    fail(
-      "project.pbxproj contains DerivedData or absolute user paths. Remove those build settings."
-    );
-  }
-  pass("No Firebase references detected in project.pbxproj.");
+
+  pass("iOS project references Info.plist and GoogleService-Info.plist correctly.");
 }
+
 
 async function assertNoAppFolderCopiedInPbxproj() {
   if (!(await fileExists(iosPbxproj))) {
@@ -380,43 +372,7 @@ function formatSearchOutput(text, maxLines = 20, maxChars = 2000) {
   return result;
 }
 
-function assertNoFirebaseStringsInIos() {
-  const pattern =
-    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|GoogleService-Info.plist|Ensure Firebase|GoogleUtilities";
-  assertRgClean("ios/App/App Swift files", pattern, [
-    "--glob",
-    "**/*.swift",
-    path.join(repoRoot, "ios/App/App"),
-  ]);
-  assertRgClean("ios/App/App.xcodeproj/project.pbxproj", pattern, [iosPbxproj]);
-  assertRgClean("ios/App/Podfile", pattern, [iosPodfile]);
-  assertRgClean("ios/App/Podfile.lock", pattern, [iosPodfileLock]);
-}
 
-async function assertNoFirebaseInPodfiles() {
-  const forbiddenSnippets = [
-    "Firebase",
-    "FirebaseCore",
-    "FirebaseApp",
-    "FirebaseOptions",
-    "GoogleUtilities",
-    "GoogleService-Info.plist",
-    "Ensure Firebase",
-  ];
-  const podfiles = [iosPodfile, iosPodfileLock];
-  for (const file of podfiles) {
-    if (!(await fileExists(file))) {
-      continue;
-    }
-    const contents = await fs.readFile(file, "utf8");
-    for (const snippet of forbiddenSnippets) {
-      if (contents.includes(snippet)) {
-        fail(`Firebase reference detected in ${path.relative(repoRoot, file)} (${snippet}).`);
-      }
-    }
-  }
-  pass("Podfiles are free of Firebase references.");
-}
 
 async function main() {
   await assertRepoRoot();
@@ -426,12 +382,10 @@ async function main() {
   assertCapPlugins();
   await assertNoServerUrl();
   assertNoSwiftFirebaseImports();
-  await assertNoFirebaseInPbxproj();
+  await assertIosProjectFirebaseReferences();
   await assertNoAppFolderCopiedInPbxproj();
   assertNoDuplicateBuildOutputs();
   assertNoCapFirebaseAuthPackage();
-  assertNoFirebaseStringsInIos();
-  await assertNoFirebaseInPodfiles();
   console.log("✅ [smoke:native] PASS");
 }
 
