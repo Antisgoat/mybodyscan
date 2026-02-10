@@ -91,7 +91,8 @@ const Auth = () => {
   const allowDebugUi =
     (import.meta.env.DEV || explicitDebug) &&
     !isProdBuild &&
-    !__MBS_NATIVE_RELEASE__;
+    !__MBS_NATIVE_RELEASE__ &&
+    (!native || explicitDebug);
   const defaultTarget = nextParam || from || "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");

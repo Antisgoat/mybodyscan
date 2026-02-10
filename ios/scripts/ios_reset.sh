@@ -4,6 +4,14 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_root"
 
+ios_app_dir="$repo_root/ios/App"
+if [[ -d "$ios_app_dir/Pods" ]]; then
+  rm -rf "$ios_app_dir/Pods"
+fi
+if [[ -f "$ios_app_dir/Podfile.lock" ]]; then
+  rm -f "$ios_app_dir/Podfile.lock"
+fi
+
 npm run build:native
 npx cap sync ios
 if command -v pod >/dev/null 2>&1; then
