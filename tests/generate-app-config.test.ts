@@ -61,6 +61,7 @@ describe("generate-app-config (native)", () => {
         ...process.env,
         MBS_NATIVE: "1",
         MODE: "production",
+        VITE_FIREBASE_APP_ID: "env-app-id-should-not-win",
       },
       stdio: "ignore",
     });
