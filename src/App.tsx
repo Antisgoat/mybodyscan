@@ -58,6 +58,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
+import { isNative } from "@/lib/platform";
 import Today from "./pages/Today";
 import Onboarding from "./pages/Onboarding";
 import Workouts from "./pages/Workouts";
@@ -118,6 +119,7 @@ const queryClient = new QueryClient();
 const allowInternalTools =
   import.meta.env.DEV ||
   ((import.meta as any)?.env?.VITE_INTERNAL_TOOLS === "1" && !__MBS_NATIVE_RELEASE__);
+const nativeBuild = isNative();
 
 const PageSuspense = ({
   children,
@@ -831,9 +833,13 @@ const App = () => (
               <ProtectedRoute>
                 <AuthedLayout>
                   <RouteBoundary>
-                    <PageSuspense>
-                      <Plans />
-                    </PageSuspense>
+                    {nativeBuild ? (
+                      <Navigate to="/workouts" replace />
+                    ) : (
+                      <PageSuspense>
+                        <Plans />
+                      </PageSuspense>
+                    )}
                   </RouteBoundary>
                 </AuthedLayout>
               </ProtectedRoute>
@@ -850,9 +856,13 @@ const App = () => (
               <ProtectedRoute>
                 <AuthedLayout>
                   <RouteBoundary>
-                    <PageSuspense>
-                      <Paywall />
-                    </PageSuspense>
+                    {nativeBuild ? (
+                      <Navigate to="/workouts" replace />
+                    ) : (
+                      <PageSuspense>
+                        <Paywall />
+                      </PageSuspense>
+                    )}
                   </RouteBoundary>
                 </AuthedLayout>
               </ProtectedRoute>

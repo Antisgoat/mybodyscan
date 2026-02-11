@@ -52,7 +52,7 @@ export default function ScanCapture() {
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
       ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before uploads are enabled."
-      : "Scan endpoints are offline until the Cloud Functions base URL is set."
+      : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 
   function handleReady(payload: CaptureReady) {

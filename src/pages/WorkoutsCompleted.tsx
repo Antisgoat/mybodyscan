@@ -19,7 +19,7 @@ export default function WorkoutsCompleted() {
   );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
-    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to view completions.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
 
   useEffect(() => {
     if (!workoutsConfigured) {

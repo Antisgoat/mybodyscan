@@ -363,7 +363,7 @@ export default function MealsSearch() {
   );
   const nutritionEnabled = nutritionConfigured !== false;
   const offlineReason =
-    "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+    "Backend unavailable (Cloud Functions). Check deployment / network.";
   const demoReason =
     "Nutrition search is disabled in demo mode. Sign in to use it.";
   const searchBlockReason = demo ? demoReason : offlineReason;

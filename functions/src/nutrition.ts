@@ -713,6 +713,20 @@ function parseQuery(value: unknown) {
 
 nutritionRouter.get("/search", nutritionSearchHandler);
 nutritionRouter.post("/search", nutritionSearchHandler);
+nutritionRouter.get("/item", (req, res) => {
+  const id = parseQuery(req.query.id);
+  const barcode = parseQuery(req.query.barcode);
+  const code = parseQuery(req.query.code);
+  if (barcode || code) {
+    req.query.code = barcode || code;
+    void nutritionBarcodeHandler(req as Request, res as Response);
+    return;
+  }
+  if (id) {
+    req.query.q = id;
+  }
+  void nutritionSearchHandler(req as Request, res as Response);
+});
 nutritionRouter.get("/barcode", (req, res) => {
   void nutritionBarcodeHandler(req as Request, res as Response);
 });

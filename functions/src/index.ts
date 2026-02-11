@@ -10,6 +10,7 @@ import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { nutritionRouter } from "./nutrition.js";
 import { systemRouter } from "./systemRouter.js";
 
+export { health } from "./health.js";
 export { systemHealth } from "./systemHealth.js";
 export { coachChat } from "./coachChat.js";
 export { nutritionSearch, nutritionSearchHttp } from "./nutritionSearch.js";

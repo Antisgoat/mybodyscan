@@ -1,4 +1,11 @@
 import { APP_CONFIG } from "@/generated/appConfig";
+import {
+  getFunctionsBaseUrl,
+  getFunctionsOrigin,
+  getFunctionsProjectId,
+  getFunctionsRegion,
+  urlJoin,
+} from "@/lib/config/functionsOrigin";
 
 export type Env = {
   VITE_FIREBASE_API_KEY: string;
@@ -70,20 +77,6 @@ const commitSha =
   readEnv("COMMIT_SHA");
 const fallbackVersion = readEnv("VITE_APP_VERSION");
 const buildTimeEnv = readEnv("VITE_BUILD_TIME") || readEnv("BUILD_TIME");
-const functionsUrlEnv =
-  readEnv("VITE_FUNCTIONS_URL") || readEnv("FUNCTIONS_URL");
-const functionsOriginEnv =
-  readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("FUNCTIONS_ORIGIN");
-const functionsBaseEnv =
-  readEnv("VITE_FUNCTIONS_BASE_URL") || readEnv("FUNCTIONS_BASE_URL");
-const functionsRegionEnv =
-  readEnv("VITE_FUNCTIONS_REGION") ||
-  readEnv("FUNCTIONS_REGION") ||
-  "us-central1";
-const projectIdEnv = (
-  ENV.VITE_FIREBASE_PROJECT_ID || readEnv("FIREBASE_PROJECT_ID")
-).trim();
-
 const trim = (value: string) => value.trim();
 
 export const isStripeTest = publishableKey.startsWith("pk_test_");
@@ -113,26 +106,10 @@ export function describeStripeEnvironment():
 }
 
 export function fnUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  const directUrl = trim(functionsUrlEnv).replace(/\/?$/, "");
-  if (directUrl) {
-    // FIX: Honor VITE_FUNCTIONS_URL overrides so workouts & other APIs hit the deployed backend instead of localhost defaults.
-    return `${directUrl}${normalized}`;
-  }
-  const origin = trim(functionsOriginEnv).replace(/\/?$/, "");
-  if (origin) {
-    return `${origin}${normalized}`;
-  }
-  const base = trim(functionsBaseEnv).replace(/\/?$/, "");
-  if (base) {
-    return `${base}${normalized}`;
-  }
-  if (projectIdEnv) {
-    return `https://${functionsRegionEnv}-${projectIdEnv}.cloudfunctions.net${normalized}`;
-  }
-  return normalized;
+  return urlJoin(getFunctionsBaseUrl(), path);
 }
 
-export const functionsRegion = functionsRegionEnv;
-export const functionsOrigin = trim(functionsOriginEnv);
-export const functionsBaseUrl = trim(functionsBaseEnv);
+export const functionsRegion = getFunctionsRegion();
+export const functionsOrigin = trim(getFunctionsOrigin());
+export const functionsBaseUrl = trim(getFunctionsBaseUrl());
+export const functionsProjectId = trim(getFunctionsProjectId());

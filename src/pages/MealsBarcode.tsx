@@ -25,7 +25,7 @@ export default function MealsBarcode() {
   const lookupsBlocked = demo || nutritionConfigured === false;
   const blockedMessage = demo
     ? "Barcode lookup is disabled in demo mode. Sign in to try the live nutrition database."
-    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
   const [code, setCode] = useState("");
   const [manualResult, setManualResult] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
