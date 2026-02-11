@@ -79,7 +79,7 @@ export default function Workouts() {
     computeFeatureStatuses(systemHealth ?? undefined);
   const workoutsOfflineMessage = workoutsConfigured
     ? null
-    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable plan generation.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
   const adjustUnavailableMessage = !workoutAdjustConfigured
     ? "AI workout adjustments require the OpenAI key (OPENAI_API_KEY) on Cloud Functions."
     : null;
@@ -267,7 +267,7 @@ export default function Workouts() {
       setWeekRatio(0);
       setActivationPending(false);
       setLoadError(
-        "Workouts are disabled because the Cloud Functions base URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts."
+        "Backend unavailable (Cloud Functions). Check deployment / network."
       );
       return cleanup;
     }
@@ -341,7 +341,7 @@ export default function Workouts() {
         console.warn("workouts.plan", error);
         const message =
           error instanceof Error && error.message.includes("workouts_disabled")
-            ? "Workouts are disabled because the backend URL isn't configured. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable workouts."
+            ? "Backend unavailable (Cloud Functions). Check deployment / network."
             : "Workouts are unavailable right now. Check your connection or try again later.";
         if (!cancelled) {
           setActivationPending(false);
@@ -404,7 +404,7 @@ export default function Workouts() {
     if (!workoutsConfigured) {
       const description =
         workoutsOfflineMessage ??
-        "Workout APIs are offline. Set the Cloud Functions base URL before generating a plan.";
+        "Backend unavailable (Cloud Functions). Check deployment / network.";
       setLoadError(description);
       toast({ title: "Workouts offline", description, variant: "destructive" });
       return;
@@ -434,7 +434,7 @@ export default function Workouts() {
       ) {
         const description =
           workoutsOfflineMessage ??
-          "Workouts are turned off because the Cloud Functions base URL is missing. Add it to enable workout generation.";
+          "Backend unavailable (Cloud Functions). Check deployment / network.";
         setLoadError(description);
         toast({
           title: "Workouts offline",
@@ -486,7 +486,7 @@ export default function Workouts() {
     if (!workoutsConfigured) {
       const description =
         workoutsOfflineMessage ??
-        "Workout APIs are offline. Configure the Cloud Functions URL before adjusting.";
+        "Backend unavailable (Cloud Functions). Check deployment / network.";
       toast({ title: "Workouts offline", description, variant: "destructive" });
       return;
     }

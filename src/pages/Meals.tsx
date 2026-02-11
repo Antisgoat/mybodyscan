@@ -147,7 +147,7 @@ export default function Meals() {
   );
   const nutritionUnavailable = nutritionConfigured === false;
   const nutritionOfflineMessage =
-    "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+    "Backend unavailable (Cloud Functions). Check deployment / network.";
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const dateISO = useMemo(() => toLocalISODate(selectedDate), [selectedDate]);
   const [log, setLog] = useState<{ totals: any; meals: MealEntry[] }>(() =>

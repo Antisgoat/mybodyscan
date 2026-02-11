@@ -14,6 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
+import { isNative } from "@/lib/platform";
 
 const navItems: Array<{
   path: string;
@@ -34,8 +35,9 @@ const navItems: Array<{
 
 export function BottomNav() {
   const location = useLocation();
+  const native = isNative();
   const filteredNavItems = navItems.filter(
-    (item) => !item.feature || isFeatureEnabled(item.feature)
+    (item) => (!item.feature || isFeatureEnabled(item.feature)) && (!native || item.path !== "/plans")
   );
 
   return (

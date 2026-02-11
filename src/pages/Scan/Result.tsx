@@ -251,7 +251,7 @@ export default function ScanFlowResult() {
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
       ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before results can be finalized."
-      : "Scan services are offline until the Cloud Functions base URL is configured."
+      : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 
   const shots = useMemo(() => CAPTURE_VIEW_SETS[mode], [mode]);
@@ -408,7 +408,7 @@ export default function ScanFlowResult() {
     : currentWeightKg == null || goalWeightKg == null
       ? "Return to Start to confirm your current and goal weight."
       : scanOffline
-        ? "Scan services are offline until the backend is configured."
+        ? "Backend unavailable (Cloud Functions). Check deployment / network."
         : "We'll upload your photos securely and notify you when the result is ready.";
   const finalizeDisabled =
     !readyForSubmission ||

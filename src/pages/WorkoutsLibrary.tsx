@@ -21,7 +21,7 @@ export default function WorkoutsLibrary() {
   );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
-    : "Workout APIs are offline. Set VITE_FUNCTIONS_URL or VITE_FUNCTIONS_ORIGIN to enable the library.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
 
   useEffect(() => {
     if (!workoutsConfigured) {

@@ -94,7 +94,7 @@ export default function BarcodeScan() {
   const lookupsBlocked = demo || nutritionOffline;
   const blockedMessage = demo
     ? "Barcode scanner is disabled in demo mode. Sign in to try live nutrition lookups."
-    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
   const [manualCode, setManualCode] = useState("");
   const [running, setRunning] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);

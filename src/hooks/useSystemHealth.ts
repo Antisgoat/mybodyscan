@@ -5,6 +5,11 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  functionsReachable,
+  getFunctionsOrigin,
+  getFunctionsProjectId,
+} from "@/lib/config/functionsOrigin";
 import { fetchSystemHealth } from "@/lib/system";
 
 export interface SystemHealthSnapshot {
@@ -24,6 +29,7 @@ export interface SystemHealthSnapshot {
   scanEngineMissing?: string[];
   storageBucket?: string | null;
   storageBucketSource?: string | null;
+  functionsReachable?: boolean;
   [key: string]: unknown;
 }
 
@@ -37,18 +43,39 @@ let cachedHealth: SystemHealthSnapshot | null = null;
 let inflight: Promise<SystemHealthSnapshot | null> | null = null;
 
 async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
-  inflight =
+  const origin = getFunctionsOrigin();
+  const projectId = getFunctionsProjectId();
+  const [healthResult, reachableResult] = await Promise.allSettled([
     inflight ??
-    fetchSystemHealth().catch((error) => {
-      throw error instanceof Error ? error : new Error(String(error));
+      fetchSystemHealth().catch((error) => {
+        throw error instanceof Error ? error : new Error(String(error));
+      }),
+    functionsReachable(),
+  ]);
+
+  if (import.meta.env.DEV) {
+    console.info("[systemHealth] functions target", {
+      origin,
+      projectId,
+      reachable:
+        reachableResult.status === "fulfilled" ? reachableResult.value : false,
     });
-  try {
-    const snapshot = await inflight;
-    cachedHealth = snapshot;
-    return snapshot;
-  } finally {
-    inflight = null;
   }
+
+  if (healthResult.status !== "fulfilled") {
+    throw healthResult.reason;
+  }
+
+  const snapshot =
+    healthResult.value && typeof healthResult.value === "object"
+      ? (healthResult.value as SystemHealthSnapshot)
+      : ({} as SystemHealthSnapshot);
+
+  snapshot.functionsReachable =
+    reachableResult.status === "fulfilled" ? reachableResult.value : false;
+
+  cachedHealth = snapshot;
+  return snapshot;
 }
 
 export function useSystemHealth() {
@@ -61,11 +88,14 @@ export function useSystemHealth() {
   const refresh = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
-      const snapshot = await loadSystemHealth();
+      inflight = loadSystemHealth();
+      const snapshot = await inflight;
       setState({ health: snapshot, loading: false, error: null });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setState({ health: cachedHealth, loading: false, error: message });
+    } finally {
+      inflight = null;
     }
   }, []);
 
@@ -78,13 +108,16 @@ export function useSystemHealth() {
     let active = true;
     (async () => {
       try {
-        const snapshot = await loadSystemHealth();
+        inflight = loadSystemHealth();
+        const snapshot = await inflight;
         if (!active) return;
         setState({ health: snapshot, loading: false, error: null });
       } catch (error) {
         if (!active) return;
         const message = error instanceof Error ? error.message : String(error);
         setState({ health: null, loading: false, error: message });
+      } finally {
+        inflight = null;
       }
     })();
 

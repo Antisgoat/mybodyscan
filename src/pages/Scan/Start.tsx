@@ -76,7 +76,7 @@ export default function ScanStart() {
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
       ? "Scans require the OpenAI key (OPENAI_API_KEY) to be set on Cloud Functions."
-      : "Scanning endpoints are offline until the Cloud Functions base URL is configured."
+      : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 
   useEffect(() => {

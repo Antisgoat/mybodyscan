@@ -495,7 +495,7 @@ export default function ScanPage() {
       setError(
         openaiMissing
           ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
-          : "Body scans are offline until the functions URL is configured."
+          : "Backend unavailable (Cloud Functions). Check deployment / network."
       );
       return;
     }
@@ -1419,7 +1419,7 @@ export default function ScanPage() {
           <AlertDescription>
             {openaiMissing
               ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
-              : "Scans are offline until the Cloud Functions base URL is configured. Ask an admin to set VITE_FUNCTIONS_URL or the dedicated scan endpoints before trying again."}
+              : "Backend unavailable (Cloud Functions). Check deployment / network."}
           </AlertDescription>
         </Alert>
       )}
