@@ -11,18 +11,23 @@ const IOS_PLIST_PATH = path.join(
   "App",
   "GoogleService-Info.plist"
 );
-const FIXTURE_PLIST_PATH = path.join(
-  ROOT_DIR,
-  "tests",
-  "fixtures",
-  "GoogleService-Info.plist"
-);
-const APP_CONFIG_PATH = path.join(
-  ROOT_DIR,
-  "src",
-  "generated",
-  "appConfig.ts"
-);
+const APP_CONFIG_PATH = path.join(ROOT_DIR, "src", "generated", "appConfig.ts");
+
+const REALISH_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>GOOGLE_APP_ID</key>
+  <string>1:9876543210:ios:realabcdef987654</string>
+  <key>API_KEY</key>
+  <string>AIzaSyRealKey9876543210</string>
+  <key>PROJECT_ID</key>
+  <string>mbs-ios-live</string>
+  <key>GCM_SENDER_ID</key>
+  <string>9876543210</string>
+</dict>
+</plist>
+`;
 
 let originalPlist: string | null = null;
 let originalAppConfig: string | null = null;
@@ -34,8 +39,7 @@ beforeEach(() => {
   originalAppConfig = fs.existsSync(APP_CONFIG_PATH)
     ? fs.readFileSync(APP_CONFIG_PATH, "utf8")
     : null;
-  const fixture = fs.readFileSync(FIXTURE_PLIST_PATH, "utf8");
-  fs.writeFileSync(IOS_PLIST_PATH, fixture, "utf8");
+  fs.writeFileSync(IOS_PLIST_PATH, REALISH_PLIST, "utf8");
 });
 
 afterEach(() => {
@@ -54,20 +58,24 @@ afterEach(() => {
 });
 
 describe("generate-app-config (native)", () => {
-  it("includes appId from GoogleService-Info.plist", () => {
+  it("includes iOS Firebase fields from GoogleService-Info.plist", () => {
     execFileSync("node", ["scripts/generate-app-config.mjs"], {
       cwd: ROOT_DIR,
       env: {
         ...process.env,
         MBS_NATIVE: "1",
+        MBS_PLATFORM: "ios",
         MODE: "production",
-        VITE_FIREBASE_APP_ID: "env-app-id-should-not-win",
+        VITE_FIREBASE_AUTH_DOMAIN: "",
+        VITE_FIREBASE_PROJECT_ID: "",
+        VITE_FIREBASE_STORAGE_BUCKET: "",
       },
       stdio: "ignore",
     });
 
     const appConfig = fs.readFileSync(APP_CONFIG_PATH, "utf8");
-    expect(appConfig).toContain('"appId": "1:1234567890:ios:abcdef123456"');
-    expect(appConfig).toContain('"measurementId": "G-TEST1234"');
+    expect(appConfig).toContain('"appId": "1:9876543210:ios:realabcdef987654"');
+    expect(appConfig).toContain('"messagingSenderId": "9876543210"');
+    expect(appConfig).toContain('"storageBucket": "mbs-ios-live.appspot.com"');
   });
 });
