@@ -53,10 +53,12 @@ import type { FirebaseError } from "firebase/app";
 import { reportError } from "@/lib/telemetry";
 import { checkOnline } from "@/lib/network";
 import { getInitAuthState } from "@/lib/auth/initAuth";
+import { getLastNativeSecurityReason } from "@/lib/nativeSecurityDiagnostics";
+import { isPolicyBlockedError } from "@/native/securityPolicy";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
-const LOGIN_TIMEOUT_MS = 15_000;
+const LOGIN_TIMEOUT_MS = 25_000;
 const DEBUG_TAP_COUNT = 7;
 const DEBUG_TAP_WINDOW_MS = 2_000;
 
@@ -333,39 +335,11 @@ const Auth = () => {
             elapsedMs: Date.now() - startedAt,
           });
 
-          let uiMessage = "Sign-in failed. Please try again.";
-
-          switch (code) {
-            case "auth/network-request-failed":
-              uiMessage = "Network error. Check your connection and try again.";
-              break;
-            case "auth/invalid-email":
-              uiMessage = "That email address looks invalid.";
-              break;
-            case "auth/user-not-found":
-            case "auth/wrong-password":
-            case "auth/invalid-credential":
-              uiMessage = "Email or password is incorrect.";
-              break;
-            case "auth/too-many-requests":
-              uiMessage = "Too many attempts. Please wait a bit and try again.";
-              break;
-            case "auth/timeout":
-              uiMessage =
-                "Sign-in timed out. Check your connection and try again.";
-              break;
-            case "auth/operation-not-allowed":
-              uiMessage =
-                "Sign-in is not enabled for this project. Contact support.";
-              break;
-            case "auth/invalid-api-key":
-              uiMessage =
-                "Authentication configuration is invalid. Please contact support.";
-              break;
-            default:
-              console.error("[Auth] Unhandled sign-in error", error);
-              break;
-          }
+          const uiMessage = mapAuthErrorToMessage({
+            code,
+            message: rawMessage,
+            fallback: "Sign-in failed. Please try again.",
+          });
 
           const emailLower = email.trim().toLowerCase();
           const isAdminDev = emailLower === "developer@adlrlabs.com";
@@ -392,12 +366,16 @@ const Auth = () => {
           : "Account creation failed.";
       const timeoutMessage =
         mode === "signin"
-          ? "Sign-in timed out. Check your connection and try again."
-          : "Sign-up timed out. Check your connection and try again.";
+          ? buildTimeoutMessage("Sign-in timed out. Check your connection and try again.")
+          : buildTimeoutMessage("Sign-up timed out. Check your connection and try again.");
       const message =
         normalized.code === "auth/timeout"
           ? timeoutMessage
-          : formatError(normalized.message ?? fallback, normalized.code);
+          : mapAuthErrorToMessage({
+              code: normalized.code,
+              message: normalized.message,
+              fallback,
+            });
       logAuthDebug("email_auth_exception", {
         code: normalized.code,
         message: normalized.message,
@@ -880,12 +858,63 @@ function formatError(message?: string, code?: string) {
   return cleaned;
 }
 
+function buildTimeoutMessage(baseMessage: string): string {
+  const diagnostic = getLastNativeSecurityReason();
+  if (!diagnostic) return baseMessage;
+  return `${baseMessage} Last observed reason: ${diagnostic.message}.`;
+}
+
+function mapAuthErrorToMessage(input: {
+  code?: string;
+  message?: string;
+  fallback: string;
+}): string {
+  const code = input.code ?? "unknown";
+  const messageLower = (input.message || "").toLowerCase();
+
+  if (code === "auth/network-request-failed") {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      return "You're offline. Reconnect and try again.";
+    }
+    return "Network error. Check your connection and try again.";
+  }
+
+  if (
+    isPolicyBlockedError({ code, message: input.message }) ||
+    messageLower.includes("blocked by native security policy") ||
+    messageLower.includes("securitypolicy")
+  ) {
+    return "Blocked by native security policy (allowed hosts misconfigured).";
+  }
+
+  switch (code) {
+    case "auth/invalid-email":
+      return "That email address looks invalid.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Email or password is incorrect.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait a bit and try again.";
+    case "auth/timeout":
+      return buildTimeoutMessage("Sign-in timed out. Check your connection and try again.");
+    case "auth/operation-not-allowed":
+      return "Sign-in is not enabled for this project. Contact support.";
+    case "auth/invalid-api-key":
+      return "Authentication configuration is invalid. Please contact support.";
+    default:
+      return formatError(input.message ?? input.fallback, input.code);
+  }
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   if (ms <= 0) return promise;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timer = setTimeout(() => {
-      const err: any = new Error("Login timed out. Please try again.");
+      const diagnostic = getLastNativeSecurityReason();
+      const suffix = diagnostic ? ` Last observed reason: ${diagnostic.message}.` : "";
+      const err: any = new Error(`Login timed out. Please try again.${suffix}`);
       err.code = "auth/timeout";
       reject(err);
     }, ms);
