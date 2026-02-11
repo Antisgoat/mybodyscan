@@ -24,6 +24,8 @@ const ANDROID_JSON_PATH = path.join(
   "google-services.json"
 );
 
+const SUPPORTED_PLATFORMS = new Set(["ios", "android", "all"]);
+
 const toRelative = (absolutePath) => path.relative(ROOT_DIR, absolutePath).split(path.sep).join("/");
 
 const readFileBuffer = (filePath) => {
@@ -57,6 +59,39 @@ Important:
 - Do NOT use ${toRelative(IOS_FIXTURE_PATH)} in the iOS app folder.
 - The file in ios/App/App must be your real production Firebase plist.`;
 
+const parsePlatformArg = (argv) => {
+  const directPlatformIndex = argv.findIndex((arg) => arg === "--platform");
+  if (directPlatformIndex >= 0) {
+    return argv[directPlatformIndex + 1];
+  }
+
+  const inlinePlatformArg = argv.find((arg) => arg.startsWith("--platform="));
+  if (inlinePlatformArg) {
+    return inlinePlatformArg.split("=")[1];
+  }
+
+  return undefined;
+};
+
+const resolvePlatform = (argv) => {
+  const requested = String(
+    parsePlatformArg(argv) ??
+      process.env.MBS_PLATFORM ??
+      process.env.CAPACITOR_PLATFORM ??
+      "ios"
+  )
+    .toLowerCase()
+    .trim();
+
+  if (!SUPPORTED_PLATFORMS.has(requested)) {
+    throw new Error(
+      `Unsupported platform '${requested}'. Use one of: ios, android, all (via MBS_PLATFORM or --platform).`
+    );
+  }
+
+  return requested;
+};
+
 const checkFile = ({ label, absolutePath }) => {
   if (!fs.existsSync(absolutePath)) {
     return {
@@ -70,18 +105,26 @@ const checkFile = ({ label, absolutePath }) => {
   };
 };
 
-const runChecks = ({ doctorMode = false } = {}) => {
+const runChecks = ({ doctorMode = false, platform = "ios" } = {}) => {
   const iosCheck = checkFile({ label: "iOS", absolutePath: IOS_PLIST_PATH });
   const androidCheck = checkFile({ label: "Android", absolutePath: ANDROID_JSON_PATH });
+
+  const requireIos = platform === "ios" || platform === "all";
+  const requireAndroid = platform === "android" || platform === "all";
 
   const fixtureDetected = isFixturePlist();
 
   if (doctorMode) {
-    console.log(`[ios:doctor] ${iosCheck.ok ? "OK" : "FAIL"}: ${iosCheck.message}`);
-    console.log(`[ios:doctor] ${androidCheck.ok ? "OK" : "FAIL"}: ${androidCheck.message}`);
-    if (!iosCheck.ok) {
+    console.log(`[ios:doctor] Platform mode: ${platform}`);
+    console.log(
+      `[ios:doctor] ${iosCheck.ok ? "OK" : requireIos ? "FAIL" : "WARN"}: ${iosCheck.message}`
+    );
+    console.log(
+      `[ios:doctor] ${androidCheck.ok ? "OK" : requireAndroid ? "FAIL" : "WARN"}: ${androidCheck.message}`
+    );
+    if (requireIos && !iosCheck.ok) {
       console.log("[ios:doctor] FAIL: iOS plist status unknown (file missing).");
-    } else if (fixtureDetected) {
+    } else if (requireIos && fixtureDetected) {
       console.log(
         `[ios:doctor] FAIL: ${toRelative(IOS_PLIST_PATH)} matches fixture ${toRelative(IOS_FIXTURE_PATH)}.`
       );
@@ -89,7 +132,11 @@ const runChecks = ({ doctorMode = false } = {}) => {
       console.log("[ios:doctor] OK: iOS plist is not the test fixture.");
     }
 
-    if (iosCheck.ok && androidCheck.ok && !fixtureDetected) {
+    if (
+      (!requireIos || iosCheck.ok) &&
+      (!requireAndroid || androidCheck.ok) &&
+      (!requireIos || !fixtureDetected)
+    ) {
       console.log("[ios:doctor] PASS: Native Firebase files are present and shippable.");
       return;
     }
@@ -101,9 +148,18 @@ const runChecks = ({ doctorMode = false } = {}) => {
   }
 
   const failures = [];
-  if (!iosCheck.ok) failures.push(iosCheck.message);
-  if (!androidCheck.ok) failures.push(androidCheck.message);
-  if (fixtureDetected) {
+  const warnings = [];
+
+  if (requireIos && !iosCheck.ok) failures.push(iosCheck.message);
+  if (requireAndroid && !androidCheck.ok) failures.push(androidCheck.message);
+
+  if (!requireAndroid && !androidCheck.ok) {
+    warnings.push(
+      `${androidCheck.message} Android is optional right now; set MBS_PLATFORM=android (or all) once Android Firebase is configured.`
+    );
+  }
+
+  if (requireIos && fixtureDetected) {
     failures.push(
       `Refusing to proceed: ${toRelative(IOS_PLIST_PATH)} is identical to fixture ${toRelative(
         IOS_FIXTURE_PATH
@@ -115,10 +171,20 @@ const runChecks = ({ doctorMode = false } = {}) => {
     throw new Error(`${failures.join("\n")}\n\n${instructions}`);
   }
 
-  console.log(`[firebase] OK: ${iosCheck.message}`);
-  console.log(`[firebase] OK: ${androidCheck.message}`);
-  console.log("[firebase] OK: iOS plist is not the test fixture.");
+  if (requireIos) {
+    console.log(`[firebase] OK: ${iosCheck.message}`);
+    console.log("[firebase] OK: iOS plist is not the test fixture.");
+  }
+
+  if (requireAndroid) {
+    console.log(`[firebase] OK: ${androidCheck.message}`);
+  }
+
+  for (const warning of warnings) {
+    console.warn(`[firebase] WARN: ${warning}`);
+  }
 };
 
-const args = new Set(process.argv.slice(2));
-runChecks({ doctorMode: args.has("--doctor") });
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+runChecks({ doctorMode: args.has("--doctor"), platform: resolvePlatform(argv) });

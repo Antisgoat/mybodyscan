@@ -21,7 +21,7 @@
     "ios:open": "open ios/App/App.xcworkspace",
     "ios:ensure-public": "node scripts/ensure-ios-public.mjs",
     "preios:sync": "node scripts/assert-repo-root.mjs && node scripts/ensure-native-firebase-config.mjs && node scripts/ensure-ios-public.mjs",
-    "ios:sync": "node scripts/assert-repo-root.mjs && node scripts/assert-no-native-firebase-auth.mjs && npm run build:native && npx cap sync ios && node scripts/assert-no-native-firebase-auth.mjs && node scripts/assert-ios-public-bundle.mjs && (cd ios/App && pod install)",
+    "ios:sync": "node scripts/assert-repo-root.mjs && node scripts/assert-no-native-firebase-auth.mjs && npm run build:native:ios && npx cap sync ios && node scripts/assert-no-native-firebase-auth.mjs && node scripts/assert-ios-public-bundle.mjs && (cd ios/App && pod install)",
     "ios:reset": "bash ios/scripts/ios_reset.sh",
     "ios:build:debug": "bash ios/scripts/ios_build_debug.sh",
     "ios:build:release": "bash ios/scripts/ios_build_release.sh",
@@ -41,9 +41,9 @@
     "check:bundle": "node scripts/check-bundle.js",
     "check:storage-rest": "node scripts/check-storage-rest.js",
     "preview": "vite preview",
-    "cap:sync:ios": "npm run build:native && npx cap sync ios",
+    "cap:sync:ios": "npm run build:native:ios && npx cap sync ios",
     "sync:ios": "npm run ios:sync",
-    "sync:android": "npm run build:native && npx cap sync android",
+    "sync:android": "MBS_PLATFORM=android npm run build:native && MBS_PLATFORM=android npx cap sync android",
     "build:ios": "bash scripts/build-ios.sh",
     "build:android": "bash scripts/build-android.sh",
     "clean:all": "bash scripts/clean-all.sh",
@@ -83,7 +83,10 @@
     "audit:all": "npm run audit:report",
     "storage:cors:set": "bash scripts/storage-cors-set.sh",
     "storage:cors:get": "bash scripts/storage-cors-get.sh",
-    "precap:sync:ios": "node scripts/ensure-native-firebase-config.mjs"
+    "precap:sync:ios": "node scripts/ensure-native-firebase-config.mjs",
+    "build:native:ios": "MBS_PLATFORM=ios npm run build:native",
+    "smoke:native:ios": "MBS_PLATFORM=ios npm run smoke:native",
+    "ios:deploy": "npm ci --no-audit --no-fund && npm run build && npm run build:native:ios && npx cap sync ios && npm run ios:open"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",
