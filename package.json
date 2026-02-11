@@ -86,7 +86,8 @@
     "precap:sync:ios": "node scripts/ensure-native-firebase-config.mjs",
     "build:native:ios": "MBS_PLATFORM=ios npm run build:native",
     "smoke:native:ios": "MBS_PLATFORM=ios npm run smoke:native",
-    "ios:deploy": "npm ci --no-audit --no-fund && npm run build && npm run build:native:ios && npx cap sync ios && npm run ios:open"
+    "ios:deploy": "npm ci --no-audit --no-fund && npm run build && npm run build:native:ios && npx cap sync ios && npm run ios:open",
+    "smoke:ios": "node scripts/smoke-ios.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",

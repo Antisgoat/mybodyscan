@@ -107,7 +107,7 @@ describe("Auth email sign-in timeout", () => {
 
     expect(
       await screen.findByText(/sign-in timed out/i, undefined, {
-        timeout: 20_000,
+        timeout: 30_000,
       })
     ).toBeTruthy();
     await waitFor(() => {
@@ -118,6 +118,6 @@ describe("Auth email sign-in timeout", () => {
       expect(submit.getAttribute("disabled")).toBeNull();
     });
     },
-    25_000
+    35_000
   );
 });

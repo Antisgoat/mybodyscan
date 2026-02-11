@@ -1,0 +1,14 @@
+{
+  "nativeAllowedNetworkHosts": [
+    "mybodyscanapp.com",
+    "*.mybodyscanapp.com",
+    "identitytoolkit.googleapis.com",
+    "securetoken.googleapis.com",
+    "firebaseinstallations.googleapis.com",
+    "www.googleapis.com",
+    "*.googleapis.com",
+    "*.firebaseapp.com",
+    "*.cloudfunctions.net",
+    "*.a.run.app"
+  ]
+}

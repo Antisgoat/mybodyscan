@@ -11,6 +11,11 @@ import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isCapacitorNative } from "@/lib/platform/isNative";
 import { loadAnalyticsScripts } from "@/lib/analyticsLoader";
+import {
+  createNativePolicyBlockedError,
+  isAllowedNativeNetworkUrl,
+} from "@/native/securityPolicy";
+import { recordNativeSecurityReason } from "@/lib/nativeSecurityDiagnostics";
 
 const showBootDetails = !__MBS_NATIVE_RELEASE__;
 const allowBootOverlay = true;
@@ -56,6 +61,46 @@ function installNativeCspPolicy() {
   if (!meta.parentNode) {
     document.head.appendChild(meta);
   }
+}
+
+function installNativeNetworkGuard() {
+  if (!isNativeBuild || typeof window === "undefined") return;
+  const anyWin = window as typeof window & {
+    __mbsNativeFetchGuardInstalled?: boolean;
+  };
+  if (anyWin.__mbsNativeFetchGuardInstalled) return;
+  anyWin.__mbsNativeFetchGuardInstalled = true;
+
+  const originalFetch = window.fetch.bind(window);
+
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl =
+      input instanceof Request
+        ? input.url
+        : typeof input === "string"
+          ? input
+          : input.toString();
+    const allowed = isAllowedNativeNetworkUrl(requestUrl, window.location.href);
+    if (!allowed) {
+      const error = createNativePolicyBlockedError(requestUrl);
+      recordNativeSecurityReason({
+        type: "network_blocked",
+        message: error.message,
+        detail: {
+          url: requestUrl,
+          method: init?.method || (input instanceof Request ? input.method : "GET"),
+        },
+      });
+      if (!__MBS_NATIVE_RELEASE__) {
+        console.warn("[boot] blocked_external_network", {
+          url: requestUrl,
+          method: init?.method || (input instanceof Request ? input.method : "GET"),
+        });
+      }
+      return Promise.reject(error);
+    }
+    return originalFetch(input, init);
+  }) as typeof window.fetch;
 }
 
 function isAllowedNativeScriptSrc(value: string) {
@@ -105,6 +150,26 @@ function installNativeDiagnosticsListeners() {
     },
     true
   );
+
+  window.addEventListener("securitypolicyviolation", (event) => {
+    const payload = {
+      blockedURI: event.blockedURI,
+      violatedDirective: event.violatedDirective,
+      effectiveDirective: event.effectiveDirective,
+      sourceFile: event.sourceFile,
+      lineNumber: event.lineNumber,
+      disposition: event.disposition,
+    };
+    recordNativeSecurityReason({
+      type: "csp_violation",
+      message: `CSP blocked ${event.effectiveDirective || event.violatedDirective || "request"}`,
+      detail: payload,
+    });
+    if (!__MBS_NATIVE_RELEASE__) {
+      // eslint-disable-next-line no-console
+      console.warn("[boot] securitypolicyviolation", payload);
+    }
+  });
 }
 
 function installBootErrorListeners() {
@@ -191,6 +256,7 @@ function installBootErrorListeners() {
 installNativeDiagnosticsListeners();
 installBootErrorListeners();
 installNativeCspPolicy();
+installNativeNetworkGuard();
 
 function installScriptCreationDiagnostics() {
   if (typeof document === "undefined" || typeof window === "undefined") return;
@@ -207,9 +273,18 @@ function installScriptCreationDiagnostics() {
 
       const applySrc = (value: string, assign: (val: string) => void) => {
         if (!isAllowedNativeScriptSrc(value)) {
+          recordNativeSecurityReason({
+            type: "script_blocked",
+            message: "Blocked by native security policy: external script source",
+            detail: { src: value },
+          });
           if (!__MBS_NATIVE_RELEASE__) {
             console.warn("[boot] blocked_external_script", { src: value });
           }
+          queueMicrotask(() => {
+            const ev = new Event("error");
+            scriptEl.dispatchEvent(ev);
+          });
           return;
         }
         if (!__MBS_NATIVE_RELEASE__) {
