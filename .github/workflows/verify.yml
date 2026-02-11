@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: package.json
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Lint
         run: npm run lint
       - name: Typecheck & Build
@@ -42,7 +42,7 @@ jobs:
           cache-dependency-path: functions/package-lock.json
       - name: Install dependencies (functions)
         working-directory: functions
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Lint functions
         working-directory: functions
         run: npm run lint

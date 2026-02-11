@@ -70,3 +70,7 @@ ios/App/App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 android/.gradle/
 android/build/
 android/app/build/
+
+# Native Firebase configs are local-only
+ios/App/App/GoogleService-Info.plist
+android/app/google-services.json
