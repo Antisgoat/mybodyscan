@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import {
+  readAndValidateIosPlist,
+  resolveNativePlatform,
+} from "./native-firebase-config.mjs";
 // Minimal dotenv-compatible parser (kept local to avoid runtime dependencies).
 const dotenv = {
   parse(src) {
@@ -26,6 +30,15 @@ const dotenv = {
 };
 
 const ROOT_DIR = process.cwd();
+
+const exitWithConciseError = (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+  process.exit(1);
+};
+
+process.on("uncaughtException", exitWithConciseError);
+process.on("unhandledRejection", exitWithConciseError);
 const OUTPUT_PATH = path.join(ROOT_DIR, "src", "generated", "appConfig.ts");
 const mode =
   process.env.MODE ||
@@ -149,42 +162,9 @@ const readClientEnvValue = (key) => {
   return String(fileEnv[key] ?? "").trim();
 };
 
-const decodeXmlValue = (value) =>
-  value
-    .replace(/&quot;/g, "\"")
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-
-const parseSimplePlistDict = (contents) => {
-  const dictMatch = contents.match(/<dict>([\s\S]*?)<\/dict>/);
-  if (!dictMatch) return {};
-  const dictContent = dictMatch[1];
-  const entries = {};
-  const entryRegex =
-    /<key>([^<]+)<\/key>\s*(?:<string>([^<]*)<\/string>|<integer>([^<]*)<\/integer>|<(true|false)\s*\/>)/g;
-  let match = entryRegex.exec(dictContent);
-  while (match) {
-    const key = decodeXmlValue(match[1].trim());
-    const rawValue = match[2] ?? match[3] ?? match[4] ?? "";
-    entries[key] = decodeXmlValue(String(rawValue).trim());
-    match = entryRegex.exec(dictContent);
-  }
-  return entries;
-};
-
 const readIosFirebaseConfig = () => {
-  const plistPath = path.join(
-    ROOT_DIR,
-    "ios",
-    "App",
-    "App",
-    "GoogleService-Info.plist"
-  );
-  if (!fs.existsSync(plistPath)) return null;
-  const contents = fs.readFileSync(plistPath, "utf8");
-  const dict = parseSimplePlistDict(contents);
+  const plist = readAndValidateIosPlist({ rootDir: ROOT_DIR, requireFile: true });
+  const dict = plist.dict;
   return {
     appId: dict.GOOGLE_APP_ID,
     apiKey: dict.API_KEY,
@@ -192,7 +172,7 @@ const readIosFirebaseConfig = () => {
     messagingSenderId: dict.GCM_SENDER_ID,
     storageBucket: dict.STORAGE_BUCKET,
     measurementId: dict.MEASUREMENT_ID,
-    source: path.relative(ROOT_DIR, plistPath),
+    source: plist.relativePath,
   };
 };
 
@@ -223,17 +203,17 @@ const readAndroidFirebaseConfig = () => {
 };
 
 const readNativeFirebaseConfig = () => {
-  const platform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+  const platform = resolveNativePlatform();
   const sources = [];
   const config = {};
-  if (platform === "ios" || !platform) {
+  if (platform === "ios" || platform === "all") {
     const iosConfig = readIosFirebaseConfig();
     if (iosConfig) {
       sources.push(iosConfig.source);
       Object.assign(config, iosConfig);
     }
   }
-  if (platform === "android" || !platform) {
+  if (platform === "android" || platform === "all") {
     const androidConfig = readAndroidFirebaseConfig();
     if (androidConfig) {
       sources.push(androidConfig.source);
@@ -262,7 +242,7 @@ const isMissingValue = (value) =>
   value === undefined || value === null || String(value).trim() === "";
 
 const nativeConfig = isNative ? readNativeFirebaseConfig() : null;
-const nativePlatform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+const nativePlatform = isNative ? resolveNativePlatform() : "";
 const buildNativeFileHint = () => {
   if (!isNative || nativeConfig?.sources?.length) return "";
   if (nativePlatform === "ios") {
@@ -308,10 +288,14 @@ if (nativeConfig) {
     measurementId: nativeConfig.measurementId,
   };
   for (const [key, value] of Object.entries(mergeMap)) {
-    if (isMissingValue(firebaseConfig[key]) && !isMissingValue(value)) {
+    if (!isMissingValue(value)) {
       firebaseConfig[key] = value;
     }
   }
+}
+
+if (isNative && isMissingValue(firebaseConfig.storageBucket) && !isMissingValue(firebaseConfig.projectId)) {
+  firebaseConfig.storageBucket = `${firebaseConfig.projectId}.appspot.com`;
 }
 
 if (isNative && isMissingValue(firebaseConfig.authDomain)) {
