@@ -60,35 +60,51 @@ function toFunctionsOriginFromUrl(urlLike: string): string {
   }
 }
 
-export function getFunctionsBaseUrl(): string {
+export function getFunctionsOrigin(): {
+  origin: string;
+  region: string;
+  projectId: string;
+} {
+  const projectId = getFunctionsProjectId();
+  const region = getFunctionsRegion();
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
   if (functionsUrl) {
-    return normalizeUrlBase(functionsUrl);
-  }
-  return getFunctionsOrigin();
-}
-
-export function getFunctionsOrigin(): string {
-  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) {
-    return toFunctionsOriginFromUrl(functionsUrl);
+    return {
+      origin: toFunctionsOriginFromUrl(functionsUrl),
+      region,
+      projectId,
+    };
   }
 
   const functionsOrigin =
     readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
   if (functionsOrigin) {
-    return toFunctionsOriginFromUrl(functionsOrigin);
+    return {
+      origin: toFunctionsOriginFromUrl(functionsOrigin),
+      region,
+      projectId,
+    };
   }
 
-  const projectId = getFunctionsProjectId();
-  if (!projectId) return "";
-  const region = getFunctionsRegion();
-  return `https://${region}-${projectId}.cloudfunctions.net`;
+  return {
+    origin: projectId
+      ? `https://${region}-${projectId}.cloudfunctions.net`
+      : "",
+    region,
+    projectId,
+  };
+}
+
+export function getFunctionsBaseUrl(): string {
+  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
+  if (functionsUrl) {
+    return normalizeUrlBase(functionsUrl);
+  }
+  return getFunctionsOrigin().origin;
 }
 
 export async function functionsReachable(timeoutMs = 2500): Promise<boolean> {
-  const origin = getFunctionsOrigin();
-  const projectId = getFunctionsProjectId();
+  const { origin, projectId } = getFunctionsOrigin();
   if (!origin) return false;
   const endpoint = urlJoin(origin, "/health");
   if (import.meta.env.DEV) {

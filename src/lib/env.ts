@@ -110,6 +110,6 @@ export function fnUrl(path: string): string {
 }
 
 export const functionsRegion = getFunctionsRegion();
-export const functionsOrigin = trim(getFunctionsOrigin());
+export const functionsOrigin = trim(getFunctionsOrigin().origin);
 export const functionsBaseUrl = trim(getFunctionsBaseUrl());
 export const functionsProjectId = trim(getFunctionsProjectId());

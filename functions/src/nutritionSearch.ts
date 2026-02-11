@@ -800,23 +800,19 @@ async function runNutritionSearchCore(
   }
 
   const apiKey = getUsdaApiKey();
-  if (!apiKey) {
-    throw new HttpError(
-      501,
-      "nutrition_not_configured",
-      "USDA_FDC_API_KEY missing"
-    );
-  }
   const errors: HttpError[] = [];
 
-  const usdaResult = await runSafe(
-    "USDA",
-    () => searchUsda(input.query, apiKey),
-    {
-      requestId: context.requestId,
-      uid: context.uid,
-    }
-  );
+  const usdaResult = apiKey
+    ? await runSafe(
+        "USDA",
+        () => searchUsda(input.query, apiKey),
+        {
+          requestId: context.requestId,
+          uid: context.uid,
+        }
+      )
+    : { items: [] as FoodItem[], error: null as HttpError | null };
+
   if (usdaResult.error) errors.push(usdaResult.error);
 
   const offResult = await runSafe(
@@ -884,18 +880,6 @@ function handleError(res: Response, error: unknown, requestId: string): void {
         message: error.message || "Unauthorized",
         debugId: requestId,
         reason: "unauthorized",
-      });
-      return;
-    }
-    if (error.status === 501) {
-      res.status(501).json({
-        status: "upstream_error",
-        results: [],
-        code: error.code || "nutrition_not_configured",
-        message:
-          "Nutrition search is offline until USDA_FDC_API_KEY is configured.",
-        debugId: requestId,
-        reason: error.code || "nutrition_not_configured",
       });
       return;
     }

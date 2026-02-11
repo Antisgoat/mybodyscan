@@ -8,7 +8,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   functionsReachable,
   getFunctionsOrigin,
-  getFunctionsProjectId,
 } from "@/lib/config/functionsOrigin";
 import { fetchSystemHealth } from "@/lib/system";
 
@@ -43,8 +42,7 @@ let cachedHealth: SystemHealthSnapshot | null = null;
 let inflight: Promise<SystemHealthSnapshot | null> | null = null;
 
 async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
-  const origin = getFunctionsOrigin();
-  const projectId = getFunctionsProjectId();
+  const { origin, projectId } = getFunctionsOrigin();
   const [healthResult, reachableResult] = await Promise.allSettled([
     inflight ??
       fetchSystemHealth().catch((error) => {

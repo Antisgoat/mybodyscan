@@ -1,57 +1,67 @@
-# App Store Release Guide
+# App Store release runbook (iOS + Firebase Functions)
 
-## Cloud Functions origin resolution (runtime)
-The native/web client now derives Cloud Functions automatically in this order:
-
-1. `VITE_FUNCTIONS_URL` (accepts full base URL)
-2. `VITE_FUNCTIONS_ORIGIN` (or `VITE_FUNCTIONS_BASE_URL`)
-3. Firebase fallback: `https://<region>-<projectId>.cloudfunctions.net`
-   - `region` comes from `VITE_FUNCTIONS_REGION` (defaults to `us-central1`)
-   - `projectId` comes from the loaded Firebase app config.
-
-The app probes `${origin}/health` with a short timeout during startup.
-
-## Required server-side secrets (Cloud Functions only)
-Set secrets in Firebase Functions / Secret Manager (never in the client app):
-
-- `OPENAI_API_KEY` (scan + workout AI)
-- `USDA_FDC_API_KEY` (nutrition premium provider, optional)
-- `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` (web billing only)
-- Any additional scan/workout provider keys used by your deployment.
-
-Nutrition search remains available without USDA by falling back to OpenFoodFacts.
-
-## Deploy commands
+## 1) Deploy backend first
 
 ```bash
-firebase use <project-id>
 firebase deploy --only functions
-firebase deploy --only hosting
 ```
 
-If needed, set/update secrets first:
+Set required secrets in Firebase Secret Manager (all server-side; do **not** put secrets in the client bundle):
 
 ```bash
+firebase functions:secrets:set REPLICATE_API_TOKEN
+firebase functions:secrets:set LEANLENSE_API_KEY
 firebase functions:secrets:set OPENAI_API_KEY
+firebase functions:secrets:set USDA_API_KEY
 firebase functions:secrets:set USDA_FDC_API_KEY
-firebase functions:secrets:set STRIPE_SECRET
-firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
 ```
 
-## iOS release build
+## 2) How Functions origin is resolved in the app
+
+The app derives Cloud Functions origin in this order:
+
+1. `VITE_FUNCTIONS_URL`
+2. `VITE_FUNCTIONS_ORIGIN` (or `VITE_FUNCTIONS_BASE_URL`)
+3. Derived default: `https://${VITE_FUNCTIONS_REGION || "us-central1"}-${firebaseProjectId}.cloudfunctions.net`
+
+A health probe calls `GET {origin}/health` with a short timeout. Feature pages now report backend reachability instead of asking developers to set local env vars.
+
+## 3) iOS-safe billing behavior
+
+For native iOS builds, web Stripe checkout flows are disabled/hidden and routing stays coherent (no broken external Stripe.js flow in WKWebView).
+
+## 4) Build iOS release artifacts
 
 ```bash
-npm run build:native:release
+npm run build
+npm run build:native:ios
 npx cap sync ios
-npx cap open ios
 ```
 
-In Xcode:
+Then archive in Xcode:
 
-1. Select **Any iOS Device (arm64)**
-2. Product → Archive
-3. Validate + Distribute to App Store Connect.
+1. Open `ios/App/App.xcworkspace`
+2. Select `Any iOS Device (arm64)`
+3. Product → Archive
+4. Validate + distribute via App Store Connect
 
-Release notes:
-- Web Inspector is enabled in DEBUG only.
-- Native builds hide web Stripe flows and route users away from web paywall/plans screens.
+## 5) Smoke checks
+
+Run the iOS smoke helper:
+
+```bash
+node scripts/ios-smoke.mjs
+```
+
+Optional authenticated checks:
+
+```bash
+IOS_SMOKE_ID_TOKEN="<firebase-id-token>" node scripts/ios-smoke.mjs
+```
+
+This script verifies:
+- Derived functions origin
+- `/health`
+- `/nutrition/search` fallback path
+- (with token) workouts generation
+- (with token) scan endpoint returns either success or a provider-not-configured style error instead of a generic offline gate
