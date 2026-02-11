@@ -413,8 +413,8 @@ function buildScanError(
         : fallbackMessage;
     const effectiveReason = reason ?? data.reason;
     const normalizedMessage =
-      effectiveReason === "engine_not_configured" || effectiveReason === "scan_engine_not_configured"
-        ? "Scan unavailable: add OPENAI_API_KEY and OPENAI_MODEL to Cloud Functions config."
+      effectiveReason === "engine_not_configured" || effectiveReason === "scan_engine_not_configured" || effectiveReason === "provider_not_configured"
+        ? "Scan provider not configured. Please contact support."
         : message;
     return {
       code: err.code ?? data.code,

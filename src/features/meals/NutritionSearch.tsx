@@ -51,7 +51,7 @@ export default function NutritionSearch({
   const nutritionEnabled = !demo && nutritionConfigured !== false;
   const offlineMessage = demo
     ? "Nutrition search is disabled in demo mode. Sign in to try the live database."
-    : "Nutrition search is offline until nutrition API keys or rate limits are configured.";
+    : "Backend unavailable right now. Please check your network and try again.";
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

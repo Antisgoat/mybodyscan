@@ -313,13 +313,6 @@ async function handleNutritionBarcode(
     }
 
     const apiKey = getUsdaApiKey();
-    if (!apiKey) {
-      throw new HttpError(
-        501,
-        "nutrition_not_configured",
-        "USDA_FDC_API_KEY missing"
-      );
-    }
 
     const now = Date.now();
     const cached = cache.get(code);
@@ -355,12 +348,14 @@ async function handleNutritionBarcode(
     let result = offOutcome.result;
     let usdaOutcome: ProviderOutcome | null = null;
 
-    usdaOutcome = await runSafe(
-      "nutrition_barcode_usda",
-      () => fetchUsdaByBarcode(apiKey, code),
-      { requestId, uid }
-    );
-    result = result || usdaOutcome.result;
+    if (apiKey) {
+      usdaOutcome = await runSafe(
+        "nutrition_barcode_usda",
+        () => fetchUsdaByBarcode(apiKey, code),
+        { requestId, uid }
+      );
+      result = result || usdaOutcome.result;
+    }
 
     if (result) {
       cache.set(code, {
@@ -384,7 +379,7 @@ async function handleNutritionBarcode(
       throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
     }
 
-    const fallbackSource: "Open Food Facts" | "USDA" = "USDA";
+    const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
     cache.set(code, {
       value: null,
       source: fallbackSource,

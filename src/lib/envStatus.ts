@@ -172,11 +172,7 @@ export function computeFeatureStatuses(
 
   const nutritionDetail = nutritionConfigured
     ? undefined
-    : usdaKeyPresent === false
-      ? "Add USDA_FDC_API_KEY via firebase functions:secrets:set."
-      : nutritionRpmPresent === false
-        ? "Set NUTRITION_RPM secret to control USDA usage."
-        : "Provide USDA/OpenFoodFacts keys or enable the nutrition proxy in Functions.";
+    : "Backend unavailable (Cloud Functions). Check deployment / network.";
 
   const stripeDetail = stripeConfigured
     ? undefined
@@ -224,7 +220,7 @@ export function computeFeatureStatuses(
       label: "Meals search",
       configured: nutritionConfigured,
       okLabel: "Enabled",
-      warnLabel: "Keys missing",
+      warnLabel: "Backend unavailable",
       detail: nutritionDetail,
     },
     {
