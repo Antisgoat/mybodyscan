@@ -1,24 +1,18 @@
 import type { Request, Response, NextFunction } from "express";
 
-const UNIVERSAL_ALLOWED_HEADERS =
-  "Authorization, Content-Type, X-Firebase-AppCheck, X-Requested-With";
-const WRAPPED_ALLOWED_HEADERS =
-  "Content-Type,Authorization,X-Firebase-AppCheck,X-TZ-Offset-Mins";
+const ALLOWED_HEADERS = "Content-Type, Authorization";
+const ALLOWED_METHODS = "GET,POST,OPTIONS";
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://mybodyscanapp.com",
-  "https://www.mybodyscanapp.com",
-  "https://mybodyscan-f3daf.web.app",
-  "https://mybodyscan-f3daf.firebaseapp.com",
-  // Local dev + preview
-  "http://localhost",
-  "http://127.0.0.1",
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4173",
-  "http://127.0.0.1:4173",
-  // iOS wrappers / WebViews (Capacitor/Ionic)
   "capacitor://localhost",
   "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://mybodyscan-f3daf.web.app",
+  "https://mybodyscan-f3daf.firebaseapp.com",
+  "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
 ] as const;
 
 type CorsOptions = {
@@ -26,14 +20,28 @@ type CorsOptions = {
   allowCredentials?: boolean;
 };
 
-function applyUniversal(res: Response) {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.set("Access-Control-Allow-Headers", UNIVERSAL_ALLOWED_HEADERS);
+function setCorsHeaders(
+  req: Request,
+  res: Response,
+  options: CorsOptions = {}
+): void {
+  const allowlist = new Set(options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS);
+  const origin = req.headers.origin as string | undefined;
+  if (origin && allowlist.has(origin)) {
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", ALLOWED_METHODS);
+  res.setHeader("Access-Control-Allow-Headers", ALLOWED_HEADERS);
+  res.setHeader(
+    "Access-Control-Allow-Credentials",
+    options.allowCredentials ? "true" : "false"
+  );
 }
 
 function middleware(req: Request, res: Response, next: NextFunction) {
-  applyUniversal(res);
+  setCorsHeaders(req, res);
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
@@ -45,27 +53,12 @@ function wrapHandler<T extends (req: Request, res: Response) => unknown>(
   handler: T,
   options: CorsOptions = {}
 ) {
-  const allowlist = new Set(options.allowedOrigins ?? DEFAULT_ALLOWED_ORIGINS);
-  const allowCredentials = options.allowCredentials ?? false;
-
   return (req: Request, res: Response) => {
-    const origin = req.headers.origin as string | undefined;
-    if (origin && allowlist.has(origin)) {
-      res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", WRAPPED_ALLOWED_HEADERS);
-      res.setHeader(
-        "Access-Control-Allow-Credentials",
-        allowCredentials ? "true" : "false"
-      );
-    }
-
+    setCorsHeaders(req, res, options);
     if (req.method === "OPTIONS") {
       res.status(204).end();
       return undefined as ReturnType<T>;
     }
-
     return handler(req, res);
   };
 }

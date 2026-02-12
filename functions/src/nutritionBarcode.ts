@@ -22,7 +22,7 @@ import { chain } from "./middleware/chain.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
-const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+const usdaApiKeyParam = defineSecret("USDA_API_KEY");
 
 function normalizeBarcode(value: string): string | null {
   if (!value) return null;
@@ -34,7 +34,7 @@ function normalizeBarcode(value: string): string | null {
 }
 
 function getUsdaApiKey(): string | undefined {
-  const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
+  const envValue = (process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY || "").trim();
   if (envValue) {
     return envValue;
   }
