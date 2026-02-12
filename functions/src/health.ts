@@ -9,7 +9,17 @@ function getProjectId(): string {
   );
 }
 
-export const health = onRequest({ region: "us-central1" }, (_req, res) => {
+export const health = onRequest({ region: "us-central1", cors: true }, (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.status(204).end();
+    return;
+  }
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.status(200).json({
     ok: true,
     time: new Date().toISOString(),
