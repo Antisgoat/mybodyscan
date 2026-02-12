@@ -1,0 +1,85 @@
+import { APP_CONFIG } from "@/generated/appConfig";
+
+const envSource: Record<string, string | number | boolean | undefined> =
+  ((import.meta as any)?.env ?? {}) as Record<string, string | number | boolean | undefined>;
+
+let missingProjectLogged = false;
+
+function readEnv(key: string): string {
+  const value = envSource[key];
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim();
+  }
+  return "";
+}
+
+function normalizeUrlBase(raw: string): string {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "";
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  try {
+    const url = new URL(withProtocol);
+    return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return withProtocol.replace(/\/+$/, "");
+  }
+}
+
+export function getFunctionsOrigin(): string {
+  const configuredUrl = readEnv("VITE_FUNCTIONS_URL");
+  if (configuredUrl) {
+    const parsed = normalizeUrlBase(configuredUrl);
+    try {
+      return new URL(parsed).origin;
+    } catch {
+      return parsed;
+    }
+  }
+
+  const configuredOrigin = readEnv("VITE_FUNCTIONS_ORIGIN");
+  if (configuredOrigin) {
+    const parsed = normalizeUrlBase(configuredOrigin);
+    try {
+      return new URL(parsed).origin;
+    } catch {
+      return parsed;
+    }
+  }
+
+  const projectId =
+    String(APP_CONFIG?.firebase?.projectId || "").trim() ||
+    readEnv("VITE_FIREBASE_PROJECT_ID") ||
+    readEnv("FIREBASE_PROJECT_ID");
+  const region = readEnv("VITE_FUNCTIONS_REGION") || "us-central1";
+
+  if (!projectId) {
+    const message =
+      "Cloud Functions origin is not configured (missing Firebase projectId).";
+    if (!missingProjectLogged) {
+      missingProjectLogged = true;
+      console.error("functions_origin_missing_project", {
+        hint: "Set VITE_FIREBASE_PROJECT_ID or APP_CONFIG.firebase.projectId.",
+      });
+    }
+    throw new Error(message);
+  }
+
+  return `https://${region}-${projectId}.cloudfunctions.net`;
+}
+
+export function getFunctionsBaseUrl(): string {
+  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
+  if (functionsUrl) {
+    return normalizeUrlBase(functionsUrl);
+  }
+  return urlJoin(getFunctionsOrigin(), "/api");
+}
+
+export function urlJoin(base: string, path: string): string {
+  const normalizedBase = normalizeUrlBase(base);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}

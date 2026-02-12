@@ -51,7 +51,7 @@ async function fetchJson(url, init = {}, timeoutMs = 5000) {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     const text = await res.text();
     let json = null;
-    try { json = text ? JSON.parse(text) : null; } catch {}
+    try { json = text ? JSON.parse(text) : null; } catch { json = null; }
     return { ok: res.ok, status: res.status, json, text };
   } finally {
     clearTimeout(timer);

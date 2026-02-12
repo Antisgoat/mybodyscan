@@ -5,10 +5,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-import {
-  functionsReachable,
-  getFunctionsOrigin,
-} from "@/lib/config/functionsOrigin";
+import { fetchJson, type BackendError } from "@/lib/backend/fetchJson";
+import { getFunctionsOrigin } from "@/lib/backend/functionsOrigin";
 import { fetchSystemHealth } from "@/lib/system";
 
 export interface SystemHealthSnapshot {
@@ -36,29 +34,29 @@ type HookState = {
   health: SystemHealthSnapshot | null;
   loading: boolean;
   error: string | null;
+  functionsOrigin: string;
+  lastErrorStatus: number | null;
 };
 
 let cachedHealth: SystemHealthSnapshot | null = null;
 let inflight: Promise<SystemHealthSnapshot | null> | null = null;
 
+function safeFunctionsOrigin(): string {
+  try {
+    return getFunctionsOrigin();
+  } catch {
+    return "unresolved";
+  }
+}
+
 async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
-  const { origin, projectId } = getFunctionsOrigin();
   const [healthResult, reachableResult] = await Promise.allSettled([
     inflight ??
       fetchSystemHealth().catch((error) => {
         throw error instanceof Error ? error : new Error(String(error));
       }),
-    functionsReachable(),
+    fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 2500),
   ]);
-
-  if (import.meta.env.DEV) {
-    console.info("[systemHealth] functions target", {
-      origin,
-      projectId,
-      reachable:
-        reachableResult.status === "fulfilled" ? reachableResult.value : false,
-    });
-  }
 
   if (healthResult.status !== "fulfilled") {
     throw healthResult.reason;
@@ -70,7 +68,7 @@ async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
       : ({} as SystemHealthSnapshot);
 
   snapshot.functionsReachable =
-    reachableResult.status === "fulfilled" ? reachableResult.value : false;
+    reachableResult.status === "fulfilled" && reachableResult.value?.ok === true;
 
   cachedHealth = snapshot;
   return snapshot;
@@ -81,17 +79,33 @@ export function useSystemHealth() {
     health: cachedHealth,
     loading: !cachedHealth,
     error: null,
+    functionsOrigin: safeFunctionsOrigin(),
+    lastErrorStatus: null,
   }));
 
   const refresh = useCallback(async () => {
     try {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
+      setState((prev) => ({ ...prev, loading: true, error: null, lastErrorStatus: null }));
       inflight = loadSystemHealth();
       const snapshot = await inflight;
-      setState({ health: snapshot, loading: false, error: null });
+      setState((prev) => ({
+        ...prev,
+        health: snapshot,
+        loading: false,
+        error: null,
+        functionsOrigin: safeFunctionsOrigin(),
+      }));
     } catch (error) {
+      const typed = error as BackendError;
       const message = error instanceof Error ? error.message : String(error);
-      setState({ health: cachedHealth, loading: false, error: message });
+      setState((prev) => ({
+        ...prev,
+        health: cachedHealth,
+        loading: false,
+        error: message,
+        functionsOrigin: typed?.origin || safeFunctionsOrigin(),
+        lastErrorStatus: typeof typed?.status === "number" ? typed.status : 0,
+      }));
     } finally {
       inflight = null;
     }
@@ -99,7 +113,7 @@ export function useSystemHealth() {
 
   useEffect(() => {
     if (cachedHealth) {
-      setState({ health: cachedHealth, loading: false, error: null });
+      setState((prev) => ({ ...prev, health: cachedHealth, loading: false, error: null }));
       return;
     }
 
@@ -109,11 +123,26 @@ export function useSystemHealth() {
         inflight = loadSystemHealth();
         const snapshot = await inflight;
         if (!active) return;
-        setState({ health: snapshot, loading: false, error: null });
+        setState((prev) => ({
+          ...prev,
+          health: snapshot,
+          loading: false,
+          error: null,
+          functionsOrigin: safeFunctionsOrigin(),
+          lastErrorStatus: null,
+        }));
       } catch (error) {
         if (!active) return;
+        const typed = error as BackendError;
         const message = error instanceof Error ? error.message : String(error);
-        setState({ health: null, loading: false, error: message });
+        setState((prev) => ({
+          ...prev,
+          health: null,
+          loading: false,
+          error: message,
+          functionsOrigin: typed?.origin || safeFunctionsOrigin(),
+          lastErrorStatus: typeof typed?.status === "number" ? typed.status : 0,
+        }));
       } finally {
         inflight = null;
       }

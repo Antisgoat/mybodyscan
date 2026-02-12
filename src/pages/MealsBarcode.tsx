@@ -18,14 +18,14 @@ const STATUS_CLASS = "text-xs text-muted-foreground";
 export default function MealsBarcode() {
   const { t } = useI18n();
   const demo = useDemoMode();
-  const { health: systemHealth } = useSystemHealth();
+  const { health: systemHealth, functionsOrigin, lastErrorStatus } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
   );
   const lookupsBlocked = demo || nutritionConfigured === false;
   const blockedMessage = demo
     ? "Barcode lookup is disabled in demo mode. Sign in to try the live nutrition database."
-    : "Backend unavailable (Cloud Functions). Check deployment / network.";
+    : `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
   const [code, setCode] = useState("");
   const [manualResult, setManualResult] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");

@@ -3,15 +3,20 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "outDir": "lib",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "typeRoots": ["./src/typings", "./node_modules/@types"],
-    "types": ["node"],
+    "typeRoots": [
+      "./src/typings"
+    ],
     "skipLibCheck": true,
     "noImplicitAny": false,
     "strict": false
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }

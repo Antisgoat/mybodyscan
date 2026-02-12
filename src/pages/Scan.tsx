@@ -189,11 +189,12 @@ export default function ScanPage() {
     message?: string;
     scanId?: string;
   }>({ status: "idle" });
-  const { health: systemHealth } = useSystemHealth();
+  const { health: systemHealth, functionsOrigin, lastErrorStatus } = useSystemHealth();
   const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
   const openaiMissing =
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false;
+  const backendUnavailableMessage = `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
 
   const mapStatusToFlowState = useCallback((value: typeof status): ScanFlowState => {
     switch (value) {
@@ -495,7 +496,7 @@ export default function ScanPage() {
       setError(
         openaiMissing
           ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
-          : "Backend unavailable (Cloud Functions). Check deployment / network."
+          : backendUnavailableMessage
       );
       return;
     }
@@ -1419,7 +1420,7 @@ export default function ScanPage() {
           <AlertDescription>
             {openaiMissing
               ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
-              : "Backend unavailable (Cloud Functions). Check deployment / network."}
+              : backendUnavailableMessage}
           </AlertDescription>
         </Alert>
       )}

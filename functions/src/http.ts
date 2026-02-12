@@ -11,6 +11,8 @@ import {
 const ALLOW = [
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   "http://localhost",

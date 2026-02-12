@@ -110,6 +110,19 @@ export function fnUrl(path: string): string {
 }
 
 export const functionsRegion = getFunctionsRegion();
-export const functionsOrigin = trim(getFunctionsOrigin().origin);
-export const functionsBaseUrl = trim(getFunctionsBaseUrl());
-export const functionsProjectId = trim(getFunctionsProjectId());
+function safeReadFunctions<T>(reader: () => T, fallback: T): T {
+  try {
+    return reader();
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn("functions_origin_resolution_failed", error);
+    }
+    return fallback;
+  }
+}
+
+export const functionsOrigin = trim(
+  safeReadFunctions(() => getFunctionsOrigin().origin, "")
+);
+export const functionsBaseUrl = trim(safeReadFunctions(() => getFunctionsBaseUrl(), ""));
+export const functionsProjectId = trim(safeReadFunctions(() => getFunctionsProjectId(), ""));
