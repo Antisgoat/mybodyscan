@@ -281,10 +281,6 @@ function installScriptCreationDiagnostics() {
           if (!__MBS_NATIVE_RELEASE__) {
             console.warn("[boot] blocked_external_script", { src: value });
           }
-          queueMicrotask(() => {
-            const ev = new Event("error");
-            scriptEl.dispatchEvent(ev);
-          });
           return;
         }
         if (!__MBS_NATIVE_RELEASE__) {

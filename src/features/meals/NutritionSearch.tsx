@@ -354,7 +354,7 @@ export default function NutritionSearch({
         open={editorOpen}
         onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {editorItem ? `Log ${editorItem.name}` : "Log food"}
