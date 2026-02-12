@@ -114,6 +114,7 @@ const SmokeKit = lazy(() => import("./pages/SmokeKit"));
 const AdminConsole = lazy(() => import("./pages/Admin"));
 const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
+const NativeDiagnostics = lazy(() => import("./pages/NativeDiagnostics"));
 
 const queryClient = new QueryClient();
 const allowInternalTools =
@@ -1248,6 +1249,16 @@ const App = () => (
         {allowInternalTools && <Route path="/debug/credits" element={<DebugCredits />} />}
         {allowInternalTools && <Route path="/debug/plan" element={<DebugPlan />} />}
         {allowInternalTools && <Route path="/debug/health" element={<DebugHealth />} />}
+        {allowInternalTools && nativeBuild && import.meta.env.DEV && (
+          <Route
+            path="/debug/native-diagnostics"
+            element={
+              <PageSuspense>
+                <NativeDiagnostics />
+              </PageSuspense>
+            }
+          />
+        )}
         {/* MBS Onboarding */}
         <Route
           path="/onboarding-mbs"

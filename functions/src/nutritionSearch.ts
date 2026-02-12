@@ -105,10 +105,10 @@ const USDA_DATA_TYPES = [
   "Foundation",
 ];
 
-const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+const usdaApiKeyParam = defineSecret("USDA_API_KEY");
 
 function getUsdaApiKey(): string | undefined {
-  const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
+  const envValue = (process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY || "").trim();
   if (envValue) {
     return envValue;
   }
@@ -1016,7 +1016,7 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
         if (error.status === 501) {
           throw new HttpsError(
             "failed-precondition",
-            "Nutrition search is not configured.",
+            "USDA not configured.",
             {
               debugId: requestId,
               reason: error.code || "nutrition_not_configured",
@@ -1043,7 +1043,7 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
 );
 
 export const nutritionSearchHttp = onRequest(
-  { region: "us-central1", secrets: [usdaApiKeyParam] },
+  { region: "us-central1", secrets: [usdaApiKeyParam], cors: true },
   async (req, res) => {
     await handleNutritionSearch(
       req as unknown as Request,

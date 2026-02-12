@@ -27,6 +27,7 @@ const dotenv = {
 
 const ROOT_DIR = process.cwd();
 const OUTPUT_PATH = path.join(ROOT_DIR, "src", "generated", "appConfig.ts");
+const RUNTIME_OUTPUT_PATH = path.join(ROOT_DIR, "public", "runtime-config.js");
 const mode =
   process.env.MODE ||
   process.env.VITE_MODE ||
@@ -357,6 +358,30 @@ if (missingFirebaseConfig.length) {
   );
 }
 
+
+
+const readBuildEnv = (...keys) => {
+  for (const key of keys) {
+    const fromProcess = String(process.env[key] ?? "").trim();
+    if (fromProcess) return fromProcess;
+    const fromFile = String(fileEnv[key] ?? "").trim();
+    if (fromFile) return fromFile;
+  }
+  return "";
+};
+
+const resolveFunctionsOrigin = () => {
+  const explicit = readBuildEnv(
+    "VITE_FUNCTIONS_ORIGIN",
+    "VITE_FUNCTIONS_URL",
+    "VITE_FUNCTIONS_BASE_URL"
+  );
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const projectId = String(firebaseConfig.projectId || "").trim();
+  const region = readBuildEnv("VITE_FUNCTIONS_REGION") || "us-central1";
+  return projectId ? `https://${region}-${projectId}.cloudfunctions.net` : "";
+};
+
 const readEnvString = (...keys) => {
   for (const key of keys) {
     const value = String(process.env[key] ?? "").trim();
@@ -428,3 +453,16 @@ fs.writeFileSync(OUTPUT_PATH, fileContents, "utf8");
 console.log(
   `[config] wrote ${path.relative(ROOT_DIR, OUTPUT_PATH)} (mode=${mode}, native=${isNative})`
 );
+
+const runtimeConfig = {
+  VITE_FUNCTIONS_ORIGIN: resolveFunctionsOrigin(),
+};
+
+const runtimeContents = `window.__MBS_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig, null, 2)};
+`;
+fs.writeFileSync(RUNTIME_OUTPUT_PATH, runtimeContents, "utf8");
+
+console.log(
+  `[config] wrote ${path.relative(ROOT_DIR, RUNTIME_OUTPUT_PATH)} (functionsOrigin=${runtimeConfig.VITE_FUNCTIONS_ORIGIN || "missing"})`
+);
+

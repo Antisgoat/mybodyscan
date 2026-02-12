@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -104,6 +105,7 @@ export function ServingChooser({
               </span>
             )}
           </DialogTitle>
+          <DialogDescription>Choose a serving size and quantity before adding this item.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

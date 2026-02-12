@@ -12,6 +12,20 @@ function readEnv(key: string): string {
   return "";
 }
 
+type RuntimeConfigSource = {
+  VITE_FUNCTIONS_ORIGIN?: string;
+  VITE_FUNCTIONS_URL?: string;
+  VITE_FUNCTIONS_BASE_URL?: string;
+};
+
+function readRuntimeConfig(key: keyof RuntimeConfigSource): string {
+  if (typeof window === "undefined") return "";
+  const runtime = (window as Window & { __MBS_RUNTIME_CONFIG__?: RuntimeConfigSource })
+    .__MBS_RUNTIME_CONFIG__;
+  const value = runtime?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function normalizeUrlBase(raw: string): string {
   const trimmed = String(raw || "").trim();
   if (!trimmed) return "";
@@ -64,6 +78,7 @@ export function getFunctionsOrigin(): {
   origin: string;
   region: string;
   projectId: string;
+  source: "env" | "runtime" | "derived" | "missing";
 } {
   const projectId = getFunctionsProjectId();
   const region = getFunctionsRegion();
@@ -73,6 +88,7 @@ export function getFunctionsOrigin(): {
       origin: toFunctionsOriginFromUrl(functionsUrl),
       region,
       projectId,
+      source: "env",
     };
   }
 
@@ -83,15 +99,38 @@ export function getFunctionsOrigin(): {
       origin: toFunctionsOriginFromUrl(functionsOrigin),
       region,
       projectId,
+      source: "env",
     };
   }
 
+  const runtimeUrl = readRuntimeConfig("VITE_FUNCTIONS_URL");
+  if (runtimeUrl) {
+    return {
+      origin: toFunctionsOriginFromUrl(runtimeUrl),
+      region,
+      projectId,
+      source: "runtime",
+    };
+  }
+
+  const runtimeOrigin =
+    readRuntimeConfig("VITE_FUNCTIONS_ORIGIN") ||
+    readRuntimeConfig("VITE_FUNCTIONS_BASE_URL");
+  if (runtimeOrigin) {
+    return {
+      origin: toFunctionsOriginFromUrl(runtimeOrigin),
+      region,
+      projectId,
+      source: "runtime",
+    };
+  }
+
+  const derived = projectId ? `https://${region}-${projectId}.cloudfunctions.net` : "";
   return {
-    origin: projectId
-      ? `https://${region}-${projectId}.cloudfunctions.net`
-      : "",
+    origin: derived,
     region,
     projectId,
+    source: derived ? "derived" : "missing",
   };
 }
 

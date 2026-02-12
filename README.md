@@ -198,7 +198,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 - `VITE_ENABLE_APPLE` – Set to `true` to force-render Apple sign-in alongside provider autodetect.
 - `VITE_ENABLE_DEMO` – Set to `true` to expose the hosted demo sign-in on any origin.
 - `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check (soft enforcement when unset).
-- `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
+- `VITE_FUNCTIONS_ORIGIN` (preferred) / `VITE_FUNCTIONS_URL` / `VITE_FUNCTIONS_BASE_URL` – Cloud Functions origin used by native builds; generated into `public/runtime-config.js` during `npm run build`.
 - `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
 - `VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS` – Comma-separated origins allowed to load external scripts in native iOS builds.
 - `VITE_NATIVE_ANALYTICS_ENABLED` – Set to `true`/`1` to allow analytics scripts in native builds (default: disabled).
@@ -211,7 +211,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 | `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`) | Stripe API key for hosted checkout + portal.                      |
 | `stripeWebhook`                          | `STRIPE_SECRET`, `STRIPE_WEBHOOK`           | Stripe API key and webhook signing secret.                        |
 | `coachChat`                              | `OPENAI_API_KEY`                            | Grants access to OpenAI chat models.                              |
-| `nutritionSearch`, `nutritionBarcode`    | `USDA_FDC_API_KEY`                          | USDA FoodData Central lookups (Open Food Facts handles fallback). |
+| `nutritionSearch`, `nutritionBarcode`    | `USDA_API_KEY` (legacy: `USDA_FDC_API_KEY`)                          | USDA FoodData Central lookups (Open Food Facts handles fallback). |
 
 ### Scan engine configuration (Firebase Functions)
 
@@ -565,3 +565,17 @@ Notes:
 - `ios:reset` cleans native/web artifacts, rebuilds the native bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
 - If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.
 - Use `npm run ios:clean` to wipe iOS build artifacts and DerivedData before re-running the reset flow.
+
+
+## One-command deploy + native rebuild
+
+```sh
+# set secrets once
+firebase functions:secrets:set OPENAI_API_KEY --project <projectId>
+firebase functions:secrets:set USDA_API_KEY --project <projectId>
+
+# deploy backend + rebuild native bundle + sync iOS/Android
+npm --prefix functions run build && firebase deploy --only functions --project <projectId> && VITE_FUNCTIONS_ORIGIN=https://us-central1-<projectId>.cloudfunctions.net npm run build:native && npx cap sync
+```
+
+Production/native builds must provide `VITE_FUNCTIONS_ORIGIN` (or rely on generated `public/runtime-config.js` containing the same origin) so `capacitor://localhost` can call Cloud Functions directly.

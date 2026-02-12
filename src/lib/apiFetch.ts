@@ -1,13 +1,24 @@
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
 import { getIdToken } from "@/auth/mbs-auth";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
+import { getFunctionsOrigin, urlJoin } from "@/lib/config/functionsOrigin";
+import { isCapacitorNative } from "@/lib/platform/isNative";
+
+function shouldUseDirectFunctionsUrl() {
+  return isCapacitorNative() || import.meta.env.VITE_BUILD_NATIVE === "true";
+}
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;
   if (input.startsWith("http://") || input.startsWith("https://")) return input;
-  if (input.startsWith("/api")) return input;
-  if (input.startsWith("/")) return `/api${input}`;
-  return `/api/${input}`;
+  const normalized = input.startsWith("/") ? input : `/${input}`;
+  const apiPath = normalized.startsWith("/api") ? normalized : `/api${normalized}`;
+
+  if (!shouldUseDirectFunctionsUrl()) return apiPath;
+
+  const { origin } = getFunctionsOrigin();
+  if (!origin) return apiPath;
+  return urlJoin(origin, apiPath);
 }
 
 export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
@@ -29,7 +40,6 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
     console.warn("apiFetch.token_failed", error);
   }
 
-  // Server uses this to normalize "day" boundaries for diary/history queries.
   if (!headers.has("x-tz-offset-mins")) {
     try {
       headers.set("x-tz-offset-mins", String(new Date().getTimezoneOffset()));
@@ -52,9 +62,6 @@ export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
     "apiFetch"
   );
   const url = normalizeUrl(input);
-  // Default to same-origin credentials. Cross-origin requests (e.g. Functions
-  // direct URLs) should not force credentialed mode, which can trigger CORS
-  // failures in Safari.
   try {
     return await fetch(url, { ...init, headers, credentials: "same-origin" });
   } catch (error) {

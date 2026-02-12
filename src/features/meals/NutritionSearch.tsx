@@ -19,6 +19,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -44,6 +45,7 @@ export default function NutritionSearch({
 }: NutritionSearchProps = {}) {
   const { loading: authLoading, user } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
+  const usdaConfigured = systemHealth?.usdaKeyPresent !== false;
   const { nutritionConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
   );
@@ -51,7 +53,9 @@ export default function NutritionSearch({
   const nutritionEnabled = !demo && nutritionConfigured !== false;
   const offlineMessage = demo
     ? "Nutrition search is disabled in demo mode. Sign in to try the live database."
-    : "Backend unavailable right now. Please check your network and try again.";
+    : usdaConfigured
+      ? "Backend unavailable right now. Please check your network and try again."
+      : "USDA not configured. Please contact support.";
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +112,8 @@ export default function NutritionSearch({
           message = "Search query must not be empty.";
         } else if (code === "resource-exhausted") {
           message = "You're searching too quickly. Please slow down.";
+        } else if (code === "failed-precondition" || code === "nutrition_not_configured") {
+          message = "USDA not configured. Please contact support.";
         } else if (
           code === "unavailable" ||
           code === "nutrition_backend_error"
@@ -359,6 +365,7 @@ export default function NutritionSearch({
             <DialogTitle>
               {editorItem ? `Log ${editorItem.name}` : "Log food"}
             </DialogTitle>
+            <DialogDescription>Adjust serving size before saving this meal entry.</DialogDescription>
           </DialogHeader>
           {editorItem && (
             <ServingEditor

@@ -41,6 +41,30 @@ type HookState = {
 let cachedHealth: SystemHealthSnapshot | null = null;
 let inflight: Promise<SystemHealthSnapshot | null> | null = null;
 
+
+function classifyHealthError(error: unknown): string {
+  const typed = error as Error & { status?: number; message?: string };
+  const message = String(typed?.message || error || "unknown_error");
+  const { origin, source } = getFunctionsOrigin();
+  if (!origin) {
+    return "Cloud Functions origin is missing. Set VITE_FUNCTIONS_ORIGIN or runtime config window.__MBS_RUNTIME_CONFIG__."
+  }
+  if (typed?.status === 0 || /failed to fetch|networkerror|load failed/i.test(message)) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      return `Network offline. Could not reach Cloud Functions (${origin}).`;
+    }
+    return `Cloud Functions request blocked or unreachable (${origin}). Check CORS for capacitor://localhost and network access.`;
+  }
+  if (typed?.status === 401 || typed?.status === 403) {
+    return `Cloud Functions rejected request (HTTP ${typed.status}). Check App Check/Auth headers.`;
+  }
+  if (typed?.status === 404) {
+    return `Cloud Functions endpoint not found at ${origin} (source=${source}).`;
+  }
+  return message;
+}
+
+
 async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
   const { origin, projectId } = getFunctionsOrigin();
   const [healthResult, reachableResult] = await Promise.allSettled([
@@ -90,8 +114,9 @@ export function useSystemHealth() {
       const snapshot = await inflight;
       setState({ health: snapshot, loading: false, error: null });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = classifyHealthError(error);
       setState({ health: cachedHealth, loading: false, error: message });
+      if (typeof window !== "undefined") (window as any).__MBS_LAST_ERROR__ = message;
     } finally {
       inflight = null;
     }
@@ -112,8 +137,9 @@ export function useSystemHealth() {
         setState({ health: snapshot, loading: false, error: null });
       } catch (error) {
         if (!active) return;
-        const message = error instanceof Error ? error.message : String(error);
+        const message = classifyHealthError(error);
         setState({ health: null, loading: false, error: message });
+        if (typeof window !== "undefined") (window as any).__MBS_LAST_ERROR__ = message;
       } finally {
         inflight = null;
       }
