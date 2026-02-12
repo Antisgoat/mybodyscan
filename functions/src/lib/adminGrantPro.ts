@@ -7,7 +7,7 @@ function normalizeUid(uid?: string | null): string | null {
 }
 
 export type EnsureAdminGrantedProEntitlementDeps = {
-  db?: FirebaseFirestore.Firestore;
+  db?: ReturnType<typeof getFirestore>;
 };
 
 /**

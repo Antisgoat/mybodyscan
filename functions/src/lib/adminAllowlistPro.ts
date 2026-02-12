@@ -56,7 +56,7 @@ export type EnsureAdminProEntitlementDeps = {
    * Injectable for unit tests.
    * When omitted, uses the default Admin SDK Firestore instance.
    */
-  db?: FirebaseFirestore.Firestore;
+  db?: ReturnType<typeof getFirestore>;
 };
 
 /**

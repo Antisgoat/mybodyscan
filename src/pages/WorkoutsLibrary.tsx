@@ -15,13 +15,18 @@ export default function WorkoutsLibrary() {
     useState<Awaited<ReturnType<typeof getWorkouts>>>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { health: systemHealth, error: systemHealthError } = useSystemHealth();
+  const {
+    health: systemHealth,
+    error: systemHealthError,
+    functionsOrigin,
+    lastErrorStatus,
+  } = useSystemHealth();
   const { workoutsConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
   );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
-    : "Backend unavailable (Cloud Functions). Check deployment / network.";
+    : `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
 
   useEffect(() => {
     if (!workoutsConfigured) {

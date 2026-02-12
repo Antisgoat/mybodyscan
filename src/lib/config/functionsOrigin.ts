@@ -1,4 +1,9 @@
-import { getFirebaseConfig } from "@/lib/firebase/config";
+import { APP_CONFIG } from "@/generated/appConfig";
+import {
+  getFunctionsBaseUrl as getSharedFunctionsBaseUrl,
+  getFunctionsOrigin as getSharedFunctionsOrigin,
+  urlJoin,
+} from "@/lib/backend/functionsOrigin";
 
 const envSource: Record<string, string | number | boolean | undefined> =
   ((import.meta as any)?.env ?? {}) as Record<string, string | number | boolean | undefined>;
@@ -27,37 +32,18 @@ export function normalizeUrlBase(raw: string): string {
   }
 }
 
-export function urlJoin(base: string, path: string): string {
-  const normalizedBase = normalizeUrlBase(base);
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  if (!normalizedBase) return normalizedPath;
-  return `${normalizedBase}${normalizedPath}`;
-}
+export { urlJoin };
 
 export function getFunctionsProjectId(): string {
-  const firebaseConfig = getFirebaseConfig();
-  const fromFirebase = String(firebaseConfig?.projectId || "").trim();
-  if (fromFirebase) return fromFirebase;
-  return readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
+  return (
+    String(APP_CONFIG?.firebase?.projectId || "").trim() ||
+    readEnv("VITE_FIREBASE_PROJECT_ID") ||
+    readEnv("FIREBASE_PROJECT_ID")
+  );
 }
 
 export function getFunctionsRegion(): string {
   return readEnv("VITE_FUNCTIONS_REGION") || "us-central1";
-}
-
-function toFunctionsOriginFromUrl(urlLike: string): string {
-  const normalized = normalizeUrlBase(urlLike);
-  if (!normalized) return "";
-  try {
-    const parsed = new URL(normalized);
-    const firstSegment = parsed.pathname.split("/").filter(Boolean)[0] || "";
-    if (firstSegment && /^[a-zA-Z0-9-]+$/.test(firstSegment)) {
-      return `${parsed.origin}`;
-    }
-    return parsed.origin;
-  } catch {
-    return normalized;
-  }
 }
 
 export function getFunctionsOrigin(): {
@@ -67,54 +53,25 @@ export function getFunctionsOrigin(): {
 } {
   const projectId = getFunctionsProjectId();
   const region = getFunctionsRegion();
-  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) {
-    return {
-      origin: toFunctionsOriginFromUrl(functionsUrl),
-      region,
-      projectId,
-    };
-  }
-
-  const functionsOrigin =
-    readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
-  if (functionsOrigin) {
-    return {
-      origin: toFunctionsOriginFromUrl(functionsOrigin),
-      region,
-      projectId,
-    };
-  }
-
   return {
-    origin: projectId
-      ? `https://${region}-${projectId}.cloudfunctions.net`
-      : "",
+    origin: getSharedFunctionsOrigin(),
     region,
     projectId,
   };
 }
 
 export function getFunctionsBaseUrl(): string {
-  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) {
-    return normalizeUrlBase(functionsUrl);
-  }
-  return getFunctionsOrigin().origin;
+  return getSharedFunctionsBaseUrl();
 }
 
 export async function functionsReachable(timeoutMs = 2500): Promise<boolean> {
-  const { origin, projectId } = getFunctionsOrigin();
-  if (!origin) return false;
-  const endpoint = urlJoin(origin, "/health");
-  if (import.meta.env.DEV) {
-    console.info("[functions] reachability probe", {
-      endpoint,
-      origin,
-      projectId,
-    });
+  let origin = "";
+  try {
+    origin = getSharedFunctionsOrigin();
+  } catch {
+    return false;
   }
-
+  const endpoint = urlJoin(origin, "/health");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -124,14 +81,7 @@ export async function functionsReachable(timeoutMs = 2500): Promise<boolean> {
       signal: controller.signal,
     });
     return response.ok;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[functions] reachability failed", {
-        origin,
-        projectId,
-        error,
-      });
-    }
+  } catch {
     return false;
   } finally {
     clearTimeout(timer);
