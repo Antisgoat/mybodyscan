@@ -78,7 +78,7 @@ export type NutritionSearchRequest = {
   query: string;
   page?: number;
   pageSize?: number;
-  sourcePreference?: "usda-first" | "off-first" | "combined";
+  sourcePreference?: "usda-first";
 };
 
 export type NutritionSearchResponse =
@@ -105,10 +105,10 @@ const USDA_DATA_TYPES = [
   "Foundation",
 ];
 
-const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+const usdaApiKeyParam = defineSecret("USDA_API_KEY");
 
 function getUsdaApiKey(): string | undefined {
-  const envValue = (process.env.USDA_FDC_API_KEY || "").trim();
+  const envValue = (process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY || "").trim();
   if (envValue) {
     return envValue;
   }
@@ -718,7 +718,7 @@ async function runSafe(
 
 type NormalizedSearchInput = {
   query: string;
-  sourcePreference: "usda-first" | "off-first" | "combined";
+  sourcePreference: "usda-first";
 };
 
 type SearchContext = {
@@ -750,13 +750,7 @@ function sanitizeSearchQuery(value: string): string {
   return limited.replace(/[^\p{L}\p{N}\s&(),.\-'/]/gu, "");
 }
 
-function normalizeSourcePreference(
-  value: unknown
-): "usda-first" | "off-first" | "combined" {
-  const raw = asString(value).trim().toLowerCase();
-  if (raw === "off-first" || raw === "combined") {
-    return raw;
-  }
+function normalizeSourcePreference(_value: unknown): "usda-first" {
   return "usda-first";
 }
 
@@ -815,34 +809,8 @@ async function runNutritionSearchCore(
 
   if (usdaResult.error) errors.push(usdaResult.error);
 
-  const offResult = await runSafe(
-    "Open Food Facts",
-    () => searchOpenFoodFacts(input.query),
-    {
-      requestId: context.requestId,
-      uid: context.uid,
-    }
-  );
-  if (offResult.error) errors.push(offResult.error);
-
-  let items: FoodItem[] =
-    input.sourcePreference === "off-first" ? [] : usdaResult.items;
+  let items: FoodItem[] = usdaResult.items;
   let source: NutritionSource | null = items.length ? "USDA" : null;
-
-  if (!items.length || input.sourcePreference !== "usda-first") {
-    if (offResult.items.length) {
-      if (input.sourcePreference === "combined" && items.length) {
-        items = [...items, ...offResult.items].slice(0, 40);
-        source = "USDA";
-      } else {
-        items = offResult.items;
-        source = offResult.items.length ? "Open Food Facts" : source;
-      }
-    } else if (!items.length) {
-      items = usdaResult.items;
-      source = items.length ? "USDA" : source;
-    }
-  }
 
   if (!items.length && errors.length) {
     const message = "Food database temporarily unavailable; please try again.";

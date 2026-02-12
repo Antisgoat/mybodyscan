@@ -88,7 +88,8 @@
     "smoke:native:ios": "MBS_PLATFORM=ios npm run smoke:native",
     "ios:deploy": "npm ci --no-audit --no-fund && npm run build && npm run build:native:ios && npx cap sync ios && npm run ios:open",
     "smoke:ios": "node scripts/smoke-ios.mjs",
-    "ios:smoke": "node scripts/ios-smoke.mjs"
+    "ios:smoke": "node scripts/ios-smoke.mjs",
+    "smoke:functions": "node scripts/smoke-functions.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.3",

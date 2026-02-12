@@ -1,3 +1,4 @@
+import { FUNCTIONS_ORIGIN } from "@/config/backend";
 import { getFirebaseConfig } from "@/lib/firebase/config";
 
 const envSource: Record<string, string | number | boolean | undefined> =
@@ -67,40 +68,16 @@ export function getFunctionsOrigin(): {
 } {
   const projectId = getFunctionsProjectId();
   const region = getFunctionsRegion();
-  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) {
-    return {
-      origin: toFunctionsOriginFromUrl(functionsUrl),
-      region,
-      projectId,
-    };
-  }
-
-  const functionsOrigin =
-    readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
-  if (functionsOrigin) {
-    return {
-      origin: toFunctionsOriginFromUrl(functionsOrigin),
-      region,
-      projectId,
-    };
-  }
 
   return {
-    origin: projectId
-      ? `https://${region}-${projectId}.cloudfunctions.net`
-      : "",
+    origin: toFunctionsOriginFromUrl(FUNCTIONS_ORIGIN),
     region,
     projectId,
   };
 }
 
 export function getFunctionsBaseUrl(): string {
-  const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) {
-    return normalizeUrlBase(functionsUrl);
-  }
-  return getFunctionsOrigin().origin;
+  return normalizeUrlBase(FUNCTIONS_ORIGIN);
 }
 
 export async function functionsReachable(timeoutMs = 2500): Promise<boolean> {

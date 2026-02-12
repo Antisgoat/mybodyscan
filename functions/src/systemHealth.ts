@@ -18,7 +18,7 @@ import {
 } from "./stripe/keys.js";
 import { getScanEngineStatus } from "./scan/engineConfig.js";
 
-const usdaFdcApiKeyParam = defineSecret("USDA_FDC_API_KEY");
+const usdaFdcApiKeyParam = defineSecret("USDA_API_KEY");
 const scanDisabledFlag = "SCAN_DISABLED";
 const coachDisabledFlag = "COACH_DISABLED";
 const workoutsDisabledFlag = "WORKOUTS_DISABLED";
@@ -70,7 +70,7 @@ export const systemHealth = onRequest(
       envPresent(process.env.STRIPE_SIGNATURE);
 
     const usdaKeyPresent =
-      envPresent(process.env.USDA_FDC_API_KEY) ||
+      envPresent(process.env.USDA_API_KEY || process.env.USDA_FDC_API_KEY) ||
       secretPresent(usdaFdcApiKeyParam);
     const nutritionRpmPresent = envPresent(process.env.NUTRITION_RPM);
     const nutritionConfigured = true;

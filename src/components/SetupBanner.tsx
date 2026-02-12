@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { FUNCTIONS_ORIGIN } from "@/config/backend";
 import { firebaseApiKey } from "../lib/firebase";
 
 type HealthSnapshot = {
@@ -12,6 +13,14 @@ export default function SetupBanner() {
   const allowInternalTools =
     import.meta.env.DEV ||
     (import.meta.env.VITE_INTERNAL_TOOLS === "1" && !__MBS_NATIVE_RELEASE__);
+
+  useEffect(() => {
+    if (import.meta.env.DEV && !FUNCTIONS_ORIGIN) {
+      setMessage(
+        "Functions origin is not configured (set VITE_FUNCTIONS_ORIGIN or VITE_FUNCTIONS_URL)."
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
